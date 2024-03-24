@@ -1,0 +1,23 @@
+{
+  "cSpell.words": [
+    "bunx",
+    "daisyui",
+    "gitzy",
+    "iconify",
+    "lefthook",
+    "libsql",
+    "lucide",
+    "nextdotjs",
+    "nextjs",
+    "pilas",
+    "tailwindcss",
+    "turso",
+    "tursodatabase"
+  ],
+  "css.lint.unknownAtRules": "ignore",
+  "tailwindCSS.experimental.classRegex": [
+    ["clsx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode"
+}
