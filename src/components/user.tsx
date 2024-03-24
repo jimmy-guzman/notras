@@ -17,10 +17,10 @@ export const User = async () => {
         className='dsy-avatar dsy-btn dsy-btn-circle dsy-btn-ghost'
       >
         <div className='w-10 rounded-full'>
-          {session?.user?.image && (
+          {session.user.image && (
             <Image
               alt='avatar'
-              src={session?.user?.image}
+              src={session.user.image}
               width={40}
               height={40}
             />
@@ -29,7 +29,7 @@ export const User = async () => {
       </div>
       <ul
         tabIndex={0}
-        className='dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box bg-base-100 p-2 shadow'
+        className='dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box border border-neutral bg-base-100 p-2 shadow'
       >
         <li>
           <form

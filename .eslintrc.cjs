@@ -2,17 +2,20 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: { project: true },
-  plugins: [
-    '@typescript-eslint',
-    'import',
-    'simple-import-sort',
-    'node-import',
-  ],
+  plugins: ['@typescript-eslint', 'simple-import-sort', 'node-import'],
   extends: [
     'next/core-web-vitals',
-    'plugin:@typescript-eslint/recommended-type-checked',
+    'plugin:import-x/recommended',
+    'plugin:import-x/typescript',
+    'plugin:@typescript-eslint/strict-type-checked',
     'plugin:@typescript-eslint/stylistic-type-checked',
   ],
+  settings: {
+    'import-x/resolver': {
+      typescript: true,
+      node: true,
+    },
+  },
   rules: {
     'node-import/prefer-node-protocol': 'error',
     'simple-import-sort/exports': 'error',
