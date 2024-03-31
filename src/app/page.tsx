@@ -18,19 +18,19 @@ export default function Page() {
             </h1>
             <p className='py-6'>
               🍱 Another opinionated NextJS Starter using,{' '}
-              <a className='dsy-link' href={links.typescript}>
+              <a className='dsy-link' href={links.typescript} target='_blank'>
                 TypeScript
               </a>
               ,{' '}
-              <a className='dsy-link' href={links.tailwindcss}>
+              <a className='dsy-link' href={links.tailwindcss} target='_blank'>
                 Tailwind CSS
               </a>
               ,{' '}
-              <a className='dsy-link' href={links.drizzle}>
+              <a className='dsy-link' href={links.drizzle} target='_blank'>
                 Drizzle ORM
               </a>{' '}
               and{' '}
-              <a className='dsy-link' href={links.turso}>
+              <a className='dsy-link' href={links.turso} target='_blank'>
                 Turso
               </a>
               .

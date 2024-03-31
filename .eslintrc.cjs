@@ -4,11 +4,16 @@ module.exports = {
   parserOptions: { project: true },
   plugins: ['@typescript-eslint', 'simple-import-sort', 'node-import'],
   extends: [
-    'next/core-web-vitals',
+    'eslint:recommended',
     'plugin:import-x/recommended',
     'plugin:import-x/typescript',
+    'plugin:react/recommended',
+    'plugin:react-hooks/recommended',
+    'plugin:jsx-a11y/recommended',
+    'plugin:import-x/react',
     'plugin:@typescript-eslint/strict-type-checked',
     'plugin:@typescript-eslint/stylistic-type-checked',
+    'next/core-web-vitals',
   ],
   settings: {
     'import-x/resolver': {

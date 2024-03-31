@@ -16,11 +16,15 @@ export default async function Page() {
           <h1 className='text-5xl font-bold'>Sign In</h1>
           <p className='py-6'>
             Authentication is powered by{' '}
-            <a className='dsy-link' href='https://authjs.dev' target='__blank'>
+            <a className='dsy-link' href='https://authjs.dev' target='_blank'>
               Auth.js
             </a>
             . Please reference their{' '}
-            <a className='dsy-link' href='https://authjs.dev/guides'>
+            <a
+              className='dsy-link'
+              href='https://authjs.dev/guides'
+              target='_blank'
+            >
               documentation
             </a>{' '}
             to learn more.

@@ -28,6 +28,7 @@ export const User = async () => {
         </div>
       </div>
       <ul
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         className='dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box border border-neutral bg-base-100 p-2 shadow'
       >
