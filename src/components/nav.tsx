@@ -10,7 +10,7 @@ export const Nav = () => {
           href='/'
           className='dsy-btn dsy-btn-ghost bg-gradient-to-r from-primary to-secondary bg-clip-text text-xl text-transparent'
         >
-          NextJS Starter
+          Next.js Starter
         </Link>
       </div>
       <div className='flex-none'>

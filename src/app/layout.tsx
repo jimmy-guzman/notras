@@ -8,8 +8,8 @@ import { Nav } from '@/components/nav'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'NextJS Starter',
-  description: 'Another opinionated NextJS Starter.',
+  title: 'Next.js Starter',
+  description: 'Another opinionated Next.js Starter.',
 }
 
 export default function RootLayout({

@@ -1,5 +1,6 @@
 import { redirect, RedirectType } from 'next/navigation'
 
+import { links } from '@/constants/links'
 import { auth, signIn } from '@/server/auth'
 
 export default async function Page() {
@@ -16,18 +17,18 @@ export default async function Page() {
           <h1 className='text-5xl font-bold'>Sign In</h1>
           <p className='py-6'>
             Authentication is powered by{' '}
-            <a className='dsy-link' href='https://authjs.dev' target='_blank'>
+            <a className='dsy-link' href={links.authjs} target='_blank'>
               Auth.js
             </a>
-            . Please reference their{' '}
-            <a
-              className='dsy-link'
-              href='https://authjs.dev/guides'
-              target='_blank'
-            >
-              documentation
+            , alongside{' '}
+            <a className='dsy-link' href={links.turso} target='_blank'>
+              Turso
             </a>{' '}
-            to learn more.
+            and{' '}
+            <a className='dsy-link' href={links.drizzle} target='_blank'>
+              Drizzle ORM
+            </a>
+            .
           </p>
         </div>
         <div className='dsy-card w-full max-w-sm shrink-0 bg-base-100 '>
