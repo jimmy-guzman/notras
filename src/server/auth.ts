@@ -14,6 +14,9 @@ export const {
 } = NextAuth({
   adapter: DrizzleAdapter(db),
   providers: [GitHub],
+  pages: {
+    signIn: '/signin',
+  },
   callbacks: {
     authorized({ request, auth }) {
       const { pathname } = request.nextUrl

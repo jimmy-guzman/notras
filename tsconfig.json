@@ -24,6 +24,7 @@
   "include": [
     ".prettierrc.js",
     ".eslintrc.cjs",
+    "next.config.mjs",
     "postcss.config.cjs",
     ".next/types/**/*.ts",
     "**/*.ts",
