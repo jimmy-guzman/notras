@@ -39,8 +39,8 @@ export const User = async () => {
               await signOut()
             }}
           >
-            <button className='block w-full place-self-stretch' type='submit'>
-              Sign Out
+            <button className='flex items-center justify-between' type='submit'>
+              <span>Sign Out</span> <span className='icon-[lucide--log-out]' />
             </button>
           </form>
         </li>
