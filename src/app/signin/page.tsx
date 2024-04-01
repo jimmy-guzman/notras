@@ -31,7 +31,7 @@ export default async function Page() {
             .
           </p>
         </div>
-        <div className='dsy-card w-full max-w-sm shrink-0 bg-base-100 '>
+        <div className='dsy-card w-full max-w-sm shrink-0 bg-base-100'>
           <form
             className='dsy-card-body'
             action={async () => {

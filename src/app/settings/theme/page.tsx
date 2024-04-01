@@ -1,13 +1,15 @@
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { parse } from 'valibot'
+import { parse, pick } from 'valibot'
 
 import { links } from '@/constants/links'
 import { themes } from '@/constants/themes'
 import { getUser } from '@/lib/get-user'
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
-import { updateUserSchema, users } from '@/server/db/schemas/users'
+import { selectUserSchema, users } from '@/server/db/schemas/users'
+
+const schema = pick(selectUserSchema, ['theme'])
 
 export default async function Page() {
   const session = await auth()
@@ -17,14 +19,16 @@ export default async function Page() {
   const user = userId ? await getUser(userId) : null
 
   return userId ? (
-    <div className='mt-16 md:container md:mx-auto'>
+    <div className='mt-16 px-4 md:container md:mx-auto'>
       <div className='prose dsy-prose mb-8'>
         <h1>Theme</h1>
         <p>
-          Themes are powered by{' '}
-          <a href={links.daisyUIThemes} target='_blank'>
-            DaisyUI&apos;s themes
-          </a>
+          <em>
+            Themes are powered by{' '}
+            <a href={links.daisyUIThemes} target='_blank'>
+              DaisyUI&apos;s themes
+            </a>
+          </em>
           .
         </p>
       </div>
@@ -34,14 +38,9 @@ export default async function Page() {
         action={async (formData) => {
           'use server'
 
-          const validatedFields = parse(updateUserSchema, {
-            theme: formData.get('theme'),
-          })
+          const values = parse(schema, { theme: formData.get('theme') })
 
-          await db
-            .update(users)
-            .set(validatedFields)
-            .where(eq(users.id, userId))
+          await db.update(users).set(values).where(eq(users.id, userId))
 
           revalidatePath('/', 'layout')
         }}
@@ -63,7 +62,7 @@ export default async function Page() {
           )
         })}
         <div className='flex justify-end'>
-          <button type='submit' className='dsy-btn'>
+          <button type='submit' className='dsy-btn dsy-btn-accent'>
             Save
           </button>
         </div>

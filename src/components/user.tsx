@@ -44,6 +44,7 @@ export const User = async () => {
             </span>
           </Link>{' '}
         </li>
+        <span className='dsy-divider my-0' />
         <li>
           <form
             className='grid-cols-1'

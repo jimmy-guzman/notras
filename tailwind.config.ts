@@ -1,6 +1,6 @@
 import { addDynamicIconSelectors } from '@iconify/tailwind'
 import typography from '@tailwindcss/typography'
-import daisyui from 'daisyui'
+import daisyui, { type Config as DaisyUIConfig } from 'daisyui'
 import type { Config } from 'tailwindcss'
 
 const config = {
@@ -10,12 +10,11 @@ const config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   daisyui: {
-    // see https://daisyui.com/docs/themes/ for further customization
-    themes: ['dark', 'light', 'night', 'cyberpunk', 'dim'],
+    themes: ['dark', 'light', 'night', 'cyberpunk', 'dim', 'cmyk'],
     prefix: 'dsy-',
     logs: false,
   },
   plugins: [typography, daisyui, addDynamicIconSelectors()],
-} satisfies Config
+} satisfies Config & { daisyui: DaisyUIConfig }
 
 export default config
