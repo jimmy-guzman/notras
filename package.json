@@ -19,11 +19,13 @@
     "@auth/drizzle-adapter": "0.8.2",
     "@libsql/client": "0.6.0",
     "@t3-oss/env-nextjs": "0.9.2",
+    "clsx": "2.1.0",
     "drizzle-orm": "0.30.6",
     "next": "14.1.4",
     "next-auth": "5.0.0-beta.16",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "tailwind-merge": "2.2.2",
     "zod": "3.22.4"
   },
   "devDependencies": {

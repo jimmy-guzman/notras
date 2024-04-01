@@ -19,9 +19,9 @@ export default async function Page() {
   const user = userId ? await getUser(userId) : null
 
   return userId ? (
-    <div className='mt-16 px-4 md:container md:mx-auto'>
+    <div>
       <div className='prose dsy-prose mb-8'>
-        <h1>Theme</h1>
+        <h2>Theme</h2>
         <p>
           <em>
             Themes are powered by{' '}
