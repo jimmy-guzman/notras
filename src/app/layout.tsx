@@ -2,8 +2,11 @@ import './globals.css'
 
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import type { ReactNode } from 'react'
 
 import { Nav } from '@/components/nav'
+import { getUser } from '@/lib/get-user'
+import { auth } from '@/server/auth'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -12,13 +15,15 @@ export const metadata: Metadata = {
   description: 'Another opinionated Next.js Starter.',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+}: Readonly<{ children: ReactNode }>) {
+  const session = await auth()
+
+  const user = session?.user?.id ? await getUser(session.user.id) : null
+
   return (
-    <html lang='en'>
+    <html lang='en' data-theme={user?.theme}>
       <body className={inter.className}>
         <div className='max-w-[100vw] px-6 pb-16 xl:pr-2'>
           <Nav />

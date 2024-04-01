@@ -4,7 +4,7 @@ import { User } from './user'
 
 export const Nav = () => {
   return (
-    <nav className='dsy-navbar static w-full lg:sticky lg:top-0 lg:z-30 lg:shadow-sm lg:backdrop-blur'>
+    <nav className='dsy-navbar static w-full lg:sticky lg:top-0 lg:z-30 lg:backdrop-blur'>
       <div className='flex-1'>
         <Link
           href='/'

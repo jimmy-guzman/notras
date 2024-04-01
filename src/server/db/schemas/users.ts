@@ -1,5 +1,9 @@
 import type { AdapterAccount } from '@auth/core/adapters'
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { createInsertSchema } from 'drizzle-valibot'
+import { partial } from 'valibot'
+
+import { themes } from '@/constants/themes'
 
 export const users = sqliteTable('user', {
   id: text('id').notNull().primaryKey(),
@@ -7,7 +11,10 @@ export const users = sqliteTable('user', {
   email: text('email').notNull(),
   emailVerified: integer('emailVerified', { mode: 'timestamp_ms' }),
   image: text('image'),
+  theme: text('theme', { enum: themes }).default('dark').notNull(),
 })
+
+export const updateUserSchema = partial(createInsertSchema(users))
 
 export const accounts = sqliteTable(
   'account',

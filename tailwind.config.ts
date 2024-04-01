@@ -11,7 +11,7 @@ const config = {
   ],
   daisyui: {
     // see https://daisyui.com/docs/themes/ for further customization
-    themes: ['dark', 'light'],
+    themes: ['dark', 'light', 'night', 'cyberpunk', 'dim'],
     prefix: 'dsy-',
     logs: false,
   },

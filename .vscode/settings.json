@@ -15,7 +15,8 @@
     "signin",
     "tailwindcss",
     "turso",
-    "tursodatabase"
+    "tursodatabase",
+    "valibot"
   ],
   "css.lint.unknownAtRules": "ignore",
   "tailwindCSS.experimental.classRegex": [

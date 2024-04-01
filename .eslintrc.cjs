@@ -26,6 +26,14 @@ module.exports = {
     'node-import/prefer-node-protocol': 'error',
     'simple-import-sort/exports': 'error',
     'simple-import-sort/imports': 'error',
+    '@typescript-eslint/consistent-type-imports': [
+      'error',
+      { fixStyle: 'inline-type-imports' },
+    ],
+    '@typescript-eslint/consistent-type-exports': [
+      'error',
+      { fixMixedExportsWithInlineTypeSpecifier: true },
+    ],
     '@typescript-eslint/no-misused-promises': [
       'error',
       { checksVoidReturn: { attributes: false } },

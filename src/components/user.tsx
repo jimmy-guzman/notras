@@ -1,5 +1,7 @@
 import Image from 'next/image'
+import Link from 'next/link'
 
+import { getUser } from '@/lib/get-user'
 import { auth, signOut } from '@/server/auth'
 
 import { SignIn } from './sign-in'
@@ -7,7 +9,9 @@ import { SignIn } from './sign-in'
 export const User = async () => {
   const session = await auth()
 
-  if (!session?.user) return <SignIn />
+  if (!session?.user?.id) return <SignIn />
+
+  const user = await getUser(session.user.id)
 
   return (
     <div className='dsy-dropdown dsy-dropdown-end'>
@@ -32,6 +36,14 @@ export const User = async () => {
         tabIndex={0}
         className='dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box border border-neutral bg-base-100 p-2 shadow'
       >
+        <li>
+          <Link href='/settings/theme'>
+            Theme:{' '}
+            <span className='dsy-badge dsy-badge-neutral capitalize'>
+              {user.theme}
+            </span>
+          </Link>{' '}
+        </li>
         <li>
           <form
             className='grid-cols-1'
