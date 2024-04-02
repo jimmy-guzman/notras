@@ -36,6 +36,9 @@ export const User = async () => {
         tabIndex={0}
         className='dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box border border-neutral bg-base-100 p-2 shadow'
       >
+        <li className='dsy-menu-title'>{user.name}</li>
+        <li className='dsy-menu-title'>{user.email}</li>
+        <span className='dsy-divider my-0' />
         <li>
           <Link href='/settings/theme'>
             Theme:{' '}
