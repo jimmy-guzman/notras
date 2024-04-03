@@ -1,22 +1,22 @@
-'use client'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { type ReactNode } from 'react'
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { type ReactNode } from "react";
 
-import { cn } from '@/lib/cn'
+import { cn } from "@/lib/cn";
 
 export const MenuLink = ({
   to,
   children,
 }: {
-  to: string
-  children: ReactNode
+  to: string;
+  children: ReactNode;
 }) => {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   return (
-    <Link href={to} className={cn(pathname === to ? 'dsy-active' : '')}>
+    <Link href={to} className={cn(pathname === to ? "dsy-active" : "")}>
       {children}
     </Link>
-  )
-}
+  );
+};

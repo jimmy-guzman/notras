@@ -1,10 +1,10 @@
-import { DrizzleAdapter } from '@auth/drizzle-adapter'
-import NextAuth from 'next-auth'
-import GitHub from 'next-auth/providers/github'
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import NextAuth from "next-auth";
+import GitHub from "next-auth/providers/github";
 
-import { db } from '@/server/db'
+import { db } from "@/server/db";
 
-const protectedRoutes = ['/settings/theme']
+const protectedRoutes = ["/settings/theme"];
 
 export const {
   handlers: { GET, POST },
@@ -15,13 +15,13 @@ export const {
   adapter: DrizzleAdapter(db),
   providers: [GitHub],
   pages: {
-    signIn: '/signin',
+    signIn: "/signin",
   },
   callbacks: {
     authorized({ request, auth }) {
-      const { pathname } = request.nextUrl
+      const { pathname } = request.nextUrl;
 
-      return protectedRoutes.includes(pathname) ? !!auth : true
+      return protectedRoutes.includes(pathname) ? !!auth : true;
     },
   },
-})
+});

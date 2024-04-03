@@ -1,31 +1,31 @@
-import { eq } from 'drizzle-orm'
-import { revalidatePath } from 'next/cache'
-import { parse, pick } from 'valibot'
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { parse, pick } from "valibot";
 
-import { links } from '@/constants/links'
-import { themes } from '@/constants/themes'
-import { getUser } from '@/lib/get-user'
-import { auth } from '@/server/auth'
-import { db } from '@/server/db'
-import { selectUserSchema, users } from '@/server/db/schemas/users'
+import { links } from "@/constants/links";
+import { themes } from "@/constants/themes";
+import { getUser } from "@/lib/get-user";
+import { auth } from "@/server/auth";
+import { db } from "@/server/db";
+import { selectUserSchema, users } from "@/server/db/schemas/users";
 
-const schema = pick(selectUserSchema, ['theme'])
+const schema = pick(selectUserSchema, ["theme"]);
 
 export default async function Page() {
-  const session = await auth()
+  const session = await auth();
 
-  const userId = session?.user?.id
+  const userId = session?.user?.id;
 
-  const user = userId ? await getUser(userId) : null
+  const user = userId ? await getUser(userId) : null;
 
   return userId ? (
     <div>
-      <div className='prose dsy-prose mb-8'>
+      <div className="prose dsy-prose mb-8">
         <h2>Theme</h2>
         <p>
           <em>
-            Themes are powered by{' '}
-            <a href={links.daisyUIThemes} target='_blank'>
+            Themes are powered by{" "}
+            <a href={links.daisyUIThemes} target="_blank">
               DaisyUI&apos;s themes
             </a>
           </em>
@@ -34,39 +34,39 @@ export default async function Page() {
       </div>
 
       <form
-        className='flex flex-col gap-4'
+        className="flex flex-col gap-4"
         action={async (formData) => {
-          'use server'
+          "use server";
 
-          const values = parse(schema, { theme: formData.get('theme') })
+          const values = parse(schema, { theme: formData.get("theme") });
 
-          await db.update(users).set(values).where(eq(users.id, userId))
+          await db.update(users).set(values).where(eq(users.id, userId));
 
-          revalidatePath('/', 'layout')
+          revalidatePath("/", "layout");
         }}
       >
         {themes.map((theme) => {
           return (
-            <div key={theme} className='dsy-form-control'>
-              <label className='dsy-label cursor-pointer gap-4'>
-                <span className='dsy-label-text capitalize'>{theme}</span>
+            <div key={theme} className="dsy-form-control">
+              <label className="dsy-label cursor-pointer gap-4">
+                <span className="dsy-label-text capitalize">{theme}</span>
                 <input
-                  type='radio'
-                  name='theme'
-                  className='theme-controller dsy-radio'
+                  type="radio"
+                  name="theme"
+                  className="theme-controller dsy-radio"
                   value={theme}
                   defaultChecked={user?.theme === theme}
                 />
               </label>
             </div>
-          )
+          );
         })}
-        <div className='flex justify-end'>
-          <button type='submit' className='dsy-btn dsy-btn-accent'>
+        <div className="flex justify-end">
+          <button type="submit" className="dsy-btn dsy-btn-accent">
             Save
           </button>
         </div>
       </form>
     </div>
-  ) : null
+  ) : null;
 }
