@@ -64,5 +64,5 @@
     "typescript": "5.4.4",
     "valibot": "0.30.0"
   },
-  "packageManager": "pnpm@8.15.5"
+  "packageManager": "pnpm@8.15.6"
 }

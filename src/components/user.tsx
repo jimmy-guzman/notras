@@ -9,7 +9,9 @@ import { SignIn } from "./sign-in";
 export const User = async () => {
   const session = await auth();
 
-  if (!session?.user?.id) return <SignIn />;
+  if (!session?.user?.id) {
+    return <SignIn />;
+  }
 
   const user = await getUser(session.user.id);
 

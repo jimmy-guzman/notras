@@ -4,7 +4,9 @@ import { db } from "@/server/db";
 
 const prepared = db.query.users
   .findFirst({
-    where: (users, { eq }) => eq(users.id, sql.placeholder("id")),
+    where: (users, { eq }) => {
+      return eq(users.id, sql.placeholder("id"));
+    },
   })
   .prepare();
 

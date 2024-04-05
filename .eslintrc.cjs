@@ -23,10 +23,16 @@ module.exports = {
     },
   },
   rules: {
+    "curly": "error",
+    "arrow-body-style": ["error", "always"],
+
     "node-import/prefer-node-protocol": "error",
+
     "simple-import-sort/exports": "error",
     "simple-import-sort/imports": "error",
+
     "react/self-closing-comp": "error",
+
     "@typescript-eslint/consistent-type-imports": [
       "error",
       { fixStyle: "inline-type-imports" },
