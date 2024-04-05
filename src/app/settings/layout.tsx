@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 
-import { MenuLink } from "@/components/menu-link";
+import { ActiveLink } from "@/components/active-link";
 
 export default function Layout({
   children,
@@ -10,7 +10,7 @@ export default function Layout({
       <div className="grid-flow-col auto-rows-max gap-4 sm:grid">
         <ul className="dsy-menu dsy-menu-horizontal sm:dsy-menu-vertical">
           <li>
-            <MenuLink to="/settings/theme">Theme</MenuLink>
+            <ActiveLink href="/settings/theme">Theme</ActiveLink>
           </li>
         </ul>
         <div className="col-span-8 grid gap-8">

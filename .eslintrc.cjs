@@ -25,6 +25,7 @@ module.exports = {
   rules: {
     "curly": "error",
     "arrow-body-style": ["error", "always"],
+    "object-shorthand": "error",
 
     "node-import/prefer-node-protocol": "error",
 
