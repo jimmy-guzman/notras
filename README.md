@@ -25,5 +25,11 @@ turso db create pilas-dev --from-db pilas
 ```
 
 ```
-turso db show pilas --url
+turso db show pilas-dev --url
+```
+
+### Database
+
+```
+pnpm db:push
 ```

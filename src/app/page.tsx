@@ -1,3 +1,4 @@
+import { Icons } from "@/components/icons";
 import { links } from "@/constants/links";
 
 export default function Page() {
@@ -5,10 +6,11 @@ export default function Page() {
     <div className="-mt-16 md:container md:mx-auto">
       <div className="dsy-hero min-h-screen">
         <div className="dsy-hero-content flex-col gap-8">
-          <div className="flex gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <span className="icon-[simple-icons--nextdotjs] text-5xl text-white md:text-7xl" />
             <span className="icon-[simple-icons--typescript] text-5xl text-[#3178C6] md:text-7xl" />
             <span className="icon-[simple-icons--tailwindcss] text-5xl text-[#06B6D4] md:text-7xl" />
+            <Icons.daisyUI className="h-12 w-12 md:h-[4.5rem] md:w-[4.5rem]" />
             <span className="icon-[simple-icons--drizzle] text-5xl text-[#C5F74F] md:text-7xl" />
             <span className="icon-[simple-icons--turso] text-5xl text-[#4FF8D2] md:text-7xl" />
           </div>
@@ -24,6 +26,10 @@ export default function Page() {
               ,{" "}
               <a className="dsy-link" href={links.tailwindcss} target="_blank">
                 Tailwind CSS
+              </a>
+              ,{" "}
+              <a className="dsy-link" href={links.daisyUI} target="_blank">
+                daisyUI
               </a>
               ,{" "}
               <a className="dsy-link" href={links.drizzle} target="_blank">
