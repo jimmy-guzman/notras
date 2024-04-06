@@ -9,6 +9,7 @@ export const Icons = {
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
+        <title>daisyUI</title>
         <rect
           x="256"
           y="670.72"

@@ -18,8 +18,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*", "./themes.config.ts"]
-    }
+      "@/*": ["./src/*"]
+    },
+    "types": ["vitest/globals"]
   },
   "include": [
     ".prettierrc.js",

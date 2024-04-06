@@ -34,6 +34,7 @@ module.exports = {
     "simple-import-sort/imports": "error",
 
     "react/self-closing-comp": "error",
+    "react/jsx-curly-brace-presence": "error",
 
     "@typescript-eslint/consistent-type-imports": [
       "error",
