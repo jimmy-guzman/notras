@@ -4,7 +4,7 @@ import GitHub from "next-auth/providers/github";
 
 import { db } from "@/server/db";
 
-const protectedRoutes = ["/settings/theme"];
+const protectedRoutes = ["/settings/profile", "/settings/theme"];
 
 export const {
   handlers: { GET, POST },

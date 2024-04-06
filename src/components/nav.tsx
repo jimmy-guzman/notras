@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { User } from "./user";
+import { UserDropdown } from "./user-dropdown";
 
 export const Nav = () => {
   return (
@@ -8,13 +8,13 @@ export const Nav = () => {
       <div className="flex-1">
         <Link
           href="/"
-          className="dsy-btn dsy-btn-ghost bg-gradient-to-r from-primary to-secondary bg-clip-text text-xl text-transparent"
+          className="dsy-btn dsy-btn-ghost bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-xl text-transparent"
         >
           Next.js Starter
         </Link>
       </div>
       <div className="flex-none">
-        <User />
+        <UserDropdown />
       </div>
     </nav>
   );

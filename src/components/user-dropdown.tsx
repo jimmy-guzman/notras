@@ -2,15 +2,24 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { getUser } from "@/lib/get-user";
-import { auth, signOut } from "@/server/auth";
+import { auth, signIn, signOut } from "@/server/auth";
 
-import { SignIn } from "./sign-in";
-
-export const User = async () => {
+export const UserDropdown = async () => {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return <SignIn />;
+    return (
+      <form
+        action={async () => {
+          "use server";
+          await signIn();
+        }}
+      >
+        <button type="submit" className="dsy-btn dsy-btn-ghost">
+          Sign In
+        </button>
+      </form>
+    );
   }
 
   const user = await getUser(session.user.id);
@@ -42,12 +51,18 @@ export const User = async () => {
         <li className="dsy-menu-title">{user.email}</li>
         <span className="dsy-divider my-0" />
         <li>
-          <Link href="/settings/theme">
-            Theme:{" "}
+          <Link href="/settings" className="justify-between">
+            <span>Settings</span>
+            <span className="icon-[lucide--user-cog]" />
+          </Link>
+        </li>
+        <li>
+          <Link href="/settings/theme" className="justify-between">
+            <span>Theme</span>
             <span className="dsy-badge dsy-badge-neutral capitalize">
               {user.theme}
             </span>
-          </Link>{" "}
+          </Link>
         </li>
         <span className="dsy-divider my-0" />
         <li>

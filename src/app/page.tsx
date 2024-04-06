@@ -15,7 +15,7 @@ export default function Page() {
             <span className="icon-[simple-icons--turso] text-5xl text-[#4FF8D2] md:text-7xl" />
           </div>
           <div className="flex flex-col gap-4 text-center">
-            <h1 className="inline bg-gradient-to-r from-primary to-secondary bg-clip-text pb-2 text-7xl font-bold text-transparent sm:text-8xl">
+            <h1 className="inline bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text pb-2 text-7xl font-bold text-transparent sm:text-8xl">
               Next.js Starter
             </h1>
             <p className="py-6">

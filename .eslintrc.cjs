@@ -26,6 +26,7 @@ module.exports = {
     "curly": "error",
     "arrow-body-style": ["error", "always"],
     "object-shorthand": "error",
+    "prefer-arrow-callback": "error",
 
     "node-import/prefer-node-protocol": "error",
 

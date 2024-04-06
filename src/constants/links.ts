@@ -5,5 +5,4 @@ export const links = {
   turso: "https://turso.tech",
   authjs: "https://authjs.dev",
   daisyUI: "https://daisyui.com",
-  daisyUIThemes: "https://daisyui.com/docs/themes",
 } satisfies Record<string, `https://${string}.${string}`>;

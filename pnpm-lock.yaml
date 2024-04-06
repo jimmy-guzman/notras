@@ -121,6 +121,9 @@ devDependencies:
   gitzy:
     specifier: 5.2.0
     version: 5.2.0
+  jiti:
+    specifier: 1.21.0
+    version: 1.21.0
   lefthook:
     specifier: 1.6.8
     version: 1.6.8

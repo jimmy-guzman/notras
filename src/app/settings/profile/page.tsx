@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { parse, pick } from "valibot";
 
-import { themes } from "@/constants/themes";
 import { getUser } from "@/lib/get-user";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
@@ -20,7 +19,7 @@ export default async function Page() {
   return userId ? (
     <div>
       <div className="prose dsy-prose mb-8">
-        <h2>Theme</h2>
+        <h2>Profile</h2>
       </div>
 
       <form
@@ -35,24 +34,34 @@ export default async function Page() {
           revalidatePath("/", "layout");
         }}
       >
-        {themes.map((theme) => {
-          return (
-            <div key={theme} className="dsy-form-control">
-              <label className="dsy-label cursor-pointer gap-4">
-                <span className="dsy-label-text capitalize">{theme}</span>
-                <input
-                  type="radio"
-                  name="theme"
-                  className="theme-controller dsy-radio"
-                  value={theme}
-                  defaultChecked={user?.theme === theme}
-                />
-              </label>
-            </div>
-          );
-        })}
+        <div className="dsy-form-control w-full">
+          <label className="dsy-label" htmlFor="name">
+            <span className="dsy-label-text capitalize">Name</span>
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            className="dsy-input dsy-input-bordered"
+            defaultValue={user?.name ?? ""}
+            disabled
+          />
+        </div>
+        <div className="dsy-form-control w-full">
+          <label className="dsy-label" htmlFor="email">
+            <span className="dsy-label-text capitalize">Email</span>
+          </label>
+          <input
+            type="text"
+            id="email"
+            name="email"
+            className="dsy-input dsy-input-bordered"
+            defaultValue={user?.email}
+            disabled
+          />
+        </div>
         <div className="flex justify-end sm:justify-start">
-          <button type="submit" className="dsy-btn dsy-btn-accent">
+          <button type="submit" className="dsy-btn dsy-btn-accent" disabled>
             Save
           </button>
         </div>

@@ -1,3 +1,11 @@
+import { fileURLToPath } from "node:url";
+
+import createJiti from "jiti";
+
+const jiti = createJiti(fileURLToPath(import.meta.url));
+
+jiti("./src/env");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -7,7 +15,7 @@ const nextConfig = {
     return [
       {
         source: "/settings",
-        destination: "/settings/theme",
+        destination: "/settings/profile",
         permanent: true,
       },
     ];
