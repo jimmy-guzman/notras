@@ -20,23 +20,48 @@ export default function Page() {
             </h1>
             <p className="py-6">
               🍱 Another opinionated Next.js Starter using{" "}
-              <a className="dsy-link" href={links.typescript} target="_blank">
+              <a
+                className="dsy-link"
+                href={links.typescript}
+                target="_blank"
+                rel="noreferrer"
+              >
                 TypeScript
               </a>
               ,{" "}
-              <a className="dsy-link" href={links.tailwindcss} target="_blank">
+              <a
+                className="dsy-link"
+                href={links.tailwindcss}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Tailwind CSS
               </a>
               ,{" "}
-              <a className="dsy-link" href={links.daisyUI} target="_blank">
+              <a
+                className="dsy-link"
+                href={links.daisyUI}
+                target="_blank"
+                rel="noreferrer"
+              >
                 daisyUI
               </a>
               ,{" "}
-              <a className="dsy-link" href={links.drizzle} target="_blank">
+              <a
+                className="dsy-link"
+                href={links.drizzle}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Drizzle ORM
               </a>{" "}
               and{" "}
-              <a className="dsy-link" href={links.turso} target="_blank">
+              <a
+                className="dsy-link"
+                href={links.turso}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Turso
               </a>
               .

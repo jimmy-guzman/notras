@@ -32,14 +32,14 @@ export const UserDropdown = async () => {
         className="dsy-avatar dsy-btn dsy-btn-circle dsy-btn-ghost"
       >
         <div className="w-10 rounded-full">
-          {session.user.image && (
+          {session.user.image ? (
             <Image
               alt="avatar"
               src={session.user.image}
               width={40}
               height={40}
             />
-          )}
+          ) : null}
         </div>
       </div>
       <ul

@@ -17,15 +17,30 @@ export default async function Page() {
           <h1 className="text-5xl font-bold">Sign In</h1>
           <p className="py-6">
             Authentication is powered by{" "}
-            <a className="dsy-link" href={links.authjs} target="_blank">
+            <a
+              className="dsy-link"
+              href={links.authjs}
+              target="_blank"
+              rel="noreferrer"
+            >
               Auth.js
             </a>
             , alongside{" "}
-            <a className="dsy-link" href={links.turso} target="_blank">
+            <a
+              className="dsy-link"
+              href={links.turso}
+              target="_blank"
+              rel="noreferrer"
+            >
               Turso
             </a>{" "}
             and{" "}
-            <a className="dsy-link" href={links.drizzle} target="_blank">
+            <a
+              className="dsy-link"
+              href={links.drizzle}
+              target="_blank"
+              rel="noreferrer"
+            >
               Drizzle ORM
             </a>
             .
