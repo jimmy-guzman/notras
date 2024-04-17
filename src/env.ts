@@ -7,6 +7,7 @@ export const env = createEnv({
     AUTH_SECRET: z.string(),
     AUTH_GITHUB_ID: z.string(),
     AUTH_GITHUB_SECRET: z.string(),
+    AUTH_TRUST_HOST: z.boolean({ coerce: true }).optional(),
     DATABASE_URL: z.string(),
     DATABASE_AUTH_TOKEN: z.string(),
   },

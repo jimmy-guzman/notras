@@ -15,7 +15,7 @@
     "coverage": "vitest run --coverage",
     "db:push": "drizzle-kit push:sqlite",
     "db:studio": "drizzle-kit studio",
-    "prepare": "lefthook install"
+    "prepare": "is-ci || lefthook install"
   },
   "prettier": "@jimmy.codes/prettier-config",
   "dependencies": {
@@ -28,6 +28,7 @@
     "next-auth": "5.0.0-beta.16",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "sharp": "0.33.3",
     "tailwind-merge": "2.2.2",
     "zod": "3.22.4"
   },
@@ -56,6 +57,7 @@
     "eslint-config-next": "14.2.1",
     "gitzy": "5.3.0",
     "happy-dom": "14.7.1",
+    "is-ci": "3.0.1",
     "jiti": "1.21.0",
     "lefthook": "1.6.10",
     "postcss": "8.4.38",
