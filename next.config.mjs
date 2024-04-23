@@ -1,3 +1,4 @@
+// @ts-check
 import { fileURLToPath } from "node:url";
 
 import createJiti from "jiti";
@@ -11,7 +12,7 @@ const nextConfig = {
   images: {
     remotePatterns: [{ hostname: "avatars.githubusercontent.com" }],
   },
-  redirects() {
+  async redirects() {
     return [
       {
         source: "/settings",
