@@ -17,5 +17,5 @@ export const env = createEnv({
   experimental__runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
   },
-  extends: [vercel],
+  extends: [vercel()],
 });
