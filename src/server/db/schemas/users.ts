@@ -1,4 +1,3 @@
-import type { AdapterAccount } from "@auth/core/adapters";
 import {
   integer,
   primaryKey,
@@ -6,6 +5,7 @@ import {
   text,
 } from "drizzle-orm/sqlite-core";
 import { createSelectSchema } from "drizzle-valibot";
+import { type AdapterAccount } from "next-auth/adapters";
 
 import { themes } from "@/constants/themes";
 

@@ -33,7 +33,7 @@
     "zod": "3.23.3"
   },
   "devDependencies": {
-    "@auth/core": "0.29.0",
+    "@auth/core": "0.30.0",
     "@iconify-json/logos": "1.1.42",
     "@iconify-json/lucide": "1.1.184",
     "@iconify-json/simple-icons": "1.1.100",
@@ -67,6 +67,11 @@
     "valibot": "0.30.0",
     "vite-tsconfig-paths": "4.3.2",
     "vitest": "1.5.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@auth/core": "$@auth/core"
+    }
   },
   "packageManager": "pnpm@8.15.6"
 }
