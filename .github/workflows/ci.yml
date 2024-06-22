@@ -13,11 +13,11 @@ jobs:
       - name: 📦 Install
         uses: ./.github/actions/install
 
-      - name: 🚨 Lint
-        run: pnpm lint
-
       - name: 🎨 Format
         run: pnpm format
+
+      - name: 🚨 Lint
+        run: pnpm lint
 
       - name: ✅ Coverage
         run: pnpm coverage
