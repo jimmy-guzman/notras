@@ -51,11 +51,7 @@ export default async function Page() {
       >
         {themes.map((theme) => {
           return (
-            <ThemeOption
-              key={theme}
-              userTheme={user?.theme}
-              currentTheme={theme}
-            />
+            <ThemeOption key={theme} userTheme={user?.theme} theme={theme} />
           );
         })}
         <div className="flex justify-end sm:justify-start">

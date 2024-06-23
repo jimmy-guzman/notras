@@ -1,12 +1,11 @@
 import { type Theme } from "daisyui";
 
-export const ThemeOption = ({
-  currentTheme: theme,
-  userTheme,
-}: {
-  currentTheme: Theme;
+interface ThemeOptionsProps {
+  theme: Theme;
   userTheme?: Theme;
-}) => {
+}
+
+export const ThemeOption = ({ theme, userTheme }: ThemeOptionsProps) => {
   return (
     <div className="dsy-form-control">
       <label className="dsy-label cursor-pointer gap-4">
