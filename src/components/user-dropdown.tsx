@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { getUser } from "@/lib/get-user";
+import { getUserByUserId } from "@/lib/get-user-by-user-id";
 import { auth, signIn, signOut } from "@/server/auth";
 
 export const UserDropdown = async () => {
@@ -22,7 +22,7 @@ export const UserDropdown = async () => {
     );
   }
 
-  const user = await getUser(session.user.id);
+  const user = await getUserByUserId(session.user.id);
 
   return (
     <div className="dsy-dropdown dsy-dropdown-end">
@@ -31,7 +31,7 @@ export const UserDropdown = async () => {
         role="button"
         className="dsy-avatar dsy-btn dsy-btn-circle dsy-btn-ghost"
       >
-        <div className="w-10 rounded-full">
+        <div className="h-8 w-8 rounded-full">
           {session.user.image ? (
             <Image
               alt="avatar"

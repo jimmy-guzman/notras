@@ -2,8 +2,10 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { parse, pick } from "valibot";
 
+import { ThemeOption } from "@/components/theme-option";
+import { links } from "@/constants/links";
 import { themes } from "@/constants/themes";
-import { getUser } from "@/lib/get-user";
+import { getUserByUserId } from "@/lib/get-user-by-user-id";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { selectUserSchema, users } from "@/server/db/schemas/users";
@@ -15,12 +17,24 @@ export default async function Page() {
 
   const userId = session?.user?.id;
 
-  const user = userId ? await getUser(userId) : null;
+  const user = userId ? await getUserByUserId(userId) : null;
 
   return userId ? (
     <div>
       <div className="prose dsy-prose mb-8">
-        <h2>Theme</h2>
+        <h2>Choose Your Theme</h2>
+        <p>
+          Theming is powered by{" "}
+          <a
+            className="dsy-link"
+            href={links.daisyUIThemes}
+            target="_blank"
+            rel="noreferrer"
+          >
+            daisyUI themes
+          </a>
+          .
+        </p>
       </div>
 
       <form
@@ -37,18 +51,11 @@ export default async function Page() {
       >
         {themes.map((theme) => {
           return (
-            <div key={theme} className="dsy-form-control">
-              <label className="dsy-label cursor-pointer gap-4">
-                <span className="dsy-label-text capitalize">{theme}</span>
-                <input
-                  type="radio"
-                  name="theme"
-                  className="theme-controller dsy-radio"
-                  value={theme}
-                  defaultChecked={user?.theme === theme}
-                />
-              </label>
-            </div>
+            <ThemeOption
+              key={theme}
+              userTheme={user?.theme}
+              currentTheme={theme}
+            />
           );
         })}
         <div className="flex justify-end sm:justify-start">

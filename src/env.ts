@@ -12,7 +12,9 @@ export const env = createEnv({
     DATABASE_AUTH_TOKEN: z.string(),
   },
   shared: {
-    NODE_ENV: z.enum(["development", "production"]).default("development"),
+    NODE_ENV: z
+      .enum(["development", "production", "test"])
+      .default("development"),
   },
   experimental__runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
