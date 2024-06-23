@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "clean": "rm -rf .next",
     "coverage": "vitest run --coverage",
     "db:push": "drizzle-kit push:sqlite",
     "db:studio": "drizzle-kit studio",
@@ -36,7 +37,6 @@
   },
   "devDependencies": {
     "@auth/core": "0.34.1",
-    "@iconify-json/logos": "1.1.43",
     "@iconify-json/lucide": "1.1.194",
     "@iconify-json/simple-icons": "1.1.106",
     "@iconify/tailwind": "1.1.1",
@@ -52,7 +52,7 @@
     "@vitejs/plugin-react": "4.3.1",
     "@vitest/coverage-v8": "1.6.0",
     "autoprefixer": "10.4.19",
-    "daisyui": "4.12.2",
+    "daisyui": "4.12.6",
     "drizzle-kit": "0.22.7",
     "drizzle-valibot": "0.2.0",
     "eslint": "8.57.0",
@@ -69,5 +69,10 @@
     "vite-tsconfig-paths": "4.3.2",
     "vitest": "1.6.0"
   },
-  "packageManager": "pnpm@9.4.0"
+  "packageManager": "pnpm@9.4.0",
+  "pnpm": {
+    "overrides": {
+      "@auth/core": "$@auth/core"
+    }
+  }
 }

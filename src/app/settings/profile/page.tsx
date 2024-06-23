@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { parse, pick } from "valibot";
 
-import { getUser } from "@/lib/get-user";
+import { getUserByUserId } from "@/lib/get-user-by-user-id";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { selectUserSchema, users } from "@/server/db/schemas/users";
@@ -14,7 +14,7 @@ export default async function Page() {
 
   const userId = session?.user?.id;
 
-  const user = userId ? await getUser(userId) : null;
+  const user = userId ? await getUserByUserId(userId) : null;
 
   return userId ? (
     <div>

@@ -5,7 +5,7 @@ import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { Nav } from "@/components/nav";
-import { getUser } from "@/lib/get-user";
+import { getUserByUserId } from "@/lib/get-user-by-user-id";
 import { auth } from "@/server/auth";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -20,7 +20,9 @@ export default async function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   const session = await auth();
 
-  const user = session?.user?.id ? await getUser(session.user.id) : null;
+  const user = session?.user?.id
+    ? await getUserByUserId(session.user.id)
+    : null;
 
   return (
     <html lang="en" data-theme={user?.theme}>

@@ -10,7 +10,7 @@ const prepared = db.query.users
   })
   .prepare();
 
-export const getUser = async (id: string) => {
+export const getUserByUserId = async (id: string) => {
   const user = await prepared.execute({ id });
 
   if (!user) {
