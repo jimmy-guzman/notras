@@ -3,20 +3,20 @@ import { render, screen } from "@testing-library/react";
 import { ThemeOption } from "./theme-option";
 
 describe("ThemeOption", () => {
-  it("should not be checked when user's theme is not provided", () => {
-    render(<ThemeOption currentTheme="night" />);
+  it("should NOT be checked when user's theme is NOT provided", () => {
+    render(<ThemeOption theme="night" />);
 
     expect(screen.getByRole("radio")).not.toBeChecked();
   });
 
-  it("should be checked when user's theme equals current theme", () => {
-    render(<ThemeOption currentTheme="night" userTheme="night" />);
+  it("should be checked when user's theme equals theme", () => {
+    render(<ThemeOption theme="night" userTheme="night" />);
 
     expect(screen.getByRole("radio")).toBeChecked();
   });
 
-  it("should not be checked when user's theme does not equal current theme", () => {
-    render(<ThemeOption currentTheme="night" userTheme="aqua" />);
+  it("should NOT be checked when user's theme does NOT equal theme", () => {
+    render(<ThemeOption theme="night" userTheme="aqua" />);
 
     expect(screen.getByRole("radio")).not.toBeChecked();
   });

@@ -10,10 +10,10 @@ import { auth } from "@/server/auth";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Next.js Starter",
   description: "Another opinionated Next.js Starter.",
-};
+} satisfies Metadata;
 
 export default async function RootLayout({
   children,
