@@ -21,7 +21,6 @@
     "turso",
     "tursodatabase",
     "typecheck",
-    "valibot",
     "wireframe"
   ],
   "css.lint.unknownAtRules": "ignore",
@@ -30,5 +29,5 @@
   ],
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "eslint.experimental.useFlatConfig": true
+  "eslint.useFlatConfig": true
 }
