@@ -4,7 +4,7 @@ import {
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
-import { createSelectSchema } from "drizzle-valibot";
+import { createSelectSchema } from "drizzle-zod";
 import { type AdapterAccount } from "next-auth/adapters";
 
 import { themes } from "@/constants/themes";

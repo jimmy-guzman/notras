@@ -1,13 +1,12 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { parse, pick } from "valibot";
 
 import { getUserByUserId } from "@/lib/get-user-by-user-id";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { selectUserSchema, users } from "@/server/db/schemas/users";
 
-const schema = pick(selectUserSchema, ["theme"]);
+const schema = selectUserSchema.pick({ theme: true });
 
 export default async function Page() {
   const session = await auth();
@@ -27,7 +26,7 @@ export default async function Page() {
         action={async (formData) => {
           "use server";
 
-          const values = parse(schema, { theme: formData.get("theme") });
+          const values = schema.parse({ theme: formData.get("theme") });
 
           await db.update(users).set(values).where(eq(users.id, userId));
 
