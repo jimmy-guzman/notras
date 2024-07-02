@@ -1,15 +1,9 @@
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-
+import { updateTheme } from "@/app/actions";
 import { ThemeOption } from "@/components/theme-option";
 import { links } from "@/constants/links";
 import { themes } from "@/constants/themes";
 import { getUserByUserId } from "@/lib/get-user-by-user-id";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
-import { selectUserSchema, users } from "@/server/db/schemas/users";
-
-const schema = selectUserSchema.pick({ theme: true });
 
 export default async function Page() {
   const session = await auth();
@@ -35,19 +29,7 @@ export default async function Page() {
           .
         </p>
       </div>
-
-      <form
-        className="flex flex-col gap-4"
-        action={async (formData) => {
-          "use server";
-
-          const values = schema.parse({ theme: formData.get("theme") });
-
-          await db.update(users).set(values).where(eq(users.id, userId));
-
-          revalidatePath("/", "layout");
-        }}
-      >
+      <form className="flex flex-col gap-4" action={updateTheme}>
         {themes.map((theme) => {
           return (
             <ThemeOption key={theme} userTheme={user?.theme} theme={theme} />
