@@ -20,4 +20,5 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
   },
   extends: [vercel()],
+  skipValidation: Boolean(process.env.CI),
 });
