@@ -1,7 +1,9 @@
+import type { Config as DaisyUIConfig } from "daisyui";
+import type { Config } from "tailwindcss";
+
 import { addDynamicIconSelectors } from "@iconify/tailwind";
 import typography from "@tailwindcss/typography";
-import daisyui, { type Config as DaisyUIConfig } from "daisyui";
-import type { Config } from "tailwindcss";
+import daisyui from "daisyui";
 
 const config = {
   content: [
@@ -10,11 +12,11 @@ const config = {
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   daisyui: {
-    themes: ["dark", "light", "night", "cyberpunk", "dim", "cmyk"],
-    prefix: "dsy-",
     logs: false,
+    prefix: "dsy-",
+    themes: ["dark", "light", "night", "cyberpunk", "dim", "cmyk"],
   },
   plugins: [typography, daisyui, addDynamicIconSelectors()],
-} satisfies Config & { daisyui: DaisyUIConfig };
+} satisfies { daisyui: DaisyUIConfig } & Config;
 
 export default config;

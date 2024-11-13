@@ -15,7 +15,7 @@ export const UserDropdown = async () => {
           await signIn();
         }}
       >
-        <button type="submit" className="dsy-btn dsy-btn-ghost">
+        <button className="dsy-btn dsy-btn-ghost" type="submit">
           Sign In
         </button>
       </form>
@@ -27,37 +27,37 @@ export const UserDropdown = async () => {
   return (
     <div className="dsy-dropdown dsy-dropdown-end">
       <div
-        tabIndex={0}
-        role="button"
         className="dsy-avatar dsy-btn dsy-btn-circle dsy-btn-ghost"
+        role="button"
+        tabIndex={0}
       >
         <div className="h-8 w-8 rounded-full">
           {session.user.image ? (
             <Image
               alt="avatar"
+              height={40}
               src={session.user.image}
               width={40}
-              height={40}
             />
           ) : null}
         </div>
       </div>
       <ul
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-        tabIndex={0}
         className="dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box border border-neutral bg-base-100 p-2 shadow"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- TODO: refactor
+        tabIndex={0}
       >
         <li className="dsy-menu-title">{user.name}</li>
         <li className="dsy-menu-title">{user.email}</li>
         <span className="dsy-divider my-0" />
         <li>
-          <Link href="/settings" className="justify-between">
+          <Link className="justify-between" href="/settings">
             <span>Settings</span>
             <span className="icon-[lucide--user-cog]" />
           </Link>
         </li>
         <li>
-          <Link href="/settings/theme" className="justify-between">
+          <Link className="justify-between" href="/settings/theme">
             <span>Theme</span>
             <span className="dsy-badge dsy-badge-neutral capitalize">
               {user.theme}
@@ -67,11 +67,11 @@ export const UserDropdown = async () => {
         <span className="dsy-divider my-0" />
         <li>
           <form
-            className="grid-cols-1"
             action={async () => {
               "use server";
               await signOut();
             }}
+            className="grid-cols-1"
           >
             <button className="flex items-center justify-between" type="submit">
               <span>Sign Out</span> <span className="icon-[lucide--log-out]" />

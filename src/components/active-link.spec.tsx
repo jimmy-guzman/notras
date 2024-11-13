@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { ActiveLink } from "./active-link";
 
 vi.mock("next/navigation", async (importOriginal) => {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- typeof is needed
   const mod = await importOriginal<typeof import("next/navigation")>();
 
   return {
