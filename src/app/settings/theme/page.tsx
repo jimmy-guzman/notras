@@ -21,22 +21,22 @@ export default async function Page() {
           <a
             className="dsy-link"
             href={links.daisyUIThemes}
-            target="_blank"
             rel="noreferrer"
+            target="_blank"
           >
             daisyUI themes
           </a>
           .
         </p>
       </div>
-      <form className="flex flex-col gap-4" action={updateTheme}>
+      <form action={updateTheme} className="flex flex-col gap-4">
         {themes.map((theme) => {
           return (
-            <ThemeOption key={theme} userTheme={user?.theme} theme={theme} />
+            <ThemeOption key={theme} theme={theme} userTheme={user?.theme} />
           );
         })}
         <div className="flex justify-end sm:justify-start">
-          <button type="submit" className="dsy-btn dsy-btn-accent">
+          <button className="dsy-btn dsy-btn-accent" type="submit">
             Save
           </button>
         </div>

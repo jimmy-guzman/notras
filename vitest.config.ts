@@ -5,14 +5,14 @@ import { configDefaults, defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   test: {
-    globals: true,
-    environment: "happy-dom",
-    setupFiles: "./vitest.setup.ts",
     coverage: {
       exclude: [
         ...(configDefaults.coverage.exclude ?? []),
         "{tailwind,postcss,playwright,drizzle,next}.config.*",
       ],
     },
+    environment: "happy-dom",
+    globals: true,
+    setupFiles: "./vitest.setup.ts",
   },
 });

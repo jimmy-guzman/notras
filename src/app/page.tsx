@@ -23,8 +23,8 @@ export default function Page() {
               <a
                 className="dsy-link"
                 href={links.typescript}
-                target="_blank"
                 rel="noreferrer"
+                target="_blank"
               >
                 TypeScript
               </a>
@@ -32,8 +32,8 @@ export default function Page() {
               <a
                 className="dsy-link"
                 href={links.tailwindcss}
-                target="_blank"
                 rel="noreferrer"
+                target="_blank"
               >
                 Tailwind CSS
               </a>
@@ -41,8 +41,8 @@ export default function Page() {
               <a
                 className="dsy-link"
                 href={links.daisyUI}
-                target="_blank"
                 rel="noreferrer"
+                target="_blank"
               >
                 daisyUI
               </a>
@@ -50,8 +50,8 @@ export default function Page() {
               <a
                 className="dsy-link"
                 href={links.drizzle}
-                target="_blank"
                 rel="noreferrer"
+                target="_blank"
               >
                 Drizzle ORM
               </a>{" "}
@@ -59,8 +59,8 @@ export default function Page() {
               <a
                 className="dsy-link"
                 href={links.turso}
-                target="_blank"
                 rel="noreferrer"
+                target="_blank"
               >
                 Turso
               </a>

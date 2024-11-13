@@ -9,22 +9,22 @@ jiti("./src/env");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    typedRoutes: true,
+  },
   images: {
     remotePatterns: [{ hostname: "avatars.githubusercontent.com" }],
   },
   async redirects() {
     return [
       {
-        source: "/settings",
         destination: "/settings/profile",
         permanent: true,
+        source: "/settings",
       },
     ];
   },
-  experimental: {
-    typedRoutes: true,
-  },
-  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;

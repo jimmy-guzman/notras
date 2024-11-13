@@ -20,12 +20,12 @@ export default async function Page() {
             <span className="dsy-label-text capitalize">Name</span>
           </label>
           <input
-            type="text"
-            id="name"
-            name="name"
             className="dsy-input dsy-input-bordered"
             defaultValue={user?.name ?? ""}
             disabled
+            id="name"
+            name="name"
+            type="text"
           />
         </div>
         <div className="dsy-form-control w-full">
@@ -33,16 +33,16 @@ export default async function Page() {
             <span className="dsy-label-text capitalize">Email</span>
           </label>
           <input
-            type="text"
-            id="email"
-            name="email"
             className="dsy-input dsy-input-bordered"
             defaultValue={user?.email}
             disabled
+            id="email"
+            name="email"
+            type="text"
           />
         </div>
         <div className="flex justify-end sm:justify-start">
-          <button type="submit" className="dsy-btn dsy-btn-accent" disabled>
+          <button className="dsy-btn dsy-btn-accent" disabled type="submit">
             Save
           </button>
         </div>

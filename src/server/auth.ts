@@ -4,24 +4,24 @@ import GitHub from "next-auth/providers/github";
 
 import { db } from "@/server/db";
 
-const protectedRoutes = ["/settings/profile", "/settings/theme"];
+const protectedRoutes = new Set(["/settings/profile", "/settings/theme"]);
 
 export const {
-  handlers: { GET, POST },
   auth,
+  handlers: { GET, POST },
   signIn,
   signOut,
 } = NextAuth({
   adapter: DrizzleAdapter(db),
-  providers: [GitHub],
+  callbacks: {
+    authorized({ auth, request }) {
+      const { pathname } = request.nextUrl;
+
+      return protectedRoutes.has(pathname) ? !!auth : true;
+    },
+  },
   pages: {
     signIn: "/signin",
   },
-  callbacks: {
-    authorized({ request, auth }) {
-      const { pathname } = request.nextUrl;
-
-      return protectedRoutes.includes(pathname) ? !!auth : true;
-    },
-  },
+  providers: [GitHub],
 });

@@ -1,3 +1,5 @@
+import type { AdapterAccount } from "next-auth/adapters";
+
 import {
   integer,
   primaryKey,
@@ -5,16 +7,15 @@ import {
   text,
 } from "drizzle-orm/sqlite-core";
 import { createSelectSchema } from "drizzle-zod";
-import { type AdapterAccount } from "next-auth/adapters";
 
 import { themes } from "@/constants/themes";
 
 export const users = sqliteTable("user", {
-  id: text("id").notNull().primaryKey(),
-  name: text("name"),
   email: text("email").notNull(),
   emailVerified: integer("emailVerified", { mode: "timestamp_ms" }),
+  id: text("id").notNull().primaryKey(),
   image: text("image"),
+  name: text("name"),
   theme: text("theme", { enum: themes }).default("dark").notNull(),
 });
 
@@ -23,6 +24,16 @@ export const selectUserSchema = createSelectSchema(users);
 export const accounts = sqliteTable(
   "account",
   {
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    id_token: text("id_token"),
+    provider: text("provider").notNull(),
+    providerAccountId: text("providerAccountId").notNull(),
+    refresh_token: text("refresh_token"),
+    scope: text("scope"),
+    session_state: text("session_state"),
+    token_type: text("token_type"),
+    type: text("type").$type<AdapterAccount["type"]>().notNull(),
     userId: text("userId")
       .notNull()
       .references(
@@ -31,16 +42,6 @@ export const accounts = sqliteTable(
         },
         { onDelete: "cascade" },
       ),
-    type: text("type").$type<AdapterAccount["type"]>().notNull(),
-    provider: text("provider").notNull(),
-    providerAccountId: text("providerAccountId").notNull(),
-    refresh_token: text("refresh_token"),
-    access_token: text("access_token"),
-    expires_at: integer("expires_at"),
-    token_type: text("token_type"),
-    scope: text("scope"),
-    id_token: text("id_token"),
-    session_state: text("session_state"),
   },
   (account) => {
     return {
@@ -52,6 +53,7 @@ export const accounts = sqliteTable(
 );
 
 export const sessions = sqliteTable("session", {
+  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
   sessionToken: text("sessionToken").notNull().primaryKey(),
   userId: text("userId")
     .notNull()
@@ -61,15 +63,14 @@ export const sessions = sqliteTable("session", {
       },
       { onDelete: "cascade" },
     ),
-  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
 });
 
 export const verificationTokens = sqliteTable(
   "verificationToken",
   {
+    expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
     identifier: text("identifier").notNull(),
     token: text("token").notNull(),
-    expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
   },
   (vt) => {
     return {

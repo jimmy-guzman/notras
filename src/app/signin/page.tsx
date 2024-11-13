@@ -20,8 +20,8 @@ export default async function Page() {
             <a
               className="dsy-link"
               href={links.authjs}
-              target="_blank"
               rel="noreferrer"
+              target="_blank"
             >
               Auth.js
             </a>
@@ -29,8 +29,8 @@ export default async function Page() {
             <a
               className="dsy-link"
               href={links.turso}
-              target="_blank"
               rel="noreferrer"
+              target="_blank"
             >
               Turso
             </a>{" "}
@@ -38,8 +38,8 @@ export default async function Page() {
             <a
               className="dsy-link"
               href={links.drizzle}
-              target="_blank"
               rel="noreferrer"
+              target="_blank"
             >
               Drizzle ORM
             </a>
@@ -48,14 +48,14 @@ export default async function Page() {
         </div>
         <div className="dsy-card w-full max-w-sm shrink-0 bg-base-100">
           <form
-            className="dsy-card-body"
             action={async () => {
               "use server";
               await signIn("github");
             }}
+            className="dsy-card-body"
           >
             <div className="dsy-form-control mt-6">
-              <button type="submit" className="dsy-btn dsy-btn-accent">
+              <button className="dsy-btn dsy-btn-accent" type="submit">
                 Continue with GitHub{" "}
                 <span className="icon-[simple-icons--github] h-4 w-4" />
               </button>
