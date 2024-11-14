@@ -21,3 +21,6 @@ jobs:
 
       - name: ✅ Coverage
         run: pnpm coverage
+
+      - name: 🏷️ Typecheck
+        run: pnpm typecheck
