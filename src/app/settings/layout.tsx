@@ -17,7 +17,7 @@ export default function Layout({
           </li>
         </ul>
         <div className="grid gap-8 sm:col-span-10">
-          <div className="prose dsy-prose ">
+          <div className="prose dsy-prose">
             <h1>Settings</h1>
           </div>
           <div className="rounded-box border border-neutral p-4">
