@@ -24,9 +24,9 @@
     "incremental": true
   },
   "include": [
-    "eslint.config.mjs",
+    "eslint.config.ts",
     "next.config.mjs",
-    "postcss.config.cjs",
+    "postcss.config.mjs",
     ".next/types/**/*.ts",
     "**/*.ts",
     "**/*.tsx",

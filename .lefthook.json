@@ -12,6 +12,9 @@
         "glob": "*.{md,json,yml,yaml,html,js,cjs,ts,tsx}",
         "run": "pnpm exec prettier --write {staged_files}",
         "stage_fixed": true
+      },
+      "knip": {
+        "run": "SKIP_ENV_VALIDATION=1 pnpm exec knip"
       }
     }
   }
