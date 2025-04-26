@@ -7,11 +7,10 @@ const jiti = createJiti(fileURLToPath(import.meta.url));
 
 await jiti.import("./src/env");
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   experimental: {
-    typedRoutes: true,
+    nodeMiddleware: true,
   },
   images: {
     remotePatterns: [{ hostname: "avatars.githubusercontent.com" }],

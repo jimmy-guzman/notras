@@ -9,7 +9,7 @@
         "stage_fixed": true
       },
       "format": {
-        "glob": "*.{md,json,yml,html,js,cjs,ts,tsx}",
+        "glob": "*.{md,json,yml,yaml,html,js,cjs,ts,tsx}",
         "run": "pnpm exec prettier --write {staged_files}",
         "stage_fixed": true
       }

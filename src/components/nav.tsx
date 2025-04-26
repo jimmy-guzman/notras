@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { links } from "@/constants/links";
-
 import { UserDropdown } from "./user-dropdown";
 
 export const Nav = () => {
@@ -16,14 +14,6 @@ export const Nav = () => {
         </Link>
       </div>
       <div className="dsy-navbar-end">
-        <a
-          className="dsy-btn dsy-btn-circle dsy-btn-ghost"
-          href={links.github}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <span className="icon-[simple-icons--github] h-8 w-8 text-white" />
-        </a>
         <UserDropdown />
       </div>
     </nav>

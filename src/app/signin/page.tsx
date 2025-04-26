@@ -1,10 +1,11 @@
 import { redirect, RedirectType } from "next/navigation";
 
+import { SignInlButton } from "@/components/sign-in-button";
 import { links } from "@/constants/links";
-import { auth, signIn } from "@/server/auth";
+import { getSession } from "@/lib/auth";
 
 export default async function Page() {
-  const session = await auth();
+  const session = await getSession();
 
   if (session?.user) {
     redirect("/", RedirectType.replace);
@@ -47,18 +48,9 @@ export default async function Page() {
           </p>
         </div>
         <div className="dsy-card w-full max-w-sm shrink-0 bg-base-100">
-          <form
-            action={async () => {
-              "use server";
-              await signIn("github");
-            }}
-            className="dsy-card-body"
-          >
+          <form className="dsy-card-body">
             <div className="dsy-form-control mt-6">
-              <button className="dsy-btn dsy-btn-accent" type="submit">
-                Continue with GitHub{" "}
-                <span className="icon-[simple-icons--github] h-4 w-4" />
-              </button>
+              <SignInlButton />
             </div>
           </form>
         </div>
