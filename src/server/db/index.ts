@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/libsql";
 
 import { env } from "@/env";
 
-import { users } from "./schemas/users";
+import * as users from "./schemas/users";
 
 export const db = drizzle({
   connection: {

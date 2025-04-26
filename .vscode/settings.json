@@ -4,6 +4,7 @@
     "bunx",
     "clsx",
     "daisyui",
+    "esbuild",
     "gitzy",
     "iconify",
     "jiti",
@@ -18,9 +19,11 @@
     "signin",
     "signup",
     "tailwindcss",
+    "turbopack",
     "turso",
     "tursodatabase",
     "typecheck",
+    "unrs",
     "wireframe"
   ],
   "css.lint.unknownAtRules": "ignore",
@@ -29,5 +32,6 @@
   ],
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "eslint.useFlatConfig": true
+  "eslint.useFlatConfig": true,
+  "editor.inlineSuggest.enabled": false
 }

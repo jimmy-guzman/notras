@@ -1,80 +1,65 @@
-import type { AdapterAccount } from "next-auth/adapters";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import {
-  integer,
-  primaryKey,
-  sqliteTable,
-  text,
-} from "drizzle-orm/sqlite-core";
-import { createSelectSchema } from "drizzle-zod";
-
-import { themes } from "@/constants/themes";
-
-export const users = sqliteTable("user", {
-  email: text("email").notNull(),
-  emailVerified: integer("emailVerified", { mode: "timestamp_ms" }),
-  id: text("id").notNull().primaryKey(),
+export const user = sqliteTable("user", {
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull(),
+  id: text("id").primaryKey(),
   image: text("image"),
-  name: text("name"),
-  theme: text("theme", { enum: themes }).default("dark").notNull(),
+  name: text("name").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const selectUserSchema = createSelectSchema(users);
-
-export const accounts = sqliteTable(
-  "account",
-  {
-    access_token: text("access_token"),
-    expires_at: integer("expires_at"),
-    id_token: text("id_token"),
-    provider: text("provider").notNull(),
-    providerAccountId: text("providerAccountId").notNull(),
-    refresh_token: text("refresh_token"),
-    scope: text("scope"),
-    session_state: text("session_state"),
-    token_type: text("token_type"),
-    type: text("type").$type<AdapterAccount["type"]>().notNull(),
-    userId: text("userId")
-      .notNull()
-      .references(
-        () => {
-          return users.id;
-        },
-        { onDelete: "cascade" },
-      ),
-  },
-  (account) => {
-    return {
-      compoundKey: primaryKey({
-        columns: [account.provider, account.providerAccountId],
-      }),
-    };
-  },
-);
-
-export const sessions = sqliteTable("session", {
-  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
-  sessionToken: text("sessionToken").notNull().primaryKey(),
-  userId: text("userId")
+export const session = sqliteTable("session", {
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  id: text("id").primaryKey(),
+  ipAddress: text("ip_address"),
+  token: text("token").notNull().unique(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  userAgent: text("user_agent"),
+  userId: text("user_id")
     .notNull()
     .references(
       () => {
-        return users.id;
+        return user.id;
       },
       { onDelete: "cascade" },
     ),
 });
 
-export const verificationTokens = sqliteTable(
-  "verificationToken",
-  {
-    expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
-    identifier: text("identifier").notNull(),
-    token: text("token").notNull(),
-  },
-  (vt) => {
-    return {
-      compoundKey: primaryKey({ columns: [vt.identifier, vt.token] }),
-    };
-  },
-);
+export const account = sqliteTable("account", {
+  accessToken: text("access_token"),
+  accessTokenExpiresAt: integer("access_token_expires_at", {
+    mode: "timestamp",
+  }),
+  accountId: text("account_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  id: text("id").primaryKey(),
+  idToken: text("id_token"),
+  password: text("password"),
+  providerId: text("provider_id").notNull(),
+  refreshToken: text("refresh_token"),
+  refreshTokenExpiresAt: integer("refresh_token_expires_at", {
+    mode: "timestamp",
+  }),
+  scope: text("scope"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(
+      () => {
+        return user.id;
+      },
+      { onDelete: "cascade" },
+    ),
+});
+
+export const verification = sqliteTable("verification", {
+  createdAt: integer("created_at", { mode: "timestamp" }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }),
+  value: text("value").notNull(),
+});

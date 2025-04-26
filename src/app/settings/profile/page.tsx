@@ -1,14 +1,11 @@
-import { getUserByUserId } from "@/lib/get-user-by-user-id";
-import { auth } from "@/server/auth";
+import { getSession } from "@/lib/auth";
 
 export default async function Page() {
-  const session = await auth();
+  const session = await getSession();
 
-  const userId = session?.user?.id;
+  const user = session?.user;
 
-  const user = userId ? await getUserByUserId(userId) : null;
-
-  return userId ? (
+  return user ? (
     <div>
       <div className="prose dsy-prose mb-8">
         <h2>Profile</h2>
@@ -21,7 +18,7 @@ export default async function Page() {
           </label>
           <input
             className="dsy-input dsy-input-bordered"
-            defaultValue={user?.name ?? ""}
+            defaultValue={user.name}
             disabled
             id="name"
             name="name"
@@ -34,7 +31,7 @@ export default async function Page() {
           </label>
           <input
             className="dsy-input dsy-input-bordered"
-            defaultValue={user?.email}
+            defaultValue={user.email}
             disabled
             id="email"
             name="email"

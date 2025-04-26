@@ -8,12 +8,11 @@ export const env = createEnv({
   },
   extends: [vercel()],
   server: {
-    AUTH_GITHUB_ID: z.string(),
-    AUTH_GITHUB_SECRET: z.string(),
-    AUTH_SECRET: z.string(),
-    AUTH_TRUST_HOST: z.boolean({ coerce: true }).optional(),
+    BETTER_AUTH_SECRET: z.string(),
     DATABASE_AUTH_TOKEN: z.string(),
     DATABASE_URL: z.string(),
+    GITHUB_CLIENT_ID: z.string(),
+    GITHUB_CLIENT_SECRET: z.string(),
   },
   shared: {
     NODE_ENV: z

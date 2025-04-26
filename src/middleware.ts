@@ -1,11 +1,20 @@
-export { auth as middleware } from "@/server/auth";
+import type { NextRequest } from "next/server";
 
-// Or like this if you need to do something here.
-// export default auth((req) => {
-//   console.log(req.auth) //  { session: { user: { ... } } }
-// })
+import { NextResponse } from "next/server";
 
-// Read more: https://nextjs.org/docs/app/building-your-application/routing/middleware#matcher
+import { getSession } from "@/lib/auth";
+
+export async function middleware(request: NextRequest) {
+  const session = await getSession();
+
+  if (!session) {
+    return NextResponse.redirect(new URL("/signin", request.url));
+  }
+
+  return NextResponse.next();
+}
+
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/settings", "/settings/profile"],
+  runtime: "nodejs",
 };

@@ -12,9 +12,6 @@ export default function Layout({
           <li>
             <ActiveLink href="/settings/profile">Profile</ActiveLink>
           </li>
-          <li>
-            <ActiveLink href="/settings/theme">Theme</ActiveLink>
-          </li>
         </ul>
         <div className="grid gap-8 sm:col-span-10">
           <div className="prose dsy-prose">

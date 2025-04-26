@@ -17,6 +17,6 @@ const config = {
     themes: ["dark", "light", "night", "cyberpunk", "dim", "cmyk"],
   },
   plugins: [typography, daisyui, addDynamicIconSelectors()],
-} satisfies { daisyui: DaisyUIConfig } & Config;
+} satisfies Config & { daisyui: DaisyUIConfig };
 
 export default config;
