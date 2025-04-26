@@ -15,7 +15,7 @@ export const UserDropdown = async () => {
         role="button"
         tabIndex={0}
       >
-        <div className="h-6 w-6 rounded-full">
+        <div className="h-8 w-8 rounded-full">
           {session.user.image ? (
             <Image
               alt="avatar"
@@ -50,7 +50,7 @@ export const UserDropdown = async () => {
     </div>
   ) : (
     <Link className="dsy-btn dsy-btn-circle dsy-btn-ghost" href="/signin">
-      <span className="icon-[lucide--log-in] h-6 w-6" />
+      <span className="icon-[lucide--log-in] h-8 w-8" />
     </Link>
   );
 };
