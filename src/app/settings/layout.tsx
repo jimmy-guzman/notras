@@ -17,7 +17,7 @@ export default function Layout({
           <div className="prose dsy-prose">
             <h1>Settings</h1>
           </div>
-          <div className="rounded-box border border-neutral p-4">
+          <div className="rounded-box border-neutral border p-4">
             {children}
           </div>
         </div>

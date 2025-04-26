@@ -27,7 +27,7 @@ export const UserDropdown = async () => {
         </div>
       </div>
       <ul
-        className="dsy-menu dsy-dropdown-content dsy-menu-sm z-[1] mt-3 w-52 rounded-box border border-neutral bg-base-100 p-2 shadow"
+        className="dsy-menu dsy-dropdown-content dsy-menu-sm rounded-box border-neutral bg-base-100 z-[1] mt-3 w-52 border p-2 shadow"
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- TODO: refactor
         tabIndex={0}
       >

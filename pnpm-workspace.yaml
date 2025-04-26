@@ -3,3 +3,7 @@ onlyBuiltDependencies:
   - lefthook
   - sharp
   - unrs-resolver
+autoInstallPeers: false
+savePrefix: ""
+engineStrict: true
+color: always
