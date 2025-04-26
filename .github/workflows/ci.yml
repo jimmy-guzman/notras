@@ -16,6 +16,10 @@ jobs:
       - name: 🎨 Format
         run: pnpm format
 
+      - name: ✂️ Knip
+        shell: bash
+        run: pnpm knip
+
       - name: 🚨 Lint
         run: pnpm lint
 
