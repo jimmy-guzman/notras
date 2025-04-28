@@ -6,17 +6,17 @@ export const Icons = {
       <svg
         {...props}
         fill="none"
-        viewBox="0 0 220 50"
+        viewBox="0 0 120 50"
         xmlns="http://www.w3.org/2000/svg"
       >
         <title>notras</title>
-        <g transform="translate(25,25)">
-          <circle cx="0" cy="0" fill="currentColor" r="3" />
+        <g transform="translate(20,25)">
+          <circle cx="0" cy="0" fill="currentColor" r="4" />
           <circle
             cx="0"
             cy="0"
             opacity="0.5"
-            r="8"
+            r="9"
             stroke="currentColor"
             strokeWidth="1"
           />
@@ -24,7 +24,7 @@ export const Icons = {
             cx="0"
             cy="0"
             opacity="0.3"
-            r="13"
+            r="14"
             stroke="currentColor"
             strokeWidth="1"
           />
@@ -33,10 +33,11 @@ export const Icons = {
         <text
           fill="currentColor"
           fontFamily="Inter, sans-serif"
-          fontSize="24"
-          letterSpacing="0.5"
-          x="55"
-          y="32"
+          fontSize="20"
+          fontWeight="600"
+          letterSpacing="0.25"
+          x="45"
+          y="30"
         >
           notras
         </text>

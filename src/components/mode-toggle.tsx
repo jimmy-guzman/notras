@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/ui/utils";
 
 export function ModeToggle() {
   const searchParams = useSearchParams();
@@ -30,11 +31,10 @@ export function ModeToggle() {
           <TooltipTrigger asChild>
             <Button
               aria-label="New thought"
-              className={`${
-                mode === "create"
-                  ? "bg-muted text-foreground" // softly highlight active
-                  : "text-muted-foreground"
-              }`}
+              className={cn(
+                "text-muted-foreground",
+                mode === "create" && "bg-muted text-foreground",
+              )}
               onClick={() => {
                 handleSwitch("create");
               }}
@@ -51,11 +51,10 @@ export function ModeToggle() {
           <TooltipTrigger asChild>
             <Button
               aria-label="Search thoughts"
-              className={
-                mode === "search"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground"
-              }
+              className={cn(
+                "text-muted-foreground",
+                mode === "search" && "bg-muted text-foreground",
+              )}
               onClick={() => {
                 handleSwitch("search");
               }}

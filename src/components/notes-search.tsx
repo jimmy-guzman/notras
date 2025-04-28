@@ -16,6 +16,7 @@ export function NotesSearchInput() {
     } else {
       params.delete("q");
     }
+
     router.replace(`?${params.toString()}`);
   }
 

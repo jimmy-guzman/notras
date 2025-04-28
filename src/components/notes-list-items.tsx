@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { ArchiveNote } from "./archive-note";
+import { CopyNote } from "./copy-note";
 
 const containerVariants = {
   show: {
@@ -53,7 +54,10 @@ export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
                 <div className="text-muted-foreground text-sm opacity-70">
                   {format(note.createdAt, "PPP pp")}
                 </div>
-                <ArchiveNote noteId={note.id} />
+                <div className="flex items-center gap-1">
+                  <CopyNote content={note.content} />
+                  <ArchiveNote noteId={note.id} />
+                </div>
               </div>
               <div className="text-base">{note.content}</div>
             </motion.div>
