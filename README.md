@@ -1,79 +1,145 @@
-# Next.js Starter
+# notras
 
-## Getting Started
+> A simple space to capture your thoughts as they come.
 
-You will need a couple environment variables, you can get started by creating an `.env` file:
+## 🐣 Technologies
 
+### Tooling
+
+- [pnpm](https://pnpm.io)
+- [ESLint](https://eslint.org)
+- [Prettier](https://prettier.io)
+- [Vitest](https://vitest.dev)
+- [Lefthook](https://github.com/evilmartians/lefthook)
+- [Knip](https://knip.dev)
+- [GitHub Actions](https://github.com/features/actions)
+
+### Frontend
+
+- [Next.js](https://nextjs.org)
+- [React](https://react.dev)
+- [Shadcn UI](https://ui.shadcn.dev)
+- [TailwindCSS](https://tailwindcss.com)
+- [Sonner](https://sonner.emilkowal.ski)
+- [Lucide](https://lucide.dev)
+
+### Backend
+
+- [Turso](https://docs.turso.tech)
+- [Drizzle ORM](https://orm.drizzle.team)
+- [Better Auth](https://better-auth.com)
+- [Resend](https://resend.com)
+- [@t3-oss/env-nextjs](https://env.t3.gg)
+
+---
+
+## 🏁 Getting Started
+
+This project uses [pnpm](https://pnpm.io), so please [install](https://pnpm.io/installation) it first by running:
+
+```bash
+corepack enable
+corepack prepare pnpm@latest --activate
 ```
-touch .env
+
+Or if you already have it installed, you can upgrade it by running:
+
+```bash
+pnpm add -g pnpm
 ```
 
-[Auth.js](https://authjs.dev/) is being used to handle authentication which requires a few environment variables:
+Then you can finally install dependencies by running:
 
-- `AUTH_SECRET`
-- `AUTH_GITHUB_ID`
-- `AUTH_GITHUB_SECRET`
-
-To generate an `AUTH_SECRET`, you can run the following:
-
-```
-openssl rand -base64 33
+```bash
+pnpm install
 ```
 
-Then to get `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET`, you will need to [create, authorize and configure an OAuth app](https://authjs.dev/getting-started/providers/github).
+---
 
-[Turso](https://docs.turso.tech/introduction) is being used as the SQLite Database, which requires the [CLI to be installed](https://docs.turso.tech/cli/introduction):
+[Turso](https://docs.turso.tech/introduction) is being used as the SQLite database, which requires the [CLI to be installed](https://docs.turso.tech/cli/introduction):
 
-```
+```bash
 brew install tursodatabase/tap/turso
 ```
 
 Then you can either login or signup:
 
-```
+```bash
 turso auth login
 ```
 
-```
+```bash
 turso auth signup
 ```
 
 Then you can start creating databases, for example:
 
-```
-turso db create pilas
-```
-
-```
-turso db create pilas-dev --from-db pilas
+```bash
+turso db create notras
 ```
 
-You can generate a `DATABASE_AUTH_TOKEN`, by running the following:
-
-```
-turso db tokens create pilas-dev
+```bash
+turso db create notras-dev --from-db notras
 ```
 
-You can get the `DATABASE_URL`, by running the following:
+You can generate a `DATABASE_AUTH_TOKEN` by running:
 
-```
-turso db show pilas-dev --url
-```
-
-Then you can install dependencies, by running the following:
-
-```
-pnpm install
+```bash
+turso db tokens create notras-dev
 ```
 
-Once you're done you can push the [database schema](https://orm.drizzle.team/kit-docs/overview#prototyping-with-db-push), by running the following:
+You can get the `DATABASE_URL` by running:
 
+```bash
+turso db show notras-dev --url
 ```
+
+---
+
+Then you can set up environment variables by running:
+
+```bash
+cp .env.example .env
+```
+
+The `.env.example` file looks like:
+
+```dotenv
+# Database
+DATABASE_URL=
+DATABASE_AUTH_TOKEN=
+
+# Auth
+BETTER_AUTH_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Email
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
+
+# Node
+NODE_ENV=development
+```
+
+You can generate a `BETTER_AUTH_SECRET` by running:
+
+```bash
+openssl rand -base64 33
+```
+
+---
+
+Then you can push your schema changes directly to the database by running:
+
+```bash
 pnpm db:push
 ```
 
-After all of this, you can finally start development server, by running the following:
+---
 
-```
+And finally, you can start the development server by running:
+
+```bash
 pnpm dev
 ```

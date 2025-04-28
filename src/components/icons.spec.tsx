@@ -4,8 +4,8 @@ import { Icons } from "./icons";
 
 describe("Icons", () => {
   it("should render daisyUI icon", () => {
-    render(<Icons.daisyUI />);
+    render(<Icons.logo />);
 
-    expect(screen.getByTitle("daisyUI")).toBeInTheDocument();
+    expect(screen.getByTitle("notras")).toBeInTheDocument();
   });
 });

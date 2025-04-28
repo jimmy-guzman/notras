@@ -1,15 +1,6 @@
-import { redirect, RedirectType } from "next/navigation";
-
 import { LoginForm } from "@/components/login-form";
-import { getSession } from "@/lib/auth";
 
-export default async function Page() {
-  const session = await getSession();
-
-  if (session?.user) {
-    redirect("/", RedirectType.replace);
-  }
-
+export default function LoginPage() {
   return (
     <div className="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
       <div className="w-full max-w-sm">
