@@ -1,74 +1,47 @@
-import { Icons } from "@/components/icons";
-import { links } from "@/constants/links";
+import Link from "next/link";
 
-export default function Page() {
+import { NewNoteInput } from "@/components/new-note-input";
+import { NotesList } from "@/components/notes-list";
+import { NotesSearchInput } from "@/components/notes-search";
+import { getSession } from "@/lib/auth";
+
+interface PageProps {
+  searchParams: Promise<{
+    mode?: string;
+    q?: string;
+  }>;
+}
+
+export default async function Page(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const session = await getSession();
+  const query = searchParams.q ?? "";
+  const mode = searchParams.mode === "search" ? "search" : "create";
+
   return (
-    <div className="-mt-16 md:container md:mx-auto">
-      <div className="dsy-hero min-h-screen">
-        <div className="dsy-hero-content flex-col gap-8">
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <span className="icon-[simple-icons--nextdotjs] text-5xl text-white md:text-7xl" />
-            <span className="icon-[simple-icons--typescript] text-5xl text-[#3178C6] md:text-7xl" />
-            <span className="icon-[simple-icons--tailwindcss] text-5xl text-[#06B6D4] md:text-7xl" />
-            <Icons.daisyUI className="h-12 w-12 md:h-[4.5rem] md:w-[4.5rem]" />
-            <span className="icon-[simple-icons--drizzle] text-5xl text-[#C5F74F] md:text-7xl" />
-            <span className="icon-[simple-icons--turso] text-5xl text-[#4FF8D2] md:text-7xl" />
-          </div>
-          <div className="flex flex-col gap-4 text-center">
-            <h1 className="from-primary via-secondary to-accent inline bg-gradient-to-r bg-clip-text pb-2 text-7xl font-bold text-transparent sm:text-8xl">
-              Next.js Starter
-            </h1>
-            <p className="py-6">
-              🍱 Another opinionated Next.js Starter using{" "}
-              <a
-                className="dsy-link"
-                href={links.typescript}
-                rel="noreferrer"
-                target="_blank"
-              >
-                TypeScript
-              </a>
-              ,{" "}
-              <a
-                className="dsy-link"
-                href={links.tailwindcss}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Tailwind CSS
-              </a>
-              ,{" "}
-              <a
-                className="dsy-link"
-                href={links.daisyUI}
-                rel="noreferrer"
-                target="_blank"
-              >
-                daisyUI
-              </a>
-              ,{" "}
-              <a
-                className="dsy-link"
-                href={links.drizzle}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Drizzle ORM
-              </a>{" "}
-              and{" "}
-              <a
-                className="dsy-link"
-                href={links.turso}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Turso
-              </a>
-              .
-            </p>
-          </div>
-        </div>
+    <section className="mt-4 flex flex-col gap-8 p-4">
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-2 text-center">
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Welcome to notras
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          A simple space to capture your thoughts as they come.
+        </p>
       </div>
-    </div>
+
+      {session?.session ? (
+        <>
+          {mode === "create" ? <NewNoteInput /> : <NotesSearchInput />}
+          <NotesList query={query} />
+        </>
+      ) : (
+        <p className="text-muted-foreground text-center text-sm">
+          <Link className="underline underline-offset-4" href="/signin">
+            Sign in
+          </Link>{" "}
+          to start capturing your thoughts.
+        </p>
+      )}
+    </section>
   );
 }

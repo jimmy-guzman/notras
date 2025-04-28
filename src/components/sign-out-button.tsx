@@ -9,7 +9,7 @@ export const SignOutButton = () => {
 
   return (
     <button
-      className="flex items-center justify-between"
+      className="flex w-full items-center justify-between"
       onClick={async () => {
         await authClient.signOut({
           fetchOptions: {
@@ -21,7 +21,8 @@ export const SignOutButton = () => {
       }}
       type="button"
     >
-      <span>Sign Out</span> <span className="icon-[lucide--log-out]" />
+      <span>Sign Out</span>
+      <span className="icon-[lucide--log-out] h-4 w-4" />
     </button>
   );
 };

@@ -1,6 +1,7 @@
 import type { KnipConfig } from "knip";
 
 export default {
+  ignore: ["src/server/db/schemas/notes.ts"],
   ignoreDependencies: [
     "gitzy",
     "@iconify-json/*",
@@ -8,5 +9,7 @@ export default {
     "tailwindcss",
     "@tailwindcss/typography",
     "daisyui",
+    "tw-animate-css",
   ],
+  ignoreExportsUsedInFile: true,
 } satisfies KnipConfig;

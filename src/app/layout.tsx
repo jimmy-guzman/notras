@@ -5,25 +5,41 @@ import type { ReactNode } from "react";
 
 import { Inter } from "next/font/google";
 
-import { Nav } from "@/components/nav";
+import { SiteFooter } from "@/components/footer";
+import { SiteNav } from "@/components/nav";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  description: "Another opinionated Next.js Starter.",
-  title: "Next.js Starter",
+  description:
+    "A soft space for fleeting thoughts. Capture your daydreams as they drift by.",
+  title: "notras",
 } satisfies Metadata;
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <div className="max-w-[100vw] px-6 pb-16 xl:pr-2">
-          <Nav />
-          {children}
-        </div>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          disableTransitionOnChange
+          enableSystem
+        >
+          <div className="flex min-h-screen flex-col">
+            <header className="bg-background sticky inset-x-0 top-0 isolate z-10 flex shrink-0 items-center gap-2 border-b">
+              <SiteNav />
+            </header>
+
+            <main className="flex-1">{children}</main>
+            <SiteFooter />
+          </div>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

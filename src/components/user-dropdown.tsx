@@ -1,6 +1,22 @@
-import Image from "next/image";
+import { LogIn } from "lucide-react";
 import Link from "next/link";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getSession } from "@/lib/auth";
 
 import { SignOutButton } from "./sign-out-button";
@@ -8,49 +24,59 @@ import { SignOutButton } from "./sign-out-button";
 export const UserDropdown = async () => {
   const session = await getSession();
 
-  return session ? (
-    <div className="dsy-dropdown dsy-dropdown-end">
-      <div
-        className="dsy-avatar dsy-btn dsy-btn-circle dsy-btn-ghost"
-        role="button"
-        tabIndex={0}
-      >
-        <div className="h-8 w-8 rounded-full">
-          {session.user.image ? (
-            <Image
-              alt="avatar"
-              height={40}
-              src={session.user.image}
-              width={40}
-            />
-          ) : null}
-        </div>
-      </div>
-      <ul
-        className="dsy-menu dsy-dropdown-content dsy-menu-sm rounded-box border-neutral bg-base-100 z-[1] mt-3 w-52 border p-2 shadow"
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- TODO: refactor
-        tabIndex={0}
-      >
-        <li className="dsy-menu-title">{session.user.name}</li>
-        <li className="dsy-menu-title">{session.user.email}</li>
-        <span className="dsy-divider my-0" />
-        <li>
-          <Link className="justify-between" href="/settings">
-            <span>Settings</span>
-            <span className="icon-[lucide--user-cog]" />
-          </Link>
-        </li>
-        <span className="dsy-divider my-0" />
-        <li>
-          <form className="grid-cols-1">
-            <SignOutButton />
-          </form>
-        </li>
-      </ul>
-    </div>
-  ) : (
-    <Link className="dsy-btn dsy-btn-circle dsy-btn-ghost" href="/signin">
-      <span className="icon-[lucide--log-in] h-8 w-8" />
-    </Link>
+  if (!session) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild size="icon" variant="outline">
+              <Link href="/signin">
+                <LogIn />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Sign In</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          className="relative h-8 w-8 rounded-full"
+          size="icon"
+          variant="ghost"
+        >
+          <Avatar className="h-8 w-8">
+            {session.user.image ? (
+              <AvatarImage alt="avatar" src={session.user.image} />
+            ) : (
+              <AvatarFallback>{session.user.name[0]}</AvatarFallback>
+            )}
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-56" forceMount>
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm leading-none font-medium">
+              {session.user.name}
+            </p>
+            <p className="text-muted-foreground text-xs leading-none">
+              {session.user.email}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem>
+          <SignOutButton />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };

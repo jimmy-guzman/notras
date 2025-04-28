@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       exclude: [
         ...(configDefaults.coverage.exclude ?? []),
-        "{tailwind,postcss,playwright,drizzle,next}.config.*",
+        "{tailwind,postcss,playwright,drizzle,next,knip}.config.*",
       ],
     },
     environment: "happy-dom",
