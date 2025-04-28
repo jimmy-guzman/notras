@@ -1,0 +1,65 @@
+"use client";
+
+import { format } from "date-fns";
+import { AnimatePresence, motion } from "framer-motion";
+
+import { ArchiveNote } from "./archive-note";
+
+const containerVariants = {
+  show: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const itemVariants = {
+  exit: { opacity: 0, scale: 0.95 },
+  hidden: { opacity: 0, scale: 0.95 },
+  show: { opacity: 1, scale: 1 },
+};
+
+interface Note {
+  content: string;
+  createdAt: Date;
+  id: string;
+}
+
+interface NotesListItemsProps {
+  filteredNotes: Note[];
+}
+
+export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
+  return (
+    <motion.div
+      animate="show"
+      className="mx-auto flex w-full max-w-2xl flex-col gap-8"
+      initial="hidden"
+      variants={containerVariants}
+    >
+      <AnimatePresence>
+        {filteredNotes.map((note) => {
+          return (
+            <motion.div
+              animate="show"
+              className="flex flex-col gap-2"
+              exit="exit"
+              initial="hidden"
+              key={note.id}
+              transition={{ duration: 0.2 }}
+              variants={itemVariants}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-muted-foreground text-sm opacity-70">
+                  {format(note.createdAt, "PPP pp")}
+                </div>
+                <ArchiveNote noteId={note.id} />
+              </div>
+              <div className="text-base">{note.content}</div>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
