@@ -82,7 +82,7 @@ export const CopyNote = ({
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4}>
-          {copied ? "Copied!" : "Copy"}
+          {copied ? "Copied" : "Copy"}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

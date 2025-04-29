@@ -21,6 +21,7 @@ export const ArchiveNote = ({ noteId }: { noteId: string }) => {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            aria-label="Archive"
             className="h-6 w-6"
             onClick={async () => {
               await archiveNote(noteId);

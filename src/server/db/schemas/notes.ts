@@ -7,6 +7,7 @@ export const note = sqliteTable("note", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
   id: text("id").primaryKey(),
+  pinnedAt: integer("pinned_at", { mode: "timestamp" }), // 🆕
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   userId: text("user_id")
     .notNull()
