@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { NewNoteInput } from "@/components/new-note-input";
 import { NotesList } from "@/components/notes-list";
@@ -34,7 +35,13 @@ export default async function Page(props: PageProps) {
 
       {session?.session ? (
         <>
-          {mode === "create" ? <NewNoteInput /> : <NotesSearchInput />}
+          {mode === "create" ? (
+            <NewNoteInput />
+          ) : (
+            <Suspense>
+              <NotesSearchInput />
+            </Suspense>
+          )}
           <NotesList query={query} />
         </>
       ) : (
