@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { Icons } from "./icons";
 import { ModeToggle } from "./mode-toggle";
@@ -16,7 +17,9 @@ export const SiteNav = () => {
         </div>
 
         <div className="ml-auto flex items-center space-x-4">
-          <ModeToggle />
+          <Suspense>
+            <ModeToggle />
+          </Suspense>
           <ThemeToggle />
           <UserDropdown />
         </div>

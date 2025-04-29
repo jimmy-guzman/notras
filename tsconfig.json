@@ -25,7 +25,7 @@
   },
   "include": [
     "eslint.config.ts",
-    "next.config.mjs",
+    "next.config.ts",
     "postcss.config.mjs",
     ".next/types/**/*.ts",
     "**/*.ts",
