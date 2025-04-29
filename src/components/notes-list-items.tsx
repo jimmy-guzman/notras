@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { ArchiveNote } from "./archive-note";
 import { CopyNote } from "./copy-note";
+import { PinNote } from "./pin-note";
 
 const containerVariants = {
   show: {
@@ -24,6 +25,7 @@ interface Note {
   content: string;
   createdAt: Date;
   id: string;
+  pinnedAt: Date | null;
 }
 
 interface NotesListItemsProps {
@@ -55,6 +57,7 @@ export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
                   {format(note.createdAt, "PPP pp")}
                 </div>
                 <div className="flex items-center gap-1">
+                  <PinNote noteId={note.id} pinned={Boolean(note.pinnedAt)} />
                   <CopyNote content={note.content} />
                   <ArchiveNote noteId={note.id} />
                 </div>

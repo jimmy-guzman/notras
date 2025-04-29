@@ -16,7 +16,7 @@ export async function getNotes() {
     .select()
     .from(note)
     .where(and(eq(note.userId, session.user.id), isNull(note.deletedAt)))
-    .orderBy(desc(note.createdAt));
+    .orderBy(desc(note.pinnedAt), desc(note.createdAt));
 
   return notes;
 }
