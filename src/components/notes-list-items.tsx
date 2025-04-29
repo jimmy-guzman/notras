@@ -2,6 +2,9 @@
 
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
+import { useMemo } from "react";
+
+import { groupAndSortNotes } from "@/lib/utils/group-notes";
 
 import { ArchiveNote } from "./archive-note";
 import { CopyNote } from "./copy-note";
@@ -33,6 +36,10 @@ interface NotesListItemsProps {
 }
 
 export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
+  const groupedNotes = useMemo(() => {
+    return groupAndSortNotes(filteredNotes);
+  }, [filteredNotes]);
+
   return (
     <motion.div
       animate="show"
@@ -40,33 +47,46 @@ export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
       initial="hidden"
       variants={containerVariants}
     >
-      <AnimatePresence>
-        {filteredNotes.map((note) => {
-          return (
-            <motion.div
-              animate="show"
-              className="flex flex-col gap-2"
-              exit="exit"
-              initial="hidden"
-              key={note.id}
-              transition={{ duration: 0.2 }}
-              variants={itemVariants}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-muted-foreground text-sm opacity-70">
-                  {format(note.createdAt, "PPP pp")}
-                </div>
-                <div className="flex items-center gap-1">
-                  <PinNote noteId={note.id} pinned={Boolean(note.pinnedAt)} />
-                  <CopyNote content={note.content} />
-                  <ArchiveNote noteId={note.id} />
-                </div>
-              </div>
-              <div className="text-base">{note.content}</div>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+      {groupedNotes.map(({ label, notes }) => {
+        return (
+          <div className="flex flex-col gap-6" key={label}>
+            <h2 className="text-muted-foreground text-sm font-medium">
+              {label}
+            </h2>
+
+            <AnimatePresence>
+              {notes.map((note) => {
+                return (
+                  <motion.div
+                    animate="show"
+                    className="flex flex-col gap-2"
+                    exit="exit"
+                    initial="hidden"
+                    key={note.id}
+                    transition={{ duration: 0.2 }}
+                    variants={itemVariants}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-muted-foreground text-sm opacity-70">
+                        {format(note.createdAt, "PPP pp")}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-60 transition-opacity hover:opacity-100">
+                        <PinNote
+                          noteId={note.id}
+                          pinned={Boolean(note.pinnedAt)}
+                        />
+                        <CopyNote content={note.content} />
+                        <ArchiveNote noteId={note.id} />
+                      </div>
+                    </div>
+                    <div className="text-medium">{note.content}</div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        );
+      })}
     </motion.div>
   );
 }

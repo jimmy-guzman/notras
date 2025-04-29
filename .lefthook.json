@@ -5,7 +5,7 @@
     "commands": {
       "lint": {
         "glob": "*.{js,cjs,ts,tsx}",
-        "run": "pnpm exec eslint --fix {staged_files}",
+        "run": "pnpm exec eslint --fix --cache --cache-location node_modules/.cache/eslint/ {staged_files}",
         "stage_fixed": true
       },
       "format": {
