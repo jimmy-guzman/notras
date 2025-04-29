@@ -8,6 +8,7 @@ import { groupAndSortNotes } from "@/lib/utils/group-notes";
 
 import { ArchiveNote } from "./archive-note";
 import { CopyNote } from "./copy-note";
+import { NoteContent } from "./note-content";
 import { PinNote } from "./pin-note";
 
 const containerVariants = {
@@ -33,9 +34,10 @@ interface Note {
 
 interface NotesListItemsProps {
   filteredNotes: Note[];
+  query?: string;
 }
 
-export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
+export function NotesListItems({ filteredNotes, query }: NotesListItemsProps) {
   const groupedNotes = useMemo(() => {
     return groupAndSortNotes(filteredNotes);
   }, [filteredNotes]);
@@ -79,7 +81,7 @@ export function NotesListItems({ filteredNotes }: NotesListItemsProps) {
                         <ArchiveNote noteId={note.id} />
                       </div>
                     </div>
-                    <div className="text-medium">{note.content}</div>
+                    <NoteContent content={note.content} query={query} />
                   </motion.div>
                 );
               })}
