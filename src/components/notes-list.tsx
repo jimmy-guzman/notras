@@ -14,7 +14,7 @@ export async function NotesList({ query = "" }: NotesListProps) {
   });
 
   return filteredNotes.length > 0 ? (
-    <NotesListItems filteredNotes={filteredNotes} />
+    <NotesListItems filteredNotes={filteredNotes} query={query} />
   ) : (
     <p className="text-muted-foreground text-center text-sm italic">
       {query
