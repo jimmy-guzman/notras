@@ -2,8 +2,10 @@
 
 import { Archive } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { archiveNote } from "@/actions/archive-note";
+import { unarchiveNote } from "@/actions/unarchive-note";
 
 import { Button } from "./ui/button";
 import {
@@ -25,6 +27,19 @@ export const ArchiveNote = ({ noteId }: { noteId: string }) => {
             className="h-6 w-6"
             onClick={async () => {
               await archiveNote(noteId);
+
+              toast("Note archived", {
+                action: {
+                  label: "Undo",
+                  onClick: () => {
+                    void (async () => {
+                      await unarchiveNote(noteId);
+
+                      router.refresh();
+                    })();
+                  },
+                },
+              });
 
               router.refresh();
             }}

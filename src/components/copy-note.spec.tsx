@@ -1,18 +1,14 @@
 import type { Mock } from "vitest";
 
-import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 
 import { CopyNote } from "@/components/copy-note";
+import { render, screen, waitFor } from "@/testing/utils";
 
-vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn() } });
-vi.mock("sonner", () => {
-  return {
-    toast: {
-      error: vi.fn(),
-    },
-  };
+vi.stubGlobal("navigator", {
+  clipboard: {
+    writeText: vi.fn(),
+  },
 });
 
 describe("<CopyNote />", () => {
@@ -33,21 +29,17 @@ describe("<CopyNote />", () => {
 
   it('should show "Copied" after copying', async () => {
     render(<CopyNote content="Sample note" />);
-
     const button = screen.getByRole("button", { name: /copy/i });
 
     await userEvent.click(button);
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /copied/i }),
-      ).toBeInTheDocument();
-    });
+    await expect(
+      screen.findByRole("button", { name: /copied/i }),
+    ).resolves.toBeInTheDocument();
   });
 
   it('should reset back to "Copy" after delay', async () => {
     render(<CopyNote content="Sample note" resetDelayMs={100} />);
-
     const button = screen.getByRole("button", { name: /copy/i });
 
     await userEvent.click(button);
@@ -59,19 +51,18 @@ describe("<CopyNote />", () => {
     });
   });
 
-  it("should show an error toast if copy fails", async () => {
+  it("should show error toast if clipboard write fails", async () => {
     (navigator.clipboard.writeText as Mock).mockRejectedValueOnce(
-      new Error("Copy failed"),
+      new Error("Clipboard error"),
     );
 
     render(<CopyNote content="Failure case" />);
-
     const button = screen.getByRole("button", { name: /copy/i });
 
     await userEvent.click(button);
 
-    expect(toast.error).toHaveBeenCalledWith(
-      "Failed to copy to clipboard. Please try again.",
-    );
+    await expect(
+      screen.findByText(/failed to copy to clipboard/i),
+    ).resolves.toBeInTheDocument();
   });
 });

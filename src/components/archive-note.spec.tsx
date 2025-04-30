@@ -1,20 +1,21 @@
-import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRouter } from "next/navigation";
 
 import { archiveNote } from "@/actions/archive-note";
+import { unarchiveNote } from "@/actions/unarchive-note";
 import { ArchiveNote } from "@/components/archive-note";
+import { render, screen } from "@/testing/utils";
 
 vi.mock("@/actions/archive-note", () => {
-  return {
-    archiveNote: vi.fn(),
-  };
+  return { archiveNote: vi.fn() };
+});
+
+vi.mock("@/actions/unarchive-note", () => {
+  return { unarchiveNote: vi.fn() };
 });
 
 vi.mock("next/navigation", () => {
-  return {
-    useRouter: vi.fn(),
-  };
+  return { useRouter: vi.fn() };
 });
 
 describe("<ArchiveNote />", () => {
@@ -30,13 +31,17 @@ describe("<ArchiveNote />", () => {
     expect(button).toBeInTheDocument();
   });
 
-  it("should call archiveNote and refresh when clicked", async () => {
-    const mockRefresh = vi.mocked(useRouter).mockReturnValue({
+  it("should archive note and allow undo", async () => {
+    globalThis.HTMLElement.prototype.setPointerCapture = vi.fn();
+
+    const mockRefresh = vi.fn();
+
+    vi.mocked(useRouter).mockReturnValue({
       back: vi.fn(),
       forward: vi.fn(),
       prefetch: vi.fn(),
       push: vi.fn(),
-      refresh: vi.fn(),
+      refresh: mockRefresh,
       replace: vi.fn(),
     });
 
@@ -47,6 +52,13 @@ describe("<ArchiveNote />", () => {
     await userEvent.click(button);
 
     expect(archiveNote).toHaveBeenCalledWith("note-1");
-    expect(mockRefresh).toHaveBeenCalledWith();
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+    const undoButton = await screen.findByRole("button", { name: /undo/i });
+
+    await userEvent.click(undoButton);
+
+    expect(unarchiveNote).toHaveBeenCalledWith("note-1");
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
   });
 });

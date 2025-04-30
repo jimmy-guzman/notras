@@ -9,6 +9,10 @@ vi.mock("@/actions/archive-note", () => {
   };
 });
 
+vi.mock("@/actions/unarchive-note", () => {
+  return { unarchiveNote: vi.fn() };
+});
+
 vi.mock("@/actions/pin-note", () => {
   return {
     pinNote: vi.fn(),
