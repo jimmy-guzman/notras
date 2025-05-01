@@ -1,23 +1,26 @@
+import type { Kind } from "@/lib/kind";
+
 import { getNotes } from "@/actions/get-notes";
 
 import { NotesListItems } from "./notes-list-items";
 
 interface NotesListProps {
+  kind?: Kind;
   query?: string;
 }
 
-export async function NotesList({ query = "" }: NotesListProps) {
-  const notes = await getNotes();
+export async function NotesList({ kind, query = "" }: NotesListProps) {
+  const notes = await getNotes({ kind, query });
 
-  const filteredNotes = notes.filter((note) => {
-    return note.content.toLowerCase().includes(query.toLowerCase());
-  });
+  if (notes.length > 0) {
+    return <NotesListItems filteredNotes={notes} query={query} />;
+  }
 
-  return filteredNotes.length > 0 ? (
-    <NotesListItems filteredNotes={filteredNotes} query={query} />
-  ) : (
+  const hasNoMatchingNotes = query || kind;
+
+  return (
     <p className="text-muted-foreground text-center text-sm italic">
-      {query
+      {hasNoMatchingNotes
         ? "No matching notes."
         : "No notes yet. Start by writing your first thought."}
     </p>
