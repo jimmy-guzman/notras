@@ -4,12 +4,16 @@ import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
 
+import type { Kind } from "@/lib/kind";
+
+import { KIND_LABELS } from "@/lib/kind";
 import { groupAndSortNotes } from "@/lib/utils/group-notes";
 
 import { ArchiveNote } from "./archive-note";
 import { CopyNote } from "./copy-note";
 import { NoteContent } from "./note-content";
 import { PinNote } from "./pin-note";
+import { Badge } from "./ui/badge";
 
 const containerVariants = {
   show: {
@@ -29,6 +33,7 @@ interface Note {
   content: string;
   createdAt: Date;
   id: string;
+  kind: Kind | null;
   pinnedAt: Date | null;
 }
 
@@ -69,8 +74,16 @@ export function NotesListItems({ filteredNotes, query }: NotesListItemsProps) {
                     variants={itemVariants}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-muted-foreground text-sm opacity-70">
-                        {format(note.createdAt, "PPP pp")}
+                      <div className="text-muted-foreground flex items-center gap-2 text-sm opacity-70">
+                        <span>{format(note.createdAt, "PPP pp")}</span>
+                        {note.kind ? (
+                          <Badge
+                            className="text-xs capitalize"
+                            variant="outline"
+                          >
+                            {KIND_LABELS[note.kind]}
+                          </Badge>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-1 opacity-60 transition-opacity hover:opacity-100">
                         <PinNote

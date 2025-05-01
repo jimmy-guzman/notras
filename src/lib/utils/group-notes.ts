@@ -1,11 +1,14 @@
 import { isThisWeek, isToday } from "date-fns";
 
+import type { Kind } from "../kind";
+
 export type TimeGroup = "earlier" | "thisWeek" | "today";
 
 interface Note {
   content: string;
   createdAt: Date;
   id: string;
+  kind: Kind | null;
   pinnedAt: Date | null;
 }
 

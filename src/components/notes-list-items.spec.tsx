@@ -33,6 +33,7 @@ vi.mock("next/navigation", () => {
 
 const baseNote = {
   content: "Test note",
+  kind: null,
   pinnedAt: null,
 };
 
@@ -115,5 +116,21 @@ describe("<NotesListItems />", () => {
     });
 
     expect(formatted).toBeInTheDocument();
+  });
+
+  it("should render a badge with the correct kind label when note has a kind", () => {
+    const note = {
+      ...baseNote,
+      createdAt: addMinutes(startOfToday(), 30),
+      id: "1",
+      kind: "dream" as const,
+    };
+
+    render(<NotesListItems filteredNotes={[note]} />);
+
+    expect(screen.getByText("Dream")).toBeInTheDocument();
+    const badge = screen.getByText("Dream");
+
+    expect(badge).toHaveClass("capitalize");
   });
 });
