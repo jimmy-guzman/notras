@@ -4,6 +4,7 @@ import { groupAndSortNotes } from "./group-notes";
 
 const baseNote = {
   content: "test",
+  kind: null,
   pinnedAt: null,
 };
 
