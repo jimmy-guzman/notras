@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import type { Kind } from "@/lib/kind";
+
 import { NewNoteInput } from "@/components/new-note-input";
 import { NotesList } from "@/components/notes-list";
 import { NotesSearchInput } from "@/components/notes-search";
@@ -8,6 +10,7 @@ import { getSession } from "@/lib/auth";
 
 interface PageProps {
   searchParams: Promise<{
+    kind?: Kind;
     mode?: string;
     q?: string;
   }>;
@@ -17,6 +20,7 @@ export default async function Page(props: PageProps) {
   const searchParams = await props.searchParams;
   const session = await getSession();
   const query = searchParams.q ?? "";
+  const { kind } = searchParams;
   const mode = searchParams.mode === "search" ? "search" : "create";
 
   return (
@@ -42,7 +46,7 @@ export default async function Page(props: PageProps) {
               <NotesSearchInput />
             </Suspense>
           )}
-          <NotesList query={query} />
+          <NotesList kind={kind} query={query} />
         </>
       ) : (
         <p className="text-muted-foreground text-center text-sm">
