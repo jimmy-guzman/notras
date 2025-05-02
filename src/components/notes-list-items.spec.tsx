@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { addMinutes, startOfToday, startOfWeek, subDays } from "date-fns";
 
 import { NotesListItems } from "./notes-list-items";
@@ -132,5 +133,78 @@ describe("<NotesListItems />", () => {
     const badge = screen.getByText("Dream");
 
     expect(badge).toHaveClass("capitalize");
+  });
+
+  it("should render the toggle group with correct default value", () => {
+    const notes = [
+      {
+        ...baseNote,
+        createdAt: addMinutes(startOfToday(), 60),
+        id: "1",
+      },
+    ];
+
+    render(<NotesListItems filteredNotes={notes} />);
+
+    expect(screen.getByRole("radio", { name: /group by time/i })).toBeChecked();
+
+    expect(
+      screen.getByRole("radio", { name: /explore by kind/i }),
+    ).not.toBeChecked();
+  });
+
+  it("should toggle to group by kind when clicked", async () => {
+    const notes = [
+      {
+        ...baseNote,
+        createdAt: addMinutes(startOfToday(), 60),
+        id: "1",
+        kind: "question" as const,
+      },
+      {
+        ...baseNote,
+        createdAt: addMinutes(startOfToday(), 30),
+        id: "2",
+        kind: "dream" as const,
+      },
+    ];
+
+    render(<NotesListItems filteredNotes={notes} />);
+
+    await userEvent.click(
+      screen.getByRole("radio", { name: /explore by kind/i }),
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Question" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Dream" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should toggle back to group by time when clicked again", async () => {
+    const notes = [
+      {
+        ...baseNote,
+        createdAt: addMinutes(startOfToday(), 60),
+        id: "1",
+        kind: "thought" as const,
+      },
+    ];
+
+    render(<NotesListItems filteredNotes={notes} />);
+
+    await userEvent.click(
+      screen.getByRole("radio", { name: /explore by kind/i }),
+    );
+
+    await userEvent.click(
+      screen.getByRole("radio", { name: /group by time/i }),
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Today" }),
+    ).toBeInTheDocument();
   });
 });
