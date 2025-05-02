@@ -1,4 +1,4 @@
-# notras
+# 🌸 notras
 
 > A simple space to capture your thoughts as they come.
 

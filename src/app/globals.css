@@ -38,9 +38,10 @@
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(0.81 0.02 271.2);
   --sidebar-ring: oklch(0.55 0.25 297.02);
-  --font-sans: Montserrat, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Fira Code, monospace;
+  --font-sans: "Inter", "Helvetica Neue", system-ui, sans-serif;
+  --font-serif: "Charter", "Georgia", serif;
+  --font-mono: "Fira Code", "Menlo", monospace;
+
   --radius: 0.35rem;
   --shadow-2xs: 0px 4px 6px 0px hsl(240 30% 25% / 0.06);
   --shadow-xs: 0px 4px 6px 0px hsl(240 30% 25% / 0.06);
@@ -95,9 +96,9 @@
   --sidebar-accent-foreground: oklch(0.24 0.03 283.91);
   --sidebar-border: oklch(0.4 0.03 280.15);
   --sidebar-ring: oklch(0.79 0.12 304.77);
-  --font-sans: Montserrat, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Fira Code, monospace;
+  --font-sans: "Inter", "Helvetica Neue", system-ui, sans-serif;
+  --font-serif: "Charter", "Georgia", serif;
+  --font-mono: "Fira Code", "Menlo", monospace;
   --radius: 0.35rem;
   --shadow-2xs: 0px 4px 6px 0px hsl(240 30% 25% / 0.06);
   --shadow-xs: 0px 4px 6px 0px hsl(240 30% 25% / 0.06);
