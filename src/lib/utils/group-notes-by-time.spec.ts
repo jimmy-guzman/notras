@@ -1,6 +1,6 @@
 import { addMinutes, startOfToday, startOfWeek, subDays } from "date-fns";
 
-import { groupAndSortNotes } from "./group-notes";
+import { groupNotesByTime } from "./group-notes-by-time";
 
 const baseNote = {
   content: "test",
@@ -8,7 +8,7 @@ const baseNote = {
   pinnedAt: null,
 };
 
-describe("groupAndSortNotes", () => {
+describe("groupNotesByTime", () => {
   it("should group a note created today into 'today'", () => {
     const note = {
       ...baseNote,
@@ -16,7 +16,7 @@ describe("groupAndSortNotes", () => {
       id: "today",
     };
 
-    const result = groupAndSortNotes([note]);
+    const result = groupNotesByTime([note]);
 
     expect(result).toStrictEqual([
       {
@@ -34,7 +34,7 @@ describe("groupAndSortNotes", () => {
       id: "this-week",
     };
 
-    const result = groupAndSortNotes([note]);
+    const result = groupNotesByTime([note]);
 
     expect(result).toStrictEqual([
       {
@@ -52,7 +52,7 @@ describe("groupAndSortNotes", () => {
       id: "earlier",
     };
 
-    const result = groupAndSortNotes([note]);
+    const result = groupNotesByTime([note]);
 
     expect(result).toStrictEqual([
       {
@@ -82,7 +82,7 @@ describe("groupAndSortNotes", () => {
       id: "earlier",
     };
 
-    const result = groupAndSortNotes([today, thisWeek, earlier]);
+    const result = groupNotesByTime([today, thisWeek, earlier]);
 
     expect(
       result.map((g) => {
@@ -98,7 +98,7 @@ describe("groupAndSortNotes", () => {
       id: "earlier",
     };
 
-    const result = groupAndSortNotes([note]);
+    const result = groupNotesByTime([note]);
 
     expect(
       result.map((g) => {
@@ -131,11 +131,7 @@ describe("groupAndSortNotes", () => {
       pinnedAt: null,
     };
 
-    const result = groupAndSortNotes([
-      unpinnedOlder,
-      pinnedNote,
-      unpinnedNewer,
-    ]);
+    const result = groupNotesByTime([unpinnedOlder, pinnedNote, unpinnedNewer]);
 
     const todayGroup = result.find((g) => {
       return g.group === "today";

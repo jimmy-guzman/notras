@@ -18,7 +18,7 @@ const timeGroupMeta = {
   today: { label: "Today", order: 0 },
 };
 
-export function groupAndSortNotes(notes: Note[]) {
+export function groupNotesByTime(notes: Note[]) {
   const groups: Record<TimeGroup, Note[]> = {
     earlier: [],
     thisWeek: [],
