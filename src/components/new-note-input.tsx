@@ -21,7 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
+import { KIND_DESCRIPTIONS, KIND_LABELS, KIND_VALUES } from "@/lib/kind";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 const formSchema = z.object({
   content: z.string().min(1, "Note cannot be empty"),
@@ -71,13 +78,22 @@ export function NewNoteInput() {
                       <SelectValue placeholder="Select kind" />
                     </SelectTrigger>
                     <SelectContent>
-                      {KIND_VALUES.map((value) => {
-                        return (
-                          <SelectItem key={value} value={value}>
-                            {KIND_LABELS[value]}
-                          </SelectItem>
-                        );
-                      })}
+                      <TooltipProvider delayDuration={200}>
+                        {KIND_VALUES.map((value) => {
+                          return (
+                            <Tooltip key={value}>
+                              <TooltipTrigger asChild>
+                                <SelectItem value={value}>
+                                  {KIND_LABELS[value]}
+                                </SelectItem>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" sideOffset={6}>
+                                {KIND_DESCRIPTIONS[value]}
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })}
+                      </TooltipProvider>
                     </SelectContent>
                   </Select>
                 </FormControl>
