@@ -2,6 +2,10 @@ name: ci
 
 on: [pull_request]
 
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   code_check:
     runs-on: ubuntu-latest
@@ -17,7 +21,6 @@ jobs:
         run: pnpm format
 
       - name: ✂️ Knip
-        shell: bash
         run: pnpm knip
 
       - name: 🚨 Lint

@@ -32,6 +32,8 @@
     "typecheck",
     "unrs",
     "vercel",
+    "vite",
+    "vitest",
     "wireframe"
   ],
   "css.lint.unknownAtRules": "ignore",
