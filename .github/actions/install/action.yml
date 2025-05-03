@@ -17,18 +17,27 @@ runs:
     - name: 🗃️ Get pnpm Store Directory
       id: pnpm-cache
       shell: bash
-      run: |
-        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+      run: echo "store_path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-    - name: 🏗 Setup Cache
+    - name: 🏗 Setup pnpm Store Cache
       uses: actions/cache@v4
       with:
-        path: ${{ env.STORE_PATH }}
-        key: ${{ runner.os }}-${{ inputs.node-version }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        path: ${{ steps.pnpm-cache.outputs.store_path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-${{ inputs.node-version }}-pnpm-store-
           ${{ runner.os }}-pnpm-store-
 
+    - name: 🧠 Restore Tool & Build Caches
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/.next/cache
+          **/node_modules/.cache
+          **/node_modules/.vite
+        key: ${{ runner.os }}-tools-${{ hashFiles('**/pnpm-lock.yaml', '**/eslint.config.*', '**/prettier.config.*', '**/vite.config.*', '**/next.config.*', '**/vitest.config.*') }}
+        restore-keys: |
+          ${{ runner.os }}-tools-
+
     - name: 📦 Install Deps
-      run: pnpm install
+      run: pnpm install --frozen-lockfile
       shell: bash
