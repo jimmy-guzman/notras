@@ -46,5 +46,8 @@ function Toggle({
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components -- this is okay
-export { Toggle, toggleVariants };
+export {
+  Toggle,
+  // eslint-disable-next-line react-refresh/only-export-components -- this is okay
+  toggleVariants,
+};

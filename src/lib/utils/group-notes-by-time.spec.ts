@@ -1,4 +1,12 @@
-import { addMinutes, startOfToday, startOfWeek, subDays } from "date-fns";
+import {
+  addDays,
+  addMinutes,
+  setHours,
+  setMinutes,
+  startOfToday,
+  startOfWeek,
+  subDays,
+} from "date-fns";
 
 import { groupNotesByTime } from "./group-notes-by-time";
 
@@ -9,6 +17,17 @@ const baseNote = {
 };
 
 describe("groupNotesByTime", () => {
+  const MOCKED_DATE = new Date("2025-05-06T12:00:00Z");
+
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MOCKED_DATE);
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it("should group a note created today into 'today'", () => {
     const note = {
       ...baseNote,
@@ -27,10 +46,29 @@ describe("groupNotesByTime", () => {
     ]);
   });
 
+  it("should group a note created yesterday into 'yesterday'", () => {
+    const yesterday = subDays(startOfToday(), 1);
+    const note = {
+      ...baseNote,
+      createdAt: setHours(setMinutes(yesterday, 30), 10), // 10:30 AM yesterday
+      id: "yesterday",
+    };
+
+    const result = groupNotesByTime([note]);
+
+    expect(result).toStrictEqual([
+      {
+        group: "yesterday",
+        label: "Yesterday",
+        notes: [note],
+      },
+    ]);
+  });
+
   it("should group a note created earlier this week into 'thisWeek'", () => {
     const note = {
       ...baseNote,
-      createdAt: addMinutes(startOfWeek(new Date(), { weekStartsOn: 1 }), 60),
+      createdAt: addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 2), // safely mid-week
       id: "this-week",
     };
 
@@ -70,9 +108,15 @@ describe("groupNotesByTime", () => {
       id: "today",
     };
 
+    const yesterday = {
+      ...baseNote,
+      createdAt: setHours(setMinutes(subDays(startOfToday(), 1), 15), 9),
+      id: "yesterday",
+    };
+
     const thisWeek = {
       ...baseNote,
-      createdAt: addMinutes(startOfWeek(new Date(), { weekStartsOn: 1 }), 60),
+      createdAt: addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 2), // Wednesday
       id: "this-week",
     };
 
@@ -82,13 +126,13 @@ describe("groupNotesByTime", () => {
       id: "earlier",
     };
 
-    const result = groupNotesByTime([today, thisWeek, earlier]);
+    const result = groupNotesByTime([today, yesterday, thisWeek, earlier]);
 
     expect(
       result.map((g) => {
         return g.group;
       }),
-    ).toStrictEqual(["today", "thisWeek", "earlier"]);
+    ).toStrictEqual(["today", "yesterday", "thisWeek", "earlier"]);
   });
 
   it("should omit empty groups", () => {
@@ -141,10 +185,6 @@ describe("groupNotesByTime", () => {
       todayGroup?.notes.map((n) => {
         return n.id;
       }),
-    ).toStrictEqual([
-      "pinned", // pinned first
-      "newer", // then newer
-      "older", // then older
-    ]);
+    ).toStrictEqual(["pinned", "newer", "older"]);
   });
 });
