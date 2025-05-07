@@ -1,61 +1,41 @@
-import Link from "next/link";
-import { Suspense } from "react";
-
 import type { Kind } from "@/lib/kind";
 
-import { NewNoteInput } from "@/components/new-note-input";
+import { getNotes } from "@/actions/get-notes";
+import { EmptyNotesState } from "@/components/empty-note-state";
+import { Hero } from "@/components/hero";
 import { NotesList } from "@/components/notes-list";
-import { NotesSearchInput } from "@/components/notes-search";
+import { SignedOutFallback } from "@/components/signed-out-fallback";
+import { UnifiedNoteInput } from "@/components/unified-note-input";
 import { getSession } from "@/lib/auth";
 
 interface PageProps {
   searchParams: Promise<{
     kind?: Kind;
-    mode?: string;
     q?: string;
+    time?: "month" | "today" | "week";
   }>;
 }
 
-export default async function Page(props: PageProps) {
-  const searchParams = await props.searchParams;
+export default async function Page({ searchParams }: PageProps) {
   const session = await getSession();
-  const query = searchParams.q ?? "";
-  const { kind } = searchParams;
-  const mode = searchParams.mode === "search" ? "search" : "create";
+
+  if (!session?.session) return <SignedOutFallback />;
+
+  const { kind, q: query = "", time } = await searchParams;
+
+  const notes = await getNotes({ kind, query, time });
 
   return (
-    <section className="mt-4 flex flex-col gap-8 p-4">
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Welcome to notras{" "}
-          <span className="bg-foreground bg-clip-text text-transparent">
-            👋
-          </span>
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          A simple space to capture your thoughts as they come.
-        </p>
+    <section className="mt-4 flex flex-col gap-12 p-4">
+      <Hero />
+      <UnifiedNoteInput kind={kind} query={query} />
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+        {notes.length === 0 ? (
+          <EmptyNotesState />
+        ) : (
+          <NotesList notes={notes} query={query} />
+        )}
       </div>
-
-      {session?.session ? (
-        <>
-          {mode === "create" ? (
-            <NewNoteInput />
-          ) : (
-            <Suspense>
-              <NotesSearchInput />
-            </Suspense>
-          )}
-          <NotesList kind={kind} query={query} />
-        </>
-      ) : (
-        <p className="text-muted-foreground text-center text-sm">
-          <Link className="underline underline-offset-4" href="/signin">
-            Sign in
-          </Link>{" "}
-          to start capturing your thoughts.
-        </p>
-      )}
     </section>
   );
 }

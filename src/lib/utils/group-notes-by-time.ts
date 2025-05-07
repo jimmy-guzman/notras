@@ -1,8 +1,8 @@
-import { isThisWeek, isToday } from "date-fns";
+import { isThisWeek, isToday, isYesterday } from "date-fns";
 
 import type { Kind } from "../kind";
 
-export type TimeGroup = "earlier" | "thisWeek" | "today";
+export type TimeGroup = "earlier" | "thisWeek" | "today" | "yesterday";
 
 interface Note {
   content: string;
@@ -13,9 +13,10 @@ interface Note {
 }
 
 const timeGroupMeta = {
-  earlier: { label: "Earlier", order: 2 },
-  thisWeek: { label: "This Week", order: 1 },
+  earlier: { label: "Earlier", order: 3 },
+  thisWeek: { label: "This Week", order: 2 },
   today: { label: "Today", order: 0 },
+  yesterday: { label: "Yesterday", order: 1 },
 };
 
 export function groupNotesByTime(notes: Note[]) {
@@ -23,11 +24,14 @@ export function groupNotesByTime(notes: Note[]) {
     earlier: [],
     thisWeek: [],
     today: [],
+    yesterday: [],
   };
 
   for (const note of notes) {
     if (isToday(note.createdAt)) {
       groups.today.push(note);
+    } else if (isYesterday(note.createdAt)) {
+      groups.yesterday.push(note);
     } else if (isThisWeek(note.createdAt, { weekStartsOn: 1 })) {
       groups.thisWeek.push(note);
     } else {

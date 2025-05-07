@@ -1,7 +1,6 @@
 import type { KnipConfig } from "knip";
 
 export default {
-  ignore: ["src/server/db/schemas/notes.ts"],
   ignoreDependencies: [
     "gitzy",
     "@iconify-json/*",
