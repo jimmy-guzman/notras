@@ -14,7 +14,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getSession } from "@/lib/auth";
@@ -26,18 +25,16 @@ export const UserDropdown = async () => {
 
   if (!session) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button asChild size="icon" variant="outline">
-              <Link href="/signin">
-                <LogIn />
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Sign In</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button asChild size="icon" variant="outline">
+            <Link href="/signin">
+              <LogIn />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Sign In</TooltipContent>
+      </Tooltip>
     );
   }
 

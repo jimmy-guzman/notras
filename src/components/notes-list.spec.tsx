@@ -1,4 +1,3 @@
-import { render, screen } from "@testing-library/react";
 import {
   addDays,
   addMinutes,
@@ -6,6 +5,8 @@ import {
   startOfWeek,
   subDays,
 } from "date-fns";
+
+import { render, screen } from "@/testing/utils";
 
 import { NotesList } from "./notes-list";
 
@@ -23,6 +24,10 @@ vi.mock("@/actions/pin-note", () => {
 
 vi.mock("@/actions/unpin-note", () => {
   return { unpinNote: vi.fn() };
+});
+
+vi.mock("@/actions/update-note", () => {
+  return { updateNote: vi.fn() };
 });
 
 vi.mock("next/navigation", () => {

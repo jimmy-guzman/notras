@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRouter } from "next/navigation";
 
 import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
 import { PinNote } from "@/components/pin-note";
+import { render, screen } from "@/testing/utils";
 
 vi.mock("@/actions/pin-note", () => {
   return {

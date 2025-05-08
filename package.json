@@ -40,7 +40,6 @@
     "clsx": "2.1.1",
     "date-fns": "4.1.0",
     "drizzle-orm": "0.43.1",
-    "framer-motion": "12.10.1",
     "lucide-react": "0.508.0",
     "nanoid": "5.1.5",
     "next": "15.4.0-canary.17",

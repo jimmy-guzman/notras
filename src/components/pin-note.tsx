@@ -7,12 +7,7 @@ import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
 
 import { Button } from "./ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export const PinNote = ({
   noteId,
@@ -30,26 +25,24 @@ export const PinNote = ({
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            aria-label={pinned ? "Unpin" : "Pin"}
-            className="h-6 w-6"
-            onClick={handleTogglePin}
-            size="icon"
-            variant="ghost"
-          >
-            <PinIcon
-              className="h-4 w-4"
-              fill={pinned ? "currentColor" : "none"}
-            />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={4}>
-          {pinned ? "Unpin" : "Pin"}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={pinned ? "Unpin" : "Pin"}
+          className="h-6 w-6"
+          onClick={handleTogglePin}
+          size="icon"
+          variant="ghost"
+        >
+          <PinIcon
+            className="h-4 w-4"
+            fill={pinned ? "currentColor" : "none"}
+          />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={4}>
+        {pinned ? "Unpin" : "Pin"}
+      </TooltipContent>
+    </Tooltip>
   );
 };

@@ -9,6 +9,7 @@ import { SiteFooter } from "@/components/footer";
 import { SiteNav } from "@/components/nav";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,15 +31,17 @@ export default function RootLayout({
           disableTransitionOnChange
           enableSystem
         >
-          <div className="flex min-h-screen flex-col">
-            <header className="bg-background sticky inset-x-0 top-0 isolate z-10 flex shrink-0 items-center gap-2 border-b">
-              <SiteNav />
-            </header>
+          <TooltipProvider>
+            <div className="flex min-h-screen flex-col">
+              <header className="bg-background sticky inset-x-0 top-0 isolate z-10 flex shrink-0 items-center gap-2 border-b">
+                <SiteNav />
+              </header>
 
-            <main className="flex-1">{children}</main>
-            <SiteFooter />
-          </div>
-          <Toaster />
+              <main className="flex-1">{children}</main>
+              <SiteFooter />
+            </div>
+            <Toaster />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
 import { NewNoteInput } from "@/components/new-note-input";
 import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
+import { render, screen, waitFor } from "@/testing/utils";
 
 vi.mock("@/actions/save-note", () => {
   return {
