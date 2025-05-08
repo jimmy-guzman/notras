@@ -7,12 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/ui/utils";
 
 import { Button } from "./ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 const COPY_RESET_DELAY_MS = 1500;
 
@@ -55,36 +50,34 @@ export const CopyNote = ({
   }, []);
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            aria-label={copied ? "Copied" : "Copy"}
-            className="h-6 w-6"
-            onClick={handleCopy}
-            size="icon"
-            variant="ghost"
-          >
-            <span className="relative inline-block h-4 w-4">
-              <Check
-                className={cn(
-                  "absolute inset-0 transition-opacity duration-300 ease-in-out",
-                  copied ? "opacity-100 delay-50" : "opacity-0 delay-0",
-                )}
-              />
-              <Copy
-                className={cn(
-                  "absolute inset-0 transition-opacity duration-300 ease-in-out",
-                  copied ? "opacity-0 delay-0" : "opacity-100 delay-50",
-                )}
-              />
-            </span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={4}>
-          {copied ? "Copied" : "Copy"}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={copied ? "Copied" : "Copy"}
+          className="h-6 w-6"
+          onClick={handleCopy}
+          size="icon"
+          variant="ghost"
+        >
+          <span className="relative inline-block h-4 w-4">
+            <Check
+              className={cn(
+                "absolute inset-0 transition-opacity duration-300 ease-in-out",
+                copied ? "opacity-100 delay-50" : "opacity-0 delay-0",
+              )}
+            />
+            <Copy
+              className={cn(
+                "absolute inset-0 transition-opacity duration-300 ease-in-out",
+                copied ? "opacity-0 delay-0" : "opacity-100 delay-50",
+              )}
+            />
+          </span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={4}>
+        {copied ? "Copied" : "Copy"}
+      </TooltipContent>
+    </Tooltip>
   );
 };

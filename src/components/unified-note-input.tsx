@@ -37,7 +37,7 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       content: query,
-      kind,
+      kind: kind ?? "",
     },
     resolver: zodResolver(formSchema),
   });

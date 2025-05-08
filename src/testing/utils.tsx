@@ -5,14 +5,15 @@ import type * as React from "react";
 import { render } from "@testing-library/react";
 
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // eslint-disable-next-line react-refresh/only-export-components -- this is okay
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
-    <>
+    <TooltipProvider>
       <Toaster />
       {children}
-    </>
+    </TooltipProvider>
   );
 };
 
