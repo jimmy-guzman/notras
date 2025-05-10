@@ -9,21 +9,18 @@ import type { Kind } from "@/lib/kind";
 import { KIND_LABELS } from "@/lib/kind";
 import { groupNotesByTime } from "@/lib/utils/group-notes-by-time";
 
-import { ArchiveNote } from "./archive-note";
-import { CopyNote } from "./copy-note";
 import { EditNoteButton } from "./edit-note-button";
-import { NoteLinksPopover } from "./link-notes";
 import { NoteContent } from "./note-content";
+import { NoteActionsDropdown } from "./notes-actions-dropdown";
 import { PinNote } from "./pin-note";
 import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
 
 interface Note {
   content: string;
   createdAt: Date;
   id: string;
   kind: Kind | null;
-  metadata?: {
+  metadata: null | {
     aiKindInferred?: boolean;
   };
   pinnedAt: Date | null;
@@ -43,13 +40,11 @@ export function NotesList({ notes, query }: NotesListProps) {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-12">
-      {groupedNotes.map(({ label, notes }, index) => {
-        const isLast = index === groupedNotes.length - 1;
-
+      {groupedNotes.map(({ label, notes }) => {
         return (
           <div className="flex flex-col gap-6" key={label}>
             {label && (
-              <h2 className="text-muted-foreground text-sm font-medium transition-opacity">
+              <h2 className="text-muted-foreground p-2 text-sm font-medium transition-opacity">
                 {label}
               </h2>
             )}
@@ -57,7 +52,7 @@ export function NotesList({ notes, query }: NotesListProps) {
             {notes.map((note) => {
               return (
                 <div
-                  className="group hover:bg-muted/20 flex flex-col gap-1 p-2 transition-colors"
+                  className="group hover:bg-muted/40 flex flex-col gap-1 p-2 transition-colors"
                   key={note.id}
                 >
                   <div className="flex items-center justify-between">
@@ -75,8 +70,7 @@ export function NotesList({ notes, query }: NotesListProps) {
                         )}
                       </Badge>
                     </div>
-
-                    <div className="text-muted-foreground flex items-center opacity-70 transition-opacity hover:opacity-100">
+                    <div className="flex items-center opacity-70 transition-opacity group-hover:opacity-100">
                       <EditNoteButton
                         isEditing={editingNoteId === note.id}
                         onClick={() => {
@@ -85,13 +79,21 @@ export function NotesList({ notes, query }: NotesListProps) {
                           });
                         }}
                       />
+
                       <PinNote
                         noteId={note.id}
                         pinned={Boolean(note.pinnedAt)}
                       />
-                      <CopyNote content={note.content} />
-                      <ArchiveNote noteId={note.id} />
-                      <NoteLinksPopover noteId={note.id} />
+
+                      <NoteActionsDropdown
+                        isEditing={editingNoteId === note.id}
+                        note={note}
+                        onEditToggle={() => {
+                          setEditingNoteId((current) => {
+                            return current === note.id ? null : note.id;
+                          });
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -110,8 +112,6 @@ export function NotesList({ notes, query }: NotesListProps) {
                 </div>
               );
             })}
-
-            {!isLast && <Separator className="opacity-40" />}
           </div>
         );
       })}

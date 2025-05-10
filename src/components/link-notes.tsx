@@ -1,62 +1,53 @@
 "use client";
 
-import { Link2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getLinkedNotes } from "@/actions/get-linked-notes";
-import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
-interface NoteLinksPopoverProps {
-  noteId: string;
-}
+import { DropdownMenuItem } from "./ui/dropdown-menu";
 
-export function NoteLinksPopover({ noteId }: NoteLinksPopoverProps) {
+export function LinkedNotesListContent({ noteId }: { noteId: string }) {
   const [links, setLinks] = useState<{ content: string; id: string }[]>([]);
-  const [open, setOpen] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
-    if (!open || links.length > 0) return;
-
+    if (hasFetched) return;
     void getLinkedNotes(noteId).then((data) => {
       setLinks(data);
+      setHasFetched(true);
     });
-  }, [open, links.length, noteId]);
+  }, [noteId, hasFetched]);
+
+  if (!hasFetched) {
+    return (
+      <div className="text-muted-foreground px-2 py-1 text-sm">
+        Loading links...
+      </div>
+    );
+  }
+
+  if (links.length === 0) {
+    return (
+      <div className="text-muted-foreground px-2 py-1 text-sm">
+        No linked notes
+      </div>
+    );
+  }
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <Button size="icon" variant="ghost">
-          <Link2 className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 text-sm">
-        {links.length === 0 ? (
-          <p className="text-muted-foreground">No linked notes.</p>
-        ) : (
-          <ul className="border-muted space-y-1 border-l pl-2">
-            {links.map((link) => {
-              return (
-                <li className="text-muted-foreground truncate" key={link.id}>
-                  <Link
-                    className="hover:underline"
-                    // eslint-disable-next-line no-magic-numbers -- TODO
-                    href={`/?q=${encodeURIComponent(link.content.slice(0, 40))}`}
-                  >
-                    {/* eslint-disable-next-line no-magic-numbers -- TODO */}“
-                    {link.content.slice(0, 100)}”
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </PopoverContent>
-    </Popover>
+    <>
+      {links.map((link) => {
+        return (
+          <DropdownMenuItem asChild key={link.id}>
+            {/* eslint-disable-next-line no-magic-numbers -- TODO */}
+            <Link href={`/?q=${encodeURIComponent(link.content.slice(0, 40))}`}>
+              {/* eslint-disable-next-line no-magic-numbers -- TODO */}“
+              {link.content.slice(0, 100)}”
+            </Link>
+          </DropdownMenuItem>
+        );
+      })}
+    </>
   );
 }

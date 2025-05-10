@@ -70,8 +70,11 @@ export function NoteContent({
   }
 
   return (
-    <div
-      className={cn("text-sm whitespace-pre-wrap", query && "leading-relaxed")}
+    <p
+      className={cn(
+        "pb-2 text-sm whitespace-pre-wrap",
+        query && "leading-relaxed",
+      )}
     >
       {parts.map((part) => {
         return part.match ? (
@@ -85,6 +88,6 @@ export function NoteContent({
           part.text
         );
       })}
-    </div>
+    </p>
   );
 }
