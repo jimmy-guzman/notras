@@ -9,6 +9,9 @@ interface Note {
   createdAt: Date;
   id: string;
   kind: Kind | null;
+  metadata?: {
+    aiKindInferred?: boolean;
+  };
   pinnedAt: Date | null;
 }
 

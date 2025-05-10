@@ -11,11 +11,11 @@ interface EditNoteButtonProps {
 
 export function EditNoteButton({ isEditing, onClick }: EditNoteButtonProps) {
   return (
-    <Button className="h-6 w-6" onClick={onClick} size="icon" variant="ghost">
+    <Button onClick={onClick} size="icon" variant="ghost">
       {isEditing ? (
-        <PencilOffIcon className="h-3 w-3" />
+        <PencilOffIcon className="h-4 w-4" />
       ) : (
-        <PencilIcon className="h-3 w-3" />
+        <PencilIcon className="h-4 w-4" />
       )}
       <span className="sr-only">
         {isEditing ? "Editing (press Esc to cancel)" : "Edit note"}

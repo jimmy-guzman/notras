@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { ClipboardCheckIcon, ClipboardCopyIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -54,25 +54,25 @@ export const CopyNote = ({
       <TooltipTrigger asChild>
         <Button
           aria-label={copied ? "Copied" : "Copy"}
-          className="h-6 w-6"
+          // className="h-6 w-6"
           onClick={handleCopy}
           size="icon"
           variant="ghost"
         >
-          <span className="relative inline-block h-4 w-4">
-            <Check
+          <>
+            <ClipboardCheckIcon
               className={cn(
-                "absolute inset-0 transition-opacity duration-300 ease-in-out",
-                copied ? "opacity-100 delay-50" : "opacity-0 delay-0",
+                "transition-opacity duration-300 ease-in-out",
+                copied ? "opacity-100 delay-50" : "hidden opacity-0 delay-0",
               )}
             />
-            <Copy
+            <ClipboardCopyIcon
               className={cn(
-                "absolute inset-0 transition-opacity duration-300 ease-in-out",
-                copied ? "opacity-0 delay-0" : "opacity-100 delay-50",
+                "transition-opacity duration-300 ease-in-out",
+                copied ? "hidden opacity-0 delay-0" : "opacity-100 delay-50",
               )}
             />
-          </span>
+          </>
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>

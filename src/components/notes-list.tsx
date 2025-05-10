@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
+import { Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { Kind } from "@/lib/kind";
@@ -11,6 +12,7 @@ import { groupNotesByTime } from "@/lib/utils/group-notes-by-time";
 import { ArchiveNote } from "./archive-note";
 import { CopyNote } from "./copy-note";
 import { EditNoteButton } from "./edit-note-button";
+import { NoteLinksPopover } from "./link-notes";
 import { NoteContent } from "./note-content";
 import { PinNote } from "./pin-note";
 import { Badge } from "./ui/badge";
@@ -21,6 +23,9 @@ interface Note {
   createdAt: Date;
   id: string;
   kind: Kind | null;
+  metadata?: {
+    aiKindInferred?: boolean;
+  };
   pinnedAt: Date | null;
 }
 
@@ -52,7 +57,7 @@ export function NotesList({ notes, query }: NotesListProps) {
             {notes.map((note) => {
               return (
                 <div
-                  className="border-muted/30 hover:bg-muted/10 flex flex-col gap-1 rounded-sm border-b pb-3 transition-colors"
+                  className="group hover:bg-muted/20 flex flex-col gap-1 p-2 transition-colors"
                   key={note.id}
                 >
                   <div className="flex items-center justify-between">
@@ -63,14 +68,15 @@ export function NotesList({ notes, query }: NotesListProps) {
                       <span className="hidden sm:inline">
                         {format(note.createdAt, "PPP pp")}
                       </span>
-                      {note.kind && (
-                        <Badge className="text-xs capitalize" variant="outline">
-                          {KIND_LABELS[note.kind]}
-                        </Badge>
-                      )}
+                      <Badge className="text-xs capitalize" variant="outline">
+                        {KIND_LABELS[note.kind ?? "thought"]}
+                        {note.metadata?.aiKindInferred && (
+                          <Sparkles className="text-muted-foreground ml-1 inline-block h-3 w-3" />
+                        )}
+                      </Badge>
                     </div>
 
-                    <div className="text-muted-foreground flex items-center gap-1">
+                    <div className="text-muted-foreground flex items-center opacity-70 transition-opacity hover:opacity-100">
                       <EditNoteButton
                         isEditing={editingNoteId === note.id}
                         onClick={() => {
@@ -85,6 +91,7 @@ export function NotesList({ notes, query }: NotesListProps) {
                       />
                       <CopyNote content={note.content} />
                       <ArchiveNote noteId={note.id} />
+                      <NoteLinksPopover noteId={note.id} />
                     </div>
                   </div>
 
