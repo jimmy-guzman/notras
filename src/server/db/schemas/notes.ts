@@ -4,6 +4,10 @@ import { KIND_VALUES } from "@/lib/kind";
 
 import { user } from "./users";
 
+interface NoteMetadata {
+  aiKindInferred?: boolean;
+}
+
 export const note = pgTable("note", {
   aiCreatedAt: timestamp("ai_created_at", { mode: "date" }),
   aiUpdatedAt: timestamp("ai_updated_at", { mode: "date" }),
@@ -13,7 +17,7 @@ export const note = pgTable("note", {
   embedding: vector("embedding", { dimensions: 1536 }),
   id: text("id").primaryKey(),
   kind: text("kind", { enum: KIND_VALUES }),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata").$type<NoteMetadata>(),
   pinnedAt: timestamp("pinned_at", { mode: "date" }),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   userId: text("user_id")
