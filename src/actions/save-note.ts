@@ -1,6 +1,7 @@
 "use server";
 
 import { nanoid } from "nanoid";
+import { revalidateTag } from "next/cache";
 import invariant from "tiny-invariant";
 
 import type { Kind } from "@/lib/kind";
@@ -22,4 +23,6 @@ export async function saveNote(content: string, kind?: Kind) {
     updatedAt: new Date(),
     userId: session.user.id,
   });
+
+  revalidateTag("notes");
 }

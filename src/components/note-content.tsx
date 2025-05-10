@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { updateNote } from "@/actions/update-note";
@@ -8,8 +7,6 @@ import { cn } from "@/lib/ui/utils";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 
 import { Textarea } from "./ui/textarea";
-
-const DELAY = 300;
 
 interface NoteContentProps {
   content: string;
@@ -28,7 +25,6 @@ export function NoteContent({
   onSave,
   query,
 }: NoteContentProps) {
-  const router = useRouter();
   const parts = useMemo(() => {
     return getHighlightedParts(content, query ?? "");
   }, [content, query]);
@@ -47,11 +43,6 @@ export function NoteContent({
       onSave?.();
     } else {
       await updateNote(id, trimmed);
-      router.refresh();
-
-      setTimeout(() => {
-        onSave?.();
-      }, DELAY);
     }
   };
 

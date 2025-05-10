@@ -1,0 +1,12 @@
+{
+  "cron": [
+    {
+      "path": "/api/cron/refresh-ai",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-links",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}

@@ -16,10 +16,10 @@ export const KIND_LABELS = {
   todo: "Todo",
 } satisfies Record<Kind, string>;
 
-export const KIND_DESCRIPTIONS: Record<Kind, string> = {
+export const KIND_DESCRIPTIONS = {
   dream: "Something from sleep or imagination",
   memory: "Something you want to remember",
   question: "Something you're wondering about",
   thought: "A passing idea or reflection",
   todo: "Something to do or take care of",
-};
+} satisfies Record<Kind, string>;

@@ -1,7 +1,6 @@
 "use client";
 
 import { PinIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
@@ -16,12 +15,8 @@ export const PinNote = ({
   noteId: string;
   pinned: boolean;
 }) => {
-  const router = useRouter();
-
   async function handleTogglePin() {
     await (pinned ? unpinNote(noteId) : pinNote(noteId));
-
-    router.refresh();
   }
 
   return (
@@ -29,7 +24,6 @@ export const PinNote = ({
       <TooltipTrigger asChild>
         <Button
           aria-label={pinned ? "Unpin" : "Pin"}
-          className="h-6 w-6"
           onClick={handleTogglePin}
           size="icon"
           variant="ghost"

@@ -4,10 +4,9 @@ import { env } from "./src/env";
 
 export default {
   dbCredentials: {
-    authToken: env.DATABASE_AUTH_TOKEN,
     url: env.DATABASE_URL,
   },
-  dialect: "turso",
+  dialect: "postgresql",
   out: "./drizzle",
   schema: "./src/server/db/schemas",
 } satisfies Config;

@@ -6,6 +6,7 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   experimental: {
     nodeMiddleware: true,
+    useCache: true,
   },
   images: {
     remotePatterns: [{ hostname: "avatars.githubusercontent.com" }],

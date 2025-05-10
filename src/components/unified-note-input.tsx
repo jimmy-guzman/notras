@@ -35,11 +35,11 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
   const searchParams = useSearchParams();
 
   const form = useForm<z.infer<typeof formSchema>>({
-    defaultValues: {
+    resolver: zodResolver(formSchema),
+    values: {
       content: query,
       kind: kind ?? "",
     },
-    resolver: zodResolver(formSchema),
   });
 
   const updateParam = useCallback(
@@ -56,17 +56,12 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
     [router, searchParams],
   );
 
-  const onSubmit = useCallback(
-    async (values: z.infer<typeof formSchema>) => {
-      await saveNote(
-        values.content,
-        values.kind === "" ? "thought" : (values.kind ?? "thought"),
-      );
-
-      router.refresh();
-    },
-    [router],
-  );
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    await saveNote(
+      values.content,
+      values.kind === "" ? undefined : values.kind,
+    );
+  };
 
   useEffect(() => {
     if (form.formState.isSubmitSuccessful) {
@@ -133,6 +128,8 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
                 <FormControl>
                   <Input
                     {...field}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- this is okay
+                    autoFocus
                     className="py-6 text-sm sm:text-lg"
                     disabled={form.formState.isSubmitting}
                     onChange={(e) => {
@@ -140,7 +137,7 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
 
                       updateParam("q", e.target.value);
                     }}
-                    placeholder={`Search or write a new note...`}
+                    placeholder="Search or write a new note..."
                   />
                 </FormControl>
                 <FormMessage />

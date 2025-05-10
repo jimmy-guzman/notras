@@ -7,18 +7,18 @@ import {
   startOfYear,
   subDays,
 } from "date-fns";
-import { and, desc, eq, gte, isNull, like } from "drizzle-orm";
-import invariant from "tiny-invariant";
+import { and, count, desc, eq, gte, isNull, like, or } from "drizzle-orm";
+import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 
 import type { Kind } from "@/lib/kind";
 
-import { getSession } from "@/lib/auth";
+import { authorizedServerAction } from "@/lib/authorized";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
 type TimeFilter = "month" | "today" | "week" | "year" | "yesterday";
 
-interface Options {
+interface Filters {
   kind?: Kind;
   query?: string;
   time?: "all" | TimeFilter;
@@ -46,24 +46,43 @@ function getStartDateForFilter(time: TimeFilter): Date {
   return startOfDay(now);
 }
 
-export async function getNotes({ kind, query, time = "all" }: Options) {
-  const session = await getSession();
+export async function getNotes({ kind, query, time = "all" }: Filters) {
+  return authorizedServerAction(async (userId) => {
+    "use cache";
 
-  invariant(session, "Unauthorized");
+    const baseFilters = [eq(note.userId, userId), isNull(note.deletedAt)];
 
-  return db
-    .select()
-    .from(note)
-    .where(
-      and(
-        eq(note.userId, session.user.id),
-        isNull(note.deletedAt),
-        kind ? eq(note.kind, kind) : undefined,
-        query ? like(note.content, `%${query}%`) : undefined,
-        time === "all"
-          ? undefined
-          : gte(note.createdAt, getStartDateForFilter(time)),
-      ),
-    )
-    .orderBy(desc(note.pinnedAt), desc(note.createdAt));
+    const kindFilter =
+      kind === "thought"
+        ? [or(eq(note.kind, "thought"), isNull(note.kind))]
+        : kind
+          ? [eq(note.kind, kind)]
+          : [];
+
+    const queryFilter = query ? [like(note.content, `%${query}%`)] : [];
+
+    const timeFilter =
+      time === "all" ? [] : [gte(note.createdAt, getStartDateForFilter(time))];
+
+    cacheTag("notes");
+
+    const [notes, countResult] = await Promise.all([
+      db
+        .select()
+        .from(note)
+        .where(
+          and(...baseFilters, ...kindFilter, ...queryFilter, ...timeFilter),
+        )
+        .orderBy(desc(note.pinnedAt), desc(note.createdAt)),
+
+      db
+        .select({ count: count() })
+        .from(note)
+        .where(and(...baseFilters)),
+    ]);
+
+    const hasAnyNotes = countResult[0].count > 0;
+
+    return { hasAnyNotes, notes };
+  });
 }

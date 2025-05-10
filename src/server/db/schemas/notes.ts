@@ -1,17 +1,21 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { jsonb, pgTable, text, timestamp, vector } from "drizzle-orm/pg-core";
 
 import { KIND_VALUES } from "@/lib/kind";
 
 import { user } from "./users";
 
-export const note = sqliteTable("note", {
+export const note = pgTable("note", {
+  aiCreatedAt: timestamp("ai_created_at", { mode: "date" }),
+  aiUpdatedAt: timestamp("ai_updated_at", { mode: "date" }),
   content: text("content").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-  deletedAt: integer("deleted_at", { mode: "timestamp" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  deletedAt: timestamp("deleted_at", { mode: "date" }),
+  embedding: vector("embedding", { dimensions: 1536 }),
   id: text("id").primaryKey(),
   kind: text("kind", { enum: KIND_VALUES }),
-  pinnedAt: integer("pinned_at", { mode: "timestamp" }),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  metadata: jsonb("metadata"),
+  pinnedAt: timestamp("pinned_at", { mode: "date" }),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   userId: text("user_id")
     .notNull()
     .references(
