@@ -1,9 +1,10 @@
+autoInstallPeers: false
+color: always
+engineStrict: true
 onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
   - esbuild
   - lefthook
   - sharp
   - unrs-resolver
-autoInstallPeers: false
 savePrefix: ""
-engineStrict: true
-color: always

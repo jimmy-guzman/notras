@@ -71,10 +71,7 @@ export function NoteContent({
 
   return (
     <p
-      className={cn(
-        "pb-2 text-sm whitespace-pre-wrap",
-        query && "leading-relaxed",
-      )}
+      className={cn("text-sm whitespace-pre-wrap", query && "leading-relaxed")}
     >
       {parts.map((part) => {
         return part.match ? (

@@ -42,9 +42,9 @@ export function NotesList({ notes, query }: NotesListProps) {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-12">
       {groupedNotes.map(({ label, notes }) => {
         return (
-          <div className="flex flex-col gap-6" key={label}>
+          <div className="flex flex-col gap-4" key={label}>
             {label && (
-              <h2 className="text-muted-foreground p-2 text-sm font-medium transition-opacity">
+              <h2 className="text-muted-foreground px-2 text-sm font-medium transition-opacity">
                 {label}
               </h2>
             )}
@@ -52,7 +52,7 @@ export function NotesList({ notes, query }: NotesListProps) {
             {notes.map((note) => {
               return (
                 <div
-                  className="group hover:bg-muted/40 flex flex-col gap-1 p-2 transition-colors"
+                  className="group hover:bg-muted/40 flex flex-col gap-1 px-2 pb-2 transition-colors"
                   key={note.id}
                 >
                   <div className="flex items-center justify-between">

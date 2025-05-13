@@ -38,6 +38,19 @@ export const UserDropdown = async () => {
     );
   }
 
+  const avatarFallback = (
+    session.user.name.trim()
+      ? session.user.name
+          .trim()
+          .split(" ")
+          .map(([part]) => {
+            return part;
+          })
+          .slice(0, 2)
+          .join("")
+      : session.user.email.slice(0, 2)
+  ).toUpperCase();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,7 +63,7 @@ export const UserDropdown = async () => {
             {session.user.image ? (
               <AvatarImage alt="avatar" src={session.user.image} />
             ) : (
-              <AvatarFallback>{session.user.name[0]}</AvatarFallback>
+              <AvatarFallback>{avatarFallback}</AvatarFallback>
             )}
           </Avatar>
         </Button>
