@@ -8,6 +8,7 @@ import { NotesList } from "@/components/notes-list";
 import { SignedOutFallback } from "@/components/signed-out-fallback";
 import { SupportNotras } from "@/components/support-notras";
 import { UnifiedNoteInput } from "@/components/unified-note-input";
+import { WelcomeBack } from "@/components/welcome-back";
 import { getSession } from "@/lib/auth";
 
 interface PageProps {
@@ -32,7 +33,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   return (
     <section className="mt-4 flex flex-col gap-12 p-4">
-      {noNotesAtAll && <Hero />}
+      {noNotesAtAll ? <Hero /> : <WelcomeBack name={session.user.name} />}
       <UnifiedNoteInput kind={kind} query={query} />
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
         {hasMatchingNotes && <NotesList notes={notes} query={query} />}

@@ -35,11 +35,11 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
   const searchParams = useSearchParams();
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    values: {
+    defaultValues: {
       content: query,
       kind: kind ?? "",
     },
+    resolver: zodResolver(formSchema),
   });
 
   const updateParam = useCallback(
@@ -65,12 +65,16 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
 
   useEffect(() => {
     if (form.formState.isSubmitSuccessful) {
-      form.reset({
-        content: query,
-        kind,
-      });
+      form.reset({ content: "", kind: "" });
+
+      if (query) {
+        updateParam("q", "");
+      }
+      if (kind) {
+        updateParam("kind", "");
+      }
     }
-  }, [form.formState.isSubmitSuccessful, query, kind, form]);
+  }, [form.formState.isSubmitSuccessful, query, kind, form, updateParam]);
 
   return (
     <Form {...form}>
@@ -78,6 +82,33 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
         className="mx-auto flex w-full max-w-2xl flex-col gap-4 sm:items-center sm:gap-2"
         onSubmit={form.handleSubmit(onSubmit)}
       >
+        <FormField
+          control={form.control}
+          name="content"
+          render={({ field }) => {
+            return (
+              <FormItem className="w-full flex-1">
+                <FormControl>
+                  <Input
+                    {...field}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- this is okay
+                    autoFocus
+                    className="py-6 text-sm sm:text-lg"
+                    disabled={form.formState.isSubmitting}
+                    onChange={(e) => {
+                      field.onChange(e);
+
+                      updateParam("q", e.target.value);
+                    }}
+                    placeholder="Search or write a new note..."
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
+        />
+
         <FormField
           control={form.control}
           name="kind"
@@ -112,33 +143,6 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
                       );
                     })}
                   </ToggleGroup>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-
-        <FormField
-          control={form.control}
-          name="content"
-          render={({ field }) => {
-            return (
-              <FormItem className="w-full flex-1">
-                <FormControl>
-                  <Input
-                    {...field}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus -- this is okay
-                    autoFocus
-                    className="py-6 text-sm sm:text-lg"
-                    disabled={form.formState.isSubmitting}
-                    onChange={(e) => {
-                      field.onChange(e);
-
-                      updateParam("q", e.target.value);
-                    }}
-                    placeholder="Search or write a new note..."
-                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
