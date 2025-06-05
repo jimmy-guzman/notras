@@ -66,23 +66,27 @@ export async function getNotes({ kind, query, time = "all" }: Filters) {
 
     cacheTag("notes");
 
-    const [notes, countResult] = await Promise.all([
-      db
-        .select()
-        .from(note)
-        .where(
-          and(...baseFilters, ...kindFilter, ...queryFilter, ...timeFilter),
-        )
-        .orderBy(desc(note.pinnedAt), desc(note.createdAt)),
+    const notes = await db
+      .select()
+      .from(note)
+      .where(and(...baseFilters, ...kindFilter, ...queryFilter, ...timeFilter))
+      .orderBy(desc(note.pinnedAt), desc(note.createdAt));
 
-      db
-        .select({ count: count() })
-        .from(note)
-        .where(and(...baseFilters)),
-    ]);
+    return notes;
+  });
+}
 
-    const hasAnyNotes = countResult[0].count > 0;
+export async function getNotesCount() {
+  return authorizedServerAction(async (userId) => {
+    "use cache";
 
-    return { hasAnyNotes, notes };
+    const [{ count: notesCount }] = await db
+      .select({ count: count() })
+      .from(note)
+      .where(and(eq(note.userId, userId), isNull(note.deletedAt)));
+
+    cacheTag("notes count");
+
+    return notesCount;
   });
 }

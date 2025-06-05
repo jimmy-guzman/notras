@@ -55,11 +55,11 @@ export const UserDropdown = async () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="relative h-8 w-8 rounded-full"
+          className="relative h-6 w-6 rounded-full"
           size="icon"
           variant="ghost"
         >
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-6 w-6">
             {session.user.image ? (
               <AvatarImage alt="avatar" src={session.user.image} />
             ) : (

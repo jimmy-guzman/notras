@@ -1,46 +1,21 @@
-import type { Kind } from "@/lib/kind";
-
-import { getNotes } from "@/actions/get-notes";
-import { EmptyNotesState } from "@/components/empty-note-state";
+import { getNotesCount } from "@/actions/get-notes";
 import { Hero } from "@/components/hero";
-import { NoMatchingNotes } from "@/components/no-matching-notes";
-import { NotesList } from "@/components/notes-list";
+import { QuickNoteInput } from "@/components/quick-note-input";
 import { SignedOutFallback } from "@/components/signed-out-fallback";
-import { SupportNotras } from "@/components/support-notras";
-import { UnifiedNoteInput } from "@/components/unified-note-input";
 import { WelcomeBack } from "@/components/welcome-back";
 import { getSession } from "@/lib/auth";
 
-interface PageProps {
-  searchParams: Promise<{
-    kind?: Kind;
-    q?: string;
-    time?: "month" | "today" | "week";
-  }>;
-}
-
-export default async function Page({ searchParams }: PageProps) {
+export default async function Page() {
   const session = await getSession();
 
   if (!session?.session) return <SignedOutFallback />;
 
-  const { kind, q: query = "", time } = await searchParams;
-  const { hasAnyNotes, notes } = await getNotes({ kind, query, time });
-
-  const hasMatchingNotes = notes.length > 0;
-  const noMatches = !hasMatchingNotes && hasAnyNotes;
-  const noNotesAtAll = !hasMatchingNotes && !hasAnyNotes;
+  const count = await getNotesCount();
 
   return (
-    <section className="mt-4 flex flex-col gap-12 p-4">
-      {noNotesAtAll ? <Hero /> : <WelcomeBack name={session.user.name} />}
-      <UnifiedNoteInput kind={kind} query={query} />
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-        {hasMatchingNotes && <NotesList notes={notes} query={query} />}
-        {noMatches && <NoMatchingNotes />}
-        {noNotesAtAll && <EmptyNotesState />}
-        <SupportNotras />
-      </div>
+    <section className="mt-4 flex flex-1 flex-col justify-center gap-4 p-4">
+      {count > 0 ? <WelcomeBack name={session.user.name} /> : <Hero />}
+      <QuickNoteInput />
     </section>
   );
 }
