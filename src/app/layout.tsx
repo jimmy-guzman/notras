@@ -34,12 +34,12 @@ export default function RootLayout({
         >
           <TooltipProvider>
             <AlphaBanner />
-            <div className="flex min-h-screen flex-col">
+            <div className="flex min-h-svh flex-col">
               <header className="bg-background sticky inset-x-0 top-0 isolate z-10 flex shrink-0 items-center gap-2 border-b">
                 <SiteNav />
               </header>
 
-              <main className="flex-1">{children}</main>
+              <main className="flex flex-1">{children}</main>
               <SiteFooter />
             </div>
             <Toaster />

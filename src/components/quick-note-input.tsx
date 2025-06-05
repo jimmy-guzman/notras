@@ -1,12 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
-
-import type { Kind } from "@/lib/kind";
 
 import { saveNote } from "@/actions/save-note";
 import {
@@ -25,56 +23,29 @@ const formSchema = z.object({
   kind: z.optional(z.enum([...KIND_VALUES, ""])),
 });
 
-interface UnifiedNoteInputProps {
-  kind?: Kind;
-  query: string;
-}
-
-export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
+export function QuickNoteInput() {
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
-      content: query,
-      kind: kind ?? "",
+      content: "",
+      kind: "",
     },
     resolver: zodResolver(formSchema),
   });
-
-  const updateParam = useCallback(
-    (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
-      }
-      router.replace(`?${params.toString()}`);
-    },
-    [router, searchParams],
-  );
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     await saveNote(
       values.content,
       values.kind === "" ? undefined : values.kind,
     );
+
+    toast.success("Note saved");
   };
 
   useEffect(() => {
     if (form.formState.isSubmitSuccessful) {
       form.reset({ content: "", kind: "" });
-
-      if (query) {
-        updateParam("q", "");
-      }
-      if (kind) {
-        updateParam("kind", "");
-      }
     }
-  }, [form.formState.isSubmitSuccessful, query, kind, form, updateParam]);
+  }, [form.formState.isSubmitSuccessful, form]);
 
   return (
     <Form {...form}>
@@ -95,12 +66,8 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
                     autoFocus
                     className="py-6 text-sm sm:text-lg"
                     disabled={form.formState.isSubmitting}
-                    onChange={(e) => {
-                      field.onChange(e);
-
-                      updateParam("q", e.target.value);
-                    }}
-                    placeholder="Search or write a new note..."
+                    onChange={field.onChange}
+                    placeholder="Write a new note..."
                   />
                 </FormControl>
                 <FormMessage />
@@ -118,15 +85,7 @@ export function UnifiedNoteInput({ kind, query }: UnifiedNoteInputProps) {
                 <FormControl>
                   <ToggleGroup
                     disabled={form.formState.isSubmitting}
-                    onValueChange={(value) => {
-                      field.onChange(value);
-
-                      if (value) {
-                        updateParam("kind", value);
-                      } else {
-                        updateParam("kind", "");
-                      }
-                    }}
+                    onValueChange={field.onChange}
                     size="sm"
                     type="single"
                     value={field.value}

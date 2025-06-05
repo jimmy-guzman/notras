@@ -5,8 +5,8 @@ import { UserDropdown } from "./user-dropdown";
 
 export const SiteNav = () => {
   return (
-    <nav className="flex w-full flex-col">
-      <div className="flex h-16 items-center px-4">
+    <nav className="sticky flex w-full flex-col">
+      <div className="flex h-14 items-center px-4">
         <div className="flex items-center">
           <Link
             className="text-foreground hover:text-primary text-2xl font-semibold tracking-tight transition-colors"

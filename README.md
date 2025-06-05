@@ -107,7 +107,6 @@ The `.env.example` file looks like:
 ```dotenv
 # Database
 DATABASE_URL=
-DATABASE_AUTH_TOKEN=
 
 # Auth
 BETTER_AUTH_SECRET=
@@ -118,8 +117,8 @@ GITHUB_CLIENT_SECRET=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
 
-# Node
-NODE_ENV=development
+# Open AI
+OPENAI_API_KEY=
 ```
 
 You can generate a `BETTER_AUTH_SECRET` by running:
