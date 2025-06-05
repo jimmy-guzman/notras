@@ -37,6 +37,7 @@ vi.mock("next/navigation", () => {
 const baseNote = {
   content: "Test note",
   kind: null,
+  metadata: null,
   pinnedAt: null,
 };
 
