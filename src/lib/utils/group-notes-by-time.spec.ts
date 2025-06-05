@@ -13,6 +13,7 @@ import { groupNotesByTime } from "./group-notes-by-time";
 const baseNote = {
   content: "test",
   kind: null,
+  metadata: null,
   pinnedAt: null,
 };
 
