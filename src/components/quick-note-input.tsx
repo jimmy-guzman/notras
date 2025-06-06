@@ -33,17 +33,22 @@ export function QuickNoteInput() {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    await saveNote(
-      values.content,
-      values.kind === "" ? undefined : values.kind,
-    );
-
-    toast.success("Note saved");
+    try {
+      await saveNote(
+        values.content,
+        values.kind === "" ? undefined : values.kind,
+      );
+      toast.success("Note saved");
+    } catch {
+      toast.error("Failed to save note");
+    }
   };
 
   useEffect(() => {
     if (form.formState.isSubmitSuccessful) {
       form.reset({ content: "", kind: "" });
+
+      form.setFocus("content");
     }
   }, [form.formState.isSubmitSuccessful, form]);
 
@@ -66,7 +71,6 @@ export function QuickNoteInput() {
                     autoFocus
                     className="py-6 text-sm sm:text-lg"
                     disabled={form.formState.isSubmitting}
-                    onChange={field.onChange}
                     placeholder="Write a new note..."
                   />
                 </FormControl>
@@ -84,11 +88,10 @@ export function QuickNoteInput() {
               <FormItem className="w-full justify-center">
                 <FormControl>
                   <ToggleGroup
+                    {...field}
                     disabled={form.formState.isSubmitting}
-                    onValueChange={field.onChange}
                     size="sm"
                     type="single"
-                    value={field.value}
                   >
                     {KIND_VALUES.map((value) => {
                       return (
