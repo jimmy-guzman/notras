@@ -7,7 +7,7 @@ import {
   startOfYear,
   subDays,
 } from "date-fns";
-import { and, count, desc, eq, gte, isNull, like, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, like, or } from "drizzle-orm";
 import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 
 import type { Kind } from "@/lib/kind";
@@ -17,11 +17,13 @@ import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
 type TimeFilter = "month" | "today" | "week" | "year" | "yesterday";
+type SortOption = "newest" | "oldest" | "updated";
 
 interface Filters {
   kind?: Kind;
   query?: string;
-  time?: "all" | TimeFilter;
+  sort?: SortOption;
+  time?: TimeFilter; // Remove "all" since undefined = all
 }
 
 function getStartDateForFilter(time: TimeFilter): Date {
@@ -46,7 +48,27 @@ function getStartDateForFilter(time: TimeFilter): Date {
   return startOfDay(now);
 }
 
-export async function getNotes({ kind, query, time = "all" }: Filters) {
+function getSortOrder(sort: SortOption = "newest") {
+  // Always prioritize pinned notes first, then apply the requested sort
+  switch (sort) {
+    case "oldest": {
+      return [desc(note.pinnedAt), asc(note.createdAt)];
+    }
+    case "updated": {
+      return [desc(note.pinnedAt), desc(note.updatedAt)];
+    }
+    default: {
+      return [desc(note.pinnedAt), desc(note.createdAt)];
+    }
+  }
+}
+
+export async function getNotes({
+  kind,
+  query,
+  sort = "newest",
+  time,
+}: Filters) {
   return authorizedServerAction(async (userId) => {
     "use cache";
 
@@ -61,8 +83,9 @@ export async function getNotes({ kind, query, time = "all" }: Filters) {
 
     const queryFilter = query ? [like(note.content, `%${query}%`)] : [];
 
-    const timeFilter =
-      time === "all" ? [] : [gte(note.createdAt, getStartDateForFilter(time))];
+    const timeFilter = time
+      ? [gte(note.createdAt, getStartDateForFilter(time))]
+      : [];
 
     cacheTag("notes");
 
@@ -70,7 +93,7 @@ export async function getNotes({ kind, query, time = "all" }: Filters) {
       .select()
       .from(note)
       .where(and(...baseFilters, ...kindFilter, ...queryFilter, ...timeFilter))
-      .orderBy(desc(note.pinnedAt), desc(note.createdAt));
+      .orderBy(...getSortOrder(sort));
 
     return notes;
   });
