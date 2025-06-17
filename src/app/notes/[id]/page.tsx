@@ -21,10 +21,10 @@ export default async function NotePage({ params }: PageProps) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl py-8">
+    <div>
       <div className="mb-6">
         <Button asChild size="sm" variant="ghost">
-          <Link href="/">
+          <Link href="/notes">
             <ArrowLeftIcon /> Back to notes
           </Link>
         </Button>
