@@ -30,7 +30,6 @@ export const NotesList = () => {
 
   return (
     <>
-      {" "}
       {error && (
         <div className="py-12 text-center">
           <p className="text-muted-foreground">

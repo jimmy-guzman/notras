@@ -28,10 +28,7 @@ export const PinNote = ({
           size="icon"
           variant="ghost"
         >
-          <PinIcon
-            className="h-4 w-4"
-            fill={pinned ? "currentColor" : "none"}
-          />
+          <PinIcon fill={pinned ? "currentColor" : "none"} />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>

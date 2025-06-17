@@ -54,7 +54,6 @@ export const CopyNote = ({
       <TooltipTrigger asChild>
         <Button
           aria-label={copied ? "Copied" : "Copy"}
-          // className="h-6 w-6"
           onClick={handleCopy}
           size="icon"
           variant="ghost"

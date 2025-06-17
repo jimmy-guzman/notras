@@ -4,6 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getNote } from "@/actions/get-note";
+import { ArchiveNote } from "@/components/archive-note";
+import { CopyNote } from "@/components/copy-note";
+import { LinkedNotes } from "@/components/link-notes";
+import { PinNote } from "@/components/pin-note";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KIND_LABELS } from "@/lib/kind";
@@ -22,12 +26,18 @@ export default async function NotePage({ params }: PageProps) {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <Button asChild size="sm" variant="ghost">
           <Link href="/notes">
-            <ArrowLeftIcon /> Back to notes
+            <ArrowLeftIcon className="h-4 w-4" /> Back to notes
           </Link>
         </Button>
+
+        <div className="flex items-center gap-2">
+          <PinNote noteId={note.id} pinned={Boolean(note.pinnedAt)} />
+          <ArchiveNote isArchived={note.deletedAt !== null} noteId={note.id} />
+          <CopyNote content={note.content} />
+        </div>
       </div>
 
       <div className="text-muted-foreground mb-6 flex items-center gap-3 text-sm">
@@ -49,6 +59,13 @@ export default async function NotePage({ params }: PageProps) {
         <div className="text-lg leading-relaxed whitespace-pre-wrap">
           {note.content}
         </div>
+      </div>
+
+      <div>
+        <h3 className="text-muted-foreground mt-8 mb-2 flex items-center gap-2 text-sm font-semibold">
+          Linked Notes
+        </h3>
+        <LinkedNotes noteId={note.id} />
       </div>
     </div>
   );
