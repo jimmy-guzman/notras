@@ -1,6 +1,7 @@
 "use client";
 
-import { Archive } from "lucide-react";
+import { Archive, ArchiveX } from "lucide-react";
+import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { archiveNote } from "@/actions/archive-note";
@@ -9,34 +10,55 @@ import { unarchiveNote } from "@/actions/unarchive-note";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-export const ArchiveNote = ({ noteId }: { noteId: string }) => {
+export const ArchiveNote = ({
+  isArchived,
+  noteId,
+}: {
+  isArchived: boolean;
+  noteId: string;
+}) => {
+  const [isPending, startTransition] = useTransition();
+
+  const handleClick = () => {
+    startTransition(async () => {
+      try {
+        if (isArchived) {
+          await unarchiveNote(noteId);
+        } else {
+          await archiveNote(noteId);
+          toast("Note archived", {
+            action: {
+              label: "Undo",
+              onClick: () => {
+                return void unarchiveNote(noteId);
+              },
+            },
+          });
+        }
+      } catch {
+        toast.error(`Failed to ${isArchived ? "unarchive" : "archive"} note`);
+      }
+    });
+  };
+
+  const Icon = isArchived ? ArchiveX : Archive;
+  const label = isArchived ? "Unarchive" : "Archive";
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label="Archive"
-          onClick={async () => {
-            await archiveNote(noteId);
-
-            toast("Note archived", {
-              action: {
-                label: "Undo",
-                onClick: () => {
-                  void (async () => {
-                    await unarchiveNote(noteId);
-                  })();
-                },
-              },
-            });
-          }}
+          aria-label={label}
+          disabled={isPending}
+          onClick={handleClick}
           size="icon"
           variant="ghost"
         >
-          <Archive className="h-4 w-4" />
+          <Icon />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>
-        Archive
+        {label}
       </TooltipContent>
     </Tooltip>
   );

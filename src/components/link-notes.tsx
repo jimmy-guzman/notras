@@ -1,53 +1,32 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 import { getLinkedNotes } from "@/actions/get-linked-notes";
 
-import { DropdownMenuItem } from "./ui/dropdown-menu";
-
-export function LinkedNotesListContent({ noteId }: { noteId: string }) {
-  const [links, setLinks] = useState<{ content: string; id: string }[]>([]);
-  const [hasFetched, setHasFetched] = useState(false);
-
-  useEffect(() => {
-    if (hasFetched) return;
-    void getLinkedNotes(noteId).then((data) => {
-      setLinks(data);
-      setHasFetched(true);
-    });
-  }, [noteId, hasFetched]);
-
-  if (!hasFetched) {
-    return (
-      <div className="text-muted-foreground px-2 py-1 text-sm">
-        Loading links...
-      </div>
-    );
-  }
+export async function LinkedNotes({ noteId }: { noteId: string }) {
+  const links = await getLinkedNotes(noteId);
 
   if (links.length === 0) {
     return (
-      <div className="text-muted-foreground px-2 py-1 text-sm">
-        No linked notes
-      </div>
+      <ul className="space-y-2">
+        <li className="text-muted-foreground text-sm">No linked notes.</li>
+      </ul>
     );
   }
 
   return (
-    <>
+    <ul className="space-y-2">
       {links.map((link) => {
         return (
-          <DropdownMenuItem asChild key={link.id}>
-            {/* eslint-disable-next-line no-magic-numbers -- TODO */}
-            <Link href={`/?q=${encodeURIComponent(link.content.slice(0, 40))}`}>
-              {/* eslint-disable-next-line no-magic-numbers -- TODO */}“
-              {link.content.slice(0, 100)}”
+          <li key={link.id}>
+            <Link
+              className="hover:bg-muted block rounded-md border px-3 py-2 text-sm"
+              href={`/notes/${link.id}`}
+            >
+              <div className="truncate">{link.content}</div>
             </Link>
-          </DropdownMenuItem>
+          </li>
         );
       })}
-    </>
+    </ul>
   );
 }
