@@ -43,12 +43,8 @@ export function groupNotesByTime(notes: Note[]) {
   }
 
   return (Object.keys(groups) as TimeGroup[])
-    .filter((key) => {
-      return groups[key].length > 0;
-    })
-    .sort((a, b) => {
-      return timeGroupMeta[a].order - timeGroupMeta[b].order;
-    })
+    .filter((key) => groups[key].length > 0)
+    .sort((a, b) => timeGroupMeta[a].order - timeGroupMeta[b].order)
     .map((key) => {
       const sortedNotes = [...groups[key]].sort((a, b) => {
         if (a.pinnedAt && !b.pinnedAt) return -1;

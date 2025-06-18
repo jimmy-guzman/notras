@@ -22,24 +22,12 @@ export const noteLink = pgTable(
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
     fromNoteId: text("from_note_id")
       .notNull()
-      .references(
-        () => {
-          return note.id;
-        },
-        { onDelete: "cascade" },
-      ),
+      .references(() => note.id, { onDelete: "cascade" }),
     id: text("id").primaryKey(),
     reason: linkReason("reason").notNull(),
     toNoteId: text("to_note_id")
       .notNull()
-      .references(
-        () => {
-          return note.id;
-        },
-        { onDelete: "cascade" },
-      ),
+      .references(() => note.id, { onDelete: "cascade" }),
   },
-  (table) => {
-    return [unique().on(table.fromNoteId, table.toNoteId, table.reason)];
-  },
+  (table) => [unique().on(table.fromNoteId, table.toNoteId, table.reason)],
 );

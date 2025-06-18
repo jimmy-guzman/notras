@@ -15,14 +15,18 @@ export async function saveNote(content: string, kind?: Kind) {
 
   invariant(session, "Unauthorized");
 
+  const id = nanoid();
+
   await db.insert(note).values({
     content,
     createdAt: new Date(),
-    id: nanoid(),
+    id,
     kind,
     updatedAt: new Date(),
     userId: session.user.id,
   });
 
   revalidateTag("notes");
+
+  return { id };
 }

@@ -33,5 +33,5 @@
     "next-env.d.ts",
     "reset.d.ts"
   ],
-  "exclude": ["node_modules", "coverage"]
+  "exclude": ["node_modules", "coverage", ".next"]
 }

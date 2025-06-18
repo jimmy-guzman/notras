@@ -3,6 +3,8 @@
 import { Calendar, Tag } from "lucide-react";
 import { useQueryStates } from "nuqs";
 
+import type { NoteSearchParams } from "@/lib/notes-search-params";
+
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -15,17 +17,17 @@ import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
 import { parsers } from "@/lib/notes-search-params";
 
 export const NotesFilters = () => {
-  const [filters, setFilters] = useQueryStates(parsers);
+  const [filters, setFilters] = useQueryStates(parsers, { shallow: false });
 
-  const updateKind = async (kind: string) => {
+  const updateKind = async (kind: NoteSearchParams["kind"]) => {
     await setFilters({ kind });
   };
 
-  const updateTime = async (time: string) => {
+  const updateTime = async (time: NoteSearchParams["time"]) => {
     await setFilters({ time });
   };
 
-  const updateSort = async (sort: string) => {
+  const updateSort = async (sort: NoteSearchParams["sort"]) => {
     await setFilters({ sort });
   };
 

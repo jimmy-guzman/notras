@@ -19,12 +19,10 @@ export const SiteNav = async () => {
 
   return (
     <div className="flex w-full flex-col">
-      <div className="flex items-center px-4">
-        <div className="flex items-center space-x-6">
-          <Button asChild size="lg" variant="ghost">
-            <Link className="text-xl" href="/">
-              🌸 notras
-            </Link>
+      <div className="flex items-center gap-2 px-4">
+        <div className="flex items-center gap-2">
+          <Button asChild size="icon" variant="ghost">
+            <Link href="/">🌸</Link>
           </Button>
           {session?.user && (
             <NavigationMenu>

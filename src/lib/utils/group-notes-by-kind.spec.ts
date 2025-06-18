@@ -90,11 +90,7 @@ describe("groupNotesByKind", () => {
 
     const result = groupNotesByKind([note]);
 
-    expect(
-      result.map((g) => {
-        return g.group;
-      }),
-    ).toStrictEqual(["dream"]);
+    expect(result.map((g) => g.group)).toStrictEqual(["dream"]);
   });
 
   it("should fallback to 'thought' if kind is missing", () => {

@@ -22,10 +22,5 @@ export const note = pgTable("note", {
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   userId: text("user_id")
     .notNull()
-    .references(
-      () => {
-        return user.id;
-      },
-      { onDelete: "cascade" },
-    ),
+    .references(() => user.id, { onDelete: "cascade" }),
 });

@@ -10,13 +10,12 @@ import { unarchiveNote } from "@/actions/unarchive-note";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-export const ArchiveNote = ({
-  isArchived,
-  noteId,
-}: {
+interface ArchiveNoteProps {
   isArchived: boolean;
   noteId: string;
-}) => {
+}
+
+export const ArchiveNote = ({ isArchived, noteId }: ArchiveNoteProps) => {
   const [isPending, startTransition] = useTransition();
 
   const handleClick = () => {
@@ -26,12 +25,11 @@ export const ArchiveNote = ({
           await unarchiveNote(noteId);
         } else {
           await archiveNote(noteId);
+
           toast("Note archived", {
             action: {
               label: "Undo",
-              onClick: () => {
-                return void unarchiveNote(noteId);
-              },
+              onClick: () => void unarchiveNote(noteId),
             },
           });
         }

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,11 +35,22 @@ export function QuickNoteInput() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      await saveNote(
+      const note = await saveNote(
         values.content,
         values.kind === "" ? undefined : values.kind,
       );
-      toast.success("Note saved");
+
+      toast.success("Note saved", {
+        action: (
+          <Link
+            data-action="true"
+            data-button="true"
+            href={`/notes/${note.id}`}
+          >
+            View Note
+          </Link>
+        ),
+      });
     } catch {
       toast.error("Failed to save note");
     }

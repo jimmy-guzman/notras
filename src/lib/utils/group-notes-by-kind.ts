@@ -18,9 +18,7 @@ export interface GroupedNote {
 
 export function groupNotesByKind(notes: Note[]): GroupedNote[] {
   const groups = Object.fromEntries(
-    KIND_VALUES.map((kind) => {
-      return [kind, []] as [Kind, Note[]];
-    }),
+    KIND_VALUES.map((kind) => [kind, []] as [Kind, Note[]]),
   ) as Record<Kind, Note[]>;
 
   for (const note of notes) {
@@ -42,7 +40,5 @@ export function groupNotesByKind(notes: Note[]): GroupedNote[] {
         );
       }),
     };
-  }).filter((group) => {
-    return group.notes.length > 0;
-  });
+  }).filter((group) => group.notes.length > 0);
 }
