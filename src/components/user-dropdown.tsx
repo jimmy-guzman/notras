@@ -43,9 +43,7 @@ export const UserDropdown = async () => {
       ? session.user.name
           .trim()
           .split(" ")
-          .map(([part]) => {
-            return part;
-          })
+          .map(([part]) => part)
           .slice(0, 2)
           .join("")
       : session.user.email.slice(0, 2)

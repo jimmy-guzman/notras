@@ -129,11 +129,12 @@ describe("groupNotesByTime", () => {
 
     const result = groupNotesByTime([today, yesterday, thisWeek, earlier]);
 
-    expect(
-      result.map((g) => {
-        return g.group;
-      }),
-    ).toStrictEqual(["today", "yesterday", "thisWeek", "earlier"]);
+    expect(result.map((g) => g.group)).toStrictEqual([
+      "today",
+      "yesterday",
+      "thisWeek",
+      "earlier",
+    ]);
   });
 
   it("should omit empty groups", () => {
@@ -145,11 +146,7 @@ describe("groupNotesByTime", () => {
 
     const result = groupNotesByTime([note]);
 
-    expect(
-      result.map((g) => {
-        return g.group;
-      }),
-    ).toStrictEqual(["earlier"]);
+    expect(result.map((g) => g.group)).toStrictEqual(["earlier"]);
   });
 
   it("should sort pinned notes to the top within a group", () => {
@@ -178,14 +175,12 @@ describe("groupNotesByTime", () => {
 
     const result = groupNotesByTime([unpinnedOlder, pinnedNote, unpinnedNewer]);
 
-    const todayGroup = result.find((g) => {
-      return g.group === "today";
-    });
+    const todayGroup = result.find((g) => g.group === "today");
 
-    expect(
-      todayGroup?.notes.map((n) => {
-        return n.id;
-      }),
-    ).toStrictEqual(["pinned", "newer", "older"]);
+    expect(todayGroup?.notes.map((n) => n.id)).toStrictEqual([
+      "pinned",
+      "newer",
+      "older",
+    ]);
   });
 });

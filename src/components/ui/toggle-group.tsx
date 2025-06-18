@@ -23,9 +23,7 @@ function ToggleGroup({
   ...props
 }: React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
   VariantProps<typeof toggleVariants>) {
-  const value = React.useMemo(() => {
-    return { size, variant };
-  }, [size, variant]);
+  const value = React.useMemo(() => ({ size, variant }), [size, variant]);
 
   return (
     <ToggleGroupPrimitive.Root

@@ -15,7 +15,5 @@ export function getHighlightedParts(text: string, query: string) {
         text: part,
       };
     })
-    .filter((part) => {
-      return part.match || part.text.length > 0;
-    });
+    .filter((part) => part.match || part.text.length > 0);
 }

@@ -9,22 +9,19 @@ import {
 } from "date-fns";
 import { and, asc, count, desc, eq, gte, isNull, like, or } from "drizzle-orm";
 import { cacheTag } from "next/dist/server/use-cache/cache-tag";
+import { createLoader } from "nuqs/server";
 
-import type { Kind } from "@/lib/kind";
+import type { NoteSearchParams } from "@/lib/notes-search-params";
 
 import { authorizedServerAction } from "@/lib/authorized";
+import { parsers } from "@/lib/notes-search-params";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
 type TimeFilter = "month" | "today" | "week" | "year" | "yesterday";
 type SortOption = "newest" | "oldest" | "updated";
 
-interface Filters {
-  kind?: Kind;
-  query?: string;
-  sort?: SortOption;
-  time?: TimeFilter; // Remove "all" since undefined = all
-}
+export const loadSearchParams = createLoader(parsers);
 
 function getStartDateForFilter(time: TimeFilter): Date {
   const now = new Date();
@@ -49,7 +46,6 @@ function getStartDateForFilter(time: TimeFilter): Date {
 }
 
 function getSortOrder(sort: SortOption = "newest") {
-  // Always prioritize pinned notes first, then apply the requested sort
   switch (sort) {
     case "oldest": {
       return [desc(note.pinnedAt), asc(note.createdAt)];
@@ -63,29 +59,25 @@ function getSortOrder(sort: SortOption = "newest") {
   }
 }
 
-export async function getNotes({
-  kind,
-  query,
-  sort = "newest",
-  time,
-}: Filters) {
+export async function getNotes(searchParams: NoteSearchParams) {
   return authorizedServerAction(async (userId) => {
     "use cache";
+
+    const { kind, q: query, sort, time } = searchParams;
 
     const baseFilters = [eq(note.userId, userId), isNull(note.deletedAt)];
 
     const kindFilter =
-      kind === "thought"
-        ? [or(eq(note.kind, "thought"), isNull(note.kind))]
-        : kind
-          ? [eq(note.kind, kind)]
-          : [];
+      kind === "all"
+        ? []
+        : kind === "thought"
+          ? [or(eq(note.kind, "thought"), isNull(note.kind))]
+          : [eq(note.kind, kind)];
 
     const queryFilter = query ? [like(note.content, `%${query}%`)] : [];
 
-    const timeFilter = time
-      ? [gte(note.createdAt, getStartDateForFilter(time))]
-      : [];
+    const timeFilter =
+      time === "all" ? [] : [gte(note.createdAt, getStartDateForFilter(time))];
 
     cacheTag("notes");
 

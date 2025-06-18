@@ -20,12 +20,7 @@ export const session = pgTable("session", {
   userAgent: text("user_agent"),
   userId: text("user_id")
     .notNull()
-    .references(
-      () => {
-        return user.id;
-      },
-      { onDelete: "cascade" },
-    ),
+    .references(() => user.id, { onDelete: "cascade" }),
 });
 
 export const account = pgTable("account", {
@@ -43,12 +38,7 @@ export const account = pgTable("account", {
   updatedAt: timestamp("updated_at").notNull(),
   userId: text("user_id")
     .notNull()
-    .references(
-      () => {
-        return user.id;
-      },
-      { onDelete: "cascade" },
-    ),
+    .references(() => user.id, { onDelete: "cascade" }),
 });
 
 export const verification = pgTable("verification", {

@@ -10,41 +10,48 @@ interface FilterState {
   value?: string;
 }
 
-const buildSearchQuery = (query: string, filter: FilterState): string => {
-  // If user has typed something, prioritize their input
-  if (query.trim()) {
-    return query;
-  }
+const buildSearchParams = (
+  query: string,
+  filter: FilterState,
+): URLSearchParams => {
+  const params = new URLSearchParams({
+    kind: "all",
+    q: "",
+    sort: "newest",
+    time: "all",
+  });
 
-  // If no user input but we have an active filter, build filter query
   if (filter.value) {
     switch (filter.type) {
       case "kind": {
-        return `kind ${filter.value}`; // Space, not colon - matches API regex
+        params.set("kind", filter.value);
+        break;
       }
       case "time": {
-        return filter.value; // Just the time value - matches API array check
+        params.set("time", filter.value);
+        break;
       }
       default: {
-        return "";
+        break;
       }
     }
   }
 
-  return "";
+  if (query.trim()) {
+    params.set("q", query.trim());
+  }
+
+  return params;
 };
 
 const shouldFetchData = (query: string, filter: FilterState): boolean => {
-  const searchQuery = buildSearchQuery(query, filter);
-
-  // Don't fetch if we're on home with no search query or active filter
-  if (filter.type === "home" && !searchQuery.trim()) {
+  if (filter.type === "home" && !query.trim() && !filter.value) {
     return false;
   }
 
-  // Only fetch if we have something to search for
-  return searchQuery.trim().length > 0;
+  return true;
 };
+
 const searchFetcher: Fetcher<SearchResponse, string> = async (url: string) => {
   const response = await fetch(url);
 
@@ -72,11 +79,11 @@ interface SearchResponse {
 const DEDUPING_INTERVAL = 2000;
 
 export function useSearch(query: string, currentFilter: FilterState) {
-  const searchQuery = buildSearchQuery(query, currentFilter);
   const shouldFetch = shouldFetchData(query, currentFilter);
+  const searchParams = buildSearchParams(query, currentFilter);
 
   const { data, error, isLoading } = useSWR<SearchResponse, Error>(
-    shouldFetch ? `/api/search?q=${encodeURIComponent(searchQuery)}` : null,
+    shouldFetch ? `/api/notes?${searchParams.toString()}` : null,
     searchFetcher,
     {
       dedupingInterval: DEDUPING_INTERVAL,

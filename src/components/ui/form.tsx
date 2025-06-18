@@ -35,9 +35,7 @@ const FormField = <
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
-  const value = React.useMemo(() => {
-    return { name: props.name };
-  }, [props.name]);
+  const value = React.useMemo(() => ({ name: props.name }), [props.name]);
 
   return (
     <FormFieldContext value={value}>
@@ -78,9 +76,7 @@ const useFormField = () => {
 function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   const id = React.useId();
 
-  const value = React.useMemo(() => {
-    return { id };
-  }, [id]);
+  const value = React.useMemo(() => ({ id }), [id]);
 
   return (
     <FormItemContext value={value}>
