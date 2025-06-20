@@ -9,10 +9,10 @@ import {
 } from "@/components/ui/navigation-menu";
 import { getSession } from "@/lib/auth";
 
+import { UserDropdown } from "./auth/user-dropdown";
 import { SearchCommand } from "./search-command";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
-import { UserDropdown } from "./user-dropdown";
 
 export const SiteNav = async () => {
   const session = await getSession();

@@ -5,9 +5,9 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 
 import { KIND_LABELS } from "@/lib/kind";
 
-import { PinNote } from "./pin-note";
-import { Badge } from "./ui/badge";
-import { Card, CardContent, CardFooter } from "./ui/card";
+import { Badge } from "../ui/badge";
+import { Card, CardContent, CardFooter } from "../ui/card";
+import { PinNote } from "./pin-note-button";
 
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString("en-US", {

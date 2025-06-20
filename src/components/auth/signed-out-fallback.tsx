@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Hero } from "./hero";
+import { Hero } from "../hero";
 
 export function SignedOutFallback() {
   return (
