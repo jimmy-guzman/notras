@@ -24,7 +24,11 @@ const formSchema = z.object({
   kind: z.optional(z.enum([...KIND_VALUES, ""])),
 });
 
-export function QuickNoteInput() {
+interface QuickNoteInputProps {
+  onSuccess?: () => void;
+}
+
+export function QuickNoteInput({ onSuccess }: QuickNoteInputProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       content: "",
@@ -51,6 +55,8 @@ export function QuickNoteInput() {
           </Link>
         ),
       });
+
+      onSuccess?.();
     } catch {
       toast.error("Failed to save note");
     }
@@ -100,10 +106,11 @@ export function QuickNoteInput() {
               <FormItem className="w-full justify-center">
                 <FormControl>
                   <ToggleGroup
-                    {...field}
                     disabled={form.formState.isSubmitting}
+                    onValueChange={field.onChange}
                     size="sm"
                     type="single"
+                    value={field.value}
                   >
                     {KIND_VALUES.map((value) => {
                       return (

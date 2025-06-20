@@ -3,6 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import HolyLoader from "holy-loader";
 import { Inter } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
@@ -26,6 +27,7 @@ export default function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <HolyLoader color="inherit" />
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
@@ -33,7 +35,6 @@ export default function RootLayout({
           disableTransitionOnChange
           enableSystem
         >
-          {" "}
           <NuqsAdapter>
             <TooltipProvider>
               <AlphaBanner />

@@ -24,3 +24,5 @@ export const note = pgTable("note", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
 });
+
+export type SelectNote = typeof note.$inferSelect;
