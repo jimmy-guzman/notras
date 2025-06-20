@@ -1,15 +1,17 @@
 "use client";
 
+import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 
-export const SignOutButton = () => {
+import { DropdownMenuItem } from "../ui/dropdown-menu";
+
+export const SignOutMenuItem = () => {
   const router = useRouter();
 
   return (
-    <button
-      className="flex w-full items-center justify-between"
+    <DropdownMenuItem
       onClick={async () => {
         await authClient.signOut({
           fetchOptions: {
@@ -19,10 +21,9 @@ export const SignOutButton = () => {
           },
         });
       }}
-      type="button"
     >
       <span>Sign Out</span>
-      <span className="icon-[lucide--log-out] h-4 w-4" />
-    </button>
+      <LogOut className="ml-auto h-4 w-4" />
+    </DropdownMenuItem>
   );
 };

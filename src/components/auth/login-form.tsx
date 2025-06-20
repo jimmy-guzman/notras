@@ -18,13 +18,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
-import { ContinueWithGitHub } from "./sign-in-button";
+import { GitHubSignInButton } from "./sign-in-button";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
 });
 
-export function LoginForm() {
+export const LoginForm = () => {
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       email: "",
@@ -32,7 +32,7 @@ export function LoginForm() {
     resolver: zodResolver(formSchema),
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const { error } = await authClient.signIn.magicLink({
       callbackURL: "/",
       email: values.email,
@@ -44,7 +44,7 @@ export function LoginForm() {
       form.reset();
       toast.success("Check your email for a magic link.");
     }
-  }
+  };
 
   return (
     <Form {...form}>
@@ -99,10 +99,10 @@ export function LoginForm() {
           </div>
 
           <div className="grid gap-4">
-            <ContinueWithGitHub />
+            <GitHubSignInButton />
           </div>
         </div>
       </form>
     </Form>
   );
-}
+};

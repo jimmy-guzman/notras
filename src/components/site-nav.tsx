@@ -14,7 +14,7 @@ import { SearchCommand } from "./search-command";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
 
-export const SiteNav = async () => {
+export async function SiteNav() {
   const session = await getSession();
 
   return (
@@ -56,4 +56,4 @@ export const SiteNav = async () => {
       </div>
     </div>
   );
-};
+}
