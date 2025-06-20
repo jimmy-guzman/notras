@@ -2,7 +2,7 @@ import type { Fetcher } from "swr";
 
 import useSWR from "swr";
 
-import type { Kind } from "@/lib/kind";
+import type { SelectNote } from "@/server/db/schemas/notes";
 
 interface FilterState {
   label?: string;
@@ -10,10 +10,7 @@ interface FilterState {
   value?: string;
 }
 
-const buildSearchParams = (
-  query: string,
-  filter: FilterState,
-): URLSearchParams => {
+const buildSearchParams = (query: string, filter: FilterState) => {
   const params = new URLSearchParams({
     kind: "all",
     q: "",
@@ -62,18 +59,8 @@ const searchFetcher: Fetcher<SearchResponse, string> = async (url: string) => {
   return response.json() as unknown as SearchResponse;
 };
 
-interface Note {
-  content: string;
-  createdAt: string;
-  id: string;
-  kind: Kind | null;
-  metadata: null | {
-    aiKindInferred?: boolean;
-  };
-}
-
 interface SearchResponse {
-  notes: Note[];
+  notes: SelectNote[];
 }
 
 const DEDUPING_INTERVAL = 2000;

@@ -25,7 +25,7 @@ export default async function NotePage({ params }: PageProps) {
   }
 
   return (
-    <div>
+    <div className="container mx-auto px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
         <Button asChild size="sm" variant="ghost">
           <Link href="/notes">

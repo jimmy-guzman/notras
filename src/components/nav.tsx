@@ -29,6 +29,13 @@ export const SiteNav = async () => {
               <NavigationMenuList>
                 <NavigationMenuItem>
                   <NavigationMenuLink asChild>
+                    <Link className={navigationMenuTriggerStyle()} href="/">
+                      Home
+                    </Link>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink asChild>
                     <Link
                       className={navigationMenuTriggerStyle()}
                       href="/notes"

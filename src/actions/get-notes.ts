@@ -48,13 +48,13 @@ function getStartDateForFilter(time: TimeFilter): Date {
 function getSortOrder(sort: SortOption = "newest") {
   switch (sort) {
     case "oldest": {
-      return [desc(note.pinnedAt), asc(note.createdAt)];
+      return [asc(isNull(note.pinnedAt)), asc(note.createdAt)];
     }
     case "updated": {
-      return [desc(note.pinnedAt), desc(note.updatedAt)];
+      return [asc(isNull(note.pinnedAt)), desc(note.updatedAt)];
     }
     default: {
-      return [desc(note.pinnedAt), desc(note.createdAt)];
+      return [asc(isNull(note.pinnedAt)), desc(note.createdAt)];
     }
   }
 }
