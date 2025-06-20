@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -18,7 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getSession } from "@/lib/auth";
 
-import { SignOutButton } from "./sign-out-button";
+import { SignOutMenuItem } from "./sign-out-menu-item";
 
 export const UserDropdown = async () => {
   const session = await getSession();
@@ -81,9 +80,7 @@ export const UserDropdown = async () => {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem>
-          <SignOutButton />
-        </DropdownMenuItem>
+        <SignOutMenuItem />
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Hero } from "../hero";
 
-export function SignedOutFallback() {
+export const SignedOutFallback = () => {
   return (
     <section className="mt-4 flex flex-col gap-12 p-4">
       <Hero />
@@ -14,4 +14,4 @@ export function SignedOutFallback() {
       </p>
     </section>
   );
-}
+};

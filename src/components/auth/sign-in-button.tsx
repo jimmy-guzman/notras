@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { signinGithub } from "@/lib/auth-social";
 
-export const ContinueWithGitHub = () => {
+export const GitHubSignInButton = () => {
   return (
     <Button
       className="w-full"
