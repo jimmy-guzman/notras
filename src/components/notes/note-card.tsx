@@ -7,7 +7,7 @@ import { KIND_LABELS } from "@/lib/kind";
 
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardFooter } from "../ui/card";
-import { PinNote } from "./pin-note-button";
+import { PinNoteButton } from "./pin-note-button";
 
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString("en-US", {
@@ -24,7 +24,7 @@ export const NoteCard = ({ note }: { note: SelectNote }) => {
       href={`/notes/${note.id}`}
     >
       <Card className="relative flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-        <PinNote
+        <PinNoteButton
           className="absolute top-2 right-2 z-10"
           noteId={note.id}
           pinned={Boolean(note.pinnedAt)}

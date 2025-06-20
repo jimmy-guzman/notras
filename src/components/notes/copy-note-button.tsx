@@ -11,15 +11,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const COPY_RESET_DELAY_MS = 1500;
 
-interface CopyNoteProps {
+interface CopyNoteButtonProps {
   content: string;
   resetDelayMs?: number;
 }
 
-export const CopyNote = ({
+export const CopyNoteButton = ({
   content,
   resetDelayMs = COPY_RESET_DELAY_MS,
-}: CopyNoteProps) => {
+}: CopyNoteButtonProps) => {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 

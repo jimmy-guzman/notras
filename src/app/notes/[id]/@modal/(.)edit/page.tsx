@@ -1,6 +1,6 @@
 import { getNote } from "@/actions/get-note";
 import { EditNoteDialog } from "@/components/notes/edit-note-dialog";
-import EditNoteForm from "@/components/notes/edit-note-form";
+import { EditNoteForm } from "@/components/notes/edit-note-form";
 
 export default async function EditNoteModal({
   params,

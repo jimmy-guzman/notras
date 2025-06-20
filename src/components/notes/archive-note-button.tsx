@@ -14,12 +14,15 @@ import { unarchiveNote } from "@/actions/unarchive-note";
 
 import { Button } from "../ui/button";
 
-interface ArchiveNoteProps {
+interface ArchiveNoteButtonProps {
   isArchived: boolean;
   noteId: string;
 }
 
-export const ArchiveNote = ({ isArchived, noteId }: ArchiveNoteProps) => {
+export const ArchiveNoteButton = ({
+  isArchived,
+  noteId,
+}: ArchiveNoteButtonProps) => {
   const [isPending, startTransition] = useTransition();
 
   const handleClick = () => {
@@ -38,7 +41,9 @@ export const ArchiveNote = ({ isArchived, noteId }: ArchiveNoteProps) => {
           });
         }
       } catch {
-        toast.error(`Failed to ${isArchived ? "unarchive" : "archive"} note`);
+        toast.error(
+          `Failed to ${isArchived ? "unarchive" : "archive"} note. Please try again.`,
+        );
       }
     });
   };

@@ -15,7 +15,7 @@ interface EditNoteFormProps {
   noteId: string;
 }
 
-export default function EditNoteForm({
+export function EditNoteForm({
   initialContent = "",
   noteId,
 }: EditNoteFormProps) {
@@ -29,7 +29,8 @@ export default function EditNoteForm({
     startTransition(async () => {
       try {
         await updateNote(noteId, content);
-        toast.success("Note saved successfully!");
+
+        toast.success("Note saved.");
         router.back();
       } catch {
         toast.error("Failed to save note. Please try again.");
