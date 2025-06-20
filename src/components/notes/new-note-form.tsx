@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { saveNote } from "@/actions/create-note";
+import { createNote } from "@/actions/create-note";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,11 +27,7 @@ const formSchema = z.object({
   kind: z.optional(z.enum([...KIND_VALUES, ""])),
 });
 
-interface NewNoteFormProps {
-  onSuccess?: () => void;
-}
-
-export function NewNoteForm({ onSuccess }: NewNoteFormProps) {
+export function NewNoteForm() {
   const router = useRouter();
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
@@ -43,12 +39,12 @@ export function NewNoteForm({ onSuccess }: NewNoteFormProps) {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const note = await saveNote(
+      const note = await createNote(
         values.content,
         values.kind === "" ? undefined : values.kind,
       );
 
-      toast.success("Note saved", {
+      toast.success("Note saved.", {
         action: (
           <Link
             data-action="true"
@@ -60,13 +56,9 @@ export function NewNoteForm({ onSuccess }: NewNoteFormProps) {
         ),
       });
 
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.back();
-      }
+      router.back();
     } catch {
-      toast.error("Failed to save note");
+      toast.error("Failed to save note. Please try again.");
     }
   };
 

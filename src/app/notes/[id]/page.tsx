@@ -4,10 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getNote } from "@/actions/get-note";
-import { ArchiveNote } from "@/components/notes/archive-note-button";
-import { CopyNote } from "@/components/notes/copy-note-button";
+import { ArchiveNoteButton } from "@/components/notes/archive-note-button";
+import { CopyNoteButton } from "@/components/notes/copy-note-button";
 import { LinkedNotes } from "@/components/notes/linked-notes";
-import { PinNote } from "@/components/notes/pin-note-button";
+import { PinNoteButton } from "@/components/notes/pin-note-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KIND_LABELS } from "@/lib/kind";
@@ -34,9 +34,12 @@ export default async function NotePage({ params }: PageProps) {
         </Button>
 
         <div className="flex items-center gap-2">
-          <PinNote noteId={note.id} pinned={Boolean(note.pinnedAt)} />
-          <ArchiveNote isArchived={note.deletedAt !== null} noteId={note.id} />
-          <CopyNote content={note.content} />
+          <PinNoteButton noteId={note.id} pinned={Boolean(note.pinnedAt)} />
+          <ArchiveNoteButton
+            isArchived={note.deletedAt !== null}
+            noteId={note.id}
+          />
+          <CopyNoteButton content={note.content} />
           <Button aria-label="Edit Note" asChild size="icon" variant="ghost">
             <Link href={`/notes/${note.id}/edit`}>
               <PencilIcon className="h-4 w-4" />

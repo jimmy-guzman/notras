@@ -1,5 +1,5 @@
 import { getNote } from "@/actions/get-note";
-import EditNoteForm from "@/components/notes/edit-note-form";
+import { EditNoteForm } from "@/components/notes/edit-note-form";
 
 export default async function EditNotePage({
   params,

@@ -10,7 +10,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
-export async function saveNote(content: string, kind?: Kind) {
+export async function createNote(content: string, kind?: Kind) {
   const session = await getSession();
 
   invariant(session, "Unauthorized");

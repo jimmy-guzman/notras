@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { saveNote } from "@/actions/create-note";
+import { createNote } from "@/actions/create-note";
 import {
   Form,
   FormControl,
@@ -24,11 +24,7 @@ const formSchema = z.object({
   kind: z.optional(z.enum([...KIND_VALUES, ""])),
 });
 
-interface QuickNoteInputProps {
-  onSuccess?: () => void;
-}
-
-export function QuickNoteInput({ onSuccess }: QuickNoteInputProps) {
+export function QuickNoteInput() {
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       content: "",
@@ -39,12 +35,12 @@ export function QuickNoteInput({ onSuccess }: QuickNoteInputProps) {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const note = await saveNote(
+      const note = await createNote(
         values.content,
         values.kind === "" ? undefined : values.kind,
       );
 
-      toast.success("Note saved", {
+      toast.success("Note saved.", {
         action: (
           <Link
             data-action="true"
@@ -55,8 +51,6 @@ export function QuickNoteInput({ onSuccess }: QuickNoteInputProps) {
           </Link>
         ),
       });
-
-      onSuccess?.();
     } catch {
       toast.error("Failed to save note");
     }

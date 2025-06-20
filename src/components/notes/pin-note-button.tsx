@@ -10,13 +10,17 @@ import { unpinNote } from "@/actions/unpin-note";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-interface PinNoteProps {
+interface PinNoteButtonProps {
   className?: string;
   noteId: string;
   pinned: boolean;
 }
 
-export const PinNote = ({ className, noteId, pinned }: PinNoteProps) => {
+export const PinNoteButton = ({
+  className,
+  noteId,
+  pinned,
+}: PinNoteButtonProps) => {
   async function handleTogglePin(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
