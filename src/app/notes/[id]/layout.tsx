@@ -1,4 +1,5 @@
-export default function NotesLayout({
+// app/notes/[id]/layout.tsx
+export default function NoteLayout({
   children,
   modal,
 }: {
@@ -6,9 +7,9 @@ export default function NotesLayout({
   modal: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto w-full max-w-7xl py-8">
+    <>
       {children}
       {modal}
-    </div>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import { getNotesCount } from "@/actions/get-notes";
+import { SignedOutFallback } from "@/components/auth/signed-out-fallback";
 import { Hero } from "@/components/hero";
-import { QuickNoteInput } from "@/components/quick-note-input";
-import { SignedOutFallback } from "@/components/signed-out-fallback";
+import { QuickNoteInput } from "@/components/notes/quick-note-input";
 import { SupportNotras } from "@/components/support-notras";
 import { WelcomeBack } from "@/components/welcome-back";
 import { getSession } from "@/lib/auth";

@@ -6,8 +6,8 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/ui/utils";
 
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Button } from "../ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const COPY_RESET_DELAY_MS = 1500;
 
