@@ -1,47 +1,50 @@
 import type { SearchParams } from "nuqs/server";
 
-import { Info, Plus } from "lucide-react";
+import { Info } from "lucide-react";
 import Link from "next/link";
 
-import { getNotes, loadSearchParams } from "@/actions/get-notes";
-import { NotesList } from "@/components/notes/notes";
+import {
+  getArchivedNotes,
+  loadSearchParams,
+} from "@/actions/get-archived-notes";
+import { ArchivedNoteCard } from "@/components/notes/archived-note-card";
 import { NotesFilters } from "@/components/notes/notes-filters";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 
 interface PageProps {
   searchParams: Promise<SearchParams>;
 }
 
 export default async function Page({ searchParams }: PageProps) {
-  const notes = await getNotes(await loadSearchParams(searchParams));
+  const notes = await getArchivedNotes(await loadSearchParams(searchParams));
 
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between">
         <NotesFilters />
-        <Button asChild variant="outline">
-          <Link href="/notes/new">
-            <Plus className="h-4 w-4" />
-            New Note
-          </Link>
-        </Button>
       </div>
       {notes.length === 0 ? (
         <Alert className="text-center">
           <Info className="h-4 w-4" />
           <AlertDescription>
             <p>
-              No notes found.{" "}
-              <Link className="underline hover:no-underline" href="/notes/new">
-                Create your first note
+              No archived notes yet.{" "}
+              <Link
+                className="inline underline hover:no-underline"
+                href="/notes"
+              >
+                Browse your notes
               </Link>{" "}
-              to get started.
+              to archive some.
             </p>
           </AlertDescription>
         </Alert>
       ) : (
-        <NotesList notes={notes} />
+        <div className="animate-in fade-in-0 grid grid-cols-1 gap-4 duration-300 md:grid-cols-2 lg:grid-cols-3">
+          {notes.map((note) => (
+            <ArchivedNoteCard key={note.id} note={note} />
+          ))}
+        </div>
       )}
     </div>
   );

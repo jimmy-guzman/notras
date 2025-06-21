@@ -7,7 +7,17 @@ import {
   startOfYear,
   subDays,
 } from "date-fns";
-import { and, asc, count, desc, eq, gte, ilike, isNull, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNotNull,
+  isNull,
+  or,
+} from "drizzle-orm";
 import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 import { createLoader } from "nuqs/server";
 
@@ -59,13 +69,13 @@ function getSortOrder(sort: SortOption = "newest") {
   }
 }
 
-export async function getNotes(searchParams: NoteSearchParams) {
+export async function getArchivedNotes(searchParams: NoteSearchParams) {
   return authorizedServerAction(async (userId) => {
     "use cache";
 
     const { kind, q: query, sort, time } = searchParams;
 
-    const baseFilters = [eq(note.userId, userId), isNull(note.deletedAt)];
+    const baseFilters = [eq(note.userId, userId), isNotNull(note.deletedAt)];
 
     const kindFilter =
       kind === "all"
@@ -77,9 +87,9 @@ export async function getNotes(searchParams: NoteSearchParams) {
     const queryFilter = query ? [ilike(note.content, `%${query}%`)] : [];
 
     const timeFilter =
-      time === "all" ? [] : [gte(note.createdAt, getStartDateForFilter(time))];
+      time === "all" ? [] : [gte(note.deletedAt, getStartDateForFilter(time))];
 
-    cacheTag("notes");
+    cacheTag("archived-notes");
 
     const notes = await db
       .select()
@@ -88,20 +98,5 @@ export async function getNotes(searchParams: NoteSearchParams) {
       .orderBy(...getSortOrder(sort));
 
     return notes;
-  });
-}
-
-export async function getNotesCount() {
-  return authorizedServerAction(async (userId) => {
-    "use cache";
-
-    const [{ count: notesCount }] = await db
-      .select({ count: count() })
-      .from(note)
-      .where(and(eq(note.userId, userId), isNull(note.deletedAt)));
-
-    cacheTag("notes count");
-
-    return notesCount;
   });
 }

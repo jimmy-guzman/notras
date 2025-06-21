@@ -23,7 +23,7 @@ export const PinNoteButton = ({
 }: PinNoteButtonProps) => {
   async function handleTogglePin(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
-    e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
 
     await (pinned ? unpinNote(noteId) : pinNote(noteId));
   }
