@@ -10,6 +10,12 @@ import { db } from "@/server/db";
 import * as schema from "@/server/db/schemas/users";
 import { sendEmail } from "@/server/email";
 
+const getBaseUrl = () => {
+  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
+
+  return `http://localhost:${env.PORT}`;
+};
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -39,6 +45,7 @@ export const auth = betterAuth({
     github: {
       clientId: env.GITHUB_CLIENT_ID,
       clientSecret: env.GITHUB_CLIENT_SECRET,
+      redirectURI: `${getBaseUrl()}/api/auth/callback/github`,
     },
   },
 });
