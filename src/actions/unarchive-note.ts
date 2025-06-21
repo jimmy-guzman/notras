@@ -19,4 +19,5 @@ export async function unarchiveNote(noteId: string) {
     .where(eq(note.id, noteId));
 
   revalidateTag("notes");
+  revalidateTag("archived-notes");
 }

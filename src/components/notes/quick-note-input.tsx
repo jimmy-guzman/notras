@@ -52,7 +52,7 @@ export function QuickNoteInput() {
         ),
       });
     } catch {
-      toast.error("Failed to save note");
+      toast.error("Failed to save note. Please try again.");
     }
   };
 

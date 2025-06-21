@@ -1,9 +1,10 @@
 import { format } from "date-fns";
-import { ArrowLeftIcon, PencilIcon, SparklesIcon } from "lucide-react";
+import { PencilIcon, SparklesIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getNote } from "@/actions/get-note";
+import { BackButton } from "@/components/back-button";
 import { ArchiveNoteButton } from "@/components/notes/archive-note-button";
 import { CopyNoteButton } from "@/components/notes/copy-note-button";
 import { LinkedNotes } from "@/components/notes/linked-notes";
@@ -27,12 +28,7 @@ export default async function NotePage({ params }: PageProps) {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
-        <Button asChild size="sm" variant="ghost">
-          <Link href="/notes">
-            <ArrowLeftIcon className="h-4 w-4" /> Back to notes
-          </Link>
-        </Button>
-
+        <BackButton />
         <div className="flex items-center gap-2">
           <PinNoteButton noteId={note.id} pinned={Boolean(note.pinnedAt)} />
           <ArchiveNoteButton

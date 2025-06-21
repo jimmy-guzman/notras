@@ -29,7 +29,7 @@ export const NoteCard = ({ note }: { note: SelectNote }) => {
           noteId={note.id}
           pinned={Boolean(note.pinnedAt)}
         />
-        <CardContent className="flex-1 p-4">
+        <CardContent className="flex-1 py-4">
           <p className="text-foreground group-hover:text-foreground/90 truncate text-sm leading-relaxed transition-colors">
             {note.content}
           </p>

@@ -44,6 +44,16 @@ export async function SiteNav() {
                     </Link>
                   </NavigationMenuLink>
                 </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink asChild>
+                    <Link
+                      className={navigationMenuTriggerStyle()}
+                      href="/archives"
+                    >
+                      Archives
+                    </Link>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
           )}
