@@ -22,6 +22,8 @@ import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
 
+import { Kbd } from "./kbd";
+
 const SEARCH_CONFIG = {
   DEBOUNCE_DELAY: 300,
   DEDUPING_INTERVAL: 2000,
@@ -129,18 +131,20 @@ export function SearchCommand() {
   return (
     <>
       <Button
-        className="text-muted-foreground relative h-9 w-full justify-start rounded-[0.5rem] text-sm sm:pr-12 md:w-40 lg:w-64"
+        className="text-muted-foreground relative h-9 w-auto justify-start rounded-[0.5rem] text-sm md:w-40 md:pr-12 lg:w-64"
         onClick={() => {
           setOpen(true);
         }}
         variant="outline"
       >
-        <Search className="mr-2 h-4 w-4" />
+        <Search className="h-4 w-4 md:mr-2" />
+        <span className="hidden md:inline-flex lg:hidden">Search...</span>
         <span className="hidden lg:inline-flex">Search notes...</span>
-        <span className="inline-flex lg:hidden">Search...</span>
-        <kbd className="bg-muted pointer-events-none absolute top-[0.4.5rem] right-[0.3rem] hidden h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex">
-          <span className="text-xs">⌘</span>K
-        </kbd>
+
+        <div className="absolute top-[0.45rem] right-[0.3rem] hidden gap-0.5 sm:inline-flex">
+          <Kbd>⌘</Kbd>
+          <Kbd>K</Kbd>
+        </div>
       </Button>
 
       <CommandDialog onOpenChange={handleOpenChange} open={open}>

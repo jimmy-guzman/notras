@@ -11,6 +11,7 @@ import { LinkedNotes } from "@/components/notes/linked-notes";
 import { PinNoteButton } from "@/components/notes/pin-note-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { KIND_LABELS } from "@/lib/kind";
 
 interface PageProps {
@@ -59,17 +60,30 @@ export default async function NotePage({ params }: PageProps) {
         </Badge>
       </div>
 
-      <div className="prose prose-gray dark:prose-invert max-w-none">
+      <div className="prose prose-gray dark:prose-invert mb-12 max-w-none">
         <div className="text-lg leading-relaxed whitespace-pre-wrap">
           {note.content}
         </div>
       </div>
 
-      <div>
-        <h3 className="text-muted-foreground mt-8 mb-2 flex items-center gap-2 text-sm font-semibold">
-          Linked Notes
-        </h3>
-        <LinkedNotes noteId={note.id} />
+      <div className="my-12">
+        <Separator className="mb-4" />
+        <div className="flex items-center justify-center">
+          <div className="bg-muted rounded-full px-4 py-1">
+            <span className="text-muted-foreground text-xs font-medium">
+              Connections
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-muted/30 border-border/50 space-y-6 rounded-lg border p-6">
+        <div>
+          <h3 className="text-muted-foreground mb-4 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+            Related Notes
+          </h3>
+          <LinkedNotes noteId={note.id} />
+        </div>
       </div>
     </div>
   );

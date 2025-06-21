@@ -1,6 +1,5 @@
 "use client";
 
-import { Command } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -9,6 +8,8 @@ import { updateNote } from "@/actions/update-note";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+import { Kbd } from "../kbd";
 
 interface EditNoteFormProps {
   initialContent?: string;
@@ -82,12 +83,8 @@ export function EditNoteForm({
             <span className="flex items-center gap-2 text-sm">
               Save
               <div className="hidden gap-0.5 sm:inline-flex">
-                <kbd className="border-border bg-accent text-accent-foreground inline-flex h-5 items-center justify-center rounded border px-1.5 font-mono text-xs select-none">
-                  <Command className="h-3 w-3" />
-                </kbd>
-                <kbd className="border-border bg-accent text-accent-foreground inline-flex h-5 items-center justify-center rounded border px-1.5 font-mono text-xs select-none">
-                  ↵
-                </kbd>
+                <Kbd>⌘</Kbd>
+                <Kbd>⏎</Kbd>
               </div>
             </span>
           )}
