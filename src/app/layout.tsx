@@ -17,8 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  description:
-    "A soft space for fleeting thoughts. Capture your daydreams as they drift by.",
+  description: "A simple space to capture your thoughts as they come.",
   title: "notras",
 } satisfies Metadata;
 

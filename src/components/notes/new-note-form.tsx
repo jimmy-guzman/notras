@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Command } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -21,6 +20,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
+
+import { Kbd } from "../kbd";
 
 const formSchema = z.object({
   content: z.string().min(1, "Note cannot be empty"),
@@ -154,12 +155,8 @@ export function NewNoteForm() {
               <span className="flex items-center gap-2 text-sm">
                 Create
                 <div className="hidden gap-0.5 sm:inline-flex">
-                  <kbd className="border-border bg-accent text-accent-foreground inline-flex h-5 items-center justify-center rounded border px-1.5 font-mono text-xs select-none">
-                    <Command className="h-3 w-3" />
-                  </kbd>
-                  <kbd className="border-border bg-accent text-accent-foreground inline-flex h-5 items-center justify-center rounded border px-1.5 font-mono text-xs select-none">
-                    ↵
-                  </kbd>
+                  <Kbd>⌘</Kbd>
+                  <Kbd>⏎</Kbd>
                 </div>
               </span>
             )}
