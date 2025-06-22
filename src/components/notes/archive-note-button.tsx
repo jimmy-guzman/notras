@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@radix-ui/react-tooltip";
 import { Archive, ArchiveX } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -13,6 +8,7 @@ import { archiveNote } from "@/actions/archive-note";
 import { unarchiveNote } from "@/actions/unarchive-note";
 
 import { Button } from "../ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface ArchiveNoteButtonProps {
   isArchived: boolean;

@@ -1,16 +1,22 @@
+import { Info } from "lucide-react";
 import Link from "next/link";
 
 import { getLinkedNotes } from "@/actions/get-linked-notes";
 import { Badge } from "@/components/ui/badge";
+
+import { Alert, AlertDescription } from "../ui/alert";
 
 export async function LinkedNotes({ noteId }: { noteId: string }) {
   const links = await getLinkedNotes(noteId);
 
   if (links.length === 0) {
     return (
-      <ul className="space-y-2">
-        <li className="text-muted-foreground text-sm">No linked notes.</li>
-      </ul>
+      <Alert className="text-center">
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          <p>No notes related notes.</p>
+        </AlertDescription>
+      </Alert>
     );
   }
 

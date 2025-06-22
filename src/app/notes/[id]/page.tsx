@@ -66,18 +66,9 @@ export default async function NotePage({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="my-12">
-        <Separator className="mb-4" />
-        <div className="flex items-center justify-center">
-          <div className="bg-muted rounded-full px-4 py-1">
-            <span className="text-muted-foreground text-xs font-medium">
-              Connections
-            </span>
-          </div>
-        </div>
-      </div>
+      <Separator className="my-12" />
 
-      <div className="bg-muted/30 border-border/50 space-y-6 rounded-lg border p-6">
+      <div className="space-y-6">
         <div>
           <h3 className="text-muted-foreground mb-4 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
             Related Notes

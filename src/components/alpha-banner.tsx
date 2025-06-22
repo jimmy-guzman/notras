@@ -42,6 +42,7 @@ export function AlphaBanner() {
         size="icon"
         variant="ghost"
       >
+        <span className="sr-only">Close Banner</span>
         <X className="h-3 w-3" />
       </Button>
     </Alert>
