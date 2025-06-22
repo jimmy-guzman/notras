@@ -18,7 +18,7 @@ const formatDate = (date: Date): string => {
 
 export const ArchivedNoteCard = ({ note }: { note: SelectNote }) => {
   return (
-    <Card className="relative flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+    <Card className="relative flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
       <RestoreNoteButton
         className="absolute top-2 right-2 z-10"
         noteId={note.id}
