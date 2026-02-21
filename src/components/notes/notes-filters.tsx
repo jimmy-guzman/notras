@@ -1,12 +1,18 @@
 "use client";
 
-import { Calendar, Filter } from "lucide-react";
+import { Calendar, Filter, SearchIcon, XIcon } from "lucide-react";
 import { useQueryStates } from "nuqs";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { NoteSearchParams } from "@/lib/notes-search-params";
 
 import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -68,27 +74,89 @@ const SortSelect = ({ onChange, value }: SortSelectProps) => {
   );
 };
 
+// Search input component
+interface SearchInputProps {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onClear: () => void;
+  onSearch: (query: string) => void;
+  value: string;
+}
+
+const SearchInput = ({
+  inputRef,
+  onClear,
+  onSearch,
+  value,
+}: SearchInputProps) => {
+  return (
+    <InputGroup className="h-9 flex-1 rounded-lg lg:max-w-xs">
+      <InputGroupAddon align="inline-start">
+        <SearchIcon />
+      </InputGroupAddon>
+      <InputGroupInput
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        onChange={(e) => {
+          onSearch(e.target.value);
+        }}
+        placeholder="Search notes..."
+        ref={inputRef}
+        spellCheck={false}
+        type="search"
+        value={value}
+      />
+      {value && (
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton
+            onClick={onClear}
+            size="icon-xs"
+            type="button"
+            variant="ghost"
+          >
+            <XIcon className="h-4 w-4" />
+            <span className="sr-only">Clear search</span>
+          </InputGroupButton>
+        </InputGroupAddon>
+      )}
+    </InputGroup>
+  );
+};
+
 // Desktop filters layout
 interface DesktopFiltersProps {
   filters: {
+    q: string;
     sort: NoteSearchParams["sort"];
     time: NoteSearchParams["time"];
   };
   hasActiveFilters: boolean;
   onClearFilters: () => void;
+  onClearSearch: () => void;
+  onSearch: (query: string) => void;
   onSortChange: (sort: NoteSearchParams["sort"]) => void;
   onTimeChange: (time: NoteSearchParams["time"]) => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 const DesktopFilters = ({
   filters,
   hasActiveFilters,
   onClearFilters,
+  onClearSearch,
+  onSearch,
   onSortChange,
   onTimeChange,
+  searchInputRef,
 }: DesktopFiltersProps) => {
   return (
     <div className="hidden flex-wrap items-center gap-4 lg:flex">
+      <SearchInput
+        inputRef={searchInputRef}
+        onClear={onClearSearch}
+        onSearch={onSearch}
+        value={filters.q}
+      />
       <TimeSelect onChange={onTimeChange} value={filters.time} />
       <SortSelect onChange={onSortChange} value={filters.sort} />
 
@@ -104,15 +172,19 @@ const DesktopFilters = ({
 // Mobile filters layout
 interface MobileFiltersProps {
   filters: {
+    q: string;
     sort: NoteSearchParams["sort"];
     time: NoteSearchParams["time"];
   };
   hasActiveFilters: boolean;
   isOpen: boolean;
   onClearFilters: () => void;
+  onClearSearch: () => void;
   onOpenChange: (open: boolean) => void;
+  onSearch: (query: string) => void;
   onSortChange: (sort: NoteSearchParams["sort"]) => void;
   onTimeChange: (time: NoteSearchParams["time"]) => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 const MobileFilters = ({
@@ -120,15 +192,24 @@ const MobileFilters = ({
   hasActiveFilters,
   isOpen,
   onClearFilters,
+  onClearSearch,
   onOpenChange,
+  onSearch,
   onSortChange,
   onTimeChange,
+  searchInputRef,
 }: MobileFiltersProps) => {
   return (
-    <div className="lg:hidden">
+    <div className="flex items-center gap-2 lg:hidden">
+      <SearchInput
+        inputRef={searchInputRef}
+        onClear={onClearSearch}
+        onSearch={onSearch}
+        value={filters.q}
+      />
       <Sheet onOpenChange={onOpenChange} open={isOpen}>
         <SheetTrigger asChild>
-          <Button className="relative" size="sm" variant="outline">
+          <Button className="relative shrink-0" size="sm" variant="outline">
             <Filter className="mr-2 h-4 w-4" />
             Filters
             {hasActiveFilters && (
@@ -170,6 +251,9 @@ const MobileFilters = ({
 export const NotesFilters = () => {
   const [filters, setFilters] = useQueryStates(parsers, { shallow: false });
   const [isOpen, setIsOpen] = useState(false);
+  const [localQuery, setLocalQuery] = useState(filters.q);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const updateTime = async (time: NoteSearchParams["time"]) => {
     await setFilters({ time });
@@ -179,10 +263,38 @@ export const NotesFilters = () => {
     await setFilters({ sort });
   };
 
-  const hasActiveFilters = filters.time !== "all" || filters.sort !== "newest";
+  const updateSearch = (query: string) => {
+    setLocalQuery(query);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      void setFilters({ q: query });
+    }, 300);
+  };
+
+  const clearSearch = async () => {
+    setLocalQuery("");
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    await setFilters({ q: "" });
+    searchInputRef.current?.focus();
+  };
+
+  const hasActiveFilters =
+    filters.time !== "all" || filters.sort !== "newest" || filters.q !== "";
 
   const clearFilters = async () => {
+    setLocalQuery("");
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
     await setFilters({
+      q: "",
       sort: "newest",
       time: "all",
     });
@@ -192,20 +304,26 @@ export const NotesFilters = () => {
   return (
     <>
       <DesktopFilters
-        filters={filters}
+        filters={{ ...filters, q: localQuery }}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={clearFilters}
+        onClearSearch={clearSearch}
+        onSearch={updateSearch}
         onSortChange={updateSort}
         onTimeChange={updateTime}
+        searchInputRef={searchInputRef}
       />
       <MobileFilters
-        filters={filters}
+        filters={{ ...filters, q: localQuery }}
         hasActiveFilters={hasActiveFilters}
         isOpen={isOpen}
         onClearFilters={clearFilters}
+        onClearSearch={clearSearch}
         onOpenChange={setIsOpen}
+        onSearch={updateSearch}
         onSortChange={updateSort}
         onTimeChange={updateTime}
+        searchInputRef={searchInputRef}
       />
     </>
   );

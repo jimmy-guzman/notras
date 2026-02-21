@@ -62,8 +62,11 @@ function getSortOrder(sort: SortOption = "newest") {
   }
 }
 
-export async function getNotes(searchParams: NoteSearchParams) {
-  return authorizedServerAction(async (userId) => {
+export async function getNotes(
+  searchParams: NoteSearchParams,
+  options?: { limit?: number },
+) {
+  const notes = await authorizedServerAction(async (userId) => {
     "use cache";
 
     const { q: query, sort, time } = searchParams;
@@ -77,14 +80,18 @@ export async function getNotes(searchParams: NoteSearchParams) {
 
     cacheTag("notes");
 
-    const notes = await db
+    return db
       .select()
       .from(note)
       .where(and(...baseFilters, ...queryFilter, ...timeFilter))
       .orderBy(...getSortOrder(sort));
-
-    return notes;
   });
+
+  if (options?.limit) {
+    return notes.slice(0, options.limit);
+  }
+
+  return notes;
 }
 
 export async function getNotesCount() {
