@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, Search, Sparkles } from "lucide-react";
+import { ArrowLeftIcon, SearchIcon, SparkleIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useDebounce } from "use-debounce";
@@ -137,7 +137,7 @@ export function SearchCommand() {
         }}
         variant="outline"
       >
-        <Search className="h-4 w-4 md:mr-2" />
+        <SearchIcon className="h-4 w-4 md:mr-2" />
         <span className="hidden md:inline-flex lg:hidden">Search...</span>
         <span className="hidden lg:inline-flex">Search notes...</span>
 
@@ -156,7 +156,7 @@ export function SearchCommand() {
               size="sm"
               variant="ghost"
             >
-              <ArrowLeft className="mr-1 h-3 w-3" />
+              <ArrowLeftIcon className="mr-1 h-3 w-3" />
               Back
             </Button>
             <span>→</span>
@@ -244,7 +244,7 @@ export function SearchCommand() {
                       <Badge className="text-xs capitalize" variant="outline">
                         {KIND_LABELS[note.kind ?? "thought"]}
                         {note.metadata?.aiKindInferred && (
-                          <Sparkles className="ml-1 h-2 w-2" />
+                          <SparkleIcon className="ml-1 h-2 w-2" />
                         )}
                       </Badge>
                     </div>
@@ -266,7 +266,7 @@ export function SearchCommand() {
                         handleFilterSelect("kind", kind, KIND_LABELS[kind]);
                       }}
                     >
-                      <Search className="h-4 w-4" />
+                      <SearchIcon className="h-4 w-4" />
                       <span className="capitalize">{KIND_LABELS[kind]}</span>
                     </CommandItem>
                   );
@@ -279,7 +279,7 @@ export function SearchCommand() {
                     handleFilterSelect("time", "today", "Today");
                   }}
                 >
-                  <Search className="mr-2 h-4 w-4" />
+                  <SearchIcon className="mr-2 h-4 w-4" />
                   Today
                 </CommandItem>
                 <CommandItem
@@ -287,7 +287,7 @@ export function SearchCommand() {
                     handleFilterSelect("time", "yesterday", "Yesterday");
                   }}
                 >
-                  <Search className="mr-2 h-4 w-4" />
+                  <SearchIcon className="mr-2 h-4 w-4" />
                   Yesterday
                 </CommandItem>
                 <CommandItem
@@ -295,7 +295,7 @@ export function SearchCommand() {
                     handleFilterSelect("time", "week", "This Week");
                   }}
                 >
-                  <Search className="mr-2 h-4 w-4" />
+                  <SearchIcon className="mr-2 h-4 w-4" />
                   This week
                 </CommandItem>
                 <CommandItem
@@ -303,7 +303,7 @@ export function SearchCommand() {
                     handleFilterSelect("time", "month", "This Month");
                   }}
                 >
-                  <Search className="mr-2 h-4 w-4" />
+                  <SearchIcon className="mr-2 h-4 w-4" />
                   This month
                 </CommandItem>
               </CommandGroup>

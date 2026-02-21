@@ -10,9 +10,11 @@ import { cn } from "@/lib/ui/utils";
 
 const ToggleGroupContext = React.createContext<
   VariantProps<typeof toggleVariants> & {
+    orientation?: "horizontal" | "vertical";
     spacing?: number;
   }
 >({
+  orientation: "horizontal",
   size: "default",
   spacing: 0,
   variant: "default",
@@ -23,20 +25,23 @@ ToggleGroupContext.displayName = "ToggleGroupContext";
 function ToggleGroup({
   children,
   className,
+  orientation = "horizontal",
   size,
   spacing = 0,
   variant,
   ...props
 }: React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
   VariantProps<typeof toggleVariants> & {
+    orientation?: "horizontal" | "vertical";
     spacing?: number;
   }) {
   return (
     <ToggleGroupPrimitive.Root
       className={cn(
-        "group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs",
+        "group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-vertical:flex-col data-vertical:items-stretch data-[spacing=0]:data-[variant=outline]:rounded-4xl",
         className,
       )}
+      data-orientation={orientation}
       data-size={size}
       data-slot="toggle-group"
       data-spacing={spacing}
@@ -44,7 +49,7 @@ function ToggleGroup({
       style={{ "--gap": spacing } as React.CSSProperties}
       {...props}
     >
-      <ToggleGroupContext value={{ size, spacing, variant }}>
+      <ToggleGroupContext value={{ orientation, size, spacing, variant }}>
         {children}
       </ToggleGroupContext>
     </ToggleGroupPrimitive.Root>
@@ -54,8 +59,8 @@ function ToggleGroup({
 function ToggleGroupItem({
   children,
   className,
-  size,
-  variant,
+  size = "default",
+  variant = "default",
   ...props
 }: React.ComponentProps<typeof ToggleGroupPrimitive.Item> &
   VariantProps<typeof toggleVariants>) {
@@ -64,12 +69,11 @@ function ToggleGroupItem({
   return (
     <ToggleGroupPrimitive.Item
       className={cn(
+        "data-[state=on]:bg-muted shrink-0 group-data-[spacing=0]/toggle-group:rounded-none group-data-[spacing=0]/toggle-group:px-3 group-data-[spacing=0]/toggle-group:shadow-none focus:z-10 focus-visible:z-10 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-4xl group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-xl group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-4xl group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-xl group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0 group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t",
         toggleVariants({
           size: context.size || size,
           variant: context.variant || variant,
         }),
-        "w-auto min-w-0 shrink-0 px-3 focus:z-10 focus-visible:z-10",
-        "data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:first:rounded-l-md data-[spacing=0]:last:rounded-r-md data-[spacing=0]:data-[variant=outline]:border-l-0 data-[spacing=0]:data-[variant=outline]:first:border-l",
         className,
       )}
       data-size={context.size || size}

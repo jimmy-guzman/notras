@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { EllipsisIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -22,7 +22,7 @@ export function MobileNav({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Sheet onOpenChange={setIsOpen} open={isOpen}>
         <SheetTrigger asChild>
           <Button size="icon" variant="ghost">
-            <Menu className="h-5 w-5" />
+            <EllipsisIcon className="h-5 w-5" />
           </Button>
         </SheetTrigger>
         <SheetContent className="w-64" side="left">

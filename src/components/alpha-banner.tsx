@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, X } from "lucide-react";
+import { TriangleAlertIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -30,7 +30,7 @@ export function AlphaBanner() {
       variant="default"
     >
       <div className="flex items-center gap-2">
-        <AlertTriangle className="text-muted-foreground h-4 w-4" />
+        <TriangleAlertIcon className="text-muted-foreground h-4 w-4" />
         <AlertDescription className="text-muted-foreground text-xs">
           Notras is in early alpha. Expect bugs, missing features, and possible
           data loss.
@@ -43,7 +43,7 @@ export function AlphaBanner() {
         variant="ghost"
       >
         <span className="sr-only">Close Banner</span>
-        <X className="h-3 w-3" />
+        <XIcon className="h-3 w-3" />
       </Button>
     </Alert>
   );
