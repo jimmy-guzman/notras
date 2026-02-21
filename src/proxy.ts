@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const session = await getSession();
 
   if (!session) {
@@ -16,5 +16,4 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: ["/notes", "/archives"],
-  runtime: "nodejs",
 };

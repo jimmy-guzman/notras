@@ -20,9 +20,7 @@ const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
 const customRender = (
   ui: ReactElement,
   options?: Omit<RenderOptions, "wrapper">,
-) => {
-  return render(ui, { wrapper: AllTheProviders, ...options });
-};
+) => render(ui, { wrapper: AllTheProviders, ...options });
 
 // eslint-disable-next-line react-refresh/only-export-components, import-x/export -- this is okay
 export * from "@testing-library/react";

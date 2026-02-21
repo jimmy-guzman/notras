@@ -1,16 +1,15 @@
-import type { NextConfig } from "next";
-
 import "./src/env";
 
+import type { NextConfig } from "next";
+
 const nextConfig = {
-  eslint: { ignoreDuringBuilds: true },
   experimental: {
-    nodeMiddleware: true,
     useCache: true,
   },
   images: {
     remotePatterns: [{ hostname: "avatars.githubusercontent.com" }],
   },
+  typedRoutes: true,
 } satisfies NextConfig;
 
 export default nextConfig;

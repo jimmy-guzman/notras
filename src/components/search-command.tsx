@@ -178,7 +178,7 @@ export function SearchCommand() {
         <CommandList style={{ height: `${SEARCH_CONFIG.RESULTS_HEIGHT}px` }}>
           {isSearching ? (
             <CommandGroup>
-              {/* eslint-disable-next-line no-magic-numbers -- TODO: use composition*/}
+              {}
               {[1, 2, 3].map((i) => {
                 return (
                   <div className="flex flex-col items-start gap-1 p-3" key={i}>

@@ -28,8 +28,8 @@ import { parsers } from "@/lib/notes-search-params";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
-type TimeFilter = "month" | "today" | "week" | "year" | "yesterday";
 type SortOption = "newest" | "oldest" | "updated";
+type TimeFilter = "month" | "today" | "week" | "year" | "yesterday";
 
 export const loadSearchParams = createLoader(parsers);
 
@@ -57,6 +57,9 @@ function getStartDateForFilter(time: TimeFilter): Date {
 
 function getSortOrder(sort: SortOption = "newest") {
   switch (sort) {
+    case "newest": {
+      return [asc(isNull(note.pinnedAt)), desc(note.createdAt)];
+    }
     case "oldest": {
       return [asc(isNull(note.pinnedAt)), asc(note.createdAt)];
     }

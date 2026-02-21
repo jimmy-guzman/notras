@@ -1,7 +1,7 @@
 "use server";
 
 import { and, sql } from "drizzle-orm";
-import { revalidateTag } from "next/cache";
+import { updateTag } from "next/cache";
 
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
@@ -37,7 +37,7 @@ export async function refreshUnlinkedNotes({
   }
 
   if (notesToProcess.length > 0) {
-    revalidateTag("notes");
+    updateTag("notes");
   }
 
   return { processed: notesToProcess.length };

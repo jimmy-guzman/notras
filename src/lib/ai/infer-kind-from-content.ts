@@ -47,7 +47,9 @@ export async function inferKindFromContent(content: string) {
       ],
     });
 
-    const args = res.choices[0].message.tool_calls?.[0]?.function.arguments;
+    const toolCall = res.choices[0].message.tool_calls?.[0];
+    const args =
+      toolCall?.type === "function" ? toolCall.function.arguments : undefined;
     const parsed = kindSchema.parse(JSON.parse(args ?? "{}"));
 
     return parsed.kind;

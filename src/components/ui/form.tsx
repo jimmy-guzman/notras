@@ -1,9 +1,9 @@
 "use client";
 
-import type * as LabelPrimitive from "@radix-ui/react-label";
+import type { Label as LabelPrimitive } from "radix-ui";
 import type { ControllerProps, FieldPath, FieldValues } from "react-hook-form";
 
-import { Slot } from "@radix-ui/react-slot";
+import { Slot } from "radix-ui";
 import * as React from "react";
 import {
   Controller,
@@ -11,7 +11,6 @@ import {
   useFormContext,
   useFormState,
 } from "react-hook-form";
-import invariant from "tiny-invariant";
 
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/ui/utils";
@@ -29,28 +28,20 @@ const FormFieldContext = React.createContext<FormFieldContextValue>(
   {} as FormFieldContextValue,
 );
 
+FormFieldContext.displayName = "FormFieldContext";
+
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
-  const value = React.useMemo(() => ({ name: props.name }), [props.name]);
-
   return (
-    <FormFieldContext value={value}>
+    <FormFieldContext value={{ name: props.name }}>
       <Controller {...props} />
     </FormFieldContext>
   );
 };
-
-interface FormItemContextValue {
-  id: string;
-}
-
-const FormItemContext = React.createContext<FormItemContextValue>(
-  {} as FormItemContextValue,
-);
 
 const useFormField = () => {
   const fieldContext = React.use(FormFieldContext);
@@ -59,7 +50,9 @@ const useFormField = () => {
   const formState = useFormState({ name: fieldContext.name });
   const fieldState = getFieldState(fieldContext.name, formState);
 
-  invariant(fieldContext, "useFormField should be used within <FormField>");
+  if (!fieldContext) {
+    throw new Error("useFormField should be used within <FormField>");
+  }
 
   const { id } = itemContext;
 
@@ -73,13 +66,21 @@ const useFormField = () => {
   };
 };
 
+interface FormItemContextValue {
+  id: string;
+}
+
+const FormItemContext = React.createContext<FormItemContextValue>(
+  {} as FormItemContextValue,
+);
+
+FormItemContext.displayName = "FormItemContext";
+
 function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   const id = React.useId();
 
-  const value = React.useMemo(() => ({ id }), [id]);
-
   return (
-    <FormItemContext value={value}>
+    <FormItemContext value={{ id }}>
       <div
         className={cn("grid gap-2", className)}
         data-slot="form-item"
@@ -106,12 +107,12 @@ function FormLabel({
   );
 }
 
-function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
+function FormControl({ ...props }: React.ComponentProps<typeof Slot.Root>) {
   const { error, formDescriptionId, formItemId, formMessageId } =
     useFormField();
 
   return (
-    <Slot
+    <Slot.Root
       aria-describedby={
         error ? `${formDescriptionId} ${formMessageId}` : formDescriptionId
       }
@@ -138,7 +139,7 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
 
 function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
   const { error, formMessageId } = useFormField();
-  const body = error ? (error.message ?? "") : props.children;
+  const body = error ? String(error?.message ?? "") : props.children;
 
   if (!body) {
     return null;
@@ -164,6 +165,5 @@ export {
   FormItem,
   FormLabel,
   FormMessage,
-  // eslint-disable-next-line react-refresh/only-export-components -- this is okay
   useFormField,
 };

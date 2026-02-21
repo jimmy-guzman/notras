@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidateTag } from "next/cache";
+import { updateTag } from "next/cache";
 import invariant from "tiny-invariant";
 
 import { getSession } from "@/lib/auth";
@@ -18,5 +18,5 @@ export async function unpinNote(noteId: string) {
     .set({ pinnedAt: null, updatedAt: new Date() })
     .where(eq(note.id, noteId));
 
-  revalidateTag("notes");
+  updateTag("notes");
 }

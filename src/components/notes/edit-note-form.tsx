@@ -24,7 +24,7 @@ export function EditNoteForm({
   const [content, setContent] = useState(initialContent);
   const [isPending, startTransition] = useTransition();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.KeyboardEvent | React.SubmitEvent) => {
     e.preventDefault();
 
     startTransition(async () => {
