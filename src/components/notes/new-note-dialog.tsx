@@ -2,10 +2,14 @@
 
 import type { ReactNode } from "react";
 
-import { DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function NewNoteDialog({ children }: { children: ReactNode }) {
   const router = useRouter();

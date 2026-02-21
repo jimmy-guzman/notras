@@ -1,11 +1,6 @@
 import type { KnipConfig } from "knip";
 
 export default {
-  ignoreDependencies: [
-    "gitzy",
-    "tailwindcss",
-    "@tailwindcss/typography",
-    "tw-animate-css",
-  ],
-  ignoreExportsUsedInFile: true,
+  ignore: ["src/components/ui/**"],
+  ignoreDependencies: ["gitzy"],
 } satisfies KnipConfig;

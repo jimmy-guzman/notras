@@ -22,7 +22,7 @@ import { authClient } from "@/lib/auth-client";
 import { GitHubSignInButton } from "./sign-in-button";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.email({ message: "Please enter a valid email address." }),
 });
 
 export const LoginForm = () => {

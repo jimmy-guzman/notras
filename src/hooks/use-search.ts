@@ -20,12 +20,17 @@ const buildSearchParams = (query: string, filter: FilterState) => {
 
   if (filter.value) {
     switch (filter.type) {
+      case "home": {
+        break;
+      }
       case "kind": {
         params.set("kind", filter.value);
+
         break;
       }
       case "time": {
         params.set("time", filter.value);
+
         break;
       }
       default: {

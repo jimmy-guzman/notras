@@ -1,16 +1,21 @@
 import { defineConfig } from "@jimmy.codes/eslint-config";
-import arrowReturnStyle from "eslint-plugin-arrow-return-style";
 
 export default defineConfig({
   overrides: [
     {
-      plugins: {
-        "arrow-return-style": arrowReturnStyle,
-      },
+      files: ["**/next-env.d.ts"],
+      rules: { "import-x/extensions": "off" },
+    },
+    {
+      files: ["**/components/ui/**/*.tsx"],
       rules: {
-        "arrow-body-style": "off",
-        "arrow-return-style/arrow-return-style": "error",
-        "arrow-return-style/no-export-default-arrow": "error",
+        "@typescript-eslint/no-unnecessary-condition": "off",
+        "@typescript-eslint/no-unnecessary-type-conversion": "off",
+        "@typescript-eslint/no-use-before-define": "off",
+        "@typescript-eslint/prefer-nullish-coalescing": "off",
+        "react-refresh/only-export-components": "off",
+        "react-x/no-unstable-context-value": "off",
+        "unicorn/explicit-length-check": "off",
       },
     },
   ],

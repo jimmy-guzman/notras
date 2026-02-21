@@ -36,7 +36,7 @@ export async function LinkedNotes({ noteId }: { noteId: string }) {
                 </Badge>
                 {link.confidence !== null && (
                   <span className="tabular-nums opacity-70">
-                    {/* eslint-disable-next-line no-magic-numbers -- percentage*/}
+                    {}
                     {(link.confidence * 100).toFixed(0)}% match
                   </span>
                 )}

@@ -11,9 +11,9 @@ export function AlphaBanner() {
   const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Setting initial state from localStorage (runs once on mount, safe and intentional)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- TODO
     setDismissed(localStorage.getItem("alphaBannerDismissed") === "true");
-    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Marks component as mounted to prevent initial render mismatch
+
     setHasMounted(true);
   }, []);
 

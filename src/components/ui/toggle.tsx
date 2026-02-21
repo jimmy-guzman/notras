@@ -3,8 +3,8 @@
 import type { VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-import * as TogglePrimitive from "@radix-ui/react-toggle";
 import { cva } from "class-variance-authority";
+import { Toggle as TogglePrimitive } from "radix-ui";
 
 import { cn } from "@/lib/ui/utils";
 
@@ -46,8 +46,4 @@ function Toggle({
   );
 }
 
-export {
-  Toggle,
-  // eslint-disable-next-line react-refresh/only-export-components -- this is okay
-  toggleVariants,
-};
+export { Toggle, toggleVariants };

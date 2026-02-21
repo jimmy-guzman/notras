@@ -17,11 +17,11 @@ const getBaseUrl = () => {
 };
 
 export const auth = betterAuth({
+  baseURL: getBaseUrl(),
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
   }),
-
   plugins: [
     nextCookies(),
     magicLink({

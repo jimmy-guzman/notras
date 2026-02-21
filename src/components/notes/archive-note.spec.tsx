@@ -47,7 +47,7 @@ describe("<ArchiveNote />", () => {
     await userEvent.click(button);
 
     expect(archiveNote).toHaveBeenCalledWith("note-1");
-    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledOnce();
 
     const undoButton = await screen.findByRole("button", { name: /undo/i });
 

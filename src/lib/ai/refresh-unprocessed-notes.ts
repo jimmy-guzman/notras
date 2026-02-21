@@ -1,7 +1,7 @@
 "use server";
 
 import { and, isNull } from "drizzle-orm";
-import { revalidateTag } from "next/cache";
+import { updateTag } from "next/cache";
 
 import { getOrCreateAIKind } from "@/lib/ai/get-or-create-ai-kind";
 import { db } from "@/server/db";
@@ -31,7 +31,7 @@ export async function refreshUnprocessedNotes({
   }
 
   if (notesToProcess.length > 0) {
-    revalidateTag("notes");
+    updateTag("notes");
   }
 
   return { processed: notesToProcess.length };
