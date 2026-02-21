@@ -2,8 +2,13 @@ import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
 
+import { getHighlightedParts } from "@/lib/utils/highlight";
+import { truncate } from "@/lib/utils/truncate";
+
 import { Card, CardContent, CardFooter } from "../ui/card";
 import { PinNoteButton } from "./pin-note-button";
+
+const MAX_CONTENT_LENGTH = 120;
 
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString("en-US", {
@@ -13,7 +18,15 @@ const formatDate = (date: Date): string => {
   });
 };
 
-export const NoteCard = ({ note }: { note: SelectNote }) => {
+export const NoteCard = ({
+  note,
+  query,
+}: {
+  note: SelectNote;
+  query?: string;
+}) => {
+  const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
+
   return (
     <Link
       className="group focus-visible:ring-ring block focus-visible:ring-2 focus-visible:outline-none"
@@ -27,7 +40,20 @@ export const NoteCard = ({ note }: { note: SelectNote }) => {
         />
         <CardContent className="flex-1 py-4">
           <p className="text-foreground group-hover:text-foreground/90 truncate text-sm leading-relaxed transition-colors">
-            {note.content}
+            {query
+              ? getHighlightedParts(displayContent, query).map((part) => {
+                  return part.match ? (
+                    <mark
+                      className="bg-yellow-200 text-inherit dark:bg-yellow-800"
+                      key={part.id}
+                    >
+                      {part.text}
+                    </mark>
+                  ) : (
+                    <span key={part.id}>{part.text}</span>
+                  );
+                })
+              : displayContent}
           </p>
         </CardContent>
         <CardFooter className="border-t">

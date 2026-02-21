@@ -1,6 +1,6 @@
 import type { SearchParams } from "nuqs/server";
 
-import { Info, Plus } from "lucide-react";
+import { Info, Plus, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
 import { getNotes, loadSearchParams } from "@/actions/get-notes";
@@ -14,38 +14,56 @@ interface PageProps {
 }
 
 export default async function Page({ searchParams }: PageProps) {
-  const notes = await getNotes(await loadSearchParams(searchParams));
+  const params = await loadSearchParams(searchParams);
+  const notes = await getNotes(params);
+  const isSearching = Boolean(params.q);
 
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex flex-col gap-4">
         <div className="flex justify-end gap-2 lg:justify-between">
           <NotesFilters />
-          <Button asChild size="sm" variant="outline">
+          <Button asChild className="shrink-0" size="sm" variant="outline">
             <Link href="/notes/new">
               <Plus className="h-4 w-4" />
               New Note
             </Link>
           </Button>
         </div>
+
+        {isSearching && notes.length > 0 && (
+          <p className="text-muted-foreground text-sm">
+            Found {notes.length} {notes.length === 1 ? "note" : "notes"}
+          </p>
+        )}
+
         {notes.length === 0 ? (
           <Alert className="text-center">
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              <p>
-                No notes found.{" "}
-                <Link
-                  className="underline hover:no-underline"
-                  href="/notes/new"
-                >
-                  Create your first note
-                </Link>{" "}
-                to get started.
-              </p>
-            </AlertDescription>
+            {isSearching ? (
+              <>
+                <SearchIcon className="h-4 w-4" />
+                <AlertDescription>No notes match your search.</AlertDescription>
+              </>
+            ) : (
+              <>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <p>
+                    No notes found.{" "}
+                    <Link
+                      className="underline hover:no-underline"
+                      href="/notes/new"
+                    >
+                      Create your first note
+                    </Link>{" "}
+                    to get started.
+                  </p>
+                </AlertDescription>
+              </>
+            )}
           </Alert>
         ) : (
-          <NotesList notes={notes} />
+          <NotesList notes={notes} query={params.q} />
         )}
       </div>
     </div>
