@@ -116,9 +116,6 @@ GITHUB_CLIENT_SECRET=
 # Email
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
-
-# Open AI
-OPENAI_API_KEY=
 ```
 
 You can generate a `BETTER_AUTH_SECRET` by running:

@@ -3,7 +3,6 @@ import { drizzle } from "drizzle-orm/neon-http";
 
 import { env } from "@/env";
 
-import * as noteLinks from "./schemas/note-link";
 import * as notes from "./schemas/notes";
 import * as users from "./schemas/users";
 
@@ -13,6 +12,5 @@ export const db = drizzle(sql, {
   schema: {
     ...users,
     ...notes,
-    ...noteLinks,
   },
 });

@@ -1,12 +1,11 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeftIcon, SearchIcon, SparkleIcon } from "lucide-react";
+import { ArrowLeftIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useDebounce } from "use-debounce";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -18,7 +17,6 @@ import {
 } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearch } from "@/hooks/use-search";
-import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
 
@@ -33,7 +31,7 @@ const SEARCH_CONFIG = {
 
 interface FilterState {
   label?: string;
-  type: "home" | "kind" | "time";
+  type: "home" | "time";
   value?: string;
 }
 
@@ -78,11 +76,7 @@ export function SearchCommand() {
     setOpen(false);
   };
 
-  const handleFilterSelect = (
-    type: "kind" | "time",
-    value: string,
-    label: string,
-  ) => {
+  const handleFilterSelect = (type: "time", value: string, label: string) => {
     setCurrentFilter({ label, type, value });
     setQuery("");
   };
@@ -165,11 +159,11 @@ export function SearchCommand() {
         )}
 
         <CommandInput
-          aria-label="Search notes by content, kind, or time"
+          aria-label="Search notes by content or time"
           onValueChange={setQuery}
           placeholder={
             currentFilter.type === "home"
-              ? "Search notes or browse by kind/time..."
+              ? "Search notes or browse by time..."
               : `Search in ${currentFilter.label?.toLowerCase()}...`
           }
           role="searchbox"
@@ -187,7 +181,6 @@ export function SearchCommand() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-4 w-16 rounded-full" />
                     </div>
                   </div>
                 );
@@ -241,12 +234,6 @@ export function SearchCommand() {
                       <span>
                         {format(new Date(note.createdAt), "MMM d, yyyy")}
                       </span>
-                      <Badge className="text-xs capitalize" variant="outline">
-                        {KIND_LABELS[note.kind ?? "thought"]}
-                        {note.metadata?.aiKindInferred && (
-                          <SparkleIcon className="ml-1 h-2 w-2" />
-                        )}
-                      </Badge>
                     </div>
                   </CommandItem>
                 );
@@ -255,59 +242,40 @@ export function SearchCommand() {
           )}
 
           {showFilters && (
-            <>
-              <CommandGroup heading="Browse by Kind">
-                {KIND_VALUES.map((kind) => {
-                  return (
-                    <CommandItem
-                      className="flex items-center gap-2"
-                      key={kind}
-                      onSelect={() => {
-                        handleFilterSelect("kind", kind, KIND_LABELS[kind]);
-                      }}
-                    >
-                      <SearchIcon className="h-4 w-4" />
-                      <span className="capitalize">{KIND_LABELS[kind]}</span>
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-
-              <CommandGroup heading="Browse by Time">
-                <CommandItem
-                  onSelect={() => {
-                    handleFilterSelect("time", "today", "Today");
-                  }}
-                >
-                  <SearchIcon className="mr-2 h-4 w-4" />
-                  Today
-                </CommandItem>
-                <CommandItem
-                  onSelect={() => {
-                    handleFilterSelect("time", "yesterday", "Yesterday");
-                  }}
-                >
-                  <SearchIcon className="mr-2 h-4 w-4" />
-                  Yesterday
-                </CommandItem>
-                <CommandItem
-                  onSelect={() => {
-                    handleFilterSelect("time", "week", "This Week");
-                  }}
-                >
-                  <SearchIcon className="mr-2 h-4 w-4" />
-                  This week
-                </CommandItem>
-                <CommandItem
-                  onSelect={() => {
-                    handleFilterSelect("time", "month", "This Month");
-                  }}
-                >
-                  <SearchIcon className="mr-2 h-4 w-4" />
-                  This month
-                </CommandItem>
-              </CommandGroup>
-            </>
+            <CommandGroup heading="Browse by Time">
+              <CommandItem
+                onSelect={() => {
+                  handleFilterSelect("time", "today", "Today");
+                }}
+              >
+                <SearchIcon className="mr-2 h-4 w-4" />
+                Today
+              </CommandItem>
+              <CommandItem
+                onSelect={() => {
+                  handleFilterSelect("time", "yesterday", "Yesterday");
+                }}
+              >
+                <SearchIcon className="mr-2 h-4 w-4" />
+                Yesterday
+              </CommandItem>
+              <CommandItem
+                onSelect={() => {
+                  handleFilterSelect("time", "week", "This Week");
+                }}
+              >
+                <SearchIcon className="mr-2 h-4 w-4" />
+                This week
+              </CommandItem>
+              <CommandItem
+                onSelect={() => {
+                  handleFilterSelect("time", "month", "This Month");
+                }}
+              >
+                <SearchIcon className="mr-2 h-4 w-4" />
+                This month
+              </CommandItem>
+            </CommandGroup>
           )}
         </CommandList>
       </CommandDialog>

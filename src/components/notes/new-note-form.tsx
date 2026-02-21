@@ -18,14 +18,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { KIND_LABELS, KIND_VALUES } from "@/lib/kind";
 
 import { Kbd } from "../kbd";
 
 const formSchema = z.object({
   content: z.string().min(1, "Note cannot be empty"),
-  kind: z.optional(z.enum([...KIND_VALUES, ""])),
 });
 
 export function NewNoteForm() {
@@ -33,17 +30,13 @@ export function NewNoteForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       content: "",
-      kind: "",
     },
     resolver: zodResolver(formSchema),
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const note = await createNote(
-        values.content,
-        values.kind === "" ? undefined : values.kind,
-      );
+      const note = await createNote(values.content);
 
       toast.success("Note saved.", {
         action: (
@@ -97,41 +90,6 @@ export function NewNoteForm() {
                     placeholder="Write your note content here..."
                     rows={8}
                   />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-
-        <FormField
-          control={form.control}
-          name="kind"
-          render={({ field }) => {
-            return (
-              <FormItem>
-                <FormLabel>Category (Optional)</FormLabel>
-                <FormControl>
-                  <ToggleGroup
-                    className="justify-start"
-                    disabled={form.formState.isSubmitting}
-                    onValueChange={field.onChange}
-                    size="sm"
-                    type="single"
-                    value={field.value}
-                  >
-                    {KIND_VALUES.map((value) => {
-                      return (
-                        <ToggleGroupItem
-                          className="w-18"
-                          key={value}
-                          value={value}
-                        >
-                          {KIND_LABELS[value]}
-                        </ToggleGroupItem>
-                      );
-                    })}
-                  </ToggleGroup>
                 </FormControl>
                 <FormMessage />
               </FormItem>
