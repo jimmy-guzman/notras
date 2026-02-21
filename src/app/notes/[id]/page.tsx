@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { PencilIcon, SparklesIcon } from "lucide-react";
+import { PencilIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -7,12 +7,8 @@ import { getNote } from "@/actions/get-note";
 import { BackButton } from "@/components/back-button";
 import { ArchiveNoteButton } from "@/components/notes/archive-note-button";
 import { CopyNoteButton } from "@/components/notes/copy-note-button";
-import { LinkedNotes } from "@/components/notes/linked-notes";
 import { PinNoteButton } from "@/components/notes/pin-note-button";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { KIND_LABELS } from "@/lib/kind";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -52,28 +48,11 @@ export default async function NotePage({ params }: PageProps) {
         <span className="sm:hidden">
           {format(note.createdAt, "MMM d, h:mm a")}
         </span>
-        <Badge className="text-xs capitalize" variant="outline">
-          {KIND_LABELS[note.kind ?? "thought"]}
-          {note.metadata?.aiKindInferred && (
-            <SparklesIcon className="ml-1 inline-block h-3 w-3" />
-          )}
-        </Badge>
       </div>
 
       <div className="prose prose-gray dark:prose-invert mb-12 max-w-none">
         <div className="text-lg leading-relaxed whitespace-pre-wrap">
           {note.content}
-        </div>
-      </div>
-
-      <Separator className="my-12" />
-
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-muted-foreground mb-4 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
-            Related Notes
-          </h3>
-          <LinkedNotes noteId={note.id} />
         </div>
       </div>
     </div>

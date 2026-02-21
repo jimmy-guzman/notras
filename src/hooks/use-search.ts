@@ -6,13 +6,12 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 
 interface FilterState {
   label?: string;
-  type: "home" | "kind" | "time";
+  type: "home" | "time";
   value?: string;
 }
 
 const buildSearchParams = (query: string, filter: FilterState) => {
   const params = new URLSearchParams({
-    kind: "all",
     q: "",
     sort: "newest",
     time: "all",
@@ -21,11 +20,6 @@ const buildSearchParams = (query: string, filter: FilterState) => {
   if (filter.value) {
     switch (filter.type) {
       case "home": {
-        break;
-      }
-      case "kind": {
-        params.set("kind", filter.value);
-
         break;
       }
       case "time": {

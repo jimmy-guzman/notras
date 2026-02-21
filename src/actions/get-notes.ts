@@ -7,7 +7,7 @@ import {
   startOfYear,
   subDays,
 } from "date-fns";
-import { and, asc, count, desc, eq, gte, ilike, isNull, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull } from "drizzle-orm";
 import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 import { createLoader } from "nuqs/server";
 
@@ -66,16 +66,9 @@ export async function getNotes(searchParams: NoteSearchParams) {
   return authorizedServerAction(async (userId) => {
     "use cache";
 
-    const { kind, q: query, sort, time } = searchParams;
+    const { q: query, sort, time } = searchParams;
 
     const baseFilters = [eq(note.userId, userId), isNull(note.deletedAt)];
-
-    const kindFilter =
-      kind === "all"
-        ? []
-        : kind === "thought"
-          ? [or(eq(note.kind, "thought"), isNull(note.kind))]
-          : [eq(note.kind, kind)];
 
     const queryFilter = query ? [ilike(note.content, `%${query}%`)] : [];
 
@@ -87,7 +80,7 @@ export async function getNotes(searchParams: NoteSearchParams) {
     const notes = await db
       .select()
       .from(note)
-      .where(and(...baseFilters, ...kindFilter, ...queryFilter, ...timeFilter))
+      .where(and(...baseFilters, ...queryFilter, ...timeFilter))
       .orderBy(...getSortOrder(sort));
 
     return notes;
