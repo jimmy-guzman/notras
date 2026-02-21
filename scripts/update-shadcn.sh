@@ -39,7 +39,10 @@ pnpm format:fix
 echo "Running linter..."
 pnpm lint:fix
 
+echo "Running formatter..."
+pnpm format:fix
+
 echo "Running tailwind upgrade..."
-pnpx @tailwindcss/upgrade
+pnpx @tailwindcss/upgrade --force
 
 echo "Done. Updated ${#components[@]} components."

@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { LogOutIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
@@ -23,7 +23,7 @@ export const SignOutMenuItem = () => {
       }}
     >
       <span>Sign Out</span>
-      <LogOut className="ml-auto h-4 w-4" />
+      <LogOutIcon className="ml-auto h-4 w-4" />
     </DropdownMenuItem>
   );
 };

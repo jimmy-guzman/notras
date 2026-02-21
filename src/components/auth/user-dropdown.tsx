@@ -1,4 +1,4 @@
-import { LogIn } from "lucide-react";
+import { LogInIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,7 +28,7 @@ export const UserDropdown = async () => {
         <TooltipTrigger asChild>
           <Button asChild size="icon" variant="outline">
             <Link href="/signin">
-              <LogIn />
+              <LogInIcon />
             </Link>
           </Button>
         </TooltipTrigger>
