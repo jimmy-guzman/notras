@@ -4,7 +4,7 @@ export function SiteFooter() {
   const year = format(new Date(), "yyyy");
 
   return (
-    <footer className="text-muted-foreground flex w-full flex-col items-center border-t p-4 text-center text-sm">
+    <footer className="flex w-full flex-col items-center border-t p-4 text-center text-sm text-muted-foreground">
       <p>
         © {year}{" "}
         <a

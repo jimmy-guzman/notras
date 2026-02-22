@@ -26,12 +26,12 @@ export function AlphaBanner() {
 
   return (
     <Alert
-      className="bg-muted flex items-center justify-between rounded-none border-0 px-4 py-2"
+      className="flex items-center justify-between rounded-none border-0 bg-muted px-4 py-2"
       variant="default"
     >
       <div className="flex items-center gap-2">
-        <TriangleAlertIcon className="text-muted-foreground h-4 w-4" />
-        <AlertDescription className="text-muted-foreground text-xs">
+        <TriangleAlertIcon className="h-4 w-4 text-muted-foreground" />
+        <AlertDescription className="text-xs text-muted-foreground">
           Notras is in early alpha. Expect bugs, missing features, and possible
           data loss.
         </AlertDescription>

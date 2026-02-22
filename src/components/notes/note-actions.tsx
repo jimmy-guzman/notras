@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeftIcon, PencilIcon, PinIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -92,17 +93,12 @@ export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              aria-label="Edit Note"
-              onClick={() => {
-                router.push(`/notes/${noteId}/edit`);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <PencilIcon className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only">Edit</span>
-              <Kbd className="hidden sm:inline-flex">E</Kbd>
+            <Button aria-label="Edit Note" asChild size="sm" variant="ghost">
+              <Link href={`/notes/${noteId}/edit`}>
+                <PencilIcon className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">Edit</span>
+                <Kbd className="hidden sm:inline-flex">E</Kbd>
+              </Link>
             </Button>
           </TooltipTrigger>
           <TooltipContent className="sm:hidden" side="top" sideOffset={4}>

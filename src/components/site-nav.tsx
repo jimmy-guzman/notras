@@ -1,4 +1,4 @@
-import { NotebookIcon } from "lucide-react";
+import { NotebookPenIcon } from "lucide-react";
 import Link from "next/link";
 
 import { UserDropdown } from "./auth/user-dropdown";
@@ -11,7 +11,7 @@ export function SiteNav() {
         <div className="items-center gap-2">
           <Button asChild size="icon" variant="ghost">
             <Link href="/">
-              <NotebookIcon />
+              <NotebookPenIcon />
             </Link>
           </Button>
         </div>

@@ -31,7 +31,7 @@ export default async function Page() {
         <h1 className="mb-2 text-5xl font-semibold tracking-tight sm:text-7xl">
           notras
         </h1>
-        <p className="text-muted-foreground mb-12 text-lg sm:text-xl">
+        <p className="mb-12 text-lg text-muted-foreground sm:text-xl">
           {count > 0 && firstName
             ? `Welcome back, ${firstName}. Ready to capture more thoughts?`
             : "A simple space to capture your thoughts as they come."}
@@ -41,7 +41,7 @@ export default async function Page() {
 
         <div className="mt-4 flex items-center gap-4">
           <Link
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm underline-offset-4 transition-colors hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
             href="/notes/new"
           >
             <Plus className="h-4 w-4" />

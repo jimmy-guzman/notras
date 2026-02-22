@@ -33,7 +33,7 @@ export default function RootLayout({
             <HotkeysProvider>
               <AlphaBanner />
               <div className="flex min-h-svh flex-col">
-                <header className="bg-background sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b">
+                <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
                   <SiteNav />
                 </header>
                 <main className="flex flex-1 justify-center">{children}</main>
