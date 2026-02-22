@@ -80,7 +80,7 @@ export function SearchBar({ id, inputProps, ref, variant }: SearchBarProps) {
         />
         <InputGroupAddon align="inline-end">
           {isHome ? (
-            <InputGroupButton size="sm" type="submit" variant="default">
+            <InputGroupButton size="sm" type="submit" variant="outline">
               <SearchIcon />
               <span className="sr-only sm:not-sr-only">search</span>
             </InputGroupButton>

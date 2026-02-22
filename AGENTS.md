@@ -79,6 +79,7 @@ pnpm db:studio    # Open Drizzle Studio
 - In tests, avoid direct DOM node access (`.closest()`, `.firstChild`, etc.) -- use Testing Library queries instead (enforced by `testing-library/no-node-access`).
 - Use `toHaveTextContent` instead of asserting on `.textContent` (enforced by `jest-dom/prefer-to-have-text-content`).
 - Use template literals instead of string concatenation (enforced by `prefer-template`).
+- Side-effect imports (e.g., `import "./types"`) must come before value imports within the same group (enforced by `perfectionist/sort-imports`).
 
 ## Testing Notes
 
