@@ -1,12 +1,14 @@
 "use client";
 
 import { ClipboardCheckIcon, ClipboardCopyIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/ui/utils";
 
 import { Button } from "../ui/button";
+import { Kbd } from "../ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const COPY_RESET_DELAY_MS = 1500;
@@ -23,7 +25,7 @@ export const CopyNoteButton = ({
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  async function handleCopy() {
+  const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(content);
 
@@ -39,7 +41,11 @@ export const CopyNoteButton = ({
     } catch {
       toast.error("Failed to copy to clipboard. Please try again.");
     }
-  }
+  }, [content, resetDelayMs]);
+
+  useHotkeys("c", () => {
+    void handleCopy();
+  });
 
   useEffect(() => {
     return () => {
@@ -55,7 +61,7 @@ export const CopyNoteButton = ({
         <Button
           aria-label={copied ? "Copied" : "Copy"}
           onClick={handleCopy}
-          size="icon"
+          size="sm"
           variant="ghost"
         >
           <>
@@ -72,10 +78,16 @@ export const CopyNoteButton = ({
               )}
             />
           </>
+          <span className="sr-only sm:not-sr-only">
+            {copied ? "Copied" : "Copy"}
+          </span>
+          <Kbd className="hidden sm:inline-flex">C</Kbd>
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={4}>
-        {copied ? "Copied" : "Copy"}
+      <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
+        <div className="flex items-center gap-2">
+          {copied ? "Copied" : "Copy"} <Kbd>C</Kbd>
+        </div>
       </TooltipContent>
     </Tooltip>
   );

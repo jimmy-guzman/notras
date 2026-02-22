@@ -1,14 +1,8 @@
 import { format } from "date-fns";
-import { PencilIcon } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getNote } from "@/actions/get-note";
-import { BackButton } from "@/components/back-button";
-import { ArchiveNoteButton } from "@/components/notes/archive-note-button";
-import { CopyNoteButton } from "@/components/notes/copy-note-button";
-import { PinNoteButton } from "@/components/notes/pin-note-button";
-import { Button } from "@/components/ui/button";
+import { NoteActions } from "@/components/notes/note-actions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -24,21 +18,12 @@ export default async function NotePage({ params }: PageProps) {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <div className="mb-6 flex items-center justify-between">
-        <BackButton />
-        <div className="flex items-center gap-2">
-          <PinNoteButton noteId={note.id} pinned={Boolean(note.pinnedAt)} />
-          <ArchiveNoteButton
-            isArchived={note.deletedAt !== null}
-            noteId={note.id}
-          />
-          <CopyNoteButton content={note.content} />
-          <Button aria-label="Edit Note" asChild size="icon" variant="ghost">
-            <Link href={`/notes/${note.id}/edit`}>
-              <PencilIcon className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
+      <div className="mb-6">
+        <NoteActions
+          content={note.content}
+          noteId={note.id}
+          pinned={Boolean(note.pinnedAt)}
+        />
       </div>
 
       <div className="text-muted-foreground mb-6 flex items-center gap-3 text-sm">

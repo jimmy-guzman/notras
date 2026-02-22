@@ -5,6 +5,7 @@ import { getNotes, getNotesCount } from "@/actions/get-notes";
 import { SignedOutFallback } from "@/components/auth/signed-out-fallback";
 import { HomeSearch } from "@/components/notes/home-search";
 import { RecentNotes } from "@/components/notes/recent-notes";
+import { Kbd } from "@/components/ui/kbd";
 import { getSession } from "@/lib/auth";
 
 const RECENT_NOTES_LIMIT = 5;
@@ -18,7 +19,7 @@ export default async function Page() {
     getNotesCount(),
     getNotes(
       { q: "", sort: "newest", time: "all" },
-      { limit: RECENT_NOTES_LIMIT },
+      { excludePinned: true, limit: RECENT_NOTES_LIMIT },
     ),
   ]);
 
@@ -45,6 +46,7 @@ export default async function Page() {
           >
             <Plus className="h-4 w-4" />
             New Note
+            <Kbd>N</Kbd>
           </Link>
         </div>
       </header>

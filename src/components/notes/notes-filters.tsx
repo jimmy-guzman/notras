@@ -4,6 +4,7 @@ import { Calendar, Plus, SearchIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useQueryStates } from "nuqs";
 import { useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import type { NoteSearchParams } from "@/lib/notes-search-params";
 
@@ -14,6 +15,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
 import {
   Select,
   SelectContent,
@@ -28,6 +30,14 @@ export const NotesFilters = () => {
   const [localQuery, setLocalQuery] = useState(filters.q);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useHotkeys(
+    "slash",
+    () => {
+      searchInputRef.current?.focus();
+    },
+    { preventDefault: true },
+  );
 
   const updateTime = async (time: NoteSearchParams["time"]) => {
     await setFilters({ time });
@@ -77,7 +87,7 @@ export const NotesFilters = () => {
           type="search"
           value={localQuery}
         />
-        {localQuery && (
+        {localQuery ? (
           <InputGroupAddon align="inline-end">
             <InputGroupButton
               onClick={clearSearch}
@@ -88,6 +98,10 @@ export const NotesFilters = () => {
               <XIcon className="h-4 w-4" />
               <span className="sr-only">Clear search</span>
             </InputGroupButton>
+          </InputGroupAddon>
+        ) : (
+          <InputGroupAddon align="inline-end">
+            <Kbd>/</Kbd>
           </InputGroupAddon>
         )}
       </InputGroup>
@@ -124,6 +138,7 @@ export const NotesFilters = () => {
           <Link href="/notes/new">
             <Plus className="h-4 w-4" />
             <span className="sr-only sm:not-sr-only">New Note</span>
+            <Kbd className="hidden sm:inline-flex">N</Kbd>
           </Link>
         </Button>
       </div>

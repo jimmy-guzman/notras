@@ -7,7 +7,17 @@ import {
   startOfYear,
   subDays,
 } from "date-fns";
-import { and, asc, count, desc, eq, gte, ilike, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 import { createLoader } from "nuqs/server";
 
@@ -45,35 +55,42 @@ function getStartDateForFilter(time: TimeFilter): Date {
   return startOfDay(now);
 }
 
+const pinnedFirst = asc(
+  sql`CASE WHEN ${note.pinnedAt} IS NOT NULL THEN 0 ELSE 1 END`,
+);
+
 function getSortOrder(sort: SortOption = "newest") {
   switch (sort) {
     case "newest": {
-      return [desc(note.createdAt)];
+      return [pinnedFirst, desc(note.createdAt)];
     }
     case "oldest": {
-      return [asc(note.createdAt)];
+      return [pinnedFirst, asc(note.createdAt)];
     }
     case "updated": {
-      return [desc(note.updatedAt)];
+      return [pinnedFirst, desc(note.updatedAt)];
     }
     default: {
-      return [desc(note.createdAt)];
+      return [pinnedFirst, desc(note.createdAt)];
     }
   }
 }
 
 export async function getNotes(
   searchParams: NoteSearchParams,
-  options?: { limit?: number },
+  options?: { excludePinned?: boolean; limit?: number },
 ) {
   const limit = options?.limit;
+  const excludePinned = options?.excludePinned ?? false;
 
   return authorizedServerAction(async (userId) => {
     "use cache";
 
     const { q: query, sort, time } = searchParams;
 
-    const baseFilters = [eq(note.userId, userId), isNull(note.deletedAt)];
+    const baseFilters = [eq(note.userId, userId)];
+
+    const pinnedFilter = excludePinned ? [isNull(note.pinnedAt)] : [];
 
     const queryFilter = query ? [ilike(note.content, `%${query}%`)] : [];
 
@@ -85,7 +102,9 @@ export async function getNotes(
     const qb = db
       .select()
       .from(note)
-      .where(and(...baseFilters, ...queryFilter, ...timeFilter))
+      .where(
+        and(...baseFilters, ...pinnedFilter, ...queryFilter, ...timeFilter),
+      )
       .orderBy(...getSortOrder(sort));
 
     if (limit) {
@@ -103,7 +122,7 @@ export async function getNotesCount() {
     const [{ count: notesCount }] = await db
       .select({ count: count() })
       .from(note)
-      .where(and(eq(note.userId, userId), isNull(note.deletedAt)));
+      .where(eq(note.userId, userId));
 
     cacheTag("notes count");
 
