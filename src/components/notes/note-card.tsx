@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
 
+import { toNoteId } from "@/lib/id";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
 
@@ -35,7 +36,7 @@ export const NoteCard = ({
       <Card className="relative flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
         <PinNoteButton
           className="absolute top-2 right-2 z-10"
-          noteId={note.id}
+          noteId={toNoteId(note.id)}
           pinned={Boolean(note.pinnedAt)}
         />
         <CardContent className="flex-1 py-4">

@@ -4,11 +4,13 @@ import { and, eq } from "drizzle-orm";
 import { updateTag } from "next/cache";
 import invariant from "tiny-invariant";
 
+import type { NoteId } from "@/lib/id";
+
 import { getSession } from "@/lib/auth";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
-export async function pinNote(noteId: string) {
+export async function pinNote(noteId: NoteId) {
   const session = await getSession();
 
   invariant(session, "Unauthorized");

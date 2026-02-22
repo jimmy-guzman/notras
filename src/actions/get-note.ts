@@ -3,11 +3,13 @@
 import { and, eq } from "drizzle-orm";
 import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 
+import type { NoteId } from "@/lib/id";
+
 import { authorizedServerAction } from "@/lib/authorized";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
-export async function getNote(id: string) {
+export async function getNote(id: NoteId) {
   return authorizedServerAction(async (userId) => {
     "use cache";
 

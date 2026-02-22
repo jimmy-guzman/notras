@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getNote } from "@/actions/get-note";
 import { NoteActions } from "@/components/notes/note-actions";
+import { toNoteId } from "@/lib/id";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -10,7 +11,8 @@ interface PageProps {
 
 export default async function NotePage({ params }: PageProps) {
   const { id } = await params;
-  const note = await getNote(id);
+  const noteId = toNoteId(id);
+  const note = await getNote(noteId);
 
   if (!note) {
     notFound();
@@ -21,7 +23,7 @@ export default async function NotePage({ params }: PageProps) {
       <div className="mb-6">
         <NoteActions
           content={note.content}
-          noteId={note.id}
+          noteId={toNoteId(note.id)}
           pinned={Boolean(note.pinnedAt)}
         />
       </div>

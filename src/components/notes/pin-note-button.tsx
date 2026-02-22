@@ -4,6 +4,8 @@ import type { MouseEvent } from "react";
 
 import { PinIcon } from "lucide-react";
 
+import type { NoteId } from "@/lib/id";
+
 import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
 
@@ -12,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface PinNoteButtonProps {
   className?: string;
-  noteId: string;
+  noteId: NoteId;
   pinned: boolean;
 }
 

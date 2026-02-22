@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import type { NoteId } from "@/lib/id";
+
 import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
 import { CopyNoteButton } from "@/components/notes/copy-note-button";
@@ -20,7 +22,7 @@ import {
 
 interface NoteActionsProps {
   content: string;
-  noteId: string;
+  noteId: NoteId;
   pinned: boolean;
 }
 
