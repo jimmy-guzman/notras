@@ -6,11 +6,17 @@ import { env } from "@/env";
 import * as notes from "./schemas/notes";
 import * as users from "./schemas/users";
 
-const sql = neon(env.DATABASE_URL);
+const schema = {
+  ...users,
+  ...notes,
+};
 
-export const db = drizzle(sql, {
-  schema: {
-    ...users,
-    ...notes,
-  },
-});
+export function createDb(databaseUrl: string) {
+  const sql = neon(databaseUrl);
+
+  return drizzle(sql, { schema });
+}
+
+export type Database = ReturnType<typeof createDb>;
+
+export const db = createDb(env.DATABASE_URL);

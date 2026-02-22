@@ -32,9 +32,6 @@ importers:
       drizzle-orm:
         specifier: 0.45.1
         version: 0.45.1(@neondatabase/serverless@1.0.2)(@types/pg@8.15.4)(kysely@0.28.11)
-      holy-loader:
-        specifier: 2.3.14
-        version: 2.3.14(react@19.2.4)
       lucide-react:
         specifier: 0.575.0
         version: 0.575.0(react@19.2.4)
@@ -4099,11 +4096,6 @@ packages:
 
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
-
-  holy-loader@2.3.14:
-    resolution: {integrity: sha512-V7z6jXKy/CZfZY6EAVxMFGbLfE7/TLhYWgpMhODvZPpAL2JTkfjmZhYd0TiZIdZiychtCL5tA5sRN0MUwjRNjA==}
-    peerDependencies:
-      react: '>= 16.0.0'
 
   hono@4.12.1:
     resolution: {integrity: sha512-hi9afu8g0lfJVLolxElAZGANCTTl6bewIdsRNhaywfP9K8BPf++F2z6OLrYGIinUwpRKzbZHMhPwvc0ZEpAwGw==}
@@ -9878,10 +9870,6 @@ snapshots:
   hermes-parser@0.25.1:
     dependencies:
       hermes-estree: 0.25.1
-
-  holy-loader@2.3.14(react@19.2.4):
-    dependencies:
-      react: 19.2.4
 
   hono@4.12.1: {}
 

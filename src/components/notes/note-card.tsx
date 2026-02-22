@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { SelectNote } from "@/server/db/schemas/notes";
 
 import { toNoteId } from "@/lib/id";
+import { formatDate } from "@/lib/utils/format";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
 
@@ -10,14 +11,6 @@ import { Card, CardContent, CardFooter } from "../ui/card";
 import { PinNoteButton } from "./pin-note-button";
 
 const MAX_CONTENT_LENGTH = 120;
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
 
 export const NoteCard = ({
   note,
