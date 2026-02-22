@@ -3,8 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import HolyLoader from "holy-loader";
-import { Inter } from "next/font/google";
+import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { AlphaBanner } from "@/components/alpha-banner";
@@ -15,7 +14,17 @@ import { SiteNav } from "@/components/site-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+});
 
 export const metadata = {
   description: "A simple space to capture your thoughts as they come.",
@@ -26,9 +35,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
-      <HolyLoader color="#ccc" />
-      <body className={inter.className}>
+    <html className={dmSans.variable} lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
         <NuqsAdapter>
           <TooltipProvider>
             <HotkeysProvider>

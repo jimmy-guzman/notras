@@ -8,7 +8,7 @@ import { cache } from "react";
 import { env } from "@/env";
 import { db } from "@/server/db";
 import * as schema from "@/server/db/schemas/users";
-import { sendEmail } from "@/server/email";
+import { getEmailService } from "@/server/services/email-service";
 
 const getBaseUrl = () => {
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
@@ -26,7 +26,7 @@ export const auth = betterAuth({
     nextCookies(),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
-        await sendEmail({
+        await getEmailService().send({
           html: `
             <div style="text-align: center; font-family: sans-serif;">
               <h1>Welcome to notras</h1>

@@ -19,22 +19,28 @@ A personal note-taking app -- "A simple space to capture your thoughts as they c
 
 ```txt
 src/
-  actions/       # Server actions (all data mutations go here)
-  app/           # Next.js App Router pages and layouts
-  components/    # React components
-    ui/          # Shadcn UI components (auto-generated, don't manually edit)
-  lib/           # Client utilities, auth, search params
+  actions/          # Server actions (all data mutations go here)
+  app/              # Next.js App Router pages and layouts
+  components/       # React components
+    ui/             # Shadcn UI components (auto-generated, don't manually edit)
+  lib/              # Client utilities, auth, search params
+    utils/          # Pure utility functions (formatting, filters, etc.)
   server/
-    db/          # Drizzle client and schemas (PostgreSQL)
-    email.ts     # Resend email service
-  env.ts         # Type-safe env vars via @t3-oss/env-nextjs + Zod
-  proxy.ts       # Auth middleware
+    db/             # Drizzle client and schemas (PostgreSQL)
+    repositories/   # Data access layer (interfaces + DB implementations)
+    schemas/        # Zod validation schemas for server-side input
+    services/       # Business logic and external I/O (each service is self-contained)
+  testing/          # Shared test utilities
+  env.ts            # Type-safe env vars via @t3-oss/env-nextjs + Zod
+  proxy.ts          # Auth middleware
 ```
 
 ## Key Patterns
 
 - **Server actions** live in `src/actions/` with `"use server"` directive. They use `authorizedServerAction()` from `@/lib/authorized` to get the authenticated user ID before performing DB operations.
-- **Validation** uses Zod schemas inside server actions (parse FormData before DB operations).
+- **Services** live in `src/server/services/`. Each service file is self-contained: it owns its interface, implementation class, and a lazy singleton getter (e.g., `getNoteService()`, `getEmailService()`). No central container -- consumers import directly from the service they need.
+- **Repositories** live in `src/server/repositories/`. They define an interface and a DB implementation for data persistence. Services depend on repository interfaces, not concrete implementations.
+- **Validation** uses Zod schemas from `src/server/schemas/` inside server actions (parse FormData before calling services).
 - **IDs** are generated with `typeid-js`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
 - **Path alias** `@/*` maps to `./src/*`.
