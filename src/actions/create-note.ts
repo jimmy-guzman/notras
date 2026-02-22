@@ -1,11 +1,11 @@
 "use server";
 
-import { nanoid } from "nanoid";
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { authorizedServerAction } from "@/lib/authorized";
+import { generateNoteId } from "@/lib/id";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
@@ -18,7 +18,7 @@ export async function createNote(formData: FormData) {
     content: formData.get("content"),
   });
 
-  const id = nanoid();
+  const id = generateNoteId();
 
   await authorizedServerAction(async (userId) => {
     await db.insert(note).values({

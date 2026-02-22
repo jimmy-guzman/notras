@@ -9,6 +9,7 @@ import { FormHotkeys } from "@/components/notes/form-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
+import { toNoteId } from "@/lib/id";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -16,7 +17,8 @@ interface PageProps {
 
 export default async function EditNotePage({ params }: PageProps) {
   const { id } = await params;
-  const note = await getNote(id);
+  const noteId = toNoteId(id);
+  const note = await getNote(noteId);
 
   if (!note) {
     notFound();

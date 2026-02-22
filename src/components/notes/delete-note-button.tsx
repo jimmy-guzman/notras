@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
+import type { NoteId } from "@/lib/id";
+
 import { deleteNote } from "@/actions/delete-note";
 import {
   AlertDialog,
@@ -25,7 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 
 interface DeleteNoteButtonProps {
-  noteId: string;
+  noteId: NoteId;
 }
 
 export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {

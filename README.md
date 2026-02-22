@@ -58,7 +58,9 @@ pnpm install
 
 ### Database
 
-[Neon](https://neon.tech) is being used as the PostgreSQL database. Create a project on the [Neon console](https://console.neon.tech) and grab the `DATABASE_URL` connection string.
+[Neon](https://neon.tech) is being used as the PostgreSQL database.
+
+Create a project on the [Neon console](https://console.neon.tech) and grab the `DATABASE_URL` connection string.
 
 ---
 

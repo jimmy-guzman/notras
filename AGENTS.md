@@ -16,7 +16,7 @@ A personal note-taking app -- "A simple space to capture your thoughts as they c
 
 ## Project Structure
 
-```
+```txt
 src/
   actions/       # Server actions (all data mutations go here)
   app/           # Next.js App Router pages and layouts
@@ -34,7 +34,7 @@ src/
 
 - **Server actions** live in `src/actions/` with `"use server"` directive. They use `authorizedServerAction()` from `@/lib/authorized` to get the authenticated user ID before performing DB operations.
 - **Validation** uses Zod schemas inside server actions (parse FormData before DB operations).
-- **IDs** are generated with `nanoid`.
+- **IDs** are generated with `typeid-js`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
 - **Path alias** `@/*` maps to `./src/*`.
 - **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly.
@@ -43,7 +43,7 @@ src/
 
 ## Commands
 
-```
+```txt
 pnpm dev          # Start dev server (Turbopack)
 pnpm build        # Production build
 pnpm lint         # Lint (ESLint)

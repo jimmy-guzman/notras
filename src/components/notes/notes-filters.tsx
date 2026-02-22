@@ -130,7 +130,7 @@ export const NotesFilters = () => {
           <SelectContent>
             <SelectItem value="newest">Newest first</SelectItem>
             <SelectItem value="oldest">Oldest first</SelectItem>
-            <SelectItem value="updated">Recently updated</SelectItem>
+            <SelectItem value="updated">Updated first</SelectItem>
           </SelectContent>
         </Select>
 

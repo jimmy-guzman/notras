@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { authorizedServerAction } from "@/lib/authorized";
+import { toNoteId } from "@/lib/id";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
@@ -15,10 +16,13 @@ const schema = z.object({
 });
 
 export async function updateNote(formData: FormData) {
-  const { content, noteId } = schema.parse({
+  const parsed = schema.parse({
     content: formData.get("content"),
     noteId: formData.get("noteId"),
   });
+
+  const noteId = toNoteId(parsed.noteId);
+  const { content } = parsed;
 
   await authorizedServerAction(async (userId) => {
     await db
