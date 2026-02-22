@@ -23,7 +23,7 @@ export default async function Page({ searchParams }: PageProps) {
         <NotesFilters />
 
         {isSearching && notes.length > 0 && (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Found {notes.length} {notes.length === 1 ? "note" : "notes"}
           </p>
         )}

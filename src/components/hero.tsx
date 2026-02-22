@@ -5,7 +5,7 @@ export function Hero() {
         Welcome to notras{" "}
         <span className="bg-foreground bg-clip-text text-transparent">👋</span>
       </h1>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A simple space to capture your thoughts as they come.
       </p>
     </div>

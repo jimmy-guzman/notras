@@ -108,7 +108,7 @@ export const NotesFilters = () => {
 
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2">
-          <Calendar className="text-muted-foreground h-4 w-4" />
+          <Calendar className="h-4 w-4 text-muted-foreground" />
           <Select onValueChange={updateTime} value={filters.time}>
             <SelectTrigger className="w-32">
               <SelectValue placeholder="All time" />

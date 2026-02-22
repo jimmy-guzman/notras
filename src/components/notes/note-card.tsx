@@ -29,7 +29,7 @@ export const NoteCard = ({
 
   return (
     <Link
-      className="group focus-visible:ring-ring block focus-visible:ring-2 focus-visible:outline-none"
+      className="group block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       href={`/notes/${note.id}`}
     >
       <Card className="relative flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
@@ -39,7 +39,7 @@ export const NoteCard = ({
           pinned={Boolean(note.pinnedAt)}
         />
         <CardContent className="flex-1 py-4">
-          <p className="text-foreground group-hover:text-foreground/90 truncate text-sm leading-relaxed transition-colors">
+          <p className="truncate text-sm leading-relaxed text-foreground transition-colors group-hover:text-foreground/90">
             {query
               ? getHighlightedParts(displayContent, query).map((part) => {
                   return part.match ? (
@@ -57,7 +57,7 @@ export const NoteCard = ({
           </p>
         </CardContent>
         <CardFooter className="border-t">
-          <span className="text-muted-foreground group-hover:text-muted-foreground/80 text-xs transition-colors">
+          <span className="text-xs text-muted-foreground transition-colors group-hover:text-muted-foreground/80">
             {formatDate(note.createdAt)}
           </span>
         </CardFooter>

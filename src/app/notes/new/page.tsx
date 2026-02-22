@@ -6,7 +6,7 @@ export default function NewNotePage() {
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">New Note</h1>
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className="mt-2 text-sm text-muted-foreground">
             Create a new note below.
           </p>
         </div>

@@ -11,7 +11,7 @@ export default async function Page() {
   }
 
   return (
-    <div className="bg-background flex w-full flex-col items-center justify-center">
+    <div className="flex w-full flex-col items-center justify-center bg-background">
       <div className="w-full max-w-sm">
         <LoginForm />
       </div>

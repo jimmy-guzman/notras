@@ -26,7 +26,7 @@ export default async function NotePage({ params }: PageProps) {
         />
       </div>
 
-      <div className="text-muted-foreground mb-6 flex items-center gap-3 text-sm">
+      <div className="mb-6 flex items-center gap-3 text-sm text-muted-foreground">
         <span className="hidden sm:inline">
           {format(note.createdAt, "PPP pp")}
         </span>
