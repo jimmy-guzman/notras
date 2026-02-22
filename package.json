@@ -33,6 +33,7 @@
     "drizzle-orm": "0.45.1",
     "holy-loader": "2.3.14",
     "lucide-react": "0.575.0",
+    "motion": "12.34.3",
     "next": "16.1.6",
     "nuqs": "2.8.8",
     "radix-ui": "1.4.3",

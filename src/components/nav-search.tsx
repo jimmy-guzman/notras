@@ -1,17 +1,11 @@
 "use client";
 
-import { SearchIcon } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "./ui/input-group";
-import { Kbd } from "./ui/kbd";
+import { SearchBar } from "./search-bar";
 
 export function NavSearch() {
   const pathname = usePathname();
@@ -45,39 +39,29 @@ export function NavSearch() {
     }
   };
 
-  if (isHome) return null;
-
   return (
-    <search className="flex flex-1 justify-center sm:max-w-md">
-      <form className="w-full" onSubmit={handleSubmit}>
-        <label className="sr-only" htmlFor="nav-search">
-          Search notes
-        </label>
-        <InputGroup className="h-8 rounded-lg">
-          <InputGroupAddon align="inline-start">
-            <Kbd>/</Kbd>
-          </InputGroupAddon>
-          <InputGroupInput
-            autoCapitalize="off"
-            autoComplete="off"
-            autoCorrect="off"
-            id="nav-search"
-            onChange={(e) => {
-              setValue(e.target.value);
-            }}
-            placeholder="search notes..."
-            ref={inputRef}
-            spellCheck={false}
-            value={value}
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton size="icon-xs" type="submit" variant="ghost">
-              <SearchIcon />
-              <span className="sr-only">search</span>
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
-      </form>
-    </search>
+    <AnimatePresence>
+      {!isHome && (
+        <search className="flex flex-1 justify-center sm:max-w-md">
+          <form className="w-full" onSubmit={handleSubmit}>
+            <label className="sr-only" htmlFor="nav-search">
+              Search notes
+            </label>
+            <SearchBar
+              id="nav-search"
+              inputProps={{
+                name: "q",
+                onChange: (e) => {
+                  setValue(e.target.value);
+                },
+                value,
+              }}
+              ref={inputRef}
+              variant="nav"
+            />
+          </form>
+        </search>
+      )}
+    </AnimatePresence>
   );
 }
