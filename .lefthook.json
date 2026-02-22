@@ -10,7 +10,7 @@
       },
       "format": {
         "glob": "*.{md,json,yml,yaml,html,js,cjs,ts,tsx}",
-        "run": "pnpm exec prettier --write {staged_files}",
+        "run": "pnpm exec oxfmt {staged_files}",
         "stage_fixed": true
       },
       "knip": {

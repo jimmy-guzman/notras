@@ -1,8 +1,8 @@
-# 🌸 notras
+# notras
 
 > A simple space to capture your thoughts as they come.
 
-## 🐣 Technologies
+## Technologies
 
 ### Tooling
 
@@ -25,7 +25,7 @@
 
 ### Backend
 
-- [Turso](https://docs.turso.tech)
+- [Neon](https://neon.tech) (PostgreSQL)
 - [Drizzle ORM](https://orm.drizzle.team)
 - [Better Auth](https://better-auth.com)
 - [Resend](https://resend.com)
@@ -33,7 +33,7 @@
 
 ---
 
-## 🏁 Getting Started
+## Getting Started
 
 This project uses [pnpm](https://pnpm.io), so please [install](https://pnpm.io/installation) it first by running:
 
@@ -56,47 +56,15 @@ pnpm install
 
 ---
 
-[Turso](https://docs.turso.tech/introduction) is being used as the SQLite database, which requires the [CLI to be installed](https://docs.turso.tech/cli/introduction):
+### Database
 
-```bash
-brew install tursodatabase/tap/turso
-```
-
-Then you can either login or signup:
-
-```bash
-turso auth login
-```
-
-```bash
-turso auth signup
-```
-
-Then you can start creating databases, for example:
-
-```bash
-turso db create notras
-```
-
-```bash
-turso db create notras-dev --from-db notras
-```
-
-You can generate a `DATABASE_AUTH_TOKEN` by running:
-
-```bash
-turso db tokens create notras-dev
-```
-
-You can get the `DATABASE_URL` by running:
-
-```bash
-turso db show notras-dev --url
-```
+[Neon](https://neon.tech) is being used as the PostgreSQL database. Create a project on the [Neon console](https://console.neon.tech) and grab the `DATABASE_URL` connection string.
 
 ---
 
-Then you can set up environment variables by running:
+### Environment Variables
+
+Set up environment variables by running:
 
 ```bash
 cp .env.example .env
