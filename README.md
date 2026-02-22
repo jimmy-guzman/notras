@@ -21,6 +21,7 @@
 - [Shadcn UI](https://ui.shadcn.dev)
 - [TailwindCSS](https://tailwindcss.com)
 - [Sonner](https://sonner.emilkowal.ski)
+- [Motion](https://motion.dev)
 - [Lucide](https://lucide.dev)
 
 ### Backend

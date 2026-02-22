@@ -9,6 +9,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { AlphaBanner } from "@/components/alpha-banner";
 import { HotkeysProvider } from "@/components/hotkeys-provider";
+import { SearchBarProvider } from "@/components/search-bar-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
 import { Toaster } from "@/components/ui/sonner";
@@ -31,15 +32,17 @@ export default function RootLayout({
         <NuqsAdapter>
           <TooltipProvider>
             <HotkeysProvider>
-              <AlphaBanner />
-              <div className="flex min-h-svh flex-col">
-                <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
-                  <SiteNav />
-                </header>
-                <main className="flex flex-1 justify-center">{children}</main>
-                <SiteFooter />
-              </div>
-              <Toaster />
+              <SearchBarProvider>
+                <AlphaBanner />
+                <div className="flex min-h-svh flex-col">
+                  <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
+                    <SiteNav />
+                  </header>
+                  <main className="flex flex-1 justify-center">{children}</main>
+                  <SiteFooter />
+                </div>
+                <Toaster />
+              </SearchBarProvider>
             </HotkeysProvider>
           </TooltipProvider>
         </NuqsAdapter>

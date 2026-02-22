@@ -9,6 +9,7 @@ A personal note-taking app -- "A simple space to capture your thoughts as they c
 - **Database:** Neon PostgreSQL via Drizzle ORM
 - **Auth:** Better Auth (GitHub OAuth + magic link email via Resend)
 - **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
+- **Animation:** Motion (layout animations for shared element transitions)
 - **Formatting:** oxfmt (Prettier-compatible, Rust-based)
 - **Linting:** ESLint 9 with `@jimmy.codes/eslint-config`
 - **Testing:** Vitest + Testing Library + happy-dom
