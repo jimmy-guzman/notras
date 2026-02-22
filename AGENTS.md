@@ -68,6 +68,7 @@ pnpm db:studio    # Open Drizzle Studio
 
 - Use `satisfies` for type narrowing when possible (e.g., config objects).
 - Test files use the `.spec.ts` suffix and live next to the code they test.
+- Test titles (`it`/`test`) must start with "should" (enforced by `vitest/valid-title`).
 - Sort object keys and import statements alphabetically.
 - Use `tiny-invariant` for runtime assertions.
 - Prefer named exports over default exports (except for Next.js pages/layouts).
@@ -83,3 +84,4 @@ pnpm db:studio    # Open Drizzle Studio
 - Leave comments in the codebase that are not JSDoc or TODO/FIXME notes.
 - Use redundant return types for internal functions that can be inferred
 - Be lazy when dealing with static analysis warnings/errors -- address them promptly.
+- Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
