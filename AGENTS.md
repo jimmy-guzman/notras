@@ -73,3 +73,6 @@ pnpm db:studio    # Open Drizzle Studio
 - Use `process.env` directly -- import `env` from `@/env`.
 - Add unnecessary `"use client"` directives -- prefer Server Components.
 - Use raw SQL -- use Drizzle ORM's query builder.
+- Leave comments in the codebase that are not JSDoc or TODO/FIXME notes.
+- Use redundant return types for internal functions that can be inferred
+- Be lazy when dealing with static analysis warnings/errors -- address them promptly.
