@@ -1,5 +1,6 @@
 import type { SelectNote } from "@/server/db/schemas/notes";
 
+import { AnimatedNoteCard } from "./animated-note-card";
 import { NoteCard } from "./note-card";
 
 export const NotesList = ({
@@ -10,9 +11,13 @@ export const NotesList = ({
   query?: string;
 }) => {
   return (
-    <div className="grid animate-in grid-cols-1 gap-4 duration-300 fade-in-0 md:grid-cols-2 lg:grid-cols-3">
-      {notes.map((note) => {
-        return <NoteCard key={note.id} note={note} query={query} />;
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {notes.map((note, index) => {
+        return (
+          <AnimatedNoteCard index={index} key={note.id}>
+            <NoteCard note={note} query={query} />
+          </AnimatedNoteCard>
+        );
       })}
     </div>
   );

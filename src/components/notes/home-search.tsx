@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { searchNotes } from "@/actions/search-notes";
@@ -13,10 +13,6 @@ export function HomeSearch() {
   useHotkeys("slash", () => inputRef.current?.focus(), {
     preventDefault: true,
   });
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   return (
     <search className="w-full max-w-xl">
