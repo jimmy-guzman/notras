@@ -1,14 +1,7 @@
 export default function NotesLayout({
   children,
-  modal,
 }: {
   children: React.ReactNode;
-  modal: React.ReactNode;
 }) {
-  return (
-    <div className="mx-auto w-full max-w-7xl py-8">
-      {children}
-      {modal}
-    </div>
-  );
+  return <div className="mx-auto w-full max-w-7xl py-8">{children}</div>;
 }

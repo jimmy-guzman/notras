@@ -2,21 +2,23 @@
 
 import type { ReactNode } from "react";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-interface EditFormHotkeysProps {
+interface FormHotkeysProps {
   action: (formData: FormData) => void;
+  cancelHref: string;
   children: ReactNode;
-  noteId: string;
 }
 
-export function EditFormHotkeys({
+export function FormHotkeys({
   action,
+  cancelHref,
   children,
-  noteId,
-}: EditFormHotkeysProps) {
+}: FormHotkeysProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const el = formRef.current?.querySelector<HTMLElement>("[data-autofocus]");
@@ -35,7 +37,7 @@ export function EditFormHotkeys({
   useHotkeys(
     "escape",
     () => {
-      globalThis.location.href = `/notes/${noteId}`;
+      router.push(cancelHref);
     },
     { enableOnFormTags: ["TEXTAREA"] },
   );

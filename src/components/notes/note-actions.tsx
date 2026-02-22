@@ -35,34 +35,17 @@ export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
     router.push(`/notes/${noteId}/edit`);
   });
 
-  useHotkeys("backspace", () => {
-    router.back();
-  });
-
   useHotkeys("p", () => {
     void handleTogglePin();
   });
 
   return (
     <div className="flex items-center justify-between">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={() => {
-              router.back();
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            <ArrowLeftIcon className="h-4 w-4" /> Back
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={4}>
-          <div className="flex items-center gap-2">
-            Go back <Kbd>&#9003;</Kbd>
-          </div>
-        </TooltipContent>
-      </Tooltip>
+      <Button asChild size="sm" variant="ghost">
+        <Link href="/notes">
+          <ArrowLeftIcon className="h-4 w-4" /> Notes
+        </Link>
+      </Button>
 
       <div className="flex items-center gap-1">
         <Tooltip>

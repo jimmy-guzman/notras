@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 
 import { getNote } from "@/actions/get-note";
 import { updateNote } from "@/actions/update-note";
-import { EditFormHotkeys } from "@/components/notes/edit-form-hotkeys";
+import { FormHotkeys } from "@/components/notes/form-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +27,7 @@ export default async function EditNotePage({ params }: PageProps) {
       <div className="mb-6">
         <Button asChild size="sm" variant="ghost">
           <Link href={`/notes/${note.id}`}>
-            <ArrowLeftIcon className="h-4 w-4" /> Back
+            <ArrowLeftIcon className="h-4 w-4" /> Note
           </Link>
         </Button>
       </div>
@@ -41,7 +41,7 @@ export default async function EditNotePage({ params }: PageProps) {
         </span>
       </div>
 
-      <EditFormHotkeys action={updateNote} noteId={note.id}>
+      <FormHotkeys action={updateNote} cancelHref={`/notes/${note.id}`}>
         <input name="noteId" type="hidden" value={note.id} />
         <Textarea
           className="text-lg leading-relaxed"
@@ -65,7 +65,7 @@ export default async function EditNotePage({ params }: PageProps) {
             </span>
           </Button>
         </div>
-      </EditFormHotkeys>
+      </FormHotkeys>
     </div>
   );
 }

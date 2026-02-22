@@ -2,28 +2,35 @@
 
 import { nanoid } from "nanoid";
 import { updateTag } from "next/cache";
-import invariant from "tiny-invariant";
+import { redirect } from "next/navigation";
+import { z } from "zod";
 
-import { getSession } from "@/lib/auth";
+import { authorizedServerAction } from "@/lib/authorized";
 import { db } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 
-export async function createNote(content: string) {
-  const session = await getSession();
+const schema = z.object({
+  content: z.string().min(1, "Content is required"),
+});
 
-  invariant(session, "Unauthorized");
+export async function createNote(formData: FormData) {
+  const { content } = schema.parse({
+    content: formData.get("content"),
+  });
 
   const id = nanoid();
 
-  await db.insert(note).values({
-    content,
-    createdAt: new Date(),
-    id,
-    updatedAt: new Date(),
-    userId: session.user.id,
+  await authorizedServerAction(async (userId) => {
+    await db.insert(note).values({
+      content,
+      createdAt: new Date(),
+      id,
+      updatedAt: new Date(),
+      userId,
+    });
+
+    updateTag("notes");
   });
 
-  updateTag("notes");
-
-  return { id };
+  redirect(`/notes/${id}`);
 }
