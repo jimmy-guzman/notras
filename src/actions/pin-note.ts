@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { updateTag } from "next/cache";
 import invariant from "tiny-invariant";
 
@@ -16,7 +16,7 @@ export async function pinNote(noteId: string) {
   await db
     .update(note)
     .set({ pinnedAt: new Date(), updatedAt: new Date() })
-    .where(eq(note.id, noteId));
+    .where(and(eq(note.id, noteId), eq(note.userId, session.user.id)));
 
   updateTag("notes");
 }

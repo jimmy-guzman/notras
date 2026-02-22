@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -16,9 +17,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
-
-import { Kbd } from "../kbd";
 
 const formSchema = z.object({
   content: z.string().min(1, "Note cannot be empty"),
@@ -56,13 +56,13 @@ export function EditNoteForm({
     router.back();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-
+  useHotkeys(
+    "mod+enter",
+    () => {
       void form.handleSubmit(onSubmit)();
-    }
-  };
+    },
+    { enableOnFormTags: ["TEXTAREA"] },
+  );
 
   return (
     <Form {...form}>
@@ -82,7 +82,6 @@ export function EditNoteForm({
                     {...field}
                     className="resize-none"
                     disabled={form.formState.isSubmitting}
-                    onKeyDown={handleKeyDown}
                     placeholder="Write your note content here..."
                     rows={10}
                   />

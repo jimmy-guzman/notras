@@ -5,12 +5,14 @@ import { useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { searchNotes } from "@/actions/search-notes";
+
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@/components/ui/input-group";
+} from "../ui/input-group";
+import { Kbd } from "../ui/kbd";
 
 export function HomeSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,7 +32,9 @@ export function HomeSearch() {
           Search notes
         </label>
         <InputGroup className="h-12 rounded-xl">
-          <InputGroupAddon align="inline-start">/</InputGroupAddon>
+          <InputGroupAddon align="inline-start">
+            <Kbd>/</Kbd>
+          </InputGroupAddon>
           <InputGroupInput
             autoCapitalize="off"
             autoComplete="off"
