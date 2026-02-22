@@ -5,6 +5,8 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 import { Separator } from "@/components/ui/separator";
 import { truncate } from "@/lib/utils/truncate";
 
+import { AnimatedListItem } from "./animated-list-item";
+
 const MAX_CONTENT_LENGTH = 80;
 
 export function RecentNotes({ notes }: { notes: SelectNote[] }) {
@@ -18,7 +20,7 @@ export function RecentNotes({ notes }: { notes: SelectNote[] }) {
       <ul>
         {notes.map((n, index) => {
           return (
-            <li key={n.id}>
+            <AnimatedListItem index={index} key={n.id}>
               {index > 0 && <Separator />}
               <Link
                 className="block truncate py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -26,7 +28,7 @@ export function RecentNotes({ notes }: { notes: SelectNote[] }) {
               >
                 {truncate(n.content, MAX_CONTENT_LENGTH)}
               </Link>
-            </li>
+            </AnimatedListItem>
           );
         })}
       </ul>
