@@ -12,8 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "deps:up": "pnpm dlx npm-check-updates -ui",
     "dev": "next dev --turbopack",
-    "format": "prettier --check --cache .",
-    "format:fix": "prettier --write --cache .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
     "knip": "SKIP_ENV_VALIDATION=1 knip",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "lint:fix": "eslint . --fix --cache --cache-location node_modules/.cache/eslint/",
@@ -22,7 +22,6 @@
     "test": "vitest",
     "typecheck": "tsc"
   },
-  "prettier": "@jimmy.codes/prettier-config",
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
     "@neondatabase/serverless": "1.0.2",
@@ -51,7 +50,6 @@
   "devDependencies": {
     "@eslint/mcp": "0.3.0",
     "@jimmy.codes/eslint-config": "7.4.0",
-    "@jimmy.codes/prettier-config": "2.1.2",
     "@knip/mcp": "0.0.19",
     "@tailwindcss/postcss": "4.2.0",
     "@testing-library/dom": "10.4.1",
@@ -73,6 +71,7 @@
     "knip": "5.85.0",
     "lefthook": "2.1.1",
     "next-devtools-mcp": "0.3.10",
+    "oxfmt": "0.34.0",
     "postcss": "8.5.6",
     "prettier": "3.8.1",
     "shadcn": "3.8.5",
