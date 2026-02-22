@@ -8,7 +8,7 @@
 
 - [pnpm](https://pnpm.io)
 - [ESLint](https://eslint.org)
-- [Prettier](https://prettier.io)
+- [Oxfmt](https://oxc.dev)
 - [Vitest](https://vitest.dev)
 - [Lefthook](https://github.com/evilmartians/lefthook)
 - [Knip](https://knip.dev)
