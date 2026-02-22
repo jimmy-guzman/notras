@@ -48,16 +48,16 @@ function getStartDateForFilter(time: TimeFilter): Date {
 function getSortOrder(sort: SortOption = "newest") {
   switch (sort) {
     case "newest": {
-      return [asc(isNull(note.pinnedAt)), desc(note.createdAt)];
+      return [desc(note.createdAt)];
     }
     case "oldest": {
-      return [asc(isNull(note.pinnedAt)), asc(note.createdAt)];
+      return [asc(note.createdAt)];
     }
     case "updated": {
-      return [asc(isNull(note.pinnedAt)), desc(note.updatedAt)];
+      return [desc(note.updatedAt)];
     }
     default: {
-      return [asc(isNull(note.pinnedAt)), desc(note.createdAt)];
+      return [desc(note.createdAt)];
     }
   }
 }
@@ -66,7 +66,9 @@ export async function getNotes(
   searchParams: NoteSearchParams,
   options?: { limit?: number },
 ) {
-  const notes = await authorizedServerAction(async (userId) => {
+  const limit = options?.limit;
+
+  return authorizedServerAction(async (userId) => {
     "use cache";
 
     const { q: query, sort, time } = searchParams;
@@ -80,18 +82,18 @@ export async function getNotes(
 
     cacheTag("notes");
 
-    return db
+    const qb = db
       .select()
       .from(note)
       .where(and(...baseFilters, ...queryFilter, ...timeFilter))
       .orderBy(...getSortOrder(sort));
+
+    if (limit) {
+      return qb.limit(limit);
+    }
+
+    return qb;
   });
-
-  if (options?.limit) {
-    return notes.slice(0, options.limit);
-  }
-
-  return notes;
 }
 
 export async function getNotesCount() {
