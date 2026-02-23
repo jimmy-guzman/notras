@@ -15,13 +15,17 @@ vi.mock("@/actions/delete-note", () => ({
   deleteNote: vi.fn(),
 }));
 
+vi.mock("react-hotkeys-hook", () => ({
+  useHotkeys: vi.fn(),
+}));
+
 const noteId: NoteId = toNoteId("note_abc123");
 
 describe("DeleteNoteButton", () => {
   it("should render a delete button", () => {
     render(<DeleteNoteButton noteId={noteId} />);
 
-    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
   });
 
   it("should open a confirmation dialog when clicked", async () => {
@@ -29,38 +33,38 @@ describe("DeleteNoteButton", () => {
 
     render(<DeleteNoteButton noteId={noteId} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: /delete/i }));
 
     const dialog = screen.getByRole("alertdialog");
 
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByText("Delete note")).toBeInTheDocument();
+    expect(within(dialog).getByText(/delete note/i)).toBeInTheDocument();
   });
 
-  it("should show Cancel and Delete actions in the dialog", async () => {
+  it("should show cancel and delete actions in the dialog", async () => {
     const user = userEvent.setup();
 
     render(<DeleteNoteButton noteId={noteId} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: /delete/i }));
 
     const dialog = screen.getByRole("alertdialog");
 
     expect(
-      within(dialog).getByRole("button", { name: "Cancel" }),
+      within(dialog).getByRole("button", { name: /cancel/i }),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("button", { name: "Delete" }),
+      within(dialog).getByRole("button", { name: /delete/i }),
     ).toBeInTheDocument();
   });
 
-  it("should close the dialog when Cancel is clicked", async () => {
+  it("should close the dialog when cancel is clicked", async () => {
     const user = userEvent.setup();
 
     render(<DeleteNoteButton noteId={noteId} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: /delete/i }));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
@@ -70,10 +74,16 @@ describe("DeleteNoteButton", () => {
 
     render(<DeleteNoteButton noteId={noteId} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: /delete/i }));
 
     const dialog = screen.getByRole("alertdialog");
 
     expect(within(dialog).getByText(/cannot be undone/)).toBeInTheDocument();
+  });
+
+  it("should display a keyboard shortcut hint", () => {
+    render(<DeleteNoteButton noteId={noteId} />);
+
+    expect(screen.getByText("d")).toBeInTheDocument();
   });
 });
