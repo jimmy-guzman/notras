@@ -20,5 +20,9 @@ export function HotkeysProvider({ children }: HotkeysProviderProps) {
     router.push("/notes/new");
   });
 
+  useHotkeys("h", () => {
+    router.push("/");
+  });
+
   return <>{children}</>;
 }
