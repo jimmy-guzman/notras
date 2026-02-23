@@ -39,12 +39,12 @@ data/
 
 ## Key Patterns
 
-- **Server actions** live in `src/actions/` with `"use server"` directive. They use `serverAction()` from `@/lib/authorized` to get the device user ID before performing DB operations.
+- **Server actions** live in `src/actions/` with `"use server"` directive. They use `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware that provides `userId` via context). Define actions as `actionClient.inputSchema(schema).action(async ({ ctx, parsedInput }) => { ... })`. Validation is handled automatically by the input schema -- no manual `safeParse` needed.
 - **API routes** should call services directly, not server actions. Server actions (`"use server"`) are for client-side form mutations only. API routes use `serverAction()` from `@/lib/authorized` for auth, then call services.
 - **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
 - **Services** live in `src/server/services/`. Each service file is self-contained: it owns its interface, implementation class, and a lazy singleton getter (e.g., `getNoteService()`). No central container -- consumers import directly from the service they need.
 - **Repositories** live in `src/server/repositories/`. They define an interface and a DB implementation for data persistence. Services depend on repository interfaces, not concrete implementations.
-- **Validation** uses Zod schemas from `src/server/schemas/` inside server actions (parse FormData before calling services).
+- **Validation** uses Zod schemas from `src/server/schemas/`. For `actionClient`-based server actions, validation is automatic via `inputSchema()`. For API routes, validate manually with `safeParse`.
 - **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
 - **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
@@ -56,7 +56,10 @@ data/
 - **Navigation links** in the top nav use `Button` + `Link` + `Tooltip` + `Kbd` with single-letter hotkeys (e.g., `h` for home, `n` for new note, `s` for settings). No dropdowns -- keep it flat and minimal.
 - **Global hotkeys** are registered in `HotkeysProvider` (`src/components/hotkeys-provider.tsx`). When adding a new nav route, also register its hotkey there.
 - **Form hotkeys:** Forms that edit content use `useHotkeys("mod+enter")` to submit and `useHotkeys("escape")` to cancel, with `<Kbd>⌘</Kbd><Kbd>⏎</Kbd>` badges on the submit button. For note forms, use `FormHotkeys` wrapper; for non-note forms (like settings), wire hotkeys directly with `useHotkeys` and `enableOnFormTags: ["INPUT"]` or `["TEXTAREA"]`.
-- **`useActionState` pattern:** For forms that stay on the same page after submit (e.g., settings profile), use `useActionState` with a state shape like `{ success: boolean, message?: string, errors?: Record<field, string[]> }`. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()`.
+- **`useHookFormAction` pattern:** For forms that stay on the same page after submit (e.g., settings profile, import), use `useHookFormAction` with `zodResolver`. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()`.
+- **React Hook Form + next-safe-action:** For forms that use `actionClient`-based server actions, use `useHookFormAction` from `@next-safe-action/adapter-react-hook-form/hooks` with `zodResolver` from `@hookform/resolvers/zod`. Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed.
+- **Field component:** Use `<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>` from `@/components/ui/field` for form field structure instead of raw `<div>` + `<Label>` + manual error `<p>` tags. Set `data-invalid={!!fieldState.error || undefined}` on `<Field>` to turn labels red on validation error.
+- **Button disabled state:** Keep submit buttons always enabled for a11y -- only disable during `action.isPending` to prevent double-submits, never based on validation state like `formState.isValid`.
 - **Form aesthetic:** Forms use bare inputs in a `flex flex-col gap-6` layout (no Card wrappers). Labels and button text are lowercase. Action buttons are right-aligned at the bottom: cancel (outline) + submit (primary with Kbd hints). Back button with `ArrowLeftIcon` at the top of the page.
 
 ## Commands
@@ -118,7 +121,7 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 
 ## Do NOT
 
-- Edit files in `src/components/ui/` manually -- these are Shadcn-generated.
+- Edit files in `src/components/ui/` manually -- these are Shadcn-generated. After installing new Shadcn components, run `pnpm lint:fix` for auto-fixable issues. For remaining errors that aren't auto-fixable (e.g., `eqeqeq`, `no-array-index-key`, `no-leaked-conditional-rendering`), add rule overrides to the `"**/components/ui/**/*.tsx"` config in `eslint.config.ts` instead of editing the component source.
 - Use Prettier -- this project uses oxfmt.
 - Use `process.env` directly -- import `env` from `@/env`.
 - Add unnecessary `"use client"` directives -- prefer Server Components.

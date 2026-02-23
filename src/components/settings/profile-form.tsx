@@ -1,41 +1,51 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
-import type { UpdateProfileState } from "@/actions/update-profile";
 import type { UserProfile } from "@/server/repositories/user-repository";
 
 import { updateProfile } from "@/actions/update-profile";
 import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import { Label } from "@/components/ui/label";
-
-const initialState: UpdateProfileState = {
-  success: false,
-};
+import { updateProfileSchema } from "@/server/schemas/user-schemas";
 
 interface ProfileFormProps {
   profile: UserProfile;
 }
 
 export function ProfileForm({ profile }: ProfileFormProps) {
-  const [state, formAction, isPending] = useActionState(
-    updateProfile,
-    initialState,
-  );
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    if (state.success && state.message) {
-      toast.success(state.message);
-    }
-  }, [state]);
+  const { action, form, handleSubmitWithAction } = useHookFormAction(
+    updateProfile,
+    zodResolver(updateProfileSchema),
+    {
+      actionProps: {
+        onError({ error }) {
+          toast.error(error.serverError ?? "update failed");
+        },
+        onSuccess({ data }) {
+          toast.success(data.message);
+        },
+      },
+      formProps: {
+        defaultValues: {
+          email: profile.email,
+          name: profile.name,
+        },
+        mode: "onSubmit",
+      },
+    },
+  );
 
   useHotkeys(
     "mod+enter",
@@ -54,35 +64,27 @@ export function ProfileForm({ profile }: ProfileFormProps) {
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-6" ref={formRef}>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name">name</Label>
-        <Input
-          aria-invalid={state.errors?.name ? true : undefined}
-          defaultValue={profile.name}
-          id="name"
-          name="name"
-          placeholder="your name"
-        />
-        {state.errors?.name && (
-          <p className="text-sm text-destructive">{state.errors.name[0]}</p>
-        )}
-      </div>
+    <form
+      className="flex flex-col gap-6"
+      onSubmit={handleSubmitWithAction}
+      ref={formRef}
+    >
+      <Field data-invalid={Boolean(form.formState.errors.name) || undefined}>
+        <FieldLabel htmlFor="name">name</FieldLabel>
+        <Input id="name" placeholder="your name" {...form.register("name")} />
+        <FieldError>{form.formState.errors.name?.message}</FieldError>
+      </Field>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="email">email</Label>
+      <Field data-invalid={Boolean(form.formState.errors.email) || undefined}>
+        <FieldLabel htmlFor="email">email</FieldLabel>
         <Input
-          aria-invalid={state.errors?.email ? true : undefined}
-          defaultValue={profile.email}
           id="email"
-          name="email"
           placeholder="your@email.com"
           type="email"
+          {...form.register("email")}
         />
-        {state.errors?.email && (
-          <p className="text-sm text-destructive">{state.errors.email[0]}</p>
-        )}
-      </div>
+        <FieldError>{form.formState.errors.email?.message}</FieldError>
+      </Field>
 
       <div className="flex justify-end gap-2 pt-4">
         <Button asChild variant="outline">
@@ -93,7 +95,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
             </span>
           </Link>
         </Button>
-        <Button disabled={isPending} type="submit">
+        <Button disabled={action.isPending} type="submit">
           save
           <span className="hidden gap-0.5 sm:inline-flex">
             <Kbd>⌘</Kbd>

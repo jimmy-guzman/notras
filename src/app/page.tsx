@@ -2,6 +2,7 @@ import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 
 import { getNotes, getNotesCount } from "@/actions/get-notes";
+import { getProfile } from "@/actions/get-profile";
 import { HomeSearch } from "@/components/notes/home-search";
 import { RecentNotes } from "@/components/notes/recent-notes";
 import { Kbd } from "@/components/ui/kbd";
@@ -9,7 +10,8 @@ import { Kbd } from "@/components/ui/kbd";
 const RECENT_NOTES_LIMIT = 5;
 
 export default async function Page() {
-  const [count, recentNotes] = await Promise.all([
+  const [profile, count, recentNotes] = await Promise.all([
+    getProfile(),
     getNotesCount(),
     getNotes(
       { q: "", sort: "newest", time: "all" },
@@ -23,9 +25,9 @@ export default async function Page() {
         <h1 className="mb-2 text-5xl font-semibold tracking-tight sm:text-7xl">
           notras
         </h1>
-        <p className="mb-12 text-lg text-muted-foreground sm:text-xl">
+        <p className="mb-12 text-lg text-muted-foreground lowercase sm:text-xl">
           {count > 0
-            ? "welcome back, ready to capture more thoughts?"
+            ? `welcome back, ${profile.name}! ready to capture more thoughts?`
             : "a simple space to capture your thoughts as they come."}
         </p>
 

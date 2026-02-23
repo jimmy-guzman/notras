@@ -6,9 +6,6 @@ const nextConfig = {
   experimental: {
     useCache: true,
   },
-  images: {
-    remotePatterns: [{ hostname: "avatars.githubusercontent.com" }],
-  },
   typedRoutes: true,
 } satisfies NextConfig;
 
