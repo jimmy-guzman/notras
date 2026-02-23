@@ -12,6 +12,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - filter by time period (today, yesterday, this week, this month, all time)
 - sort by newest, oldest, or recently updated
 - attach images and PDFs to notes (images auto-optimized to WebP)
+- export notes as a zip and import from backup (merge or mirror)
 - keyboard shortcuts for everything
 - animated transitions
 - dark/light mode (follows system preference)
@@ -26,6 +27,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [Vitest](https://vitest.dev)
 - [Lefthook](https://github.com/evilmartians/lefthook)
 - [Knip](https://knip.dev)
+- [Playwright](https://playwright.dev)
 - [GitHub Actions](https://github.com/features/actions)
 
 ### Frontend
@@ -120,6 +122,8 @@ pnpm dev
 | `pnpm test`       | run tests (Vitest)              |
 | `pnpm coverage`   | tests with coverage             |
 | `pnpm knip`       | detect unused code/deps         |
+| `pnpm e2e`        | run e2e tests (Playwright)      |
+| `pnpm e2e:ui`     | run e2e tests with UI           |
 | `pnpm db:push`    | push schema changes to database |
 | `pnpm db:studio`  | open Drizzle Studio             |
 

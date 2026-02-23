@@ -39,6 +39,11 @@ next-env.d.ts
 # sqlite
 data/*.db*
 
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+
 # eslint
 .eslintcache
 
