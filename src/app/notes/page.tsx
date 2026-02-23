@@ -1,6 +1,6 @@
 import type { SearchParams } from "nuqs/server";
 
-import { Info, SearchIcon } from "lucide-react";
+import { InfoIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
 import { getNotes, loadSearchParams } from "@/actions/get-notes";
@@ -37,7 +37,7 @@ export default async function Page({ searchParams }: PageProps) {
               </>
             ) : (
               <>
-                <Info className="h-4 w-4" />
+                <InfoIcon className="h-4 w-4" />
                 <AlertDescription>
                   <p>
                     no notes found.{" "}

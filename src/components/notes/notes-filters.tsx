@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar } from "lucide-react";
+import { ArrowUpDownIcon, CalendarIcon } from "lucide-react";
 import { useQueryStates } from "nuqs";
 
 import type { NoteSearchParams } from "@/lib/notes-search-params";
@@ -29,9 +29,9 @@ export const NotesFilters = () => {
     <div className="flex w-full flex-row gap-2 sm:items-center">
       <div className="flex flex-1 items-center gap-2">
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
           <Select onValueChange={updateTime} value={filters.time}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger aria-label="time range" className="w-32">
               <SelectValue placeholder="all time" />
             </SelectTrigger>
             <SelectContent>
@@ -44,16 +44,19 @@ export const NotesFilters = () => {
           </Select>
         </div>
 
-        <Select onValueChange={updateSort} value={filters.sort}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">newest first</SelectItem>
-            <SelectItem value="oldest">oldest first</SelectItem>
-            <SelectItem value="updated">updated first</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <ArrowUpDownIcon className="h-4 w-4 text-muted-foreground" />
+          <Select onValueChange={updateSort} value={filters.sort}>
+            <SelectTrigger aria-label="sort order" className="w-36">
+              <SelectValue placeholder="sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">newest first</SelectItem>
+              <SelectItem value="oldest">oldest first</SelectItem>
+              <SelectItem value="updated">updated first</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   );
