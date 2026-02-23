@@ -43,7 +43,7 @@ export const LoginForm = () => {
       form.setError("email", { message: error.message });
     } else {
       form.reset();
-      toast.success("Check your email for a magic link.");
+      toast.success("check your email for a magic link.");
     }
   };
 
@@ -58,9 +58,9 @@ export const LoginForm = () => {
             className="flex flex-col items-center gap-2 font-medium"
             href="/"
           >
-            <span className="sr-only">Notras</span>
+            <span className="sr-only">notras</span>
           </Link>
-          <h1 className="text-xl font-bold">Welcome to Notras</h1>
+          <h1 className="text-xl font-bold">welcome to notras</h1>
         </div>
 
         <div className="flex flex-col gap-6">
@@ -70,7 +70,7 @@ export const LoginForm = () => {
             render={({ field }) => {
               return (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>email</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="m@example.com"
@@ -93,19 +93,19 @@ export const LoginForm = () => {
             {form.formState.isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Sending...
+                sending...
               </>
             ) : (
               <>
                 <Mail className="h-4 w-4" />
-                Send Magic Link
+                send magic link
               </>
             )}
           </Button>
 
           <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
             <span className="relative z-10 bg-background px-2 text-muted-foreground">
-              Or
+              or
             </span>
           </div>
           <div className="grid gap-4">

@@ -34,7 +34,7 @@ export const PinNoteButton = ({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label={pinned ? "Unpin" : "Pin"}
+          aria-label={pinned ? "unpin" : "pin"}
           className={className}
           onClick={handleTogglePin}
           size="icon"
@@ -44,7 +44,7 @@ export const PinNoteButton = ({
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>
-        {pinned ? "Unpin" : "Pin"}
+        {pinned ? "unpin" : "pin"}
       </TooltipContent>
     </Tooltip>
   );

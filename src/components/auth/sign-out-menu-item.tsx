@@ -22,7 +22,7 @@ export const SignOutMenuItem = () => {
         });
       }}
     >
-      <span>Sign Out</span>
+      <span>sign out</span>
       <LogOutIcon className="ml-auto h-4 w-4" />
     </DropdownMenuItem>
   );

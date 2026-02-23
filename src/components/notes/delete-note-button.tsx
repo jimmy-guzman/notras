@@ -40,7 +40,7 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
         await deleteNote(noteId);
         router.push("/notes");
       } catch {
-        toast.error("Failed to delete note. Please try again.");
+        toast.error("failed to delete note. please try again.");
       }
     });
   };
@@ -51,36 +51,36 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
         <TooltipTrigger asChild>
           <AlertDialogTrigger asChild>
             <Button
-              aria-label="Delete"
+              aria-label="delete"
               disabled={isPending}
               size="sm"
               variant="ghost"
             >
               <Trash2Icon className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only">Delete</span>
+              <span className="sr-only sm:not-sr-only">delete</span>
             </Button>
           </AlertDialogTrigger>
         </TooltipTrigger>
         <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
-          Delete
+          delete
         </TooltipContent>
       </Tooltip>
 
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete note</AlertDialogTitle>
+          <AlertDialogTitle>delete note</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This note will be permanently deleted.
+            this action cannot be undone. this note will be permanently deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>cancel</AlertDialogCancel>
           <AlertDialogAction
             disabled={isPending}
             onClick={handleDelete}
             variant="destructive"
           >
-            {isPending ? "Deleting..." : "Delete"}
+            {isPending ? "deleting..." : "delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

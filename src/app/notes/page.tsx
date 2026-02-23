@@ -33,19 +33,19 @@ export default async function Page({ searchParams }: PageProps) {
             {isSearching ? (
               <>
                 <SearchIcon className="h-4 w-4" />
-                <AlertDescription>No notes match your search.</AlertDescription>
+                <AlertDescription>no notes match your search.</AlertDescription>
               </>
             ) : (
               <>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
                   <p>
-                    No notes found.{" "}
+                    no notes found.{" "}
                     <Link
                       className="underline hover:no-underline"
                       href="/notes/new"
                     >
-                      Create your first note
+                      create your first note
                     </Link>{" "}
                     to get started.
                   </p>

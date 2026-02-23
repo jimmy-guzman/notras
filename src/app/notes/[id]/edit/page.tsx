@@ -29,7 +29,7 @@ export default async function EditNotePage({ params }: PageProps) {
       <div className="mb-6">
         <Button asChild size="sm" variant="ghost">
           <Link href={`/notes/${note.id}`}>
-            <ArrowLeftIcon className="h-4 w-4" /> Note
+            <ArrowLeftIcon className="h-4 w-4" /> note
           </Link>
         </Button>
       </div>
@@ -50,16 +50,16 @@ export default async function EditNotePage({ params }: PageProps) {
           data-autofocus
           defaultValue={note.content}
           name="content"
-          placeholder="Write your note content here..."
+          placeholder="write your note content here..."
           rows={10}
         />
         <div className="flex justify-end gap-2 pt-4">
           <Button asChild variant="outline">
-            <Link href={`/notes/${note.id}`}>Cancel</Link>
+            <Link href={`/notes/${note.id}`}>cancel</Link>
           </Button>
           <Button type="submit">
             <span className="flex items-center gap-2 text-sm">
-              Save
+              save
               <span className="hidden gap-0.5 sm:inline-flex">
                 <Kbd>⌘</Kbd>
                 <Kbd>⏎</Kbd>

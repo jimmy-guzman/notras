@@ -33,8 +33,8 @@ export default async function Page() {
         </h1>
         <p className="mb-12 text-lg text-muted-foreground sm:text-xl">
           {count > 0 && firstName
-            ? `Welcome back, ${firstName}. Ready to capture more thoughts?`
-            : "A simple space to capture your thoughts as they come."}
+            ? `welcome back, ${firstName}. Ready to capture more thoughts?`
+            : "a simple space to capture your thoughts as they come."}
         </p>
 
         {count > 0 && <HomeSearch />}
@@ -45,8 +45,8 @@ export default async function Page() {
             href="/notes/new"
           >
             <Plus className="h-4 w-4" />
-            New Note
-            <Kbd>N</Kbd>
+            new note
+            <Kbd>n</Kbd>
           </Link>
         </div>
       </header>
