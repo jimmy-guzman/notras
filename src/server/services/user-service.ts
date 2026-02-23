@@ -3,7 +3,7 @@ import type {
   UserRepository,
 } from "@/server/repositories/user-repository";
 
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import { DBUserRepository } from "@/server/repositories/user-repository";
 
 const DEVICE_USER_ID = "device";
@@ -55,7 +55,7 @@ class UserService {
 let _userService: undefined | UserService;
 
 export function getUserService() {
-  _userService ??= new UserService(new DBUserRepository(db));
+  _userService ??= new UserService(new DBUserRepository(getDb()));
 
   return _userService;
 }
