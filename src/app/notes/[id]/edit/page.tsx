@@ -60,7 +60,12 @@ export default async function EditNotePage({ params }: PageProps) {
         />
         <div className="flex justify-end gap-2 pt-4">
           <Button asChild variant="outline">
-            <Link href={`/notes/${note.id}`}>cancel</Link>
+            <Link href={`/notes/${note.id}`}>
+              cancel
+              <span className="hidden gap-0.5 sm:inline-flex">
+                <Kbd>esc</Kbd>
+              </span>
+            </Link>
           </Button>
           <Button type="submit">
             <span className="flex items-center gap-2 text-sm">

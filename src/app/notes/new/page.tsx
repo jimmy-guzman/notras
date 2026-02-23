@@ -28,7 +28,12 @@ export default function NewNotePage() {
         />
         <div className="flex justify-end gap-2 pt-4">
           <Button asChild variant="outline">
-            <Link href="/notes">cancel</Link>
+            <Link href="/notes">
+              cancel
+              <span className="hidden gap-0.5 sm:inline-flex">
+                <Kbd>esc</Kbd>
+              </span>
+            </Link>
           </Button>
           <Button type="submit">
             <span className="flex items-center gap-2 text-sm">

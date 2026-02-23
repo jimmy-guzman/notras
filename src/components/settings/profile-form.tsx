@@ -86,7 +86,12 @@ export function ProfileForm({ profile }: ProfileFormProps) {
 
       <div className="flex justify-end gap-2 pt-4">
         <Button asChild variant="outline">
-          <Link href="/">cancel</Link>
+          <Link href="/">
+            cancel
+            <span className="hidden gap-0.5 sm:inline-flex">
+              <Kbd>esc</Kbd>
+            </span>
+          </Link>
         </Button>
         <Button disabled={isPending} type="submit">
           save
