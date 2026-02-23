@@ -126,3 +126,5 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 - Use redundant return types for internal functions that can be inferred
 - Be lazy when dealing with static analysis warnings/errors -- address them promptly.
 - Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
+- Leave tests in a failing state -- after making changes, run `pnpm test` and fix any broken tests before finishing.
+- Leave the build broken -- after making changes, run `pnpm build` and fix any errors before finishing.
