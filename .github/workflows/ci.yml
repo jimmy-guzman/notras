@@ -32,6 +32,9 @@ jobs:
       - name: ✅ Coverage
         run: pnpm coverage
 
+      - name: 🗄️ Push DB Schema
+        run: pnpm db:push
+
       - name: 🏗 Build
         run: pnpm build
 
@@ -48,6 +51,9 @@ jobs:
 
       - name: 🎭 Install Playwright Browsers
         run: pnpm exec playwright install chromium --with-deps
+
+      - name: 🗄️ Push DB Schema
+        run: pnpm db:push
 
       - name: 🏗 Build
         run: pnpm build
