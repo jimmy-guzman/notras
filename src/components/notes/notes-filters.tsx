@@ -35,26 +35,26 @@ export const NotesFilters = () => {
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <Select onValueChange={updateTime} value={filters.time}>
             <SelectTrigger className="w-32">
-              <SelectValue placeholder="All time" />
+              <SelectValue placeholder="all time" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
-              <SelectItem value="week">This week</SelectItem>
-              <SelectItem value="month">This month</SelectItem>
+              <SelectItem value="all">all time</SelectItem>
+              <SelectItem value="today">today</SelectItem>
+              <SelectItem value="yesterday">yesterday</SelectItem>
+              <SelectItem value="week">this week</SelectItem>
+              <SelectItem value="month">this month</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <Select onValueChange={updateSort} value={filters.sort}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="Sort by" />
+            <SelectValue placeholder="sort by" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="newest">Newest first</SelectItem>
-            <SelectItem value="oldest">Oldest first</SelectItem>
-            <SelectItem value="updated">Updated first</SelectItem>
+            <SelectItem value="newest">newest first</SelectItem>
+            <SelectItem value="oldest">oldest first</SelectItem>
+            <SelectItem value="updated">updated first</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -62,8 +62,8 @@ export const NotesFilters = () => {
       <Button asChild className="shrink-0" variant="outline">
         <Link href="/notes/new">
           <Plus className="h-4 w-4" />
-          <span className="sr-only sm:not-sr-only">New Note</span>
-          <Kbd className="hidden sm:inline-flex">N</Kbd>
+          <span className="sr-only sm:not-sr-only">new note</span>
+          <Kbd className="hidden sm:inline-flex">n</Kbd>
         </Link>
       </Button>
     </div>

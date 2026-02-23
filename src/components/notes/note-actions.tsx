@@ -45,7 +45,7 @@ export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
     <div className="flex items-center justify-between">
       <Button asChild size="sm" variant="ghost">
         <Link href="/notes">
-          <ArrowLeftIcon className="h-4 w-4" /> Notes
+          <ArrowLeftIcon className="h-4 w-4" /> notes
         </Link>
       </Button>
 
@@ -53,21 +53,21 @@ export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              aria-label={pinned ? "Unpin" : "Pin"}
+              aria-label={pinned ? "unpin" : "pin"}
               onClick={handleTogglePin}
               size="sm"
               variant="ghost"
             >
               <PinIcon fill={pinned ? "currentColor" : "none"} />
               <span className="sr-only sm:not-sr-only">
-                {pinned ? "Unpin" : "Pin"}
+                {pinned ? "unpin" : "pin"}
               </span>
-              <Kbd className="hidden sm:inline-flex">P</Kbd>
+              <Kbd className="hidden sm:inline-flex">p</Kbd>
             </Button>
           </TooltipTrigger>
           <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
             <div className="flex items-center gap-2">
-              {pinned ? "Unpin" : "Pin"} <Kbd>P</Kbd>
+              {pinned ? "unpin" : "pin"} <Kbd>p</Kbd>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -78,17 +78,17 @@ export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button aria-label="Edit Note" asChild size="sm" variant="ghost">
+            <Button aria-label="edit note" asChild size="sm" variant="ghost">
               <Link href={`/notes/${noteId}/edit`}>
                 <PencilIcon className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">Edit</span>
-                <Kbd className="hidden sm:inline-flex">E</Kbd>
+                <span className="sr-only sm:not-sr-only">edit</span>
+                <Kbd className="hidden sm:inline-flex">e</Kbd>
               </Link>
             </Button>
           </TooltipTrigger>
           <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
             <div className="flex items-center gap-2">
-              Edit <Kbd>E</Kbd>
+              edit <Kbd>e</Kbd>
             </div>
           </TooltipContent>
         </Tooltip>

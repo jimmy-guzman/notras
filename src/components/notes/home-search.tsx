@@ -18,7 +18,7 @@ export function HomeSearch() {
     <search className="w-full max-w-xl">
       <form action={searchNotes}>
         <label className="sr-only" htmlFor="home-search">
-          Search notes
+          search notes
         </label>
         <SearchBar
           id="home-search"

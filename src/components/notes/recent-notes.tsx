@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
 
+import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { truncate } from "@/lib/utils/truncate";
 
@@ -15,7 +16,7 @@ export function RecentNotes({ notes }: { notes: SelectNote[] }) {
   return (
     <div className="w-full max-w-xl">
       <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-        Recent Notes
+        recent notes
       </h2>
       <ul>
         {notes.map((n, index) => {
@@ -35,10 +36,11 @@ export function RecentNotes({ notes }: { notes: SelectNote[] }) {
       <Separator />
       <div className="pt-2 text-center">
         <Link
-          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           href="/notes"
         >
-          View all notes
+          view all notes
+          <Kbd>a</Kbd>
         </Link>
       </div>
     </div>

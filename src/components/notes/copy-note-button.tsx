@@ -39,7 +39,7 @@ export const CopyNoteButton = ({
         setCopied(false);
       }, resetDelayMs);
     } catch {
-      toast.error("Failed to copy to clipboard. Please try again.");
+      toast.error("failed to copy to clipboard. please try again.");
     }
   }, [content, resetDelayMs]);
 
@@ -59,7 +59,7 @@ export const CopyNoteButton = ({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label={copied ? "Copied" : "Copy"}
+          aria-label={copied ? "copied" : "copy"}
           onClick={handleCopy}
           size="sm"
           variant="ghost"
@@ -79,14 +79,14 @@ export const CopyNoteButton = ({
             />
           </>
           <span className="sr-only sm:not-sr-only">
-            {copied ? "Copied" : "Copy"}
+            {copied ? "copied" : "copy"}
           </span>
-          <Kbd className="hidden sm:inline-flex">C</Kbd>
+          <Kbd className="hidden sm:inline-flex">c</Kbd>
         </Button>
       </TooltipTrigger>
       <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
         <div className="flex items-center gap-2">
-          {copied ? "Copied" : "Copy"} <Kbd>C</Kbd>
+          {copied ? "copied" : "copy"} <Kbd>c</Kbd>
         </div>
       </TooltipContent>
     </Tooltip>

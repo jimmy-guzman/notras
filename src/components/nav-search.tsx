@@ -45,7 +45,7 @@ export function NavSearch() {
         <search className="flex flex-1 justify-center sm:max-w-md">
           <form className="w-full" onSubmit={handleSubmit}>
             <label className="sr-only" htmlFor="nav-search">
-              Search notes
+              search notes
             </label>
             <SearchBar
               id="nav-search"

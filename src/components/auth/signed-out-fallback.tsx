@@ -8,7 +8,7 @@ export const SignedOutFallback = () => {
       <Hero />
       <p className="text-center text-sm text-muted-foreground italic">
         <Link className="underline underline-offset-4" href="/signin">
-          Sign in
+          sign in
         </Link>{" "}
         to make this space yours.
       </p>

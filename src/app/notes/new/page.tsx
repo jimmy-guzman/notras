@@ -13,7 +13,7 @@ export default function NewNotePage() {
       <div className="mb-6">
         <Button asChild size="sm" variant="ghost">
           <Link href="/notes">
-            <ArrowLeftIcon className="h-4 w-4" /> Notes
+            <ArrowLeftIcon className="h-4 w-4" /> notes
           </Link>
         </Button>
       </div>
@@ -23,16 +23,16 @@ export default function NewNotePage() {
           className="text-lg leading-relaxed"
           data-autofocus
           name="content"
-          placeholder="Write your note here..."
+          placeholder="write your note here..."
           rows={10}
         />
         <div className="flex justify-end gap-2 pt-4">
           <Button asChild variant="outline">
-            <Link href="/notes">Cancel</Link>
+            <Link href="/notes">cancel</Link>
           </Button>
           <Button type="submit">
             <span className="flex items-center gap-2 text-sm">
-              Create
+              create
               <span className="hidden gap-0.5 sm:inline-flex">
                 <Kbd>⌘</Kbd>
                 <Kbd>⏎</Kbd>

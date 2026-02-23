@@ -12,6 +12,10 @@ interface HotkeysProviderProps {
 export function HotkeysProvider({ children }: HotkeysProviderProps) {
   const router = useRouter();
 
+  useHotkeys("a", () => {
+    router.push("/notes");
+  });
+
   useHotkeys("n", () => {
     router.push("/notes/new");
   });

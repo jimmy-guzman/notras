@@ -32,7 +32,7 @@ export const UserDropdown = async () => {
             </Link>
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom">Sign In</TooltipContent>
+        <TooltipContent side="bottom">sign in</TooltipContent>
       </Tooltip>
     );
   }

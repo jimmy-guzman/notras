@@ -32,7 +32,7 @@ export function AlphaBanner() {
       <div className="flex items-center gap-2">
         <TriangleAlertIcon className="h-4 w-4 text-muted-foreground" />
         <AlertDescription className="text-xs text-muted-foreground">
-          Notras is in early alpha. Expect bugs, missing features, and possible
+          notras is in early alpha. expect bugs, missing features, and possible
           data loss.
         </AlertDescription>
       </div>
@@ -42,7 +42,7 @@ export function AlphaBanner() {
         size="icon"
         variant="ghost"
       >
-        <span className="sr-only">Close Banner</span>
+        <span className="sr-only">close banner</span>
         <XIcon className="h-3 w-3" />
       </Button>
     </Alert>

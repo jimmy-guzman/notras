@@ -17,7 +17,7 @@ export const GitHubSignInButton = () => {
           fill="currentColor"
         ></path>
       </svg>
-      Continue with GitHub
+      continue with github
     </Button>
   );
 };
