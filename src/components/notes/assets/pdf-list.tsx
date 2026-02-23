@@ -25,19 +25,12 @@ import { useDeleteAsset } from "./use-delete-asset";
 interface PdfListProps {
   mode?: "edit" | "view";
   noteId: NoteId;
-  onAssetDeleted?: () => void;
   pdfs: Asset[];
 }
 
-export function PdfList({
-  mode = "view",
-  noteId,
-  onAssetDeleted,
-  pdfs,
-}: PdfListProps) {
+export function PdfList({ mode = "view", noteId, pdfs }: PdfListProps) {
   const { deletingId, handleDelete, isPending } = useDeleteAsset({
     noteId,
-    onDeleted: onAssetDeleted,
   });
 
   if (pdfs.length === 0) {

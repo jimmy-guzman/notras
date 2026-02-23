@@ -13,13 +13,9 @@ import { cn } from "@/lib/ui/utils";
 
 interface AssetUploaderProps {
   noteId: NoteId;
-  onUploadComplete?: () => void;
 }
 
-export function AssetUploader({
-  noteId,
-  onUploadComplete,
-}: AssetUploaderProps) {
+export function AssetUploader({ noteId }: AssetUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [isDragging, setIsDragging] = useState(false);
@@ -44,8 +40,6 @@ export function AssetUploader({
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
-
-        onUploadComplete?.();
       } catch (error) {
         if (error instanceof Error) {
           toast.error(error.message);

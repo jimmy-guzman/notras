@@ -9,10 +9,9 @@ import { deleteAsset } from "@/actions/delete-asset";
 
 interface UseDeleteAssetOptions {
   noteId: NoteId;
-  onDeleted?: () => void;
 }
 
-export function useDeleteAsset({ noteId, onDeleted }: UseDeleteAssetOptions) {
+export function useDeleteAsset({ noteId }: UseDeleteAssetOptions) {
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<AssetId | null>(null);
 
@@ -27,8 +26,6 @@ export function useDeleteAsset({ noteId, onDeleted }: UseDeleteAssetOptions) {
         formData.set("noteId", noteId);
 
         await deleteAsset(formData);
-
-        onDeleted?.();
       } catch {
         toast.error("failed to delete file. please try again.");
       } finally {
