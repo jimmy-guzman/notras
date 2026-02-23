@@ -1,6 +1,6 @@
 "use client";
 
-import type { SpringOptions } from "motion/react";
+import type { Transition } from "motion/react";
 
 import { SearchIcon } from "lucide-react";
 import { motion } from "motion/react";
@@ -17,11 +17,11 @@ import { cn } from "@/lib/ui/utils";
 
 const SEARCH_LAYOUT_ID = "search-bar";
 
-const springTransition = {
-  damping: 30,
-  stiffness: 300,
-  type: "spring",
-} satisfies SpringOptions & { type: "spring" };
+const layoutTransition = {
+  duration: 0.3,
+  ease: [0.22, 1, 0.36, 1],
+  type: "tween",
+} satisfies Transition;
 
 type SearchBarVariant = "home" | "nav";
 
@@ -70,7 +70,7 @@ export function SearchBar({ id, inputProps, ref, variant }: SearchBarProps) {
       layout={hasMounted}
       layoutId={hasMounted ? SEARCH_LAYOUT_ID : undefined}
       style={{ borderRadius: styles.borderRadius }}
-      transition={springTransition}
+      transition={layoutTransition}
     >
       <InputGroup className={cn("rounded-[inherit]", styles.className)}>
         <InputGroupAddon align="inline-start">
