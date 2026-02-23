@@ -37,7 +37,7 @@ yarn-error.log*
 next-env.d.ts
 
 # sqlite
-*.db
+data/*.db*
 
 # eslint
 .eslintcache

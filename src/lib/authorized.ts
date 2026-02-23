@@ -1,15 +1,9 @@
 "use server";
 
-import invariant from "tiny-invariant";
+import { getUserService } from "@/server/services/user-service";
 
-import { getSession } from "@/lib/auth";
+export async function serverAction<T>(action: (userId: string) => Promise<T>) {
+  const userId = await getUserService().getDeviceUserId();
 
-export async function authorizedServerAction<T>(
-  action: (userId: string) => Promise<T>,
-) {
-  const session = await getSession();
-
-  invariant(session, "Unauthorized");
-
-  return action(session.user.id);
+  return action(userId);
 }

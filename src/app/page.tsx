@@ -2,19 +2,13 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 
 import { getNotes, getNotesCount } from "@/actions/get-notes";
-import { SignedOutFallback } from "@/components/auth/signed-out-fallback";
 import { HomeSearch } from "@/components/notes/home-search";
 import { RecentNotes } from "@/components/notes/recent-notes";
 import { Kbd } from "@/components/ui/kbd";
-import { getSession } from "@/lib/auth";
 
 const RECENT_NOTES_LIMIT = 5;
 
 export default async function Page() {
-  const session = await getSession();
-
-  if (!session?.session) return <SignedOutFallback />;
-
   const [count, recentNotes] = await Promise.all([
     getNotesCount(),
     getNotes(
@@ -23,8 +17,6 @@ export default async function Page() {
     ),
   ]);
 
-  const [firstName] = session.user.name.split(" ");
-
   return (
     <section className="flex w-full flex-1 flex-col items-center">
       <header className="flex flex-1 flex-col items-center justify-center pt-20 pb-4 text-center md:pb-8 lg:pb-20">
@@ -32,8 +24,8 @@ export default async function Page() {
           notras
         </h1>
         <p className="mb-12 text-lg text-muted-foreground sm:text-xl">
-          {count > 0 && firstName
-            ? `welcome back, ${firstName}. Ready to capture more thoughts?`
+          {count > 0
+            ? "welcome back, ready to capture more thoughts?"
             : "a simple space to capture your thoughts as they come."}
         </p>
 

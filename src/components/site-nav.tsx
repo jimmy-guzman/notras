@@ -1,15 +1,11 @@
 import { NotebookPenIcon } from "lucide-react";
 import Link from "next/link";
 
-import { getSession } from "@/lib/auth";
-
 import { UserDropdown } from "./auth/user-dropdown";
 import { NavSearch } from "./nav-search";
 import { Button } from "./ui/button";
 
-export async function SiteNav() {
-  const session = await getSession();
-
+export function SiteNav() {
   return (
     <div className="flex w-full flex-col">
       <div className="flex items-center justify-between gap-2 px-4 py-2">
@@ -21,7 +17,7 @@ export async function SiteNav() {
           </Button>
         </div>
 
-        {session && <NavSearch />}
+        <NavSearch />
 
         <div className="flex shrink-0 items-center gap-1 md:gap-2">
           <UserDropdown />

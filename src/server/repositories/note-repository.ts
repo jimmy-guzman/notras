@@ -1,14 +1,4 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  gte,
-  ilike,
-  isNull,
-  sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, like, sql } from "drizzle-orm";
 
 import type { NoteId } from "@/lib/id";
 import type { SortOption, TimeFilter } from "@/lib/utils/note-filters";
@@ -115,7 +105,7 @@ export class DBNoteRepository implements NoteRepository {
     const pinnedFilter = filters.excludePinned ? [isNull(note.pinnedAt)] : [];
 
     const queryFilter = filters.query
-      ? [ilike(note.content, `%${filters.query}%`)]
+      ? [like(note.content, `%${filters.query}%`)]
       : [];
 
     const timeFilter =
