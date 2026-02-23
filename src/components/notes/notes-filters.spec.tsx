@@ -3,16 +3,16 @@ import { render, screen } from "@/testing/utils";
 import { NotesFilters } from "./notes-filters";
 
 describe("NotesFilters", () => {
-  it("should render a time filter with 'All time' selected by default", () => {
+  it("should render a time filter with 'all time' selected by default", () => {
     render(<NotesFilters />);
 
-    expect(screen.getByText("All time")).toBeInTheDocument();
+    expect(screen.getByText("all time")).toBeInTheDocument();
   });
 
-  it("should render a sort filter with 'Newest first' selected by default", () => {
+  it("should render a sort filter with 'newest first' selected by default", () => {
     render(<NotesFilters />);
 
-    expect(screen.getByText("Newest first")).toBeInTheDocument();
+    expect(screen.getByText("newest first")).toBeInTheDocument();
   });
 
   it("should render two select triggers", () => {
