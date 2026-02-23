@@ -1,4 +1,15 @@
-import { and, asc, count, desc, eq, gte, isNull, like, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  sql,
+} from "drizzle-orm";
 
 import type { NoteId } from "@/lib/id";
 import type { SortOption, TimeFilter } from "@/lib/utils/note-filters";
@@ -26,15 +37,28 @@ export interface UpdateNoteInput {
   content: string;
 }
 
+export interface UpsertNoteInput {
+  content: string;
+  createdAt: Date;
+  id: NoteId;
+  pinnedAt: Date | null;
+  updatedAt: Date;
+  userId: string;
+}
+
 export interface NoteRepository {
   count(userId: string): Promise<number>;
   create(input: CreateNoteInput): Promise<void>;
   delete(noteId: NoteId, userId: string): Promise<void>;
+  deleteMany(noteIds: NoteId[], userId: string): Promise<void>;
+  findAllIds(userId: string): Promise<NoteId[]>;
   findById(noteId: NoteId, userId: string): Promise<SelectNote | undefined>;
   findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]>;
   pin(noteId: NoteId, userId: string): Promise<void>;
   unpin(noteId: NoteId, userId: string): Promise<void>;
   update(noteId: NoteId, userId: string, input: UpdateNoteInput): Promise<void>;
+  updateSyncedAt(noteIds: NoteId[], userId: string): Promise<void>;
+  upsert(input: UpsertNoteInput): Promise<void>;
 }
 
 const pinnedFirst = asc(
@@ -84,6 +108,25 @@ export class DBNoteRepository implements NoteRepository {
     await this.db
       .delete(note)
       .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+  }
+
+  async deleteMany(noteIds: NoteId[], userId: string): Promise<void> {
+    if (noteIds.length === 0) {
+      return;
+    }
+
+    await this.db
+      .delete(note)
+      .where(and(inArray(note.id, noteIds), eq(note.userId, userId)));
+  }
+
+  async findAllIds(userId: string): Promise<NoteId[]> {
+    const results = await this.db
+      .select({ id: note.id })
+      .from(note)
+      .where(eq(note.userId, userId));
+
+    return results.map((r) => r.id as NoteId);
   }
 
   async findById(
@@ -151,5 +194,38 @@ export class DBNoteRepository implements NoteRepository {
       .update(note)
       .set({ content: input.content, updatedAt: new Date() })
       .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+  }
+
+  async updateSyncedAt(noteIds: NoteId[], userId: string): Promise<void> {
+    if (noteIds.length === 0) {
+      return;
+    }
+
+    await this.db
+      .update(note)
+      .set({ syncedAt: new Date() })
+      .where(and(inArray(note.id, noteIds), eq(note.userId, userId)));
+  }
+
+  async upsert(input: UpsertNoteInput): Promise<void> {
+    await this.db
+      .insert(note)
+      .values({
+        content: input.content,
+        createdAt: input.createdAt,
+        id: input.id,
+        pinnedAt: input.pinnedAt,
+        updatedAt: input.updatedAt,
+        userId: input.userId,
+      })
+      .onConflictDoUpdate({
+        set: {
+          content: input.content,
+          pinnedAt: input.pinnedAt,
+          updatedAt: input.updatedAt,
+        },
+        target: note.id,
+        where: sql`${note.updatedAt} < ${input.updatedAt.getTime() / 1000}`,
+      });
   }
 }
