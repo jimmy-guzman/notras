@@ -1,5 +1,5 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 
 import { env } from "@/env";
 
@@ -11,12 +11,12 @@ const schema = {
   ...notes,
 };
 
-export function createDb(databaseUrl: string) {
-  const sql = neon(databaseUrl);
+export function createDb(databasePath: string) {
+  const client = createClient({ url: databasePath });
 
-  return drizzle(sql, { schema });
+  return drizzle(client, { schema });
 }
 
 export type Database = ReturnType<typeof createDb>;
 
-export const db = createDb(env.DATABASE_URL);
+export const db = createDb(env.DATABASE_PATH);

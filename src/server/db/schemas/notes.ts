@@ -1,13 +1,13 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 import { user } from "./users";
 
-export const note = pgTable("note", {
+export const note = sqliteTable("note", {
   content: text("content").notNull(),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   id: text("id").primaryKey(),
-  pinnedAt: timestamp("pinned_at", { mode: "date" }),
-  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  pinnedAt: integer("pinned_at", { mode: "timestamp" }),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),

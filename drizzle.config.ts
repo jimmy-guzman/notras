@@ -1,12 +1,10 @@
 import type { Config } from "drizzle-kit";
 
-import { env } from "./src/env";
-
 export default {
   dbCredentials: {
-    url: env.DATABASE_URL,
+    url: process.env.DATABASE_PATH ?? "file:./data/notras.db",
   },
-  dialect: "postgresql",
+  dialect: "sqlite",
   out: "./drizzle",
   schema: "./src/server/db/schemas",
 } satisfies Config;

@@ -1,53 +1,18 @@
-import { LogInIcon } from "lucide-react";
-import Link from "next/link";
-
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { getSession } from "@/lib/auth";
 
-import { SignOutMenuItem } from "./sign-out-menu-item";
+const DEVICE_USER = {
+  email: "local@notras.app",
+  name: "You",
+};
 
-export const UserDropdown = async () => {
-  const session = await getSession();
-
-  if (!session) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button asChild size="icon" variant="outline">
-            <Link href="/signin">
-              <LogInIcon />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">sign in</TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  const avatarFallback = (
-    session.user.name.trim()
-      ? session.user.name
-          .trim()
-          .split(" ")
-          .map(([part]) => part)
-          .slice(0, 2)
-          .join("")
-      : session.user.email.slice(0, 2)
-  ).toUpperCase();
-
+export const UserDropdown = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,11 +22,7 @@ export const UserDropdown = async () => {
           variant="ghost"
         >
           <Avatar className="h-6 w-6">
-            {session.user.image ? (
-              <AvatarImage alt="avatar" src={session.user.image} />
-            ) : (
-              <AvatarFallback>{avatarFallback}</AvatarFallback>
-            )}
+            <AvatarFallback>Y</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -70,17 +31,13 @@ export const UserDropdown = async () => {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm leading-none font-medium">
-              {session.user.name}
+              {DEVICE_USER.name}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {session.user.email}
+              {DEVICE_USER.email}
             </p>
           </div>
         </DropdownMenuLabel>
-
-        <DropdownMenuSeparator />
-
-        <SignOutMenuItem />
       </DropdownMenuContent>
     </DropdownMenu>
   );

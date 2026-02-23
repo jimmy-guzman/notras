@@ -5,7 +5,7 @@ import { createLoader } from "nuqs/server";
 
 import type { NoteSearchParams } from "@/lib/notes-search-params";
 
-import { authorizedServerAction } from "@/lib/authorized";
+import { serverAction } from "@/lib/authorized";
 import { parsers } from "@/lib/notes-search-params";
 import { getNoteService } from "@/server/services/note-service";
 
@@ -15,7 +15,7 @@ export async function getNotes(
   searchParams: NoteSearchParams,
   options?: { excludePinned?: boolean; limit?: number },
 ) {
-  return authorizedServerAction(async (userId) => {
+  return serverAction(async (userId) => {
     "use cache";
 
     const { q: query, sort, time } = searchParams;
@@ -35,7 +35,7 @@ export async function getNotes(
 }
 
 export async function getNotesCount() {
-  return authorizedServerAction(async (userId) => {
+  return serverAction(async (userId) => {
     "use cache";
 
     const result = await getNoteService().count(userId);
