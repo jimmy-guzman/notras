@@ -83,12 +83,12 @@ describe("NoteCard", () => {
   it("should render a pin button", () => {
     render(<NoteCard note={makeNote()} />);
 
-    expect(screen.getByRole("button", { name: "Pin" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "pin" })).toBeInTheDocument();
   });
 
   it("should render an unpin button when the note is pinned", () => {
     render(<NoteCard note={makeNote({ pinnedAt: new Date("2025-06-15") })} />);
 
-    expect(screen.getByRole("button", { name: "Unpin" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "unpin" })).toBeInTheDocument();
   });
 });

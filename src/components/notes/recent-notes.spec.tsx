@@ -72,12 +72,12 @@ describe("RecentNotes", () => {
     expect(screen.getByText(shortContent)).toBeInTheDocument();
   });
 
-  it("should render a 'View all notes' link", () => {
+  it("should render a 'view all notes' link", () => {
     const notes = [makeNote({ content: "Note", id: "note_1" })];
 
     render(<RecentNotes notes={notes} />);
 
-    const link = screen.getByRole("link", { name: "View all notes" });
+    const link = screen.getByRole("link", { name: /view all notes/ });
 
     expect(link).toHaveAttribute("href", "/notes");
   });
