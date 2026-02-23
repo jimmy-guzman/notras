@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 
 import { getNotes, getNotesCount } from "@/actions/get-notes";
@@ -36,7 +36,7 @@ export default async function Page() {
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
             href="/notes/new"
           >
-            <Plus className="h-4 w-4" />
+            <PlusIcon className="h-4 w-4" />
             new note
             <Kbd>n</Kbd>
           </Link>

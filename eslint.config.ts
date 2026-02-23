@@ -20,5 +20,22 @@ export default defineConfig({
         "unicorn/explicit-length-check": "off",
       },
     },
+    {
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              {
+                group: ["lucide-react"],
+                importNamePattern: "^[A-Z](?!.*Icon$)",
+                message:
+                  "Import the Icon-suffixed version instead (e.g., PlusIcon instead of Plus).",
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
 });
