@@ -1,9 +1,13 @@
 import { format } from "date-fns";
 import { notFound } from "next/navigation";
 
+import { getAssets } from "@/actions/get-assets";
 import { getNote } from "@/actions/get-note";
+import { AssetList } from "@/components/notes/assets/asset-list";
+import { PdfList } from "@/components/notes/assets/pdf-list";
 import { NoteActions } from "@/components/notes/note-actions";
 import { toNoteId } from "@/lib/id";
+import { partitionAssets } from "@/lib/utils/assets";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -17,6 +21,10 @@ export default async function NotePage({ params }: PageProps) {
   if (!note) {
     notFound();
   }
+
+  const assets = await getAssets(id);
+  const { images, pdfs } = partitionAssets(assets);
+  const hasAttachments = images.length > 0 || pdfs.length > 0;
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -42,6 +50,28 @@ export default async function NotePage({ params }: PageProps) {
           {note.content}
         </div>
       </div>
+
+      {hasAttachments && (
+        <div className="space-y-6 border-t pt-8">
+          {images.length > 0 && (
+            <div>
+              <h2 className="mb-4 text-sm font-medium text-muted-foreground">
+                images
+              </h2>
+              <AssetList assets={images} mode="view" noteId={noteId} />
+            </div>
+          )}
+
+          {pdfs.length > 0 && (
+            <div>
+              <h2 className="mb-4 text-sm font-medium text-muted-foreground">
+                documents
+              </h2>
+              <PdfList mode="view" noteId={noteId} pdfs={pdfs} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

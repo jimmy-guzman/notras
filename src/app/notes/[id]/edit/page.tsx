@@ -3,11 +3,14 @@ import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { getAssets } from "@/actions/get-assets";
 import { getNote } from "@/actions/get-note";
 import { updateNote } from "@/actions/update-note";
+import { EditPageAssets } from "@/components/notes/assets/edit-page-assets";
 import { FormHotkeys } from "@/components/notes/form-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { toNoteId } from "@/lib/id";
 
@@ -23,6 +26,8 @@ export default async function EditNotePage({ params }: PageProps) {
   if (!note) {
     notFound();
   }
+
+  const assets = await getAssets(id);
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -68,6 +73,10 @@ export default async function EditNotePage({ params }: PageProps) {
           </Button>
         </div>
       </FormHotkeys>
+
+      <Separator className="my-8" />
+
+      <EditPageAssets assets={assets} noteId={noteId} />
     </div>
   );
 }
