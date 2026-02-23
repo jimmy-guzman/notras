@@ -4,6 +4,7 @@ import type { SpringOptions } from "motion/react";
 
 import { SearchIcon } from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 
 import {
   InputGroup,
@@ -56,11 +57,18 @@ interface SearchBarProps {
 export function SearchBar({ id, inputProps, ref, variant }: SearchBarProps) {
   const styles = variantStyles[variant];
   const isHome = variant === "home";
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      setHasMounted(true);
+    });
+  }, []);
 
   return (
     <motion.div
-      layout
-      layoutId={SEARCH_LAYOUT_ID}
+      layout={hasMounted}
+      layoutId={hasMounted ? SEARCH_LAYOUT_ID : undefined}
       style={{ borderRadius: styles.borderRadius }}
       transition={springTransition}
     >

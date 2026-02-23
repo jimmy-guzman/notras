@@ -14,7 +14,7 @@ export function NavNewNote() {
   const isHome = pathname === "/";
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {!isHome && (
         <motion.div
           animate={{ opacity: 1, x: 0 }}

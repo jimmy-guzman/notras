@@ -40,7 +40,7 @@ export function NavSearch() {
   };
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {!isHome && (
         <search className="flex flex-1 justify-center sm:max-w-md">
           <form className="w-full" onSubmit={handleSubmit}>
