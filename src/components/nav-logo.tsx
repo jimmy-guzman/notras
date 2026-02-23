@@ -25,7 +25,7 @@ export function NavLogo() {
         <Button aria-label="home" asChild size="sm" variant="ghost">
           <Link href="/">
             <NotebookPenIcon className="size-5" />
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {!isHome && (
                 <motion.span
                   animate={{ opacity: 1, width: "auto" }}
