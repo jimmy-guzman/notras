@@ -15,14 +15,6 @@ describe("NotesFilters", () => {
     expect(screen.getByText("Newest first")).toBeInTheDocument();
   });
 
-  it("should render a link to create a new note", () => {
-    render(<NotesFilters />);
-
-    const link = screen.getByRole("link", { name: /new note/i });
-
-    expect(link).toHaveAttribute("href", "/notes/new");
-  });
-
   it("should render two select triggers", () => {
     render(<NotesFilters />);
 

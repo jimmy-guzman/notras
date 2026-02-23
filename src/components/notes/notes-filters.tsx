@@ -1,13 +1,10 @@
 "use client";
 
-import { Calendar, Plus } from "lucide-react";
-import Link from "next/link";
+import { Calendar } from "lucide-react";
 import { useQueryStates } from "nuqs";
 
 import type { NoteSearchParams } from "@/lib/notes-search-params";
 
-import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import {
   Select,
   SelectContent,
@@ -58,14 +55,6 @@ export const NotesFilters = () => {
           </SelectContent>
         </Select>
       </div>
-
-      <Button asChild className="shrink-0" variant="outline">
-        <Link href="/notes/new">
-          <Plus className="h-4 w-4" />
-          <span className="sr-only sm:not-sr-only">new note</span>
-          <Kbd className="hidden sm:inline-flex">n</Kbd>
-        </Link>
-      </Button>
     </div>
   );
 };
