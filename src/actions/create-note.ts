@@ -1,6 +1,6 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { serverAction } from "@/lib/authorized";
@@ -17,5 +17,6 @@ export async function createNote(formData: FormData) {
   });
 
   updateTag("notes");
+  revalidatePath("/");
   redirect(`/notes/${id}`);
 }

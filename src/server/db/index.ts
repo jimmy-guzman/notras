@@ -3,12 +3,14 @@ import { drizzle } from "drizzle-orm/libsql";
 
 import { env } from "@/env";
 
+import * as assets from "./schemas/assets";
 import * as notes from "./schemas/notes";
 import * as users from "./schemas/users";
 
 const schema = {
   ...users,
   ...notes,
+  ...assets,
 };
 
 export function createDb(databasePath: string) {
