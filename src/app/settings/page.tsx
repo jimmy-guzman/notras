@@ -21,6 +21,8 @@ export default async function SettingsPage() {
         </Button>
       </div>
 
+      <h1 className="mb-6 text-2xl font-semibold">settings</h1>
+
       <h2 className="mb-4 text-lg font-medium">profile</h2>
 
       <ProfileForm profile={profile} />
