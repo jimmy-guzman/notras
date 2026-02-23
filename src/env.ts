@@ -13,6 +13,4 @@ export const env = createEnv({
       .enum(["development", "production", "test"])
       .default("development"),
   },
-  skipValidation:
-    Boolean(process.env.CI) || process.env.SKIP_ENV_VALIDATION === "1",
 });
