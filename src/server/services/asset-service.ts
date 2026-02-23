@@ -5,7 +5,7 @@ import type { SelectAsset } from "@/server/db/schemas/assets";
 import type { AssetRepository } from "@/server/repositories/asset-repository";
 
 import { generateAssetId, toAssetId } from "@/lib/id";
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import { DBAssetRepository } from "@/server/repositories/asset-repository";
 
 export interface AssetMetadata {
@@ -142,7 +142,7 @@ class AssetService {
 let _assetService: AssetService | undefined;
 
 export function getAssetService() {
-  _assetService ??= new AssetService(new DBAssetRepository(db));
+  _assetService ??= new AssetService(new DBAssetRepository(getDb()));
 
   return _assetService;
 }

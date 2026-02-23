@@ -6,7 +6,7 @@ import type {
 } from "@/server/repositories/note-repository";
 
 import { generateNoteId } from "@/lib/id";
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 
 class NoteService {
@@ -58,7 +58,7 @@ class NoteService {
 let _noteService: NoteService | undefined;
 
 export function getNoteService() {
-  _noteService ??= new NoteService(new DBNoteRepository(db));
+  _noteService ??= new NoteService(new DBNoteRepository(getDb()));
 
   return _noteService;
 }

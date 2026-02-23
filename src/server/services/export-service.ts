@@ -11,7 +11,7 @@ import type {
   Manifest,
 } from "@/server/schemas/export-schemas";
 
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import { DBAssetRepository } from "@/server/repositories/asset-repository";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 
@@ -93,8 +93,8 @@ let _exportService: ExportService | undefined;
 
 export function getExportService() {
   _exportService ??= new ExportService(
-    new DBNoteRepository(db),
-    new DBAssetRepository(db),
+    new DBNoteRepository(getDb()),
+    new DBAssetRepository(getDb()),
   );
 
   return _exportService;

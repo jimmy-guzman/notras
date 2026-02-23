@@ -21,4 +21,10 @@ export function createDb(databasePath: string) {
 
 export type Database = ReturnType<typeof createDb>;
 
-export const db = createDb(env.DATABASE_PATH);
+let _db: Database | undefined;
+
+export function getDb() {
+  _db ??= createDb(env.DATABASE_PATH);
+
+  return _db;
+}

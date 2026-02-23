@@ -11,7 +11,7 @@ import type { NoteRepository } from "@/server/repositories/note-repository";
 import type { ExportedNote, ImportMode } from "@/server/schemas/export-schemas";
 
 import { toAssetId, toNoteId } from "@/lib/id";
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import { DBAssetRepository } from "@/server/repositories/asset-repository";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 import {
@@ -214,8 +214,8 @@ let _importService: ImportService | undefined;
 
 export function getImportService() {
   _importService ??= new ImportService(
-    new DBNoteRepository(db),
-    new DBAssetRepository(db),
+    new DBNoteRepository(getDb()),
+    new DBAssetRepository(getDb()),
   );
 
   return _importService;
