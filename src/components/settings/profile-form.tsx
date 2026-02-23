@@ -89,12 +89,10 @@ export function ProfileForm({ profile }: ProfileFormProps) {
           <Link href="/">cancel</Link>
         </Button>
         <Button disabled={isPending} type="submit">
-          <span className="flex items-center gap-2 text-sm">
-            {isPending ? "saving..." : "save"}
-            <span className="hidden gap-0.5 sm:inline-flex">
-              <Kbd>⌘</Kbd>
-              <Kbd>⏎</Kbd>
-            </span>
+          save
+          <span className="hidden gap-0.5 sm:inline-flex">
+            <Kbd>⌘</Kbd>
+            <Kbd>⏎</Kbd>
           </span>
         </Button>
       </div>
