@@ -11,20 +11,30 @@ A personal note-taking app -- "A simple space to capture your thoughts as they c
 - **Animation:** Motion (layout animations for shared element transitions)
 - **Formatting:** oxfmt (Prettier-compatible, Rust-based)
 - **Linting:** ESLint 9 with `@jimmy.codes/eslint-config`
-- **Testing:** Vitest + Testing Library + happy-dom
+- **Testing:** Vitest + Testing Library + happy-dom (unit/component), Playwright (e2e)
 - **Package Manager:** pnpm
 
 ## Project Structure
 
 ```txt
 src/
-  actions/          # Server actions (all data mutations go here)
+  actions/          # Server actions (data reads with "use cache", mutations)
   app/              # Next.js App Router pages and layouts
-    settings/       # Settings page (profile editing)
+    api/
+      assets/[id]/  # GET route for serving asset files
+      export/       # GET route for zip export
+    notes/
+      [id]/
+        edit/       # Edit note page
+      new/          # New note page
+    settings/       # Settings page (profile, export, import)
   components/       # React components
-    settings/       # Settings-related components (profile form, etc.)
+    notes/          # Note-related components (cards, filters, actions, etc.)
+      assets/       # Asset components (uploader, preview, list)
+    settings/       # Settings-related components (profile form, export, import)
     ui/             # Shadcn UI components (auto-generated, don't manually edit)
-  lib/              # Client utilities, search params
+  lib/              # Client utilities, search params, auth helpers
+    ui/             # Shadcn utility (cn)
     utils/          # Pure utility functions (formatting, filters, etc.)
   server/
     db/             # Drizzle client and schemas (SQLite)
@@ -33,14 +43,19 @@ src/
     services/       # Business logic and external I/O (each service is self-contained)
   testing/          # Shared test utilities
   env.ts            # Type-safe env vars via @t3-oss/env-nextjs + Zod
+e2e/
+  smoke.spec.ts     # Playwright smoke tests (home page, navigation)
+  tsconfig.json     # Separate tsconfig for Playwright (no Vitest globals)
 data/
   notras.db         # Local SQLite database (git-ignored)
 ```
 
 ## Key Patterns
 
-- **Server actions** live in `src/actions/` with `"use server"` directive. They use `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware that provides `userId` via context). Define actions as `actionClient.inputSchema(schema).action(async ({ ctx, parsedInput }) => { ... })`. Validation is handled automatically by the input schema -- no manual `safeParse` needed.
-- **API routes** should call services directly, not server actions. Server actions (`"use server"`) are for client-side form mutations only. API routes use `serverAction()` from `@/lib/authorized` for auth, then call services.
+- **Server actions** live in `src/actions/` with `"use server"` directive. Two patterns coexist:
+  - **`serverAction()` pattern** (most actions): Import `serverAction` from `@/lib/authorized`. It resolves the device `userId` and passes it to a callback: `serverAction(async (userId) => { ... })`. Use manual `schema.parse()` for validation when needed. This is the dominant pattern for mutations, reads, and `FormData`-based actions.
+  - **`actionClient` pattern** (forms that stay on page): Import `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware). Define as `actionClient.inputSchema(schema).action(async ({ ctx, parsedInput }) => { ... })`. Validation is automatic. Use this with `useHookFormAction` for forms like settings/profile and import.
+- **API routes** use `serverAction()` from `@/lib/authorized` for auth, then call services within the callback.
 - **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
 - **Services** live in `src/server/services/`. Each service file is self-contained: it owns its interface, implementation class, and a lazy singleton getter (e.g., `getNoteService()`). No central container -- consumers import directly from the service they need.
 - **Repositories** live in `src/server/repositories/`. They define an interface and a DB implementation for data persistence. Services depend on repository interfaces, not concrete implementations.
@@ -48,8 +63,9 @@ data/
 - **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
 - **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
+- **`"use cache"` directive:** Read actions (e.g., `get-note.ts`, `get-notes.ts`) use the `"use cache"` directive with `cacheTag("notes")` for automatic caching. This is enabled by `experimental: { useCache: true }` in `next.config.ts`.
 - **Path alias** `@/*` maps to `./src/*`.
-- **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`).
+- **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`). `NODE_ENV` is also validated as a shared env var.
 - **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`). New schema modules must be spread into the `schema` object in `src/server/db/index.ts`.
 - **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`).
 - **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
@@ -74,6 +90,8 @@ pnpm typecheck    # Type check (tsc)
 pnpm test         # Run tests (Vitest)
 pnpm coverage     # Tests with coverage
 pnpm knip         # Detect unused code/deps
+pnpm e2e          # Run e2e tests (Playwright)
+pnpm e2e:ui       # Run e2e tests with UI
 pnpm db:push      # Push schema changes to database
 pnpm db:studio    # Open Drizzle Studio
 ```
@@ -87,9 +105,8 @@ pnpm db:studio    # Open Drizzle Studio
 - Sort object keys and import statements alphabetically.
 - Use top-level `import type` declarations, not inline `import { type Foo }` (enforced by `import-x/consistent-type-specifier-style`).
 - Arrow functions: use implicit return for single-expression bodies, explicit `return` for multi-line (enforced by `arrow-style/arrow-return-style`). Note: even single expressions that span multiple lines (e.g., a function call with multi-line args) require explicit `return`.
-- Use `tiny-invariant` for runtime assertions.
 - Prefer named exports over default exports (except for Next.js pages/layouts).
-- Keep server actions thin -- one action per file in `src/actions/`.
+- Keep server actions thin -- one action per file in `src/actions/`. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
 - In tests, avoid direct DOM node access (`.closest()`, `.firstChild`, etc.) -- use Testing Library queries instead (enforced by `testing-library/no-node-access`).
 - Use `toHaveTextContent` instead of asserting on `.textContent` (enforced by `jest-dom/prefer-to-have-text-content`).
 - Use template literals instead of string concatenation (enforced by `prefer-template`).
@@ -102,6 +119,15 @@ pnpm db:studio    # Open Drizzle Studio
 ## Testing Notes
 
 The project uses **happy-dom** as the test environment. The custom `render` from `@/testing/utils` wraps components in `NuqsTestingAdapter`, `TooltipProvider`, and `Toaster`.
+
+### E2E tests (Playwright)
+
+- E2e tests live in `e2e/` at the project root and use a separate `e2e/tsconfig.json` (no Vitest globals).
+- `playwright.config.ts` auto-pushes the DB schema (`db:push`) before starting the server, using an isolated test database at `data/notras-test.db`.
+- Locally, tests run against the dev server (`pnpm dev`). On CI, tests run against a production build (`pnpm build` + `pnpm start`).
+- Only Chromium is configured (Desktop Chrome). Add more projects to `playwright.config.ts` if cross-browser testing is needed.
+- Test titles must start with "should" (same convention as Vitest).
+- Vitest is configured to exclude `e2e/` so the two test runners don't conflict.
 
 ### Known happy-dom limitations
 
@@ -132,3 +158,4 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 - Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
 - Leave tests in a failing state -- after making changes, run `pnpm test` and fix any broken tests before finishing.
 - Leave the build broken -- after making changes, run `pnpm build` and fix any errors before finishing.
+- Forget to update docs -- after introducing a new pattern, feature, convention, or structural change, ask the user if `AGENTS.md` and/or `README.md` should be updated, then apply the changes.
