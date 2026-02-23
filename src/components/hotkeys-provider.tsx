@@ -24,5 +24,9 @@ export function HotkeysProvider({ children }: HotkeysProviderProps) {
     router.push("/");
   });
 
+  useHotkeys("s", () => {
+    router.push("/settings");
+  });
+
   return <>{children}</>;
 }

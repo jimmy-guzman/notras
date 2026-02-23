@@ -1,7 +1,7 @@
-import { UserDropdown } from "./auth/user-dropdown";
 import { NavLogo } from "./nav-logo";
 import { NavNewNote } from "./nav-new-note";
 import { NavSearch } from "./nav-search";
+import { NavSettings } from "./nav-settings";
 
 export function SiteNav() {
   return (
@@ -17,7 +17,7 @@ export function SiteNav() {
         </div>
 
         <div className="flex shrink-0 items-center gap-1 md:gap-2">
-          <UserDropdown />
+          <NavSettings />
         </div>
       </div>
     </div>
