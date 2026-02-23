@@ -1,4 +1,7 @@
-import type { UserRepository } from "@/server/repositories/user-repository";
+import type {
+  UserProfile,
+  UserRepository,
+} from "@/server/repositories/user-repository";
 
 import { db } from "@/server/db";
 import { DBUserRepository } from "@/server/repositories/user-repository";
@@ -26,6 +29,26 @@ class UserService {
     });
 
     return DEVICE_USER_ID;
+  }
+
+  async getProfile(userId: string): Promise<UserProfile> {
+    const profile = await this.userRepo.findFullById(userId);
+
+    if (!profile) {
+      throw new Error("User not found");
+    }
+
+    return profile;
+  }
+
+  async updateProfile(
+    userId: string,
+    data: { email: string; name: string },
+  ): Promise<void> {
+    await this.userRepo.update(userId, {
+      ...data,
+      updatedAt: new Date(),
+    });
   }
 }
 

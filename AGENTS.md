@@ -20,7 +20,9 @@ A personal note-taking app -- "A simple space to capture your thoughts as they c
 src/
   actions/          # Server actions (all data mutations go here)
   app/              # Next.js App Router pages and layouts
+    settings/       # Settings page (profile editing)
   components/       # React components
+    settings/       # Settings-related components (profile form, etc.)
     ui/             # Shadcn UI components (auto-generated, don't manually edit)
   lib/              # Client utilities, search params
     utils/          # Pure utility functions (formatting, filters, etc.)
@@ -38,16 +40,23 @@ data/
 ## Key Patterns
 
 - **Server actions** live in `src/actions/` with `"use server"` directive. They use `serverAction()` from `@/lib/authorized` to get the device user ID before performing DB operations.
-- **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/db/index.ts`. All browsers on the same machine share the same notes.
+- **API routes** should call services directly, not server actions. Server actions (`"use server"`) are for client-side form mutations only. API routes use `serverAction()` from `@/lib/authorized` for auth, then call services.
+- **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
 - **Services** live in `src/server/services/`. Each service file is self-contained: it owns its interface, implementation class, and a lazy singleton getter (e.g., `getNoteService()`). No central container -- consumers import directly from the service they need.
 - **Repositories** live in `src/server/repositories/`. They define an interface and a DB implementation for data persistence. Services depend on repository interfaces, not concrete implementations.
 - **Validation** uses Zod schemas from `src/server/schemas/` inside server actions (parse FormData before calling services).
-- **IDs** are generated with `typeid-js`.
+- **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
+- **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
 - **Path alias** `@/*` maps to `./src/*`.
 - **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`).
-- **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`).
+- **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`). New schema modules must be spread into the `schema` object in `src/server/db/index.ts`.
 - **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`).
+- **Navigation links** in the top nav use `Button` + `Link` + `Tooltip` + `Kbd` with single-letter hotkeys (e.g., `h` for home, `n` for new note, `s` for settings). No dropdowns -- keep it flat and minimal.
+- **Global hotkeys** are registered in `HotkeysProvider` (`src/components/hotkeys-provider.tsx`). When adding a new nav route, also register its hotkey there.
+- **Form hotkeys:** Forms that edit content use `useHotkeys("mod+enter")` to submit and `useHotkeys("escape")` to cancel, with `<Kbd>⌘</Kbd><Kbd>⏎</Kbd>` badges on the submit button. For note forms, use `FormHotkeys` wrapper; for non-note forms (like settings), wire hotkeys directly with `useHotkeys` and `enableOnFormTags: ["INPUT"]` or `["TEXTAREA"]`.
+- **`useActionState` pattern:** For forms that stay on the same page after submit (e.g., settings profile), use `useActionState` with a state shape like `{ success: boolean, message?: string, errors?: Record<field, string[]> }`. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()`.
+- **Form aesthetic:** Forms use bare inputs in a `flex flex-col gap-6` layout (no Card wrappers). Labels and button text are lowercase. Action buttons are right-aligned at the bottom: cancel (outline) + submit (primary with Kbd hints). Back button with `ArrowLeftIcon` at the top of the page.
 
 ## Commands
 
@@ -73,7 +82,7 @@ pnpm db:studio    # Open Drizzle Studio
 - Use `toStrictEqual()` instead of `toEqual()` (enforced by `vitest/prefer-strict-equal`).
 - Sort object keys and import statements alphabetically.
 - Use top-level `import type` declarations, not inline `import { type Foo }` (enforced by `import-x/consistent-type-specifier-style`).
-- Arrow functions: use implicit return for single-expression bodies, explicit `return` for multi-line (enforced by `arrow-style/arrow-return-style`).
+- Arrow functions: use implicit return for single-expression bodies, explicit `return` for multi-line (enforced by `arrow-style/arrow-return-style`). Note: even single expressions that span multiple lines (e.g., a function call with multi-line args) require explicit `return`.
 - Use `tiny-invariant` for runtime assertions.
 - Prefer named exports over default exports (except for Next.js pages/layouts).
 - Keep server actions thin -- one action per file in `src/actions/`.
@@ -81,6 +90,10 @@ pnpm db:studio    # Open Drizzle Studio
 - Use `toHaveTextContent` instead of asserting on `.textContent` (enforced by `jest-dom/prefer-to-have-text-content`).
 - Use template literals instead of string concatenation (enforced by `prefer-template`).
 - Side-effect imports (e.g., `import "./types"`) must come before value imports within the same group (enforced by `perfectionist/sort-imports`).
+- Use `replaceAll()` instead of `replace()` with global regex (enforced by `unicorn/prefer-string-replace-all`).
+- Use `**` operator instead of `Math.pow()` (enforced by `prefer-exponentiation-operator`).
+- Do not use `??` or `||` fallbacks when the left-hand side type is already non-nullable (enforced by `@typescript-eslint/no-unnecessary-condition`).
+- **Lowercase aesthetic:** All user-facing text in the UI is lowercase -- labels, button text, headings, placeholder text, toast messages, tooltips, etc. This is a deliberate design choice across the entire app, not just forms.
 
 ## Testing Notes
 

@@ -12,9 +12,24 @@ export interface CreateUserInput {
   updatedAt: Date;
 }
 
+export interface UpdateUserInput {
+  email: string;
+  name: string;
+  updatedAt: Date;
+}
+
+export interface UserProfile {
+  email: string;
+  id: string;
+  image: null | string;
+  name: string;
+}
+
 export interface UserRepository {
   create(input: CreateUserInput): Promise<void>;
   findById(id: string): Promise<undefined | { id: string }>;
+  findFullById(id: string): Promise<undefined | UserProfile>;
+  update(id: string, input: UpdateUserInput): Promise<void>;
 }
 
 export class DBUserRepository implements UserRepository {
@@ -32,5 +47,24 @@ export class DBUserRepository implements UserRepository {
       .limit(1);
 
     return results.length > 0 ? results[0] : undefined;
+  }
+
+  async findFullById(id: string): Promise<undefined | UserProfile> {
+    const results = await this.db
+      .select({
+        email: user.email,
+        id: user.id,
+        image: user.image,
+        name: user.name,
+      })
+      .from(user)
+      .where(eq(user.id, id))
+      .limit(1);
+
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async update(id: string, input: UpdateUserInput): Promise<void> {
+    await this.db.update(user).set(input).where(eq(user.id, id));
   }
 }
