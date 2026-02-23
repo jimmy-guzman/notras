@@ -2,7 +2,8 @@
 
 import { Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import type { NoteId } from "@/lib/id";
@@ -20,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import {
   Tooltip,
   TooltipContent,
@@ -33,6 +35,11 @@ interface DeleteNoteButtonProps {
 export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+
+  useHotkeys("d", () => {
+    setOpen(true);
+  });
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -46,7 +53,7 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
   };
 
   return (
-    <AlertDialog>
+    <AlertDialog onOpenChange={setOpen} open={open}>
       <Tooltip>
         <TooltipTrigger asChild>
           <AlertDialogTrigger asChild>
@@ -58,11 +65,14 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
             >
               <Trash2Icon className="h-4 w-4" />
               <span className="sr-only sm:not-sr-only">delete</span>
+              <Kbd className="hidden sm:inline-flex">d</Kbd>
             </Button>
           </AlertDialogTrigger>
         </TooltipTrigger>
         <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
-          delete
+          <div className="flex items-center gap-2">
+            delete <Kbd>d</Kbd>
+          </div>
         </TooltipContent>
       </Tooltip>
 
