@@ -37,19 +37,12 @@ interface AssetListProps {
   assets: Asset[];
   mode?: "edit" | "view";
   noteId: NoteId;
-  onAssetDeleted?: () => void;
 }
 
-export function AssetList({
-  assets,
-  mode = "view",
-  noteId,
-  onAssetDeleted,
-}: AssetListProps) {
+export function AssetList({ assets, mode = "view", noteId }: AssetListProps) {
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const { deletingId, handleDelete, isPending } = useDeleteAsset({
     noteId,
-    onDeleted: onAssetDeleted,
   });
 
   return (

@@ -1,7 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-
 import type { Asset } from "@/components/notes/assets/asset-list";
 import type { NoteId } from "@/lib/id";
 
@@ -16,12 +14,7 @@ interface EditPageAssetsProps {
 }
 
 export function EditPageAssets({ assets, noteId }: EditPageAssetsProps) {
-  const router = useRouter();
   const { images, pdfs } = partitionAssets(assets);
-
-  const handleRefresh = () => {
-    router.refresh();
-  };
 
   return (
     <div className="space-y-6">
@@ -30,12 +23,7 @@ export function EditPageAssets({ assets, noteId }: EditPageAssetsProps) {
           <h3 className="mb-4 text-sm font-medium text-muted-foreground">
             images
           </h3>
-          <AssetList
-            assets={images}
-            mode="edit"
-            noteId={noteId}
-            onAssetDeleted={handleRefresh}
-          />
+          <AssetList assets={images} mode="edit" noteId={noteId} />
         </div>
       )}
 
@@ -44,12 +32,7 @@ export function EditPageAssets({ assets, noteId }: EditPageAssetsProps) {
           <h3 className="mb-4 text-sm font-medium text-muted-foreground">
             documents
           </h3>
-          <PdfList
-            mode="edit"
-            noteId={noteId}
-            onAssetDeleted={handleRefresh}
-            pdfs={pdfs}
-          />
+          <PdfList mode="edit" noteId={noteId} pdfs={pdfs} />
         </div>
       )}
 
@@ -57,7 +40,7 @@ export function EditPageAssets({ assets, noteId }: EditPageAssetsProps) {
         <h3 className="mb-4 text-sm font-medium text-muted-foreground">
           add files
         </h3>
-        <AssetUploader noteId={noteId} onUploadComplete={handleRefresh} />
+        <AssetUploader noteId={noteId} />
       </div>
     </div>
   );
