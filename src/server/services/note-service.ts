@@ -8,6 +8,7 @@ import type {
 import { generateNoteId } from "@/lib/id";
 import { getDb } from "@/server/db";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
+import { formatMarkdown } from "@/server/services/format-service";
 
 class NoteService {
   constructor(
@@ -25,8 +26,9 @@ class NoteService {
 
   async create(userId: string, content: string): Promise<NoteId> {
     const id = this.idGenerator();
+    const formatted = await formatMarkdown(content);
 
-    await this.noteRepo.create({ content, id, userId });
+    await this.noteRepo.create({ content: formatted, id, userId });
 
     return id;
   }
@@ -67,7 +69,9 @@ class NoteService {
   }
 
   async update(userId: string, noteId: NoteId, content: string): Promise<void> {
-    await this.noteRepo.update(noteId, userId, { content });
+    const formatted = await formatMarkdown(content);
+
+    await this.noteRepo.update(noteId, userId, { content: formatted });
   }
 }
 

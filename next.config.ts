@@ -6,6 +6,7 @@ const nextConfig = {
   experimental: {
     useCache: true,
   },
+  serverExternalPackages: ["oxfmt"],
   typedRoutes: true,
 } satisfies NextConfig;
 
