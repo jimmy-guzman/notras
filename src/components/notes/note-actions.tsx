@@ -3,7 +3,7 @@
 import { ArrowLeftIcon, PencilIcon, PinIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useOptimistic, useTransition } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import type { NoteId } from "@/lib/id";
@@ -35,17 +35,22 @@ export function NoteActions({
   remindAt,
 }: NoteActionsProps) {
   const router = useRouter();
+  const [optimisticPinned, setOptimisticPinned] = useOptimistic(pinned);
+  const [, startTransition] = useTransition();
 
-  const handleTogglePin = useCallback(async () => {
-    await (pinned ? unpinNote(noteId) : pinNote(noteId));
-  }, [noteId, pinned]);
+  const handleTogglePin = useCallback(() => {
+    startTransition(async () => {
+      setOptimisticPinned(!optimisticPinned);
+      await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
+    });
+  }, [noteId, optimisticPinned, setOptimisticPinned, startTransition]);
 
   useHotkeys("e", () => {
     router.push(`/notes/${noteId}/edit`);
   });
 
   useHotkeys("p", () => {
-    void handleTogglePin();
+    handleTogglePin();
   });
 
   return (
@@ -60,21 +65,21 @@ export function NoteActions({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              aria-label={pinned ? "unpin" : "pin"}
+              aria-label={optimisticPinned ? "unpin" : "pin"}
               onClick={handleTogglePin}
               size="sm"
               variant="ghost"
             >
-              <PinIcon fill={pinned ? "currentColor" : "none"} />
+              <PinIcon fill={optimisticPinned ? "currentColor" : "none"} />
               <span className="sr-only sm:not-sr-only">
-                {pinned ? "unpin" : "pin"}
+                {optimisticPinned ? "unpin" : "pin"}
               </span>
               <Kbd className="hidden sm:inline-flex">p</Kbd>
             </Button>
           </TooltipTrigger>
           <TooltipContent className="sm:hidden" side="top" sideOffset={4}>
             <div className="flex items-center gap-2">
-              {pinned ? "unpin" : "pin"} <Kbd>p</Kbd>
+              {optimisticPinned ? "unpin" : "pin"} <Kbd>p</Kbd>
             </div>
           </TooltipContent>
         </Tooltip>

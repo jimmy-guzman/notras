@@ -3,6 +3,7 @@
 import type { MouseEvent } from "react";
 
 import { PinIcon } from "lucide-react";
+import { useOptimistic, useTransition } from "react";
 
 import type { NoteId } from "@/lib/id";
 
@@ -23,28 +24,34 @@ export const PinNoteButton = ({
   noteId,
   pinned,
 }: PinNoteButtonProps) => {
-  async function handleTogglePin(e: MouseEvent<HTMLButtonElement>) {
+  const [optimisticPinned, setOptimisticPinned] = useOptimistic(pinned);
+  const [, startTransition] = useTransition();
+
+  function handleTogglePin(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.nativeEvent.stopImmediatePropagation();
 
-    await (pinned ? unpinNote(noteId) : pinNote(noteId));
+    startTransition(async () => {
+      setOptimisticPinned(!optimisticPinned);
+      await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
+    });
   }
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label={pinned ? "unpin" : "pin"}
+          aria-label={optimisticPinned ? "unpin" : "pin"}
           className={className}
           onClick={handleTogglePin}
           size="icon"
           variant="ghost"
         >
-          <PinIcon fill={pinned ? "currentColor" : "none"} />
+          <PinIcon fill={optimisticPinned ? "currentColor" : "none"} />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>
-        {pinned ? "unpin" : "pin"}
+        {optimisticPinned ? "unpin" : "pin"}
       </TooltipContent>
     </Tooltip>
   );

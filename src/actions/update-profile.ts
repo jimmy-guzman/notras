@@ -12,6 +12,7 @@ export const updateProfile = actionClient
     await getUserService().updateProfile(ctx.userId, parsedInput);
 
     revalidatePath("/settings");
+    revalidatePath("/");
 
     return { message: "profile updated" };
   });
