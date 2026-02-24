@@ -9,6 +9,7 @@ import { generateNoteId } from "@/lib/id";
 import { getDb } from "@/server/db";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 import { formatMarkdown } from "@/server/services/format-service";
+import { getLinkService } from "@/server/services/link-service";
 
 class NoteService {
   constructor(
@@ -33,6 +34,8 @@ class NoteService {
     const formatted = await formatMarkdown(content);
 
     await this.noteRepo.create({ content: formatted, id, userId });
+
+    void getLinkService().syncLinks(userId, id, formatted);
 
     return id;
   }
@@ -76,6 +79,8 @@ class NoteService {
     const formatted = await formatMarkdown(content);
 
     await this.noteRepo.update(noteId, userId, { content: formatted });
+
+    void getLinkService().syncLinks(userId, noteId, formatted);
   }
 }
 

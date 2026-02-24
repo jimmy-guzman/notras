@@ -19,6 +19,7 @@ import {
   manifestSchema,
 } from "@/server/schemas/export-schemas";
 import { formatMarkdown } from "@/server/services/format-service";
+import { getLinkService } from "@/server/services/link-service";
 
 interface ImportResult {
   created: number;
@@ -179,6 +180,8 @@ class ImportService {
       const assetInputs = buildAssetInputs(noteId, userId, exportedNote, files);
 
       await this.assetRepo.createMany(assetInputs);
+
+      void getLinkService().syncLinks(userId, noteId, formattedContent);
 
       if (existing) {
         updated++;
