@@ -27,8 +27,8 @@ export default async function Page() {
         </h1>
         <p className="mb-12 text-lg text-muted-foreground lowercase sm:text-xl">
           {count > 0
-            ? `welcome back, ${profile.name}! ready to capture more thoughts?`
-            : "a simple space to capture your thoughts as they come."}
+            ? `welcome back, ${profile.name}!`
+            : "just write, otra vez."}
         </p>
 
         {count > 0 && <HomeSearch />}

@@ -1,6 +1,6 @@
 # notras
 
-A personal note-taking app -- "A simple space to capture your thoughts as they come."
+A personal note-taking app -- "Just write, otra vez."
 
 ## Tech Stack
 
