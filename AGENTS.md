@@ -98,6 +98,19 @@ pnpm db:push      # Push schema changes to database
 pnpm db:studio    # Open Drizzle Studio
 ```
 
+## Verification
+
+After **every** set of changes, run all of these checks before considering the task done. Do NOT skip any step -- the build in particular is easy to forget and catches errors (like missing Suspense boundaries) that other checks miss.
+
+```txt
+pnpm typecheck    # 1. Type check
+pnpm lint         # 2. Lint (fix errors before proceeding)
+pnpm test         # 3. Unit tests
+pnpm build        # 4. Production build (MUST pass -- catches SSR/prerender errors)
+```
+
+If any step fails, fix the issue and re-run from that step. Do not move on until all four pass.
+
 ## Conventions
 
 - Use `satisfies` for type narrowing when possible (e.g., config objects).

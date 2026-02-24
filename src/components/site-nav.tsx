@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { NavLogo } from "./nav-logo";
 import { NavNewNote } from "./nav-new-note";
 import { NavReminders } from "./nav-reminders";
@@ -13,7 +15,9 @@ export function SiteNav() {
         </div>
 
         <div className="hidden flex-1 items-center justify-center gap-2 sm:flex">
-          <NavSearch />
+          <Suspense>
+            <NavSearch />
+          </Suspense>
           <NavNewNote />
         </div>
 
@@ -27,7 +31,9 @@ export function SiteNav() {
       </div>
 
       <div className="sm:hidden">
-        <NavSearch />
+        <Suspense>
+          <NavSearch />
+        </Suspense>
       </div>
     </div>
   );
