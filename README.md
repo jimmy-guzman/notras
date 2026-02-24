@@ -1,6 +1,6 @@
 # notras
 
-> A simple space to capture your thoughts as they come.
+> Just write, otra vez.
 
 A personal, single-user note-taking app that runs locally with a SQLite database. No accounts, no cloud sync -- just your notes on your machine.
 

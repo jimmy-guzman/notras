@@ -28,7 +28,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  description: "A simple space to capture your thoughts as they come.",
+  description: "A minimal, personal notes app. Just write, otra vez.",
   title: "notras",
 } satisfies Metadata;
 
