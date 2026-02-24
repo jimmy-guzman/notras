@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { env } from "@/env";
 
 import * as assets from "./schemas/assets";
+import * as links from "./schemas/links";
 import * as notes from "./schemas/notes";
 import * as users from "./schemas/users";
 
@@ -11,6 +12,7 @@ const schema = {
   ...users,
   ...notes,
   ...assets,
+  ...links,
 };
 
 export function createDb(databasePath: string) {

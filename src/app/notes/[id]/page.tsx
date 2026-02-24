@@ -2,10 +2,12 @@ import { BellIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { getAssets } from "@/actions/get-assets";
+import { getLinks } from "@/actions/get-links";
 import { getNote } from "@/actions/get-note";
 import { AssetList } from "@/components/notes/assets/asset-list";
 import { PdfList } from "@/components/notes/assets/pdf-list";
 import { NoteActions } from "@/components/notes/note-actions";
+import { NoteLinks } from "@/components/notes/note-links";
 import { toNoteId } from "@/lib/id";
 import { partitionAssets } from "@/lib/utils/assets";
 import { formatDateTime } from "@/lib/utils/format";
@@ -24,6 +26,7 @@ export default async function NotePage({ params }: PageProps) {
   }
 
   const assets = await getAssets(id);
+  const links = await getLinks(noteId);
   const { images, pdfs } = partitionAssets(assets);
   const hasAttachments = images.length > 0 || pdfs.length > 0;
 
@@ -73,6 +76,12 @@ export default async function NotePage({ params }: PageProps) {
               <PdfList mode="view" noteId={noteId} pdfs={pdfs} />
             </div>
           )}
+        </div>
+      )}
+
+      {links.length > 0 && (
+        <div className="mt-12">
+          <NoteLinks links={links} />
         </div>
       )}
     </div>
