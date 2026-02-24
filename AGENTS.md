@@ -140,6 +140,29 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 
 ### Mocking patterns
 
+- **Prefer low-level stubs over module mocks:** Follow the MSW mentality -- mock at the lowest boundary possible. For environment variables, use `vi.stubEnv()` + `vi.resetModules()` + dynamic `import()` instead of `vi.mock("@/env")`. This exercises the real code path (`process.env` → `createEnv` → module under test) and catches integration issues.
+- **`vi.stubEnv` pattern for env-dependent code:** Since `@t3-oss/env-nextjs` validates at module load time, tests that vary env vars must reset and re-import:
+
+  ```ts
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  async function setupMyModule() {
+    const { myFunction } = await import("./my-module");
+    return myFunction;
+  }
+
+  it("should do something when ENV_VAR is set", async () => {
+    vi.stubEnv("ENV_VAR", "value");
+    const myFunction = await setupMyModule();
+    // ...
+  });
+  ```
+
+  Name the helper `setup*` (e.g., `setupSiteFooter`, `setupGetBuildInfo`) -- not `load*`.
+
 - **`motion/react`:** Mock `motion.li` / `motion.div` as plain HTML elements for components using Motion layout animations.
 - **`react-hotkeys-hook`:** Mock with `vi.mock("react-hotkeys-hook", () => ({ useHotkeys: vi.fn() }))` when testing components that use `useHotkeys`, since it captures keyboard events.
 - **Server actions:** Mock the action module (e.g., `vi.mock("@/actions/pin-note", () => ({ pinNote: vi.fn() }))`) to avoid `"use server"` context errors.
