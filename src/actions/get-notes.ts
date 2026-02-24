@@ -40,7 +40,7 @@ export async function getNotesCount() {
 
     const result = await getNoteService().count(userId);
 
-    cacheTag("notes count");
+    cacheTag("notes");
 
     return result;
   });
