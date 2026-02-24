@@ -45,11 +45,13 @@ export default function RootLayout({
             <HotkeysProvider>
               <SearchBarProvider>
                 <AlphaBanner />
-                <div className="flex min-h-svh flex-col">
+                <div className="flex flex-col">
                   <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
                     <SiteNav />
                   </header>
-                  <main className="flex flex-1 justify-center">{children}</main>
+                  <main className="flex min-h-[calc(100svh-3.5rem)] justify-center">
+                    {children}
+                  </main>
                   <SiteFooter />
                 </div>
                 <Toaster />

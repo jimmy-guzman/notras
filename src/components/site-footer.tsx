@@ -1,10 +1,11 @@
-import { format } from "date-fns";
+import { getBuildInfo } from "@/lib/utils/build-info";
 
 export function SiteFooter() {
-  const year = format(new Date(), "yyyy");
+  const year = new Date().getFullYear();
+  const { buildTime, commitUrl, shortSha } = getBuildInfo();
 
   return (
-    <footer className="flex w-full flex-col items-center border-t p-4 text-center text-sm text-muted-foreground">
+    <footer className="flex w-full flex-col items-center gap-1 border-t p-4 text-center text-sm text-muted-foreground">
       <p>
         © {year}{" "}
         <a
@@ -13,12 +14,25 @@ export function SiteFooter() {
           rel="noopener noreferrer"
           target="_blank"
         >
-          Jimmy Guzman Moreno
+          jimmy guzman moreno
         </a>
-        . Built with{" "}
-        <span className="bg-red-400 bg-clip-text text-transparent">❤️</span> and
-        minimalism.
       </p>
+      {(buildTime ?? shortSha) && (
+        <p className="text-xs">
+          {buildTime && <span>built {buildTime}</span>}
+          {buildTime && shortSha && <span> · </span>}
+          {shortSha && (
+            <a
+              className="underline underline-offset-4"
+              href={commitUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {shortSha}
+            </a>
+          )}
+        </p>
+      )}
     </footer>
   );
 }
