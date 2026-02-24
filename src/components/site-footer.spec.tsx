@@ -1,5 +1,7 @@
 import { render, screen } from "@/testing/utils";
 
+vi.mock("react-hotkeys-hook", () => ({ useHotkeys: vi.fn() }));
+
 beforeEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
@@ -12,6 +14,24 @@ async function setupSiteFooter() {
 }
 
 describe("SiteFooter", () => {
+  it("should render the tagline", async () => {
+    const SiteFooter = await setupSiteFooter();
+
+    render(<SiteFooter />);
+
+    expect(screen.getByText("just write, otra vez.")).toBeInTheDocument();
+  });
+
+  it("should render the keyboard shortcuts button", async () => {
+    const SiteFooter = await setupSiteFooter();
+
+    render(<SiteFooter />);
+
+    expect(
+      screen.getByRole("button", { name: "keyboard shortcuts" }),
+    ).toBeInTheDocument();
+  });
+
   it("should render the copyright with the current year", async () => {
     const SiteFooter = await setupSiteFooter();
 
@@ -60,7 +80,7 @@ describe("SiteFooter", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("should render both build time and commit SHA with separator", async () => {
+  it("should render both build time and commit SHA with separators", async () => {
     vi.stubEnv("NEXT_PUBLIC_BUILD_TIME", "2025-06-15T12:00:00.000Z");
     vi.stubEnv(
       "NEXT_PUBLIC_COMMIT_SHA",
@@ -71,11 +91,11 @@ describe("SiteFooter", () => {
     render(<SiteFooter />);
 
     expect(screen.getByText("built jun 15, 2025")).toBeInTheDocument();
-    expect(screen.getByText("·")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "abc1234" })).toBeInTheDocument();
+    expect(screen.getAllByText("·")).toHaveLength(2);
   });
 
-  it("should not render build info line when no build data is available", async () => {
+  it("should not render separators when no build data is available", async () => {
     const SiteFooter = await setupSiteFooter();
 
     render(<SiteFooter />);
@@ -84,17 +104,17 @@ describe("SiteFooter", () => {
     expect(screen.queryByText("·")).not.toBeInTheDocument();
   });
 
-  it("should not render separator when only build time is available", async () => {
+  it("should render one separator when only build time is available", async () => {
     vi.stubEnv("NEXT_PUBLIC_BUILD_TIME", "2025-06-15T12:00:00.000Z");
     const SiteFooter = await setupSiteFooter();
 
     render(<SiteFooter />);
 
     expect(screen.getByText("built jun 15, 2025")).toBeInTheDocument();
-    expect(screen.queryByText("·")).not.toBeInTheDocument();
+    expect(screen.getAllByText("·")).toHaveLength(1);
   });
 
-  it("should not render separator when only commit SHA is available", async () => {
+  it("should render one separator when only commit SHA is available", async () => {
     vi.stubEnv(
       "NEXT_PUBLIC_COMMIT_SHA",
       "abc1234def5678901234567890abcdef12345678",
@@ -104,6 +124,6 @@ describe("SiteFooter", () => {
     render(<SiteFooter />);
 
     expect(screen.getByRole("link", { name: "abc1234" })).toBeInTheDocument();
-    expect(screen.queryByText("·")).not.toBeInTheDocument();
+    expect(screen.getAllByText("·")).toHaveLength(1);
   });
 });
