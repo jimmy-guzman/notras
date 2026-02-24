@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNotNull,
@@ -25,6 +26,7 @@ export interface NoteFilters {
   excludePinned?: boolean;
   limit?: number;
   query?: string;
+  remind?: "overdue" | "upcoming";
   sort?: SortOption;
   time?: "all" | TimeFilter;
 }
@@ -51,6 +53,7 @@ export interface UpsertNoteInput {
 export interface NoteRepository {
   clearReminder(noteId: NoteId, userId: string): Promise<void>;
   count(userId: string): Promise<number>;
+  countOverdueReminders(userId: string): Promise<number>;
   create(input: CreateNoteInput): Promise<void>;
   delete(noteId: NoteId, userId: string): Promise<void>;
   deleteMany(noteIds: NoteId[], userId: string): Promise<void>;
@@ -104,6 +107,21 @@ export class DBNoteRepository implements NoteRepository {
       .where(eq(note.userId, userId));
 
     return notesCount;
+  }
+
+  async countOverdueReminders(userId: string): Promise<number> {
+    const [{ count: c }] = await this.db
+      .select({ count: count() })
+      .from(note)
+      .where(
+        and(
+          eq(note.userId, userId),
+          isNotNull(note.remindAt),
+          lte(note.remindAt, new Date()),
+        ),
+      );
+
+    return c;
   }
 
   async create(input: CreateNoteInput): Promise<void> {
@@ -182,11 +200,24 @@ export class DBNoteRepository implements NoteRepository {
         ? []
         : [gte(note.createdAt, getStartDateForFilter(filters.time))];
 
+    const remindFilter =
+      filters.remind === "overdue"
+        ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
+        : filters.remind === "upcoming"
+          ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
+          : [];
+
     const qb = this.db
       .select()
       .from(note)
       .where(
-        and(...baseFilters, ...pinnedFilter, ...queryFilter, ...timeFilter),
+        and(
+          ...baseFilters,
+          ...pinnedFilter,
+          ...queryFilter,
+          ...timeFilter,
+          ...remindFilter,
+        ),
       )
       .orderBy(...getSortOrder(filters.sort));
 

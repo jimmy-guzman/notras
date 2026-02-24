@@ -24,6 +24,10 @@ class NoteService {
     return this.noteRepo.count(userId);
   }
 
+  async countOverdueReminders(userId: string): Promise<number> {
+    return this.noteRepo.countOverdueReminders(userId);
+  }
+
   async create(userId: string, content: string): Promise<NoteId> {
     const id = this.idGenerator();
     const formatted = await formatMarkdown(content);

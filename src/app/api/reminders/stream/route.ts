@@ -21,6 +21,7 @@ export async function GET() {
 
     start(controller) {
       const encoder = new TextEncoder();
+      const notified = new Set<string>();
 
       function send(data: string) {
         controller.enqueue(encoder.encode(data));
@@ -30,14 +31,16 @@ export async function GET() {
         try {
           const dueNotes = await noteService.getDueReminders(userId);
 
-          for (const note of dueNotes) {
-            const noteId = toNoteId(note.id);
+          for (const dueNote of dueNotes) {
+            if (notified.has(dueNote.id)) continue;
+
+            notified.add(dueNote.id);
+
+            const noteId = toNoteId(dueNote.id);
 
             send(
-              `data: ${JSON.stringify({ content: note.content, noteId })}\n\n`,
+              `data: ${JSON.stringify({ content: dueNote.content, noteId })}\n\n`,
             );
-
-            await noteService.clearReminder(userId, noteId);
           }
         } catch {
           // silently ignore -- stream should stay open

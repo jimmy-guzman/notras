@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEFAULT_VIEW, VIEW_COOKIE_NAME } from "@/lib/view-preference";
+import { DEFAULT_VIEW, NOTES_VIEW_COOKIE_NAME } from "@/lib/view-preference";
 
 function NoteCardSkeleton() {
   return (
@@ -31,7 +31,7 @@ function NoteListItemSkeleton() {
 
 export default async function NotesLoading() {
   const cookieStore = await cookies();
-  const viewCookie = cookieStore.get(VIEW_COOKIE_NAME)?.value;
+  const viewCookie = cookieStore.get(NOTES_VIEW_COOKIE_NAME)?.value;
   const view =
     viewCookie === "grid" || viewCookie === "list" ? viewCookie : DEFAULT_VIEW;
 
