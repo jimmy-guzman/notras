@@ -22,4 +22,15 @@ describe("NotesFilters", () => {
 
     expect(triggers).toHaveLength(2);
   });
+
+  it("should render the view toggle", () => {
+    render(<NotesFilters />);
+
+    expect(
+      screen.getByRole("button", { name: "grid view" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "list view" }),
+    ).toBeInTheDocument();
+  });
 });

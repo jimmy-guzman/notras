@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { parsers } from "@/lib/notes-search-params";
 
+import { ViewToggle } from "./view-toggle";
+
 export const NotesFilters = () => {
   const [filters, setFilters] = useQueryStates(parsers, { shallow: false });
 
@@ -26,12 +28,12 @@ export const NotesFilters = () => {
   };
 
   return (
-    <div className="flex w-full flex-row gap-2 sm:items-center">
+    <div className="flex w-full flex-wrap items-center gap-2">
       <div className="flex flex-1 items-center gap-2">
         <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+          <CalendarIcon className="hidden h-4 w-4 text-muted-foreground sm:block" />
           <Select onValueChange={updateTime} value={filters.time}>
-            <SelectTrigger aria-label="time range" className="w-32">
+            <SelectTrigger aria-label="time range" className="w-28 sm:w-32">
               <SelectValue placeholder="all time" />
             </SelectTrigger>
             <SelectContent>
@@ -45,9 +47,9 @@ export const NotesFilters = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <ArrowUpDownIcon className="h-4 w-4 text-muted-foreground" />
+          <ArrowUpDownIcon className="hidden h-4 w-4 text-muted-foreground sm:block" />
           <Select onValueChange={updateSort} value={filters.sort}>
-            <SelectTrigger aria-label="sort order" className="w-36">
+            <SelectTrigger aria-label="sort order" className="w-28 sm:w-36">
               <SelectValue placeholder="sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -58,6 +60,8 @@ export const NotesFilters = () => {
           </Select>
         </div>
       </div>
+
+      <ViewToggle />
     </div>
   );
 };
