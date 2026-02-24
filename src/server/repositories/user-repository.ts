@@ -26,28 +26,13 @@ export interface UserProfile {
 }
 
 export interface UserRepository {
-  create(input: CreateUserInput): Promise<void>;
-  findById(id: string): Promise<undefined | { id: string }>;
   findFullById(id: string): Promise<undefined | UserProfile>;
   update(id: string, input: UpdateUserInput): Promise<void>;
+  upsert(input: CreateUserInput): Promise<void>;
 }
 
 export class DBUserRepository implements UserRepository {
   constructor(private db: Database) {}
-
-  async create(input: CreateUserInput): Promise<void> {
-    await this.db.insert(user).values(input);
-  }
-
-  async findById(id: string): Promise<undefined | { id: string }> {
-    const results = await this.db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, id))
-      .limit(1);
-
-    return results.length > 0 ? results[0] : undefined;
-  }
 
   async findFullById(id: string): Promise<undefined | UserProfile> {
     const results = await this.db
@@ -66,5 +51,9 @@ export class DBUserRepository implements UserRepository {
 
   async update(id: string, input: UpdateUserInput): Promise<void> {
     await this.db.update(user).set(input).where(eq(user.id, id));
+  }
+
+  async upsert(input: CreateUserInput): Promise<void> {
+    await this.db.insert(user).values(input).onConflictDoNothing();
   }
 }
