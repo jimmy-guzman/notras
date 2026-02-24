@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function HomeLoading() {
   return (
     <section className="flex w-full flex-1 flex-col items-center">
-      <header className="flex flex-1 flex-col items-center justify-center pt-20 pb-4 text-center md:pb-8 lg:pb-20">
+      <header className="flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 pt-20 pb-4 text-center md:pb-8 lg:pb-20">
         <Skeleton className="mb-2 h-12 w-48 sm:h-16" />
         <Skeleton className="mb-12 h-5 w-80 sm:h-6" />
         <Skeleton className="h-12 w-full max-w-xl rounded-xl" />
