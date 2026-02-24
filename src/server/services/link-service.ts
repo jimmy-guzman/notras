@@ -5,7 +5,7 @@ import type { SelectLink } from "@/server/db/schemas/links";
 import type { LinkRepository } from "@/server/repositories/link-repository";
 import type { OgMetadata } from "@/server/services/og-service";
 
-import { generateLinkId, toLinkId } from "@/lib/id";
+import { generateLinkId } from "@/lib/id";
 import { getDb } from "@/server/db";
 import { DBLinkRepository } from "@/server/repositories/link-repository";
 import { fetchOgMetadata } from "@/server/services/og-service";
@@ -53,22 +53,14 @@ class LinkService {
 
     const existing = await this.linkRepo.findByNoteId(noteId, userId);
     const existingByUrl = new Map(existing.map((l) => [l.url, l]));
+    const newUrls = urls.filter((url) => !existingByUrl.has(url));
+
+    if (newUrls.length === 0) {
+      return;
+    }
 
     const inputs = await Promise.all(
-      urls.map(async (url) => {
-        const existingLink = existingByUrl.get(url);
-
-        if (existingLink) {
-          return {
-            description: existingLink.description,
-            id: toLinkId(existingLink.id),
-            noteId,
-            title: existingLink.title,
-            url,
-            userId,
-          };
-        }
-
+      newUrls.map(async (url) => {
         const metadata = await this.ogFetcher(url);
 
         return {
