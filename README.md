@@ -55,6 +55,28 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 
 ---
 
+## Docker
+
+Build and run with Docker:
+
+```bash
+docker build -t notras .
+docker run -p 3000:3000 -v ~/notras-data:/app/data notras
+```
+
+Open [http://localhost:3000](http://localhost:3000). Notes are persisted in `~/notras-data/notras.db` on the host.
+
+The `DATABASE_PATH` environment variable can be overridden at runtime:
+
+```bash
+docker run -p 3000:3000 \
+  -v ~/notras-data:/app/data \
+  -e DATABASE_PATH=file:./data/notras.db \
+  notras
+```
+
+---
+
 ## Getting Started
 
 This project uses [pnpm](https://pnpm.io), so please [install](https://pnpm.io/installation) it first by running:
