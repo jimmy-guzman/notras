@@ -1,5 +1,8 @@
+import { cookies } from "next/headers";
+
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DEFAULT_VIEW, VIEW_COOKIE_NAME } from "@/lib/view-preference";
 
 function NoteCardSkeleton() {
   return (
@@ -14,7 +17,24 @@ function NoteCardSkeleton() {
   );
 }
 
-export default function NotesLoading() {
+function NoteListItemSkeleton() {
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <Skeleton className="h-4 min-w-0 flex-1" />
+      <div className="flex shrink-0 items-center gap-2">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-6 w-6 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+export default async function NotesLoading() {
+  const cookieStore = await cookies();
+  const viewCookie = cookieStore.get(VIEW_COOKIE_NAME)?.value;
+  const view =
+    viewCookie === "grid" || viewCookie === "list" ? viewCookie : DEFAULT_VIEW;
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex flex-col gap-4">
@@ -26,11 +46,19 @@ export default function NotesLoading() {
           <Skeleton className="h-9 w-9 shrink-0 rounded-md sm:w-28" />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => {
-            return <NoteCardSkeleton key={i} />;
-          })}
-        </div>
+        {view === "list" ? (
+          <div className="flex flex-col divide-y">
+            {Array.from({ length: 6 }, (_, i) => {
+              return <NoteListItemSkeleton key={i} />;
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }, (_, i) => {
+              return <NoteCardSkeleton key={i} />;
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

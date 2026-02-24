@@ -20,6 +20,7 @@ A personal note-taking app -- "Just write, otra vez."
 src/
   actions/          # Server actions (data reads with "use cache", mutations)
   app/              # Next.js App Router pages and layouts
+    (home)/         # Route group for home page (scoped loading boundary)
     api/
       assets/[id]/  # GET route for serving asset files
       export/       # GET route for zip export
