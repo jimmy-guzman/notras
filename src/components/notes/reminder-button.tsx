@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -26,6 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { formatDateTime } from "@/lib/utils/format";
 import { REMINDER_PRESETS } from "@/lib/utils/reminder-presets";
 
 interface ReminderButtonProps {
@@ -49,19 +49,25 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
     formData.set("preset", preset);
 
     startTransition(async () => {
-      const result = await setReminder(formData);
+      try {
+        const result = await setReminder(formData);
 
-      toast.success(
-        `reminder set for ${format(result.remindAt, "MMM d, h:mm a").toLowerCase()}`,
-      );
+        toast.success(`reminder set for ${formatDateTime(result.remindAt)}`);
+      } catch {
+        toast.error("failed to set reminder. please try again.");
+      }
     });
   }
 
   function handleClearReminder() {
     startTransition(async () => {
-      await clearReminder(noteId);
+      try {
+        await clearReminder(noteId);
 
-      toast.success("reminder cleared");
+        toast.success("reminder cleared");
+      } catch {
+        toast.error("failed to clear reminder. please try again.");
+      }
     });
   }
 
@@ -96,9 +102,7 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
       <DropdownMenuContent align="end">
         {hasReminder && (
           <>
-            <DropdownMenuLabel>
-              {format(remindAt, "MMM d, h:mm a").toLowerCase()}
-            </DropdownMenuLabel>
+            <DropdownMenuLabel>{formatDateTime(remindAt)}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleClearReminder}>
               <BellOffIcon />

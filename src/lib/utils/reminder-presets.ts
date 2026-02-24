@@ -7,17 +7,8 @@ import {
   setSeconds,
 } from "date-fns";
 
-export type ReminderPreset =
-  | "in-1-hour"
-  | "in-3-days"
-  | "in-3-hours"
-  | "in-30-minutes"
-  | "next-week"
-  | "tomorrow-evening"
-  | "tomorrow-morning";
-
 interface PresetConfig {
-  key: ReminderPreset;
+  key: string;
   label: string;
   resolve: (now: Date) => Date;
 }
@@ -26,7 +17,12 @@ function atTime(date: Date, hours: number): Date {
   return setSeconds(setMinutes(setHours(date, hours), 0), 0);
 }
 
-export const REMINDER_PRESETS: PresetConfig[] = [
+export const REMINDER_PRESETS = [
+  {
+    key: "in-5-minutes",
+    label: "in 5 minutes",
+    resolve: (now) => addMinutes(now, 5),
+  },
   {
     key: "in-30-minutes",
     label: "in 30 minutes",
@@ -62,7 +58,14 @@ export const REMINDER_PRESETS: PresetConfig[] = [
     label: "next week",
     resolve: (now) => atTime(addDays(now, 7), 9),
   },
+] as const satisfies PresetConfig[];
+
+export const REMINDER_PRESET_KEYS = REMINDER_PRESETS.map((p) => p.key) as [
+  ReminderPreset,
+  ...ReminderPreset[],
 ];
+
+export type ReminderPreset = (typeof REMINDER_PRESETS)[number]["key"];
 
 export function resolvePreset(key: ReminderPreset): Date {
   const now = new Date();

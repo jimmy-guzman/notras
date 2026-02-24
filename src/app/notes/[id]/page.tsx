@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { BellIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
@@ -9,6 +8,7 @@ import { PdfList } from "@/components/notes/assets/pdf-list";
 import { NoteActions } from "@/components/notes/note-actions";
 import { toNoteId } from "@/lib/id";
 import { partitionAssets } from "@/lib/utils/assets";
+import { formatDateTime } from "@/lib/utils/format";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -39,16 +39,11 @@ export default async function NotePage({ params }: PageProps) {
       </div>
 
       <div className="mb-6 flex items-center gap-3 text-sm text-muted-foreground">
-        <span className="hidden sm:inline">
-          {format(note.createdAt, "PPP pp")}
-        </span>
-        <span className="sm:hidden">
-          {format(note.createdAt, "MMM d, h:mm a")}
-        </span>
+        <span>{formatDateTime(note.createdAt)}</span>
         {note.remindAt && (
           <span className="flex items-center gap-1 text-xs">
             <BellIcon className="h-3 w-3" />
-            {format(note.remindAt, "MMM d, h:mm a").toLowerCase()}
+            {formatDateTime(note.remindAt)}
           </span>
         )}
       </div>
