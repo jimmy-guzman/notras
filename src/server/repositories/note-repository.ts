@@ -6,8 +6,10 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   like,
+  lte,
   sql,
 } from "drizzle-orm";
 
@@ -47,14 +49,17 @@ export interface UpsertNoteInput {
 }
 
 export interface NoteRepository {
+  clearReminder(noteId: NoteId, userId: string): Promise<void>;
   count(userId: string): Promise<number>;
   create(input: CreateNoteInput): Promise<void>;
   delete(noteId: NoteId, userId: string): Promise<void>;
   deleteMany(noteIds: NoteId[], userId: string): Promise<void>;
   findAllIds(userId: string): Promise<NoteId[]>;
   findById(noteId: NoteId, userId: string): Promise<SelectNote | undefined>;
+  findDueReminders(userId: string): Promise<SelectNote[]>;
   findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]>;
   pin(noteId: NoteId, userId: string): Promise<void>;
+  setReminder(noteId: NoteId, userId: string, remindAt: Date): Promise<void>;
   unpin(noteId: NoteId, userId: string): Promise<void>;
   update(noteId: NoteId, userId: string, input: UpdateNoteInput): Promise<void>;
   updateSyncedAt(noteIds: NoteId[], userId: string): Promise<void>;
@@ -84,6 +89,13 @@ function getSortOrder(sort: NoteFilters["sort"] = "newest") {
 
 export class DBNoteRepository implements NoteRepository {
   constructor(private db: Database) {}
+
+  async clearReminder(noteId: NoteId, userId: string): Promise<void> {
+    await this.db
+      .update(note)
+      .set({ remindAt: null, updatedAt: new Date() })
+      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+  }
 
   async count(userId: string): Promise<number> {
     const [{ count: notesCount }] = await this.db
@@ -142,6 +154,20 @@ export class DBNoteRepository implements NoteRepository {
     return results.length > 0 ? results[0] : undefined;
   }
 
+  async findDueReminders(userId: string): Promise<SelectNote[]> {
+    return this.db
+      .select()
+      .from(note)
+      .where(
+        and(
+          eq(note.userId, userId),
+          isNotNull(note.remindAt),
+          lte(note.remindAt, new Date()),
+        ),
+      )
+      .orderBy(asc(note.remindAt));
+  }
+
   async findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]> {
     const baseFilters = [eq(note.userId, userId)];
 
@@ -175,6 +201,17 @@ export class DBNoteRepository implements NoteRepository {
     await this.db
       .update(note)
       .set({ pinnedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+  }
+
+  async setReminder(
+    noteId: NoteId,
+    userId: string,
+    remindAt: Date,
+  ): Promise<void> {
+    await this.db
+      .update(note)
+      .set({ remindAt, updatedAt: new Date() })
       .where(and(eq(note.id, noteId), eq(note.userId, userId)));
   }
 

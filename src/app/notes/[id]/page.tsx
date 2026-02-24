@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { BellIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { getAssets } from "@/actions/get-assets";
@@ -33,6 +34,7 @@ export default async function NotePage({ params }: PageProps) {
           content={note.content}
           noteId={toNoteId(note.id)}
           pinned={Boolean(note.pinnedAt)}
+          remindAt={note.remindAt ?? null}
         />
       </div>
 
@@ -43,6 +45,12 @@ export default async function NotePage({ params }: PageProps) {
         <span className="sm:hidden">
           {format(note.createdAt, "MMM d, h:mm a")}
         </span>
+        {note.remindAt && (
+          <span className="flex items-center gap-1 text-xs">
+            <BellIcon className="h-3 w-3" />
+            {format(note.remindAt, "MMM d, h:mm a").toLowerCase()}
+          </span>
+        )}
       </div>
 
       <div className="prose prose-gray dark:prose-invert mb-12 max-w-none">

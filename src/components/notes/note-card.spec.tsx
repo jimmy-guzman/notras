@@ -19,6 +19,7 @@ const makeNote = (
     createdAt: overrides.createdAt ?? new Date("2025-06-15"),
     id: overrides.id ?? "note_1",
     pinnedAt: overrides.pinnedAt ?? null,
+    remindAt: null,
     syncedAt: null,
     updatedAt: new Date("2025-06-15"),
     userId: "user_1",

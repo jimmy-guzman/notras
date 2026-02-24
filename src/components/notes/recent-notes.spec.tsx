@@ -21,6 +21,7 @@ const makeNote = (overrides: { content: string; id: string }) => {
     createdAt: new Date("2025-01-01"),
     id: overrides.id,
     pinnedAt: null,
+    remindAt: null,
     syncedAt: null,
     updatedAt: new Date("2025-01-01"),
     userId: "user_1",

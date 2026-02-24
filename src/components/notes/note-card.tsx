@@ -1,3 +1,4 @@
+import { BellIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
@@ -51,8 +52,9 @@ export const NoteCard = ({
           </p>
         </CardContent>
         <CardFooter className="border-t">
-          <span className="text-xs text-muted-foreground transition-colors group-hover:text-muted-foreground/80">
+          <span className="flex items-center gap-2 text-xs text-muted-foreground transition-colors group-hover:text-muted-foreground/80">
             {formatDate(note.createdAt)}
+            {note.remindAt && <BellIcon className="h-3 w-3" />}
           </span>
         </CardFooter>
       </Card>

@@ -15,6 +15,10 @@ class NoteService {
     private idGenerator: () => NoteId = generateNoteId,
   ) {}
 
+  async clearReminder(userId: string, noteId: NoteId): Promise<void> {
+    await this.noteRepo.clearReminder(noteId, userId);
+  }
+
   async count(userId: string): Promise<number> {
     return this.noteRepo.count(userId);
   }
@@ -38,12 +42,24 @@ class NoteService {
     return this.noteRepo.findById(noteId, userId);
   }
 
+  async getDueReminders(userId: string): Promise<SelectNote[]> {
+    return this.noteRepo.findDueReminders(userId);
+  }
+
   async list(userId: string, filters: NoteFilters): Promise<SelectNote[]> {
     return this.noteRepo.findMany(userId, filters);
   }
 
   async pin(userId: string, noteId: NoteId): Promise<void> {
     await this.noteRepo.pin(noteId, userId);
+  }
+
+  async setReminder(
+    userId: string,
+    noteId: NoteId,
+    remindAt: Date,
+  ): Promise<void> {
+    await this.noteRepo.setReminder(noteId, userId, remindAt);
   }
 
   async unpin(userId: string, noteId: NoteId): Promise<void> {

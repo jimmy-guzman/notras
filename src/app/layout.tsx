@@ -8,6 +8,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { AlphaBanner } from "@/components/alpha-banner";
 import { HotkeysProvider } from "@/components/hotkeys-provider";
+import { ReminderChecker } from "@/components/reminder-checker";
 import { SearchBarProvider } from "@/components/search-bar-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
@@ -52,6 +53,7 @@ export default function RootLayout({
                   <SiteFooter />
                 </div>
                 <Toaster />
+                <ReminderChecker />
               </SearchBarProvider>
             </HotkeysProvider>
           </TooltipProvider>
