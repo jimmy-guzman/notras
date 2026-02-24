@@ -6,9 +6,10 @@ import type { ReactNode } from "react";
 import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
+import { getFiredRemindersCount } from "@/actions/get-fired-reminders-count";
 import { AlphaBanner } from "@/components/alpha-banner";
 import { HotkeysProvider } from "@/components/hotkeys-provider";
-import { ReminderChecker } from "@/components/reminder-checker";
+import { RemindersProvider } from "@/components/reminders-provider";
 import { SearchBarProvider } from "@/components/search-bar-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
@@ -32,9 +33,11 @@ export const metadata = {
   title: "notras",
 } satisfies Metadata;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const overdueCount = await getFiredRemindersCount();
+
   return (
     <html className={dmSans.variable} lang="en">
       <body
@@ -44,18 +47,19 @@ export default function RootLayout({
           <TooltipProvider>
             <HotkeysProvider>
               <SearchBarProvider>
-                <AlphaBanner />
-                <div className="flex flex-col">
-                  <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
-                    <SiteNav />
-                  </header>
-                  <main className="flex min-h-[calc(100svh-3.5rem)] justify-center">
-                    {children}
-                  </main>
-                  <SiteFooter />
-                </div>
-                <Toaster />
-                <ReminderChecker />
+                <RemindersProvider initialCount={overdueCount}>
+                  <AlphaBanner />
+                  <div className="flex flex-col">
+                    <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
+                      <SiteNav />
+                    </header>
+                    <main className="flex min-h-[calc(100svh-3.5rem)] justify-center">
+                      {children}
+                    </main>
+                    <SiteFooter />
+                  </div>
+                  <Toaster />
+                </RemindersProvider>
               </SearchBarProvider>
             </HotkeysProvider>
           </TooltipProvider>

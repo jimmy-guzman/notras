@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import type { NotesView } from "./view-preference";
 
-import { DEFAULT_VIEW, VIEW_COOKIE_NAME } from "./view-preference";
+import { DEFAULT_VIEW, NOTES_VIEW_COOKIE_NAME } from "./view-preference";
 
 const STORAGE_KEY = "notras:notes-view";
 
@@ -38,7 +38,7 @@ function subscribe(callback: () => void) {
 }
 
 function setViewCookie(view: NotesView) {
-  document.cookie = `${VIEW_COOKIE_NAME}=${view};path=/;max-age=${String(COOKIE_MAX_AGE)};SameSite=Lax`;
+  document.cookie = `${NOTES_VIEW_COOKIE_NAME}=${view};path=/;max-age=${String(COOKIE_MAX_AGE)};SameSite=Lax`;
 }
 
 function setView(view: NotesView) {

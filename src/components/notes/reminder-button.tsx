@@ -10,6 +10,7 @@ import type { ReminderPreset } from "@/lib/utils/reminder-presets";
 
 import { clearReminder } from "@/actions/clear-reminder";
 import { setReminder } from "@/actions/set-reminder";
+import { useReminders } from "@/components/reminders-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +37,7 @@ interface ReminderButtonProps {
 export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const { decrement } = useReminders();
   const hasReminder = remindAt !== null;
 
   useHotkeys("r", () => {
@@ -60,15 +62,20 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
   }
 
   function handleClearReminder() {
+    const isOverdue = remindAt !== null && remindAt <= new Date();
+
     startTransition(async () => {
       try {
         await clearReminder(noteId);
-
         toast.success("reminder cleared");
       } catch {
         toast.error("failed to clear reminder. please try again.");
       }
     });
+
+    if (isOverdue) {
+      decrement();
+    }
   }
 
   return (

@@ -116,6 +116,7 @@ pnpm db:studio    # Open Drizzle Studio
 - Use `replaceAll()` instead of `replace()` with global regex (enforced by `unicorn/prefer-string-replace-all`).
 - Use `**` operator instead of `Math.pow()` (enforced by `prefer-exponentiation-operator`).
 - Do not use `??` or `||` fallbacks when the left-hand side type is already non-nullable (enforced by `@typescript-eslint/no-unnecessary-condition`).
+- **Bottom-up file structure:** Files should read bottom-up -- private/helper components and functions at the top, the main exported component at the bottom. This way the file's public API is immediately visible when you scroll to the end.
 - **Lowercase aesthetic:** All user-facing text in the UI is lowercase -- labels, button text, headings, placeholder text, toast messages, tooltips, etc. This is a deliberate design choice across the entire app, not just forms.
 - **Date formatting:** All date display in components goes through `formatDate` (date only) and `formatDateTime` (date + time) from `@/lib/utils/format.ts`. Both return lowercase output to match the app's aesthetic. Do not use raw `format()` from `date-fns` directly in components.
 

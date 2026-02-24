@@ -28,5 +28,9 @@ export function HotkeysProvider({ children }: HotkeysProviderProps) {
     router.push("/settings");
   });
 
+  useHotkeys("comma", () => {
+    router.push("/reminders");
+  });
+
   return <>{children}</>;
 }
