@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, PencilIcon, PinIcon } from "lucide-react";
+import { PencilIcon, PinIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useOptimistic, useTransition } from "react";
@@ -10,6 +10,7 @@ import type { NoteId } from "@/lib/id";
 
 import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
+import { BackLink } from "@/components/back-link";
 import { CopyNoteButton } from "@/components/notes/copy-note-button";
 import { DeleteNoteButton } from "@/components/notes/delete-note-button";
 import { ReminderButton } from "@/components/notes/reminder-button";
@@ -55,11 +56,7 @@ export function NoteActions({
 
   return (
     <div className="flex items-center justify-between">
-      <Button asChild size="sm" variant="ghost">
-        <Link href="/notes">
-          <ArrowLeftIcon className="h-4 w-4" /> notes
-        </Link>
-      </Button>
+      <BackLink href="/notes" label="notes" />
 
       <div className="flex items-center gap-1">
         <Tooltip>

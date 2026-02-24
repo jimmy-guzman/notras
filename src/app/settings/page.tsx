@@ -1,11 +1,8 @@
-import { ArrowLeftIcon } from "lucide-react";
-import Link from "next/link";
-
 import { getProfile } from "@/actions/get-profile";
+import { BackLink } from "@/components/back-link";
 import { ExportNotes } from "@/components/settings/export-notes";
 import { ImportNotes } from "@/components/settings/import-notes";
 import { ProfileForm } from "@/components/settings/profile-form";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 export default async function SettingsPage() {
@@ -14,11 +11,7 @@ export default async function SettingsPage() {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
-        <Button asChild size="sm" variant="ghost">
-          <Link href="/">
-            <ArrowLeftIcon className="h-4 w-4" /> home
-          </Link>
-        </Button>
+        <BackLink href="/" label="home" />
       </div>
 
       <h1 className="mb-6 text-2xl font-semibold">settings</h1>

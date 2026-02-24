@@ -1,10 +1,9 @@
-import { ArrowLeftIcon } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getAssets } from "@/actions/get-assets";
 import { getNote } from "@/actions/get-note";
 import { updateNote } from "@/actions/update-note";
+import { BackLink } from "@/components/back-link";
 import { EditPageAssets } from "@/components/notes/assets/edit-page-assets";
 import { FormHotkeys } from "@/components/notes/form-hotkeys";
 import { Button } from "@/components/ui/button";
@@ -32,18 +31,14 @@ export default async function EditNotePage({ params }: PageProps) {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
-        <Button asChild size="sm" variant="ghost">
-          <Link href={`/notes/${note.id}`}>
-            <ArrowLeftIcon className="h-4 w-4" /> note
-          </Link>
-        </Button>
+        <BackLink href={`/notes/${note.id}`} label="note" />
       </div>
 
       <div className="mb-6 flex items-center gap-3 text-sm text-muted-foreground">
         <span>{formatDateTime(note.createdAt)}</span>
       </div>
 
-      <FormHotkeys action={updateNote} cancelHref={`/notes/${note.id}`}>
+      <FormHotkeys action={updateNote}>
         <input name="noteId" type="hidden" value={note.id} />
         <Textarea
           className="text-lg leading-relaxed"
@@ -53,15 +48,7 @@ export default async function EditNotePage({ params }: PageProps) {
           placeholder="write your note content here..."
           rows={10}
         />
-        <div className="flex justify-end gap-2 pt-4">
-          <Button asChild variant="outline">
-            <Link href={`/notes/${note.id}`}>
-              cancel
-              <span className="hidden gap-0.5 sm:inline-flex">
-                <Kbd>esc</Kbd>
-              </span>
-            </Link>
-          </Button>
+        <div className="flex justify-end pt-4">
           <Button type="submit">
             <span className="flex items-center gap-2 text-sm">
               save
