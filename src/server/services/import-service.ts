@@ -18,6 +18,7 @@ import {
   exportDataSchema,
   manifestSchema,
 } from "@/server/schemas/export-schemas";
+import { formatMarkdown } from "@/server/services/format-service";
 
 interface ImportResult {
   created: number;
@@ -160,8 +161,10 @@ class ImportService {
         continue;
       }
 
+      const formattedContent = await formatMarkdown(exportedNote.content);
+
       await this.noteRepo.upsert({
-        content: exportedNote.content,
+        content: formattedContent,
         createdAt: new Date(exportedNote.createdAt),
         id: noteId,
         pinnedAt: exportedNote.pinnedAt

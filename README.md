@@ -7,6 +7,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 ## Features
 
 - create, edit, and delete plain-text notes
+- automatic "markdown" formatting on save (powered by `oxfmt`)
 - pin notes to keep them at the top
 - set reminders on notes from time presets (30 min, 1 hour, 3 hours, tomorrow, etc.)
 - search across all notes
