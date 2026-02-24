@@ -12,15 +12,9 @@ class UserService {
   constructor(private userRepo: UserRepository) {}
 
   async getDeviceUserId(): Promise<string> {
-    const existing = await this.userRepo.findById(DEVICE_USER_ID);
-
-    if (existing) {
-      return existing.id;
-    }
-
     const now = new Date();
 
-    await this.userRepo.create({
+    await this.userRepo.upsert({
       createdAt: now,
       email: "local@notras.app",
       id: DEVICE_USER_ID,
