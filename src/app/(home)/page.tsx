@@ -21,7 +21,7 @@ export default async function Page() {
 
   return (
     <section className="flex w-full flex-1 flex-col items-center">
-      <header className="flex flex-1 flex-col items-center justify-center pt-20 pb-4 text-center md:pb-8 lg:pb-20">
+      <header className="flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 pt-20 pb-4 text-center md:pb-8 lg:pb-20">
         <h1 className="mb-2 text-5xl font-semibold tracking-tight sm:text-7xl">
           notras
         </h1>
