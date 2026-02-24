@@ -8,6 +8,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 
 - create, edit, and delete plain-text notes
 - pin notes to keep them at the top
+- set reminders on notes from time presets (30 min, 1 hour, 3 hours, tomorrow, etc.)
 - search across all notes
 - filter by time period (today, yesterday, this week, this month, all time)
 - sort by newest, oldest, or recently updated
@@ -138,6 +139,7 @@ pnpm dev
 | `/`         | global      | focus search |
 | `e`         | note detail | edit note    |
 | `p`         | note detail | toggle pin   |
+| `r`         | note detail | reminder     |
 | `d`         | note detail | delete note  |
 | `c`         | note detail | copy content |
 | `Cmd+Enter` | form        | submit       |

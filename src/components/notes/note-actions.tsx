@@ -12,6 +12,7 @@ import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";
 import { CopyNoteButton } from "@/components/notes/copy-note-button";
 import { DeleteNoteButton } from "@/components/notes/delete-note-button";
+import { ReminderButton } from "@/components/notes/reminder-button";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import {
@@ -24,9 +25,15 @@ interface NoteActionsProps {
   content: string;
   noteId: NoteId;
   pinned: boolean;
+  remindAt: Date | null;
 }
 
-export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
+export function NoteActions({
+  content,
+  noteId,
+  pinned,
+  remindAt,
+}: NoteActionsProps) {
   const router = useRouter();
 
   const handleTogglePin = useCallback(async () => {
@@ -71,6 +78,8 @@ export function NoteActions({ content, noteId, pinned }: NoteActionsProps) {
             </div>
           </TooltipContent>
         </Tooltip>
+
+        <ReminderButton noteId={noteId} remindAt={remindAt} />
 
         <DeleteNoteButton noteId={noteId} />
 
