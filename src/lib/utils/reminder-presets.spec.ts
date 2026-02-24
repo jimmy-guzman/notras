@@ -1,4 +1,8 @@
-import { REMINDER_PRESETS, resolvePreset } from "./reminder-presets";
+import {
+  REMINDER_PRESET_KEYS,
+  REMINDER_PRESETS,
+  resolvePreset,
+} from "./reminder-presets";
 
 describe("REMINDER_PRESETS", () => {
   beforeEach(() => {
@@ -10,14 +14,20 @@ describe("REMINDER_PRESETS", () => {
     vi.useRealTimers();
   });
 
-  it("should have 7 presets", () => {
-    expect(REMINDER_PRESETS).toHaveLength(7);
+  it("should have 8 presets", () => {
+    expect(REMINDER_PRESETS).toHaveLength(8);
   });
 
   it("should have unique keys", () => {
     const keys = REMINDER_PRESETS.map((p) => p.key);
 
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("should export keys matching the presets", () => {
+    expect(REMINDER_PRESET_KEYS).toStrictEqual(
+      REMINDER_PRESETS.map((p) => p.key),
+    );
   });
 });
 
@@ -29,6 +39,12 @@ describe("resolvePreset", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("should resolve 'in-5-minutes' to 5 minutes from now", () => {
+    const result = resolvePreset("in-5-minutes");
+
+    expect(result).toStrictEqual(new Date(2025, 5, 15, 14, 35, 0));
   });
 
   it("should resolve 'in-30-minutes' to 30 minutes from now", () => {

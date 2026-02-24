@@ -1,51 +1,46 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { clearReminder } from "@/actions/clear-reminder";
-import { getDueReminders } from "@/actions/get-due-reminders";
-import { toNoteId } from "@/lib/id";
 import { truncate } from "@/lib/utils/truncate";
 
 const MAX_PREVIEW_LENGTH = 60;
-const checkedPaths = new Set<string>();
+
+interface ReminderEvent {
+  content: string;
+  noteId: string;
+}
 
 export function ReminderChecker() {
-  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    if (checkedPaths.has(pathname)) {
-      return;
+    const source = new EventSource("/api/reminders/stream");
+
+    function handleMessage(event: MessageEvent<string>) {
+      const { content, noteId } = JSON.parse(event.data) as ReminderEvent;
+      const preview = truncate(content, MAX_PREVIEW_LENGTH);
+
+      toast.info(preview, {
+        action: {
+          label: "view",
+          onClick: () => {
+            router.push(`/notes/${noteId}`);
+          },
+        },
+        duration: Infinity,
+      });
     }
 
-    checkedPaths.add(pathname);
+    source.addEventListener("message", handleMessage);
 
-    async function checkReminders() {
-      const dueNotes = await getDueReminders();
-
-      for (const note of dueNotes) {
-        const noteId = toNoteId(note.id);
-        const preview = truncate(note.content, MAX_PREVIEW_LENGTH);
-
-        toast.info(preview, {
-          action: {
-            label: "view",
-            onClick: () => {
-              globalThis.location.href = `/notes/${noteId}`;
-            },
-          },
-          duration: Infinity,
-          onDismiss: () => {
-            void clearReminder(noteId);
-          },
-        });
-      }
-    }
-
-    void checkReminders();
-  }, [pathname]);
+    return () => {
+      source.removeEventListener("message", handleMessage);
+      source.close();
+    };
+  }, [router]);
 
   return null;
 }

@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,6 +12,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { toNoteId } from "@/lib/id";
+import { formatDateTime } from "@/lib/utils/format";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -40,12 +40,7 @@ export default async function EditNotePage({ params }: PageProps) {
       </div>
 
       <div className="mb-6 flex items-center gap-3 text-sm text-muted-foreground">
-        <span className="hidden sm:inline">
-          {format(note.createdAt, "PPP pp")}
-        </span>
-        <span className="sm:hidden">
-          {format(note.createdAt, "MMM d, h:mm a")}
-        </span>
+        <span>{formatDateTime(note.createdAt)}</span>
       </div>
 
       <FormHotkeys action={updateNote} cancelHref={`/notes/${note.id}`}>

@@ -62,7 +62,7 @@ describe("NoteCard", () => {
 
     render(<NoteCard note={makeNote({ createdAt: date })} />);
 
-    expect(screen.getByText("Jun 15, 2025")).toBeInTheDocument();
+    expect(screen.getByText("jun 15, 2025")).toBeInTheDocument();
   });
 
   it("should highlight matching text when a query is provided", () => {

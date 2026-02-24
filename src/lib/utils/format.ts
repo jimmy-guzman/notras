@@ -1,9 +1,11 @@
+import { format } from "date-fns";
+
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return format(date, "MMM d, yyyy").toLowerCase();
+}
+
+export function formatDateTime(date: Date): string {
+  return format(date, "MMM d, h:mm a").toLowerCase();
 }
 
 export function formatFileSize(bytes: number): string {
