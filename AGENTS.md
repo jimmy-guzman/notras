@@ -52,31 +52,30 @@ data/
   notras.db         # Local SQLite database (git-ignored)
 ```
 
+## Architecture
+
+- **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
+
 ## Key Patterns
 
 - **Server actions** live in `src/actions/` with `"use server"` directive. Two patterns coexist:
   - **`serverAction()` pattern** (most actions): Import `serverAction` from `@/lib/authorized`. It resolves the device `userId` and passes it to a callback: `serverAction(async (userId) => { ... })`. Use manual `schema.parse()` for validation when needed. This is the dominant pattern for mutations, reads, and `FormData`-based actions.
   - **`actionClient` pattern** (forms that stay on page): Import `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware). Define as `actionClient.inputSchema(schema).action(async ({ ctx, parsedInput }) => { ... })`. Validation is automatic. Use this with `useHookFormAction` for forms like settings/profile and import.
+  - Keep server actions thin -- one action per file. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
 - **API routes** use `serverAction()` from `@/lib/authorized` for auth, then call services within the callback.
-- **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
 - **Services** live in `src/server/services/`. Each service file is self-contained: it owns its interface, implementation class, and a lazy singleton getter (e.g., `getNoteService()`). No central container -- consumers import directly from the service they need.
 - **Repositories** live in `src/server/repositories/`. They define an interface and a DB implementation for data persistence. Services depend on repository interfaces, not concrete implementations.
 - **Validation** uses Zod schemas from `src/server/schemas/`. For `actionClient`-based server actions, validation is automatic via `inputSchema()`. For API routes, validate manually with `safeParse`.
-- **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
 - **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
 - **`"use cache"` directive:** Read actions (e.g., `get-note.ts`, `get-notes.ts`) use the `"use cache"` directive with `cacheTag("notes")` for automatic caching. This is enabled by `experimental: { useCache: true }` in `next.config.ts`. Do **not** use `"use cache"` on time-dependent queries (e.g., "find reminders where `remindAt <= now()`") -- the cached result goes stale immediately since `now()` changes every call.
-- **Path alias** `@/*` maps to `./src/*`.
-- **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`). `NODE_ENV` is also validated as a shared env var.
-- **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`). New schema modules must be spread into the `schema` object in `src/server/db/index.ts`.
-- **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`). Always prefer a Shadcn component over hand-rolling custom UI -- check the registry first (`shadcn_search_items_in_registries`) before building something from scratch.
-- **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
 - **Navigation links** in the top nav use `Button` + `Link` + `Tooltip` + `Kbd` with single-letter hotkeys (e.g., `h` for home, `n` for new note, `s` for settings). No dropdowns -- keep it flat and minimal.
 - **Global hotkeys** are registered in `HotkeysProvider` (`src/components/hotkeys-provider.tsx`). When adding a new nav route, also register its hotkey there.
-- **Note detail hotkeys:** On the note detail page (`/notes/[id]`), single-letter hotkeys are registered for actions: `p` (pin/unpin), `r` (remind), `e` (edit). The `r` hotkey toggles the reminder popover open/closed and is handled inside `ReminderButton` itself (not in `NoteActions`).
+
+### Forms
+
 - **Form hotkeys:** Forms that edit content use `useHotkeys("mod+enter")` to submit and `useHotkeys("escape")` to cancel, with `<Kbd>⌘</Kbd><Kbd>⏎</Kbd>` badges on the submit button. For note forms, use `FormHotkeys` wrapper; for non-note forms (like settings), wire hotkeys directly with `useHotkeys` and `enableOnFormTags: ["INPUT"]` or `["TEXTAREA"]`.
-- **`useHookFormAction` pattern:** For forms that stay on the same page after submit (e.g., settings profile, import), use `useHookFormAction` with `zodResolver`. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()`.
-- **React Hook Form + next-safe-action:** For forms that use `actionClient`-based server actions, use `useHookFormAction` from `@next-safe-action/adapter-react-hook-form/hooks` with `zodResolver` from `@hookform/resolvers/zod`. Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed.
+- **`useHookFormAction` pattern:** For forms that use `actionClient`-based server actions, use `useHookFormAction` from `@next-safe-action/adapter-react-hook-form/hooks` with `zodResolver` from `@hookform/resolvers/zod`. Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()` instead.
 - **Field component:** Use `<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>` from `@/components/ui/field` for form field structure instead of raw `<div>` + `<Label>` + manual error `<p>` tags. Set `data-invalid={!!fieldState.error || undefined}` on `<Field>` to turn labels red on validation error.
 - **Button disabled state:** Keep submit buttons always enabled for a11y -- only disable during `action.isPending` to prevent double-submits, never based on validation state like `formState.isValid`.
 - **Form aesthetic:** Forms use bare inputs in a `flex flex-col gap-6` layout (no Card wrappers). Labels and button text are lowercase. Action buttons are right-aligned at the bottom: cancel (outline) + submit (primary with Kbd hints). Back button with `ArrowLeftIcon` at the top of the page.
@@ -115,15 +114,28 @@ If any step fails, fix the issue and re-run from that step. Do not move on until
 
 ## Conventions
 
+- **Path alias** `@/*` maps to `./src/*`.
+- **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`). `NODE_ENV` is also validated as a shared env var.
+- **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`). New schema modules must be spread into the `schema` object in `src/server/db/index.ts`.
+- **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`). Always prefer a Shadcn component over hand-rolling custom UI -- check the registry first (`shadcn_search_items_in_registries`) before building something from scratch.
+- **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
+- **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
 - Use `satisfies` for type narrowing when possible (e.g., config objects).
 - Test files use the `.spec.ts` suffix and live next to the code they test.
+- Sort object keys and import statements alphabetically.
+- Prefer named exports over default exports (except for Next.js pages/layouts).
+- **Bottom-up file structure:** Files should read bottom-up -- private/helper components and functions at the top, the main exported component at the bottom. This way the file's public API is immediately visible when you scroll to the end.
+- **Lowercase aesthetic:** All user-facing text in the UI is lowercase -- labels, button text, headings, placeholder text, toast messages, tooltips, etc. This is a deliberate design choice across the entire app, not just forms.
+- **Date formatting:** All date display in components goes through `formatDate` (date only) and `formatDateTime` (date + time) from `@/lib/utils/format.ts`. Both return lowercase output to match the app's aesthetic. Do not use raw `format()` from `date-fns` directly in components.
+
+### Lint-enforced
+
+These rules are caught by the linter, but following them preemptively avoids round-trips:
+
 - Test titles (`it`/`test`) must start with "should" (enforced by `vitest/valid-title`).
 - Use `toStrictEqual()` instead of `toEqual()` (enforced by `vitest/prefer-strict-equal`).
-- Sort object keys and import statements alphabetically.
 - Use top-level `import type` declarations, not inline `import { type Foo }` (enforced by `import-x/consistent-type-specifier-style`).
 - Arrow functions: use implicit return for single-expression bodies, explicit `return` for multi-line (enforced by `arrow-style/arrow-return-style`). Note: even single expressions that span multiple lines (e.g., a function call with multi-line args) require explicit `return`.
-- Prefer named exports over default exports (except for Next.js pages/layouts).
-- Keep server actions thin -- one action per file in `src/actions/`. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
 - In tests, avoid direct DOM node access (`.closest()`, `.firstChild`, etc.) -- use Testing Library queries instead (enforced by `testing-library/no-node-access`).
 - Use `toHaveTextContent` instead of asserting on `.textContent` (enforced by `jest-dom/prefer-to-have-text-content`).
 - Use template literals instead of string concatenation (enforced by `prefer-template`).
@@ -131,9 +143,6 @@ If any step fails, fix the issue and re-run from that step. Do not move on until
 - Use `replaceAll()` instead of `replace()` with global regex (enforced by `unicorn/prefer-string-replace-all`).
 - Use `**` operator instead of `Math.pow()` (enforced by `prefer-exponentiation-operator`).
 - Do not use `??` or `||` fallbacks when the left-hand side type is already non-nullable (enforced by `@typescript-eslint/no-unnecessary-condition`).
-- **Bottom-up file structure:** Files should read bottom-up -- private/helper components and functions at the top, the main exported component at the bottom. This way the file's public API is immediately visible when you scroll to the end.
-- **Lowercase aesthetic:** All user-facing text in the UI is lowercase -- labels, button text, headings, placeholder text, toast messages, tooltips, etc. This is a deliberate design choice across the entire app, not just forms.
-- **Date formatting:** All date display in components goes through `formatDate` (date only) and `formatDateTime` (date + time) from `@/lib/utils/format.ts`. Both return lowercase output to match the app's aesthetic. Do not use raw `format()` from `date-fns` directly in components.
 
 ## Testing Notes
 
@@ -191,14 +200,19 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 
 - Edit files in `src/components/ui/` manually -- these are Shadcn-generated. After installing new Shadcn components, run `pnpm lint:fix` for auto-fixable issues. For remaining errors that aren't auto-fixable (e.g., `eqeqeq`, `no-array-index-key`, `no-leaked-conditional-rendering`), add rule overrides to the `"**/components/ui/**/*.tsx"` config in `eslint.config.ts` instead of editing the component source.
 - Use Prettier -- this project uses oxfmt.
-- Use `process.env` directly -- import `env` from `@/env`.
 - Add unnecessary `"use client"` directives -- prefer Server Components.
-- Use raw SQL -- use Drizzle ORM's query builder.
 - Leave comments in the codebase that are not JSDoc or TODO/FIXME notes.
-- Use redundant return types for internal functions that can be inferred
+- Use redundant return types for internal functions that can be inferred.
 - Be lazy when dealing with static analysis warnings/errors -- address them promptly.
 - Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
 - Leave tests in a failing state -- after making changes, run `pnpm test` and fix any broken tests before finishing.
 - Leave lint errors -- after making changes, run `pnpm lint` and fix any errors before finishing.
 - Leave the build broken -- after making changes, run `pnpm build` and fix any errors before finishing.
 - Forget to update docs -- after introducing a new pattern, feature, convention, or structural change, ask the user if `AGENTS.md` and/or `README.md` should be updated, then apply the changes.
+
+## Branching & Commits
+
+- **Branch naming:** `{type}-{short-description}` in kebab-case. The type prefix matches commit types: `feat-`, `fix-`, `refactor-`, `chore-`, `docs-`, `ci-`. Examples: `feat-add-list-vs-grid-view`, `fix-no-more-confusing-cancel`.
+- **Commits:** Use `pnpm gitzy` to create commits. It enforces Conventional Commits format with emojis and lowercase descriptions interactively. Run `pnpm gitzy -p -a` to stage all changes and commit in one step.
+- **Pull requests:** Branch off `main`, push, and open a PR with `gh pr create`. PR titles follow the same conventional commit format as commits (e.g., `feat: ✨ add markdown preview`). Merge commits are disabled -- use squash merge.
+- **Working on `main`:** If changes are being made on `main`, create a new branch before committing. Do not commit directly to `main`.
