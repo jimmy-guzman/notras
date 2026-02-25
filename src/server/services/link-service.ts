@@ -11,7 +11,17 @@ import { DBLinkRepository } from "@/server/repositories/link-repository";
 import { fetchOgMetadata } from "@/server/services/og-service";
 
 const URL_PATTERN =
-  /\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(?<![[()])(https?:\/\/[^\s)>\]]+)/g;
+  /\[[^\]]*\]\((https?:\/\/\S+)\)|(?<![[()"])(https?:\/\/[^\s)>\]"]+)/g;
+
+function cleanUrl(raw: string) {
+  const trimmed = raw.replace(/[.,!?;:'"]+$/, "");
+
+  const open = (trimmed.match(/\(/g) ?? []).length;
+  const close = (trimmed.match(/\)/g) ?? []).length;
+  const excess = close - open;
+
+  return excess > 0 ? trimmed.slice(0, -excess) : trimmed;
+}
 
 export function extractUrls(content: string): string[] {
   const urls = new Set<string>();
@@ -20,7 +30,7 @@ export function extractUrls(content: string): string[] {
     const url = match[1] || match[2];
 
     if (url) {
-      urls.add(url);
+      urls.add(cleanUrl(url));
     }
   }
 
