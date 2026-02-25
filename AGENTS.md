@@ -213,6 +213,6 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 ## Branching & Commits
 
 - **Branch naming:** `{type}-{short-description}` in kebab-case. The type prefix matches commit types: `feat-`, `fix-`, `refactor-`, `chore-`, `docs-`, `ci-`. Examples: `feat-add-list-vs-grid-view`, `fix-no-more-confusing-cancel`.
-- **Commits:** Use `pnpm gitzy` to create commits. It enforces Conventional Commits format with emojis and lowercase descriptions interactively. Run `pnpm gitzy -p -a` to stage all changes and commit in one step.
+- **Commits:** Use `pnpm gitzy` to create commits. It enforces Conventional Commits format with emojis and lowercase descriptions interactively. Run `pnpm gitzy -p -a` to stage all changes and commit in one step. Keep the subject line under 50 characters and wrap the body at 72 characters.
 - **Pull requests:** Branch off `main`, push, and open a PR with `gh pr create`. PR titles follow the same conventional commit format as commits (e.g., `feat: ✨ add markdown preview`). Merge commits are disabled -- use squash merge.
 - **Working on `main`:** If changes are being made on `main`, create a new branch before committing. Do not commit directly to `main`.
