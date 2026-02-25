@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { getAssets } from "@/actions/get-assets";
 import { getLinks } from "@/actions/get-links";
 import { getNote } from "@/actions/get-note";
+import { getPreferences } from "@/actions/get-preferences";
 import { AssetList } from "@/components/notes/assets/asset-list";
 import { PdfList } from "@/components/notes/assets/pdf-list";
+import { MarkdownContent } from "@/components/notes/markdown-content";
 import { NoteActions } from "@/components/notes/note-actions";
 import { NoteLinks } from "@/components/notes/note-links";
 import { toNoteId } from "@/lib/id";
@@ -19,7 +21,10 @@ interface PageProps {
 export default async function NotePage({ params }: PageProps) {
   const { id } = await params;
   const noteId = toNoteId(id);
-  const note = await getNote(noteId);
+  const [note, preferences] = await Promise.all([
+    getNote(noteId),
+    getPreferences(),
+  ]);
 
   if (!note) {
     notFound();
@@ -51,11 +56,20 @@ export default async function NotePage({ params }: PageProps) {
         )}
       </div>
 
-      <div className="prose prose-gray dark:prose-invert mb-12 max-w-none">
-        <div className="text-lg leading-relaxed whitespace-pre-wrap">
-          {note.content}
+      {preferences.markdownPreview ? (
+        <div className="prose mb-12 max-w-none prose-stone dark:prose-invert">
+          <MarkdownContent
+            content={note.content}
+            syntaxHighlighting={preferences.syntaxHighlighting}
+          />
         </div>
-      </div>
+      ) : (
+        <div className="prose mb-12 max-w-none prose-stone dark:prose-invert">
+          <div className="text-lg leading-relaxed whitespace-pre-wrap">
+            {note.content}
+          </div>
+        </div>
+      )}
 
       {hasAttachments && (
         <div className="space-y-6 border-t pt-8">

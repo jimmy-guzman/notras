@@ -1,8 +1,10 @@
 import { eq } from "drizzle-orm";
 
 import type { Database } from "@/server/db";
+import type { Preferences } from "@/server/schemas/user-schemas";
 
 import { user } from "@/server/db/schemas/users";
+import { preferencesSchema } from "@/server/schemas/user-schemas";
 
 export interface CreateUserInput {
   createdAt: Date;
@@ -27,7 +29,9 @@ export interface UserProfile {
 
 export interface UserRepository {
   findFullById(id: string): Promise<undefined | UserProfile>;
+  findPreferences(id: string): Promise<Preferences>;
   update(id: string, input: UpdateUserInput): Promise<void>;
+  updatePreferences(id: string, preferences: Preferences): Promise<void>;
   upsert(input: CreateUserInput): Promise<void>;
 }
 
@@ -49,8 +53,31 @@ export class DBUserRepository implements UserRepository {
     return results.length > 0 ? results[0] : undefined;
   }
 
+  async findPreferences(id: string): Promise<Preferences> {
+    const results = await this.db
+      .select({ preferences: user.preferences })
+      .from(user)
+      .where(eq(user.id, id))
+      .limit(1);
+
+    const raw = results.length > 0 ? results[0].preferences : null;
+
+    if (!raw) {
+      return preferencesSchema.parse({});
+    }
+
+    return preferencesSchema.parse(JSON.parse(raw));
+  }
+
   async update(id: string, input: UpdateUserInput): Promise<void> {
     await this.db.update(user).set(input).where(eq(user.id, id));
+  }
+
+  async updatePreferences(id: string, preferences: Preferences): Promise<void> {
+    await this.db
+      .update(user)
+      .set({ preferences: JSON.stringify(preferences), updatedAt: new Date() })
+      .where(eq(user.id, id));
   }
 
   async upsert(input: CreateUserInput): Promise<void> {
