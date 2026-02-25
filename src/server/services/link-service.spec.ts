@@ -70,4 +70,28 @@ describe("extractUrls", () => {
 
     expect(extractUrls(content)).toStrictEqual(["https://example.com"]);
   });
+
+  it("should not capture trailing period", () => {
+    expect(extractUrls("See https://example.com.")).toStrictEqual([
+      "https://example.com",
+    ]);
+  });
+
+  it("should handle parentheses in URLs", () => {
+    expect(
+      extractUrls("[link](https://en.wikipedia.org/wiki/Rust_(language))"),
+    ).toStrictEqual(["https://en.wikipedia.org/wiki/Rust_(language)"]);
+  });
+
+  it("should handle autolink syntax", () => {
+    expect(extractUrls("<https://example.com>")).toStrictEqual([
+      "https://example.com",
+    ]);
+  });
+
+  it("should not capture URLs inside HTML attributes", () => {
+    const content = `<a href="https://example.com">link</a>`;
+
+    expect(extractUrls(content)).toStrictEqual([]);
+  });
 });
