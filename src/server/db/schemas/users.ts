@@ -6,5 +6,6 @@ export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   image: text("image"),
   name: text("name").notNull(),
+  preferences: text("preferences"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });

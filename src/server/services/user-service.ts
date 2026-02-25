@@ -2,6 +2,7 @@ import type {
   UserProfile,
   UserRepository,
 } from "@/server/repositories/user-repository";
+import type { Preferences } from "@/server/schemas/user-schemas";
 
 import { getDb } from "@/server/db";
 import { DBUserRepository } from "@/server/repositories/user-repository";
@@ -25,6 +26,10 @@ class UserService {
     return DEVICE_USER_ID;
   }
 
+  async getPreferences(userId: string): Promise<Preferences> {
+    return this.userRepo.findPreferences(userId);
+  }
+
   async getProfile(userId: string): Promise<UserProfile> {
     const profile = await this.userRepo.findFullById(userId);
 
@@ -33,6 +38,10 @@ class UserService {
     }
 
     return profile;
+  }
+
+  async updatePreferences(userId: string, data: Preferences): Promise<void> {
+    await this.userRepo.updatePreferences(userId, data);
   }
 
   async updateProfile(

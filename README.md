@@ -7,6 +7,8 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 ## Features
 
 - create, edit, and delete plain-text notes
+- markdown preview with GFM support (tables, task lists, strikethrough)
+- syntax highlighting in code blocks (powered by `rehype-expressive-code`)
 - automatic "markdown" formatting on save (powered by `oxfmt`)
 - pin notes to keep them at the top
 - set reminders on notes from time presets (30 min, 1 hour, 3 hours, tomorrow, etc.)
@@ -15,7 +17,9 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - sort by newest, oldest, or recently updated
 - toggle between grid and list views
 - attach images and PDFs to notes (images auto-optimized to WebP)
+- extract links from note content and display them in a sidebar
 - export notes as a zip and import from backup (merge or mirror)
+- user preferences (markdown preview, syntax highlighting)
 - keyboard shortcuts for everything
 - animated transitions
 - dark/light mode (follows system preference)
@@ -47,6 +51,9 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [Lucide](https://lucide.dev)
 - [nuqs](https://nuqs.47ng.com) (URL search state)
 - [react-hotkeys-hook](https://react-hotkeys-hook.vercel.app)
+- [react-markdown](https://github.com/remarkjs/react-markdown) + [remark-gfm](https://github.com/remarkjs/remark-gfm)
+- [rehype-expressive-code](https://expressive-code.com) (syntax highlighting)
+- [@tailwindcss/typography](https://tailwindcss.com/docs/typography-plugin) (prose styles)
 - [date-fns](https://date-fns.org) (date formatting)
 
 ### Backend
@@ -160,17 +167,18 @@ pnpm dev
 
 ## Keyboard Shortcuts
 
-| Key         | Context     | Action       |
-| ----------- | ----------- | ------------ |
-| `h`         | global      | go home      |
-| `n`         | global      | new note     |
-| `a`         | global      | all notes    |
-| `s`         | global      | settings     |
-| `/`         | global      | focus search |
-| `e`         | note detail | edit note    |
-| `p`         | note detail | toggle pin   |
-| `r`         | note detail | reminder     |
-| `d`         | note detail | delete note  |
-| `c`         | note detail | copy content |
-| `Cmd+Enter` | form        | submit       |
-| `Escape`    | form        | cancel       |
+| Key         | Context     | Action         |
+| ----------- | ----------- | -------------- |
+| `?`         | global      | view shortcuts |
+| `h`         | global      | go home        |
+| `n`         | global      | new note       |
+| `a`         | global      | all notes      |
+| `s`         | global      | settings       |
+| `/`         | global      | focus search   |
+| `e`         | note detail | edit note      |
+| `p`         | note detail | toggle pin     |
+| `r`         | note detail | reminder       |
+| `d`         | note detail | delete note    |
+| `c`         | note detail | copy content   |
+| `Cmd+Enter` | form        | submit         |
+| `Escape`    | form        | cancel         |

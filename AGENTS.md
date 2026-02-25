@@ -25,6 +25,7 @@ src/
       assets/[id]/  # GET route for serving asset files
       export/       # GET route for zip export
     notes/
+      (list)/       # Route group for notes list (scoped loading boundary)
       [id]/
         edit/       # Edit note page
       new/          # New note page
@@ -103,6 +104,7 @@ pnpm db:studio    # Open Drizzle Studio
 After **every** set of changes, run all of these checks before considering the task done. Do NOT skip any step -- the build in particular is easy to forget and catches errors (like missing Suspense boundaries) that other checks miss.
 
 ```txt
+pnpm knip         # 0. Check for unused code/deps (fix before proceeding)
 pnpm typecheck    # 1. Type check
 pnpm lint         # 2. Lint (fix errors before proceeding)
 pnpm test         # 3. Unit tests
