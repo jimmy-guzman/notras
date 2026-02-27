@@ -23,6 +23,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - keyboard shortcuts for everything
 - animated transitions
 - dark/light mode (follows system preference)
+- installable as a progressive web app (pwa) on desktop and mobile
 
 ## Technologies
 
