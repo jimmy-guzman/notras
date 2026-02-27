@@ -1,24 +1,15 @@
 import { ImageResponse } from "next/og";
 
-// eslint-disable-next-line react-refresh/only-export-components -- this file is used in a non-react context, so we can't export a React component
-export const size = {
-  height: 32,
-  width: 32,
-};
-
-// eslint-disable-next-line react-refresh/only-export-components -- this file is used in a non-react context, so we can't export a React component
-export const contentType = "image/png";
-
-export default function Icon() {
+export function GET() {
   return new ImageResponse(
     <svg
-      height="32"
-      viewBox="0 0 32 32"
-      width="32"
+      height="512"
+      viewBox="0 0 512 512"
+      width="512"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect fill="#252420" height="32" width="32" />
-      <g transform="translate(4, 4)">
+      <rect fill="#252420" height="512" width="512" />
+      <g transform="translate(64, 64) scale(16)">
         <path
           d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"
           fill="none"
@@ -70,7 +61,8 @@ export default function Icon() {
       </g>
     </svg>,
     {
-      ...size,
+      height: 512,
+      width: 512,
     },
   );
 }

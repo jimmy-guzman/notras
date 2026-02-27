@@ -1,6 +1,6 @@
 import "./globals.css";
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
@@ -29,9 +29,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "notras",
+  },
+  applicationName: "notras",
   description: "A minimal, personal notes app. Just write, otra vez.",
   title: "notras",
 } satisfies Metadata;
+
+export const viewport = {
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
+  width: "device-width",
+} satisfies Viewport;
 
 export default async function RootLayout({
   children,
