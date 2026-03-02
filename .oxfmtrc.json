@@ -11,5 +11,13 @@
   "singleQuote": false,
   "trailingComma": "all",
   "experimentalSortPackageJson": {},
-  "ignorePatterns": ["pnpm-lock.yaml", "CHANGELOG.md", "*.gen.*"]
+  "ignorePatterns": [
+    "pnpm-lock.yaml",
+    "CHANGELOG.md",
+    "*.gen.*",
+    ".next",
+    "dist",
+    "coverage",
+    "node_modules"
+  ]
 }
