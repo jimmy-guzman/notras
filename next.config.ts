@@ -24,6 +24,11 @@ const nextConfig = {
   },
   output: process.env.STANDALONE === "true" ? "standalone" : undefined,
   serverExternalPackages: ["oxfmt"],
+  turbopack: {
+    resolveAlias: {
+      "motion/react": "framer-motion",
+    },
+  },
   typedRoutes: true,
 } satisfies NextConfig;
 
