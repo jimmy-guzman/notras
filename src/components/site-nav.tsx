@@ -16,7 +16,7 @@ export function SiteNav() {
 
         <div className="hidden flex-1 items-center justify-center gap-2 sm:flex">
           <Suspense>
-            <NavSearch />
+            <NavSearch layoutId="search-bar" />
           </Suspense>
           <NavNewNote />
         </div>

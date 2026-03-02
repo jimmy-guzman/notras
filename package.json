@@ -55,6 +55,7 @@
     "tailwind-merge": "3.5.0",
     "typeid-js": "1.2.0",
     "unified": "11.0.5",
+    "use-debounce": "10.1.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
