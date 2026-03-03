@@ -1,24 +1,24 @@
 "use client";
 
-import type { Transition } from "motion/react";
-
-import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useDebouncedCallback } from "use-debounce";
 
 import { SearchBar } from "../search-bar";
-
-const entranceTransition = {
-  duration: 0.5,
-  ease: [0.22, 1, 0.36, 1],
-  type: "tween",
-} satisfies Transition;
 
 export function HomeSearch() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
+
+  const debounced = useDebouncedCallback((q: string) => {
+    const trimmed = q.trim();
+
+    if (trimmed) {
+      router.push(`/notes?q=${encodeURIComponent(trimmed)}`);
+    }
+  }, 300);
 
   useHotkeys("slash", () => inputRef.current?.focus(), {
     preventDefault: true,
@@ -26,21 +26,12 @@ export function HomeSearch() {
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const trimmed = value.trim();
-
-    if (trimmed) {
-      router.push(`/notes?q=${encodeURIComponent(trimmed)}`);
-      inputRef.current?.blur();
-    }
+    debounced.flush();
+    inputRef.current?.blur();
   };
 
   return (
-    <motion.search
-      animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
-      className="w-full max-w-xl"
-      initial={{ filter: "blur(4px)", opacity: 0, y: 16 }}
-      transition={entranceTransition}
-    >
+    <search className="w-full max-w-xl">
       <form onSubmit={handleSubmit}>
         <label className="sr-only" htmlFor="home-search">
           search notes
@@ -51,13 +42,15 @@ export function HomeSearch() {
             name: "q",
             onChange: (e) => {
               setValue(e.target.value);
+              debounced(e.target.value);
             },
             value,
           }}
+          layoutId="search-bar"
           ref={inputRef}
           variant="home"
         />
       </form>
-    </motion.search>
+    </search>
   );
 }

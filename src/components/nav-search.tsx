@@ -5,12 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryStates } from "nuqs";
 import { useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useDebouncedCallback } from "use-debounce";
 
 import { parsers } from "@/lib/notes-search-params";
 
 import { SearchBar } from "./search-bar";
 
-export function NavSearch() {
+interface NavSearchProps {
+  layoutId?: string;
+}
+
+export function NavSearch({ layoutId }: NavSearchProps) {
   const pathname = usePathname();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,23 +30,24 @@ export function NavSearch() {
   const [draft, setDraft] = useState<null | string>(null);
   const value = draft ?? params.q;
 
-  useHotkeys("slash", () => inputRef.current?.focus(), {
-    enabled: !isHome,
-    preventDefault: true,
-  });
-
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const trimmed = value.trim();
+  const debounced = useDebouncedCallback(async (q: string) => {
+    const trimmed = q.trim();
 
     if (isNotesPage) {
       await setParams({ q: trimmed || null });
     } else if (trimmed) {
       router.push(`/notes?q=${encodeURIComponent(trimmed)}`);
-    } else {
-      router.push("/notes");
     }
+  }, 300);
 
+  useHotkeys("slash", () => inputRef.current?.focus(), {
+    enabled: !isHome,
+    preventDefault: true,
+  });
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void debounced.flush();
     setDraft(null);
     inputRef.current?.blur();
   };
@@ -59,13 +65,16 @@ export function NavSearch() {
               inputProps={{
                 name: "q",
                 onBlur: () => {
+                  debounced.cancel();
                   setDraft(null);
                 },
                 onChange: (e) => {
                   setDraft(e.target.value);
+                  void debounced(e.target.value);
                 },
                 value,
               }}
+              layoutId={layoutId}
               ref={inputRef}
               variant="nav"
             />

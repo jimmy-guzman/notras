@@ -4,7 +4,6 @@ import type { Transition } from "motion/react";
 
 import { SearchIcon } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
 
 import {
   InputGroup,
@@ -14,8 +13,6 @@ import {
 } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/ui/utils";
-
-const SEARCH_LAYOUT_ID = "search-bar";
 
 const layoutTransition = {
   duration: 0.3,
@@ -50,25 +47,25 @@ interface SearchBarProps {
     | "placeholder"
     | "spellCheck"
   >;
+  layoutId?: string;
   ref?: React.Ref<HTMLInputElement>;
   variant: SearchBarVariant;
 }
 
-export function SearchBar({ id, inputProps, ref, variant }: SearchBarProps) {
+export function SearchBar({
+  id,
+  inputProps,
+  layoutId,
+  ref,
+  variant,
+}: SearchBarProps) {
   const styles = variantStyles[variant];
   const isHome = variant === "home";
-  const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      setHasMounted(true);
-    });
-  }, []);
 
   return (
     <motion.div
-      layout={hasMounted}
-      layoutId={hasMounted ? SEARCH_LAYOUT_ID : undefined}
+      layout
+      layoutId={layoutId}
       style={{ borderRadius: styles.borderRadius }}
       transition={layoutTransition}
     >
