@@ -13,7 +13,7 @@ export const loadSearchParams = createLoader(parsers);
 
 export async function getNotes(
   searchParams: NoteSearchParams,
-  options?: { excludePinned?: boolean; limit?: number },
+  options?: { excludePinned?: boolean; limit?: number; pinnedOnly?: boolean },
 ) {
   return serverAction(async (userId) => {
     "use cache";
@@ -23,6 +23,7 @@ export async function getNotes(
     const result = await getNoteService().list(userId, {
       excludePinned: options?.excludePinned,
       limit: options?.limit,
+      pinnedOnly: options?.pinnedOnly,
       query: query || undefined,
       sort,
       time,

@@ -25,6 +25,7 @@ import { note } from "@/server/db/schemas/notes";
 export interface NoteFilters {
   excludePinned?: boolean;
   limit?: number;
+  pinnedOnly?: boolean;
   query?: string;
   remind?: "overdue" | "upcoming";
   sort?: SortOption;
@@ -189,7 +190,11 @@ export class DBNoteRepository implements NoteRepository {
   async findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]> {
     const baseFilters = [eq(note.userId, userId)];
 
-    const pinnedFilter = filters.excludePinned ? [isNull(note.pinnedAt)] : [];
+    const pinnedFilter = filters.excludePinned
+      ? [isNull(note.pinnedAt)]
+      : filters.pinnedOnly
+        ? [isNotNull(note.pinnedAt)]
+        : [];
 
     const queryFilter = filters.query
       ? [like(note.content, `%${filters.query}%`)]
