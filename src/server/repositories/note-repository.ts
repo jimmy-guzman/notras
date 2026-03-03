@@ -22,15 +22,18 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 import { getStartDateForFilter } from "@/lib/utils/note-filters";
 import { note } from "@/server/db/schemas/notes";
 
-export interface NoteFilters {
-  excludePinned?: boolean;
+export type PinFilter =
+  | { excludePinned: true; pinnedOnly?: never }
+  | { excludePinned?: false; pinnedOnly?: false }
+  | { excludePinned?: never; pinnedOnly: true };
+
+export type NoteFilters = PinFilter & {
   limit?: number;
-  pinnedOnly?: boolean;
   query?: string;
   remind?: "overdue" | "upcoming";
   sort?: SortOption;
   time?: "all" | TimeFilter;
-}
+};
 
 export interface CreateNoteInput {
   content: string;

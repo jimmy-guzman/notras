@@ -41,7 +41,9 @@ export default async function Page({ searchParams }: PageProps) {
             {isFiltering ? (
               <>
                 <SearchIcon className="h-4 w-4" />
-                <AlertDescription>no notes match your search.</AlertDescription>
+                <AlertDescription>
+                  no notes match your filters.
+                </AlertDescription>
               </>
             ) : (
               <>
