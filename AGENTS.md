@@ -204,6 +204,7 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 - Leave comments in the codebase that are not JSDoc or TODO/FIXME notes.
 - Use redundant return types for internal functions that can be inferred.
 - Be lazy when dealing with static analysis warnings/errors -- address them promptly.
+- Reach for type shortcuts (`as`, `!`, `any`) without first exhausting proper solutions -- if a type error appears during a refactor, understand why before casting. Casts are occasionally correct but should never be the first response to a compiler error.
 - Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
 - Leave tests in a failing state -- after making changes, run `pnpm test` and fix any broken tests before finishing.
 - Leave lint errors -- after making changes, run `pnpm lint` and fix any errors before finishing.

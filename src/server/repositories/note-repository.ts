@@ -22,14 +22,18 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 import { getStartDateForFilter } from "@/lib/utils/note-filters";
 import { note } from "@/server/db/schemas/notes";
 
-export interface NoteFilters {
-  excludePinned?: boolean;
+export type PinFilter =
+  | { excludePinned: true; pinnedOnly?: never }
+  | { excludePinned?: false; pinnedOnly?: false }
+  | { excludePinned?: never; pinnedOnly: true };
+
+export type NoteFilters = PinFilter & {
   limit?: number;
   query?: string;
   remind?: "overdue" | "upcoming";
   sort?: SortOption;
   time?: "all" | TimeFilter;
-}
+};
 
 export interface CreateNoteInput {
   content: string;
@@ -189,7 +193,11 @@ export class DBNoteRepository implements NoteRepository {
   async findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]> {
     const baseFilters = [eq(note.userId, userId)];
 
-    const pinnedFilter = filters.excludePinned ? [isNull(note.pinnedAt)] : [];
+    const pinnedFilter = filters.excludePinned
+      ? [isNull(note.pinnedAt)]
+      : filters.pinnedOnly
+        ? [isNotNull(note.pinnedAt)]
+        : [];
 
     const queryFilter = filters.query
       ? [like(note.content, `%${filters.query}%`)]

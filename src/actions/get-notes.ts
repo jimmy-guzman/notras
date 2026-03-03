@@ -4,6 +4,7 @@ import { cacheTag } from "next/dist/server/use-cache/cache-tag";
 import { createLoader } from "nuqs/server";
 
 import type { NoteSearchParams } from "@/lib/notes-search-params";
+import type { PinFilter } from "@/server/repositories/note-repository";
 
 import { serverAction } from "@/lib/authorized";
 import { parsers } from "@/lib/notes-search-params";
@@ -13,7 +14,7 @@ export const loadSearchParams = createLoader(parsers);
 
 export async function getNotes(
   searchParams: NoteSearchParams,
-  options?: { excludePinned?: boolean; limit?: number },
+  options?: PinFilter & { limit?: number },
 ) {
   return serverAction(async (userId) => {
     "use cache";
@@ -21,8 +22,7 @@ export async function getNotes(
     const { q: query, sort, time } = searchParams;
 
     const result = await getNoteService().list(userId, {
-      excludePinned: options?.excludePinned,
-      limit: options?.limit,
+      ...options,
       query: query || undefined,
       sort,
       time,
