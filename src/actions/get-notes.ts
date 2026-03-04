@@ -1,6 +1,6 @@
 "use server";
 
-import { cacheTag } from "next/dist/server/use-cache/cache-tag";
+import { cacheTag } from "next/cache";
 import { createLoader } from "nuqs/server";
 
 import type { NoteId } from "@/lib/id";

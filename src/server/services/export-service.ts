@@ -31,6 +31,9 @@ class ExportService {
   async exportAll(userId: string): Promise<Uint8Array> {
     const notes = await this.noteRepo.findMany(userId, {});
 
+    const noteIds = notes.map((n) => n.id as NoteId);
+    const tagMap = await this.tagRepo.findByNoteIds(noteIds, userId);
+
     const exportedNotes: ExportedNote[] = [];
     const assetFiles: Record<string, Uint8Array> = {};
 
@@ -38,10 +41,8 @@ class ExportService {
 
     for (const n of notes) {
       const noteId = n.id as NoteId;
-      const [assets, noteTags] = await Promise.all([
-        this.assetRepo.findByNoteId(noteId, userId),
-        this.tagRepo.findByNoteId(noteId, userId),
-      ]);
+      const assets = await this.assetRepo.findByNoteId(noteId, userId);
+      const noteTags = tagMap[noteId] ?? [];
 
       const exportedAssets: ExportedAsset[] = assets.map((a) => {
         const path = buildAssetPath(noteId, a.id, a.fileName);

@@ -246,7 +246,7 @@ export class DBNoteRepository implements NoteRepository {
         .where(and(whereClause, eq(tag.name, tagName), eq(tag.userId, userId)))
         .orderBy(...orderBy);
 
-      if (filters.limit) {
+      if (filters.limit !== undefined) {
         return qb.limit(filters.limit);
       }
 
@@ -259,7 +259,7 @@ export class DBNoteRepository implements NoteRepository {
       .where(whereClause)
       .orderBy(...orderBy);
 
-    if (filters.limit) {
+    if (filters.limit !== undefined) {
       return qb.limit(filters.limit);
     }
 

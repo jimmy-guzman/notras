@@ -1,6 +1,6 @@
 "use server";
 
-import { cacheTag } from "next/dist/server/use-cache/cache-tag";
+import { cacheTag } from "next/cache";
 
 import { serverAction } from "@/lib/authorized";
 import { getTagService } from "@/server/services/tag-service";
@@ -11,7 +11,7 @@ export async function getTags() {
 
     const result = await getTagService().getAllTags(userId);
 
-    cacheTag("tags");
+    cacheTag("notes", "tags");
 
     return result;
   });

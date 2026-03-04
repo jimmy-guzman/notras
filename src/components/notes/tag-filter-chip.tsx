@@ -23,14 +23,20 @@ export const TagFilterChip = ({ totalCount }: TagFilterChipProps) => {
         found {totalCount} {totalCount === 1 ? "note" : "notes"}
       </p>
       {filters.tag && (
-        <Badge
-          className="flex cursor-pointer items-center gap-1 hover:opacity-80"
+        <button
+          aria-label={`clear tag filter: ${filters.tag}`}
+          className="flex items-center gap-1"
           onClick={clearTag}
-          variant="secondary"
+          type="button"
         >
-          {filters.tag}
-          <XIcon className="h-3 w-3" />
-        </Badge>
+          <Badge
+            className="flex items-center gap-1 hover:opacity-80"
+            variant="secondary"
+          >
+            {filters.tag}
+            <XIcon className="h-3 w-3" />
+          </Badge>
+        </button>
       )}
     </div>
   );

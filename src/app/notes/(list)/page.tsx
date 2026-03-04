@@ -3,8 +3,6 @@ import type { SearchParams } from "nuqs/server";
 import { InfoIcon, NotebookTextIcon, PinIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
-import type { NoteId } from "@/lib/id";
-
 import {
   getNotes,
   getTagsForNotes,
@@ -14,6 +12,7 @@ import { NotesList } from "@/components/notes/notes";
 import { NotesFilters } from "@/components/notes/notes-filters";
 import { TagFilterChip } from "@/components/notes/tag-filter-chip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toNoteId } from "@/lib/id";
 
 interface PageProps {
   searchParams: Promise<SearchParams>;
@@ -33,7 +32,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   const allNotes = [...pinnedNotes, ...unpinnedNotes];
   const totalCount = allNotes.length;
-  const noteIds = allNotes.map((n) => n.id as NoteId);
+  const noteIds = allNotes.map((n) => toNoteId(n.id));
   const tagMap = await getTagsForNotes(noteIds);
 
   return (

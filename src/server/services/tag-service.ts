@@ -8,7 +8,17 @@ import type {
 import { getDb } from "@/server/db";
 import { DBTagRepository } from "@/server/repositories/tag-repository";
 
-class TagService {
+interface TagService {
+  getAllTags(userId: string): Promise<TagWithCount[]>;
+  getTagsForNote(userId: string, noteId: NoteId): Promise<SelectTag[]>;
+  getTagsForNotes(
+    userId: string,
+    noteIds: NoteId[],
+  ): Promise<Record<string, SelectTag[]>>;
+  syncTags(userId: string, noteId: NoteId, tagNames: string[]): Promise<void>;
+}
+
+class TagServiceImpl implements TagService {
   constructor(private tagRepo: TagRepository) {}
 
   async getAllTags(userId: string): Promise<TagWithCount[]> {
@@ -37,8 +47,8 @@ class TagService {
 
 let _tagService: TagService | undefined;
 
-export function getTagService() {
-  _tagService ??= new TagService(new DBTagRepository(getDb()));
+export function getTagService(): TagService {
+  _tagService ??= new TagServiceImpl(new DBTagRepository(getDb()));
 
   return _tagService;
 }

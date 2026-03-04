@@ -1,7 +1,7 @@
 "use client";
 
 import { XIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/ui/utils";
@@ -26,7 +26,21 @@ export const TagInput = ({
   defaultValue = EMPTY_DEFAULT,
   name = "tags",
 }: TagInputProps) => {
-  const [tags, setTags] = useState<string[]>(defaultValue);
+  const [tags, setTags] = useState<string[]>(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const t of defaultValue) {
+      const n = normalize(t);
+
+      if (n && !seen.has(n)) {
+        seen.add(n);
+        result.push(n);
+      }
+    }
+
+    return result;
+  });
   const [inputValue, setInputValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,16 +59,18 @@ export const TagInput = ({
     setTags((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const suggestions = allTags
-    .map(normalize)
-    .filter((t) => {
-      return (
-        t.includes(normalize(inputValue)) &&
-        !tags.includes(t) &&
-        inputValue.length > 0
-      );
-    })
-    .slice(0, 6);
+  const suggestions = useMemo(() => {
+    return allTags
+      .map(normalize)
+      .filter((t) => {
+        return (
+          t.includes(normalize(inputValue)) &&
+          !tags.includes(t) &&
+          inputValue.length > 0
+        );
+      })
+      .slice(0, 6);
+  }, [allTags, inputValue, tags]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {

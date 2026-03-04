@@ -209,6 +209,8 @@ class ImportService {
         await this.noteRepo.deleteMany(toDelete, userId);
         deleted = toDelete.length;
       }
+
+      await this.tagRepo.deleteOrphanedTags(userId);
     }
 
     await this.noteRepo.updateSyncedAt(importedNoteIds, userId);

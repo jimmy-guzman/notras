@@ -12,6 +12,7 @@ export interface TagWithCount extends SelectTag {
 }
 
 export interface TagRepository {
+  deleteOrphanedTags(userId: string): Promise<void>;
   findByNoteId(noteId: NoteId, userId: string): Promise<SelectTag[]>;
   findByNoteIds(
     noteIds: NoteId[],
@@ -27,6 +28,23 @@ export interface TagRepository {
 
 export class DBTagRepository implements TagRepository {
   constructor(private db: Database) {}
+
+  async deleteOrphanedTags(userId: string): Promise<void> {
+    // Find tag IDs that still have at least one note_tag row
+    const usedTagRows = await this.db
+      .selectDistinct({ tagId: noteTag.tagId })
+      .from(noteTag)
+      .innerJoin(tag, eq(noteTag.tagId, tag.id))
+      .where(eq(tag.userId, userId));
+
+    const usedTagIds = usedTagRows.map((r) => r.tagId);
+
+    await (usedTagIds.length > 0
+      ? this.db
+          .delete(tag)
+          .where(and(eq(tag.userId, userId), notInArray(tag.id, usedTagIds)))
+      : this.db.delete(tag).where(eq(tag.userId, userId)));
+  }
 
   async findByNoteId(noteId: NoteId, userId: string): Promise<SelectTag[]> {
     const rows = await this.db
@@ -88,30 +106,43 @@ export class DBTagRepository implements TagRepository {
       return;
     }
 
-    // Upsert each tag by name for this user
-    const tagIds: TagId[] = [];
+    // Bulk-fetch all existing tags for this user matching the given names
+    const existingRows = await this.db
+      .select()
+      .from(tag)
+      .where(and(eq(tag.userId, userId), inArray(tag.name, tagNames)));
 
-    for (const name of tagNames) {
-      const existing = await this.db
-        .select()
-        .from(tag)
-        .where(and(eq(tag.name, name), eq(tag.userId, userId)))
-        .limit(1);
+    const existingByName = new Map(existingRows.map((r) => [r.name, r.id]));
 
-      if (existing.length > 0 && existing[0]) {
-        tagIds.push(existing[0].id as TagId);
-      } else {
-        const id = generateTagId() as TagId;
+    // Determine which names need to be created
+    const newNames = tagNames.filter((n) => !existingByName.has(n));
 
-        await this.db.insert(tag).values({
+    if (newNames.length > 0) {
+      const newRows = newNames.map((name) => {
+        return {
           createdAt: new Date(),
-          id,
+          id: generateTagId(),
           name,
           userId,
-        });
-        tagIds.push(id);
+        };
+      });
+
+      await this.db.insert(tag).values(newRows).onConflictDoNothing();
+
+      // Re-fetch just the newly inserted rows to get their IDs
+      const inserted = await this.db
+        .select()
+        .from(tag)
+        .where(and(eq(tag.userId, userId), inArray(tag.name, newNames)));
+
+      for (const row of inserted) {
+        existingByName.set(row.name, row.id);
       }
     }
+
+    const tagIds = tagNames
+      .map((n) => existingByName.get(n))
+      .filter((id): id is string => id !== undefined) as TagId[];
 
     // Remove note_tag rows for tags no longer on this note
     await this.db
@@ -130,22 +161,5 @@ export class DBTagRepository implements TagRepository {
 
     // Clean up any tags that have no notes left
     await this.deleteOrphanedTags(userId);
-  }
-
-  private async deleteOrphanedTags(userId: string): Promise<void> {
-    // Find tag IDs that still have at least one note_tag row
-    const usedTagRows = await this.db
-      .selectDistinct({ tagId: noteTag.tagId })
-      .from(noteTag)
-      .innerJoin(tag, eq(noteTag.tagId, tag.id))
-      .where(eq(tag.userId, userId));
-
-    const usedTagIds = usedTagRows.map((r) => r.tagId);
-
-    await (usedTagIds.length > 0
-      ? this.db
-          .delete(tag)
-          .where(and(eq(tag.userId, userId), notInArray(tag.id, usedTagIds)))
-      : this.db.delete(tag).where(eq(tag.userId, userId)));
   }
 }
