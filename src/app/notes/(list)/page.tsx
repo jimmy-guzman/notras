@@ -3,9 +3,16 @@ import type { SearchParams } from "nuqs/server";
 import { InfoIcon, NotebookTextIcon, PinIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
-import { getNotes, loadSearchParams } from "@/actions/get-notes";
+import type { NoteId } from "@/lib/id";
+
+import {
+  getNotes,
+  getTagsForNotes,
+  loadSearchParams,
+} from "@/actions/get-notes";
 import { NotesList } from "@/components/notes/notes";
 import { NotesFilters } from "@/components/notes/notes-filters";
+import { TagFilterChip } from "@/components/notes/tag-filter-chip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PageProps {
@@ -14,7 +21,8 @@ interface PageProps {
 
 export default async function Page({ searchParams }: PageProps) {
   const params = await loadSearchParams(searchParams);
-  const isFiltering = Boolean(params.q) || params.time !== "all";
+  const isFiltering =
+    Boolean(params.q) || params.time !== "all" || Boolean(params.tag);
 
   const [pinnedNotes, unpinnedNotes] = isFiltering
     ? [[], await getNotes(params)]
@@ -23,7 +31,10 @@ export default async function Page({ searchParams }: PageProps) {
         getNotes(params, { excludePinned: true }),
       ]);
 
-  const totalCount = pinnedNotes.length + unpinnedNotes.length;
+  const allNotes = [...pinnedNotes, ...unpinnedNotes];
+  const totalCount = allNotes.length;
+  const noteIds = allNotes.map((n) => n.id as NoteId);
+  const tagMap = await getTagsForNotes(noteIds);
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -31,9 +42,7 @@ export default async function Page({ searchParams }: PageProps) {
         <NotesFilters />
 
         {isFiltering && totalCount > 0 && (
-          <p className="text-sm text-muted-foreground">
-            found {totalCount} {totalCount === 1 ? "note" : "notes"}
-          </p>
+          <TagFilterChip totalCount={totalCount} />
         )}
 
         {totalCount === 0 ? (
@@ -73,7 +82,12 @@ export default async function Page({ searchParams }: PageProps) {
                     pinned
                   </span>
                 </h2>
-                <NotesList notes={pinnedNotes} query={params.q} />
+                <NotesList
+                  currentParams={{ q: params.q, time: params.time }}
+                  notes={pinnedNotes}
+                  query={params.q}
+                  tagMap={tagMap}
+                />
               </div>
             )}
             {unpinnedNotes.length > 0 && (
@@ -86,7 +100,12 @@ export default async function Page({ searchParams }: PageProps) {
                     </span>
                   </h2>
                 )}
-                <NotesList notes={unpinnedNotes} query={params.q} />
+                <NotesList
+                  currentParams={{ q: params.q, time: params.time }}
+                  notes={unpinnedNotes}
+                  query={params.q}
+                  tagMap={tagMap}
+                />
               </div>
             )}
           </>

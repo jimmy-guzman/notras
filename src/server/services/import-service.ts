@@ -8,12 +8,14 @@ import type {
   CreateAssetInput,
 } from "@/server/repositories/asset-repository";
 import type { NoteRepository } from "@/server/repositories/note-repository";
+import type { TagRepository } from "@/server/repositories/tag-repository";
 import type { ExportedNote, ImportMode } from "@/server/schemas/export-schemas";
 
 import { toAssetId, toNoteId } from "@/lib/id";
 import { getDb } from "@/server/db";
 import { DBAssetRepository } from "@/server/repositories/asset-repository";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
+import { DBTagRepository } from "@/server/repositories/tag-repository";
 import {
   exportDataSchema,
   manifestSchema,
@@ -92,6 +94,7 @@ class ImportService {
   constructor(
     private noteRepo: NoteRepository,
     private assetRepo: AssetRepository,
+    private tagRepo: TagRepository,
   ) {}
 
   async importZip(
@@ -182,6 +185,11 @@ class ImportService {
       await this.assetRepo.createMany(assetInputs);
 
       void getLinkService().syncLinks(userId, noteId, formattedContent);
+      await this.tagRepo.syncTagsForNote(
+        noteId,
+        userId,
+        exportedNote.tags ?? [],
+      );
 
       if (existing) {
         updated++;
@@ -222,6 +230,7 @@ export function getImportService() {
   _importService ??= new ImportService(
     new DBNoteRepository(getDb()),
     new DBAssetRepository(getDb()),
+    new DBTagRepository(getDb()),
   );
 
   return _importService;

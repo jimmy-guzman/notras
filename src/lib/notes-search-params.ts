@@ -7,6 +7,7 @@ export const parsers = {
   sort: parseAsStringEnum(["newest", "oldest", "updated"]).withDefault(
     "newest",
   ),
+  tag: parseAsString.withDefault(""),
   time: parseAsStringEnum([
     "month",
     "today",

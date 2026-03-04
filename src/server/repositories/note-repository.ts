@@ -21,6 +21,7 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 
 import { getStartDateForFilter } from "@/lib/utils/note-filters";
 import { note } from "@/server/db/schemas/notes";
+import { noteTag, tag } from "@/server/db/schemas/tags";
 
 export type PinFilter =
   | { excludePinned: true; pinnedOnly?: never }
@@ -32,6 +33,7 @@ export type NoteFilters = PinFilter & {
   query?: string;
   remind?: "overdue" | "upcoming";
   sort?: SortOption;
+  tag?: string;
   time?: "all" | TimeFilter;
 };
 
@@ -215,19 +217,47 @@ export class DBNoteRepository implements NoteRepository {
           ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
           : [];
 
+    const whereClause = and(
+      ...baseFilters,
+      ...pinnedFilter,
+      ...queryFilter,
+      ...timeFilter,
+      ...remindFilter,
+    );
+
+    const orderBy = getSortOrder(filters.sort);
+
+    if (filters.tag) {
+      const tagName = filters.tag;
+      const qb = this.db
+        .selectDistinct({
+          content: note.content,
+          createdAt: note.createdAt,
+          id: note.id,
+          pinnedAt: note.pinnedAt,
+          remindAt: note.remindAt,
+          syncedAt: note.syncedAt,
+          updatedAt: note.updatedAt,
+          userId: note.userId,
+        })
+        .from(note)
+        .innerJoin(noteTag, eq(noteTag.noteId, note.id))
+        .innerJoin(tag, eq(tag.id, noteTag.tagId))
+        .where(and(whereClause, eq(tag.name, tagName), eq(tag.userId, userId)))
+        .orderBy(...orderBy);
+
+      if (filters.limit) {
+        return qb.limit(filters.limit);
+      }
+
+      return qb;
+    }
+
     const qb = this.db
       .select()
       .from(note)
-      .where(
-        and(
-          ...baseFilters,
-          ...pinnedFilter,
-          ...queryFilter,
-          ...timeFilter,
-          ...remindFilter,
-        ),
-      )
-      .orderBy(...getSortOrder(filters.sort));
+      .where(whereClause)
+      .orderBy(...orderBy);
 
     if (filters.limit) {
       return qb.limit(filters.limit);

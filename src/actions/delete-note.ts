@@ -13,4 +13,5 @@ export async function deleteNote(noteId: NoteId) {
   });
 
   updateTag("notes");
+  updateTag("tags");
 }

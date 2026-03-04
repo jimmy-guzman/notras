@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { getAssets } from "@/actions/get-assets";
 import { getLinks } from "@/actions/get-links";
 import { getNote } from "@/actions/get-note";
+import { getNoteTags } from "@/actions/get-note-tags";
 import { getPreferences } from "@/actions/get-preferences";
 import { AssetList } from "@/components/notes/assets/asset-list";
 import { PdfList } from "@/components/notes/assets/pdf-list";
 import { MarkdownContent } from "@/components/notes/markdown-content";
 import { NoteActions } from "@/components/notes/note-actions";
 import { NoteLinks } from "@/components/notes/note-links";
+import { NoteTags } from "@/components/notes/note-tags";
 import { toNoteId } from "@/lib/id";
 import { partitionAssets } from "@/lib/utils/assets";
 import { formatDateTime } from "@/lib/utils/format";
@@ -21,9 +23,10 @@ interface PageProps {
 export default async function NotePage({ params }: PageProps) {
   const { id } = await params;
   const noteId = toNoteId(id);
-  const [note, preferences] = await Promise.all([
+  const [note, preferences, tags] = await Promise.all([
     getNote(noteId),
     getPreferences(),
+    getNoteTags(noteId),
   ]);
 
   if (!note) {
@@ -55,6 +58,12 @@ export default async function NotePage({ params }: PageProps) {
           </span>
         )}
       </div>
+
+      {tags.length > 0 && (
+        <div className="mb-6">
+          <NoteTags maxVisible={Infinity} tags={tags} />
+        </div>
+      )}
 
       {preferences.markdownPreview ? (
         <div className="prose mb-12 max-w-none prose-stone dark:prose-invert">

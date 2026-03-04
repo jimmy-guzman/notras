@@ -17,6 +17,7 @@ export const importNotes = actionClient
     }
 
     updateTag("notes");
+    updateTag("tags");
 
     return {
       created: result.created,

@@ -10,6 +10,7 @@ import { getDb } from "@/server/db";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 import { formatMarkdown } from "@/server/services/format-service";
 import { getLinkService } from "@/server/services/link-service";
+import { getTagService } from "@/server/services/tag-service";
 
 class NoteService {
   constructor(
@@ -29,13 +30,21 @@ class NoteService {
     return this.noteRepo.countOverdueReminders(userId);
   }
 
-  async create(userId: string, content: string): Promise<NoteId> {
+  async create(
+    userId: string,
+    content: string,
+    tags?: string[],
+  ): Promise<NoteId> {
     const id = this.idGenerator();
     const formatted = await formatMarkdown(content);
 
     await this.noteRepo.create({ content: formatted, id, userId });
 
     void getLinkService().syncLinks(userId, id, formatted);
+
+    if (tags !== undefined) {
+      await getTagService().syncTags(userId, id, tags);
+    }
 
     return id;
   }
@@ -75,12 +84,21 @@ class NoteService {
     await this.noteRepo.unpin(noteId, userId);
   }
 
-  async update(userId: string, noteId: NoteId, content: string): Promise<void> {
+  async update(
+    userId: string,
+    noteId: NoteId,
+    content: string,
+    tags?: string[],
+  ): Promise<void> {
     const formatted = await formatMarkdown(content);
 
     await this.noteRepo.update(noteId, userId, { content: formatted });
 
     void getLinkService().syncLinks(userId, noteId, formatted);
+
+    if (tags !== undefined) {
+      await getTagService().syncTags(userId, noteId, tags);
+    }
   }
 }
 

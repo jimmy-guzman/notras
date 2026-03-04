@@ -27,6 +27,7 @@ export const exportedNoteSchema = z.object({
   createdAt: z.iso.datetime(),
   id: z.string().regex(NOTE_ID_PATTERN, "Invalid note ID format"),
   pinnedAt: z.iso.datetime().nullable(),
+  tags: z.array(z.string()).optional(),
   updatedAt: z.iso.datetime(),
 });
 

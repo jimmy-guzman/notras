@@ -5,6 +5,7 @@ import { typeidUnboxed } from "typeid-js";
 export type AssetId = TypeId<"asset">;
 export type LinkId = TypeId<"link">;
 export type NoteId = TypeId<"note">;
+export type TagId = TypeId<"tag">;
 
 export function generateAssetId() {
   return typeidUnboxed("asset");
@@ -16,6 +17,10 @@ export function generateLinkId() {
 
 export function generateNoteId() {
   return typeidUnboxed("note");
+}
+
+export function generateTagId() {
+  return typeidUnboxed("tag");
 }
 
 /** Cast a raw string to AssetId (for route params, FormData, DB results). */
