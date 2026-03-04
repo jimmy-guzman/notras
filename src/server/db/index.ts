@@ -6,6 +6,7 @@ import { env } from "@/env";
 import * as assets from "./schemas/assets";
 import * as links from "./schemas/links";
 import * as notes from "./schemas/notes";
+import * as tags from "./schemas/tags";
 import * as users from "./schemas/users";
 
 const schema = {
@@ -13,6 +14,7 @@ const schema = {
   ...notes,
   ...assets,
   ...links,
+  ...tags,
 };
 
 export function createDb(databasePath: string) {

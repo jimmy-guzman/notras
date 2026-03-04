@@ -2,10 +2,13 @@ import { notFound } from "next/navigation";
 
 import { getAssets } from "@/actions/get-assets";
 import { getNote } from "@/actions/get-note";
+import { getNoteTags } from "@/actions/get-note-tags";
+import { getTags } from "@/actions/get-tags";
 import { updateNote } from "@/actions/update-note";
 import { BackLink } from "@/components/back-link";
 import { EditPageAssets } from "@/components/notes/assets/edit-page-assets";
 import { FormHotkeys } from "@/components/notes/form-hotkeys";
+import { TagInput } from "@/components/notes/tag-input";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
@@ -20,7 +23,11 @@ interface PageProps {
 export default async function EditNotePage({ params }: PageProps) {
   const { id } = await params;
   const noteId = toNoteId(id);
-  const note = await getNote(noteId);
+  const [note, existingTags, allTags] = await Promise.all([
+    getNote(noteId),
+    getNoteTags(noteId),
+    getTags(),
+  ]);
 
   if (!note) {
     notFound();
@@ -48,16 +55,25 @@ export default async function EditNotePage({ params }: PageProps) {
           placeholder="write your note content here..."
           rows={10}
         />
-        <div className="flex justify-end pt-4">
-          <Button type="submit">
-            <span className="flex items-center gap-2 text-sm">
-              save
-              <span className="hidden gap-0.5 sm:inline-flex">
-                <Kbd>⌘</Kbd>
-                <Kbd>⏎</Kbd>
+        <div className="flex flex-col gap-3 pt-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">tags</span>
+            <TagInput
+              allTags={allTags.map((t) => t.name)}
+              defaultValue={existingTags.map((t) => t.name)}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit">
+              <span className="flex items-center gap-2 text-sm">
+                save
+                <span className="hidden gap-0.5 sm:inline-flex">
+                  <Kbd>⌘</Kbd>
+                  <Kbd>⏎</Kbd>
+                </span>
               </span>
-            </span>
-          </Button>
+            </Button>
+          </div>
         </div>
       </FormHotkeys>
 

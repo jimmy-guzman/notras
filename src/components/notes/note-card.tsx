@@ -2,6 +2,7 @@ import { BellIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
+import type { SelectTag } from "@/server/db/schemas/tags";
 
 import { toNoteId } from "@/lib/id";
 import { formatDate } from "@/lib/utils/format";
@@ -9,16 +10,22 @@ import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
 
 import { Card, CardContent, CardFooter } from "../ui/card";
+import { NoteTags } from "./note-tags";
 import { PinNoteButton } from "./pin-note-button";
 
 const MAX_CONTENT_LENGTH = 120;
+const EMPTY_TAGS: SelectTag[] = [];
 
 export const NoteCard = ({
+  currentParams,
   note,
   query,
+  tags = EMPTY_TAGS,
 }: {
+  currentParams?: { q?: string; tag?: string; time?: string };
   note: SelectNote;
   query?: string;
+  tags?: SelectTag[];
 }) => {
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
 
@@ -51,11 +58,14 @@ export const NoteCard = ({
               : displayContent}
           </p>
         </CardContent>
-        <CardFooter className="border-t">
+        <CardFooter className="flex flex-col items-start gap-2 border-t">
           <span className="flex items-center gap-2 text-xs text-muted-foreground transition-colors group-hover:text-muted-foreground/80">
             {formatDate(note.createdAt)}
             {note.remindAt && <BellIcon className="h-3 w-3" />}
           </span>
+          {tags.length > 0 && (
+            <NoteTags currentParams={currentParams} tags={tags} />
+          )}
         </CardFooter>
       </Card>
     </Link>

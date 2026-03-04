@@ -1,6 +1,6 @@
 "use server";
 
-import { cacheTag } from "next/dist/server/use-cache/cache-tag";
+import { cacheTag } from "next/cache";
 
 import { serverAction } from "@/lib/authorized";
 import { getUserService } from "@/server/services/user-service";
