@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 const DEFAULT_MAX_VISIBLE = 3;
 
 interface NoteTagsProps {
-  currentParams?: { q?: string; time?: string };
+  currentParams?: { q?: string; tag?: string; time?: string };
   maxVisible?: number;
   tags: SelectTag[];
 }

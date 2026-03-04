@@ -21,7 +21,7 @@ export const NoteListItem = ({
   query,
   tags = EMPTY_TAGS,
 }: {
-  currentParams?: { q?: string; time?: string };
+  currentParams?: { q?: string; tag?: string; time?: string };
   note: SelectNote;
   query?: string;
   tags?: SelectTag[];

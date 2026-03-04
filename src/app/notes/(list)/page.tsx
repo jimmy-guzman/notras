@@ -33,7 +33,7 @@ export default async function Page({ searchParams }: PageProps) {
   const allNotes = [...pinnedNotes, ...unpinnedNotes];
   const totalCount = allNotes.length;
   const noteIds = allNotes.map((n) => toNoteId(n.id));
-  const tagMap = await getTagsForNotes(noteIds);
+  const tagMap = noteIds.length > 0 ? await getTagsForNotes(noteIds) : {};
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -82,7 +82,11 @@ export default async function Page({ searchParams }: PageProps) {
                   </span>
                 </h2>
                 <NotesList
-                  currentParams={{ q: params.q, time: params.time }}
+                  currentParams={{
+                    q: params.q,
+                    tag: params.tag,
+                    time: params.time,
+                  }}
                   notes={pinnedNotes}
                   query={params.q}
                   tagMap={tagMap}
@@ -100,7 +104,11 @@ export default async function Page({ searchParams }: PageProps) {
                   </h2>
                 )}
                 <NotesList
-                  currentParams={{ q: params.q, time: params.time }}
+                  currentParams={{
+                    q: params.q,
+                    tag: params.tag,
+                    time: params.time,
+                  }}
                   notes={unpinnedNotes}
                   query={params.q}
                   tagMap={tagMap}

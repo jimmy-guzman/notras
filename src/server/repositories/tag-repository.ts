@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, notInArray } from "drizzle-orm";
+import { and, count, eq, inArray, notExists, notInArray } from "drizzle-orm";
 
 import type { NoteId, TagId } from "@/lib/id";
 import type { Database } from "@/server/db";
@@ -30,20 +30,19 @@ export class DBTagRepository implements TagRepository {
   constructor(private db: Database) {}
 
   async deleteOrphanedTags(userId: string): Promise<void> {
-    // Find tag IDs that still have at least one note_tag row
-    const usedTagRows = await this.db
-      .selectDistinct({ tagId: noteTag.tagId })
-      .from(noteTag)
-      .innerJoin(tag, eq(noteTag.tagId, tag.id))
-      .where(eq(tag.userId, userId));
-
-    const usedTagIds = usedTagRows.map((r) => r.tagId);
-
-    await (usedTagIds.length > 0
-      ? this.db
-          .delete(tag)
-          .where(and(eq(tag.userId, userId), notInArray(tag.id, usedTagIds)))
-      : this.db.delete(tag).where(eq(tag.userId, userId)));
+    await this.db
+      .delete(tag)
+      .where(
+        and(
+          eq(tag.userId, userId),
+          notExists(
+            this.db
+              .select({ tagId: noteTag.tagId })
+              .from(noteTag)
+              .where(eq(noteTag.tagId, tag.id)),
+          ),
+        ),
+      );
   }
 
   async findByNoteId(noteId: NoteId, userId: string): Promise<SelectTag[]> {
@@ -99,14 +98,12 @@ export class DBTagRepository implements TagRepository {
     tagNames: string[],
   ): Promise<void> {
     if (tagNames.length === 0) {
-      // Remove all tags for this note
       await this.db.delete(noteTag).where(eq(noteTag.noteId, noteId));
       await this.deleteOrphanedTags(userId);
 
       return;
     }
 
-    // Bulk-fetch all existing tags for this user matching the given names
     const existingRows = await this.db
       .select()
       .from(tag)
@@ -114,7 +111,6 @@ export class DBTagRepository implements TagRepository {
 
     const existingByName = new Map(existingRows.map((r) => [r.name, r.id]));
 
-    // Determine which names need to be created
     const newNames = tagNames.filter((n) => !existingByName.has(n));
 
     if (newNames.length > 0) {
@@ -129,7 +125,6 @@ export class DBTagRepository implements TagRepository {
 
       await this.db.insert(tag).values(newRows).onConflictDoNothing();
 
-      // Re-fetch just the newly inserted rows to get their IDs
       const inserted = await this.db
         .select()
         .from(tag)
@@ -144,14 +139,12 @@ export class DBTagRepository implements TagRepository {
       .map((n) => existingByName.get(n))
       .filter((id): id is string => id !== undefined) as TagId[];
 
-    // Remove note_tag rows for tags no longer on this note
     await this.db
       .delete(noteTag)
       .where(
         and(eq(noteTag.noteId, noteId), notInArray(noteTag.tagId, tagIds)),
       );
 
-    // Insert new note_tag rows (ignore conflicts — composite PK prevents dupes)
     for (const tagId of tagIds) {
       await this.db
         .insert(noteTag)
@@ -159,7 +152,6 @@ export class DBTagRepository implements TagRepository {
         .onConflictDoNothing();
     }
 
-    // Clean up any tags that have no notes left
     await this.deleteOrphanedTags(userId);
   }
 }
