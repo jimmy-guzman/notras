@@ -145,11 +145,12 @@ export class DBTagRepository implements TagRepository {
         and(eq(noteTag.noteId, noteId), notInArray(noteTag.tagId, tagIds)),
       );
 
-    for (const tagId of tagIds) {
-      await this.db
-        .insert(noteTag)
-        .values({ createdAt: new Date(), noteId, tagId })
-        .onConflictDoNothing();
+    if (tagIds.length > 0) {
+      const rows = tagIds.map((tagId) => {
+        return { createdAt: new Date(), noteId, tagId };
+      });
+
+      await this.db.insert(noteTag).values(rows).onConflictDoNothing();
     }
 
     await this.deleteOrphanedTags(userId);
