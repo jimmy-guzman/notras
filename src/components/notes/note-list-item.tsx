@@ -29,27 +29,29 @@ export const NoteListItem = ({
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
 
   return (
-    <Link
-      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      href={`/notes/${note.id}`}
-    >
+    <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm leading-relaxed text-foreground transition-colors group-hover:text-foreground/90">
-          {query
-            ? getHighlightedParts(displayContent, query).map((part) => {
-                return part.match ? (
-                  <mark
-                    className="bg-yellow-200 text-inherit dark:bg-yellow-800"
-                    key={part.id}
-                  >
-                    {part.text}
-                  </mark>
-                ) : (
-                  <span key={part.id}>{part.text}</span>
-                );
-              })
-            : displayContent}
-        </p>
+        <Link
+          className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          href={`/notes/${note.id}`}
+        >
+          <p className="truncate text-sm leading-relaxed text-foreground transition-colors group-hover:text-foreground/90">
+            {query
+              ? getHighlightedParts(displayContent, query).map((part) => {
+                  return part.match ? (
+                    <mark
+                      className="bg-yellow-200 text-inherit dark:bg-yellow-800"
+                      key={part.id}
+                    >
+                      {part.text}
+                    </mark>
+                  ) : (
+                    <span key={part.id}>{part.text}</span>
+                  );
+                })
+              : displayContent}
+          </p>
+        </Link>
         {tags.length > 0 && (
           <div className="mt-1">
             <NoteTags currentParams={currentParams} tags={tags} />
@@ -67,6 +69,6 @@ export const NoteListItem = ({
           size="icon-xs"
         />
       </div>
-    </Link>
+    </div>
   );
 };
