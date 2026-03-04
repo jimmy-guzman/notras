@@ -97,62 +97,88 @@ export class DBTagRepository implements TagRepository {
     userId: string,
     tagNames: string[],
   ): Promise<void> {
-    if (tagNames.length === 0) {
-      await this.db.delete(noteTag).where(eq(noteTag.noteId, noteId));
-      await this.deleteOrphanedTags(userId);
+    await this.db.transaction(async (tx) => {
+      if (tagNames.length === 0) {
+        await tx.delete(noteTag).where(eq(noteTag.noteId, noteId));
+        await tx
+          .delete(tag)
+          .where(
+            and(
+              eq(tag.userId, userId),
+              notExists(
+                tx
+                  .select({ tagId: noteTag.tagId })
+                  .from(noteTag)
+                  .where(eq(noteTag.tagId, tag.id)),
+              ),
+            ),
+          );
 
-      return;
-    }
+        return;
+      }
 
-    const existingRows = await this.db
-      .select()
-      .from(tag)
-      .where(and(eq(tag.userId, userId), inArray(tag.name, tagNames)));
-
-    const existingByName = new Map(existingRows.map((r) => [r.name, r.id]));
-
-    const newNames = tagNames.filter((n) => !existingByName.has(n));
-
-    if (newNames.length > 0) {
-      const newRows = newNames.map((name) => {
-        return {
-          createdAt: new Date(),
-          id: generateTagId(),
-          name,
-          userId,
-        };
-      });
-
-      await this.db.insert(tag).values(newRows).onConflictDoNothing();
-
-      const inserted = await this.db
+      const existingRows = await tx
         .select()
         .from(tag)
-        .where(and(eq(tag.userId, userId), inArray(tag.name, newNames)));
+        .where(and(eq(tag.userId, userId), inArray(tag.name, tagNames)));
 
-      for (const row of inserted) {
-        existingByName.set(row.name, row.id);
+      const existingByName = new Map(existingRows.map((r) => [r.name, r.id]));
+
+      const newNames = tagNames.filter((n) => !existingByName.has(n));
+
+      if (newNames.length > 0) {
+        const newRows = newNames.map((name) => {
+          return {
+            createdAt: new Date(),
+            id: generateTagId(),
+            name,
+            userId,
+          };
+        });
+
+        await tx.insert(tag).values(newRows).onConflictDoNothing();
+
+        const inserted = await tx
+          .select()
+          .from(tag)
+          .where(and(eq(tag.userId, userId), inArray(tag.name, newNames)));
+
+        for (const row of inserted) {
+          existingByName.set(row.name, row.id);
+        }
       }
-    }
 
-    const tagIds = tagNames
-      .map((n) => existingByName.get(n))
-      .filter((id): id is string => id !== undefined) as TagId[];
+      const tagIds = tagNames
+        .map((n) => existingByName.get(n))
+        .filter((id): id is string => id !== undefined) as TagId[];
 
-    await this.db
-      .delete(noteTag)
-      .where(
-        and(eq(noteTag.noteId, noteId), notInArray(noteTag.tagId, tagIds)),
-      );
+      await tx
+        .delete(noteTag)
+        .where(
+          and(eq(noteTag.noteId, noteId), notInArray(noteTag.tagId, tagIds)),
+        );
 
-    if (tagIds.length > 0) {
-      const rows = tagIds.map((tagId) => {
-        return { createdAt: new Date(), noteId, tagId };
-      });
+      if (tagIds.length > 0) {
+        const rows = tagIds.map((tagId) => {
+          return { createdAt: new Date(), noteId, tagId };
+        });
 
-      await this.db.insert(noteTag).values(rows).onConflictDoNothing();
-    }
+        await tx.insert(noteTag).values(rows).onConflictDoNothing();
+      }
 
-    await this.deleteOrphanedTags(userId);
+      await tx
+        .delete(tag)
+        .where(
+          and(
+            eq(tag.userId, userId),
+            notExists(
+              tx
+                .select({ tagId: noteTag.tagId })
+                .from(noteTag)
+                .where(eq(noteTag.tagId, tag.id)),
+            ),
+          ),
+        );
+    });
   }
 }
