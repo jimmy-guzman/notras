@@ -90,7 +90,7 @@ async create(userId: string, content: string, tags?: string[]): Promise<NoteId> 
     await txRepo.create({ content: formatted, id, userId });
 
     if (tags !== undefined) {
-      await getTagService().syncTags(userId, id, tags, /* tx */);
+      await getTagService().syncTags(userId, id, tags, txRepo.getDb());
     }
   });
 
@@ -132,7 +132,7 @@ Same pattern — wrap `noteRepo.update` + `getTagService().syncTags` in `this.no
 
 After implementing:
 
-```
+```bash
 pnpm knip
 pnpm typecheck
 pnpm lint
