@@ -130,8 +130,13 @@ export function FolderPanel({ folders }: FolderPanelProps) {
     onDragEnd(event) {
       if (event.canceled || !event.operation.target) return;
 
-      const noteId = toNoteId(String(event.operation.source?.id ?? ""));
-      const folderId = toFolderId(String(event.operation.target.id));
+      const sourceId = event.operation.source?.id;
+      const targetId = event.operation.target.id;
+
+      if (!sourceId || !targetId) return;
+
+      const noteId = toNoteId(String(sourceId));
+      const folderId = toFolderId(String(targetId));
 
       startTransition(async () => {
         try {

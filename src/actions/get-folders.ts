@@ -11,7 +11,7 @@ export async function getFolders() {
 
     const result = await getFolderService().getAll(userId);
 
-    cacheTag("folders");
+    cacheTag("notes");
 
     return result;
   });

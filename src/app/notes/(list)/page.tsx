@@ -29,13 +29,11 @@ export default async function Page({ searchParams }: PageProps) {
 
   const [pinnedNotes, unpinnedNotes, folders] = isFiltering
     ? [[], await getNotes(params), await getFolders()]
-    : [
-        ...(await Promise.all([
-          getNotes(params, { pinnedOnly: true }),
-          getNotes(params, { excludePinned: true }),
-        ])),
-        await getFolders(),
-      ];
+    : await Promise.all([
+        getNotes(params, { pinnedOnly: true }),
+        getNotes(params, { excludePinned: true }),
+        getFolders(),
+      ]);
 
   const allNotes = [...pinnedNotes, ...unpinnedNotes];
   const totalCount = allNotes.length;

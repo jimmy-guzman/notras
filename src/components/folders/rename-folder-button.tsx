@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 interface RenameFolderButtonProps {
@@ -84,7 +84,6 @@ export function RenameFolderButton({
                 ref={inputRef}
                 required
               />
-              <FieldError />
             </Field>
           </div>
           <DialogFooter>

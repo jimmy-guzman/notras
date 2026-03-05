@@ -196,10 +196,10 @@ class ImportService {
       const formattedContent = await formatMarkdown(exportedNote.content);
 
       // Only assign folderId if the folder was actually imported/exists.
-      const folderId =
+      const folderId: FolderId | null =
         exportedNote.folderId && importedFolderIds.has(exportedNote.folderId)
           ? toFolderId(exportedNote.folderId)
-          : (null as FolderId | null);
+          : null;
 
       await this.noteRepo.upsert({
         content: formattedContent,

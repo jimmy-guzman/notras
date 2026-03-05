@@ -20,4 +20,5 @@ export async function renameFolder(formData: FormData) {
   });
 
   updateTag("folders");
+  updateTag("notes");
 }

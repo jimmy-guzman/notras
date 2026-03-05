@@ -23,7 +23,10 @@ export async function getNotes(
     "use cache";
 
     const { folder, q: query, sort, tag, time } = searchParams;
-    const folderId = folder ? toFolderId(folder) : undefined;
+    const folderId =
+      folder && /^folder_[\da-hjkmnp-tv-z]{26}$/.test(folder)
+        ? toFolderId(folder)
+        : undefined;
 
     const result = await getNoteService().list(userId, {
       ...options,
