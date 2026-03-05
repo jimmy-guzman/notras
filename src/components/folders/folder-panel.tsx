@@ -17,6 +17,7 @@ import { moveNoteToFolder } from "@/actions/move-note-to-folder";
 import { CreateFolderButton } from "@/components/folders/create-folder-button";
 import { DeleteFolderButton } from "@/components/folders/delete-folder-button";
 import { RenameFolderButton } from "@/components/folders/rename-folder-button";
+import { Button } from "@/components/ui/button";
 import { toFolderId, toNoteId } from "@/lib/id";
 import { parsers } from "@/lib/notes-search-params";
 import { cn } from "@/lib/ui/utils";
@@ -51,10 +52,11 @@ function DropChip({ activeFolder, folder, isDragging }: DropChipProps) {
       )}
       ref={ref}
     >
-      <button
-        className="text-sm font-medium"
+      <Button
+        className="h-auto p-0 text-sm font-medium"
         onClick={handleClick}
         type="button"
+        variant="ghost"
       >
         {folder.name}
         {!isDragging && (
@@ -62,7 +64,7 @@ function DropChip({ activeFolder, folder, isDragging }: DropChipProps) {
             {folder.noteCount}
           </span>
         )}
-      </button>
+      </Button>
       {!isDragging && (
         <div className="ml-1 flex max-w-0 items-center gap-0.5 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-focus-within:max-w-[5rem] group-focus-within:opacity-100 group-hover:max-w-[5rem] group-hover:opacity-100">
           <RenameFolderButton
@@ -94,18 +96,19 @@ function AllChip({ activeFolder }: AllChipProps) {
   };
 
   return (
-    <button
+    <Button
       className={cn(
-        "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        "h-auto rounded-full px-3 py-1.5 text-sm font-medium",
         isActive
-          ? "border-primary bg-primary/10"
-          : "border-border bg-background hover:border-primary/50",
+          ? "border-primary bg-primary/10 hover:bg-primary/10"
+          : "hover:border-primary/50",
       )}
       onClick={handleClick}
       type="button"
+      variant="outline"
     >
       all
-    </button>
+    </Button>
   );
 }
 
