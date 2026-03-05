@@ -25,7 +25,7 @@ export const NoteCard = ({
   query,
   tags = EMPTY_TAGS,
 }: {
-  currentParams?: { q?: string; tag?: string; time?: string };
+  currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
   note: SelectNote;
   query?: string;
   tags?: SelectTag[];

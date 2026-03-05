@@ -64,7 +64,7 @@ function DropChip({ activeFolder, folder, isDragging }: DropChipProps) {
         )}
       </button>
       {!isDragging && (
-        <div className="ml-1 flex max-w-0 items-center gap-0.5 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-hover:max-w-[5rem] group-hover:opacity-100">
+        <div className="ml-1 flex max-w-0 items-center gap-0.5 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-focus-within:max-w-[5rem] group-focus-within:opacity-100 group-hover:max-w-[5rem] group-hover:opacity-100">
           <RenameFolderButton
             currentName={folder.name}
             folderId={folderId}

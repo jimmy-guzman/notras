@@ -95,6 +95,7 @@ export default async function Page({ searchParams }: PageProps) {
                 </h2>
                 <NotesList
                   currentParams={{
+                    folder: params.folder,
                     q: params.q,
                     tag: params.tag,
                     time: params.time,
@@ -117,6 +118,7 @@ export default async function Page({ searchParams }: PageProps) {
                 )}
                 <NotesList
                   currentParams={{
+                    folder: params.folder,
                     q: params.q,
                     tag: params.tag,
                     time: params.time,

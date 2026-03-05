@@ -10,7 +10,7 @@ import { NoteCard } from "./note-card";
 import { NoteListItem } from "./note-list-item";
 
 interface NotesListProps {
-  currentParams?: { q?: string; tag?: string; time?: string };
+  currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
   notes: SelectNote[];
   query?: string;
   tagMap?: Record<string, SelectTag[]>;
