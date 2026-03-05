@@ -46,13 +46,14 @@ export function CreateFolderButton() {
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogTrigger asChild>
-        <button
-          className="flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary/50"
+        <Button
+          className="h-auto rounded-full px-3 py-1.5"
           type="button"
+          variant="outline"
         >
           <FolderPlusIcon className="size-4" />
           <span className="sr-only">new folder</span>
-        </button>
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
