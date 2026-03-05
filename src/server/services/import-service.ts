@@ -128,9 +128,9 @@ class ImportService {
       };
     }
 
-    // Restore folders first so that note folderId FKs resolve.
     const foldersRaw = files["folders.json"] as Uint8Array | undefined;
     const importedFolderIds = new Set<string>();
+    const foldersImported = Boolean(foldersRaw);
 
     if (foldersRaw) {
       const foldersResult = exportFolderDataSchema.safeParse(
@@ -195,7 +195,6 @@ class ImportService {
 
       const formattedContent = await formatMarkdown(exportedNote.content);
 
-      // Only assign folderId if the folder was actually imported/exists.
       const folderId: FolderId | null =
         exportedNote.folderId && importedFolderIds.has(exportedNote.folderId)
           ? toFolderId(exportedNote.folderId)
@@ -247,14 +246,15 @@ class ImportService {
 
       await this.tagRepo.deleteOrphanedTags(userId);
 
-      // In mirror mode, delete folders not present in the import.
-      const allLocalFolders = await this.folderRepo.findByUserId(userId);
-      const toDeleteFolders = allLocalFolders.filter(
-        (f) => !importedFolderIds.has(f.id),
-      );
+      if (foldersImported) {
+        const allLocalFolders = await this.folderRepo.findByUserId(userId);
+        const toDeleteFolders = allLocalFolders.filter(
+          (f) => !importedFolderIds.has(f.id),
+        );
 
-      for (const f of toDeleteFolders) {
-        await this.folderRepo.delete(toFolderId(f.id), userId);
+        for (const f of toDeleteFolders) {
+          await this.folderRepo.delete(toFolderId(f.id), userId);
+        }
       }
     }
 

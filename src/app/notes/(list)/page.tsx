@@ -28,7 +28,7 @@ export default async function Page({ searchParams }: PageProps) {
     Boolean(params.folder);
 
   const [pinnedNotes, unpinnedNotes, folders] = isFiltering
-    ? [[], await getNotes(params), await getFolders()]
+    ? [[], ...(await Promise.all([getNotes(params), getFolders()]))]
     : await Promise.all([
         getNotes(params, { pinnedOnly: true }),
         getNotes(params, { excludePinned: true }),

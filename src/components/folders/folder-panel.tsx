@@ -96,7 +96,7 @@ function AllChip({ activeFolder }: AllChipProps) {
   return (
     <button
       className={cn(
-        "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+        "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
         isActive
           ? "border-primary bg-primary/10"
           : "border-border bg-background hover:border-primary/50",
@@ -135,8 +135,12 @@ export function FolderPanel({ folders }: FolderPanelProps) {
 
       if (!sourceId || !targetId) return;
 
+      const targetIdStr = String(targetId);
+
+      if (!folders.some((f) => f.id === targetIdStr)) return;
+
       const noteId = toNoteId(String(sourceId));
-      const folderId = toFolderId(String(targetId));
+      const folderId = toFolderId(targetIdStr);
 
       startTransition(async () => {
         try {
