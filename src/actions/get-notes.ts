@@ -8,6 +8,7 @@ import type { NoteSearchParams } from "@/lib/notes-search-params";
 import type { PinFilter } from "@/server/repositories/note-repository";
 
 import { serverAction } from "@/lib/authorized";
+import { toFolderId } from "@/lib/id";
 import { parsers } from "@/lib/notes-search-params";
 import { getNoteService } from "@/server/services/note-service";
 import { getTagService } from "@/server/services/tag-service";
@@ -21,10 +22,15 @@ export async function getNotes(
   return serverAction(async (userId) => {
     "use cache";
 
-    const { q: query, sort, tag, time } = searchParams;
+    const { folder, q: query, sort, tag, time } = searchParams;
+    const folderId =
+      folder && /^folder_[\da-hjkmnp-tv-z]{26}$/.test(folder)
+        ? toFolderId(folder)
+        : undefined;
 
     const result = await getNoteService().list(userId, {
       ...options,
+      folderId,
       query,
       sort,
       tag,

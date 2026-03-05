@@ -14,7 +14,7 @@ export default async function Page() {
     getProfile(),
     getNotesCount(),
     getNotes(
-      { q: "", sort: "newest", tag: "", time: "all" },
+      { folder: "", q: "", sort: "newest", tag: "", time: "all" },
       { excludePinned: true, limit: RECENT_NOTES_LIMIT },
     ),
   ]);

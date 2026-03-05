@@ -16,6 +16,8 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - filter by time period (today, yesterday, this week, this month, all time)
 - sort by newest, oldest, or recently updated
 - toggle between grid and list views
+- tag notes and filter by tag
+- organize notes into folders with drag-and-drop
 - attach images and PDFs to notes (images auto-optimized to WebP)
 - extract links from note content and display them in a sidebar
 - export notes as a zip and import from backup (merge or mirror)
@@ -48,6 +50,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [React Hook Form](https://react-hook-form.com)
 - [next-safe-action](https://next-safe-action.dev) (type-safe server actions)
 - [Motion](https://motion.dev)
+- [dnd-kit](https://dndkit.com) (drag-and-drop)
 - [Sonner](https://sonner.emilkowal.ski)
 - [Lucide](https://lucide.dev)
 - [nuqs](https://nuqs.47ng.com) (URL search state)

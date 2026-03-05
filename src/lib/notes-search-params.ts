@@ -3,6 +3,7 @@ import type { inferParserType } from "nuqs/server";
 import { parseAsString, parseAsStringEnum } from "nuqs/server";
 
 export const parsers = {
+  folder: parseAsString.withDefault(""),
   q: parseAsString.withDefault(""),
   sort: parseAsStringEnum(["newest", "oldest", "updated"]).withDefault(
     "newest",

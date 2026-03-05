@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 const DEFAULT_MAX_VISIBLE = 3;
 
 interface NoteTagsProps {
-  currentParams?: { q?: string; tag?: string; time?: string };
+  currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
   maxVisible?: number;
   tags: SelectTag[];
 }
@@ -26,6 +26,8 @@ export const NoteTags = ({
     <div className="flex flex-wrap items-center gap-1">
       {visible.map((t) => {
         const params = new URLSearchParams({ tag: t.name });
+
+        if (currentParams?.folder) params.set("folder", currentParams.folder);
 
         if (currentParams?.q) params.set("q", currentParams.q);
 

@@ -4,16 +4,19 @@ import { zipSync } from "fflate";
 
 import type { NoteId } from "@/lib/id";
 import type { AssetRepository } from "@/server/repositories/asset-repository";
+import type { FolderRepository } from "@/server/repositories/folder-repository";
 import type { NoteRepository } from "@/server/repositories/note-repository";
 import type { TagRepository } from "@/server/repositories/tag-repository";
 import type {
   ExportedAsset,
+  ExportedFolder,
   ExportedNote,
   Manifest,
 } from "@/server/schemas/export-schemas";
 
 import { getDb } from "@/server/db";
 import { DBAssetRepository } from "@/server/repositories/asset-repository";
+import { DBFolderRepository } from "@/server/repositories/folder-repository";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 import { DBTagRepository } from "@/server/repositories/tag-repository";
 
@@ -26,10 +29,14 @@ class ExportService {
     private noteRepo: NoteRepository,
     private assetRepo: AssetRepository,
     private tagRepo: TagRepository,
+    private folderRepo: FolderRepository,
   ) {}
 
   async exportAll(userId: string): Promise<Uint8Array> {
-    const notes = await this.noteRepo.findMany(userId, {});
+    const [notes, foldersWithCount] = await Promise.all([
+      this.noteRepo.findMany(userId, {}),
+      this.folderRepo.findByUserId(userId),
+    ]);
 
     const noteIds = notes.map((n) => n.id as NoteId);
     const tagMap = await this.tagRepo.findByNoteIds(noteIds, userId);
@@ -71,6 +78,7 @@ class ExportService {
         assets: exportedAssets,
         content: n.content,
         createdAt: n.createdAt.toISOString(),
+        folderId: n.folderId ?? null,
         id: n.id,
         pinnedAt: n.pinnedAt?.toISOString() ?? null,
         tags: noteTags.map((t) => t.name),
@@ -78,9 +86,19 @@ class ExportService {
       });
     }
 
+    const exportedFolders: ExportedFolder[] = foldersWithCount.map((f) => {
+      return {
+        createdAt: f.createdAt.toISOString(),
+        id: f.id,
+        name: f.name,
+        updatedAt: f.updatedAt.toISOString(),
+      };
+    });
+
     const manifest: Manifest = {
       assetCount,
       exportedAt: new Date().toISOString(),
+      folderCount: exportedFolders.length,
       noteCount: exportedNotes.length,
       version: 1,
     };
@@ -88,6 +106,7 @@ class ExportService {
     const encoder = new TextEncoder();
 
     const zipData: Record<string, Uint8Array> = {
+      "folders.json": encoder.encode(JSON.stringify(exportedFolders, null, 2)),
       "manifest.json": encoder.encode(JSON.stringify(manifest, null, 2)),
       "notes.json": encoder.encode(JSON.stringify(exportedNotes, null, 2)),
       ...assetFiles,
@@ -104,6 +123,7 @@ export function getExportService() {
     new DBNoteRepository(getDb()),
     new DBAssetRepository(getDb()),
     new DBTagRepository(getDb()),
+    new DBFolderRepository(getDb()),
   );
 
   return _exportService;

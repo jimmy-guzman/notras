@@ -19,6 +19,7 @@ const makeNote = (overrides: { content: string; id: string }) => {
   return {
     content: overrides.content,
     createdAt: new Date("2025-01-01"),
+    folderId: null,
     id: overrides.id,
     pinnedAt: null,
     remindAt: null,

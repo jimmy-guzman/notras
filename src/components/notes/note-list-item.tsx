@@ -1,3 +1,6 @@
+"use client";
+
+import { useDraggable } from "@dnd-kit/react";
 import { BellIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -21,15 +24,20 @@ export const NoteListItem = ({
   query,
   tags = EMPTY_TAGS,
 }: {
-  currentParams?: { q?: string; tag?: string; time?: string };
+  currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
   note: SelectNote;
   query?: string;
   tags?: SelectTag[];
 }) => {
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
+  const noteId = toNoteId(note.id);
+  const { isDragging, ref } = useDraggable({ id: noteId });
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted">
+    <div
+      className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted ${isDragging ? "opacity-50" : ""}`}
+      ref={ref}
+    >
       <div className="min-w-0 flex-1">
         <Link
           className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -64,7 +72,7 @@ export const NoteListItem = ({
           {formatDate(note.createdAt)}
         </span>
         <PinNoteButton
-          noteId={toNoteId(note.id)}
+          noteId={noteId}
           pinned={Boolean(note.pinnedAt)}
           size="icon-xs"
         />

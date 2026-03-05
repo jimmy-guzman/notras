@@ -2,6 +2,7 @@ import type { RenderOptions } from "@testing-library/react";
 import type { ReactElement } from "react";
 import type * as React from "react";
 
+import { DragDropProvider } from "@dnd-kit/react";
 import { render } from "@testing-library/react";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
 
@@ -17,10 +18,12 @@ interface AllProvidersProps {
 const AllTheProviders = ({ children, searchParams }: AllProvidersProps) => {
   return (
     <NuqsTestingAdapter searchParams={searchParams}>
-      <TooltipProvider>
-        <Toaster />
-        {children}
-      </TooltipProvider>
+      <DragDropProvider>
+        <TooltipProvider>
+          <Toaster />
+          {children}
+        </TooltipProvider>
+      </DragDropProvider>
     </NuqsTestingAdapter>
   );
 };
