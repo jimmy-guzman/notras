@@ -31,6 +31,7 @@ src/
       new/          # New note page
     settings/       # Settings page (profile, export, import)
   components/       # React components
+    folders/          # Folder management (panel, create, rename, delete)
     notes/          # Note-related components (cards, filters, actions, etc.)
       assets/       # Asset components (uploader, preview, list)
     settings/       # Settings-related components (profile form, export, import)
@@ -71,6 +72,8 @@ data/
 - **`"use cache"` directive:** Read actions (e.g., `get-note.ts`, `get-notes.ts`) use the `"use cache"` directive with `cacheTag("notes")` for automatic caching. This is enabled by `experimental: { useCache: true }` in `next.config.ts`. Do **not** use `"use cache"` on time-dependent queries (e.g., "find reminders where `remindAt <= now()`") -- the cached result goes stale immediately since `now()` changes every call.
 - **Navigation links** in the top nav use `Button` + `Link` + `Tooltip` + `Kbd` with single-letter hotkeys (e.g., `h` for home, `n` for new note, `s` for settings). No dropdowns -- keep it flat and minimal.
 - **Global hotkeys** are registered in `HotkeysProvider` (`src/components/hotkeys-provider.tsx`). When adding a new nav route, also register its hotkey there.
+- **`FolderPanel`** is a `"use client"` component rendered via `createPortal` → `document.body` as a fixed floating pill at the bottom center of the screen. It is always visible on `/notes` (even with 0 folders) and hidden on all other pages unless a drag is in progress. It receives `folders` as a server-side prop from `layout.tsx` (avoids async load delay), reads `activeFolder` internally via `useQueryStates`, and acts as both a filter surface (click to filter by folder) and a drag-and-drop target (drop a note card onto a folder chip to move it). Use a `mounted` state guard (`useEffect` → `setMounted(true)`) before calling `createPortal` to prevent SSR errors. Wrap `<FolderPanel>` in `<Suspense>` in `layout.tsx` because it uses `useSearchParams` internally via `nuqs`.
+- **Tagging** — tags are stored in a separate `tags` table with a many-to-many `note_tags` join table. `getTagsForNotes(noteIds)` bulk-fetches tags for a list of note IDs and returns a `Record<noteId, SelectTag[]>` map. Tags are rendered as `Badge` links on note cards and list items via `NoteTags`; clicking a tag sets the `tag` search param to filter the notes list. The `TagInput` component in the edit form handles inline tag creation and deletion. Active tag and folder filter chips are rendered by `ActiveFiltersChip` (replaces the old `TagFilterChip`).
 
 ### Forms
 
@@ -118,6 +121,7 @@ If any step fails, fix the issue and re-run from that step. Do not move on until
 - **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`). `NODE_ENV` is also validated as a shared env var.
 - **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`). New schema modules must be spread into the `schema` object in `src/server/db/index.ts`.
 - **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`). Always prefer a Shadcn component over hand-rolling custom UI -- check the registry first (`shadcn_search_items_in_registries`) before building something from scratch.
+- **Conditional classes:** Use `cn()` from `@/lib/ui/utils` for all conditional or merged Tailwind class strings -- never template literals. `cn` wraps `clsx` + `tailwind-merge`, so it handles conflict resolution correctly (e.g., `cn("px-3", isActive && "bg-primary/10")`).
 - **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
 - **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
 - Use `satisfies` for type narrowing when possible (e.g., config objects).

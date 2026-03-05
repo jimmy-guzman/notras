@@ -3,14 +3,15 @@ import type { SearchParams } from "nuqs/server";
 import { InfoIcon, NotebookTextIcon, PinIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
+import { getFolders } from "@/actions/get-folders";
 import {
   getNotes,
   getTagsForNotes,
   loadSearchParams,
 } from "@/actions/get-notes";
+import { ActiveFiltersChip } from "@/components/notes/active-filters-chip";
 import { NotesList } from "@/components/notes/notes";
 import { NotesFilters } from "@/components/notes/notes-filters";
-import { TagFilterChip } from "@/components/notes/tag-filter-chip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toNoteId } from "@/lib/id";
 
@@ -21,19 +22,29 @@ interface PageProps {
 export default async function Page({ searchParams }: PageProps) {
   const params = await loadSearchParams(searchParams);
   const isFiltering =
-    Boolean(params.q) || params.time !== "all" || Boolean(params.tag);
+    Boolean(params.q) ||
+    params.time !== "all" ||
+    Boolean(params.tag) ||
+    Boolean(params.folder);
 
-  const [pinnedNotes, unpinnedNotes] = isFiltering
-    ? [[], await getNotes(params)]
-    : await Promise.all([
-        getNotes(params, { pinnedOnly: true }),
-        getNotes(params, { excludePinned: true }),
-      ]);
+  const [pinnedNotes, unpinnedNotes, folders] = isFiltering
+    ? [[], await getNotes(params), await getFolders()]
+    : [
+        ...(await Promise.all([
+          getNotes(params, { pinnedOnly: true }),
+          getNotes(params, { excludePinned: true }),
+        ])),
+        await getFolders(),
+      ];
 
   const allNotes = [...pinnedNotes, ...unpinnedNotes];
   const totalCount = allNotes.length;
   const noteIds = allNotes.map((n) => toNoteId(n.id));
   const tagMap = noteIds.length > 0 ? await getTagsForNotes(noteIds) : {};
+
+  const activeFolder = params.folder
+    ? folders.find((f) => f.id === params.folder)
+    : undefined;
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -41,7 +52,10 @@ export default async function Page({ searchParams }: PageProps) {
         <NotesFilters />
 
         {isFiltering && totalCount > 0 && (
-          <TagFilterChip totalCount={totalCount} />
+          <ActiveFiltersChip
+            activeFolder={activeFolder}
+            totalCount={totalCount}
+          />
         )}
 
         {totalCount === 0 ? (

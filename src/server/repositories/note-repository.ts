@@ -14,7 +14,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { NoteId } from "@/lib/id";
+import type { FolderId, NoteId } from "@/lib/id";
 import type { SortOption, TimeFilter } from "@/lib/utils/note-filters";
 import type { Database } from "@/server/db";
 import type { SelectNote } from "@/server/db/schemas/notes";
@@ -29,6 +29,7 @@ export type PinFilter =
   | { excludePinned?: never; pinnedOnly: true };
 
 export type NoteFilters = PinFilter & {
+  folderId?: FolderId;
   limit?: number;
   query?: string;
   remind?: "overdue" | "upcoming";
@@ -50,6 +51,7 @@ export interface UpdateNoteInput {
 export interface UpsertNoteInput {
   content: string;
   createdAt: Date;
+  folderId?: FolderId | null;
   id: NoteId;
   pinnedAt: Date | null;
   updatedAt: Date;
@@ -67,6 +69,11 @@ export interface NoteRepository {
   findById(noteId: NoteId, userId: string): Promise<SelectNote | undefined>;
   findDueReminders(userId: string): Promise<SelectNote[]>;
   findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]>;
+  moveToFolder(
+    noteId: NoteId,
+    userId: string,
+    folderId: FolderId | null,
+  ): Promise<void>;
   pin(noteId: NoteId, userId: string): Promise<void>;
   setReminder(noteId: NoteId, userId: string, remindAt: Date): Promise<void>;
   unpin(noteId: NoteId, userId: string): Promise<void>;
@@ -217,12 +224,17 @@ export class DBNoteRepository implements NoteRepository {
           ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
           : [];
 
+    const folderFilter = filters.folderId
+      ? [eq(note.folderId, filters.folderId)]
+      : [];
+
     const whereClause = and(
       ...baseFilters,
       ...pinnedFilter,
       ...queryFilter,
       ...timeFilter,
       ...remindFilter,
+      ...folderFilter,
     );
 
     const orderBy = getSortOrder(filters.sort);
@@ -233,6 +245,7 @@ export class DBNoteRepository implements NoteRepository {
         .selectDistinct({
           content: note.content,
           createdAt: note.createdAt,
+          folderId: note.folderId,
           id: note.id,
           pinnedAt: note.pinnedAt,
           remindAt: note.remindAt,
@@ -264,6 +277,17 @@ export class DBNoteRepository implements NoteRepository {
     }
 
     return qb;
+  }
+
+  async moveToFolder(
+    noteId: NoteId,
+    userId: string,
+    folderId: FolderId | null,
+  ): Promise<void> {
+    await this.db
+      .update(note)
+      .set({ folderId, updatedAt: new Date() })
+      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
   }
 
   async pin(noteId: NoteId, userId: string): Promise<void> {
@@ -319,6 +343,7 @@ export class DBNoteRepository implements NoteRepository {
       .values({
         content: input.content,
         createdAt: input.createdAt,
+        folderId: input.folderId ?? null,
         id: input.id,
         pinnedAt: input.pinnedAt,
         updatedAt: input.updatedAt,
@@ -327,6 +352,7 @@ export class DBNoteRepository implements NoteRepository {
       .onConflictDoUpdate({
         set: {
           content: input.content,
+          folderId: input.folderId ?? null,
           pinnedAt: input.pinnedAt,
           updatedAt: input.updatedAt,
         },

@@ -1,3 +1,6 @@
+"use client";
+
+import { useDraggable } from "@dnd-kit/react";
 import { BellIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -28,12 +31,17 @@ export const NoteCard = ({
   tags?: SelectTag[];
 }) => {
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
+  const noteId = toNoteId(note.id);
+  const { isDragging, ref } = useDraggable({ id: noteId });
 
   return (
-    <Card className="group relative flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+    <Card
+      className={`group relative flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${isDragging ? "opacity-50" : ""}`}
+      ref={ref}
+    >
       <PinNoteButton
         className="absolute top-2 right-2 z-10"
-        noteId={toNoteId(note.id)}
+        noteId={noteId}
         pinned={Boolean(note.pinnedAt)}
       />
       <CardContent className="flex-1 py-4">

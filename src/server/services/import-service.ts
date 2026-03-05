@@ -2,22 +2,25 @@ import { TextDecoder } from "node:util";
 
 import { unzipSync } from "fflate";
 
-import type { NoteId } from "@/lib/id";
+import type { FolderId, NoteId } from "@/lib/id";
 import type {
   AssetRepository,
   CreateAssetInput,
 } from "@/server/repositories/asset-repository";
+import type { FolderRepository } from "@/server/repositories/folder-repository";
 import type { NoteRepository } from "@/server/repositories/note-repository";
 import type { TagRepository } from "@/server/repositories/tag-repository";
 import type { ExportedNote, ImportMode } from "@/server/schemas/export-schemas";
 
-import { toAssetId, toNoteId } from "@/lib/id";
+import { toAssetId, toFolderId, toNoteId } from "@/lib/id";
 import { getDb } from "@/server/db";
 import { DBAssetRepository } from "@/server/repositories/asset-repository";
+import { DBFolderRepository } from "@/server/repositories/folder-repository";
 import { DBNoteRepository } from "@/server/repositories/note-repository";
 import { DBTagRepository } from "@/server/repositories/tag-repository";
 import {
   exportDataSchema,
+  exportFolderDataSchema,
   manifestSchema,
 } from "@/server/schemas/export-schemas";
 import { formatMarkdown } from "@/server/services/format-service";
@@ -95,6 +98,7 @@ class ImportService {
     private noteRepo: NoteRepository,
     private assetRepo: AssetRepository,
     private tagRepo: TagRepository,
+    private folderRepo: FolderRepository,
   ) {}
 
   async importZip(
@@ -122,6 +126,30 @@ class ImportService {
         ...FAIL_RESULT,
         message: "invalid export file: invalid manifest format",
       };
+    }
+
+    // Restore folders first so that note folderId FKs resolve.
+    const foldersRaw = files["folders.json"] as Uint8Array | undefined;
+    const importedFolderIds = new Set<string>();
+
+    if (foldersRaw) {
+      const foldersResult = exportFolderDataSchema.safeParse(
+        JSON.parse(decoder.decode(foldersRaw)),
+      );
+
+      if (foldersResult.success) {
+        for (const f of foldersResult.data) {
+          await this.folderRepo.upsert({
+            createdAt: new Date(f.createdAt),
+            id: toFolderId(f.id),
+            name: f.name,
+            updatedAt: new Date(f.updatedAt),
+            userId,
+          });
+
+          importedFolderIds.add(f.id);
+        }
+      }
     }
 
     const notesRaw = files["notes.json"] as Uint8Array | undefined;
@@ -167,9 +195,16 @@ class ImportService {
 
       const formattedContent = await formatMarkdown(exportedNote.content);
 
+      // Only assign folderId if the folder was actually imported/exists.
+      const folderId =
+        exportedNote.folderId && importedFolderIds.has(exportedNote.folderId)
+          ? toFolderId(exportedNote.folderId)
+          : (null as FolderId | null);
+
       await this.noteRepo.upsert({
         content: formattedContent,
         createdAt: new Date(exportedNote.createdAt),
+        folderId,
         id: noteId,
         pinnedAt: exportedNote.pinnedAt
           ? new Date(exportedNote.pinnedAt)
@@ -211,6 +246,16 @@ class ImportService {
       }
 
       await this.tagRepo.deleteOrphanedTags(userId);
+
+      // In mirror mode, delete folders not present in the import.
+      const allLocalFolders = await this.folderRepo.findByUserId(userId);
+      const toDeleteFolders = allLocalFolders.filter(
+        (f) => !importedFolderIds.has(f.id),
+      );
+
+      for (const f of toDeleteFolders) {
+        await this.folderRepo.delete(toFolderId(f.id), userId);
+      }
     }
 
     await this.noteRepo.updateSyncedAt(importedNoteIds, userId);
@@ -233,6 +278,7 @@ export function getImportService() {
     new DBNoteRepository(getDb()),
     new DBAssetRepository(getDb()),
     new DBTagRepository(getDb()),
+    new DBFolderRepository(getDb()),
   );
 
   return _importService;

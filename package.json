@@ -25,6 +25,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@dnd-kit/dom": "0.3.2",
+    "@dnd-kit/react": "0.3.2",
     "@hookform/resolvers": "5.2.2",
     "@libsql/client": "0.17.0",
     "@next-safe-action/adapter-react-hook-form": "2.0.0",

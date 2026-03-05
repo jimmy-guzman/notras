@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { env } from "@/env";
 
 import * as assets from "./schemas/assets";
+import * as folders from "./schemas/folders";
 import * as links from "./schemas/links";
 import * as notes from "./schemas/notes";
 import * as tags from "./schemas/tags";
@@ -11,6 +12,7 @@ import * as users from "./schemas/users";
 
 const schema = {
   ...users,
+  ...folders,
   ...notes,
   ...assets,
   ...links,

@@ -5,10 +5,14 @@ import type { ReactNode } from "react";
 
 import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { Suspense } from "react";
 
 import { getFiredRemindersCount } from "@/actions/get-fired-reminders-count";
+import { getFolders } from "@/actions/get-folders";
 import { AlphaBanner } from "@/components/alpha-banner";
+import { FolderPanel } from "@/components/folders/folder-panel";
 import { HotkeysProvider } from "@/components/hotkeys-provider";
+import { NoteDragDropProvider } from "@/components/note-drag-drop-provider";
 import { RemindersProvider } from "@/components/reminders-provider";
 import { SearchBarProvider } from "@/components/search-bar-provider";
 import { SiteFooter } from "@/components/site-footer";
@@ -50,7 +54,10 @@ export const viewport = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const overdueCount = await getFiredRemindersCount();
+  const [overdueCount, folders] = await Promise.all([
+    getFiredRemindersCount(),
+    getFolders(),
+  ]);
 
   return (
     <html className={dmSans.variable} lang="en">
@@ -62,17 +69,22 @@ export default async function RootLayout({
             <HotkeysProvider>
               <SearchBarProvider>
                 <RemindersProvider initialCount={overdueCount}>
-                  <AlphaBanner />
-                  <div className="flex flex-col">
-                    <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
-                      <SiteNav />
-                    </header>
-                    <main className="flex min-h-[calc(100svh-3.5rem)] justify-center">
-                      {children}
-                    </main>
-                    <SiteFooter />
-                  </div>
-                  <Toaster />
+                  <NoteDragDropProvider>
+                    <AlphaBanner />
+                    <div className="flex flex-col">
+                      <header className="sticky inset-x-0 top-0 isolate z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
+                        <SiteNav />
+                      </header>
+                      <main className="flex min-h-[calc(100svh-3.5rem)] justify-center">
+                        {children}
+                      </main>
+                      <SiteFooter />
+                    </div>
+                    <Toaster />
+                    <Suspense>
+                      <FolderPanel folders={folders} />
+                    </Suspense>
+                  </NoteDragDropProvider>
                 </RemindersProvider>
               </SearchBarProvider>
             </HotkeysProvider>
