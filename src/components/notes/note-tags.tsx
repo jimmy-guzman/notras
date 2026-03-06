@@ -17,7 +17,7 @@ export const NoteTags = ({
   maxVisible = DEFAULT_MAX_VISIBLE,
   tags,
 }: NoteTagsProps) => {
-  if (tags.length === 0) return null;
+  if (tags.length === 0) return <div className="h-5" />;
 
   const visible = tags.slice(0, maxVisible);
   const overflow = tags.length - visible.length;
