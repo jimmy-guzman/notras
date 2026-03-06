@@ -72,9 +72,7 @@ export const NoteCard = ({
           {formatDate(note.createdAt)}
           {note.remindAt && <BellIcon className="h-3 w-3" />}
         </span>
-        {tags.length > 0 && (
-          <NoteTags currentParams={currentParams} tags={tags} />
-        )}
+        <NoteTags currentParams={currentParams} tags={tags} />
       </CardFooter>
     </Card>
   );
