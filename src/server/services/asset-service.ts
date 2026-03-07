@@ -36,14 +36,12 @@ async function processImage(
 
   if (isPassthrough) {
     const metadata = await sharp(buffer).metadata();
-    const h = metadata.height as number | undefined;
-    const w = metadata.width as number | undefined;
 
     return {
       buffer,
-      height: h ?? 0,
+      height: metadata.height,
       mimeType,
-      width: w ?? 0,
+      width: metadata.width,
     };
   }
 
@@ -64,14 +62,11 @@ async function processImage(
   const optimized = await image.webp({ quality: 85 }).toBuffer();
   const outputMetadata = await sharp(optimized).metadata();
 
-  const oh = outputMetadata.height as number | undefined;
-  const ow = outputMetadata.width as number | undefined;
-
   return {
     buffer: optimized,
-    height: oh ?? 0,
+    height: outputMetadata.height,
     mimeType: "image/webp",
-    width: ow ?? 0,
+    width: outputMetadata.width,
   };
 }
 
