@@ -11,7 +11,7 @@ export const preferencesSchema = Schema.Struct({
 
 export type Preferences = Schema.Schema.Type<typeof preferencesSchema>;
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+const EMAIL_PATTERN = /^[^\s@]+@(?:[a-z\d](?:[a-z\d-]*[a-z\d])?\.)+[a-z]{2,}$/i;
 
 export const updateProfileSchema = Schema.Struct({
   email: Schema.String.pipe(

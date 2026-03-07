@@ -1,7 +1,8 @@
 import { Schema } from "effect";
 
-const NOTE_ID_PATTERN = /^note_[\da-hjkmnp-tv-z]{26}$/;
-const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
+import { ASSET_ID_PATTERN } from "@/server/schemas/asset-schemas";
+import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
+
 const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
 const ISO_DATETIME_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;

@@ -20,17 +20,22 @@ const schema = {
   ...tags,
 };
 
-function createDb(databasePath: string) {
-  const client = createClient({ url: databasePath });
-
-  return drizzle(client, { schema });
-}
-
-type DrizzleDb = ReturnType<typeof createDb>;
+type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 
 export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
 
-export const DatabaseLive = Layer.effect(
+export const DatabaseLive = Layer.scoped(
   Database,
-  Effect.sync(() => createDb(env.DATABASE_PATH)),
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const client = createClient({ url: env.DATABASE_PATH });
+
+      return { client, db: drizzle(client, { schema }) };
+    }),
+    ({ client }) => {
+      return Effect.sync(() => {
+        client.close();
+      });
+    },
+  ).pipe(Effect.map(({ db }) => db)),
 );

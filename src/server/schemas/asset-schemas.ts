@@ -13,12 +13,22 @@ const ALLOWED_MIME_TYPES = [
   "image/webp",
 ] as const;
 
-const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
+export const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
 
 const validFile = Schema.instanceOf(File).pipe(
-  Schema.filter((file) => file.size > 0),
-  Schema.filter((file) => file.size <= MAX_FILE_SIZE),
-  Schema.filter((file) => ALLOWED_MIME_TYPES.includes(file.type as never)),
+  Schema.filter((file) => file.size > 0 || "File must not be empty"),
+  Schema.filter((file) => {
+    return (
+      file.size <= MAX_FILE_SIZE ||
+      `File size must not exceed ${MAX_FILE_SIZE / 1024 / 1024}MB`
+    );
+  }),
+  Schema.filter((file) => {
+    return (
+      ALLOWED_MIME_TYPES.includes(file.type as never) ||
+      `File type must be one of: ${ALLOWED_MIME_TYPES.join(", ")}`
+    );
+  }),
 );
 
 export const deleteAssetSchema = Schema.Struct({
