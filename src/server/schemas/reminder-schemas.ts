@@ -1,10 +1,11 @@
-import { z } from "zod";
+import { Schema } from "effect";
 
 import { REMINDER_PRESET_KEYS } from "@/lib/utils/reminder-presets";
+import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
 
-const noteIdPattern = /^note_[\da-hjkmnp-tv-z]{26}$/;
-
-export const setReminderSchema = z.object({
-  noteId: z.string().regex(noteIdPattern, "invalid note id"),
-  preset: z.enum(REMINDER_PRESET_KEYS),
+export const setReminderSchema = Schema.Struct({
+  noteId: Schema.String.pipe(
+    Schema.pattern(NOTE_ID_PATTERN, { message: () => "invalid note id" }),
+  ),
+  preset: Schema.Literal(...REMINDER_PRESET_KEYS),
 });

@@ -36,6 +36,7 @@
     "clsx": "2.1.1",
     "date-fns": "4.1.0",
     "drizzle-orm": "0.45.1",
+    "effect": "3.19.19",
     "fflate": "0.8.2",
     "lucide-react": "0.577.0",
     "motion": "12.35.0",

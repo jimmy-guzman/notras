@@ -1,9 +1,10 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { Schema } from "effect";
 import { UploadIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Controller } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -37,25 +38,34 @@ import { importInputSchema } from "@/server/schemas/export-schemas";
 
 export function ImportNotes() {
   const [showMirrorConfirm, setShowMirrorConfirm] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { action, form, handleSubmitWithAction, resetFormAndAction } =
-    useHookFormAction(importNotes, zodResolver(importInputSchema), {
-      actionProps: {
-        onError({ error }) {
-          toast.error(error.serverError ?? "import failed");
+    useHookFormAction(
+      importNotes,
+      standardSchemaResolver(Schema.standardSchemaV1(importInputSchema)),
+      {
+        actionProps: {
+          onError({ error }) {
+            toast.error(error.serverError ?? "import failed");
+          },
+          onSuccess({ data }) {
+            toast.success(data.message);
+            resetFormAndAction();
+
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
+          },
         },
-        onSuccess({ data }) {
-          toast.success(data.message);
-          resetFormAndAction();
+        formProps: {
+          defaultValues: {
+            mode: "merge",
+          },
+          mode: "onChange",
         },
       },
-      formProps: {
-        defaultValues: {
-          mode: "merge",
-        },
-        mode: "onChange",
-      },
-    });
+    );
 
   function handleSubmit(e?: React.BaseSyntheticEvent) {
     e?.preventDefault();
@@ -102,7 +112,10 @@ export function ImportNotes() {
                   onChange={(e) => {
                     onChange(e.target.files?.[0]);
                   }}
-                  ref={ref}
+                  ref={(el) => {
+                    ref(el);
+                    fileInputRef.current = el;
+                  }}
                   type="file"
                 />
                 <FieldError>{fieldState.error?.message}</FieldError>

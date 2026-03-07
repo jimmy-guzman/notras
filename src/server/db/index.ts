@@ -1,5 +1,6 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { Context, Effect, Layer } from "effect";
 
 import { env } from "@/env";
 
@@ -19,18 +20,22 @@ const schema = {
   ...tags,
 };
 
-export function createDb(databasePath: string) {
-  const client = createClient({ url: databasePath });
+type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 
-  return drizzle(client, { schema });
-}
+export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
 
-export type Database = ReturnType<typeof createDb>;
+export const DatabaseLive = Layer.scoped(
+  Database,
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const client = createClient({ url: env.DATABASE_PATH });
 
-let _db: Database | undefined;
-
-export function getDb() {
-  _db ??= createDb(env.DATABASE_PATH);
-
-  return _db;
-}
+      return { client, db: drizzle(client, { schema }) };
+    }),
+    ({ client }) => {
+      return Effect.sync(() => {
+        client.close();
+      });
+    },
+  ).pipe(Effect.map(({ db }) => db)),
+);

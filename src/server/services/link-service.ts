@@ -1,20 +1,21 @@
+import { Context, Effect, Layer } from "effect";
 import { updateTag } from "next/cache";
 
-import type { LinkId, NoteId } from "@/lib/id";
+import type { NoteId } from "@/lib/id";
 import type { SelectLink } from "@/server/db/schemas/links";
-import type { LinkRepository } from "@/server/repositories/link-repository";
-import type { OgMetadata } from "@/server/services/og-service";
 
 import { generateLinkId } from "@/lib/id";
-import { getDb } from "@/server/db";
-import { DBLinkRepository } from "@/server/repositories/link-repository";
-import { fetchOgMetadata } from "@/server/services/og-service";
+import {
+  LinkRepository,
+  LinkRepositoryLive,
+} from "@/server/repositories/link-repository";
+import { OgService, OgServiceLive } from "@/server/services/og-service";
 
 const URL_PATTERN =
   /\[[^\]]*\]\((https?:\/\/\S+)\)|(?<![[()"])(https?:\/\/[^\s)>\]"]+)/g;
 
 function cleanUrl(raw: string) {
-  const trimmed = raw.replace(/[.,!?;:'"]+$/, "");
+  const trimmed = raw.replaceAll(/[.,!?;:'"]+$/g, "");
 
   const open = (trimmed.match(/\(/g) ?? []).length;
   const close = (trimmed.match(/\)/g) ?? []).length;
@@ -27,7 +28,8 @@ export function extractUrls(content: string): string[] {
   const urls = new Set<string>();
 
   for (const match of content.matchAll(URL_PATTERN)) {
-    const url = match[1] || match[2];
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- capture groups are string | undefined at runtime
+    const url = match[1] ?? match[2];
 
     if (url) {
       urls.add(cleanUrl(url));
@@ -37,62 +39,78 @@ export function extractUrls(content: string): string[] {
   return [...urls];
 }
 
-class LinkService {
-  constructor(
-    private linkRepo: LinkRepository,
-    private idGenerator: () => LinkId = generateLinkId,
-    private ogFetcher: (url: string) => Promise<OgMetadata> = fetchOgMetadata,
-  ) {}
-
-  async getByNoteId(userId: string, noteId: NoteId): Promise<SelectLink[]> {
-    return this.linkRepo.findByNoteId(noteId, userId);
-  }
-
-  async syncLinks(
+interface ILinkService {
+  getByNoteId(userId: string, noteId: NoteId): Effect.Effect<SelectLink[]>;
+  syncLinks(
     userId: string,
     noteId: NoteId,
     content: string,
-  ): Promise<void> {
-    const urls = extractUrls(content);
-
-    await this.linkRepo.deleteByNoteIdExcludingUrls(noteId, userId, urls);
-
-    if (urls.length === 0) {
-      return;
-    }
-
-    const existing = await this.linkRepo.findByNoteId(noteId, userId);
-    const existingByUrl = new Map(existing.map((l) => [l.url, l]));
-    const newUrls = urls.filter((url) => !existingByUrl.has(url));
-
-    if (newUrls.length === 0) {
-      return;
-    }
-
-    const inputs = await Promise.all(
-      newUrls.map(async (url) => {
-        const metadata = await this.ogFetcher(url);
-
-        return {
-          description: metadata.description,
-          id: this.idGenerator(),
-          noteId,
-          title: metadata.title,
-          url,
-          userId,
-        };
-      }),
-    );
-
-    await this.linkRepo.upsertMany(inputs);
-    updateTag("notes");
-  }
+  ): Effect.Effect<void>;
 }
 
-let _linkService: LinkService | undefined;
+export class LinkService extends Context.Tag("LinkService")<
+  LinkService,
+  ILinkService
+>() {}
 
-export function getLinkService() {
-  _linkService ??= new LinkService(new DBLinkRepository(getDb()));
+const makeLinkService = Effect.gen(function* () {
+  const linkRepo = yield* LinkRepository;
+  const ogService = yield* OgService;
 
-  return _linkService;
-}
+  const getByNoteId = (userId: string, noteId: NoteId) => {
+    return linkRepo.findByNoteId(noteId, userId).pipe(Effect.orDie);
+  };
+
+  const syncLinks = (userId: string, noteId: NoteId, content: string) => {
+    return Effect.gen(function* () {
+      const urls = extractUrls(content);
+
+      yield* linkRepo
+        .deleteByNoteIdExcludingUrls(noteId, userId, urls)
+        .pipe(Effect.orDie);
+
+      if (urls.length === 0) {
+        return;
+      }
+
+      const existing = yield* linkRepo
+        .findByNoteId(noteId, userId)
+        .pipe(Effect.orDie);
+      const existingByUrl = new Map(existing.map((l) => [l.url, l]));
+      const newUrls = urls.filter((url) => !existingByUrl.has(url));
+
+      if (newUrls.length === 0) {
+        return;
+      }
+
+      const inputs = yield* Effect.all(
+        newUrls.map((url) => {
+          return Effect.gen(function* () {
+            const metadata = yield* ogService.fetchOgMetadata(url);
+
+            return {
+              description: metadata.description,
+              id: generateLinkId(),
+              noteId,
+              title: metadata.title,
+              url,
+              userId,
+            };
+          });
+        }),
+      );
+
+      yield* linkRepo.upsertMany(inputs).pipe(Effect.orDie);
+      updateTag("notes");
+    });
+  };
+
+  return {
+    getByNoteId,
+    syncLinks,
+  } satisfies ILinkService;
+});
+
+export const LinkServiceLive = Layer.effect(LinkService, makeLinkService).pipe(
+  Layer.provide(Layer.merge(LinkRepositoryLive, OgServiceLive)),
+);

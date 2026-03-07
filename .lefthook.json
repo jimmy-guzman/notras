@@ -1,19 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/lefthook.json",
   "pre-commit": {
-    "parallel": true,
     "commands": {
-      "lint": {
-        "glob": "*.{js,cjs,ts,tsx}",
-        "run": "pnpm exec eslint --fix --cache --cache-location node_modules/.cache/eslint/ {staged_files}",
-        "stage_fixed": true
-      },
-      "format": {
+      "1_format": {
         "glob": "*.{md,json,yml,yaml,html,js,cjs,ts,tsx}",
         "run": "pnpm exec oxfmt {staged_files}",
         "stage_fixed": true
       },
-      "knip": {
+      "2_lint": {
+        "glob": "*.{js,cjs,ts,tsx}",
+        "run": "pnpm exec eslint --fix --cache --cache-location node_modules/.cache/eslint/ {staged_files}",
+        "stage_fixed": true
+      },
+      "3_knip": {
         "run": "SKIP_ENV_VALIDATION=1 pnpm exec knip"
       }
     }

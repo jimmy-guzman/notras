@@ -1,15 +1,21 @@
 "use server";
 
+import { Effect, Schema } from "effect";
 import { revalidatePath } from "next/cache";
 
 import { actionClient } from "@/lib/safe-action";
+import { AppRuntime } from "@/server/layer";
 import { updateProfileSchema } from "@/server/schemas/user-schemas";
-import { getUserService } from "@/server/services/user-service";
+import { UserService } from "@/server/services/user-service";
 
 export const updateProfile = actionClient
-  .inputSchema(updateProfileSchema)
+  .inputSchema(Schema.standardSchemaV1(updateProfileSchema))
   .action(async ({ ctx, parsedInput }) => {
-    await getUserService().updateProfile(ctx.userId, parsedInput);
+    await AppRuntime.runPromise(
+      UserService.pipe(
+        Effect.flatMap((svc) => svc.updateProfile(ctx.userId, parsedInput)),
+      ),
+    );
 
     revalidatePath("/settings");
     revalidatePath("/");

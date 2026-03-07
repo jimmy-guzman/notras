@@ -1,6 +1,9 @@
+import { Effect } from "effect";
+
 import { serverAction } from "@/lib/authorized";
 import { toAssetId } from "@/lib/id";
-import { getAssetService } from "@/server/services/asset-service";
+import { AppRuntime } from "@/server/layer";
+import { AssetService } from "@/server/services/asset-service";
 
 const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
 
@@ -18,7 +21,11 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const asset = await serverAction(async (userId) => {
-    return getAssetService().get(userId, toAssetId(id));
+    return AppRuntime.runPromise(
+      AssetService.pipe(
+        Effect.flatMap((svc) => svc.get(userId, toAssetId(id))),
+      ),
+    );
   });
 
   if (!asset) {

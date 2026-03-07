@@ -1,54 +1,60 @@
+import { Context, Effect, Layer } from "effect";
+
 import type { NoteId } from "@/lib/id";
 import type { SelectTag } from "@/server/db/schemas/tags";
-import type {
+import type { TagWithCount } from "@/server/repositories/tag-repository";
+
+import {
   TagRepository,
-  TagWithCount,
+  TagRepositoryLive,
 } from "@/server/repositories/tag-repository";
 
-import { getDb } from "@/server/db";
-import { DBTagRepository } from "@/server/repositories/tag-repository";
-
-interface TagService {
-  getAllTags(userId: string): Promise<TagWithCount[]>;
-  getTagsForNote(userId: string, noteId: NoteId): Promise<SelectTag[]>;
+interface ITagService {
+  getAllTags(userId: string): Effect.Effect<TagWithCount[]>;
+  getTagsForNote(userId: string, noteId: NoteId): Effect.Effect<SelectTag[]>;
   getTagsForNotes(
     userId: string,
     noteIds: NoteId[],
-  ): Promise<Record<string, SelectTag[]>>;
-  syncTags(userId: string, noteId: NoteId, tagNames: string[]): Promise<void>;
-}
-
-class TagServiceImpl implements TagService {
-  constructor(private tagRepo: TagRepository) {}
-
-  async getAllTags(userId: string): Promise<TagWithCount[]> {
-    return this.tagRepo.findByUserId(userId);
-  }
-
-  async getTagsForNote(userId: string, noteId: NoteId): Promise<SelectTag[]> {
-    return this.tagRepo.findByNoteId(noteId, userId);
-  }
-
-  async getTagsForNotes(
-    userId: string,
-    noteIds: NoteId[],
-  ): Promise<Record<string, SelectTag[]>> {
-    return this.tagRepo.findByNoteIds(noteIds, userId);
-  }
-
-  async syncTags(
+  ): Effect.Effect<Record<string, SelectTag[]>>;
+  syncTags(
     userId: string,
     noteId: NoteId,
     tagNames: string[],
-  ): Promise<void> {
-    await this.tagRepo.syncTagsForNote(noteId, userId, tagNames);
-  }
+  ): Effect.Effect<void>;
 }
 
-let _tagService: TagService | undefined;
+export class TagService extends Context.Tag("TagService")<
+  TagService,
+  ITagService
+>() {}
 
-export function getTagService(): TagService {
-  _tagService ??= new TagServiceImpl(new DBTagRepository(getDb()));
+const makeTagService = Effect.gen(function* () {
+  const tagRepo = yield* TagRepository;
 
-  return _tagService;
-}
+  const getAllTags = (userId: string) => {
+    return tagRepo.findByUserId(userId).pipe(Effect.orDie);
+  };
+
+  const getTagsForNote = (userId: string, noteId: NoteId) => {
+    return tagRepo.findByNoteId(noteId, userId).pipe(Effect.orDie);
+  };
+
+  const getTagsForNotes = (userId: string, noteIds: NoteId[]) => {
+    return tagRepo.findByNoteIds(noteIds, userId).pipe(Effect.orDie);
+  };
+
+  const syncTags = (userId: string, noteId: NoteId, tagNames: string[]) => {
+    return tagRepo.syncTagsForNote(noteId, userId, tagNames).pipe(Effect.orDie);
+  };
+
+  return {
+    getAllTags,
+    getTagsForNote,
+    getTagsForNotes,
+    syncTags,
+  } satisfies ITagService;
+});
+
+export const TagServiceLive = Layer.effect(TagService, makeTagService).pipe(
+  Layer.provide(TagRepositoryLive),
+);

@@ -1,18 +1,23 @@
-import { z } from "zod";
+import { Schema } from "effect";
 
-export const createFolderSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "name is required")
-    .max(100, "name is too long"),
+const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
+
+const trimmedName = Schema.String.pipe(
+  Schema.compose(Schema.Trim),
+  Schema.minLength(1, { message: () => "name is required" }),
+  Schema.maxLength(100, { message: () => "name is too long" }),
+);
+
+export const createFolderSchema = Schema.Struct({
+  name: trimmedName,
 });
 
-export const renameFolderSchema = z.object({
-  folderId: z.string().min(1, "folder id is required"),
-  name: z
-    .string()
-    .trim()
-    .min(1, "name is required")
-    .max(100, "name is too long"),
+export const renameFolderSchema = Schema.Struct({
+  folderId: Schema.String.pipe(
+    Schema.minLength(1, { message: () => "folder id is required" }),
+    Schema.pattern(FOLDER_ID_PATTERN, {
+      message: () => "invalid folder id format",
+    }),
+  ),
+  name: trimmedName,
 });

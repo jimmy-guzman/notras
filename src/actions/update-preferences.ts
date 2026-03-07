@@ -1,15 +1,21 @@
 "use server";
 
+import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
 import { actionClient } from "@/lib/safe-action";
+import { AppRuntime } from "@/server/layer";
 import { preferencesSchema } from "@/server/schemas/user-schemas";
-import { getUserService } from "@/server/services/user-service";
+import { UserService } from "@/server/services/user-service";
 
 export const updatePreferences = actionClient
-  .inputSchema(preferencesSchema)
+  .inputSchema(Schema.standardSchemaV1(preferencesSchema))
   .action(async ({ ctx, parsedInput }) => {
-    await getUserService().updatePreferences(ctx.userId, parsedInput);
+    await AppRuntime.runPromise(
+      UserService.pipe(
+        Effect.flatMap((svc) => svc.updatePreferences(ctx.userId, parsedInput)),
+      ),
+    );
 
     updateTag("preferences");
 
