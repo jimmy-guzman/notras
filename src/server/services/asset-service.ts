@@ -90,22 +90,15 @@ export class AssetService extends Context.Tag("AssetService")<
 const makeAssetService = Effect.gen(function* () {
   const assetRepo = yield* AssetRepository;
 
-  const deleteAsset = (
-    userId: string,
-    assetId: AssetId,
-  ): Effect.Effect<void> => assetRepo.delete(assetId, userId).pipe(Effect.orDie);
+  const deleteAsset = (userId: string, assetId: AssetId) => {
+    return assetRepo.delete(assetId, userId).pipe(Effect.orDie);
+  };
 
-  const get = (
-    userId: string,
-    assetId: AssetId,
-  ): Effect.Effect<SelectAsset | undefined> => {
+  const get = (userId: string, assetId: AssetId) => {
     return assetRepo.findById(assetId, userId).pipe(Effect.orDie);
   };
 
-  const list = (
-    userId: string,
-    noteId: NoteId,
-  ): Effect.Effect<AssetMetadata[]> => {
+  const list = (userId: string, noteId: NoteId) => {
     return Effect.gen(function* () {
       const rows = yield* assetRepo
         .findMetadataByNoteId(noteId, userId)
@@ -125,11 +118,7 @@ const makeAssetService = Effect.gen(function* () {
     });
   };
 
-  const upload = (
-    userId: string,
-    noteId: NoteId,
-    file: File,
-  ): Effect.Effect<AssetId> => {
+  const upload = (userId: string, noteId: NoteId, file: File) => {
     return Effect.gen(function* () {
       const id = generateAssetId();
       const buffer = Buffer.from(

@@ -214,7 +214,7 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 - Use Prettier -- this project uses oxfmt.
 - Add unnecessary `"use client"` directives -- prefer Server Components.
 - Leave comments in the codebase that are not JSDoc or TODO/FIXME notes.
-- Use redundant return types for internal functions that can be inferred.
+- Use redundant return types for internal functions that can be inferred. This includes unexported functions, local `const` arrow functions, and inline callbacks where the return type is obvious from the expression. Exception: interface method signatures and exported functions where the return type is part of the public contract.
 - Be lazy when dealing with static analysis warnings/errors -- address them promptly.
 - Reach for type shortcuts (`as`, `!`, `any`) without first exhausting proper solutions -- if a type error appears during a refactor, understand why before casting. Casts are occasionally correct but should never be the first response to a compiler error.
 - Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
