@@ -39,7 +39,7 @@ const makeFolderService = Effect.gen(function* () {
   const folderRepo = yield* FolderRepository;
   const noteRepo = yield* NoteRepository;
 
-  const create = (userId: string, name: string): Effect.Effect<FolderId> => {
+  const create = (userId: string, name: string) => {
     return Effect.gen(function* () {
       const id = generateFolderId();
 
@@ -49,37 +49,23 @@ const makeFolderService = Effect.gen(function* () {
     });
   };
 
-  const deleteFolder = (
-    userId: string,
-    folderId: FolderId,
-  ): Effect.Effect<void> => {
+  const deleteFolder = (userId: string, folderId: FolderId) => {
     return folderRepo.delete(folderId, userId).pipe(Effect.orDie);
   };
 
-  const getAll = (userId: string): Effect.Effect<FolderWithCount[]> => {
+  const getAll = (userId: string) => {
     return folderRepo.findByUserId(userId).pipe(Effect.orDie);
   };
 
-  const getById = (
-    userId: string,
-    folderId: FolderId,
-  ): Effect.Effect<SelectFolder | undefined> => {
+  const getById = (userId: string, folderId: FolderId) => {
     return folderRepo.findById(folderId, userId).pipe(Effect.orDie);
   };
 
-  const move = (
-    userId: string,
-    noteId: NoteId,
-    folderId: FolderId | null,
-  ): Effect.Effect<void> => {
+  const move = (userId: string, noteId: NoteId, folderId: FolderId | null) => {
     return noteRepo.moveToFolder(noteId, userId, folderId).pipe(Effect.orDie);
   };
 
-  const rename = (
-    userId: string,
-    folderId: FolderId,
-    name: string,
-  ): Effect.Effect<void> => {
+  const rename = (userId: string, folderId: FolderId, name: string) => {
     return folderRepo.rename(folderId, userId, name).pipe(Effect.orDie);
   };
 

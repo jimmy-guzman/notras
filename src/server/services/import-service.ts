@@ -127,7 +127,7 @@ const makeImportService = Effect.gen(function* () {
     userId: string,
     zipBuffer: Uint8Array,
     mode: ImportMode,
-  ): Effect.Effect<ImportResult> => {
+  ) => {
     return Effect.gen(function* () {
       let files: Record<string, Uint8Array>;
 

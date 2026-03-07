@@ -57,18 +57,11 @@ const makeLinkService = Effect.gen(function* () {
   const linkRepo = yield* LinkRepository;
   const ogService = yield* OgService;
 
-  const getByNoteId = (
-    userId: string,
-    noteId: NoteId,
-  ): Effect.Effect<SelectLink[]> => {
+  const getByNoteId = (userId: string, noteId: NoteId) => {
     return linkRepo.findByNoteId(noteId, userId).pipe(Effect.orDie);
   };
 
-  const syncLinks = (
-    userId: string,
-    noteId: NoteId,
-    content: string,
-  ): Effect.Effect<void> => {
+  const syncLinks = (userId: string, noteId: NoteId, content: string) => {
     return Effect.gen(function* () {
       const urls = extractUrls(content);
 

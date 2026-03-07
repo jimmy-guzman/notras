@@ -33,7 +33,7 @@ export class UserService extends Context.Tag("UserService")<
 const makeUserService = Effect.gen(function* () {
   const userRepo = yield* UserRepository;
 
-  const getDeviceUserId = (): Effect.Effect<string> => {
+  const getDeviceUserId = () => {
     return Effect.gen(function* () {
       const now = new Date();
 
@@ -51,13 +51,11 @@ const makeUserService = Effect.gen(function* () {
     });
   };
 
-  const getPreferences = (userId: string): Effect.Effect<Preferences> => {
+  const getPreferences = (userId: string) => {
     return userRepo.findPreferences(userId).pipe(Effect.orDie);
   };
 
-  const getProfile = (
-    userId: string,
-  ): Effect.Effect<UserProfile, NotFoundError> => {
+  const getProfile = (userId: string) => {
     return Effect.gen(function* () {
       const profile = yield* userRepo.findFullById(userId).pipe(Effect.orDie);
 
@@ -69,17 +67,14 @@ const makeUserService = Effect.gen(function* () {
     });
   };
 
-  const updatePreferences = (
-    userId: string,
-    data: Preferences,
-  ): Effect.Effect<void> => {
+  const updatePreferences = (userId: string, data: Preferences) => {
     return userRepo.updatePreferences(userId, data).pipe(Effect.orDie);
   };
 
   const updateProfile = (
     userId: string,
     data: { email: string; name: string },
-  ): Effect.Effect<void> => {
+  ) => {
     const input: UpdateUserInput = {
       ...data,
       updatedAt: new Date(),

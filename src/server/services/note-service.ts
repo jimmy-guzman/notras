@@ -58,26 +58,17 @@ const makeNoteService = Effect.gen(function* () {
   const linkService = yield* LinkService;
   const tagService = yield* TagService;
 
-  const clearReminder = (
-    userId: string,
-    noteId: NoteId,
-  ): Effect.Effect<void> => {
+  const clearReminder = (userId: string, noteId: NoteId) => {
     return noteRepo.clearReminder(noteId, userId).pipe(Effect.orDie);
   };
 
-  const count = (userId: string): Effect.Effect<number> => {
-    return noteRepo.count(userId).pipe(Effect.orDie);
-  };
+  const count = (userId: string) => noteRepo.count(userId).pipe(Effect.orDie);
 
-  const countOverdueReminders = (userId: string): Effect.Effect<number> => {
+  const countOverdueReminders = (userId: string) => {
     return noteRepo.countOverdueReminders(userId).pipe(Effect.orDie);
   };
 
-  const create = (
-    userId: string,
-    content: string,
-    tags?: string[],
-  ): Effect.Effect<NoteId> => {
+  const create = (userId: string, content: string, tags?: string[]) => {
     return Effect.gen(function* () {
       const id = generateNoteId();
       const formatted = yield* formatService.formatMarkdown(content);
@@ -97,41 +88,31 @@ const makeNoteService = Effect.gen(function* () {
     });
   };
 
-  const deleteNote = (userId: string, noteId: NoteId): Effect.Effect<void> => {
+  const deleteNote = (userId: string, noteId: NoteId) => {
     return noteRepo.delete(noteId, userId).pipe(Effect.orDie);
   };
 
-  const getById = (
-    userId: string,
-    noteId: NoteId,
-  ): Effect.Effect<SelectNote | undefined> => {
+  const getById = (userId: string, noteId: NoteId) => {
     return noteRepo.findById(noteId, userId).pipe(Effect.orDie);
   };
 
-  const getDueReminders = (userId: string): Effect.Effect<SelectNote[]> => {
+  const getDueReminders = (userId: string) => {
     return noteRepo.findDueReminders(userId).pipe(Effect.orDie);
   };
 
-  const list = (
-    userId: string,
-    filters: NoteFilters,
-  ): Effect.Effect<SelectNote[]> => {
+  const list = (userId: string, filters: NoteFilters) => {
     return noteRepo.findMany(userId, filters).pipe(Effect.orDie);
   };
 
-  const pin = (userId: string, noteId: NoteId): Effect.Effect<void> => {
+  const pin = (userId: string, noteId: NoteId) => {
     return noteRepo.pin(noteId, userId).pipe(Effect.orDie);
   };
 
-  const setReminder = (
-    userId: string,
-    noteId: NoteId,
-    remindAt: Date,
-  ): Effect.Effect<void> => {
+  const setReminder = (userId: string, noteId: NoteId, remindAt: Date) => {
     return noteRepo.setReminder(noteId, userId, remindAt).pipe(Effect.orDie);
   };
 
-  const unpin = (userId: string, noteId: NoteId): Effect.Effect<void> => {
+  const unpin = (userId: string, noteId: NoteId) => {
     return noteRepo.unpin(noteId, userId).pipe(Effect.orDie);
   };
 
@@ -140,7 +121,7 @@ const makeNoteService = Effect.gen(function* () {
     noteId: NoteId,
     content: string,
     tags?: string[],
-  ): Effect.Effect<void> => {
+  ) => {
     return Effect.gen(function* () {
       const formatted = yield* formatService.formatMarkdown(content);
 

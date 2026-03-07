@@ -47,7 +47,7 @@ const makeExportService = Effect.gen(function* () {
   const tagRepo = yield* TagRepository;
   const folderRepo = yield* FolderRepository;
 
-  const exportAll = (userId: string): Effect.Effect<Uint8Array> => {
+  const exportAll = (userId: string) => {
     return Effect.gen(function* () {
       const [notes, foldersWithCount] = yield* Effect.all([
         noteRepo.findMany(userId, {}).pipe(Effect.orDie),

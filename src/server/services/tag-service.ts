@@ -31,29 +31,19 @@ export class TagService extends Context.Tag("TagService")<
 const makeTagService = Effect.gen(function* () {
   const tagRepo = yield* TagRepository;
 
-  const getAllTags = (userId: string): Effect.Effect<TagWithCount[]> => {
+  const getAllTags = (userId: string) => {
     return tagRepo.findByUserId(userId).pipe(Effect.orDie);
   };
 
-  const getTagsForNote = (
-    userId: string,
-    noteId: NoteId,
-  ): Effect.Effect<SelectTag[]> => {
+  const getTagsForNote = (userId: string, noteId: NoteId) => {
     return tagRepo.findByNoteId(noteId, userId).pipe(Effect.orDie);
   };
 
-  const getTagsForNotes = (
-    userId: string,
-    noteIds: NoteId[],
-  ): Effect.Effect<Record<string, SelectTag[]>> => {
+  const getTagsForNotes = (userId: string, noteIds: NoteId[]) => {
     return tagRepo.findByNoteIds(noteIds, userId).pipe(Effect.orDie);
   };
 
-  const syncTags = (
-    userId: string,
-    noteId: NoteId,
-    tagNames: string[],
-  ): Effect.Effect<void> => {
+  const syncTags = (userId: string, noteId: NoteId, tagNames: string[]) => {
     return tagRepo.syncTagsForNote(noteId, userId, tagNames).pipe(Effect.orDie);
   };
 
