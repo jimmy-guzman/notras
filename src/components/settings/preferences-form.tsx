@@ -1,7 +1,8 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { Schema } from "effect";
 import { useRef } from "react";
 import { Controller } from "react-hook-form";
 import { toast } from "sonner";
@@ -22,7 +23,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
 
   const { form, handleSubmitWithAction } = useHookFormAction(
     updatePreferences,
-    zodResolver(preferencesSchema),
+    standardSchemaResolver(Schema.standardSchemaV1(preferencesSchema)),
     {
       actionProps: {
         onError({ error }) {

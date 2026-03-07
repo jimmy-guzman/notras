@@ -7,6 +7,7 @@ A personal note-taking app -- "Just write, otra vez."
 - **Framework:** Next.js 16 (App Router, Turbopack, React Server Components)
 - **Language:** TypeScript (strict mode)
 - **Database:** SQLite via Turso/libSQL (`@libsql/client`) + Drizzle ORM
+- **Effect:** Effect-TS 3.x — typed errors, Layer/DI, Effect Schema, structured logging, fiber concurrency
 - **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
 - **Animation:** Motion (layout animations for shared element transitions)
 - **Formatting:** oxfmt (Prettier-compatible, Rust-based)
@@ -40,10 +41,12 @@ src/
     ui/             # Shadcn utility (cn)
     utils/          # Pure utility functions (formatting, filters, etc.)
   server/
-    db/             # Drizzle client and schemas (SQLite)
-    repositories/   # Data access layer (interfaces + DB implementations)
-    schemas/        # Zod validation schemas for server-side input
-    services/       # Business logic and external I/O (each service is self-contained)
+    db/             # Drizzle client, schemas (SQLite), and Database Context.Tag
+    errors.ts       # Typed errors: DatabaseError, NotFoundError (Data.TaggedError)
+    layer.ts        # AppLayer (unexported) + AppRuntime (ManagedRuntime, exported)
+    repositories/   # Data access layer (Effect Context.Tag interfaces + DB implementations)
+    schemas/        # Effect Schema validation schemas for server-side input
+    services/       # Business logic and external I/O (Effect Context.Tag, one Layer per service)
   testing/          # Shared test utilities
   env.ts            # Type-safe env vars via @t3-oss/env-nextjs + Zod
 e2e/
@@ -60,13 +63,17 @@ data/
 ## Key Patterns
 
 - **Server actions** live in `src/actions/` with `"use server"` directive. Two patterns coexist:
-  - **`serverAction()` pattern** (most actions): Import `serverAction` from `@/lib/authorized`. It resolves the device `userId` and passes it to a callback: `serverAction(async (userId) => { ... })`. Use manual `schema.parse()` for validation when needed. This is the dominant pattern for mutations, reads, and `FormData`-based actions.
-  - **`actionClient` pattern** (forms that stay on page): Import `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware). Define as `actionClient.inputSchema(schema).action(async ({ ctx, parsedInput }) => { ... })`. Validation is automatic. Use this with `useHookFormAction` for forms like settings/profile and import.
+  - **`serverAction()` pattern** (most actions): Import `serverAction` from `@/lib/authorized`. It resolves the device `userId` via `AppRuntime` and passes it to a callback: `serverAction(async (userId) => { ... })`. Inside the callback, call services via `AppRuntime.runPromise(ServiceTag.pipe(Effect.flatMap(svc => svc.method(...))))`. This is the dominant pattern for mutations, reads, and `FormData`-based actions.
+  - **`actionClient` pattern** (forms that stay on page): Import `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware backed by `AppRuntime`). Define as `actionClient.inputSchema(schema).action(async ({ ctx, parsedInput }) => { ... })`. Validation is automatic. Use this with `useHookFormAction` for forms like settings/profile and import.
   - Keep server actions thin -- one action per file. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
-- **API routes** use `serverAction()` from `@/lib/authorized` for auth, then call services within the callback.
-- **Services** live in `src/server/services/`. Each service file is self-contained: it owns its interface, implementation class, and a lazy singleton getter (e.g., `getNoteService()`). No central container -- consumers import directly from the service they need.
-- **Repositories** live in `src/server/repositories/`. They define an interface and a DB implementation for data persistence. Services depend on repository interfaces, not concrete implementations.
-- **Validation** uses Zod schemas from `src/server/schemas/`. For `actionClient`-based server actions, validation is automatic via `inputSchema()`. For API routes, validate manually with `safeParse`.
+- **API routes** use `serverAction()` from `@/lib/authorized` for auth, then call services via `AppRuntime.runPromise` within the callback.
+- **Effect runtime boundary:** `AppRuntime` (a `ManagedRuntime`) lives in `src/server/layer.ts` and is the single point where Effects are executed. Never call `Effect.runPromise` directly -- always go through `AppRuntime.runPromise`. The `AppLayer` (unexported) wires all service and repository Layers together with `DatabaseLive` at the root.
+- **Services** live in `src/server/services/`. Each file defines an `interface IFooService`, a `class FooService extends Context.Tag("FooService")<FooService, IFooService>()`, a `makeNoteService` factory via `Effect.gen`, and an exported `FooServiceLive` Layer. Services depend on repository Tags, not concrete implementations.
+- **Repositories** live in `src/server/repositories/`. Same pattern: `interface IFooRepository`, `class FooRepository extends Context.Tag(...)`, `FooRepositoryLive` Layer. Repositories depend on the `Database` Context.Tag (the Drizzle client).
+- **Typed errors** live in `src/server/errors.ts`: `DatabaseError` and `NotFoundError` extend `Data.TaggedError`. Services that don't surface DB errors to callers use `Effect.orDie` to convert them to defects, keeping the error channel `never`.
+- **Effect flatMap naming:** Use `ServiceTag.pipe(Effect.flatMap(svc => svc.method(...)))` — NOT `Effect.flatMap(ServiceTag, fn)`. The latter triggers the `unicorn/no-array-method-this-argument` lint rule.
+- **Validation** uses Effect Schema from `src/server/schemas/`. For `actionClient`-based server actions, validation is automatic via `inputSchema(Schema.standardSchemaV1(schema))`. For API routes, validate manually with `Schema.decodeUnknownOption(schema)(input)` (returns an `Option`).
+- **`readonly` arrays from Schema:** Effect Schema `decode` results are `readonly`. Spread before passing to service methods that accept mutable arrays: `[...tags]`.
 - **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
 - **`"use cache"` directive:** Read actions (e.g., `get-note.ts`, `get-notes.ts`) use the `"use cache"` directive with `cacheTag("notes")` for automatic caching. This is enabled by `experimental: { useCache: true }` in `next.config.ts`. Do **not** use `"use cache"` on time-dependent queries (e.g., "find reminders where `remindAt <= now()`") -- the cached result goes stale immediately since `now()` changes every call.
@@ -78,7 +85,7 @@ data/
 ### Forms
 
 - **Form hotkeys:** Forms that edit content use `useHotkeys("mod+enter")` to submit and `useHotkeys("escape")` to cancel, with `<Kbd>⌘</Kbd><Kbd>⏎</Kbd>` badges on the submit button. For note forms, use `FormHotkeys` wrapper; for non-note forms (like settings), wire hotkeys directly with `useHotkeys` and `enableOnFormTags: ["INPUT"]` or `["TEXTAREA"]`.
-- **`useHookFormAction` pattern:** For forms that use `actionClient`-based server actions, use `useHookFormAction` from `@next-safe-action/adapter-react-hook-form/hooks` with `zodResolver` from `@hookform/resolvers/zod`. Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()` instead.
+- **`useHookFormAction` pattern:** For forms that use `actionClient`-based server actions, use `useHookFormAction` from `@next-safe-action/adapter-react-hook-form/hooks` with `standardSchemaResolver` from `@hookform/resolvers/standard-schema` and `Schema.standardSchemaV1(schema)` as the bridge. Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()` instead.
 - **Field component:** Use `<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>` from `@/components/ui/field` for form field structure instead of raw `<div>` + `<Label>` + manual error `<p>` tags. Set `data-invalid={!!fieldState.error || undefined}` on `<Field>` to turn labels red on validation error.
 - **Button disabled state:** Keep submit buttons always enabled for a11y -- only disable during `action.isPending` to prevent double-submits, never based on validation state like `formState.isValid`.
 - **Form aesthetic:** Forms use bare inputs in a `flex flex-col gap-6` layout (no Card wrappers). Labels and button text are lowercase. Action buttons are right-aligned at the bottom: cancel (outline) + submit (primary with Kbd hints). Back button with `ArrowLeftIcon` at the top of the page.
@@ -123,7 +130,8 @@ If any step fails, fix the issue and re-run from that step. Do not move on until
 - **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`). Always prefer a Shadcn component over hand-rolling custom UI -- check the registry first (`shadcn_search_items_in_registries`) before building something from scratch.
 - **Conditional classes:** Use `cn()` from `@/lib/ui/utils` for all conditional or merged Tailwind class strings -- never template literals. `cn` wraps `clsx` + `tailwind-merge`, so it handles conflict resolution correctly (e.g., `cn("px-3", isActive && "bg-primary/10")`).
 - **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
-- **Zod v4:** The project uses Zod 4. Use `z.email()` instead of `z.string().email()`. Use `z.treeifyError(error)` instead of `error.flatten().fieldErrors` -- the return shape is `{ errors: string[], properties: Record<key, { errors: string[] }> }`.
+- **Effect Schema (server layer):** Server-side validation schemas in `src/server/schemas/` use `Schema` from the `effect` package -- not Zod. Use `Schema.Struct`, `Schema.String`, `Schema.minLength`, `Schema.pattern`, etc. For `actionClient` forms, bridge to `useHookFormAction` via `Schema.standardSchemaV1(schema)`. For API routes, decode with `Schema.decodeUnknownOption(schema)(input)` (returns an `Option`).
+- **Zod v4 (env only):** Zod is only used in `src/env.ts` (via `@t3-oss/env-nextjs`). Do not use Zod for new server-side validation -- use Effect Schema instead.
 - Use `satisfies` for type narrowing when possible (e.g., config objects).
 - Test files use the `.spec.ts` suffix and live next to the code they test.
 - Sort object keys and import statements alphabetically.

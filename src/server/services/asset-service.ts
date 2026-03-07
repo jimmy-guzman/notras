@@ -1,12 +1,14 @@
+import { Context, Effect, Layer } from "effect";
 import sharp from "sharp";
 
 import type { AssetId, NoteId } from "@/lib/id";
 import type { SelectAsset } from "@/server/db/schemas/assets";
-import type { AssetRepository } from "@/server/repositories/asset-repository";
 
 import { generateAssetId, toAssetId } from "@/lib/id";
-import { getDb } from "@/server/db";
-import { DBAssetRepository } from "@/server/repositories/asset-repository";
+import {
+  AssetRepository,
+  AssetRepositoryLive,
+} from "@/server/repositories/asset-repository";
 
 export interface AssetMetadata {
   createdAt: Date;
@@ -25,124 +27,162 @@ interface OptimizedImage {
   width: number;
 }
 
-class AssetService {
-  constructor(
-    private assetRepo: AssetRepository,
-    private idGenerator: () => AssetId = generateAssetId,
-  ) {}
+async function processImage(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<OptimizedImage> {
+  const isPassthrough =
+    mimeType === "image/gif" || mimeType === "image/svg+xml";
 
-  private static async processImage(
-    buffer: Buffer,
-    mimeType: string,
-  ): Promise<OptimizedImage> {
-    const isPassthrough =
-      mimeType === "image/gif" || mimeType === "image/svg+xml";
-
-    if (isPassthrough) {
-      const metadata = await sharp(buffer).metadata();
-
-      return {
-        buffer,
-        height: metadata.height,
-        mimeType,
-        width: metadata.width,
-      };
-    }
-
-    const image = sharp(buffer);
-    const metadata = await image.metadata();
-
-    if (
-      metadata.width &&
-      metadata.height &&
-      (metadata.width > 2000 || metadata.height > 2000)
-    ) {
-      image.resize(2000, 2000, {
-        fit: "inside",
-        withoutEnlargement: true,
-      });
-    }
-
-    const optimized = await image.webp({ quality: 85 }).toBuffer();
-    const outputMetadata = await sharp(optimized).metadata();
+  if (isPassthrough) {
+    const metadata = await sharp(buffer).metadata();
+    const h = metadata.height as number | undefined;
+    const w = metadata.width as number | undefined;
 
     return {
-      buffer: optimized,
-      height: outputMetadata.height,
-      mimeType: "image/webp",
-      width: outputMetadata.width,
+      buffer,
+      height: h ?? 0,
+      mimeType,
+      width: w ?? 0,
     };
   }
 
-  async delete(userId: string, assetId: AssetId): Promise<void> {
-    await this.assetRepo.delete(assetId, userId);
+  const image = sharp(buffer);
+  const metadata = await image.metadata();
+
+  if (
+    metadata.width &&
+    metadata.height &&
+    (metadata.width > 2000 || metadata.height > 2000)
+  ) {
+    image.resize(2000, 2000, {
+      fit: "inside",
+      withoutEnlargement: true,
+    });
   }
 
-  async get(
+  const optimized = await image.webp({ quality: 85 }).toBuffer();
+  const outputMetadata = await sharp(optimized).metadata();
+
+  const oh = outputMetadata.height as number | undefined;
+  const ow = outputMetadata.width as number | undefined;
+
+  return {
+    buffer: optimized,
+    height: oh ?? 0,
+    mimeType: "image/webp",
+    width: ow ?? 0,
+  };
+}
+
+interface IAssetService {
+  delete(userId: string, assetId: AssetId): Effect.Effect<void>;
+  get(userId: string, assetId: AssetId): Effect.Effect<SelectAsset | undefined>;
+  list(userId: string, noteId: NoteId): Effect.Effect<AssetMetadata[]>;
+  upload(userId: string, noteId: NoteId, file: File): Effect.Effect<AssetId>;
+}
+
+export class AssetService extends Context.Tag("AssetService")<
+  AssetService,
+  IAssetService
+>() {}
+
+const makeAssetService = Effect.gen(function* () {
+  const assetRepo = yield* AssetRepository;
+
+  const deleteAsset = (
     userId: string,
     assetId: AssetId,
-  ): Promise<SelectAsset | undefined> {
-    return this.assetRepo.findById(assetId, userId);
-  }
+  ): Effect.Effect<void> => assetRepo.delete(assetId, userId).pipe(Effect.orDie);
 
-  async list(userId: string, noteId: NoteId): Promise<AssetMetadata[]> {
-    const rows = await this.assetRepo.findMetadataByNoteId(noteId, userId);
+  const get = (
+    userId: string,
+    assetId: AssetId,
+  ): Effect.Effect<SelectAsset | undefined> => {
+    return assetRepo.findById(assetId, userId).pipe(Effect.orDie);
+  };
 
-    return rows.map((row) => {
-      return {
-        createdAt: row.createdAt,
-        fileName: row.fileName,
-        fileSize: row.fileSize,
-        height: row.height,
-        id: toAssetId(row.id),
-        mimeType: row.mimeType,
-        width: row.width,
-      };
+  const list = (
+    userId: string,
+    noteId: NoteId,
+  ): Effect.Effect<AssetMetadata[]> => {
+    return Effect.gen(function* () {
+      const rows = yield* assetRepo
+        .findMetadataByNoteId(noteId, userId)
+        .pipe(Effect.orDie);
+
+      return rows.map((row) => {
+        return {
+          createdAt: row.createdAt,
+          fileName: row.fileName,
+          fileSize: row.fileSize,
+          height: row.height,
+          id: toAssetId(row.id),
+          mimeType: row.mimeType,
+          width: row.width,
+        };
+      });
     });
-  }
+  };
 
-  async upload(userId: string, noteId: NoteId, file: File): Promise<AssetId> {
-    const id = this.idGenerator();
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const isPdf = file.type === "application/pdf";
+  const upload = (
+    userId: string,
+    noteId: NoteId,
+    file: File,
+  ): Effect.Effect<AssetId> => {
+    return Effect.gen(function* () {
+      const id = generateAssetId();
+      const buffer = Buffer.from(
+        yield* Effect.promise(() => file.arrayBuffer()),
+      );
+      const isPdf = file.type === "application/pdf";
 
-    let data: Buffer;
-    let mimeType: string;
-    let width = 0;
-    let height = 0;
+      let data: Buffer;
+      let mimeType: string;
+      let width = 0;
+      let height = 0;
 
-    if (isPdf) {
-      data = buffer;
-      mimeType = "application/pdf";
-    } else {
-      const result = await AssetService.processImage(buffer, file.type);
+      if (isPdf) {
+        data = buffer;
+        mimeType = "application/pdf";
+      } else {
+        const result = yield* Effect.promise(() => {
+          return processImage(buffer, file.type);
+        });
 
-      data = result.buffer;
-      height = result.height;
-      mimeType = result.mimeType;
-      width = result.width;
-    }
+        data = result.buffer;
+        height = result.height;
+        mimeType = result.mimeType;
+        width = result.width;
+      }
 
-    await this.assetRepo.create({
-      data,
-      fileName: file.name,
-      fileSize: data.length,
-      height,
-      id,
-      mimeType,
-      noteId,
-      userId,
-      width,
+      yield* assetRepo
+        .create({
+          data,
+          fileName: file.name,
+          fileSize: data.length,
+          height,
+          id,
+          mimeType,
+          noteId,
+          userId,
+          width,
+        })
+        .pipe(Effect.orDie);
+
+      return id;
     });
+  };
 
-    return id;
-  }
-}
+  return {
+    delete: deleteAsset,
+    get,
+    list,
+    upload,
+  } satisfies IAssetService;
+});
 
-let _assetService: AssetService | undefined;
-
-export function getAssetService() {
-  _assetService ??= new AssetService(new DBAssetRepository(getDb()));
-
-  return _assetService;
-}
+export const AssetServiceLive = Layer.effect(
+  AssetService,
+  makeAssetService,
+).pipe(Layer.provide(AssetRepositoryLive));

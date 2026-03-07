@@ -1,70 +1,99 @@
+import { Context, Effect, Layer } from "effect";
+
 import type { FolderId, NoteId } from "@/lib/id";
 import type { SelectFolder } from "@/server/db/schemas/folders";
-import type {
-  FolderRepository,
-  FolderWithCount,
-} from "@/server/repositories/folder-repository";
-import type { NoteRepository } from "@/server/repositories/note-repository";
+import type { FolderWithCount } from "@/server/repositories/folder-repository";
 
 import { generateFolderId } from "@/lib/id";
-import { getDb } from "@/server/db";
-import { DBFolderRepository } from "@/server/repositories/folder-repository";
-import { DBNoteRepository } from "@/server/repositories/note-repository";
+import {
+  FolderRepository,
+  FolderRepositoryLive,
+} from "@/server/repositories/folder-repository";
+import {
+  NoteRepository,
+  NoteRepositoryLive,
+} from "@/server/repositories/note-repository";
 
-class FolderService {
-  constructor(
-    private folderRepo: FolderRepository,
-    private noteRepo: NoteRepository,
-    private idGenerator: () => FolderId = generateFolderId,
-  ) {}
-
-  async create(userId: string, name: string): Promise<FolderId> {
-    const id = this.idGenerator();
-
-    await this.folderRepo.create({ id, name, userId });
-
-    return id;
-  }
-
-  async delete(userId: string, folderId: FolderId): Promise<void> {
-    await this.folderRepo.delete(folderId, userId);
-  }
-
-  async getAll(userId: string): Promise<FolderWithCount[]> {
-    return this.folderRepo.findByUserId(userId);
-  }
-
-  async getById(
+interface IFolderService {
+  create(userId: string, name: string): Effect.Effect<FolderId>;
+  delete(userId: string, folderId: FolderId): Effect.Effect<void>;
+  getAll(userId: string): Effect.Effect<FolderWithCount[]>;
+  getById(
     userId: string,
     folderId: FolderId,
-  ): Promise<SelectFolder | undefined> {
-    return this.folderRepo.findById(folderId, userId);
-  }
-
-  async move(
+  ): Effect.Effect<SelectFolder | undefined>;
+  move(
     userId: string,
     noteId: NoteId,
     folderId: FolderId | null,
-  ): Promise<void> {
-    await this.noteRepo.moveToFolder(noteId, userId, folderId);
-  }
+  ): Effect.Effect<void>;
+  rename(userId: string, folderId: FolderId, name: string): Effect.Effect<void>;
+}
 
-  async rename(
+export class FolderService extends Context.Tag("FolderService")<
+  FolderService,
+  IFolderService
+>() {}
+
+const makeFolderService = Effect.gen(function* () {
+  const folderRepo = yield* FolderRepository;
+  const noteRepo = yield* NoteRepository;
+
+  const create = (userId: string, name: string): Effect.Effect<FolderId> => {
+    return Effect.gen(function* () {
+      const id = generateFolderId();
+
+      yield* folderRepo.create({ id, name, userId }).pipe(Effect.orDie);
+
+      return id;
+    });
+  };
+
+  const deleteFolder = (
+    userId: string,
+    folderId: FolderId,
+  ): Effect.Effect<void> => {
+    return folderRepo.delete(folderId, userId).pipe(Effect.orDie);
+  };
+
+  const getAll = (userId: string): Effect.Effect<FolderWithCount[]> => {
+    return folderRepo.findByUserId(userId).pipe(Effect.orDie);
+  };
+
+  const getById = (
+    userId: string,
+    folderId: FolderId,
+  ): Effect.Effect<SelectFolder | undefined> => {
+    return folderRepo.findById(folderId, userId).pipe(Effect.orDie);
+  };
+
+  const move = (
+    userId: string,
+    noteId: NoteId,
+    folderId: FolderId | null,
+  ): Effect.Effect<void> => {
+    return noteRepo.moveToFolder(noteId, userId, folderId).pipe(Effect.orDie);
+  };
+
+  const rename = (
     userId: string,
     folderId: FolderId,
     name: string,
-  ): Promise<void> {
-    await this.folderRepo.rename(folderId, userId, name);
-  }
-}
+  ): Effect.Effect<void> => {
+    return folderRepo.rename(folderId, userId, name).pipe(Effect.orDie);
+  };
 
-let _folderService: FolderService | undefined;
+  return {
+    create,
+    delete: deleteFolder,
+    getAll,
+    getById,
+    move,
+    rename,
+  } satisfies IFolderService;
+});
 
-export function getFolderService() {
-  _folderService ??= new FolderService(
-    new DBFolderRepository(getDb()),
-    new DBNoteRepository(getDb()),
-  );
-
-  return _folderService;
-}
+export const FolderServiceLive = Layer.effect(
+  FolderService,
+  makeFolderService,
+).pipe(Layer.provide(Layer.merge(FolderRepositoryLive, NoteRepositoryLive)));

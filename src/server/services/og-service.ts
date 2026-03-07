@@ -1,7 +1,18 @@
-export interface OgMetadata {
+import { Context, Effect, Layer } from "effect";
+
+interface OgMetadata {
   description: null | string;
   title: null | string;
 }
+
+interface IOgService {
+  fetchOgMetadata(url: string): Effect.Effect<OgMetadata>;
+}
+
+export class OgService extends Context.Tag("OgService")<
+  OgService,
+  IOgService
+>() {}
 
 const OG_FETCH_TIMEOUT_MS = 5000;
 
@@ -45,3 +56,9 @@ export async function fetchOgMetadata(url: string): Promise<OgMetadata> {
     return { description: null, title: null };
   }
 }
+
+const makeOgService: IOgService = {
+  fetchOgMetadata: (url) => Effect.promise(() => fetchOgMetadata(url)),
+};
+
+export const OgServiceLive = Layer.succeed(OgService, makeOgService);

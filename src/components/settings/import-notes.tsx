@@ -1,7 +1,8 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { Schema } from "effect";
 import { UploadIcon } from "lucide-react";
 import { useState } from "react";
 import { Controller } from "react-hook-form";
@@ -39,23 +40,27 @@ export function ImportNotes() {
   const [showMirrorConfirm, setShowMirrorConfirm] = useState(false);
 
   const { action, form, handleSubmitWithAction, resetFormAndAction } =
-    useHookFormAction(importNotes, zodResolver(importInputSchema), {
-      actionProps: {
-        onError({ error }) {
-          toast.error(error.serverError ?? "import failed");
+    useHookFormAction(
+      importNotes,
+      standardSchemaResolver(Schema.standardSchemaV1(importInputSchema)),
+      {
+        actionProps: {
+          onError({ error }) {
+            toast.error(error.serverError ?? "import failed");
+          },
+          onSuccess({ data }) {
+            toast.success(data.message);
+            resetFormAndAction();
+          },
         },
-        onSuccess({ data }) {
-          toast.success(data.message);
-          resetFormAndAction();
+        formProps: {
+          defaultValues: {
+            mode: "merge",
+          },
+          mode: "onChange",
         },
       },
-      formProps: {
-        defaultValues: {
-          mode: "merge",
-        },
-        mode: "onChange",
-      },
-    });
+    );
 
   function handleSubmit(e?: React.BaseSyntheticEvent) {
     e?.preventDefault();

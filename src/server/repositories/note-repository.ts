@@ -1,8 +1,8 @@
 import {
   and,
   asc,
-  count,
   desc,
+  count as drizzleCount,
   eq,
   gt,
   gte,
@@ -13,15 +13,17 @@ import {
   lte,
   sql,
 } from "drizzle-orm";
+import { Context, Effect, Layer } from "effect";
 
 import type { FolderId, NoteId } from "@/lib/id";
 import type { SortOption, TimeFilter } from "@/lib/utils/note-filters";
-import type { Database } from "@/server/db";
 import type { SelectNote } from "@/server/db/schemas/notes";
 
 import { getStartDateForFilter } from "@/lib/utils/note-filters";
+import { Database } from "@/server/db";
 import { note } from "@/server/db/schemas/notes";
 import { noteTag, tag } from "@/server/db/schemas/tags";
+import { DatabaseError } from "@/server/errors";
 
 export type PinFilter =
   | { excludePinned: true; pinnedOnly?: never }
@@ -38,17 +40,17 @@ export type NoteFilters = PinFilter & {
   time?: "all" | TimeFilter;
 };
 
-export interface CreateNoteInput {
+interface CreateNoteInput {
   content: string;
   id: NoteId;
   userId: string;
 }
 
-export interface UpdateNoteInput {
+interface UpdateNoteInput {
   content: string;
 }
 
-export interface UpsertNoteInput {
+interface UpsertNoteInput {
   content: string;
   createdAt: Date;
   folderId?: FolderId | null;
@@ -58,29 +60,65 @@ export interface UpsertNoteInput {
   userId: string;
 }
 
-export interface NoteRepository {
-  clearReminder(noteId: NoteId, userId: string): Promise<void>;
-  count(userId: string): Promise<number>;
-  countOverdueReminders(userId: string): Promise<number>;
-  create(input: CreateNoteInput): Promise<void>;
-  delete(noteId: NoteId, userId: string): Promise<void>;
-  deleteMany(noteIds: NoteId[], userId: string): Promise<void>;
-  findAllIds(userId: string): Promise<NoteId[]>;
-  findById(noteId: NoteId, userId: string): Promise<SelectNote | undefined>;
-  findDueReminders(userId: string): Promise<SelectNote[]>;
-  findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]>;
+interface INoteRepository {
+  clearReminder(
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<void, DatabaseError>;
+  count(userId: string): Effect.Effect<number, DatabaseError>;
+  countOverdueReminders(userId: string): Effect.Effect<number, DatabaseError>;
+  create(input: CreateNoteInput): Effect.Effect<void, DatabaseError>;
+  delete(noteId: NoteId, userId: string): Effect.Effect<void, DatabaseError>;
+  deleteMany(
+    noteIds: NoteId[],
+    userId: string,
+  ): Effect.Effect<void, DatabaseError>;
+  findAllIds(userId: string): Effect.Effect<NoteId[], DatabaseError>;
+  findById(
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<SelectNote | undefined, DatabaseError>;
+  findDueReminders(userId: string): Effect.Effect<SelectNote[], DatabaseError>;
+  findMany(
+    userId: string,
+    filters: NoteFilters,
+  ): Effect.Effect<SelectNote[], DatabaseError>;
   moveToFolder(
     noteId: NoteId,
     userId: string,
     folderId: FolderId | null,
-  ): Promise<void>;
-  pin(noteId: NoteId, userId: string): Promise<void>;
-  setReminder(noteId: NoteId, userId: string, remindAt: Date): Promise<void>;
-  unpin(noteId: NoteId, userId: string): Promise<void>;
-  update(noteId: NoteId, userId: string, input: UpdateNoteInput): Promise<void>;
-  updateSyncedAt(noteIds: NoteId[], userId: string): Promise<void>;
-  upsert(input: UpsertNoteInput): Promise<void>;
+  ): Effect.Effect<void, DatabaseError>;
+  pin(noteId: NoteId, userId: string): Effect.Effect<void, DatabaseError>;
+  setReminder(
+    noteId: NoteId,
+    userId: string,
+    remindAt: Date,
+  ): Effect.Effect<void, DatabaseError>;
+  unpin(noteId: NoteId, userId: string): Effect.Effect<void, DatabaseError>;
+  update(
+    noteId: NoteId,
+    userId: string,
+    input: UpdateNoteInput,
+  ): Effect.Effect<void, DatabaseError>;
+  updateSyncedAt(
+    noteIds: NoteId[],
+    userId: string,
+  ): Effect.Effect<void, DatabaseError>;
+  upsert(input: UpsertNoteInput): Effect.Effect<void, DatabaseError>;
 }
+
+// ---------------------------------------------------------------------------
+// Context tag
+// ---------------------------------------------------------------------------
+
+export class NoteRepository extends Context.Tag("NoteRepository")<
+  NoteRepository,
+  INoteRepository
+>() {}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 const pinnedFirst = asc(
   sql`CASE WHEN ${note.pinnedAt} IS NOT NULL THEN 0 ELSE 1 END`,
@@ -103,261 +141,408 @@ function getSortOrder(sort: NoteFilters["sort"] = "newest") {
   }
 }
 
-export class DBNoteRepository implements NoteRepository {
-  constructor(private db: Database) {}
+// ---------------------------------------------------------------------------
+// DB implementation
+// ---------------------------------------------------------------------------
 
-  async clearReminder(noteId: NoteId, userId: string): Promise<void> {
-    await this.db
-      .update(note)
-      .set({ remindAt: null, updatedAt: new Date() })
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
+const makeDbNoteRepository = Effect.gen(function* () {
+  const db = yield* Database;
 
-  async count(userId: string): Promise<number> {
-    const [{ count: notesCount }] = await this.db
-      .select({ count: count() })
-      .from(note)
-      .where(eq(note.userId, userId));
-
-    return notesCount;
-  }
-
-  async countOverdueReminders(userId: string): Promise<number> {
-    const [{ count: c }] = await this.db
-      .select({ count: count() })
-      .from(note)
-      .where(
-        and(
-          eq(note.userId, userId),
-          isNotNull(note.remindAt),
-          lte(note.remindAt, new Date()),
-        ),
-      );
-
-    return c;
-  }
-
-  async create(input: CreateNoteInput): Promise<void> {
-    await this.db.insert(note).values({
-      content: input.content,
-      createdAt: new Date(),
-      id: input.id,
-      updatedAt: new Date(),
-      userId: input.userId,
-    });
-  }
-
-  async delete(noteId: NoteId, userId: string): Promise<void> {
-    await this.db
-      .delete(note)
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
-
-  async deleteMany(noteIds: NoteId[], userId: string): Promise<void> {
-    if (noteIds.length === 0) {
-      return;
-    }
-
-    await this.db
-      .delete(note)
-      .where(and(inArray(note.id, noteIds), eq(note.userId, userId)));
-  }
-
-  async findAllIds(userId: string): Promise<NoteId[]> {
-    const results = await this.db
-      .select({ id: note.id })
-      .from(note)
-      .where(eq(note.userId, userId));
-
-    return results.map((r) => r.id as NoteId);
-  }
-
-  async findById(
+  const clearReminder = (
     noteId: NoteId,
     userId: string,
-  ): Promise<SelectNote | undefined> {
-    const results = await this.db
-      .select()
-      .from(note)
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)))
-      .limit(1);
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ remindAt: null, updatedAt: new Date() })
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-    return results.length > 0 ? results[0] : undefined;
-  }
+  const count = (userId: string): Effect.Effect<number, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const [{ count: notesCount }] = await db
+          .select({ count: drizzleCount() })
+          .from(note)
+          .where(eq(note.userId, userId));
 
-  async findDueReminders(userId: string): Promise<SelectNote[]> {
-    return this.db
-      .select()
-      .from(note)
-      .where(
-        and(
-          eq(note.userId, userId),
-          isNotNull(note.remindAt),
-          lte(note.remindAt, new Date()),
-        ),
-      )
-      .orderBy(asc(note.remindAt));
-  }
+        return notesCount;
+      },
+    });
+  };
 
-  async findMany(userId: string, filters: NoteFilters): Promise<SelectNote[]> {
-    const baseFilters = [eq(note.userId, userId)];
+  const countOverdueReminders = (
+    userId: string,
+  ): Effect.Effect<number, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const [{ count: c }] = await db
+          .select({ count: drizzleCount() })
+          .from(note)
+          .where(
+            and(
+              eq(note.userId, userId),
+              isNotNull(note.remindAt),
+              lte(note.remindAt, new Date()),
+            ),
+          );
 
-    const pinnedFilter = filters.excludePinned
-      ? [isNull(note.pinnedAt)]
-      : filters.pinnedOnly
-        ? [isNotNull(note.pinnedAt)]
-        : [];
+        return c;
+      },
+    });
+  };
 
-    const queryFilter = filters.query
-      ? [like(note.content, `%${filters.query}%`)]
-      : [];
+  const create = (
+    input: CreateNoteInput,
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db.insert(note).values({
+          content: input.content,
+          createdAt: new Date(),
+          id: input.id,
+          updatedAt: new Date(),
+          userId: input.userId,
+        });
+      },
+    });
+  };
 
-    const timeFilter =
-      !filters.time || filters.time === "all"
-        ? []
-        : [gte(note.createdAt, getStartDateForFilter(filters.time))];
+  const deleteNote = (
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .delete(note)
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-    const remindFilter =
-      filters.remind === "overdue"
-        ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
-        : filters.remind === "upcoming"
-          ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
+  const deleteMany = (
+    noteIds: NoteId[],
+    userId: string,
+  ): Effect.Effect<void, DatabaseError> => {
+    if (noteIds.length === 0) {
+      return Effect.void;
+    }
+
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .delete(note)
+          .where(and(inArray(note.id, noteIds), eq(note.userId, userId)));
+      },
+    });
+  };
+
+  const findAllIds = (
+    userId: string,
+  ): Effect.Effect<NoteId[], DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const results = await db
+          .select({ id: note.id })
+          .from(note)
+          .where(eq(note.userId, userId));
+
+        return results.map((r) => r.id as NoteId);
+      },
+    });
+  };
+
+  const findById = (
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<SelectNote | undefined, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const results = await db
+          .select()
+          .from(note)
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)))
+          .limit(1);
+
+        return results.length > 0 ? results[0] : undefined;
+      },
+    });
+  };
+
+  const findDueReminders = (
+    userId: string,
+  ): Effect.Effect<SelectNote[], DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .select()
+          .from(note)
+          .where(
+            and(
+              eq(note.userId, userId),
+              isNotNull(note.remindAt),
+              lte(note.remindAt, new Date()),
+            ),
+          )
+          .orderBy(asc(note.remindAt));
+      },
+    });
+  };
+
+  const findMany = (
+    userId: string,
+    filters: NoteFilters,
+  ): Effect.Effect<SelectNote[], DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const baseFilters = [eq(note.userId, userId)];
+
+        const pinnedFilter = filters.excludePinned
+          ? [isNull(note.pinnedAt)]
+          : filters.pinnedOnly
+            ? [isNotNull(note.pinnedAt)]
+            : [];
+
+        const queryFilter = filters.query
+          ? [like(note.content, `%${filters.query}%`)]
           : [];
 
-    const folderFilter = filters.folderId
-      ? [eq(note.folderId, filters.folderId)]
-      : [];
+        const timeFilter =
+          !filters.time || filters.time === "all"
+            ? []
+            : [gte(note.createdAt, getStartDateForFilter(filters.time))];
 
-    const whereClause = and(
-      ...baseFilters,
-      ...pinnedFilter,
-      ...queryFilter,
-      ...timeFilter,
-      ...remindFilter,
-      ...folderFilter,
-    );
+        const remindFilter =
+          filters.remind === "overdue"
+            ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
+            : filters.remind === "upcoming"
+              ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
+              : [];
 
-    const orderBy = getSortOrder(filters.sort);
+        const folderFilter = filters.folderId
+          ? [eq(note.folderId, filters.folderId)]
+          : [];
 
-    if (filters.tag) {
-      const tagName = filters.tag;
-      const qb = this.db
-        .selectDistinct({
-          content: note.content,
-          createdAt: note.createdAt,
-          folderId: note.folderId,
-          id: note.id,
-          pinnedAt: note.pinnedAt,
-          remindAt: note.remindAt,
-          syncedAt: note.syncedAt,
-          updatedAt: note.updatedAt,
-          userId: note.userId,
-        })
-        .from(note)
-        .innerJoin(noteTag, eq(noteTag.noteId, note.id))
-        .innerJoin(tag, eq(tag.id, noteTag.tagId))
-        .where(and(whereClause, eq(tag.name, tagName), eq(tag.userId, userId)))
-        .orderBy(...orderBy);
+        const whereClause = and(
+          ...baseFilters,
+          ...pinnedFilter,
+          ...queryFilter,
+          ...timeFilter,
+          ...remindFilter,
+          ...folderFilter,
+        );
 
-      if (filters.limit !== undefined) {
-        return qb.limit(filters.limit);
-      }
+        const orderBy = getSortOrder(filters.sort);
 
-      return qb;
-    }
+        if (filters.tag) {
+          const tagName = filters.tag;
+          const qb = db
+            .selectDistinct({
+              content: note.content,
+              createdAt: note.createdAt,
+              folderId: note.folderId,
+              id: note.id,
+              pinnedAt: note.pinnedAt,
+              remindAt: note.remindAt,
+              syncedAt: note.syncedAt,
+              updatedAt: note.updatedAt,
+              userId: note.userId,
+            })
+            .from(note)
+            .innerJoin(noteTag, eq(noteTag.noteId, note.id))
+            .innerJoin(tag, eq(tag.id, noteTag.tagId))
+            .where(
+              and(whereClause, eq(tag.name, tagName), eq(tag.userId, userId)),
+            )
+            .orderBy(...orderBy);
 
-    const qb = this.db
-      .select()
-      .from(note)
-      .where(whereClause)
-      .orderBy(...orderBy);
+          if (filters.limit !== undefined) {
+            return qb.limit(filters.limit);
+          }
 
-    if (filters.limit !== undefined) {
-      return qb.limit(filters.limit);
-    }
+          return qb;
+        }
 
-    return qb;
-  }
+        const qb = db
+          .select()
+          .from(note)
+          .where(whereClause)
+          .orderBy(...orderBy);
 
-  async moveToFolder(
+        if (filters.limit !== undefined) {
+          return qb.limit(filters.limit);
+        }
+
+        return qb;
+      },
+    });
+  };
+
+  const moveToFolder = (
     noteId: NoteId,
     userId: string,
     folderId: FolderId | null,
-  ): Promise<void> {
-    await this.db
-      .update(note)
-      .set({ folderId, updatedAt: new Date() })
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ folderId, updatedAt: new Date() })
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-  async pin(noteId: NoteId, userId: string): Promise<void> {
-    await this.db
-      .update(note)
-      .set({ pinnedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
+  const pin = (
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ pinnedAt: new Date(), updatedAt: new Date() })
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-  async setReminder(
+  const setReminder = (
     noteId: NoteId,
     userId: string,
     remindAt: Date,
-  ): Promise<void> {
-    await this.db
-      .update(note)
-      .set({ remindAt, updatedAt: new Date() })
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ remindAt, updatedAt: new Date() })
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-  async unpin(noteId: NoteId, userId: string): Promise<void> {
-    await this.db
-      .update(note)
-      .set({ pinnedAt: null, updatedAt: new Date() })
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
+  const unpin = (
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ pinnedAt: null, updatedAt: new Date() })
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-  async update(
+  const update = (
     noteId: NoteId,
     userId: string,
     input: UpdateNoteInput,
-  ): Promise<void> {
-    await this.db
-      .update(note)
-      .set({ content: input.content, updatedAt: new Date() })
-      .where(and(eq(note.id, noteId), eq(note.userId, userId)));
-  }
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ content: input.content, updatedAt: new Date() })
+          .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+      },
+    });
+  };
 
-  async updateSyncedAt(noteIds: NoteId[], userId: string): Promise<void> {
+  const updateSyncedAt = (
+    noteIds: NoteId[],
+    userId: string,
+  ): Effect.Effect<void, DatabaseError> => {
     if (noteIds.length === 0) {
-      return;
+      return Effect.void;
     }
 
-    await this.db
-      .update(note)
-      .set({ syncedAt: new Date() })
-      .where(and(inArray(note.id, noteIds), eq(note.userId, userId)));
-  }
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .update(note)
+          .set({ syncedAt: new Date() })
+          .where(and(inArray(note.id, noteIds), eq(note.userId, userId)));
+      },
+    });
+  };
 
-  async upsert(input: UpsertNoteInput): Promise<void> {
-    await this.db
-      .insert(note)
-      .values({
-        content: input.content,
-        createdAt: input.createdAt,
-        folderId: input.folderId ?? null,
-        id: input.id,
-        pinnedAt: input.pinnedAt,
-        updatedAt: input.updatedAt,
-        userId: input.userId,
-      })
-      .onConflictDoUpdate({
-        set: {
-          content: input.content,
-          folderId: input.folderId ?? null,
-          pinnedAt: input.pinnedAt,
-          updatedAt: input.updatedAt,
-        },
-        target: note.id,
-        where: sql`${note.updatedAt} < ${input.updatedAt.getTime() / 1000}`,
-      });
-  }
-}
+  const upsert = (
+    input: UpsertNoteInput,
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .insert(note)
+          .values({
+            content: input.content,
+            createdAt: input.createdAt,
+            folderId: input.folderId ?? null,
+            id: input.id,
+            pinnedAt: input.pinnedAt,
+            updatedAt: input.updatedAt,
+            userId: input.userId,
+          })
+          .onConflictDoUpdate({
+            set: {
+              content: input.content,
+              folderId: input.folderId ?? null,
+              pinnedAt: input.pinnedAt,
+              updatedAt: input.updatedAt,
+            },
+            target: note.id,
+            where: sql`${note.updatedAt} < ${input.updatedAt.getTime() / 1000}`,
+          });
+      },
+    });
+  };
+
+  return {
+    clearReminder,
+    count,
+    countOverdueReminders,
+    create,
+    delete: deleteNote,
+    deleteMany,
+    findAllIds,
+    findById,
+    findDueReminders,
+    findMany,
+    moveToFolder,
+    pin,
+    setReminder,
+    unpin,
+    update,
+    updateSyncedAt,
+    upsert,
+  } satisfies INoteRepository;
+});
+
+export const NoteRepositoryLive = Layer.effect(
+  NoteRepository,
+  makeDbNoteRepository,
+);

@@ -1,10 +1,16 @@
-import { z } from "zod";
+import { Schema } from "effect";
 
-export const createNoteSchema = z.object({
-  content: z.string().min(1, "Content is required"),
+export const createNoteSchema = Schema.Struct({
+  content: Schema.String.pipe(
+    Schema.minLength(1, { message: () => "Content is required" }),
+  ),
 });
 
-export const updateNoteSchema = z.object({
-  content: z.string().min(1, "Content is required"),
-  noteId: z.string().min(1, "Note ID is required"),
+export const updateNoteSchema = Schema.Struct({
+  content: Schema.String.pipe(
+    Schema.minLength(1, { message: () => "Content is required" }),
+  ),
+  noteId: Schema.String.pipe(
+    Schema.minLength(1, { message: () => "Note ID is required" }),
+  ),
 });

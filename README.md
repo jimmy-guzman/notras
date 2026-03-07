@@ -64,11 +64,11 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 
 - [SQLite](https://www.sqlite.org) via [libSQL](https://turso.tech/libsql) (`@libsql/client`)
 - [Drizzle ORM](https://orm.drizzle.team)
-- [Zod](https://zod.dev) 4
+- [Effect](https://effect.website) 3.x (typed errors, Layer/DI, Effect Schema, structured logging)
 - [sharp](https://sharp.pixelplumbing.com) (image optimization)
 - [fflate](https://github.com/101arrowz/fflate) (zip compression)
 - [typeid-js](https://github.com/jetpack-io/typeid-js) (typed IDs)
-- [@t3-oss/env-nextjs](https://env.t3.gg)
+- [@t3-oss/env-nextjs](https://env.t3.gg) + [Zod](https://zod.dev) 4 (env validation only)
 
 ---
 

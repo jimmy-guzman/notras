@@ -1,21 +1,28 @@
 "use server";
 
-import { z } from "zod";
+import { Effect, Schema } from "effect";
 
 import type { AssetMetadata } from "@/server/services/asset-service";
 
 import { serverAction } from "@/lib/authorized";
 import { toNoteId } from "@/lib/id";
-import { getAssetService } from "@/server/services/asset-service";
+import { AppRuntime } from "@/server/layer";
+import { AssetService } from "@/server/services/asset-service";
 
-const noteIdSchema = z
-  .string()
-  .regex(/^note_[\da-hjkmnp-tv-z]{26}$/, "Invalid note ID format");
+const NOTE_ID_PATTERN = /^note_[\da-hjkmnp-tv-z]{26}$/;
+
+const noteIdSchema = Schema.String.pipe(
+  Schema.pattern(NOTE_ID_PATTERN, { message: () => "Invalid note ID format" }),
+);
 
 export async function getAssets(noteId: string): Promise<AssetMetadata[]> {
-  const validNoteId = noteIdSchema.parse(noteId);
+  const validNoteId = Schema.decodeUnknownSync(noteIdSchema)(noteId);
 
   return serverAction(async (userId) => {
-    return getAssetService().list(userId, toNoteId(validNoteId));
+    return AppRuntime.runPromise(
+      AssetService.pipe(
+        Effect.flatMap((svc) => svc.list(userId, toNoteId(validNoteId))),
+      ),
+    );
   });
 }

@@ -1,10 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
+import { Context, Effect, Layer } from "effect";
 
 import type { AssetId, NoteId } from "@/lib/id";
-import type { Database } from "@/server/db";
 import type { SelectAsset } from "@/server/db/schemas/assets";
 
+import { Database } from "@/server/db";
 import { asset } from "@/server/db/schemas/assets";
+import { DatabaseError } from "@/server/errors";
 
 export interface CreateAssetInput {
   data: Buffer;
@@ -18,47 +20,45 @@ export interface CreateAssetInput {
   width: number;
 }
 
-export type AssetMetadataRow = Omit<SelectAsset, "data">;
+type AssetMetadataRow = Omit<SelectAsset, "data">;
 
-export interface AssetRepository {
-  create(input: CreateAssetInput): Promise<void>;
-  createMany(inputs: CreateAssetInput[]): Promise<void>;
-  delete(assetId: AssetId, userId: string): Promise<void>;
-  deleteByNoteId(noteId: NoteId, userId: string): Promise<void>;
-  findById(assetId: AssetId, userId: string): Promise<SelectAsset | undefined>;
-  findByNoteId(noteId: NoteId, userId: string): Promise<SelectAsset[]>;
+interface IAssetRepository {
+  create(input: CreateAssetInput): Effect.Effect<void, DatabaseError>;
+  createMany(inputs: CreateAssetInput[]): Effect.Effect<void, DatabaseError>;
+  delete(assetId: AssetId, userId: string): Effect.Effect<void, DatabaseError>;
+  deleteByNoteId(
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<void, DatabaseError>;
+  findById(
+    assetId: AssetId,
+    userId: string,
+  ): Effect.Effect<SelectAsset | undefined, DatabaseError>;
+  findByNoteId(
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<SelectAsset[], DatabaseError>;
   findMetadataByNoteId(
     noteId: NoteId,
     userId: string,
-  ): Promise<AssetMetadataRow[]>;
+  ): Effect.Effect<AssetMetadataRow[], DatabaseError>;
 }
 
-export class DBAssetRepository implements AssetRepository {
-  constructor(private db: Database) {}
+export class AssetRepository extends Context.Tag("AssetRepository")<
+  AssetRepository,
+  IAssetRepository
+>() {}
 
-  async create(input: CreateAssetInput): Promise<void> {
-    await this.db.insert(asset).values({
-      createdAt: new Date(),
-      data: input.data,
-      fileName: input.fileName,
-      fileSize: input.fileSize,
-      height: input.height,
-      id: input.id,
-      mimeType: input.mimeType,
-      noteId: input.noteId,
-      userId: input.userId,
-      width: input.width,
-    });
-  }
+const makeDbAssetRepository = Effect.gen(function* () {
+  const db = yield* Database;
 
-  async createMany(inputs: CreateAssetInput[]): Promise<void> {
-    if (inputs.length === 0) {
-      return;
-    }
-
-    await this.db.insert(asset).values(
-      inputs.map((input) => {
-        return {
+  const create = (
+    input: CreateAssetInput,
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db.insert(asset).values({
           createdAt: new Date(),
           data: input.data,
           fileName: input.fileName,
@@ -69,62 +69,141 @@ export class DBAssetRepository implements AssetRepository {
           noteId: input.noteId,
           userId: input.userId,
           width: input.width,
-        };
-      }),
-    );
-  }
+        });
+      },
+    });
+  };
 
-  async delete(assetId: AssetId, userId: string): Promise<void> {
-    await this.db
-      .delete(asset)
-      .where(and(eq(asset.id, assetId), eq(asset.userId, userId)));
-  }
+  const createMany = (
+    inputs: CreateAssetInput[],
+  ): Effect.Effect<void, DatabaseError> => {
+    if (inputs.length === 0) {
+      return Effect.void;
+    }
 
-  async deleteByNoteId(noteId: NoteId, userId: string): Promise<void> {
-    await this.db
-      .delete(asset)
-      .where(and(eq(asset.noteId, noteId), eq(asset.userId, userId)));
-  }
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db.insert(asset).values(
+          inputs.map((input) => {
+            return {
+              createdAt: new Date(),
+              data: input.data,
+              fileName: input.fileName,
+              fileSize: input.fileSize,
+              height: input.height,
+              id: input.id,
+              mimeType: input.mimeType,
+              noteId: input.noteId,
+              userId: input.userId,
+              width: input.width,
+            };
+          }),
+        );
+      },
+    });
+  };
 
-  async findById(
+  const deleteAsset = (
     assetId: AssetId,
     userId: string,
-  ): Promise<SelectAsset | undefined> {
-    const results = await this.db
-      .select()
-      .from(asset)
-      .where(and(eq(asset.id, assetId), eq(asset.userId, userId)))
-      .limit(1);
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .delete(asset)
+          .where(and(eq(asset.id, assetId), eq(asset.userId, userId)));
+      },
+    });
+  };
 
-    return results[0];
-  }
-
-  async findByNoteId(noteId: NoteId, userId: string): Promise<SelectAsset[]> {
-    return this.db
-      .select()
-      .from(asset)
-      .where(and(eq(asset.noteId, noteId), eq(asset.userId, userId)))
-      .orderBy(desc(asset.createdAt));
-  }
-
-  async findMetadataByNoteId(
+  const deleteByNoteId = (
     noteId: NoteId,
     userId: string,
-  ): Promise<AssetMetadataRow[]> {
-    return this.db
-      .select({
-        createdAt: asset.createdAt,
-        fileName: asset.fileName,
-        fileSize: asset.fileSize,
-        height: asset.height,
-        id: asset.id,
-        mimeType: asset.mimeType,
-        noteId: asset.noteId,
-        userId: asset.userId,
-        width: asset.width,
-      })
-      .from(asset)
-      .where(and(eq(asset.noteId, noteId), eq(asset.userId, userId)))
-      .orderBy(desc(asset.createdAt));
-  }
-}
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .delete(asset)
+          .where(and(eq(asset.noteId, noteId), eq(asset.userId, userId)));
+      },
+    });
+  };
+
+  const findById = (
+    assetId: AssetId,
+    userId: string,
+  ): Effect.Effect<SelectAsset | undefined, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const results = await db
+          .select()
+          .from(asset)
+          .where(and(eq(asset.id, assetId), eq(asset.userId, userId)))
+          .limit(1);
+
+        return results[0];
+      },
+    });
+  };
+
+  const findByNoteId = (
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<SelectAsset[], DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .select()
+          .from(asset)
+          .where(and(eq(asset.noteId, noteId), eq(asset.userId, userId)))
+          .orderBy(desc(asset.createdAt));
+      },
+    });
+  };
+
+  const findMetadataByNoteId = (
+    noteId: NoteId,
+    userId: string,
+  ): Effect.Effect<AssetMetadataRow[], DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db
+          .select({
+            createdAt: asset.createdAt,
+            fileName: asset.fileName,
+            fileSize: asset.fileSize,
+            height: asset.height,
+            id: asset.id,
+            mimeType: asset.mimeType,
+            noteId: asset.noteId,
+            userId: asset.userId,
+            width: asset.width,
+          })
+          .from(asset)
+          .where(and(eq(asset.noteId, noteId), eq(asset.userId, userId)))
+          .orderBy(desc(asset.createdAt));
+      },
+    });
+  };
+
+  return {
+    create,
+    createMany,
+    delete: deleteAsset,
+    deleteByNoteId,
+    findById,
+    findByNoteId,
+    findMetadataByNoteId,
+  } satisfies IAssetRepository;
+});
+
+export const AssetRepositoryLive = Layer.effect(
+  AssetRepository,
+  makeDbAssetRepository,
+);

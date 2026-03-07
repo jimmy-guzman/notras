@@ -1,8 +1,11 @@
 import { TextEncoder } from "node:util";
 
+import { Effect } from "effect";
+
 import { serverAction } from "@/lib/authorized";
 import { toNoteId } from "@/lib/id";
-import { getNoteService } from "@/server/services/note-service";
+import { AppRuntime } from "@/server/layer";
+import { NoteService } from "@/server/services/note-service";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -10,7 +13,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const userId = await serverAction((id) => Promise.resolve(id));
-  const noteService = getNoteService();
 
   let interval: ReturnType<typeof setInterval> | undefined;
 
@@ -29,7 +31,11 @@ export async function GET() {
 
       async function check() {
         try {
-          const dueNotes = await noteService.getDueReminders(userId);
+          const dueNotes = await AppRuntime.runPromise(
+            NoteService.pipe(
+              Effect.flatMap((svc) => svc.getDueReminders(userId)),
+            ),
+          );
 
           for (const dueNote of dueNotes) {
             if (notified.has(dueNote.id)) continue;

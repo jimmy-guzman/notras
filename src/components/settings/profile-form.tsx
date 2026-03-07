@@ -1,7 +1,8 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { Schema } from "effect";
 import { SaveIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,7 +21,7 @@ interface ProfileFormProps {
 export function ProfileForm({ profile }: ProfileFormProps) {
   const { action, form, handleSubmitWithAction } = useHookFormAction(
     updateProfile,
-    zodResolver(updateProfileSchema),
+    standardSchemaResolver(Schema.standardSchemaV1(updateProfileSchema)),
     {
       actionProps: {
         onError({ error }) {
