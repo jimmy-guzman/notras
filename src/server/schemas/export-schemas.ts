@@ -80,8 +80,13 @@ const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 
 export const importInputSchema = Schema.Struct({
   file: Schema.instanceOf(File, { message: () => "please select a file" }).pipe(
-    Schema.filter((f) => f.size > 0),
-    Schema.filter((f) => f.size <= MAX_IMPORT_SIZE_BYTES),
+    Schema.filter((f) => f.size > 0 || "please select a non-empty file"),
+    Schema.filter((f) => {
+      return (
+        f.size <= MAX_IMPORT_SIZE_BYTES ||
+        `file size must not exceed ${MAX_IMPORT_SIZE_BYTES / 1024 / 1024}MB`
+      );
+    }),
   ),
   mode: importModeSchema,
 });
