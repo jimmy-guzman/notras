@@ -129,7 +129,17 @@ const makeImportService = Effect.gen(function* () {
     mode: ImportMode,
   ): Effect.Effect<ImportResult> => {
     return Effect.gen(function* () {
-      const files = unzipSync(zipBuffer);
+      let files: Record<string, Uint8Array>;
+
+      try {
+        files = unzipSync(zipBuffer);
+      } catch {
+        return {
+          ...FAIL_RESULT,
+          message: "invalid export file: could not read zip archive",
+        };
+      }
+
       const decoder = new TextDecoder();
       const manifestRaw = files["manifest.json"] as Uint8Array | undefined;
 
@@ -140,10 +150,19 @@ const makeImportService = Effect.gen(function* () {
         };
       }
 
+      let manifestParsed: unknown;
+
+      try {
+        manifestParsed = JSON.parse(decoder.decode(manifestRaw));
+      } catch {
+        return {
+          ...FAIL_RESULT,
+          message: "invalid export file: manifest.json is not valid json",
+        };
+      }
+
       const manifestResult = Either.fromOption(
-        Schema.decodeUnknownOption(manifestSchema)(
-          JSON.parse(decoder.decode(manifestRaw)),
-        ),
+        Schema.decodeUnknownOption(manifestSchema)(manifestParsed),
         () => "invalid manifest",
       );
 
@@ -159,24 +178,40 @@ const makeImportService = Effect.gen(function* () {
       const foldersImported = Boolean(foldersRaw);
 
       if (foldersRaw) {
+        let foldersParsed: unknown;
+
+        try {
+          foldersParsed = JSON.parse(decoder.decode(foldersRaw));
+        } catch {
+          return {
+            ...FAIL_RESULT,
+            message: "invalid export file: folders.json is not valid json",
+          };
+        }
+
         const foldersResult = Schema.decodeUnknownOption(
           exportFolderDataSchema,
-        )(JSON.parse(decoder.decode(foldersRaw)));
+        )(foldersParsed);
 
-        if (foldersResult._tag === "Some") {
-          for (const f of foldersResult.value) {
-            yield* folderRepo
-              .upsert({
-                createdAt: new Date(f.createdAt),
-                id: toFolderId(f.id),
-                name: f.name,
-                updatedAt: new Date(f.updatedAt),
-                userId,
-              })
-              .pipe(Effect.orDie);
+        if (foldersResult._tag === "None") {
+          return {
+            ...FAIL_RESULT,
+            message: "invalid export file: invalid folders format",
+          };
+        }
 
-            importedFolderIds.add(f.id);
-          }
+        for (const f of foldersResult.value) {
+          yield* folderRepo
+            .upsert({
+              createdAt: new Date(f.createdAt),
+              id: toFolderId(f.id),
+              name: f.name,
+              updatedAt: new Date(f.updatedAt),
+              userId,
+            })
+            .pipe(Effect.orDie);
+
+          importedFolderIds.add(f.id);
         }
       }
 
@@ -189,9 +224,19 @@ const makeImportService = Effect.gen(function* () {
         };
       }
 
-      const notesResult = Schema.decodeUnknownOption(exportDataSchema)(
-        JSON.parse(decoder.decode(notesRaw)),
-      );
+      let notesParsed: unknown;
+
+      try {
+        notesParsed = JSON.parse(decoder.decode(notesRaw));
+      } catch {
+        return {
+          ...FAIL_RESULT,
+          message: "invalid export file: notes.json is not valid json",
+        };
+      }
+
+      const notesResult =
+        Schema.decodeUnknownOption(exportDataSchema)(notesParsed);
 
       if (notesResult._tag === "None") {
         return {

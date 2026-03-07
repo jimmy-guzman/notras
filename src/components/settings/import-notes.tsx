@@ -4,7 +4,7 @@ import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { Schema } from "effect";
 import { UploadIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Controller } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -38,6 +38,7 @@ import { importInputSchema } from "@/server/schemas/export-schemas";
 
 export function ImportNotes() {
   const [showMirrorConfirm, setShowMirrorConfirm] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { action, form, handleSubmitWithAction, resetFormAndAction } =
     useHookFormAction(
@@ -51,6 +52,10 @@ export function ImportNotes() {
           onSuccess({ data }) {
             toast.success(data.message);
             resetFormAndAction();
+
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
           },
         },
         formProps: {
@@ -107,7 +112,10 @@ export function ImportNotes() {
                   onChange={(e) => {
                     onChange(e.target.files?.[0]);
                   }}
-                  ref={ref}
+                  ref={(el) => {
+                    ref(el);
+                    fileInputRef.current = el;
+                  }}
                   type="file"
                 />
                 <FieldError>{fieldState.error?.message}</FieldError>

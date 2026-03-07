@@ -3,9 +3,8 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import type { NoteId } from "@/lib/id";
-
 import { serverAction } from "@/lib/authorized";
+import { toNoteId } from "@/lib/id";
 import { resolvePreset } from "@/lib/utils/reminder-presets";
 import { AppRuntime } from "@/server/layer";
 import { setReminderSchema } from "@/server/schemas/reminder-schemas";
@@ -23,7 +22,7 @@ export async function setReminder(formData: FormData) {
     await AppRuntime.runPromise(
       NoteService.pipe(
         Effect.flatMap((svc) => {
-          return svc.setReminder(userId, data.noteId as NoteId, remindAt);
+          return svc.setReminder(userId, toNoteId(data.noteId), remindAt);
         }),
       ),
     );

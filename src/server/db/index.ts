@@ -28,10 +28,6 @@ function createDb(databasePath: string) {
 
 type DrizzleDb = ReturnType<typeof createDb>;
 
-// ---------------------------------------------------------------------------
-// Database service
-// ---------------------------------------------------------------------------
-
 export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
 
 export const DatabaseLive = Layer.effect(

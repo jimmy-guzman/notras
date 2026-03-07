@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
+import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const ALLOWED_MIME_TYPES = [
@@ -11,17 +13,12 @@ const ALLOWED_MIME_TYPES = [
   "image/webp",
 ] as const;
 
-const NOTE_ID_PATTERN = /^note_[\da-hjkmnp-tv-z]{26}$/;
 const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
 
 const validFile = Schema.instanceOf(File).pipe(
   Schema.filter((file) => file.size > 0),
   Schema.filter((file) => file.size <= MAX_FILE_SIZE),
-  Schema.filter((file) => {
-    return ALLOWED_MIME_TYPES.includes(
-      file.type as (typeof ALLOWED_MIME_TYPES)[number],
-    );
-  }),
+  Schema.filter((file) => ALLOWED_MIME_TYPES.includes(file.type as never)),
 );
 
 export const deleteAssetSchema = Schema.Struct({

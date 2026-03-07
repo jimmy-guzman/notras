@@ -11,8 +11,7 @@ export const preferencesSchema = Schema.Struct({
 
 export type Preferences = Schema.Schema.Type<typeof preferencesSchema>;
 
-const EMAIL_PATTERN =
-  /^[^\s@]+@[^@](?:[^.@]*\.\s)*[^.@]*\.[^\s@]+(?:\s(?:[^.@]*\.\s)*[^.@]*\.[^\s@]+)*$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
 export const updateProfileSchema = Schema.Struct({
   email: Schema.String.pipe(
@@ -21,7 +20,7 @@ export const updateProfileSchema = Schema.Struct({
     }),
   ),
   name: Schema.String.pipe(
-    Schema.trimmed({ message: () => "Name is required" }),
+    Schema.compose(Schema.Trim),
     Schema.minLength(1, { message: () => "Name is required" }),
   ),
 });
