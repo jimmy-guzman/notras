@@ -6,7 +6,9 @@ import { DEFAULT_VIEW, NOTES_VIEW_COOKIE_NAME } from "./view-preference";
 
 const STORAGE_KEY = "notras:notes-view";
 
-const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year in seconds
+const SECONDS_PER_YEAR = 365 * 24 * 60 * 60;
+
+const COOKIE_MAX_AGE = SECONDS_PER_YEAR;
 
 const listeners = new Set<() => void>();
 

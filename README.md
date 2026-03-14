@@ -65,6 +65,9 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [SQLite](https://www.sqlite.org) via [libSQL](https://turso.tech/libsql) (`@libsql/client`)
 - [Drizzle ORM](https://orm.drizzle.team)
 - [Effect](https://effect.website) 3.x (typed errors, Layer/DI, Effect Schema, structured logging)
+- [Hono](https://hono.dev) (REST API, mounted at `/api/*`)
+- [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) (OpenAPI-annotated routes)
+- [@scalar/hono-api-reference](https://github.com/scalar/scalar) (API docs UI at `/api/docs`)
 - [sharp](https://sharp.pixelplumbing.com) (image optimization)
 - [fflate](https://github.com/101arrowz/fflate) (zip compression)
 - [typeid-js](https://github.com/jetpack-io/typeid-js) (typed IDs)
@@ -91,6 +94,22 @@ docker run -p 3000:3000 \
   -e DATABASE_PATH=file:./data/notras.db \
   notras
 ```
+
+---
+
+## API
+
+The REST API is built with [Hono](https://hono.dev) and mounted at `/api/*`. All endpoints are OpenAPI-annotated via `@hono/zod-openapi`.
+
+| Endpoint                    | Description                          |
+| --------------------------- | ------------------------------------ |
+| `GET /api/health`           | health check                         |
+| `GET /api/assets/:id`       | serve a stored asset file            |
+| `GET /api/export`           | download a zip export of all data    |
+| `GET /api/reminders/stream` | SSE stream of due reminder events    |
+| `GET /api/openapi.json`     | OpenAPI spec (JSON)                  |
+| `GET /api/docs`             | interactive API docs (Scalar UI)     |
+| `GET /api/llms.txt`         | API reference as markdown (for LLMs) |
 
 ---
 

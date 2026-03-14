@@ -25,6 +25,10 @@ export default defineConfig({
     },
     {
       rules: {
+        "no-inline-comments": [
+          "error",
+          { ignorePattern: String.raw`^\s*(TODO|FIXME):` },
+        ],
         "no-restricted-imports": [
           "error",
           {

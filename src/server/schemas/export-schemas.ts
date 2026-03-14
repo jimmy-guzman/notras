@@ -76,7 +76,9 @@ export const exportFolderDataSchema = Schema.Array(exportedFolderSchema);
 
 export const importModeSchema = Schema.Literal("merge", "mirror");
 
-const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_IMPORT_SIZE_MB = 50;
+
+const MAX_IMPORT_SIZE_BYTES = MAX_IMPORT_SIZE_MB * 1024 * 1024;
 
 export const importInputSchema = Schema.Struct({
   file: Schema.instanceOf(File, { message: () => "please select a file" }).pipe(
