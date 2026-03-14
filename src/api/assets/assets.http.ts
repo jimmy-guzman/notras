@@ -8,9 +8,9 @@ import { UserService } from "@/server/services/user-service";
 
 import { GetAssetRoute } from "./assets.api";
 
-const app = hono();
+export const assetsApp = hono();
 
-app.openapi(GetAssetRoute, async (c) => {
+assetsApp.openapi(GetAssetRoute, async (c) => {
   const { id } = c.req.valid("param");
 
   const userId = await AppRuntime.runPromise(
@@ -52,5 +52,3 @@ app.openapi(GetAssetRoute, async (c) => {
     },
   );
 });
-
-export default app;

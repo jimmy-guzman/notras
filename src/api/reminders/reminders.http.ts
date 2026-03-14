@@ -11,9 +11,9 @@ import { GetRemindersStreamRoute } from "./reminders.api";
 
 const POLL_INTERVAL_MS = 30_000;
 
-const app = hono();
+export const remindersApp = hono();
 
-app.openapi(GetRemindersStreamRoute, async (c) => {
+remindersApp.openapi(GetRemindersStreamRoute, async (c) => {
   const userId = await AppRuntime.runPromise(
     UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
   );
@@ -62,5 +62,3 @@ app.openapi(GetRemindersStreamRoute, async (c) => {
     });
   });
 });
-
-export default app;

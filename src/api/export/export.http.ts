@@ -7,9 +7,9 @@ import { UserService } from "@/server/services/user-service";
 
 import { GetExportRoute } from "./export.api";
 
-const app = hono();
+export const exportApp = hono();
 
-app.openapi(GetExportRoute, async (c) => {
+exportApp.openapi(GetExportRoute, async (c) => {
   const userId = await AppRuntime.runPromise(
     UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
   );
@@ -36,5 +36,3 @@ app.openapi(GetExportRoute, async (c) => {
     },
   });
 });
-
-export default app;

@@ -1,11 +1,11 @@
 import { Scalar } from "@scalar/hono-api-reference";
 import { createMarkdownFromOpenApi } from "@scalar/openapi-to-markdown";
 
-import assetsApp from "./assets/assets.http";
-import exportApp from "./export/export.http";
+import { assetsApp } from "./assets/assets.http";
+import { exportApp } from "./export/export.http";
 import { hono } from "./lib/hono";
 import { openapi } from "./lib/openapi";
-import remindersApp from "./reminders/reminders.http";
+import { remindersApp } from "./reminders/reminders.http";
 
 export const app = hono().basePath("/api");
 
