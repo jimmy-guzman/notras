@@ -20,6 +20,7 @@ assetsApp.openapi(GetAssetRoute, async (c) => {
   const result = await AppRuntime.runPromise(
     AssetService.pipe(
       Effect.flatMap((svc) => svc.get(userId, toAssetId(id))),
+      Effect.tapError(Effect.logError),
       Effect.either,
     ),
   );

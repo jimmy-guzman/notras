@@ -30,7 +30,9 @@ remindersApp.openapi(GetRemindersStreamRoute, async (c) => {
         );
 
         for (const dueNote of dueNotes) {
-          const key = `${dueNote.id}:${dueNote.remindAt?.getTime().toString()}`;
+          if (!dueNote.remindAt) continue;
+
+          const key = `${dueNote.id}:${dueNote.remindAt.getTime()}`;
 
           if (notified.has(key)) continue;
 
@@ -42,8 +44,10 @@ remindersApp.openapi(GetRemindersStreamRoute, async (c) => {
             data: JSON.stringify({ content: dueNote.content, noteId }),
           });
         }
-      } catch {
-        //
+      } catch (error) {
+        await AppRuntime.runPromise(
+          Effect.logError("reminder polling failed", error),
+        );
       }
     };
 

@@ -232,6 +232,7 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 - Use redundant return types for internal functions that can be inferred. This includes unexported functions, local `const` arrow functions, and inline callbacks where the return type is obvious from the expression. Exception: interface method signatures and exported functions where the return type is part of the public contract.
 - Be lazy when dealing with static analysis warnings/errors -- address them promptly.
 - Reach for type shortcuts (`as`, `!`, `any`) without first exhausting proper solutions -- if a type error appears during a refactor, understand why before casting. Casts are occasionally correct but should never be the first response to a compiler error.
+- Silence lint errors or warnings by adding rule overrides to `eslint.config.ts` (e.g. `"no-console": "off"`) — the only valid exception is Shadcn-generated files under `**/components/ui/**`. Fix the root cause instead: if a rule fires, the code needs to change, not the config.
 - Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
 - Leave tests in a failing state -- after making changes, run `pnpm test` and fix any broken tests before finishing.
 - Leave lint errors -- after making changes, run `pnpm lint` and fix any errors before finishing.
