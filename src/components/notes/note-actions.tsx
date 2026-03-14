@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useOptimistic, useTransition } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { toast } from "sonner";
 
 import type { NoteId } from "@/lib/id";
 
@@ -42,7 +43,12 @@ export function NoteActions({
   const handleTogglePin = useCallback(() => {
     startTransition(async () => {
       setOptimisticPinned(!optimisticPinned);
-      await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
+      try {
+        await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
+      } catch {
+        setOptimisticPinned(optimisticPinned);
+        toast.error("failed to pin note. please try again.");
+      }
     });
   }, [noteId, optimisticPinned, setOptimisticPinned, startTransition]);
 

@@ -5,6 +5,7 @@ import type { MouseEvent } from "react";
 
 import { PinIcon } from "lucide-react";
 import { useOptimistic, useTransition } from "react";
+import { toast } from "sonner";
 
 import type { NoteId } from "@/lib/id";
 
@@ -38,7 +39,12 @@ export const PinNoteButton = ({
 
     startTransition(async () => {
       setOptimisticPinned(!optimisticPinned);
-      await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
+      try {
+        await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
+      } catch {
+        setOptimisticPinned(optimisticPinned);
+        toast.error("failed to pin note. please try again.");
+      }
     });
   }
 
