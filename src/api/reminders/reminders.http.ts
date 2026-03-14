@@ -30,9 +30,11 @@ app.openapi(GetRemindersStreamRoute, async (c) => {
         );
 
         for (const dueNote of dueNotes) {
-          if (notified.has(dueNote.id)) continue;
+          const key = `${dueNote.id}:${dueNote.remindAt?.getTime().toString()}`;
 
-          notified.add(dueNote.id);
+          if (notified.has(key)) continue;
+
+          notified.add(key);
 
           const noteId = toNoteId(dueNote.id);
 
@@ -41,7 +43,7 @@ app.openapi(GetRemindersStreamRoute, async (c) => {
           });
         }
       } catch {
-        // silently ignore — stream should stay open
+        //
       }
     };
 

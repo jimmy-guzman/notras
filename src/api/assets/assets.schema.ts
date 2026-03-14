@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
-const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
+import { ASSET_ID_PATTERN } from "@/server/schemas/asset-schemas";
 
 export const AssetIdParam = z
   .object({

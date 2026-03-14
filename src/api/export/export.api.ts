@@ -1,12 +1,6 @@
-import { createRoute, z } from "@hono/zod-openapi";
+import { createRoute } from "@hono/zod-openapi";
 
-const ApiError = z
-  .object({
-    details: z.unknown().optional(),
-    message: z.string().openapi({ example: "export failed." }),
-    status: z.number().int().min(100).max(599).openapi({ example: 500 }),
-  })
-  .openapi("ExportApiError");
+import { ApiError } from "@/api/assets/assets.schema";
 
 export const GetExportRoute = createRoute({
   description:

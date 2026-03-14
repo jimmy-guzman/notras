@@ -31,11 +31,12 @@ app.get(
   }),
 );
 
-// eslint-disable-next-line n/no-top-level-await -- this is not a module, but a server entry point, so top-level await is fine here
-const apiMarkdown = await createMarkdownFromOpenApi(JSON.stringify(apiSchema));
+let cachedMarkdown: string | undefined;
 
-app.get("/llms.txt", (c) => {
+app.get("/llms.txt", async (c) => {
+  cachedMarkdown ??= await createMarkdownFromOpenApi(JSON.stringify(apiSchema));
+
   c.header("Content-Type", "text/plain; charset=utf-8");
 
-  return c.text(apiMarkdown);
+  return c.text(cachedMarkdown);
 });

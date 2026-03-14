@@ -41,6 +41,7 @@ describe("SiteFooter", () => {
 
     expect(link).toHaveAttribute("href", "/api/docs");
     expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("should render the copyright with the current year", async () => {

@@ -17,6 +17,11 @@ export const GetAssetRoute = createRoute({
       description: "Asset not found.",
       summary: "Not Found",
     },
+    422: {
+      content: { "application/json": { schema: ApiError } },
+      description: "Validation error.",
+      summary: "Unprocessable Entity",
+    },
     500: {
       content: { "application/json": { schema: ApiError } },
       description: "Internal server error.",
