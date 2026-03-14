@@ -32,6 +32,17 @@ describe("SiteFooter", () => {
     ).toBeInTheDocument();
   });
 
+  it("should render the api docs link", async () => {
+    const SiteFooter = await setupSiteFooter();
+
+    render(<SiteFooter />);
+
+    const link = screen.getByRole("link", { name: "api docs" });
+
+    expect(link).toHaveAttribute("href", "/api/docs");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
   it("should render the copyright with the current year", async () => {
     const SiteFooter = await setupSiteFooter();
 

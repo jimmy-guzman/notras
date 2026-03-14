@@ -8,8 +8,16 @@ export function SiteFooter() {
   return (
     <footer className="flex w-full flex-col gap-4 border-t p-6 text-sm text-muted-foreground">
       <p>just write, otra vez.</p>
-      <nav>
+      <nav className="flex items-center gap-4">
         <KeyboardShortcutsDialog>keyboard shortcuts</KeyboardShortcutsDialog>
+        <a
+          className="underline underline-offset-4"
+          href="/api/docs"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          api docs
+        </a>
       </nav>
       <p className="text-xs">
         © {year}{" "}

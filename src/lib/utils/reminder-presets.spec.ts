@@ -90,7 +90,7 @@ describe("resolvePreset", () => {
   });
 
   it("should throw for an unknown preset", () => {
-    expect(() => resolvePreset("invalid" as "in-1-hour")).toThrowError(
+    expect(() => resolvePreset("invalid" as "in-1-hour")).toThrow(
       "unknown reminder preset: invalid",
     );
   });

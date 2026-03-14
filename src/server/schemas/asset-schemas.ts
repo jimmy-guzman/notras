@@ -2,7 +2,9 @@ import { Schema } from "effect";
 
 import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE_MB = 10;
+
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 const ALLOWED_MIME_TYPES = [
   "application/pdf",
@@ -20,7 +22,7 @@ const validFile = Schema.instanceOf(File).pipe(
   Schema.filter((file) => {
     return (
       file.size <= MAX_FILE_SIZE ||
-      `File size must not exceed ${MAX_FILE_SIZE / 1024 / 1024}MB`
+      `File size must not exceed ${MAX_FILE_SIZE_MB}MB`
     );
   }),
   Schema.filter((file) => {
