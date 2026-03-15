@@ -20,7 +20,7 @@ export async function GET() {
 
     const date = new Date().toISOString().slice(0, 10);
 
-    return new Response(zipBuffer as BodyInit, {
+    return new Response(new Uint8Array(zipBuffer), {
       headers: {
         "Content-Disposition": `attachment; filename="notras-export-${date}.zip"`,
         "Content-Length": zipBuffer.byteLength.toString(),

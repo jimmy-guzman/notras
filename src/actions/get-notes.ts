@@ -73,12 +73,16 @@ export async function getNotesCount() {
 
   cacheTag("notes");
 
-  const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
-  );
-
   return AppRuntime.runPromise(
-    NoteService.pipe(Effect.flatMap((svc) => svc.count(userId))),
+    Effect.gen(function* () {
+      const userId = yield* UserService.pipe(
+        Effect.flatMap((svc) => svc.getDeviceUserId()),
+      );
+
+      return yield* NoteService.pipe(
+        Effect.flatMap((svc) => svc.count(userId)),
+      );
+    }),
   );
 }
 
@@ -87,13 +91,15 @@ export async function getTagsForNotes(noteIds: NoteId[]) {
 
   cacheTag("notes", "tags");
 
-  const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
-  );
-
   return AppRuntime.runPromise(
-    TagService.pipe(
-      Effect.flatMap((svc) => svc.getTagsForNotes(userId, noteIds)),
-    ),
+    Effect.gen(function* () {
+      const userId = yield* UserService.pipe(
+        Effect.flatMap((svc) => svc.getDeviceUserId()),
+      );
+
+      return yield* TagService.pipe(
+        Effect.flatMap((svc) => svc.getTagsForNotes(userId, noteIds)),
+      );
+    }),
   );
 }

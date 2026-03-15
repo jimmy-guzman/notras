@@ -45,12 +45,18 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
   });
 
   function handleSetReminder(preset: ReminderPreset) {
+    const isOverdue = remindAt !== null && remindAt <= new Date();
+
     startTransition(async () => {
       const [error, result] = await setReminder({ noteId, preset });
 
       if (error) {
         toast.error("failed to set reminder. please try again.");
       } else {
+        if (isOverdue) {
+          decrement();
+        }
+
         toast.success(`reminder set for ${formatDateTime(result.remindAt)}`);
       }
     });
