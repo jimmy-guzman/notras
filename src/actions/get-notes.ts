@@ -9,6 +9,7 @@ import type { PinFilter } from "@/server/repositories/note-repository";
 import { toFolderId } from "@/lib/id";
 import { parsers } from "@/lib/notes-search-params";
 import { AppRuntime } from "@/server/layer";
+import { FOLDER_ID_PATTERN } from "@/server/schemas/folder-schemas";
 import { NoteService } from "@/server/services/note-service";
 import { TagService } from "@/server/services/tag-service";
 import { UserService } from "@/server/services/user-service";
@@ -21,9 +22,7 @@ async function fetchNotes(
 ) {
   const { folder, q: query, sort, tag, time } = searchParams;
   const folderId =
-    folder && /^folder_[\da-hjkmnp-tv-z]{26}$/.test(folder)
-      ? toFolderId(folder)
-      : undefined;
+    folder && FOLDER_ID_PATTERN.test(folder) ? toFolderId(folder) : undefined;
 
   return AppRuntime.runPromise(
     Effect.gen(function* () {
