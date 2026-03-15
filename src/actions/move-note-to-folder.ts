@@ -6,10 +6,9 @@ import { updateTag } from "next/cache";
 import { toFolderId, toNoteId } from "@/lib/id";
 import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
+import { FOLDER_ID_PATTERN } from "@/server/schemas/folder-schemas";
+import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
 import { FolderService } from "@/server/services/folder-service";
-
-const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
-const NOTE_ID_PATTERN = /^note_[\da-hjkmnp-tv-z]{26}$/;
 
 export const moveNoteToFolder = authedProcedure
   .input(

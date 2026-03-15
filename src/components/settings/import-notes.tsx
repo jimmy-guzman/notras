@@ -56,8 +56,8 @@ export function ImportNotes() {
       onSuccessDeferred((result) => {
         toast.success(result.message);
       }),
-      onErrorDeferred(() => {
-        toast.error("import failed");
+      onErrorDeferred((error) => {
+        toast.error(error.message);
       }),
     ],
   });

@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
+export const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
 
 const trimmedName = Schema.String.pipe(
   Schema.compose(Schema.Trim),

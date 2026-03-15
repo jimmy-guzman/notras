@@ -12,12 +12,14 @@ export async function GET(request: Request) {
     );
 
     const { signal } = request;
+    const abort = new AbortController();
 
-    let streamClosed = false;
+    let cancelledByStream = false;
 
     const stream = new ReadableStream({
       cancel() {
-        streamClosed = true;
+        cancelledByStream = true;
+        abort.abort();
       },
       start(controller) {
         const notified = new Set<string>();
@@ -57,14 +59,14 @@ export async function GET(request: Request) {
             ).pipe(Effect.fork);
 
             yield* Effect.async<undefined>((resume) => {
-              signal.addEventListener("abort", () => {
+              abort.signal.addEventListener("abort", () => {
                 resume(Effect.succeed(undefined));
               });
             });
 
             yield* Fiber.interrupt(fiber);
 
-            if (!streamClosed) {
+            if (!cancelledByStream) {
               controller.close();
             }
           }).pipe(
@@ -76,6 +78,10 @@ export async function GET(request: Request) {
             }),
           ),
         );
+
+        signal.addEventListener("abort", () => {
+          abort.abort();
+        });
       },
     });
 

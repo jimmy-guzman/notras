@@ -19,14 +19,16 @@ export async function createNote(formData: FormData) {
     formData.get("tags") ?? "",
   );
 
-  const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
-  );
-
   const id = await AppRuntime.runPromise(
-    NoteService.pipe(
-      Effect.flatMap((svc) => svc.create(userId, content, [...tags])),
-    ),
+    Effect.gen(function* () {
+      const userId = yield* UserService.pipe(
+        Effect.flatMap((svc) => svc.getDeviceUserId()),
+      );
+
+      return yield* NoteService.pipe(
+        Effect.flatMap((svc) => svc.create(userId, content, [...tags])),
+      );
+    }),
   );
 
   updateTag("notes");

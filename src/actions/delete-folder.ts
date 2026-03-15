@@ -6,9 +6,8 @@ import { updateTag } from "next/cache";
 import { toFolderId } from "@/lib/id";
 import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
+import { FOLDER_ID_PATTERN } from "@/server/schemas/folder-schemas";
 import { FolderService } from "@/server/services/folder-service";
-
-const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
 
 export const deleteFolder = authedProcedure
   .input(

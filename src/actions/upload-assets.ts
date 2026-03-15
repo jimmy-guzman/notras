@@ -22,9 +22,9 @@ export const uploadAssets = authedProcedure
           ),
         ),
       );
-    }
 
-    updateTag("notes");
-    revalidatePath(`/notes/${typedNoteId}`);
+      updateTag("notes");
+      revalidatePath(`/notes/${typedNoteId}`);
+    }
   })
   .actionable();

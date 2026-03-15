@@ -65,13 +65,13 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
       if (error) {
         toast.error("failed to clear reminder. please try again.");
       } else {
+        if (isOverdue) {
+          decrement();
+        }
+
         toast.success("reminder cleared");
       }
     });
-
-    if (isOverdue) {
-      decrement();
-    }
   }
 
   return (

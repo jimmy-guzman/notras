@@ -5,12 +5,21 @@ import { AppRuntime } from "@/server/layer";
 import { AssetService } from "@/server/services/asset-service";
 import { UserService } from "@/server/services/user-service";
 
+const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 export async function GET(_request: Request, { params }: RouteParams) {
   const { id } = await params;
+
+  if (!ASSET_ID_PATTERN.test(id)) {
+    return Response.json(
+      { message: "asset not found.", status: 404 },
+      { status: 404 },
+    );
+  }
 
   try {
     const result = await AppRuntime.runPromise(
@@ -33,6 +42,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     }
 
     const { data } = result;
+    const isSvg = result.mimeType === "image/svg+xml";
     const safeFileName = result.fileName
       .replaceAll(/[^\u0020-\u007E]/g, "")
       .replaceAll('"', String.raw`\"`);
@@ -42,9 +52,11 @@ export async function GET(_request: Request, { params }: RouteParams) {
       {
         headers: {
           "Cache-Control": "private, max-age=31536000, immutable",
-          "Content-Disposition": `inline; filename="${safeFileName}"`,
+          "Content-Disposition": isSvg
+            ? `attachment; filename="${safeFileName}"`
+            : `inline; filename="${safeFileName}"`,
           "Content-Length": data.byteLength.toString(),
-          "Content-Type": result.mimeType,
+          "Content-Type": isSvg ? "application/octet-stream" : result.mimeType,
         },
       },
     );

@@ -44,7 +44,13 @@ export function RenameFolderButton({
   }
 
   function handleSubmit(formData: FormData) {
-    const name = formData.get("name") as string;
+    const value = formData.get("name");
+
+    if (typeof value !== "string" || value.trim().length === 0) {
+      return;
+    }
+
+    const name = value.trim();
 
     startTransition(async () => {
       const [error] = await renameFolder({ folderId, name });

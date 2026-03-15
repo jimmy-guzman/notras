@@ -15,12 +15,10 @@ import { UserService } from "@/server/services/user-service";
 
 export const loadSearchParams = createLoader(parsers);
 
-export async function getNotes(
+async function fetchNotes(
   searchParams: NoteSearchParams,
   options?: PinFilter & { limit?: number },
 ) {
-  "use cache";
-
   const userId = await AppRuntime.runPromise(
     UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
   );
@@ -30,7 +28,7 @@ export async function getNotes(
       ? toFolderId(folder)
       : undefined;
 
-  const result = await AppRuntime.runPromise(
+  return AppRuntime.runPromise(
     NoteService.pipe(
       Effect.flatMap((svc) => {
         return svc.list(userId, {
@@ -44,42 +42,56 @@ export async function getNotes(
       }),
     ),
   );
+}
+
+async function fetchNotesCached(
+  searchParams: NoteSearchParams,
+  options?: PinFilter & { limit?: number },
+) {
+  "use cache";
 
   cacheTag("notes");
 
-  return result;
+  return fetchNotes(searchParams, options);
+}
+
+export async function getNotes(
+  searchParams: NoteSearchParams,
+  options?: PinFilter & { limit?: number },
+) {
+  if (searchParams.time !== "all") {
+    return fetchNotes(searchParams, options);
+  }
+
+  return fetchNotesCached(searchParams, options);
 }
 
 export async function getNotesCount() {
   "use cache";
 
+  cacheTag("notes");
+
   const userId = await AppRuntime.runPromise(
     UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
   );
 
-  const result = await AppRuntime.runPromise(
+  return AppRuntime.runPromise(
     NoteService.pipe(Effect.flatMap((svc) => svc.count(userId))),
   );
-
-  cacheTag("notes");
-
-  return result;
 }
 
 export async function getTagsForNotes(noteIds: NoteId[]) {
   "use cache";
 
+  cacheTag("notes", "tags");
+
   const userId = await AppRuntime.runPromise(
     UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
   );
 
-  const result = await AppRuntime.runPromise(
+  return AppRuntime.runPromise(
     TagService.pipe(
       Effect.flatMap((svc) => svc.getTagsForNotes(userId, noteIds)),
     ),
   );
-
-  cacheTag("notes", "tags");
-
-  return result;
 }
