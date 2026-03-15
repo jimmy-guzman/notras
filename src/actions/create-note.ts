@@ -4,11 +4,11 @@ import { Effect, Schema } from "effect";
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { serverAction } from "@/lib/authorized";
 import { AppRuntime } from "@/server/layer";
 import { createNoteSchema } from "@/server/schemas/note-schemas";
 import { tagsInputSchema } from "@/server/schemas/tag-schemas";
 import { NoteService } from "@/server/services/note-service";
+import { UserService } from "@/server/services/user-service";
 
 export async function createNote(formData: FormData) {
   const { content } = Schema.decodeUnknownSync(createNoteSchema)({
@@ -19,13 +19,15 @@ export async function createNote(formData: FormData) {
     formData.get("tags") ?? "",
   );
 
-  const id = await serverAction(async (userId) => {
-    return AppRuntime.runPromise(
-      NoteService.pipe(
-        Effect.flatMap((svc) => svc.create(userId, content, [...tags])),
-      ),
-    );
-  });
+  const userId = await AppRuntime.runPromise(
+    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+  );
+
+  const id = await AppRuntime.runPromise(
+    NoteService.pipe(
+      Effect.flatMap((svc) => svc.create(userId, content, [...tags])),
+    ),
+  );
 
   updateTag("notes");
   updateTag("tags");

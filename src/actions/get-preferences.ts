@@ -1,22 +1,21 @@
-"use server";
-
 import { Effect } from "effect";
 import { cacheTag } from "next/cache";
 
-import { serverAction } from "@/lib/authorized";
 import { AppRuntime } from "@/server/layer";
 import { UserService } from "@/server/services/user-service";
 
 export async function getPreferences() {
-  return serverAction(async (userId) => {
-    "use cache";
+  "use cache";
 
-    const result = await AppRuntime.runPromise(
-      UserService.pipe(Effect.flatMap((svc) => svc.getPreferences(userId))),
-    );
+  const userId = await AppRuntime.runPromise(
+    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+  );
 
-    cacheTag("preferences");
+  const result = await AppRuntime.runPromise(
+    UserService.pipe(Effect.flatMap((svc) => svc.getPreferences(userId))),
+  );
 
-    return result;
-  });
+  cacheTag("preferences");
+
+  return result;
 }

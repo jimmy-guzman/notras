@@ -48,7 +48,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [Radix UI](https://www.radix-ui.com) (headless primitives)
 - [Tailwind CSS](https://tailwindcss.com) 4
 - [React Hook Form](https://react-hook-form.com)
-- [next-safe-action](https://next-safe-action.dev) (type-safe server actions)
+- [oRPC](https://orpc.unnoq.com) (type-safe server actions)
 - [Motion](https://motion.dev)
 - [dnd-kit](https://dndkit.com) (drag-and-drop)
 - [Sonner](https://sonner.emilkowal.ski)
@@ -65,9 +65,6 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [SQLite](https://www.sqlite.org) via [libSQL](https://turso.tech/libsql) (`@libsql/client`)
 - [Drizzle ORM](https://orm.drizzle.team)
 - [Effect](https://effect.website) 3.x (typed errors, Layer/DI, Effect Schema, structured logging)
-- [Hono](https://hono.dev) (REST API, mounted at `/api/*`)
-- [@hono/zod-openapi](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) (OpenAPI-annotated routes)
-- [@scalar/hono-api-reference](https://github.com/scalar/scalar) (API docs UI at `/api/docs`)
 - [sharp](https://sharp.pixelplumbing.com) (image optimization)
 - [fflate](https://github.com/101arrowz/fflate) (zip compression)
 - [typeid-js](https://github.com/jetpack-io/typeid-js) (typed IDs)
@@ -99,17 +96,13 @@ docker run -p 3000:3000 \
 
 ## API
 
-The REST API is built with [Hono](https://hono.dev) and mounted at `/api/*`. All endpoints are OpenAPI-annotated via `@hono/zod-openapi`.
+Binary and streaming endpoints are plain Next.js Route Handlers under `src/app/api/`. All data mutations and reads use oRPC server actions.
 
-| Endpoint                    | Description                          |
-| --------------------------- | ------------------------------------ |
-| `GET /api/health`           | health check                         |
-| `GET /api/assets/:id`       | serve a stored asset file            |
-| `GET /api/export`           | download a zip export of all data    |
-| `GET /api/reminders/stream` | SSE stream of due reminder events    |
-| `GET /api/openapi.json`     | OpenAPI spec (JSON)                  |
-| `GET /api/docs`             | interactive API docs (Scalar UI)     |
-| `GET /api/llms.txt`         | API reference as markdown (for LLMs) |
+| Endpoint                    | Description                       |
+| --------------------------- | --------------------------------- |
+| `GET /api/assets/:id`       | serve a stored asset file         |
+| `GET /api/export`           | download a zip export of all data |
+| `GET /api/reminders/stream` | SSE stream of due reminder events |
 
 ---
 

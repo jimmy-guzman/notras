@@ -1,22 +1,35 @@
 "use server";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import type { NoteId } from "@/lib/id";
-
-import { serverAction } from "@/lib/authorized";
+import { toNoteId } from "@/lib/id";
+import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
+import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 
-export async function clearReminder(noteId: NoteId) {
-  await serverAction(async (userId) => {
+export const clearReminder = authedProcedure
+  .input(
+    Schema.standardSchemaV1(
+      Schema.Struct({
+        noteId: Schema.String.pipe(
+          Schema.pattern(NOTE_ID_PATTERN, {
+            message: () => "invalid note id format",
+          }),
+        ),
+      }),
+    ),
+  )
+  .handler(async ({ context, input }) => {
     await AppRuntime.runPromise(
       NoteService.pipe(
-        Effect.flatMap((svc) => svc.clearReminder(userId, noteId)),
+        Effect.flatMap((svc) => {
+          return svc.clearReminder(context.userId, toNoteId(input.noteId));
+        }),
       ),
     );
-  });
 
-  updateTag("notes");
-}
+    updateTag("notes");
+  })
+  .actionable();

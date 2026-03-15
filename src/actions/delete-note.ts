@@ -1,21 +1,36 @@
 "use server";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import type { NoteId } from "@/lib/id";
-
-import { serverAction } from "@/lib/authorized";
+import { toNoteId } from "@/lib/id";
+import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
+import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 
-export async function deleteNote(noteId: NoteId) {
-  await serverAction(async (userId) => {
+export const deleteNote = authedProcedure
+  .input(
+    Schema.standardSchemaV1(
+      Schema.Struct({
+        noteId: Schema.String.pipe(
+          Schema.pattern(NOTE_ID_PATTERN, {
+            message: () => "invalid note id format",
+          }),
+        ),
+      }),
+    ),
+  )
+  .handler(async ({ context, input }) => {
     await AppRuntime.runPromise(
-      NoteService.pipe(Effect.flatMap((svc) => svc.delete(userId, noteId))),
+      NoteService.pipe(
+        Effect.flatMap((svc) => {
+          return svc.delete(context.userId, toNoteId(input.noteId));
+        }),
+      ),
     );
-  });
 
-  updateTag("notes");
-  updateTag("tags");
-}
+    updateTag("notes");
+    updateTag("tags");
+  })
+  .actionable();

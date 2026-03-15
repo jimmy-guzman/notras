@@ -1,11 +1,12 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { UploadIcon } from "lucide-react";
-import { useRef, useState } from "react";
-import { Controller } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { importNotes } from "@/actions/import-notes";
@@ -40,32 +41,41 @@ export function ImportNotes() {
   const [showMirrorConfirm, setShowMirrorConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { action, form, handleSubmitWithAction, resetFormAndAction } =
-    useHookFormAction(
-      importNotes,
-      standardSchemaResolver(Schema.standardSchemaV1(importInputSchema)),
-      {
-        actionProps: {
-          onError({ error }) {
-            toast.error(error.serverError ?? "import failed");
-          },
-          onSuccess({ data }) {
-            toast.success(data.message);
-            resetFormAndAction();
+  const form = useForm({
+    defaultValues: {
+      mode: "merge" as "merge" | "mirror",
+    },
+    mode: "onChange",
+    resolver: standardSchemaResolver(
+      Schema.standardSchemaV1(importInputSchema),
+    ),
+  });
 
-            if (fileInputRef.current) {
-              fileInputRef.current.value = "";
-            }
-          },
-        },
-        formProps: {
-          defaultValues: {
-            mode: "merge",
-          },
-          mode: "onChange",
-        },
-      },
-    );
+  const action = useServerAction(importNotes, {
+    interceptors: [
+      onSuccessDeferred((result) => {
+        toast.success(result.message);
+      }),
+      onErrorDeferred(() => {
+        toast.error("import failed");
+      }),
+    ],
+  });
+
+  useEffect(() => {
+    if (action.isSuccess) {
+      form.reset();
+      action.reset();
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, [action, form]);
+
+  const executeSubmit = form.handleSubmit(async (data) => {
+    await action.execute(data);
+  });
 
   function handleSubmit(e?: React.BaseSyntheticEvent) {
     e?.preventDefault();
@@ -82,12 +92,12 @@ export function ImportNotes() {
       return;
     }
 
-    void handleSubmitWithAction(e);
+    void executeSubmit(e);
   }
 
   function handleMirrorConfirm() {
     setShowMirrorConfirm(false);
-    void handleSubmitWithAction();
+    void executeSubmit();
   }
 
   return (

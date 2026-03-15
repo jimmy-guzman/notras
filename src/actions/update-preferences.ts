@@ -3,21 +3,22 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { actionClient } from "@/lib/safe-action";
+import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
 import { preferencesSchema } from "@/server/schemas/user-schemas";
 import { UserService } from "@/server/services/user-service";
 
-export const updatePreferences = actionClient
-  .inputSchema(Schema.standardSchemaV1(preferencesSchema))
-  .action(async ({ ctx, parsedInput }) => {
+export const updatePreferences = authedProcedure
+  .input(Schema.standardSchemaV1(preferencesSchema))
+  .handler(async ({ context, input }) => {
     await AppRuntime.runPromise(
       UserService.pipe(
-        Effect.flatMap((svc) => svc.updatePreferences(ctx.userId, parsedInput)),
+        Effect.flatMap((svc) => svc.updatePreferences(context.userId, input)),
       ),
     );
 
     updateTag("preferences");
 
     return { message: "preferences updated" };
-  });
+  })
+  .actionable();

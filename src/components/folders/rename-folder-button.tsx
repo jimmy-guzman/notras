@@ -44,13 +44,16 @@ export function RenameFolderButton({
   }
 
   function handleSubmit(formData: FormData) {
+    const name = formData.get("name") as string;
+
     startTransition(async () => {
-      try {
-        await renameFolder(formData);
+      const [error] = await renameFolder({ folderId, name });
+
+      if (error) {
+        toast.error("failed to rename folder. please try again.");
+      } else {
         setOpen(false);
         toast.success("folder renamed");
-      } catch {
-        toast.error("failed to rename folder. please try again.");
       }
     });
   }
@@ -72,7 +75,6 @@ export function RenameFolderButton({
           <DialogTitle>rename folder</DialogTitle>
         </DialogHeader>
         <form action={handleSubmit}>
-          <input name="folderId" type="hidden" value={folderId} />
           <div className="flex flex-col gap-6 py-4">
             <Field>
               <FieldLabel htmlFor="folder-name">name</FieldLabel>

@@ -10,14 +10,6 @@ export function SiteFooter() {
       <p>just write, otra vez.</p>
       <nav className="flex items-center gap-4">
         <KeyboardShortcutsDialog>keyboard shortcuts</KeyboardShortcutsDialog>
-        <a
-          className="underline underline-offset-4"
-          href="/api/docs"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          api docs
-        </a>
       </nav>
       <p className="text-xs">
         © {year}{" "}

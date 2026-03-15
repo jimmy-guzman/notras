@@ -8,7 +8,7 @@ A personal note-taking app -- "Just write, otra vez."
 - **Language:** TypeScript (strict mode)
 - **Database:** SQLite via Turso/libSQL (`@libsql/client`) + Drizzle ORM
 - **Effect:** Effect-TS 3.x — typed errors, Layer/DI, Effect Schema, structured logging, fiber concurrency
-- **API:** Hono (`@hono/zod-openapi`) mounted at `src/app/api/[[...route]]` — OpenAPI docs at `/api/docs`, spec at `/api/openapi.json`
+- **Actions:** oRPC (`@orpc/server`) for type-safe `.actionable()` server actions; `@orpc/react` / `@orpc/react/hooks` for client-side `useServerAction`
 - **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
 - **Animation:** Motion (layout animations for shared element transitions)
 - **Formatting:** oxfmt (Prettier-compatible, Rust-based)
@@ -21,21 +21,16 @@ A personal note-taking app -- "Just write, otra vez."
 ```txt
 src/
   actions/          # Server actions (data reads with "use cache", mutations)
-  api/              # Hono app (OpenAPI REST API, mounted at /api/*)
-    assets/         # GET /api/assets/:id — serve stored asset files
-    export/         # GET /api/export — zip export of all data
-    reminders/      # GET /api/reminders/stream — SSE reminder events
-    lib/
-      hono.ts       # OpenAPIHono factory (defaultHook for 422 validation errors)
-      openapi.ts    # OpenAPI info/version constants
-    index.ts        # Assembles all routes, /health, /docs, /openapi.json
   app/              # Next.js App Router pages and layouts
     (home)/         # Route group for home page (scoped loading boundary)
     api/
-      [[...route]]/ # Catch-all shim: delegates all /api/* requests to Hono
-      icons/        # PWA icon routes (Next.js ImageResponse, not in Hono)
+      assets/[id]/  # GET /api/assets/:id — serve stored asset files
+      export/       # GET /api/export — zip export of all data
+      icons/        # PWA icon routes (Next.js ImageResponse)
         192/
         512/
+      reminders/
+        stream/     # GET /api/reminders/stream — SSE reminder events
     notes/
       (list)/       # Route group for notes list (scoped loading boundary)
       [id]/
@@ -48,7 +43,7 @@ src/
       assets/       # Asset components (uploader, preview, list)
     settings/       # Settings-related components (profile form, export, import)
     ui/             # Shadcn UI components (auto-generated, don't manually edit)
-  lib/              # Client utilities, search params, auth helpers
+  lib/              # Client utilities, search params, orpc builder
     ui/             # Shadcn utility (cn)
     utils/          # Pure utility functions (formatting, filters, etc.)
   server/
@@ -73,21 +68,17 @@ data/
 
 ## Key Patterns
 
-- **Server actions** live in `src/actions/` with `"use server"` directive. Two patterns coexist:
-  - **`serverAction()` pattern** (most actions): Import `serverAction` from `@/lib/authorized`. It resolves the device `userId` via `AppRuntime` and passes it to a callback: `serverAction(async (userId) => { ... })`. Inside the callback, call services via `AppRuntime.runPromise(ServiceTag.pipe(Effect.flatMap(svc => svc.method(...))))`. This is the dominant pattern for mutations, reads, and `FormData`-based actions. **Validation is not automatic** -- you must decode and validate any external/untrusted inputs (e.g. `FormData` fields, URL params) explicitly using `Schema.decodeUnknownSync(schema)(input)` before passing them to services.
-  - **`actionClient` pattern** (forms that stay on page): Import `actionClient` from `@/lib/safe-action.ts` (a `next-safe-action` client with auth middleware backed by `AppRuntime`). Define as `actionClient.inputSchema(Schema.standardSchemaV1(schema)).action(async ({ ctx, parsedInput }) => { ... })`. Validation is automatic. Use this with `useHookFormAction` for forms like settings/profile and import.
-  - Keep server actions thin -- one action per file. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
-- **API routes** are handled by Hono (`src/api/`), not raw Next.js route handlers. The Next.js catch-all at `src/app/api/[[...route]]/route.ts` delegates all `/api/*` traffic to the Hono app. Exception: `api/icons/192` and `api/icons/512` are Next.js `ImageResponse` routes and stay outside Hono. **New API endpoints always go in `src/api/`** — never add new `route.ts` files under `src/app/api/` (except for PWA icon routes or other Next.js-specific responses that can't be expressed as plain `Response` objects).
-- **Hono API structure:** Each domain lives in `src/api/<domain>/` with three files: `<domain>.schema.ts` (Zod schemas with `.openapi()` annotations), `<domain>.api.ts` (`createRoute()` definitions), and `<domain>.http.ts` (Hono handlers). Assemble all domain routers in `src/api/app.ts`. Use `OpenAPIHono` from `@hono/zod-openapi` — the factory in `src/api/lib/hono.ts` configures the shared `defaultHook` for 422 validation errors.
-- **Hono handler auth:** Hono handlers wrap their entire body in a single `AppRuntime.runPromise(Effect.gen(function* () { ... }))`. Inside the generator, `userId` is resolved first via `yield* UserService.pipe(Effect.flatMap(svc => svc.getDeviceUserId()))`, then service calls follow in the same pipeline. Use `Effect.catchAllDefect` at the pipeline tail to log and return 500 — do not use `try/catch` or multiple sequential `runPromise` calls. Do **not** use `serverAction()` from `@/lib/authorized` in Hono handlers — it has `"use server"` which is a Next.js server action constraint.
-- **Schema layers:** Zod (via `@hono/zod-openapi`) is used exclusively in `src/api/` for OpenAPI-annotated request/response schemas. Effect Schema (from `effect`) is used exclusively in `src/server/schemas/` for server action and service-layer validation. Do not mix the two layers.
-- **Server actions are for internal Next.js UI use only.** Do not create a server action as a shortcut for something that should be an API route, and do not call API routes from server components when a server action would do.
+- **Server actions** live in `src/actions/`. Two patterns coexist:
+  - **oRPC `.actionable()` pattern** (mutations): Import `authedProcedure` from `@/lib/orpc`. Define as `authedProcedure.input(Schema.standardSchemaV1(schema)).handler(async ({ context, input }) => { ... })` then export the result of `.actionable()`. The `authedProcedure` middleware resolves `userId` via `AppRuntime` and injects it into `context`. Validation is automatic. Result type is a `[error, data]` tuple — clients destructure `const [error, result] = await someAction(input)` and check `if (error)`. Use `useServerAction` from `@orpc/react/hooks` for client-side state (`action.isPending`, `action.isSuccess`); `onSuccessDeferred` / `onErrorDeferred` interceptors from `@orpc/react` for deferred side-effects (toasts).
+  - **Plain `"use server"` async functions** (FormData actions, reads): `createNote` and `updateNote` are plain `async function` with `"use server"` — they receive `FormData` and are passed directly as `action={fn}` to `<form>`. Read actions (e.g., `get-notes.ts`) have no `"use server"` directive and are called directly from RSCs; they inline `userId` via `AppRuntime.runPromise(UserService.pipe(Effect.flatMap(svc => svc.getDeviceUserId())))` and use `"use cache"` at the top of the function body.
+  - Keep server actions thin — one action per file. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
+- **API routes** for binary/streaming responses are plain Next.js Route Handlers under `src/app/api/`. There is no Hono layer. **New binary or streaming endpoints go directly in `src/app/api/<domain>/route.ts`** as standard `export async function GET(request: Request)` handlers. Do not use this for data mutations or reads that could be server actions.
 - **Effect runtime boundary:** `AppRuntime` (a `ManagedRuntime`) lives in `src/server/layer.ts` and is the single point where Effects are executed. Never call `Effect.runPromise` or `Effect.runFork` directly -- always go through `AppRuntime.runPromise` / `AppRuntime.runFork`. This ensures fibers inherit the managed runtime's logger, context, and supervision. The `AppLayer` (unexported) wires all service and repository Layers together with `DatabaseLive` at the root.
 - **Services** live in `src/server/services/`. Each file defines an `interface IFooService`, a `class FooService extends Context.Tag("FooService")<FooService, IFooService>()`, a `makeFooService` factory via `Effect.gen`, and an exported `FooServiceLive` Layer. Services depend on repository Tags, not concrete implementations.
 - **Repositories** live in `src/server/repositories/`. Same pattern: `interface IFooRepository`, `class FooRepository extends Context.Tag(...)`, `FooRepositoryLive` Layer. Repositories depend on the `Database` Context.Tag (the Drizzle client).
 - **Typed errors** live in `src/server/errors.ts`: `DatabaseError` and `NotFoundError` extend `Data.TaggedError`. Services convert `DatabaseError` to defects via `.pipe(Effect.orDie)` — this is **intentional**: all DB errors are fatal and handled uniformly at the runtime boundary, so callers don't need to handle them differentially. Do not remove `.orDie` calls without also adding `Effect.catchTag` recovery at every call site — otherwise typed errors will propagate unhandled and cause runtime failures. The one exception is `NotFoundError` in `UserService.getProfile`, which is typed in the return signature but currently not caught by callers (a known gap, not an oversight to fix without a plan).
 - **Effect flatMap naming:** Use `ServiceTag.pipe(Effect.flatMap(svc => svc.method(...)))` — NOT `Effect.flatMap(ServiceTag, fn)`. The latter triggers the `unicorn/no-array-method-this-argument` lint rule.
-- **Validation** uses Effect Schema from `src/server/schemas/`. For `actionClient`-based server actions, validation is automatic via `inputSchema(Schema.standardSchemaV1(schema))`. For API routes, `@hono/zod-openapi` validates automatically via `createRoute()` — access validated params/body with `c.req.valid("param")` or `c.req.valid("json")`.
+- **Validation** uses Effect Schema from `src/server/schemas/`. For oRPC `.actionable()` server actions, validation is automatic via `authedProcedure.input(Schema.standardSchemaV1(schema))`.
 - **`readonly` arrays from Schema:** Effect Schema `decode` results are `readonly`. Spread before passing to service methods that accept mutable arrays: `[...tags]`.
 - **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
 - **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
@@ -100,7 +91,7 @@ data/
 ### Forms
 
 - **Form hotkeys:** Forms that edit content use `useHotkeys("mod+enter")` to submit and `useHotkeys("escape")` to cancel, with `<Kbd>⌘</Kbd><Kbd>⏎</Kbd>` badges on the submit button. For note forms, use `FormHotkeys` wrapper; for non-note forms (like settings), wire hotkeys directly with `useHotkeys` and `enableOnFormTags: ["INPUT"]` or `["TEXTAREA"]`.
-- **`useHookFormAction` pattern:** For forms that use `actionClient`-based server actions, use `useHookFormAction` from `@next-safe-action/adapter-react-hook-form/hooks` with `standardSchemaResolver` from `@hookform/resolvers/standard-schema` and `Schema.standardSchemaV1(schema)` as the bridge. Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. Toast feedback goes in `actionProps.onSuccess` / `onError` callbacks -- no `useEffect` needed. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()` instead.
+- **`useServerAction` pattern:** For forms that use oRPC `.actionable()` server actions, use `useForm` from `react-hook-form` + `useServerAction` from `@orpc/react/hooks`. Bridge validation via `standardSchemaResolver` from `@hookform/resolvers/standard-schema` with `Schema.standardSchemaV1(schema)`. Submit via `form.handleSubmit(async (data) => { await action.execute(data) })`. Use `action.isPending` for loading state. `onSuccessDeferred` / `onErrorDeferred` interceptors from `@orpc/react` handle toast feedback — no `useEffect` needed for toasts. Use `useWatch` from `react-hook-form` instead of `form.watch()` for reactive field values (React Compiler compatibility). Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs. For forms that redirect after submit (e.g., create/edit note), use plain `action` with `redirect()` instead.
 - **Field component:** Use `<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>` from `@/components/ui/field` for form field structure instead of raw `<div>` + `<Label>` + manual error `<p>` tags. Set `data-invalid={!!fieldState.error || undefined}` on `<Field>` to turn labels red on validation error.
 - **Button disabled state:** Keep submit buttons always enabled for a11y -- only disable during `action.isPending` to prevent double-submits, never based on validation state like `formState.isValid`.
 - **Form aesthetic:** Forms use bare inputs in a `flex flex-col gap-6` layout (no Card wrappers). Labels and button text are lowercase. Action buttons are right-aligned at the bottom: cancel (outline) + submit (primary with Kbd hints). Back button with `ArrowLeftIcon` at the top of the page.
@@ -145,8 +136,8 @@ If any step fails, fix the issue and re-run from that step. Do not move on until
 - **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`). Always prefer a Shadcn component over hand-rolling custom UI -- check the registry first (`shadcn_search_items_in_registries`) before building something from scratch.
 - **Conditional classes:** Use `cn()` from `@/lib/ui/utils` for all conditional or merged Tailwind class strings -- never template literals. `cn` wraps `clsx` + `tailwind-merge`, so it handles conflict resolution correctly (e.g., `cn("px-3", isActive && "bg-primary/10")`).
 - **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
-- **Effect Schema (server layer):** Server-side validation schemas in `src/server/schemas/` use `Schema` from the `effect` package -- not Zod. Use `Schema.Struct`, `Schema.String`, `Schema.minLength`, `Schema.pattern`, etc. For `actionClient` forms, bridge to `useHookFormAction` via `Schema.standardSchemaV1(schema)`.
-- **Zod (API layer):** Zod is used in two places only: `src/env.ts` (via `@t3-oss/env-nextjs`) and `src/api/` (via `@hono/zod-openapi` for OpenAPI-annotated request/response schemas). Import `z` from `@hono/zod-openapi` in API files, not directly from `zod`. Do not use Zod for server action or service-layer validation — use Effect Schema instead.
+- **Effect Schema (server layer):** Server-side validation schemas in `src/server/schemas/` use `Schema` from the `effect` package -- not Zod. Use `Schema.Struct`, `Schema.String`, `Schema.minLength`, `Schema.pattern`, etc. For `actionClient` forms, bridge to `useServerAction` via `Schema.standardSchemaV1(schema)`.
+- **Zod (env only):** Zod is used in one place only: `src/env.ts` (via `@t3-oss/env-nextjs`). Do not use Zod for server action or service-layer validation — use Effect Schema instead.
 - Use `satisfies` for type narrowing when possible (e.g., config objects).
 - Test files use the `.spec.ts` suffix and live next to the code they test.
 - Sort object keys and import statements alphabetically.

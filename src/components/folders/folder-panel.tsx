@@ -146,11 +146,12 @@ export function FolderPanel({ folders }: FolderPanelProps) {
       const folderId = toFolderId(targetIdStr);
 
       startTransition(async () => {
-        try {
-          await moveNoteToFolder(noteId, folderId);
-          toast.success("note moved to folder");
-        } catch {
+        const [error] = await moveNoteToFolder({ folderId, noteId });
+
+        if (error) {
           toast.error("failed to move note. please try again.");
+        } else {
+          toast.success("note moved to folder");
         }
       });
     },

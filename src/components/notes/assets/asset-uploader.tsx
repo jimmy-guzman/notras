@@ -26,26 +26,12 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
     const fileArray = [...files];
 
     startTransition(async () => {
-      try {
-        const formData = new FormData();
+      const [error] = await uploadAssets({ files: fileArray, noteId });
 
-        formData.set("noteId", noteId);
-
-        for (const file of fileArray) {
-          formData.append("files", file);
-        }
-
-        await uploadAssets(formData);
-
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-      } catch (error) {
-        if (error instanceof Error) {
-          toast.error(error.message);
-        } else {
-          toast.error("failed to upload files. please try again.");
-        }
+      if (error) {
+        toast.error("failed to upload files. please try again.");
+      } else if (fileInputRef.current) {
+        fileInputRef.current.value = "";
       }
     });
   };

@@ -45,18 +45,13 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
   });
 
   function handleSetReminder(preset: ReminderPreset) {
-    const formData = new FormData();
-
-    formData.set("noteId", noteId);
-    formData.set("preset", preset);
-
     startTransition(async () => {
-      try {
-        const result = await setReminder(formData);
+      const [error, result] = await setReminder({ noteId, preset });
 
-        toast.success(`reminder set for ${formatDateTime(result.remindAt)}`);
-      } catch {
+      if (error) {
         toast.error("failed to set reminder. please try again.");
+      } else {
+        toast.success(`reminder set for ${formatDateTime(result.remindAt)}`);
       }
     });
   }
@@ -65,11 +60,12 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
     const isOverdue = remindAt !== null && remindAt <= new Date();
 
     startTransition(async () => {
-      try {
-        await clearReminder(noteId);
-        toast.success("reminder cleared");
-      } catch {
+      const [error] = await clearReminder({ noteId });
+
+      if (error) {
         toast.error("failed to clear reminder. please try again.");
+      } else {
+        toast.success("reminder cleared");
       }
     });
 
