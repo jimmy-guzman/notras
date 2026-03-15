@@ -53,7 +53,7 @@ remindersApp.openapi(GetRemindersStreamRoute, (c) => {
               // the defect propagate — Effect.repeat will stop and the fiber
               // will die, leaving the stream open until the client reconnects.
               Effect.catchAllDefect((defect) => {
-                return Effect.logError("reminder polling failed", { defect });
+                return Effect.logError("reminder polling failed", defect);
               }),
             );
 
