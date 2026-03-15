@@ -72,6 +72,17 @@ remindersApp.openapi(GetRemindersStreamRoute, (c) => {
           }),
         );
       });
-    }),
+    }).pipe(
+      Effect.catchAllDefect((defect) => {
+        return Effect.gen(function* () {
+          yield* Effect.logError("GET /reminders/stream failed", defect);
+
+          return c.json(
+            { message: "internal server error.", status: 500 },
+            500,
+          );
+        });
+      }),
+    ),
   );
 });
