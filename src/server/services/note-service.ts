@@ -5,6 +5,7 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 import type { NoteFilters } from "@/server/repositories/note-repository";
 
 import { generateNoteId } from "@/lib/id";
+import { AppRuntime } from "@/server/layer";
 import {
   NoteRepository,
   NoteRepositoryLive,
@@ -78,7 +79,7 @@ const makeNoteService = Effect.gen(function* () {
         .pipe(Effect.orDie);
 
       // Fire-and-forget link sync
-      Effect.runFork(linkService.syncLinks(userId, id, formatted));
+      AppRuntime.runFork(linkService.syncLinks(userId, id, formatted));
 
       if (tags !== undefined) {
         yield* tagService.syncTags(userId, id, tags);
@@ -130,7 +131,7 @@ const makeNoteService = Effect.gen(function* () {
         .pipe(Effect.orDie);
 
       // Fire-and-forget link sync
-      Effect.runFork(linkService.syncLinks(userId, noteId, formatted));
+      AppRuntime.runFork(linkService.syncLinks(userId, noteId, formatted));
 
       if (tags !== undefined) {
         yield* tagService.syncTags(userId, noteId, tags);
