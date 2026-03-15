@@ -8,6 +8,7 @@ import type { CreateAssetInput } from "@/server/repositories/asset-repository";
 import type { ExportedNote, ImportMode } from "@/server/schemas/export-schemas";
 
 import { toAssetId, toFolderId, toNoteId } from "@/lib/id";
+import { AppRuntime } from "@/server/layer";
 import {
   AssetRepository,
   AssetRepositoryLive,
@@ -303,7 +304,9 @@ const makeImportService = Effect.gen(function* () {
         yield* assetRepo.createMany(assetInputs).pipe(Effect.orDie);
 
         // Fire-and-forget link sync
-        Effect.runFork(linkService.syncLinks(userId, noteId, formattedContent));
+        AppRuntime.runFork(
+          linkService.syncLinks(userId, noteId, formattedContent),
+        );
 
         yield* tagRepo
           .syncTagsForNote(noteId, userId, [...(exportedNote.tags ?? [])])

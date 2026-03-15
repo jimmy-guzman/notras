@@ -9,30 +9,32 @@ import { GetExportRoute } from "./export.api";
 
 export const exportApp = hono();
 
-exportApp.openapi(GetExportRoute, async (c) => {
-  const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
-  );
+exportApp.openapi(GetExportRoute, (c) => {
+  return AppRuntime.runPromise(
+    Effect.gen(function* () {
+      const userId = yield* UserService.pipe(
+        Effect.flatMap((svc) => svc.getDeviceUserId()),
+      );
+      const zipBuffer = yield* ExportService.pipe(
+        Effect.flatMap((svc) => svc.exportAll(userId)),
+      );
+      const date = new Date().toISOString().slice(0, 10);
 
-  const result = await AppRuntime.runPromise(
-    ExportService.pipe(
-      Effect.flatMap((svc) => svc.exportAll(userId)),
-      Effect.either,
+      return new Response(zipBuffer as BodyInit, {
+        headers: {
+          "Content-Disposition": `attachment; filename="notras-export-${date}.zip"`,
+          "Content-Length": zipBuffer.byteLength.toString(),
+          "Content-Type": "application/zip",
+        },
+      });
+    }).pipe(
+      Effect.catchAllDefect((defect) => {
+        return Effect.gen(function* () {
+          yield* Effect.logError("GET /export failed", defect);
+
+          return c.json({ message: "export failed.", status: 500 }, 500);
+        });
+      }),
     ),
   );
-
-  if (result._tag === "Left") {
-    return c.json({ message: "export failed.", status: 500 }, 500);
-  }
-
-  const zipBuffer = result.right;
-  const date = new Date().toISOString().slice(0, 10);
-
-  return new Response(zipBuffer as BodyInit, {
-    headers: {
-      "Content-Disposition": `attachment; filename="notras-export-${date}.zip"`,
-      "Content-Length": zipBuffer.byteLength.toString(),
-      "Content-Type": "application/zip",
-    },
-  });
 });

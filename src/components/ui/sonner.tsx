@@ -9,9 +9,12 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Toaster as Sonner } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme = "system" } = useTheme();
+
   return (
     <Sonner
       className="toaster group"
@@ -30,7 +33,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
         } as React.CSSProperties
       }
-      theme="dark"
+      theme={theme as ToasterProps["theme"]}
       toastOptions={{
         classNames: {
           toast: "cn-toast",
