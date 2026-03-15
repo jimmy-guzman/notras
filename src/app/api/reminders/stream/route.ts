@@ -13,7 +13,12 @@ export async function GET(request: Request) {
 
     const { signal } = request;
 
+    let streamClosed = false;
+
     const stream = new ReadableStream({
+      cancel() {
+        streamClosed = true;
+      },
       start(controller) {
         const notified = new Set<string>();
 
@@ -58,7 +63,10 @@ export async function GET(request: Request) {
             });
 
             yield* Fiber.interrupt(fiber);
-            controller.close();
+
+            if (!streamClosed) {
+              controller.close();
+            }
           }).pipe(
             Effect.catchAllDefect((defect) => {
               return Effect.logError(
