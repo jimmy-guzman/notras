@@ -3,30 +3,28 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { serverAction } from "@/lib/authorized";
 import { toFolderId } from "@/lib/id";
+import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
 import { renameFolderSchema } from "@/server/schemas/folder-schemas";
 import { FolderService } from "@/server/services/folder-service";
 
-export async function renameFolder(formData: FormData) {
-  const { folderId: folderIdRaw, name } = Schema.decodeUnknownSync(
-    renameFolderSchema,
-  )({
-    folderId: formData.get("folderId"),
-    name: formData.get("name"),
-  });
-
-  const folderId = toFolderId(folderIdRaw);
-
-  await serverAction(async (userId) => {
+export const renameFolder = authedProcedure
+  .input(Schema.standardSchemaV1(renameFolderSchema))
+  .handler(async ({ context, input }) => {
     await AppRuntime.runPromise(
       FolderService.pipe(
-        Effect.flatMap((svc) => svc.rename(userId, folderId, name)),
+        Effect.flatMap((svc) => {
+          return svc.rename(
+            context.userId,
+            toFolderId(input.folderId),
+            input.name,
+          );
+        }),
       ),
     );
-  });
 
-  updateTag("folders");
-  updateTag("notes");
-}
+    updateTag("folders");
+    updateTag("notes");
+  })
+  .actionable();

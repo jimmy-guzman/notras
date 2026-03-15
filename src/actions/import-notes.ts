@@ -3,18 +3,20 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { actionClient } from "@/lib/safe-action";
+import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
 import { importInputSchema } from "@/server/schemas/export-schemas";
 import { ImportService } from "@/server/services/import-service";
 
-export const importNotes = actionClient
-  .inputSchema(Schema.standardSchemaV1(importInputSchema))
-  .action(async ({ ctx: { userId }, parsedInput: { file, mode } }) => {
-    const buffer = new Uint8Array(await file.arrayBuffer());
+export const importNotes = authedProcedure
+  .input(Schema.standardSchemaV1(importInputSchema))
+  .handler(async ({ context, input }) => {
+    const buffer = new Uint8Array(await input.file.arrayBuffer());
     const result = await AppRuntime.runPromise(
       ImportService.pipe(
-        Effect.flatMap((svc) => svc.importZip(userId, buffer, mode)),
+        Effect.flatMap((svc) => {
+          return svc.importZip(context.userId, buffer, input.mode);
+        }),
       ),
     );
 
@@ -32,4 +34,5 @@ export const importNotes = actionClient
       skipped: result.skipped,
       updated: result.updated,
     };
-  });
+  })
+  .actionable();

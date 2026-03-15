@@ -1,9 +1,11 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { SaveIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import type { UserProfile } from "@/server/repositories/user-repository";
@@ -19,30 +21,34 @@ interface ProfileFormProps {
 }
 
 export function ProfileForm({ profile }: ProfileFormProps) {
-  const { action, form, handleSubmitWithAction } = useHookFormAction(
-    updateProfile,
-    standardSchemaResolver(Schema.standardSchemaV1(updateProfileSchema)),
-    {
-      actionProps: {
-        onError({ error }) {
-          toast.error(error.serverError ?? "update failed");
-        },
-        onSuccess({ data }) {
-          toast.success(data.message);
-        },
-      },
-      formProps: {
-        defaultValues: {
-          email: profile.email,
-          name: profile.name,
-        },
-        mode: "onSubmit",
-      },
+  const action = useServerAction(updateProfile, {
+    interceptors: [
+      onSuccessDeferred((result) => {
+        toast.success(result.message);
+      }),
+      onErrorDeferred(() => {
+        toast.error("update failed");
+      }),
+    ],
+  });
+
+  const form = useForm({
+    defaultValues: {
+      email: profile.email,
+      name: profile.name,
     },
-  );
+    mode: "onSubmit",
+    resolver: standardSchemaResolver(
+      Schema.standardSchemaV1(updateProfileSchema),
+    ),
+  });
+
+  const handleSubmit = form.handleSubmit(async (data) => {
+    await action.execute(data);
+  });
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmitWithAction}>
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
       <Field data-invalid={Boolean(form.formState.errors.name) || undefined}>
         <FieldLabel htmlFor="name">name</FieldLabel>
         <Input id="name" placeholder="your name" {...form.register("name")} />

@@ -19,18 +19,13 @@ export function useDeleteAsset({ noteId }: UseDeleteAssetOptions) {
     setDeletingId(assetId);
 
     startTransition(async () => {
-      try {
-        const formData = new FormData();
+      const [error] = await deleteAsset({ assetId, noteId });
 
-        formData.set("assetId", assetId);
-        formData.set("noteId", noteId);
-
-        await deleteAsset(formData);
-      } catch {
+      if (error) {
         toast.error("failed to delete file. please try again.");
-      } finally {
-        setDeletingId(null);
       }
+
+      setDeletingId(null);
     });
   };
 
