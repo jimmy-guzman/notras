@@ -118,7 +118,7 @@ exportApp.openapi(GetExportRoute, (c) => {
 The most significant change. `streamSSE` stays async (Hono API boundary), but everything inside becomes Effect:
 
 - `check` becomes an `Effect.gen` — no more `try/catch`
-- Defects in `check` are caught per-poll with `Effect.catchAllDefect` + `Effect.logError`, so the polling fiber survives individual failures
+- Defects in `check` are caught per-poll with `Effect.catchAllDefect` + `Effect.logError` — **resilient polling is intentional**: the fiber must survive transient DB errors so the SSE stream stays open, matching the current `try/catch` behavior in the live code. Do not remove `catchAllDefect`; if you want fail-fast behavior instead, let the defect propagate and the fiber will die (the stream will hang open until the client reconnects).
 - `setInterval` / `clearInterval` replaced by `Effect.repeat(check, Schedule.spaced("30 seconds"))` forked as a background fiber via `Effect.fork`
 - Stream abort is modelled as `Effect.async<void>` that resumes when `stream.onAbort` fires
 - Fiber is interrupted on abort via `Fiber.interrupt`
@@ -160,8 +160,14 @@ remindersApp.openapi(GetRemindersStreamRoute, (c) => {
                 );
               }
             }).pipe(
+              // Intentional: catch defects per-poll so the fiber (and SSE
+              // stream) survives transient failures (e.g. DB unavailable).
+              // This preserves the current try/catch resilience semantics.
+              // If fail-fast is ever preferred, remove this wrapper and let
+              // the defect propagate — Effect.repeat will stop and the fiber
+              // will die, leaving the stream open until the client reconnects.
               Effect.catchAllDefect((defect) =>
-                Effect.logError("reminder polling failed", defect),
+                Effect.logError("reminder polling failed", { defect }),
               ),
             );
 
@@ -187,13 +193,32 @@ remindersApp.openapi(GetRemindersStreamRoute, (c) => {
 
 - `Effect.repeat` runs `check` immediately then waits the interval — same behavior as the current `await check()` + `setInterval` pattern.
 - The outer `Effect.gen` (userId fetch) does not need `catchAllDefect` — if `getDeviceUserId()` defects, the unhandled defect propagates to `AppRuntime.runPromise` which rejects the promise and Hono returns a 500 automatically.
+- The `catchAllDefect` on `check` passes `defect` as a structured annotation object (`{ defect }`) rather than a bare second argument, so the Effect logger surfaces it as a labelled field alongside the message.
 - Import `Fiber` and `Schedule` from `"effect"` alongside `Effect`.
+
+## Additional: fix unsupervised `Effect.runFork` calls
+
+Three fire-and-forget link-sync calls in the service layer use bare `Effect.runFork`
+instead of `AppRuntime.runFork`, running outside the managed runtime with no supervision:
+
+- `src/server/services/note-service.ts` (2 calls — after `create` and `update`)
+- `src/server/services/import-service.ts` (1 call — after each imported note)
+
+**Fix:** Replace `Effect.runFork(...)` with `AppRuntime.runFork(...)` at all three sites.
+This ensures the forked fibers run inside the managed runtime, inherit its logger and
+context, and are properly tracked.
+
+**Note:** The Effects passed to `runFork` are already fully provided (the link service is
+resolved via the outer `Effect.gen` scope), so no Layer changes are needed — only the
+call site changes.
 
 ## Files Changed
 
 - `src/api/assets/assets.http.ts`
 - `src/api/export/export.http.ts`
 - `src/api/reminders/reminders.http.ts`
+- `src/server/services/note-service.ts`
+- `src/server/services/import-service.ts`
 
 ## Verification
 

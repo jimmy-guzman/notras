@@ -1,4 +1,4 @@
-import { Layer, ManagedRuntime } from "effect";
+import { Layer, Logger, ManagedRuntime } from "effect";
 
 import { DatabaseLive } from "@/server/db";
 import { AssetServiceLive } from "@/server/services/asset-service";
@@ -23,6 +23,6 @@ const AppLayer = Layer.mergeAll(
   OgServiceLive,
   TagServiceLive,
   UserServiceLive,
-).pipe(Layer.provide(DatabaseLive));
+).pipe(Layer.provide(DatabaseLive), Layer.provide(Logger.pretty));
 
 export const AppRuntime = ManagedRuntime.make(AppLayer);
