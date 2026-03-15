@@ -38,12 +38,13 @@ export function DeleteFolderButton({
 
   const handleDelete = () => {
     startTransition(async () => {
-      try {
-        await deleteFolder(folderId);
+      const [error] = await deleteFolder({ folderId });
+
+      if (error) {
+        toast.error("failed to delete folder. please try again.");
+      } else {
         toast.success("folder deleted");
         router.push("/notes");
-      } catch {
-        toast.error("failed to delete folder. please try again.");
       }
     });
   };

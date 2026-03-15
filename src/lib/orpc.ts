@@ -1,17 +1,13 @@
+import { os } from "@orpc/server";
 import { Effect } from "effect";
 
 import { AppRuntime } from "@/server/layer";
-import { NoteService } from "@/server/services/note-service";
 import { UserService } from "@/server/services/user-service";
 
-export async function getFiredRemindersCount() {
+export const authedProcedure = os.use(async ({ next }) => {
   const userId = await AppRuntime.runPromise(
     UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
   );
 
-  return AppRuntime.runPromise(
-    NoteService.pipe(
-      Effect.flatMap((svc) => svc.countOverdueReminders(userId)),
-    ),
-  );
-}
+  return next({ context: { userId } });
+});

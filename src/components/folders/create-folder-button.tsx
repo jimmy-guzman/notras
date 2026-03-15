@@ -32,13 +32,16 @@ export function CreateFolderButton() {
   }
 
   function handleSubmit(formData: FormData) {
+    const name = formData.get("name") as string;
+
     startTransition(async () => {
-      try {
-        await createFolder(formData);
+      const [error] = await createFolder({ name });
+
+      if (error) {
+        toast.error("failed to create folder. please try again.");
+      } else {
         setOpen(false);
         toast.success("folder created");
-      } catch {
-        toast.error("failed to create folder. please try again.");
       }
     });
   }

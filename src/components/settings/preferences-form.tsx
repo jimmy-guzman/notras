@@ -1,10 +1,11 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { useRef } from "react";
-import { Controller } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import type { Preferences } from "@/server/schemas/user-schemas";
@@ -21,40 +22,43 @@ interface PreferencesFormProps {
 export function PreferencesForm({ preferences }: PreferencesFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
-  const { form, handleSubmitWithAction } = useHookFormAction(
-    updatePreferences,
-    standardSchemaResolver(Schema.standardSchemaV1(preferencesSchema)),
-    {
-      actionProps: {
-        onError({ error }) {
-          toast.error(error.serverError ?? "update failed");
-        },
-        onSuccess({ data }) {
-          toast.success(data.message);
-        },
-      },
-      formProps: {
-        defaultValues: {
-          markdownPreview: preferences.markdownPreview,
-          syntaxHighlighting: preferences.syntaxHighlighting,
-        },
-        mode: "onSubmit",
-      },
-    },
-  );
+  const action = useServerAction(updatePreferences, {
+    interceptors: [
+      onSuccessDeferred((result) => {
+        toast.success(result.message);
+      }),
+      onErrorDeferred(() => {
+        toast.error("update failed");
+      }),
+    ],
+  });
 
-  const markdownPreview = form.watch("markdownPreview");
+  const form = useForm({
+    defaultValues: {
+      markdownPreview: preferences.markdownPreview,
+      syntaxHighlighting: preferences.syntaxHighlighting,
+    },
+    mode: "onSubmit",
+    resolver: standardSchemaResolver(
+      Schema.standardSchemaV1(preferencesSchema),
+    ),
+  });
+
+  const markdownPreview = useWatch({
+    control: form.control,
+    name: "markdownPreview",
+  });
+
+  const handleSubmit = form.handleSubmit(async (data) => {
+    await action.execute(data);
+  });
 
   function submitForm() {
     formRef.current?.requestSubmit();
   }
 
   return (
-    <form
-      className="flex flex-col gap-6"
-      onSubmit={handleSubmitWithAction}
-      ref={formRef}
-    >
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit} ref={formRef}>
       <Controller
         control={form.control}
         name="markdownPreview"

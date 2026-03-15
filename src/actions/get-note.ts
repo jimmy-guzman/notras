@@ -1,24 +1,24 @@
-"use server";
-
 import { Effect } from "effect";
 import { cacheTag } from "next/cache";
 
 import type { NoteId } from "@/lib/id";
 
-import { serverAction } from "@/lib/authorized";
 import { AppRuntime } from "@/server/layer";
 import { NoteService } from "@/server/services/note-service";
+import { UserService } from "@/server/services/user-service";
 
 export async function getNote(id: NoteId) {
-  return serverAction(async (userId) => {
-    "use cache";
+  "use cache";
 
-    const result = await AppRuntime.runPromise(
-      NoteService.pipe(Effect.flatMap((svc) => svc.getById(userId, id))),
-    );
+  const userId = await AppRuntime.runPromise(
+    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+  );
 
-    cacheTag("notes", id);
+  const result = await AppRuntime.runPromise(
+    NoteService.pipe(Effect.flatMap((svc) => svc.getById(userId, id))),
+  );
 
-    return result;
-  });
+  cacheTag("notes", id);
+
+  return result;
 }

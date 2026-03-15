@@ -43,11 +43,12 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
 
   const handleDelete = () => {
     startTransition(async () => {
-      try {
-        await deleteNote(noteId);
-        router.push("/notes");
-      } catch {
+      const [error] = await deleteNote({ noteId });
+
+      if (error) {
         toast.error("failed to delete note. please try again.");
+      } else {
+        router.push("/notes");
       }
     });
   };

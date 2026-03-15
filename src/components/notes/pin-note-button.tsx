@@ -39,9 +39,11 @@ export const PinNoteButton = ({
 
     startTransition(async () => {
       setOptimisticPinned(!optimisticPinned);
-      try {
-        await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
-      } catch {
+      const [error] = await (optimisticPinned
+        ? unpinNote({ noteId })
+        : pinNote({ noteId }));
+
+      if (error) {
         setOptimisticPinned(optimisticPinned);
         toast.error(
           optimisticPinned
