@@ -43,7 +43,11 @@ export const PinNoteButton = ({
         await (optimisticPinned ? unpinNote(noteId) : pinNote(noteId));
       } catch {
         setOptimisticPinned(optimisticPinned);
-        toast.error("failed to pin note. please try again.");
+        toast.error(
+          optimisticPinned
+            ? "failed to unpin note. please try again."
+            : "failed to pin note. please try again.",
+        );
       }
     });
   }

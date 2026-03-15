@@ -7,6 +7,7 @@ import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/ui/utils";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -28,7 +29,11 @@ export default function GlobalError({ reset }: GlobalErrorProps) {
   return (
     <html className={dmSans.variable} lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen items-center justify-center bg-background p-4 antialiased`}
+        className={cn(
+          geistSans.variable,
+          geistMono.variable,
+          "flex min-h-screen items-center justify-center bg-background p-4 antialiased",
+        )}
       >
         <div className="w-full max-w-md">
           <Alert variant="destructive">
