@@ -1,6 +1,13 @@
 import { Schema } from "effect";
 
-export const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
+const FOLDER_ID_PATTERN = /^folder_[\da-hjkmnp-tv-z]{26}$/;
+
+export const folderIdSchema = Schema.String.pipe(
+  Schema.minLength(1, { message: () => "folder id is required" }),
+  Schema.pattern(FOLDER_ID_PATTERN, {
+    message: () => "invalid folder id format",
+  }),
+);
 
 const trimmedName = Schema.String.pipe(
   Schema.compose(Schema.Trim),
@@ -13,11 +20,6 @@ export const createFolderSchema = Schema.Struct({
 });
 
 export const renameFolderSchema = Schema.Struct({
-  folderId: Schema.String.pipe(
-    Schema.minLength(1, { message: () => "folder id is required" }),
-    Schema.pattern(FOLDER_ID_PATTERN, {
-      message: () => "invalid folder id format",
-    }),
-  ),
+  folderId: folderIdSchema,
   name: trimmedName,
 });

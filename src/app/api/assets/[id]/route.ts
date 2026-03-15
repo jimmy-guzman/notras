@@ -2,10 +2,9 @@ import { Effect } from "effect";
 
 import { toAssetId } from "@/lib/id";
 import { AppRuntime } from "@/server/layer";
+import { ASSET_ID_PATTERN } from "@/server/schemas/asset-schemas";
 import { AssetService } from "@/server/services/asset-service";
 import { UserService } from "@/server/services/user-service";
-
-const ASSET_ID_PATTERN = /^asset_[\da-hjkmnp-tv-z]{26}$/;
 
 interface RouteParams {
   params: Promise<{ id: string }>;

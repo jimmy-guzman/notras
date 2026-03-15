@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import type { ImportMode } from "@/server/schemas/export-schemas";
+
 import { importNotes } from "@/actions/import-notes";
 import {
   AlertDialog,
@@ -41,9 +43,9 @@ export function ImportNotes() {
   const [showMirrorConfirm, setShowMirrorConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const form = useForm({
+  const form = useForm<{ file: File; mode: ImportMode }>({
     defaultValues: {
-      mode: "merge" as "merge" | "mirror",
+      mode: "merge",
     },
     mode: "onChange",
     resolver: standardSchemaResolver(
@@ -96,6 +98,8 @@ export function ImportNotes() {
   }
 
   function handleMirrorConfirm() {
+    if (action.isPending) return;
+
     setShowMirrorConfirm(false);
     void executeSubmit();
   }

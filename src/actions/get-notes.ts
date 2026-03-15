@@ -19,9 +19,6 @@ async function fetchNotes(
   searchParams: NoteSearchParams,
   options?: PinFilter & { limit?: number },
 ) {
-  const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
-  );
   const { folder, q: query, sort, tag, time } = searchParams;
   const folderId =
     folder && /^folder_[\da-hjkmnp-tv-z]{26}$/.test(folder)
@@ -29,18 +26,24 @@ async function fetchNotes(
       : undefined;
 
   return AppRuntime.runPromise(
-    NoteService.pipe(
-      Effect.flatMap((svc) => {
-        return svc.list(userId, {
-          ...options,
-          folderId,
-          query,
-          sort,
-          tag,
-          time,
-        });
-      }),
-    ),
+    Effect.gen(function* () {
+      const userId = yield* UserService.pipe(
+        Effect.flatMap((svc) => svc.getDeviceUserId()),
+      );
+
+      return yield* NoteService.pipe(
+        Effect.flatMap((svc) => {
+          return svc.list(userId, {
+            ...options,
+            folderId,
+            query,
+            sort,
+            tag,
+            time,
+          });
+        }),
+      );
+    }),
   );
 }
 

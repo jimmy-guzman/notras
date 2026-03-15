@@ -6,18 +6,14 @@ import { updateTag } from "next/cache";
 import { toFolderId } from "@/lib/id";
 import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
-import { FOLDER_ID_PATTERN } from "@/server/schemas/folder-schemas";
+import { folderIdSchema } from "@/server/schemas/folder-schemas";
 import { FolderService } from "@/server/services/folder-service";
 
 export const deleteFolder = authedProcedure
   .input(
     Schema.standardSchemaV1(
       Schema.Struct({
-        folderId: Schema.String.pipe(
-          Schema.pattern(FOLDER_ID_PATTERN, {
-            message: () => "invalid folder id format",
-          }),
-        ),
+        folderId: folderIdSchema,
       }),
     ),
   )
