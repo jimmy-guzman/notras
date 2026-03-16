@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/react";
-import { BellIcon } from "lucide-react";
+import { BellIcon, GripVerticalIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
@@ -31,13 +31,19 @@ export const NoteListItem = ({
 }) => {
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
   const noteId = toNoteId(note.id);
-  const { isDragging, ref } = useDraggable({ id: noteId });
+  const { handleRef, isDragging, ref } = useDraggable({ id: noteId });
 
   return (
     <div
       className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted ${isDragging ? "opacity-50" : ""}`}
       ref={ref}
     >
+      <div
+        className="cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+        ref={handleRef}
+      >
+        <GripVerticalIcon className="h-3.5 w-3.5" />
+      </div>
       <div className="min-w-0 flex-1">
         <Link
           className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"

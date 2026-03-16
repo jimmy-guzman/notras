@@ -15,7 +15,6 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - search across all notes
 - filter by time period (today, yesterday, this week, this month, all time)
 - sort by newest, oldest, or recently updated
-- toggle between grid and list views
 - tag notes and filter by tag
 - organize notes into folders with drag-and-drop
 - attach images and PDFs to notes (images auto-optimized to WebP)

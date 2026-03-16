@@ -1,13 +1,13 @@
 "use client";
 
+import { motion } from "motion/react";
+
 import type { SelectNote } from "@/server/db/schemas/notes";
 import type { SelectTag } from "@/server/db/schemas/tags";
 
-import { useViewPreference } from "@/lib/use-view-preference";
-
-import { AnimatedNoteCard } from "./animated-note-card";
-import { NoteCard } from "./note-card";
 import { NoteListItem } from "./note-list-item";
+
+const STAGGER_DELAY = 0.05;
 
 interface NotesListProps {
   currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
@@ -22,43 +22,29 @@ export const NotesList = ({
   query,
   tagMap,
 }: NotesListProps) => {
-  const [view, , isHydrated] = useViewPreference();
-
-  if (view === "list") {
-    return (
-      <div
-        className={`flex flex-col divide-y transition-opacity duration-300 ${isHydrated ? "opacity-100" : "opacity-0"}`}
-      >
-        {notes.map((note, index) => {
-          return (
-            <AnimatedNoteCard index={index} key={note.id}>
-              <NoteListItem
-                currentParams={currentParams}
-                note={note}
-                query={query}
-                tags={tagMap?.[note.id] ?? []}
-              />
-            </AnimatedNoteCard>
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
-    <div
-      className={`grid grid-cols-1 gap-4 transition-opacity duration-300 md:grid-cols-2 lg:grid-cols-3 ${isHydrated ? "opacity-100" : "opacity-0"}`}
-    >
+    <div className="flex flex-col divide-y">
       {notes.map((note, index) => {
         return (
-          <AnimatedNoteCard index={index} key={note.id}>
-            <NoteCard
+          <motion.div
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            key={note.id}
+            layout
+            transition={{
+              damping: 30,
+              delay: index * STAGGER_DELAY,
+              stiffness: 300,
+              type: "spring",
+            }}
+          >
+            <NoteListItem
               currentParams={currentParams}
               note={note}
               query={query}
               tags={tagMap?.[note.id] ?? []}
             />
-          </AnimatedNoteCard>
+          </motion.div>
         );
       })}
     </div>
