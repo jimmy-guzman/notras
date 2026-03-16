@@ -8,6 +8,7 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 import type { SelectTag } from "@/server/db/schemas/tags";
 
 import { toNoteId } from "@/lib/id";
+import { cn } from "@/lib/ui/utils";
 import { formatDate } from "@/lib/utils/format";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
@@ -35,7 +36,10 @@ export const NoteListItem = ({
 
   return (
     <div
-      className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted ${isDragging ? "opacity-50" : ""}`}
+      className={cn(
+        "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted",
+        isDragging && "opacity-50",
+      )}
       ref={ref}
     >
       <div
