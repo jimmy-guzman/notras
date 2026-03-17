@@ -5,8 +5,9 @@ import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
 import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { PencilIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import type { FolderId } from "@/lib/id";
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
 import { renameFolderSchema } from "@/server/schemas/folder-schemas";
 
 interface RenameFolderButtonProps {
@@ -37,6 +39,7 @@ export function RenameFolderButton({
   iconOnly = false,
 }: RenameFolderButtonProps) {
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const form = useForm({
     defaultValues: { folderId, name: currentName },
@@ -50,8 +53,7 @@ export function RenameFolderButton({
     interceptors: [
       onSuccessDeferred(() => {
         toast.success("folder renamed");
-        form.reset({ folderId, name: currentName });
-        setOpen(false);
+        handleOpenChange(false);
       }),
       onErrorDeferred(() => {
         toast.error("failed to rename folder. please try again.");
@@ -70,6 +72,24 @@ export function RenameFolderButton({
     await action.execute(data);
   });
 
+  useHotkeys(
+    "mod+enter",
+    () => {
+      if (action.isPending) return;
+
+      formRef.current?.requestSubmit();
+    },
+    { enabled: open, enableOnFormTags: ["INPUT"] },
+  );
+
+  useHotkeys(
+    "escape",
+    () => {
+      handleOpenChange(false);
+    },
+    { enabled: open, enableOnFormTags: ["INPUT"] },
+  );
+
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogTrigger asChild>
@@ -86,7 +106,7 @@ export function RenameFolderButton({
         <DialogHeader>
           <DialogTitle>rename folder</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} ref={formRef}>
           <div className="flex flex-col gap-6 py-4">
             <Field
               data-invalid={Boolean(form.formState.errors.name) || undefined}
@@ -105,7 +125,7 @@ export function RenameFolderButton({
           <DialogFooter>
             <Button
               onClick={() => {
-                setOpen(false);
+                handleOpenChange(false);
               }}
               type="button"
               variant="outline"
@@ -113,7 +133,14 @@ export function RenameFolderButton({
               cancel
             </Button>
             <Button disabled={action.isPending} type="submit">
-              {action.isPending ? "saving..." : "save"}
+              {action.isPending ? (
+                "saving..."
+              ) : (
+                <>
+                  save <Kbd>⌘</Kbd>
+                  <Kbd>⏎</Kbd>
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

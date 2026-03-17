@@ -5,8 +5,9 @@ import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
 import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { FolderPlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import { createFolder } from "@/actions/create-folder";
@@ -21,16 +22,18 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
 import { createFolderSchema } from "@/server/schemas/folder-schemas";
 
 export function CreateFolderButton() {
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const action = useServerAction(createFolder, {
     interceptors: [
       onSuccessDeferred(() => {
         toast.success("folder created");
-        setOpen(false);
+        handleOpenChange(false);
       }),
       onErrorDeferred(() => {
         toast.error("failed to create folder. please try again.");
@@ -57,6 +60,24 @@ export function CreateFolderButton() {
     await action.execute(data);
   });
 
+  useHotkeys(
+    "mod+enter",
+    () => {
+      if (action.isPending) return;
+
+      formRef.current?.requestSubmit();
+    },
+    { enabled: open, enableOnFormTags: ["INPUT"] },
+  );
+
+  useHotkeys(
+    "escape",
+    () => {
+      handleOpenChange(false);
+    },
+    { enabled: open, enableOnFormTags: ["INPUT"] },
+  );
+
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogTrigger asChild>
@@ -73,7 +94,7 @@ export function CreateFolderButton() {
         <DialogHeader>
           <DialogTitle>new folder</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} ref={formRef}>
           <div className="flex flex-col gap-6 py-4">
             <Field
               data-invalid={Boolean(form.formState.errors.name) || undefined}
@@ -92,7 +113,7 @@ export function CreateFolderButton() {
           <DialogFooter>
             <Button
               onClick={() => {
-                setOpen(false);
+                handleOpenChange(false);
               }}
               type="button"
               variant="outline"
@@ -100,7 +121,14 @@ export function CreateFolderButton() {
               cancel
             </Button>
             <Button disabled={action.isPending} type="submit">
-              {action.isPending ? "creating..." : "create"}
+              {action.isPending ? (
+                "creating..."
+              ) : (
+                <>
+                  create <Kbd>⌘</Kbd>
+                  <Kbd>⏎</Kbd>
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>
