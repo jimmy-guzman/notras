@@ -42,12 +42,14 @@ export const NoteListItem = ({
       )}
       ref={ref}
     >
-      <div
-        className="cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+      <button
+        aria-label="drag to reorder"
+        className="cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
         ref={handleRef}
+        type="button"
       >
         <GripVerticalIcon className="h-3.5 w-3.5" />
-      </div>
+      </button>
       <div className="min-w-0 flex-1">
         <Link
           className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
