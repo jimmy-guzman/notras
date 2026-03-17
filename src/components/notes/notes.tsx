@@ -2,8 +2,8 @@
 
 import { motion } from "motion/react";
 
-import type { SelectNote } from "@/server/db/schemas/notes";
 import type { SelectTag } from "@/server/db/schemas/tags";
+import type { NoteWithFolder } from "@/server/repositories/note-repository";
 
 import { NoteListItem } from "./note-list-item";
 
@@ -11,7 +11,7 @@ const STAGGER_DELAY = 0.05;
 
 interface NotesListProps {
   currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
-  notes: SelectNote[];
+  notes: NoteWithFolder[];
   query?: string;
   tagMap?: Record<string, SelectTag[]>;
 }
@@ -40,6 +40,7 @@ export const NotesList = ({
           >
             <NoteListItem
               currentParams={currentParams}
+              folderName={note.folderName ?? undefined}
               note={note}
               query={query}
               tags={tagMap?.[note.id] ?? []}

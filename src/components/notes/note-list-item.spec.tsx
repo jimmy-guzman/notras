@@ -19,6 +19,7 @@ const makeNote = (
     content: overrides.content ?? "Test note content",
     createdAt: overrides.createdAt ?? new Date(2025, 5, 15),
     folderId: null,
+    folderName: null,
     id: overrides.id ?? "note_1",
     pinnedAt: overrides.pinnedAt ?? null,
     remindAt: overrides.remindAt ?? null,

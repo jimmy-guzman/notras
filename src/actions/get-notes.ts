@@ -4,7 +4,10 @@ import { createLoader } from "nuqs/server";
 
 import type { NoteId } from "@/lib/id";
 import type { NoteSearchParams } from "@/lib/notes-search-params";
-import type { PinFilter } from "@/server/repositories/note-repository";
+import type {
+  NoteWithFolder,
+  PinFilter,
+} from "@/server/repositories/note-repository";
 
 import { toFolderId } from "@/lib/id";
 import { parsers } from "@/lib/notes-search-params";
@@ -102,4 +105,56 @@ export async function getTagsForNotes(noteIds: NoteId[]) {
       );
     }),
   );
+}
+
+async function fetchNotesWithFolder(
+  searchParams: NoteSearchParams,
+  options?: PinFilter,
+): Promise<NoteWithFolder[]> {
+  const { folder, q: query, sort, tag, time } = searchParams;
+  const folderId =
+    folder && FOLDER_ID_PATTERN.test(folder) ? toFolderId(folder) : undefined;
+
+  return AppRuntime.runPromise(
+    Effect.gen(function* () {
+      const userId = yield* UserService.pipe(
+        Effect.flatMap((svc) => svc.getDeviceUserId()),
+      );
+
+      return yield* NoteService.pipe(
+        Effect.flatMap((svc) => {
+          return svc.listWithFolder(userId, {
+            ...options,
+            folderId,
+            query,
+            sort,
+            tag,
+            time,
+          });
+        }),
+      );
+    }),
+  );
+}
+
+async function fetchNotesWithFolderCached(
+  searchParams: NoteSearchParams,
+  options?: PinFilter,
+): Promise<NoteWithFolder[]> {
+  "use cache";
+
+  cacheTag("notes", "folders");
+
+  return fetchNotesWithFolder(searchParams, options);
+}
+
+export async function getNotesWithFolder(
+  searchParams: NoteSearchParams,
+  options?: PinFilter,
+): Promise<NoteWithFolder[]> {
+  if (searchParams.time !== "all") {
+    return fetchNotesWithFolder(searchParams, options);
+  }
+
+  return fetchNotesWithFolderCached(searchParams, options);
 }

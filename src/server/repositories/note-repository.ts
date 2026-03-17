@@ -21,9 +21,12 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 
 import { getStartDateForFilter } from "@/lib/utils/note-filters";
 import { Database } from "@/server/db";
+import { folder } from "@/server/db/schemas/folders";
 import { note } from "@/server/db/schemas/notes";
 import { noteTag, tag } from "@/server/db/schemas/tags";
 import { DatabaseError } from "@/server/errors";
+
+export type NoteWithFolder = SelectNote & { folderName: null | string };
 
 export type PinFilter =
   | { excludePinned: true; pinnedOnly?: never }
@@ -83,6 +86,10 @@ interface INoteRepository {
     userId: string,
     filters: NoteFilters,
   ): Effect.Effect<SelectNote[], DatabaseError>;
+  findManyWithFolder(
+    userId: string,
+    filters: NoteFilters,
+  ): Effect.Effect<NoteWithFolder[], DatabaseError>;
   moveToFolder(
     noteId: NoteId,
     userId: string,
@@ -393,6 +400,101 @@ const makeDbNoteRepository = Effect.gen(function* () {
     });
   };
 
+  const findManyWithFolder = (
+    userId: string,
+    filters: NoteFilters,
+  ): Effect.Effect<NoteWithFolder[], DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const baseFilters = [eq(note.userId, userId)];
+
+        const pinnedFilter = filters.excludePinned
+          ? [isNull(note.pinnedAt)]
+          : filters.pinnedOnly
+            ? [isNotNull(note.pinnedAt)]
+            : [];
+
+        const queryFilter = filters.query
+          ? [like(note.content, `%${filters.query}%`)]
+          : [];
+
+        const timeFilter =
+          !filters.time || filters.time === "all"
+            ? []
+            : [gte(note.createdAt, getStartDateForFilter(filters.time))];
+
+        const remindFilter =
+          filters.remind === "overdue"
+            ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
+            : filters.remind === "upcoming"
+              ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
+              : [];
+
+        const folderFilter = filters.folderId
+          ? [eq(note.folderId, filters.folderId)]
+          : [];
+
+        const whereClause = and(
+          ...baseFilters,
+          ...pinnedFilter,
+          ...queryFilter,
+          ...timeFilter,
+          ...remindFilter,
+          ...folderFilter,
+        );
+
+        const orderBy = getSortOrder(filters.sort);
+
+        const noteColumns = {
+          content: note.content,
+          createdAt: note.createdAt,
+          folderId: note.folderId,
+          folderName: folder.name,
+          id: note.id,
+          pinnedAt: note.pinnedAt,
+          remindAt: note.remindAt,
+          syncedAt: note.syncedAt,
+          updatedAt: note.updatedAt,
+          userId: note.userId,
+        };
+
+        if (filters.tag) {
+          const tagName = filters.tag;
+          const qb = db
+            .selectDistinct(noteColumns)
+            .from(note)
+            .leftJoin(folder, eq(folder.id, note.folderId))
+            .innerJoin(noteTag, eq(noteTag.noteId, note.id))
+            .innerJoin(tag, eq(tag.id, noteTag.tagId))
+            .where(
+              and(whereClause, eq(tag.name, tagName), eq(tag.userId, userId)),
+            )
+            .orderBy(...orderBy);
+
+          if (filters.limit !== undefined) {
+            return qb.limit(filters.limit);
+          }
+
+          return qb;
+        }
+
+        const qb = db
+          .select(noteColumns)
+          .from(note)
+          .leftJoin(folder, eq(folder.id, note.folderId))
+          .where(whereClause)
+          .orderBy(...orderBy);
+
+        if (filters.limit !== undefined) {
+          return qb.limit(filters.limit);
+        }
+
+        return qb;
+      },
+    });
+  };
+
   const moveToFolder = (
     noteId: NoteId,
     userId: string,
@@ -532,6 +634,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
     findById,
     findDueReminders,
     findMany,
+    findManyWithFolder,
     moveToFolder,
     pin,
     setReminder,

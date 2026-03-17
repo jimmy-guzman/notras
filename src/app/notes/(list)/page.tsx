@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { getFolders } from "@/actions/get-folders";
 import {
-  getNotes,
+  getNotesWithFolder,
   getTagsForNotes,
   loadSearchParams,
 } from "@/actions/get-notes";
@@ -27,16 +27,14 @@ export default async function Page({ searchParams }: PageProps) {
     Boolean(params.tag) ||
     Boolean(params.folder);
 
-  const needsFolders = Boolean(params.folder);
-
   const [[pinnedNotes, unpinnedNotes], folders] = await Promise.all([
     isFiltering
-      ? Promise.all([getNotes(params), Promise.resolve([])])
+      ? Promise.all([getNotesWithFolder(params), Promise.resolve([])])
       : Promise.all([
-          getNotes(params, { pinnedOnly: true }),
-          getNotes(params, { excludePinned: true }),
+          getNotesWithFolder(params, { pinnedOnly: true }),
+          getNotesWithFolder(params, { excludePinned: true }),
         ]),
-    needsFolders ? getFolders() : Promise.resolve([]),
+    getFolders(),
   ]);
 
   const allNotes = [...pinnedNotes, ...unpinnedNotes];

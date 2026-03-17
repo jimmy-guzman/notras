@@ -2,7 +2,10 @@ import { Context, Effect, Layer } from "effect";
 
 import type { NoteId } from "@/lib/id";
 import type { SelectNote } from "@/server/db/schemas/notes";
-import type { NoteFilters } from "@/server/repositories/note-repository";
+import type {
+  NoteFilters,
+  NoteWithFolder,
+} from "@/server/repositories/note-repository";
 
 import { generateNoteId } from "@/lib/id";
 import { AppRuntime } from "@/server/layer";
@@ -33,6 +36,10 @@ interface INoteService {
   ): Effect.Effect<SelectNote | undefined>;
   getDueReminders(userId: string): Effect.Effect<SelectNote[]>;
   list(userId: string, filters: NoteFilters): Effect.Effect<SelectNote[]>;
+  listWithFolder(
+    userId: string,
+    filters: NoteFilters,
+  ): Effect.Effect<NoteWithFolder[]>;
   pin(userId: string, noteId: NoteId): Effect.Effect<void>;
   setReminder(
     userId: string,
@@ -105,6 +112,10 @@ const makeNoteService = Effect.gen(function* () {
     return noteRepo.findMany(userId, filters).pipe(Effect.orDie);
   };
 
+  const listWithFolder = (userId: string, filters: NoteFilters) => {
+    return noteRepo.findManyWithFolder(userId, filters).pipe(Effect.orDie);
+  };
+
   const pin = (userId: string, noteId: NoteId) => {
     return noteRepo.pin(noteId, userId).pipe(Effect.orDie);
   };
@@ -148,6 +159,7 @@ const makeNoteService = Effect.gen(function* () {
     getById,
     getDueReminders,
     list,
+    listWithFolder,
     pin,
     setReminder,
     unpin,
