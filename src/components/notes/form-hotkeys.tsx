@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 interface FormHotkeysProps {
-  action: (formData: FormData) => void;
+  action: (formData: FormData) => Promise<void> | void;
   children: ReactNode;
 }
 

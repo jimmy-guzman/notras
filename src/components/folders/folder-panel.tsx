@@ -5,9 +5,11 @@ import {
   useDragOperation,
   useDroppable,
 } from "@dnd-kit/react";
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { usePathname } from "next/navigation";
 import { useQueryStates } from "nuqs";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
@@ -119,10 +121,20 @@ interface FolderPanelProps {
 export function FolderPanel({ folders }: FolderPanelProps) {
   const [filters] = useQueryStates(parsers);
   const pathname = usePathname();
-  const [, startTransition] = useTransition();
   const [mounted, setMounted] = useState(false);
   const { source } = useDragOperation();
   const isDragging = Boolean(source);
+
+  const moveAction = useServerAction(moveNoteToFolder, {
+    interceptors: [
+      onSuccessDeferred(() => {
+        toast.success("note moved to folder");
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to move note. please try again.");
+      }),
+    ],
+  });
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR portal guard
@@ -145,15 +157,7 @@ export function FolderPanel({ folders }: FolderPanelProps) {
       const noteId = toNoteId(String(sourceId));
       const folderId = toFolderId(targetIdStr);
 
-      startTransition(async () => {
-        const [error] = await moveNoteToFolder({ folderId, noteId });
-
-        if (error) {
-          toast.error("failed to move note. please try again.");
-        } else {
-          toast.success("note moved to folder");
-        }
-      });
+      void moveAction.execute({ folderId, noteId });
     },
   });
 

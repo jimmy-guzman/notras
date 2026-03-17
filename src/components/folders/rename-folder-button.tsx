@@ -1,7 +1,12 @@
 "use client";
 
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
+import { Schema } from "effect";
 import { PencilIcon } from "lucide-react";
-import { useRef, useState, useTransition } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import type { FolderId } from "@/lib/id";
@@ -16,8 +21,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { renameFolderSchema } from "@/server/schemas/folder-schemas";
 
 interface RenameFolderButtonProps {
   currentName: string;
@@ -31,38 +37,38 @@ export function RenameFolderButton({
   iconOnly = false,
 }: RenameFolderButtonProps) {
   const [open, setOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+
+  const form = useForm({
+    defaultValues: { folderId, name: currentName },
+    mode: "onSubmit",
+    resolver: standardSchemaResolver(
+      Schema.standardSchemaV1(renameFolderSchema),
+    ),
+  });
+
+  const action = useServerAction(renameFolder, {
+    interceptors: [
+      onSuccessDeferred(() => {
+        toast.success("folder renamed");
+        form.reset({ folderId, name: currentName });
+        setOpen(false);
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to rename folder. please try again.");
+      }),
+    ],
+  });
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
+    if (!nextOpen) {
+      form.reset({ folderId, name: currentName });
     }
   }
 
-  function handleSubmit(formData: FormData) {
-    const value = formData.get("name");
-
-    if (typeof value !== "string" || value.trim().length === 0) {
-      return;
-    }
-
-    const name = value.trim();
-
-    startTransition(async () => {
-      const [error] = await renameFolder({ folderId, name });
-
-      if (error) {
-        toast.error("failed to rename folder. please try again.");
-      } else {
-        setOpen(false);
-        toast.success("folder renamed");
-      }
-    });
-  }
+  const handleSubmit = form.handleSubmit(async (data) => {
+    await action.execute(data);
+  });
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -80,18 +86,20 @@ export function RenameFolderButton({
         <DialogHeader>
           <DialogTitle>rename folder</DialogTitle>
         </DialogHeader>
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <div className="flex flex-col gap-6 py-4">
-            <Field>
+            <Field
+              data-invalid={Boolean(form.formState.errors.name) || undefined}
+            >
               <FieldLabel htmlFor="folder-name">name</FieldLabel>
               <Input
-                defaultValue={currentName}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- this is intentional to focus the input when the dialog opens
+                autoFocus
                 id="folder-name"
-                name="name"
                 placeholder="folder name"
-                ref={inputRef}
-                required
+                {...form.register("name")}
               />
+              <FieldError>{form.formState.errors.name?.message}</FieldError>
             </Field>
           </div>
           <DialogFooter>
@@ -104,8 +112,8 @@ export function RenameFolderButton({
             >
               cancel
             </Button>
-            <Button disabled={isPending} type="submit">
-              {isPending ? "saving..." : "save"}
+            <Button disabled={action.isPending} type="submit">
+              {action.isPending ? "saving..." : "save"}
             </Button>
           </DialogFooter>
         </form>

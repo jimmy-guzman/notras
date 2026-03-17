@@ -11,13 +11,13 @@ export const noteIdSchema = Schema.String.pipe(
 
 export const createNoteSchema = Schema.Struct({
   content: Schema.String.pipe(
-    Schema.minLength(1, { message: () => "Content is required" }),
+    Schema.minLength(1, { message: () => "content is required" }),
   ),
 });
 
 export const updateNoteSchema = Schema.Struct({
   content: Schema.String.pipe(
-    Schema.minLength(1, { message: () => "Content is required" }),
+    Schema.minLength(1, { message: () => "content is required" }),
   ),
   noteId: noteIdSchema,
 });

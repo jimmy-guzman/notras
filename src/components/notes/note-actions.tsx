@@ -1,9 +1,11 @@
 "use client";
 
+import { onErrorDeferred } from "@orpc/react";
+import { useOptimisticServerAction } from "@orpc/react/hooks";
 import { PencilIcon, PinIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useOptimistic, useTransition } from "react";
+import { useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -37,26 +39,40 @@ export function NoteActions({
   remindAt,
 }: NoteActionsProps) {
   const router = useRouter();
-  const [optimisticPinned, setOptimisticPinned] = useOptimistic(pinned);
-  const [, startTransition] = useTransition();
+
+  const pinAction = useOptimisticServerAction(pinNote, {
+    interceptors: [
+      onErrorDeferred(() => {
+        toast.error("failed to pin note. please try again.");
+      }),
+    ],
+    optimisticPassthrough: pinned,
+    optimisticReducer: () => true,
+  });
+
+  const unpinAction = useOptimisticServerAction(unpinNote, {
+    interceptors: [
+      onErrorDeferred(() => {
+        toast.error("failed to unpin note. please try again.");
+      }),
+    ],
+    optimisticPassthrough: pinned,
+    optimisticReducer: () => false,
+  });
+
+  const optimisticPinned = pinAction.isPending
+    ? pinAction.optimisticState
+    : unpinAction.isPending
+      ? unpinAction.optimisticState
+      : pinned;
 
   const handleTogglePin = useCallback(() => {
-    startTransition(async () => {
-      setOptimisticPinned(!optimisticPinned);
-      const [error] = await (optimisticPinned
-        ? unpinNote({ noteId })
-        : pinNote({ noteId }));
-
-      if (error) {
-        setOptimisticPinned(optimisticPinned);
-        toast.error(
-          optimisticPinned
-            ? "failed to unpin note. please try again."
-            : "failed to pin note. please try again.",
-        );
-      }
-    });
-  }, [noteId, optimisticPinned, setOptimisticPinned, startTransition]);
+    if (optimisticPinned) {
+      void unpinAction.execute({ noteId });
+    } else {
+      void pinAction.execute({ noteId });
+    }
+  }, [noteId, optimisticPinned, pinAction, unpinAction]);
 
   useHotkeys("e", () => {
     router.push(`/notes/${noteId}/edit`);

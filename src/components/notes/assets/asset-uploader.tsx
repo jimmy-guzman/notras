@@ -2,8 +2,10 @@
 
 import type { ChangeEvent, DragEvent } from "react";
 
+import { onErrorDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { NoteId } from "@/lib/id";
@@ -17,20 +19,23 @@ interface AssetUploaderProps {
 
 export function AssetUploader({ noteId }: AssetUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isPending, startTransition] = useTransition();
   const [isDragging, setIsDragging] = useState(false);
+
+  const action = useServerAction(uploadAssets, {
+    interceptors: [
+      onErrorDeferred(() => {
+        toast.error("failed to upload files. please try again.");
+      }),
+    ],
+  });
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     const fileArray = [...files];
 
-    startTransition(async () => {
-      const [error] = await uploadAssets({ files: fileArray, noteId });
-
-      if (error) {
-        toast.error("failed to upload files. please try again.");
-      } else if (fileInputRef.current) {
+    void action.execute({ files: fileArray, noteId }).then((result) => {
+      if (!result.error && fileInputRef.current) {
         fileInputRef.current.value = "";
       }
     });
@@ -68,7 +73,7 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
       <input
         accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,application/pdf"
         className="hidden"
-        disabled={isPending}
+        disabled={action.isPending}
         multiple
         onChange={handleFileInput}
         ref={fileInputRef}
@@ -81,16 +86,16 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-muted/30",
-          isPending && "pointer-events-none opacity-50",
+          action.isPending && "pointer-events-none opacity-50",
         )}
-        disabled={isPending}
+        disabled={action.isPending}
         onClick={handleClick}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         type="button"
       >
-        {isPending ? (
+        {action.isPending ? (
           <>
             <UploadIcon className="h-8 w-8 animate-pulse text-muted-foreground" />
             <div className="space-y-1">

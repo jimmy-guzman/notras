@@ -1,7 +1,12 @@
 "use client";
 
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
+import { Schema } from "effect";
 import { FolderPlusIcon } from "lucide-react";
-import { useRef, useState, useTransition } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { createFolder } from "@/actions/create-folder";
@@ -16,35 +21,41 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { createFolderSchema } from "@/server/schemas/folder-schemas";
 
 export function CreateFolderButton() {
   const [open, setOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+
+  const action = useServerAction(createFolder, {
+    interceptors: [
+      onSuccessDeferred(() => {
+        toast.success("folder created");
+        setOpen(false);
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to create folder. please try again.");
+      }),
+    ],
+  });
+
+  const form = useForm({
+    defaultValues: { name: "" },
+    mode: "onSubmit",
+    resolver: standardSchemaResolver(
+      Schema.standardSchemaV1(createFolderSchema),
+    ),
+  });
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
+    if (!nextOpen) {
+      form.reset();
     }
   }
 
-  function handleSubmit(formData: FormData) {
-    const name = formData.get("name") as string;
-
-    startTransition(async () => {
-      const [error] = await createFolder({ name });
-
-      if (error) {
-        toast.error("failed to create folder. please try again.");
-      } else {
-        setOpen(false);
-        toast.success("folder created");
-      }
-    });
-  }
+  const handleSubmit = form.handleSubmit(async (data) => {
+    await action.execute(data);
+  });
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -62,18 +73,20 @@ export function CreateFolderButton() {
         <DialogHeader>
           <DialogTitle>new folder</DialogTitle>
         </DialogHeader>
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <div className="flex flex-col gap-6 py-4">
-            <Field>
+            <Field
+              data-invalid={Boolean(form.formState.errors.name) || undefined}
+            >
               <FieldLabel htmlFor="folder-name">name</FieldLabel>
               <Input
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- this is intentional to focus the input when the dialog opens
+                autoFocus
                 id="folder-name"
-                name="name"
                 placeholder="folder name"
-                ref={inputRef}
-                required
+                {...form.register("name")}
               />
-              <FieldError />
+              <FieldError>{form.formState.errors.name?.message}</FieldError>
             </Field>
           </div>
           <DialogFooter>
@@ -86,8 +99,8 @@ export function CreateFolderButton() {
             >
               cancel
             </Button>
-            <Button disabled={isPending} type="submit">
-              {isPending ? "creating..." : "create"}
+            <Button disabled={action.isPending} type="submit">
+              {action.isPending ? "creating..." : "create"}
             </Button>
           </DialogFooter>
         </form>

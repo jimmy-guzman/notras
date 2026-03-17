@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { onErrorDeferred, onFinishDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import type { AssetId, NoteId } from "@/lib/id";
@@ -12,24 +14,23 @@ interface UseDeleteAssetOptions {
 }
 
 export function useDeleteAsset({ noteId }: UseDeleteAssetOptions) {
-  const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<AssetId | null>(null);
+
+  const action = useServerAction(deleteAsset, {
+    interceptors: [
+      onErrorDeferred(() => {
+        toast.error("failed to delete file. please try again.");
+      }),
+      onFinishDeferred(() => {
+        setDeletingId(null);
+      }),
+    ],
+  });
 
   const handleDelete = (assetId: AssetId) => {
     setDeletingId(assetId);
-
-    startTransition(async () => {
-      try {
-        const [error] = await deleteAsset({ assetId, noteId });
-
-        if (error) {
-          toast.error("failed to delete file. please try again.");
-        }
-      } finally {
-        setDeletingId(null);
-      }
-    });
+    void action.execute({ assetId, noteId });
   };
 
-  return { deletingId, handleDelete, isPending };
+  return { deletingId, handleDelete, isPending: action.isPending };
 }

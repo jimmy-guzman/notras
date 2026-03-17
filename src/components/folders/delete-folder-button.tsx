@@ -1,8 +1,10 @@
 "use client";
 
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import type { FolderId } from "@/lib/id";
@@ -33,20 +35,22 @@ export function DeleteFolderButton({
   iconOnly = false,
 }: DeleteFolderButtonProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
 
-  const handleDelete = () => {
-    startTransition(async () => {
-      const [error] = await deleteFolder({ folderId });
-
-      if (error) {
-        toast.error("failed to delete folder. please try again.");
-      } else {
+  const action = useServerAction(deleteFolder, {
+    interceptors: [
+      onSuccessDeferred(() => {
         toast.success("folder deleted");
         router.push("/notes");
-      }
-    });
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to delete folder. please try again.");
+      }),
+    ],
+  });
+
+  const handleDelete = () => {
+    void action.execute({ folderId });
   };
 
   return (
@@ -72,11 +76,11 @@ export function DeleteFolderButton({
         <AlertDialogFooter>
           <AlertDialogCancel>cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={isPending}
+            disabled={action.isPending}
             onClick={handleDelete}
             variant="destructive"
           >
-            {isPending ? "deleting..." : "delete"}
+            {action.isPending ? "deleting..." : "delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
