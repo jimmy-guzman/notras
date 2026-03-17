@@ -5,7 +5,7 @@ import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
 import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { FolderPlusIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -25,7 +25,6 @@ import { createFolderSchema } from "@/server/schemas/folder-schemas";
 
 export function CreateFolderButton() {
   const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const action = useServerAction(createFolder, {
     interceptors: [
@@ -49,11 +48,7 @@ export function CreateFolderButton() {
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
-    } else {
+    if (!nextOpen) {
       form.reset();
     }
   }
@@ -85,13 +80,11 @@ export function CreateFolderButton() {
             >
               <FieldLabel htmlFor="folder-name">name</FieldLabel>
               <Input
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- this is intentional to focus the input when the dialog opens
+                autoFocus
                 id="folder-name"
                 placeholder="folder name"
                 {...form.register("name")}
-                ref={(el) => {
-                  form.register("name").ref(el);
-                  inputRef.current = el;
-                }}
               />
               <FieldError>{form.formState.errors.name?.message}</FieldError>
             </Field>

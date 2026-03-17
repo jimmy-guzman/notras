@@ -5,7 +5,7 @@ import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
 import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { PencilIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { renameFolderSchema } from "@/server/schemas/folder-schemas";
 
@@ -37,19 +37,6 @@ export function RenameFolderButton({
   iconOnly = false,
 }: RenameFolderButtonProps) {
   const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const action = useServerAction(renameFolder, {
-    interceptors: [
-      onSuccessDeferred(() => {
-        toast.success("folder renamed");
-        setOpen(false);
-      }),
-      onErrorDeferred(() => {
-        toast.error("failed to rename folder. please try again.");
-      }),
-    ],
-  });
 
   const form = useForm({
     defaultValues: { folderId, name: currentName },
@@ -59,13 +46,22 @@ export function RenameFolderButton({
     ),
   });
 
+  const action = useServerAction(renameFolder, {
+    interceptors: [
+      onSuccessDeferred(() => {
+        toast.success("folder renamed");
+        form.reset({ folderId, name: currentName });
+        setOpen(false);
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to rename folder. please try again.");
+      }),
+    ],
+  });
+
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
-    } else {
+    if (!nextOpen) {
       form.reset({ folderId, name: currentName });
     }
   }
@@ -92,17 +88,18 @@ export function RenameFolderButton({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="flex flex-col gap-6 py-4">
-            <Field>
+            <Field
+              data-invalid={Boolean(form.formState.errors.name) || undefined}
+            >
               <FieldLabel htmlFor="folder-name">name</FieldLabel>
               <Input
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- this is intentional to focus the input when the dialog opens
+                autoFocus
                 id="folder-name"
                 placeholder="folder name"
                 {...form.register("name")}
-                ref={(el) => {
-                  form.register("name").ref(el);
-                  inputRef.current = el;
-                }}
               />
+              <FieldError>{form.formState.errors.name?.message}</FieldError>
             </Field>
           </div>
           <DialogFooter>
