@@ -1,7 +1,9 @@
 "use client";
 
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { BellIcon, BellOffIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -35,10 +37,34 @@ interface ReminderButtonProps {
 }
 
 export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
-  const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const { decrement } = useReminders();
   const hasReminder = remindAt !== null;
+
+  const setReminderAction = useServerAction(setReminder, {
+    interceptors: [
+      onSuccessDeferred((result) => {
+        toast.success(`reminder set for ${formatDateTime(result.remindAt)}`);
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to set reminder. please try again.");
+      }),
+    ],
+  });
+
+  const clearReminderAction = useServerAction(clearReminder, {
+    interceptors: [
+      onSuccessDeferred(() => {
+        toast.success("reminder cleared");
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to clear reminder. please try again.");
+      }),
+    ],
+  });
+
+  const isPending =
+    setReminderAction.isPending || clearReminderAction.isPending;
 
   useHotkeys("r", () => {
     setOpen((prev) => !prev);
@@ -47,37 +73,35 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
   function handleSetReminder(preset: ReminderPreset) {
     const isOverdue = remindAt !== null && remindAt <= new Date();
 
-    startTransition(async () => {
-      const [error, result] = await setReminder({ noteId, preset });
-
-      if (error) {
-        toast.error("failed to set reminder. please try again.");
-      } else {
-        if (isOverdue) {
-          decrement();
-        }
-
-        toast.success(`reminder set for ${formatDateTime(result.remindAt)}`);
-      }
-    });
+    void setReminderAction.execute(
+      { noteId, preset },
+      {
+        interceptors: [
+          onSuccessDeferred(() => {
+            if (isOverdue) {
+              decrement();
+            }
+          }),
+        ],
+      },
+    );
   }
 
   function handleClearReminder() {
     const isOverdue = remindAt !== null && remindAt <= new Date();
 
-    startTransition(async () => {
-      const [error] = await clearReminder({ noteId });
-
-      if (error) {
-        toast.error("failed to clear reminder. please try again.");
-      } else {
-        if (isOverdue) {
-          decrement();
-        }
-
-        toast.success("reminder cleared");
-      }
-    });
+    void clearReminderAction.execute(
+      { noteId },
+      {
+        interceptors: [
+          onSuccessDeferred(() => {
+            if (isOverdue) {
+              decrement();
+            }
+          }),
+        ],
+      },
+    );
   }
 
   return (

@@ -1,8 +1,10 @@
 "use client";
 
+import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
+import { useServerAction } from "@orpc/react/hooks";
 import { Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -34,23 +36,25 @@ interface DeleteNoteButtonProps {
 
 export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+
+  const action = useServerAction(deleteNote, {
+    interceptors: [
+      onSuccessDeferred(() => {
+        router.push("/notes");
+      }),
+      onErrorDeferred(() => {
+        toast.error("failed to delete note. please try again.");
+      }),
+    ],
+  });
 
   useHotkeys("d", () => {
     setOpen(true);
   });
 
   const handleDelete = () => {
-    startTransition(async () => {
-      const [error] = await deleteNote({ noteId });
-
-      if (error) {
-        toast.error("failed to delete note. please try again.");
-      } else {
-        router.push("/notes");
-      }
-    });
+    void action.execute({ noteId });
   };
 
   return (
@@ -60,7 +64,7 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
           <AlertDialogTrigger asChild>
             <Button
               aria-label="delete"
-              disabled={isPending}
+              disabled={action.isPending}
               size="sm"
               variant="ghost"
             >
@@ -87,11 +91,11 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
         <AlertDialogFooter>
           <AlertDialogCancel>cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={isPending}
+            disabled={action.isPending}
             onClick={handleDelete}
             variant="destructive"
           >
-            {isPending ? "deleting..." : "delete"}
+            {action.isPending ? "deleting..." : "delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

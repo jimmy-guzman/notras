@@ -7,7 +7,7 @@ import { toFolderId, toNoteId } from "@/lib/id";
 import { authedProcedure } from "@/lib/orpc";
 import { AppRuntime } from "@/server/layer";
 import { folderIdSchema } from "@/server/schemas/folder-schemas";
-import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
+import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { FolderService } from "@/server/services/folder-service";
 
 export const moveNoteToFolder = authedProcedure
@@ -15,11 +15,7 @@ export const moveNoteToFolder = authedProcedure
     Schema.standardSchemaV1(
       Schema.Struct({
         folderId: Schema.NullOr(folderIdSchema),
-        noteId: Schema.String.pipe(
-          Schema.pattern(NOTE_ID_PATTERN, {
-            message: () => "invalid note id format",
-          }),
-        ),
+        noteId: noteIdSchema,
       }),
     ),
   )

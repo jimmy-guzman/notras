@@ -1,5 +1,6 @@
 "use server";
 
+import { ORPCError } from "@orpc/server";
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
@@ -21,7 +22,7 @@ export const importNotes = authedProcedure
     );
 
     if (!result.success) {
-      throw new Error(result.message);
+      throw new ORPCError("IMPORT_FAILED", { message: result.message });
     }
 
     updateTag("notes");
