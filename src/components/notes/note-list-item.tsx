@@ -1,13 +1,14 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/react";
-import { BellIcon } from "lucide-react";
+import { BellIcon, GripVerticalIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { SelectNote } from "@/server/db/schemas/notes";
 import type { SelectTag } from "@/server/db/schemas/tags";
 
 import { toNoteId } from "@/lib/id";
+import { cn } from "@/lib/ui/utils";
 import { formatDate } from "@/lib/utils/format";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 import { truncate } from "@/lib/utils/truncate";
@@ -31,13 +32,24 @@ export const NoteListItem = ({
 }) => {
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
   const noteId = toNoteId(note.id);
-  const { isDragging, ref } = useDraggable({ id: noteId });
+  const { handleRef, isDragging, ref } = useDraggable({ id: noteId });
 
   return (
     <div
-      className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted ${isDragging ? "opacity-50" : ""}`}
+      className={cn(
+        "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted",
+        isDragging && "opacity-50",
+      )}
       ref={ref}
     >
+      <button
+        aria-label="drag to reorder"
+        className="cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
+        ref={handleRef}
+        type="button"
+      >
+        <GripVerticalIcon className="h-3.5 w-3.5" />
+      </button>
       <div className="min-w-0 flex-1">
         <Link
           className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"

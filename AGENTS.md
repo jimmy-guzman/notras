@@ -233,7 +233,7 @@ The project uses **happy-dom** as the test environment. The custom `render` from
 
 ## Branching & Commits
 
-- **Branch naming:** `{type}-{short-description}` in kebab-case. The type prefix matches commit types: `feat-`, `fix-`, `refactor-`, `chore-`, `docs-`, `ci-`. Examples: `feat-add-list-vs-grid-view`, `fix-no-more-confusing-cancel`.
+- **Branch naming:** `{type}-{short-description}` in kebab-case. The type prefix matches commit types: `feat-`, `fix-`, `refactor-`, `chore-`, `docs-`, `ci-`. Examples: `feat-add-folder-drag-drop`, `fix-no-more-confusing-cancel`.
 - **Commits:** Use `pnpm gitzy` to create commits. It enforces Conventional Commits format with emojis and lowercase descriptions. Two approaches:
   - **Interactive mode:** Run `pnpm gitzy` and answer prompts. Use `pnpm gitzy -p -a` to stage all changes first.
   - **CLI flags (for automation/non-TTY):** Use flags to set values inline. Example: `pnpm gitzy -t feat -m "add pwa support" -d "detailed description" -p -a`. Available flags: `-t/--type`, `-m/--subject`, `-s/--scope`, `-d/--body`, `-b/--breaking`, `-i/--issues`, `-p/--passthrough`, `-D/--dry-run`, `--no-emoji`. See full flag list in gitzy docs.
