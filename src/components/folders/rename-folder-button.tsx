@@ -75,6 +75,8 @@ export function RenameFolderButton({
   useHotkeys(
     "mod+enter",
     () => {
+      if (action.isPending) return;
+
       formRef.current?.requestSubmit();
     },
     { enabled: open, enableOnFormTags: ["INPUT"] },
