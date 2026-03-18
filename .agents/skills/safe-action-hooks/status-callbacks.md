@@ -3,18 +3,19 @@
 ## Status Lifecycle
 
 ```text
-idle → executing → hasSucceeded
-                 → hasErrored
-                 → hasNavigated
+idle → executing → transitioning → hasSucceeded
+                                 → hasErrored
+                                 → hasNavigated
 ```
 
-| Status         | Meaning                                                          |
-| -------------- | ---------------------------------------------------------------- |
-| `idle`         | No execution has started (or `reset()` was called)               |
-| `executing`    | Action promise is pending                                        |
-| `hasSucceeded` | Last execution returned `data`                                   |
-| `hasErrored`   | Last execution had `serverError` or `validationErrors`           |
-| `hasNavigated` | Last execution triggered a navigation (redirect, notFound, etc.) |
+| Status          | Meaning                                                          |
+| --------------- | ---------------------------------------------------------------- |
+| `idle`          | No execution has started (or `reset()` was called)               |
+| `executing`     | Action promise is pending                                        |
+| `transitioning` | React transition is in progress after execution completes        |
+| `hasSucceeded`  | Last execution returned `data`                                   |
+| `hasErrored`    | Last execution had `serverError` or `validationErrors`           |
+| `hasNavigated`  | Last execution triggered a navigation (redirect, notFound, etc.) |
 
 ## Shorthand Booleans
 
