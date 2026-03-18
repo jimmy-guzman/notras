@@ -35,6 +35,11 @@ describe("stripMarkdown", () => {
     expect(stripMarkdown("_italic text_")).toBe("italic text");
   });
 
+  it("should not strip underscores inside word identifiers", () => {
+    expect(stripMarkdown("foo_bar_baz")).toBe("foo_bar_baz");
+    expect(stripMarkdown("some_variable_name")).toBe("some_variable_name");
+  });
+
   it("should strip bold+italic syntax", () => {
     expect(stripMarkdown("***bold italic***")).toBe("bold italic");
     expect(stripMarkdown("___bold italic___")).toBe("bold italic");

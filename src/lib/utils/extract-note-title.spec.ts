@@ -37,12 +37,15 @@ describe("extractNoteTitle", () => {
     const result = extractNoteTitle(longLine);
 
     expect(result.endsWith("...")).toBe(true);
-    // 80 chars + "..."
     expect(result.length).toBeLessThanOrEqual(83);
   });
 
   it("should handle an empty string", () => {
     expect(extractNoteTitle("")).toBe("");
+  });
+
+  it("should skip lines that are empty after stripping markdown", () => {
+    expect(extractNoteTitle("# \n## \nactual content")).toBe("actual content");
   });
 
   it("should handle a note with only whitespace on the first line", () => {

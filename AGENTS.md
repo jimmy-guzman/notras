@@ -146,7 +146,7 @@ If any step fails, fix the issue and re-run from that step. Do not move on until
 - **Bottom-up file structure:** Files should read bottom-up -- private/helper components and functions at the top, the main exported component at the bottom. This way the file's public API is immediately visible when you scroll to the end.
 - **Lowercase aesthetic:** All user-facing text in the UI is lowercase -- labels, button text, headings, placeholder text, toast messages, tooltips, etc. This is a deliberate design choice across the entire app, not just forms.
 - **Date formatting:** All date display in components goes through `formatDate` (date only) and `formatDateTime` (date + time) from `@/lib/utils/format.ts`. Both return lowercase output to match the app's aesthetic. Do not use raw `format()` from `date-fns` directly in components.
-- **Note preview / title extraction:** Notes have no title field. In list views, use `extractNoteTitle(content)` from `@/lib/utils/extract-note-title` to derive a display title. It takes the first non-empty line, strips markdown syntax via `stripMarkdown` (`@/lib/utils/strip-markdown`), and truncates to 80 characters at a word boundary. Do not slice `content` directly in components.
+- **Note preview / title extraction:** Notes have no title field. In list views, use `extractNoteTitle(content)` from `@/lib/utils/extract-note-title` to derive a display title. It takes the first non-empty line, strips Markdown syntax via `stripMarkdown` (`@/lib/utils/strip-markdown`), and truncates to 80 characters at a word boundary. Do not slice `content` directly in components.
 
 ### Lint-enforced
 
