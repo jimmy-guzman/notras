@@ -308,9 +308,11 @@ const makeImportService = Effect.gen(function* () {
           linkService.syncLinks(userId, noteId, formattedContent),
         );
 
-        yield* tagRepo
-          .syncTagsForNote(noteId, userId, [...(exportedNote.tags ?? [])])
+        const tagIds = yield* tagRepo
+          .ensureTags(userId, [...(exportedNote.tags ?? [])])
           .pipe(Effect.orDie);
+
+        yield* noteRepo.syncNoteTags(noteId, tagIds).pipe(Effect.orDie);
 
         if (existing) {
           updated++;
@@ -318,6 +320,8 @@ const makeImportService = Effect.gen(function* () {
           created++;
         }
       }
+
+      yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
 
       let deleted = 0;
 

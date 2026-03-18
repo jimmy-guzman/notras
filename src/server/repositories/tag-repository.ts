@@ -4,7 +4,6 @@ import {
   eq,
   inArray,
   notExists,
-  notInArray,
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
@@ -22,6 +21,10 @@ export interface TagWithCount extends SelectTag {
 
 interface ITagRepository {
   deleteOrphanedTags(userId: string): Effect.Effect<void, DatabaseError>;
+  ensureTags(
+    userId: string,
+    tagNames: string[],
+  ): Effect.Effect<TagId[], DatabaseError>;
   findByNoteId(
     noteId: NoteId,
     userId: string,
@@ -31,11 +34,6 @@ interface ITagRepository {
     userId: string,
   ): Effect.Effect<Record<string, SelectTag[]>, DatabaseError>;
   findByUserId(userId: string): Effect.Effect<TagWithCount[], DatabaseError>;
-  syncTagsForNote(
-    noteId: NoteId,
-    userId: string,
-    tagNames: string[],
-  ): Effect.Effect<void, DatabaseError>;
 }
 
 export class TagRepository extends Context.Tag("TagRepository")<
@@ -136,112 +134,63 @@ const makeDbTagRepository = Effect.gen(function* () {
     });
   };
 
-  const syncTagsForNote = (
-    noteId: NoteId,
+  const ensureTags = (
     userId: string,
     tagNames: string[],
-  ): Effect.Effect<void, DatabaseError> => {
+  ): Effect.Effect<TagId[], DatabaseError> => {
+    if (tagNames.length === 0) {
+      return Effect.succeed([]);
+    }
+
     return Effect.tryPromise({
       catch: (cause) => new DatabaseError({ cause }),
-      try: () => {
-        return db.transaction(async (tx) => {
-          if (tagNames.length === 0) {
-            await tx.delete(noteTag).where(eq(noteTag.noteId, noteId));
-            await tx
-              .delete(tag)
-              .where(
-                and(
-                  eq(tag.userId, userId),
-                  notExists(
-                    tx
-                      .select({ tagId: noteTag.tagId })
-                      .from(noteTag)
-                      .where(eq(noteTag.tagId, tag.id)),
-                  ),
-                ),
-              );
+      try: async () => {
+        const existingRows = await db
+          .select()
+          .from(tag)
+          .where(and(eq(tag.userId, userId), inArray(tag.name, tagNames)));
 
-            return;
-          }
+        const existingByName = new Map(
+          existingRows.map((r) => [r.name, r.id as TagId]),
+        );
 
-          const existingRows = await tx
+        const newNames = tagNames.filter((n) => !existingByName.has(n));
+
+        if (newNames.length > 0) {
+          const newRows = newNames.map((name) => {
+            return {
+              createdAt: new Date(),
+              id: generateTagId(),
+              name,
+              userId,
+            };
+          });
+
+          await db.insert(tag).values(newRows).onConflictDoNothing();
+
+          const inserted = await db
             .select()
             .from(tag)
-            .where(and(eq(tag.userId, userId), inArray(tag.name, tagNames)));
+            .where(and(eq(tag.userId, userId), inArray(tag.name, newNames)));
 
-          const existingByName = new Map(
-            existingRows.map((r) => [r.name, r.id]),
-          );
-
-          const newNames = tagNames.filter((n) => !existingByName.has(n));
-
-          if (newNames.length > 0) {
-            const newRows = newNames.map((name) => {
-              return {
-                createdAt: new Date(),
-                id: generateTagId(),
-                name,
-                userId,
-              };
-            });
-
-            await tx.insert(tag).values(newRows).onConflictDoNothing();
-
-            const inserted = await tx
-              .select()
-              .from(tag)
-              .where(and(eq(tag.userId, userId), inArray(tag.name, newNames)));
-
-            for (const row of inserted) {
-              existingByName.set(row.name, row.id);
-            }
+          for (const row of inserted) {
+            existingByName.set(row.name, row.id as TagId);
           }
+        }
 
-          const tagIds = tagNames
-            .map((n) => existingByName.get(n))
-            .filter((id): id is string => id !== undefined) as TagId[];
-
-          await tx
-            .delete(noteTag)
-            .where(
-              and(
-                eq(noteTag.noteId, noteId),
-                notInArray(noteTag.tagId, tagIds),
-              ),
-            );
-
-          if (tagIds.length > 0) {
-            const rows = tagIds.map((tagId) => {
-              return { createdAt: new Date(), noteId, tagId };
-            });
-
-            await tx.insert(noteTag).values(rows).onConflictDoNothing();
-          }
-
-          await tx
-            .delete(tag)
-            .where(
-              and(
-                eq(tag.userId, userId),
-                notExists(
-                  tx
-                    .select({ tagId: noteTag.tagId })
-                    .from(noteTag)
-                    .where(eq(noteTag.tagId, tag.id)),
-                ),
-              ),
-            );
-        });
+        return tagNames
+          .map((n) => existingByName.get(n))
+          .filter((id): id is TagId => id !== undefined);
       },
     });
   };
 
   return {
     deleteOrphanedTags,
+    ensureTags,
     findByNoteId,
     findByNoteIds,
     findByUserId,
-    syncTagsForNote,
   } satisfies ITagRepository;
 });
 

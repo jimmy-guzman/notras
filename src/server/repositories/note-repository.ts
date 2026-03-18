@@ -11,11 +11,12 @@ import {
   isNull,
   like,
   lte,
+  notInArray,
   sql,
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
-import type { FolderId, NoteId } from "@/lib/id";
+import type { FolderId, NoteId, TagId } from "@/lib/id";
 import type { SortOption, TimeFilter } from "@/lib/utils/note-filters";
 import type { SelectNote } from "@/server/db/schemas/notes";
 
@@ -71,6 +72,10 @@ interface INoteRepository {
   count(userId: string): Effect.Effect<number, DatabaseError>;
   countOverdueReminders(userId: string): Effect.Effect<number, DatabaseError>;
   create(input: CreateNoteInput): Effect.Effect<void, DatabaseError>;
+  createWithTags(
+    input: CreateNoteInput,
+    tagIds: TagId[],
+  ): Effect.Effect<void, DatabaseError>;
   delete(noteId: NoteId, userId: string): Effect.Effect<void, DatabaseError>;
   deleteMany(
     noteIds: NoteId[],
@@ -101,6 +106,10 @@ interface INoteRepository {
     userId: string,
     remindAt: Date,
   ): Effect.Effect<void, DatabaseError>;
+  syncNoteTags(
+    noteId: NoteId,
+    tagIds: TagId[],
+  ): Effect.Effect<void, DatabaseError>;
   unpin(noteId: NoteId, userId: string): Effect.Effect<void, DatabaseError>;
   update(
     noteId: NoteId,
@@ -111,21 +120,19 @@ interface INoteRepository {
     noteIds: NoteId[],
     userId: string,
   ): Effect.Effect<void, DatabaseError>;
+  updateWithTags(
+    noteId: NoteId,
+    userId: string,
+    input: UpdateNoteInput,
+    tagIds: TagId[],
+  ): Effect.Effect<void, DatabaseError>;
   upsert(input: UpsertNoteInput): Effect.Effect<void, DatabaseError>;
 }
-
-// ---------------------------------------------------------------------------
-// Context tag
-// ---------------------------------------------------------------------------
 
 export class NoteRepository extends Context.Tag("NoteRepository")<
   NoteRepository,
   INoteRepository
 >() {}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const pinnedFirst = asc(
   sql`CASE WHEN ${note.pinnedAt} IS NOT NULL THEN 0 ELSE 1 END`,
@@ -186,10 +193,6 @@ function getSortOrder(sort: NoteFilters["sort"] = "newest") {
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// DB implementation
-// ---------------------------------------------------------------------------
 
 const makeDbNoteRepository = Effect.gen(function* () {
   const db = yield* Database;
@@ -257,6 +260,34 @@ const makeDbNoteRepository = Effect.gen(function* () {
           id: input.id,
           updatedAt: new Date(),
           userId: input.userId,
+        });
+      },
+    });
+  };
+
+  const createWithTags = (
+    input: CreateNoteInput,
+    tagIds: TagId[],
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db.transaction(async (tx) => {
+          await tx.insert(note).values({
+            content: input.content,
+            createdAt: new Date(),
+            id: input.id,
+            updatedAt: new Date(),
+            userId: input.userId,
+          });
+
+          if (tagIds.length > 0) {
+            const rows = tagIds.map((tagId) => {
+              return { createdAt: new Date(), noteId: input.id, tagId };
+            });
+
+            await tx.insert(noteTag).values(rows).onConflictDoNothing();
+          }
         });
       },
     });
@@ -546,6 +577,74 @@ const makeDbNoteRepository = Effect.gen(function* () {
     });
   };
 
+  const syncNoteTags = (
+    noteId: NoteId,
+    tagIds: TagId[],
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        if (tagIds.length === 0) {
+          await db.delete(noteTag).where(eq(noteTag.noteId, noteId));
+
+          return;
+        }
+
+        await db
+          .delete(noteTag)
+          .where(
+            and(eq(noteTag.noteId, noteId), notInArray(noteTag.tagId, tagIds)),
+          );
+
+        const rows = tagIds.map((tagId) => {
+          return { createdAt: new Date(), noteId, tagId };
+        });
+
+        await db.insert(noteTag).values(rows).onConflictDoNothing();
+      },
+    });
+  };
+
+  const updateWithTags = (
+    noteId: NoteId,
+    userId: string,
+    input: UpdateNoteInput,
+    tagIds: TagId[],
+  ): Effect.Effect<void, DatabaseError> => {
+    return Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => {
+        return db.transaction(async (tx) => {
+          await tx
+            .update(note)
+            .set({ content: input.content, updatedAt: new Date() })
+            .where(and(eq(note.id, noteId), eq(note.userId, userId)));
+
+          if (tagIds.length === 0) {
+            await tx.delete(noteTag).where(eq(noteTag.noteId, noteId));
+
+            return;
+          }
+
+          await tx
+            .delete(noteTag)
+            .where(
+              and(
+                eq(noteTag.noteId, noteId),
+                notInArray(noteTag.tagId, tagIds),
+              ),
+            );
+
+          const rows = tagIds.map((tagId) => {
+            return { createdAt: new Date(), noteId, tagId };
+          });
+
+          await tx.insert(noteTag).values(rows).onConflictDoNothing();
+        });
+      },
+    });
+  };
+
   const updateSyncedAt = (
     noteIds: NoteId[],
     userId: string,
@@ -601,6 +700,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
     count,
     countOverdueReminders,
     create,
+    createWithTags,
     delete: deleteNote,
     deleteMany,
     findAllIds,
@@ -611,9 +711,11 @@ const makeDbNoteRepository = Effect.gen(function* () {
     moveToFolder,
     pin,
     setReminder,
+    syncNoteTags,
     unpin,
     update,
     updateSyncedAt,
+    updateWithTags,
     upsert,
   } satisfies INoteRepository;
 });

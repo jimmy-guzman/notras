@@ -14,11 +14,14 @@ import {
   NoteRepositoryLive,
 } from "@/server/repositories/note-repository";
 import {
+  TagRepository,
+  TagRepositoryLive,
+} from "@/server/repositories/tag-repository";
+import {
   FormatService,
   FormatServiceLive,
 } from "@/server/services/format-service";
 import { LinkService, LinkServiceLive } from "@/server/services/link-service";
-import { TagService, TagServiceLive } from "@/server/services/tag-service";
 
 interface INoteService {
   clearReminder(userId: string, noteId: NoteId): Effect.Effect<void>;
@@ -62,9 +65,9 @@ export class NoteService extends Context.Tag("NoteService")<
 
 const makeNoteService = Effect.gen(function* () {
   const noteRepo = yield* NoteRepository;
+  const tagRepo = yield* TagRepository;
   const formatService = yield* FormatService;
   const linkService = yield* LinkService;
-  const tagService = yield* TagService;
 
   const clearReminder = (userId: string, noteId: NoteId) => {
     return noteRepo.clearReminder(noteId, userId).pipe(Effect.orDie);
@@ -81,16 +84,23 @@ const makeNoteService = Effect.gen(function* () {
       const id = generateNoteId();
       const formatted = yield* formatService.formatMarkdown(content);
 
-      yield* noteRepo
-        .create({ content: formatted, id, userId })
-        .pipe(Effect.orDie);
+      if (tags === undefined) {
+        yield* noteRepo
+          .create({ content: formatted, id, userId })
+          .pipe(Effect.orDie);
+      } else {
+        const tagIds = yield* tagRepo
+          .ensureTags(userId, tags)
+          .pipe(Effect.orDie);
+
+        yield* noteRepo
+          .createWithTags({ content: formatted, id, userId }, tagIds)
+          .pipe(Effect.orDie);
+        yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+      }
 
       // Fire-and-forget link sync
       AppRuntime.runFork(linkService.syncLinks(userId, id, formatted));
-
-      if (tags !== undefined) {
-        yield* tagService.syncTags(userId, id, tags);
-      }
 
       return id;
     });
@@ -137,16 +147,23 @@ const makeNoteService = Effect.gen(function* () {
     return Effect.gen(function* () {
       const formatted = yield* formatService.formatMarkdown(content);
 
-      yield* noteRepo
-        .update(noteId, userId, { content: formatted })
-        .pipe(Effect.orDie);
+      if (tags === undefined) {
+        yield* noteRepo
+          .update(noteId, userId, { content: formatted })
+          .pipe(Effect.orDie);
+      } else {
+        const tagIds = yield* tagRepo
+          .ensureTags(userId, tags)
+          .pipe(Effect.orDie);
+
+        yield* noteRepo
+          .updateWithTags(noteId, userId, { content: formatted }, tagIds)
+          .pipe(Effect.orDie);
+        yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+      }
 
       // Fire-and-forget link sync
       AppRuntime.runFork(linkService.syncLinks(userId, noteId, formatted));
-
-      if (tags !== undefined) {
-        yield* tagService.syncTags(userId, noteId, tags);
-      }
     });
   };
 
@@ -171,9 +188,9 @@ export const NoteServiceLive = Layer.effect(NoteService, makeNoteService).pipe(
   Layer.provide(
     Layer.mergeAll(
       NoteRepositoryLive,
+      TagRepositoryLive,
       FormatServiceLive,
       LinkServiceLive,
-      TagServiceLive,
     ),
   ),
 );

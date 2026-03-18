@@ -71,6 +71,25 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart TD
+    Browser
+    Next.js
+    next-safe-action
+    Effect-TS
+    Drizzle["Drizzle ORM"]
+    SQLite
+
+    Browser --> Next.js --> next-safe-action --> Effect-TS --> Drizzle --> SQLite
+
+    Effect-TS --> sharp
+    Effect-TS --> OG["Open Graph"]
+```
+
+---
+
 ## Docker
 
 Build and run with Docker:
