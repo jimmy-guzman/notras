@@ -1,11 +1,11 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/react";
-import { BellIcon, GripVerticalIcon } from "lucide-react";
+import { BellIcon, FolderIcon, GripVerticalIcon } from "lucide-react";
 import Link from "next/link";
 
-import type { SelectNote } from "@/server/db/schemas/notes";
 import type { SelectTag } from "@/server/db/schemas/tags";
+import type { NoteWithFolder } from "@/server/repositories/note-repository";
 
 import { toNoteId } from "@/lib/id";
 import { cn } from "@/lib/ui/utils";
@@ -21,18 +21,23 @@ const EMPTY_TAGS: SelectTag[] = [];
 
 export const NoteListItem = ({
   currentParams,
+  folderName,
   note,
   query,
   tags = EMPTY_TAGS,
 }: {
   currentParams?: { folder?: string; q?: string; tag?: string; time?: string };
-  note: SelectNote;
+  folderName?: string;
+  note: NoteWithFolder;
   query?: string;
   tags?: SelectTag[];
 }) => {
   const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
   const noteId = toNoteId(note.id);
   const { handleRef, isDragging, ref } = useDraggable({ id: noteId });
+
+  const showFolder =
+    folderName !== undefined && currentParams?.folder !== note.folderId;
 
   return (
     <div
@@ -78,16 +83,27 @@ export const NoteListItem = ({
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {note.remindAt && <BellIcon className="h-3 w-3" />}
-          {formatDate(note.createdAt)}
-        </span>
-        <PinNoteButton
-          noteId={noteId}
-          pinned={Boolean(note.pinnedAt)}
-          size="icon-xs"
-        />
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {note.remindAt && <BellIcon className="h-3 w-3" />}
+            {formatDate(note.createdAt)}
+          </span>
+          <PinNoteButton
+            noteId={noteId}
+            pinned={Boolean(note.pinnedAt)}
+            size="icon-xs"
+          />
+        </div>
+        {showFolder && (
+          <Link
+            className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            href={`/notes?folder=${note.folderId}`}
+          >
+            <FolderIcon className="h-3 w-3" />
+            {folderName}
+          </Link>
+        )}
       </div>
     </div>
   );

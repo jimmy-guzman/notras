@@ -10,9 +10,9 @@ import { Suspense } from "react";
 import { getFiredRemindersCount } from "@/actions/get-fired-reminders-count";
 import { getFolders } from "@/actions/get-folders";
 import { AlphaBanner } from "@/components/alpha-banner";
-import { FolderPanel } from "@/components/folders/folder-panel";
 import { HotkeysProvider } from "@/components/hotkeys-provider";
 import { NoteDragDropProvider } from "@/components/note-drag-drop-provider";
+import { NoteDropPanel } from "@/components/notes/note-drop-panel";
 import { RemindersProvider } from "@/components/reminders-provider";
 import { SearchBarProvider } from "@/components/search-bar-provider";
 import { SiteFooter } from "@/components/site-footer";
@@ -82,7 +82,7 @@ export default async function RootLayout({
                     </div>
                     <Toaster />
                     <Suspense>
-                      <FolderPanel folders={folders} />
+                      <NoteDropPanel folders={folders} />
                     </Suspense>
                   </NoteDragDropProvider>
                 </RemindersProvider>

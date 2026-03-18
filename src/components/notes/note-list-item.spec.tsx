@@ -10,6 +10,8 @@ const makeNote = (
   overrides: Partial<{
     content: string;
     createdAt: Date;
+    folderId: null | string;
+    folderName: null | string;
     id: string;
     pinnedAt: Date | null;
     remindAt: Date | null;
@@ -18,7 +20,8 @@ const makeNote = (
   return {
     content: overrides.content ?? "Test note content",
     createdAt: overrides.createdAt ?? new Date(2025, 5, 15),
-    folderId: null,
+    folderId: overrides.folderId ?? null,
+    folderName: overrides.folderName ?? null,
     id: overrides.id ?? "note_1",
     pinnedAt: overrides.pinnedAt ?? null,
     remindAt: overrides.remindAt ?? null,
@@ -84,5 +87,32 @@ describe("NoteListItem", () => {
     );
 
     expect(screen.getByRole("button", { name: "unpin" })).toBeInTheDocument();
+  });
+
+  it("should show the folder link when the note has a folder and no folder filter is active", () => {
+    render(
+      <NoteListItem
+        folderName="work"
+        note={makeNote({ folderId: "folder_abc", folderName: "work" })}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: /work/i });
+
+    expect(link).toHaveAttribute("href", "/notes?folder=folder_abc");
+  });
+
+  it("should hide the folder link when already filtering by that folder", () => {
+    render(
+      <NoteListItem
+        currentParams={{ folder: "folder_abc" }}
+        folderName="work"
+        note={makeNote({ folderId: "folder_abc", folderName: "work" })}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("link", { name: /work/i }),
+    ).not.toBeInTheDocument();
   });
 });
