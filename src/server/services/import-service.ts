@@ -308,9 +308,11 @@ const makeImportService = Effect.gen(function* () {
           linkService.syncLinks(userId, noteId, formattedContent),
         );
 
-        yield* tagRepo
-          .syncTagsForNote(noteId, userId, [...(exportedNote.tags ?? [])])
+        const tagIds = yield* tagRepo
+          .ensureTags(userId, [...(exportedNote.tags ?? [])])
           .pipe(Effect.orDie);
+
+        yield* noteRepo.syncNoteTags(noteId, tagIds).pipe(Effect.orDie);
 
         if (existing) {
           updated++;
@@ -318,6 +320,12 @@ const makeImportService = Effect.gen(function* () {
           created++;
         }
       }
+
+      yield* tagRepo.deleteOrphanedTags(userId).pipe(
+        Effect.catchTag("DatabaseError", (e) => {
+          return Effect.logWarning("deleteOrphanedTags failed after import", e);
+        }),
+      );
 
       let deleted = 0;
 
@@ -331,7 +339,14 @@ const makeImportService = Effect.gen(function* () {
           deleted = toDelete.length;
         }
 
-        yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+        yield* tagRepo.deleteOrphanedTags(userId).pipe(
+          Effect.catchTag("DatabaseError", (e) => {
+            return Effect.logWarning(
+              "deleteOrphanedTags failed after mirror delete",
+              e,
+            );
+          }),
+        );
 
         if (foldersImported) {
           const allLocalFolders = yield* folderRepo

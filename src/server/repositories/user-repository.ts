@@ -45,18 +45,10 @@ interface IUserRepository {
   upsert(input: CreateUserInput): Effect.Effect<void, DatabaseError>;
 }
 
-// ---------------------------------------------------------------------------
-// Context tag
-// ---------------------------------------------------------------------------
-
 export class UserRepository extends Context.Tag("UserRepository")<
   UserRepository,
   IUserRepository
 >() {}
-
-// ---------------------------------------------------------------------------
-// DB implementation
-// ---------------------------------------------------------------------------
 
 const makeDbUserRepository = Effect.gen(function* () {
   const db = yield* Database;

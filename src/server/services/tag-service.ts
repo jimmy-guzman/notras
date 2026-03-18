@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId, TagId } from "@/lib/id";
 import type { SelectTag } from "@/server/db/schemas/tags";
 import type { TagWithCount } from "@/server/repositories/tag-repository";
 
@@ -10,17 +10,13 @@ import {
 } from "@/server/repositories/tag-repository";
 
 interface ITagService {
+  ensureTags(userId: string, tagNames: string[]): Effect.Effect<TagId[]>;
   getAllTags(userId: string): Effect.Effect<TagWithCount[]>;
   getTagsForNote(userId: string, noteId: NoteId): Effect.Effect<SelectTag[]>;
   getTagsForNotes(
     userId: string,
     noteIds: NoteId[],
   ): Effect.Effect<Record<string, SelectTag[]>>;
-  syncTags(
-    userId: string,
-    noteId: NoteId,
-    tagNames: string[],
-  ): Effect.Effect<void>;
 }
 
 export class TagService extends Context.Tag("TagService")<
@@ -30,6 +26,10 @@ export class TagService extends Context.Tag("TagService")<
 
 const makeTagService = Effect.gen(function* () {
   const tagRepo = yield* TagRepository;
+
+  const ensureTags = (userId: string, tagNames: string[]) => {
+    return tagRepo.ensureTags(userId, tagNames).pipe(Effect.orDie);
+  };
 
   const getAllTags = (userId: string) => {
     return tagRepo.findByUserId(userId).pipe(Effect.orDie);
@@ -43,15 +43,11 @@ const makeTagService = Effect.gen(function* () {
     return tagRepo.findByNoteIds(noteIds, userId).pipe(Effect.orDie);
   };
 
-  const syncTags = (userId: string, noteId: NoteId, tagNames: string[]) => {
-    return tagRepo.syncTagsForNote(noteId, userId, tagNames).pipe(Effect.orDie);
-  };
-
   return {
+    ensureTags,
     getAllTags,
     getTagsForNote,
     getTagsForNotes,
-    syncTags,
   } satisfies ITagService;
 });
 
