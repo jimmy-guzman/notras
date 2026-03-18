@@ -27,17 +27,13 @@ export default async function Page({ searchParams }: PageProps) {
     Boolean(params.tag) ||
     Boolean(params.folder);
 
-  const [[pinnedNotes, unpinnedNotes], folders] = await Promise.all([
-    isFiltering
-      ? Promise.all([getNotesWithFolder(params), Promise.resolve([])])
-      : Promise.all([
-          getNotesWithFolder(params, { pinnedOnly: true }),
-          getNotesWithFolder(params, { excludePinned: true }),
-        ]),
+  const [allNotes, folders] = await Promise.all([
+    getNotesWithFolder(params),
     getFolders(),
   ]);
 
-  const allNotes = [...pinnedNotes, ...unpinnedNotes];
+  const pinnedNotes = allNotes.filter((n) => n.pinnedAt !== null);
+  const unpinnedNotes = allNotes.filter((n) => n.pinnedAt === null);
   const totalCount = allNotes.length;
   const noteIds = allNotes.map((n) => toNoteId(n.id));
   const tagMap = noteIds.length > 0 ? await getTagsForNotes(noteIds) : {};

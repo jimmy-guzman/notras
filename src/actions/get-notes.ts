@@ -109,7 +109,6 @@ export async function getTagsForNotes(noteIds: NoteId[]) {
 
 async function fetchNotesWithFolder(
   searchParams: NoteSearchParams,
-  options?: PinFilter,
 ): Promise<NoteWithFolder[]> {
   const { folder, q: query, sort, tag, time } = searchParams;
   const folderId =
@@ -124,7 +123,6 @@ async function fetchNotesWithFolder(
       return yield* NoteService.pipe(
         Effect.flatMap((svc) => {
           return svc.listWithFolder(userId, {
-            ...options,
             folderId,
             query,
             sort,
@@ -139,22 +137,20 @@ async function fetchNotesWithFolder(
 
 async function fetchNotesWithFolderCached(
   searchParams: NoteSearchParams,
-  options?: PinFilter,
 ): Promise<NoteWithFolder[]> {
   "use cache";
 
   cacheTag("notes", "folders");
 
-  return fetchNotesWithFolder(searchParams, options);
+  return fetchNotesWithFolder(searchParams);
 }
 
 export async function getNotesWithFolder(
   searchParams: NoteSearchParams,
-  options?: PinFilter,
 ): Promise<NoteWithFolder[]> {
   if (searchParams.time !== "all") {
-    return fetchNotesWithFolder(searchParams, options);
+    return fetchNotesWithFolder(searchParams);
   }
 
-  return fetchNotesWithFolderCached(searchParams, options);
+  return fetchNotesWithFolderCached(searchParams);
 }
