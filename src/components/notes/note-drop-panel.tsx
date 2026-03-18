@@ -204,6 +204,9 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
 
   const deleteAction = useServerAction(deleteNote, {
     interceptors: [
+      onSuccessDeferred(() => {
+        setPendingDeleteNoteId(null);
+      }),
       onErrorDeferred(() => {
         toast.error("failed to delete note. please try again.");
       }),
@@ -251,7 +254,6 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
     if (!pendingDeleteNoteId) return;
 
     void deleteAction.execute({ noteId: pendingDeleteNoteId });
-    setPendingDeleteNoteId(null);
   };
 
   const handleCancelDelete = () => {

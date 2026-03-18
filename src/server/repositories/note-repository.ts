@@ -464,7 +464,10 @@ const makeDbNoteRepository = Effect.gen(function* () {
           const qb = db
             .selectDistinct(noteColumns)
             .from(note)
-            .leftJoin(folder, eq(folder.id, note.folderId))
+            .leftJoin(
+              folder,
+              and(eq(folder.id, note.folderId), eq(folder.userId, userId)),
+            )
             .innerJoin(noteTag, eq(noteTag.noteId, note.id))
             .innerJoin(tag, eq(tag.id, noteTag.tagId))
             .where(
@@ -482,7 +485,10 @@ const makeDbNoteRepository = Effect.gen(function* () {
         const qb = db
           .select(noteColumns)
           .from(note)
-          .leftJoin(folder, eq(folder.id, note.folderId))
+          .leftJoin(
+            folder,
+            and(eq(folder.id, note.folderId), eq(folder.userId, userId)),
+          )
           .where(whereClause)
           .orderBy(...orderBy);
 
