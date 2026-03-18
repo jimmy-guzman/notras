@@ -128,7 +128,7 @@ export function CreateUserForm() {
 
 When the action returns `validationErrors`, the adapter maps them to react-hook-form's `FieldErrors` format:
 
-```
+```text
 Server: { email: { _errors: ["Email taken", "Try another"] } }
    ↓ mapToHookFormErrors({ joinBy: " " })
 RHF:    { email: { type: "validate", message: "Email taken Try another" } }

@@ -2,7 +2,7 @@
 
 ## Status Lifecycle
 
-```
+```text
 idle → executing → hasSucceeded
                  → hasErrored
                  → hasNavigated

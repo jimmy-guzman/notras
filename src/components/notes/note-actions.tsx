@@ -62,6 +62,8 @@ export function NoteActions({
       : pinned;
 
   const handleTogglePin = useCallback(() => {
+    if (pinAction.isPending || unpinAction.isPending) return;
+
     if (optimisticPinned) {
       unpinAction.execute({ noteId });
     } else {

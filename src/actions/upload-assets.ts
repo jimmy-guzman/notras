@@ -20,8 +20,8 @@ export const uploadAssets = authActionClient
           Effect.flatMap((svc) => svc.upload(ctx.userId, typedNoteId, file)),
         ),
       );
-
-      updateTag("notes");
-      revalidatePath(`/notes/${typedNoteId}`);
     }
+
+    updateTag("notes");
+    revalidatePath(`/notes/${typedNoteId}`);
   });

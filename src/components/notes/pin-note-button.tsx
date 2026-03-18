@@ -56,6 +56,8 @@ export const PinNoteButton = ({
     e.preventDefault();
     e.nativeEvent.stopImmediatePropagation();
 
+    if (pinAction.isPending || unpinAction.isPending) return;
+
     if (optimisticPinned) {
       unpinAction.execute({ noteId });
     } else {

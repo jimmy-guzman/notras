@@ -24,17 +24,19 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
     onError: () => {
       toast.error("failed to upload files. please try again.");
     },
+    onSuccess: () => {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
   });
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     const fileArray = [...files];
-    const result = await action.executeAsync({ files: fileArray, noteId });
 
-    if (!result.serverError && fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    action.execute({ files: fileArray, noteId });
   };
 
   const handleDragOver = (e: DragEvent<HTMLElement>) => {
@@ -53,11 +55,11 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
 
     const { files } = e.dataTransfer;
 
-    void handleFiles(files);
+    handleFiles(files);
   };
 
   const handleFileInput = (e: ChangeEvent<HTMLInputElement>) => {
-    void handleFiles(e.target.files);
+    handleFiles(e.target.files);
   };
 
   const handleClick = () => {

@@ -52,8 +52,8 @@ export function CreateFolderButton() {
     }
   }
 
-  const handleSubmit = form.handleSubmit(async (data) => {
-    await action.executeAsync(data);
+  const handleSubmit = form.handleSubmit((data) => {
+    action.execute(data);
   });
 
   useHotkeys(

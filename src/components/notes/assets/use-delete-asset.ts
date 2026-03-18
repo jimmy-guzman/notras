@@ -25,6 +25,8 @@ export function useDeleteAsset({ noteId }: UseDeleteAssetOptions) {
   });
 
   const handleDelete = (assetId: AssetId) => {
+    if (deletingId !== null) return;
+
     setDeletingId(assetId);
     action.execute({ assetId, noteId });
   };

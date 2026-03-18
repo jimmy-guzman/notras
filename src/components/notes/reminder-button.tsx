@@ -75,11 +75,15 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
   });
 
   function handleSetReminder(preset: ReminderPreset) {
+    if (setReminderAction.isPending) return;
+
     isOverdueRef.current = remindAt !== null && remindAt <= new Date();
     setReminderAction.execute({ noteId, preset });
   }
 
   function handleClearReminder() {
+    if (clearReminderAction.isPending) return;
+
     isOverdueRef.current = remindAt !== null && remindAt <= new Date();
     clearReminderAction.execute({ noteId });
   }

@@ -30,7 +30,7 @@ export const greetUser = actionClient
 
 ## Chainable API Order
 
-```
+```txt
 createSafeActionClient(opts?)
   .use(middleware)              // repeatable, adds middleware to chain
   .metadata(data)              // required if defineMetadataSchema is set

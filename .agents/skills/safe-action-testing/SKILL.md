@@ -21,7 +21,7 @@ describe("createUser", () => {
       email: "alice@example.com",
     });
 
-    expect(result.data).toEqual({
+    expect(result.data).toStrictEqual({
       id: expect.any(String),
       name: "Alice",
     });
@@ -271,7 +271,7 @@ vi.mock("next/navigation", () => ({
 
 Follow the project convention:
 
-```
+```text
 packages/next-safe-action/src/__tests__/
 ├── happy-path.test.ts                  # Core happy path tests
 ├── validation-errors.test.ts           # Validation error utilities

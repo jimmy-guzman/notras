@@ -25,9 +25,6 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
     onError: () => {
       toast.error("update failed");
     },
-    onSuccess: ({ data }) => {
-      toast.success(data.message);
-    },
   });
 
   const form = useForm({
