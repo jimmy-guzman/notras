@@ -11,6 +11,12 @@ describe("stripMarkdown", () => {
     expect(stripMarkdown("### Heading three")).toBe("Heading three");
   });
 
+  it("should return empty string for marker-only headings", () => {
+    expect(stripMarkdown("#   ")).toBe("");
+    expect(stripMarkdown("## ")).toBe("");
+    expect(stripMarkdown("###    ")).toBe("");
+  });
+
   it("should strip blockquote markers", () => {
     expect(stripMarkdown("> quoted text")).toBe("quoted text");
   });

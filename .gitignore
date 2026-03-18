@@ -47,3 +47,6 @@ data/*.db*
 # eslint
 .eslintcache
 
+# worktrees
+/.worktrees
+
