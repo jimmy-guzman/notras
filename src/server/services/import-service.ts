@@ -321,7 +321,11 @@ const makeImportService = Effect.gen(function* () {
         }
       }
 
-      yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+      yield* tagRepo.deleteOrphanedTags(userId).pipe(
+        Effect.catchTag("DatabaseError", (e) => {
+          return Effect.logWarning("deleteOrphanedTags failed after import", e);
+        }),
+      );
 
       let deleted = 0;
 
@@ -335,7 +339,14 @@ const makeImportService = Effect.gen(function* () {
           deleted = toDelete.length;
         }
 
-        yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+        yield* tagRepo.deleteOrphanedTags(userId).pipe(
+          Effect.catchTag("DatabaseError", (e) => {
+            return Effect.logWarning(
+              "deleteOrphanedTags failed after mirror delete",
+              e,
+            );
+          }),
+        );
 
         if (foldersImported) {
           const allLocalFolders = yield* folderRepo

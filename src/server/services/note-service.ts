@@ -96,7 +96,14 @@ const makeNoteService = Effect.gen(function* () {
         yield* noteRepo
           .createWithTags({ content: formatted, id, userId }, tagIds)
           .pipe(Effect.orDie);
-        yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+        yield* tagRepo.deleteOrphanedTags(userId).pipe(
+          Effect.catchTag("DatabaseError", (e) => {
+            return Effect.logWarning(
+              "deleteOrphanedTags failed after create",
+              e,
+            );
+          }),
+        );
       }
 
       // Fire-and-forget link sync
@@ -159,7 +166,14 @@ const makeNoteService = Effect.gen(function* () {
         yield* noteRepo
           .updateWithTags(noteId, userId, { content: formatted }, tagIds)
           .pipe(Effect.orDie);
-        yield* tagRepo.deleteOrphanedTags(userId).pipe(Effect.orDie);
+        yield* tagRepo.deleteOrphanedTags(userId).pipe(
+          Effect.catchTag("DatabaseError", (e) => {
+            return Effect.logWarning(
+              "deleteOrphanedTags failed after update",
+              e,
+            );
+          }),
+        );
       }
 
       // Fire-and-forget link sync

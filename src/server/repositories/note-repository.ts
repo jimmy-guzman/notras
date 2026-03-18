@@ -583,24 +583,29 @@ const makeDbNoteRepository = Effect.gen(function* () {
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
       catch: (cause) => new DatabaseError({ cause }),
-      try: async () => {
-        if (tagIds.length === 0) {
-          await db.delete(noteTag).where(eq(noteTag.noteId, noteId));
+      try: () => {
+        return db.transaction(async (tx) => {
+          if (tagIds.length === 0) {
+            await tx.delete(noteTag).where(eq(noteTag.noteId, noteId));
 
-          return;
-        }
+            return;
+          }
 
-        await db
-          .delete(noteTag)
-          .where(
-            and(eq(noteTag.noteId, noteId), notInArray(noteTag.tagId, tagIds)),
-          );
+          await tx
+            .delete(noteTag)
+            .where(
+              and(
+                eq(noteTag.noteId, noteId),
+                notInArray(noteTag.tagId, tagIds),
+              ),
+            );
 
-        const rows = tagIds.map((tagId) => {
-          return { createdAt: new Date(), noteId, tagId };
+          const rows = tagIds.map((tagId) => {
+            return { createdAt: new Date(), noteId, tagId };
+          });
+
+          await tx.insert(noteTag).values(rows).onConflictDoNothing();
         });
-
-        await db.insert(noteTag).values(rows).onConflictDoNothing();
       },
     });
   };
