@@ -4,11 +4,9 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 
 import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
-import { truncate } from "@/lib/utils/truncate";
+import { extractNoteTitle } from "@/lib/utils/extract-note-title";
 
 import { AnimatedListItem } from "./animated-list-item";
-
-const MAX_CONTENT_LENGTH = 80;
 
 export function RecentNotes({ notes }: { notes: SelectNote[] }) {
   if (notes.length === 0) return null;
@@ -27,7 +25,7 @@ export function RecentNotes({ notes }: { notes: SelectNote[] }) {
                 className="block truncate py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 href={`/notes/${n.id}`}
               >
-                {truncate(n.content, MAX_CONTENT_LENGTH)}
+                {extractNoteTitle(n.content)}
               </Link>
             </AnimatedListItem>
           );

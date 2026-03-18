@@ -9,14 +9,13 @@ import type { NoteWithFolder } from "@/server/repositories/note-repository";
 
 import { toNoteId } from "@/lib/id";
 import { cn } from "@/lib/ui/utils";
+import { extractNoteTitle } from "@/lib/utils/extract-note-title";
 import { formatDate } from "@/lib/utils/format";
 import { getHighlightedParts } from "@/lib/utils/highlight";
-import { truncate } from "@/lib/utils/truncate";
 
 import { NoteTags } from "./note-tags";
 import { PinNoteButton } from "./pin-note-button";
 
-const MAX_CONTENT_LENGTH = 200;
 const EMPTY_TAGS: SelectTag[] = [];
 
 export const NoteListItem = ({
@@ -32,7 +31,7 @@ export const NoteListItem = ({
   query?: string;
   tags?: SelectTag[];
 }) => {
-  const displayContent = truncate(note.content, MAX_CONTENT_LENGTH);
+  const displayContent = extractNoteTitle(note.content);
   const noteId = toNoteId(note.id);
   const { handleRef, isDragging, ref } = useDraggable({ id: noteId });
 

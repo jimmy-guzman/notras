@@ -46,12 +46,12 @@ describe("NoteListItem", () => {
     expect(screen.getByText("Buy groceries")).toBeInTheDocument();
   });
 
-  it("should truncate content longer than 200 characters", () => {
-    const longContent = "x".repeat(250);
+  it("should truncate content longer than 80 characters", () => {
+    const longContent = "x".repeat(100);
 
     render(<NoteListItem note={makeNote({ content: longContent })} />);
 
-    expect(screen.getByText(`${"x".repeat(200)}...`)).toBeInTheDocument();
+    expect(screen.getByText(`${"x".repeat(80)}...`)).toBeInTheDocument();
   });
 
   it("should display the formatted creation date", () => {
