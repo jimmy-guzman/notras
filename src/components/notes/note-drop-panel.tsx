@@ -205,6 +205,7 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
     interceptors: [
       onSuccessDeferred(() => {
         setPendingDeleteNoteId(null);
+        toast.success("note deleted");
       }),
       onErrorDeferred(() => {
         toast.error("failed to delete note. please try again.");
