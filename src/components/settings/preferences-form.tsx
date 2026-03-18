@@ -1,9 +1,8 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
+import { useAction } from "next-safe-action/hooks";
 import { useRef } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -22,15 +21,10 @@ interface PreferencesFormProps {
 export function PreferencesForm({ preferences }: PreferencesFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
-  const action = useServerAction(updatePreferences, {
-    interceptors: [
-      onSuccessDeferred((result) => {
-        toast.success(result.message);
-      }),
-      onErrorDeferred(() => {
-        toast.error("update failed");
-      }),
-    ],
+  const action = useAction(updatePreferences, {
+    onError: () => {
+      toast.error("update failed");
+    },
   });
 
   const form = useForm({
@@ -49,11 +43,13 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
     name: "markdownPreview",
   });
 
-  const handleSubmit = form.handleSubmit(async (data) => {
-    await action.execute(data);
+  const handleSubmit = form.handleSubmit((data) => {
+    action.execute(data);
   });
 
   function submitForm() {
+    if (action.isPending) return;
+
     formRef.current?.requestSubmit();
   }
 
@@ -78,6 +74,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
               </FieldLabel>
               <Switch
                 checked={field.value}
+                disabled={action.isPending}
                 id="markdownPreview"
                 onCheckedChange={(checked) => {
                   field.onChange(checked);
@@ -113,7 +110,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
               </FieldLabel>
               <Switch
                 checked={field.value}
-                disabled={!markdownPreview}
+                disabled={!markdownPreview || action.isPending}
                 id="syntaxHighlighting"
                 onCheckedChange={(checked) => {
                   field.onChange(checked);

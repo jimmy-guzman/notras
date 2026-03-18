@@ -1,8 +1,7 @@
 "use client";
 
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Trash2Icon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -38,15 +37,13 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const action = useServerAction(deleteNote, {
-    interceptors: [
-      onSuccessDeferred(() => {
-        router.push("/notes");
-      }),
-      onErrorDeferred(() => {
-        toast.error("failed to delete note. please try again.");
-      }),
-    ],
+  const action = useAction(deleteNote, {
+    onError: () => {
+      toast.error("failed to delete note. please try again.");
+    },
+    onSuccess: () => {
+      router.push("/notes");
+    },
   });
 
   useHotkeys("d", () => {
@@ -54,7 +51,7 @@ export function DeleteNoteButton({ noteId }: DeleteNoteButtonProps) {
   });
 
   const handleDelete = () => {
-    void action.execute({ noteId });
+    action.execute({ noteId });
   };
 
   return (

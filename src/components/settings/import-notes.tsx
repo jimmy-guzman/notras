@@ -1,10 +1,9 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { UploadIcon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -53,19 +52,17 @@ export function ImportNotes() {
     ),
   });
 
-  const action = useServerAction(importNotes, {
-    interceptors: [
-      onSuccessDeferred((result) => {
-        toast.success(result.message);
-      }),
-      onErrorDeferred((error) => {
-        toast.error(error.message);
-      }),
-    ],
+  const action = useAction(importNotes, {
+    onError: ({ error }) => {
+      toast.error(error.serverError ?? "import failed. please try again.");
+    },
+    onSuccess: ({ data }) => {
+      toast.success(data.message);
+    },
   });
 
   useEffect(() => {
-    if (action.isSuccess) {
+    if (action.hasSucceeded) {
       form.reset();
       action.reset();
 
@@ -76,7 +73,7 @@ export function ImportNotes() {
   }, [action, form]);
 
   const executeSubmit = form.handleSubmit(async (data) => {
-    await action.execute(data);
+    await action.executeAsync(data);
   });
 
   function handleSubmit(e?: React.BaseSyntheticEvent) {

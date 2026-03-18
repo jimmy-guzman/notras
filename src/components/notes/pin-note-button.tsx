@@ -3,9 +3,8 @@
 import type { VariantProps } from "class-variance-authority";
 import type { MouseEvent } from "react";
 
-import { onErrorDeferred } from "@orpc/react";
-import { useOptimisticServerAction } from "@orpc/react/hooks";
 import { PinIcon } from "lucide-react";
+import { useOptimisticAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 
 import type { NoteId } from "@/lib/id";
@@ -31,40 +30,38 @@ export const PinNoteButton = ({
   pinned,
   size = "icon",
 }: PinNoteButtonProps) => {
-  const pinAction = useOptimisticServerAction(pinNote, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to pin note. please try again.");
-      }),
-    ],
-    optimisticPassthrough: pinned,
-    optimisticReducer: () => true,
+  const pinAction = useOptimisticAction(pinNote, {
+    currentState: { pinned },
+    onError: () => {
+      toast.error("failed to pin note. please try again.");
+    },
+    updateFn: () => ({ pinned: true }),
   });
 
-  const unpinAction = useOptimisticServerAction(unpinNote, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to unpin note. please try again.");
-      }),
-    ],
-    optimisticPassthrough: pinned,
-    optimisticReducer: () => false,
+  const unpinAction = useOptimisticAction(unpinNote, {
+    currentState: { pinned },
+    onError: () => {
+      toast.error("failed to unpin note. please try again.");
+    },
+    updateFn: () => ({ pinned: false }),
   });
 
   const optimisticPinned = pinAction.isPending
-    ? pinAction.optimisticState
+    ? pinAction.optimisticState.pinned
     : unpinAction.isPending
-      ? unpinAction.optimisticState
+      ? unpinAction.optimisticState.pinned
       : pinned;
 
   function handleTogglePin(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.nativeEvent.stopImmediatePropagation();
 
+    if (pinAction.isPending || unpinAction.isPending) return;
+
     if (optimisticPinned) {
-      void unpinAction.execute({ noteId });
+      unpinAction.execute({ noteId });
     } else {
-      void pinAction.execute({ noteId });
+      pinAction.execute({ noteId });
     }
   }
 

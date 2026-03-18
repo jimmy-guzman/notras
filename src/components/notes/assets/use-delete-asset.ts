@@ -1,7 +1,6 @@
 "use client";
 
-import { onErrorDeferred, onFinishDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
+import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -16,20 +15,20 @@ interface UseDeleteAssetOptions {
 export function useDeleteAsset({ noteId }: UseDeleteAssetOptions) {
   const [deletingId, setDeletingId] = useState<AssetId | null>(null);
 
-  const action = useServerAction(deleteAsset, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to delete file. please try again.");
-      }),
-      onFinishDeferred(() => {
-        setDeletingId(null);
-      }),
-    ],
+  const action = useAction(deleteAsset, {
+    onError: () => {
+      toast.error("failed to delete file. please try again.");
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
   });
 
   const handleDelete = (assetId: AssetId) => {
+    if (deletingId !== null) return;
+
     setDeletingId(assetId);
-    void action.execute({ assetId, noteId });
+    action.execute({ assetId, noteId });
   };
 
   return { deletingId, handleDelete, isPending: action.isPending };

@@ -4,14 +4,14 @@ import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
 import { toFolderId, toNoteId } from "@/lib/id";
-import { authedProcedure } from "@/lib/orpc";
+import { authActionClient } from "@/lib/safe-action";
 import { AppRuntime } from "@/server/layer";
 import { folderIdSchema } from "@/server/schemas/folder-schemas";
 import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { FolderService } from "@/server/services/folder-service";
 
-export const moveNoteToFolder = authedProcedure
-  .input(
+export const moveNoteToFolder = authActionClient
+  .inputSchema(
     Schema.standardSchemaV1(
       Schema.Struct({
         folderId: Schema.NullOr(folderIdSchema),
@@ -19,14 +19,14 @@ export const moveNoteToFolder = authedProcedure
       }),
     ),
   )
-  .handler(async ({ context, input }) => {
+  .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       FolderService.pipe(
         Effect.flatMap((svc) => {
           return svc.move(
-            context.userId,
-            toNoteId(input.noteId),
-            input.folderId ? toFolderId(input.folderId) : null,
+            ctx.userId,
+            toNoteId(parsedInput.noteId),
+            parsedInput.folderId ? toFolderId(parsedInput.folderId) : null,
           );
         }),
       ),
@@ -34,5 +34,4 @@ export const moveNoteToFolder = authedProcedure
 
     updateTag("folders");
     updateTag("notes");
-  })
-  .actionable();
+  });

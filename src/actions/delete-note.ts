@@ -4,29 +4,28 @@ import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
 import { toNoteId } from "@/lib/id";
-import { authedProcedure } from "@/lib/orpc";
+import { authActionClient } from "@/lib/safe-action";
 import { AppRuntime } from "@/server/layer";
 import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 
-export const deleteNote = authedProcedure
-  .input(
+export const deleteNote = authActionClient
+  .inputSchema(
     Schema.standardSchemaV1(
       Schema.Struct({
         noteId: noteIdSchema,
       }),
     ),
   )
-  .handler(async ({ context, input }) => {
+  .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       NoteService.pipe(
         Effect.flatMap((svc) => {
-          return svc.delete(context.userId, toNoteId(input.noteId));
+          return svc.delete(ctx.userId, toNoteId(parsedInput.noteId));
         }),
       ),
     );
 
     updateTag("notes");
     updateTag("tags");
-  })
-  .actionable();
+  });

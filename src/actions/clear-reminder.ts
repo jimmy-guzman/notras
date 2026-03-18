@@ -4,28 +4,27 @@ import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
 import { toNoteId } from "@/lib/id";
-import { authedProcedure } from "@/lib/orpc";
+import { authActionClient } from "@/lib/safe-action";
 import { AppRuntime } from "@/server/layer";
 import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 
-export const clearReminder = authedProcedure
-  .input(
+export const clearReminder = authActionClient
+  .inputSchema(
     Schema.standardSchemaV1(
       Schema.Struct({
         noteId: noteIdSchema,
       }),
     ),
   )
-  .handler(async ({ context, input }) => {
+  .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       NoteService.pipe(
         Effect.flatMap((svc) => {
-          return svc.clearReminder(context.userId, toNoteId(input.noteId));
+          return svc.clearReminder(ctx.userId, toNoteId(parsedInput.noteId));
         }),
       ),
     );
 
     updateTag("notes");
-  })
-  .actionable();
+  });

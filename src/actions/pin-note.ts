@@ -4,28 +4,27 @@ import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
 import { toNoteId } from "@/lib/id";
-import { authedProcedure } from "@/lib/orpc";
+import { authActionClient } from "@/lib/safe-action";
 import { AppRuntime } from "@/server/layer";
 import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 
-export const pinNote = authedProcedure
-  .input(
+export const pinNote = authActionClient
+  .inputSchema(
     Schema.standardSchemaV1(
       Schema.Struct({
         noteId: noteIdSchema,
       }),
     ),
   )
-  .handler(async ({ context, input }) => {
+  .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       NoteService.pipe(
-        Effect.flatMap((svc) =>
-          svc.pin(context.userId, toNoteId(input.noteId)),
-        ),
+        Effect.flatMap((svc) => {
+          return svc.pin(ctx.userId, toNoteId(parsedInput.noteId));
+        }),
       ),
     );
 
     updateTag("notes");
-  })
-  .actionable();
+  });

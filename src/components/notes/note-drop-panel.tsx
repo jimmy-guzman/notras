@@ -5,9 +5,8 @@ import {
   useDragOperation,
   useDroppable,
 } from "@dnd-kit/react";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { FolderMinusIcon, Trash2Icon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { usePathname } from "next/navigation";
 import { useQueryStates } from "nuqs";
 import { useEffect, useState } from "react";
@@ -179,31 +178,25 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
   const { source } = useDragOperation();
   const isDragging = Boolean(source);
 
-  const moveAction = useServerAction(moveNoteToFolder, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to move note. please try again.");
-      }),
-    ],
+  const moveAction = useAction(moveNoteToFolder, {
+    onError: () => {
+      toast.error("failed to move note. please try again.");
+    },
   });
 
-  const removeAction = useServerAction(moveNoteToFolder, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to remove note from folder. please try again.");
-      }),
-    ],
+  const removeAction = useAction(moveNoteToFolder, {
+    onError: () => {
+      toast.error("failed to remove note from folder. please try again.");
+    },
   });
 
-  const deleteAction = useServerAction(deleteNote, {
-    interceptors: [
-      onSuccessDeferred(() => {
-        setPendingDeleteNoteId(null);
-      }),
-      onErrorDeferred(() => {
-        toast.error("failed to delete note. please try again.");
-      }),
-    ],
+  const deleteAction = useAction(deleteNote, {
+    onError: () => {
+      toast.error("failed to delete note. please try again.");
+    },
+    onSuccess: () => {
+      setPendingDeleteNoteId(null);
+    },
   });
 
   useEffect(() => {
@@ -230,7 +223,7 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
       }
 
       if (targetIdStr === UNFILED_ID) {
-        void removeAction.execute({ folderId: null, noteId });
+        removeAction.execute({ folderId: null, noteId });
 
         return;
       }
@@ -239,14 +232,14 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
 
       const folderId = toFolderId(targetIdStr);
 
-      void moveAction.execute({ folderId, noteId });
+      moveAction.execute({ folderId, noteId });
     },
   });
 
   const handleConfirmDelete = () => {
     if (!pendingDeleteNoteId) return;
 
-    void deleteAction.execute({ noteId: pendingDeleteNoteId });
+    deleteAction.execute({ noteId: pendingDeleteNoteId });
   };
 
   const handleCancelDelete = () => {

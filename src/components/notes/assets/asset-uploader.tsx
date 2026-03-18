@@ -2,9 +2,8 @@
 
 import type { ChangeEvent, DragEvent } from "react";
 
-import { onErrorDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -21,12 +20,15 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const action = useServerAction(uploadAssets, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to upload files. please try again.");
-      }),
-    ],
+  const action = useAction(uploadAssets, {
+    onError: () => {
+      toast.error("failed to upload files. please try again.");
+    },
+    onSuccess: () => {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
   });
 
   const handleFiles = (files: FileList | null) => {
@@ -34,11 +36,7 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
 
     const fileArray = [...files];
 
-    void action.execute({ files: fileArray, noteId }).then((result) => {
-      if (!result.error && fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    });
+    action.execute({ files: fileArray, noteId });
   };
 
   const handleDragOver = (e: DragEvent<HTMLElement>) => {

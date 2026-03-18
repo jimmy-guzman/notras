@@ -1,10 +1,9 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { SaveIcon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -21,15 +20,13 @@ interface ProfileFormProps {
 }
 
 export function ProfileForm({ profile }: ProfileFormProps) {
-  const action = useServerAction(updateProfile, {
-    interceptors: [
-      onSuccessDeferred((result) => {
-        toast.success(result.message);
-      }),
-      onErrorDeferred(() => {
-        toast.error("update failed");
-      }),
-    ],
+  const action = useAction(updateProfile, {
+    onError: () => {
+      toast.error("update failed");
+    },
+    onSuccess: ({ data }) => {
+      toast.success(data.message);
+    },
   });
 
   const form = useForm({
@@ -44,7 +41,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
   });
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    await action.execute(data);
+    await action.executeAsync(data);
   });
 
   return (
