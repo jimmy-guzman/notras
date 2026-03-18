@@ -39,7 +39,7 @@ export const NoteTags = ({
           <Link href={`/notes?${params.toString()}`} key={t.id}>
             <Badge
               className="cursor-pointer hover:opacity-80"
-              variant="secondary"
+              variant="outline"
             >
               {t.name}
             </Badge>
