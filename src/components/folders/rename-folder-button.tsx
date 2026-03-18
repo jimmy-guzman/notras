@@ -52,7 +52,6 @@ export function RenameFolderButton({
   const action = useServerAction(renameFolder, {
     interceptors: [
       onSuccessDeferred(() => {
-        toast.success("folder renamed");
         handleOpenChange(false);
       }),
       onErrorDeferred(() => {

@@ -32,7 +32,6 @@ export function CreateFolderButton() {
   const action = useServerAction(createFolder, {
     interceptors: [
       onSuccessDeferred(() => {
-        toast.success("folder created");
         handleOpenChange(false);
       }),
       onErrorDeferred(() => {

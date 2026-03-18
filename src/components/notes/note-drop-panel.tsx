@@ -181,9 +181,6 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
 
   const moveAction = useServerAction(moveNoteToFolder, {
     interceptors: [
-      onSuccessDeferred(() => {
-        toast.success("note moved to folder");
-      }),
       onErrorDeferred(() => {
         toast.error("failed to move note. please try again.");
       }),
@@ -192,9 +189,6 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
 
   const removeAction = useServerAction(moveNoteToFolder, {
     interceptors: [
-      onSuccessDeferred(() => {
-        toast.success("note removed from folder");
-      }),
       onErrorDeferred(() => {
         toast.error("failed to remove note from folder. please try again.");
       }),
@@ -205,7 +199,6 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
     interceptors: [
       onSuccessDeferred(() => {
         setPendingDeleteNoteId(null);
-        toast.success("note deleted");
       }),
       onErrorDeferred(() => {
         toast.error("failed to delete note. please try again.");
