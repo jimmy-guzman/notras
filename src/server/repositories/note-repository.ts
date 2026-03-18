@@ -131,6 +131,45 @@ const pinnedFirst = asc(
   sql`CASE WHEN ${note.pinnedAt} IS NOT NULL THEN 0 ELSE 1 END`,
 );
 
+function buildWhereClause(userId: string, filters: NoteFilters) {
+  const baseFilters = [eq(note.userId, userId)];
+
+  const pinnedFilter = filters.excludePinned
+    ? [isNull(note.pinnedAt)]
+    : filters.pinnedOnly
+      ? [isNotNull(note.pinnedAt)]
+      : [];
+
+  const queryFilter = filters.query
+    ? [like(note.content, `%${filters.query}%`)]
+    : [];
+
+  const timeFilter =
+    !filters.time || filters.time === "all"
+      ? []
+      : [gte(note.createdAt, getStartDateForFilter(filters.time))];
+
+  const remindFilter =
+    filters.remind === "overdue"
+      ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
+      : filters.remind === "upcoming"
+        ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
+        : [];
+
+  const folderFilter = filters.folderId
+    ? [eq(note.folderId, filters.folderId)]
+    : [];
+
+  return and(
+    ...baseFilters,
+    ...pinnedFilter,
+    ...queryFilter,
+    ...timeFilter,
+    ...remindFilter,
+    ...folderFilter,
+  );
+}
+
 function getSortOrder(sort: NoteFilters["sort"] = "newest") {
   switch (sort) {
     case "newest": {
@@ -317,43 +356,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
     return Effect.tryPromise({
       catch: (cause) => new DatabaseError({ cause }),
       try: async () => {
-        const baseFilters = [eq(note.userId, userId)];
-
-        const pinnedFilter = filters.excludePinned
-          ? [isNull(note.pinnedAt)]
-          : filters.pinnedOnly
-            ? [isNotNull(note.pinnedAt)]
-            : [];
-
-        const queryFilter = filters.query
-          ? [like(note.content, `%${filters.query}%`)]
-          : [];
-
-        const timeFilter =
-          !filters.time || filters.time === "all"
-            ? []
-            : [gte(note.createdAt, getStartDateForFilter(filters.time))];
-
-        const remindFilter =
-          filters.remind === "overdue"
-            ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
-            : filters.remind === "upcoming"
-              ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
-              : [];
-
-        const folderFilter = filters.folderId
-          ? [eq(note.folderId, filters.folderId)]
-          : [];
-
-        const whereClause = and(
-          ...baseFilters,
-          ...pinnedFilter,
-          ...queryFilter,
-          ...timeFilter,
-          ...remindFilter,
-          ...folderFilter,
-        );
-
+        const whereClause = buildWhereClause(userId, filters);
         const orderBy = getSortOrder(filters.sort);
 
         if (filters.tag) {
@@ -407,43 +410,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
     return Effect.tryPromise({
       catch: (cause) => new DatabaseError({ cause }),
       try: async () => {
-        const baseFilters = [eq(note.userId, userId)];
-
-        const pinnedFilter = filters.excludePinned
-          ? [isNull(note.pinnedAt)]
-          : filters.pinnedOnly
-            ? [isNotNull(note.pinnedAt)]
-            : [];
-
-        const queryFilter = filters.query
-          ? [like(note.content, `%${filters.query}%`)]
-          : [];
-
-        const timeFilter =
-          !filters.time || filters.time === "all"
-            ? []
-            : [gte(note.createdAt, getStartDateForFilter(filters.time))];
-
-        const remindFilter =
-          filters.remind === "overdue"
-            ? [isNotNull(note.remindAt), lte(note.remindAt, new Date())]
-            : filters.remind === "upcoming"
-              ? [isNotNull(note.remindAt), gt(note.remindAt, new Date())]
-              : [];
-
-        const folderFilter = filters.folderId
-          ? [eq(note.folderId, filters.folderId)]
-          : [];
-
-        const whereClause = and(
-          ...baseFilters,
-          ...pinnedFilter,
-          ...queryFilter,
-          ...timeFilter,
-          ...remindFilter,
-          ...folderFilter,
-        );
-
+        const whereClause = buildWhereClause(userId, filters);
         const orderBy = getSortOrder(filters.sort);
 
         const noteColumns = {

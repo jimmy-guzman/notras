@@ -24,7 +24,6 @@ import { DeleteFolderButton } from "@/components/folders/delete-folder-button";
 import { RenameFolderButton } from "@/components/folders/rename-folder-button";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -257,6 +256,8 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
   };
 
   const handleCancelDelete = () => {
+    if (deleteAction.isPending) return;
+
     setPendingDeleteNoteId(null);
   };
 
@@ -305,13 +306,13 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
             <AlertDialogCancel onClick={handleCancelDelete}>
               cancel
             </AlertDialogCancel>
-            <AlertDialogAction
+            <Button
               disabled={deleteAction.isPending}
               onClick={handleConfirmDelete}
               variant="destructive"
             >
               {deleteAction.isPending ? "deleting..." : "delete"}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
