@@ -22,7 +22,7 @@ idle → executing → hasSucceeded
 const {
   isIdle, // status === "idle"
   isExecuting, // status === "executing"
-  isTransitioning, // React transition is still pending (after action resolves)
+  isTransitioning, // status === "transitioning"
   isPending, // isExecuting || isTransitioning
   hasSucceeded, // status === "hasSucceeded"
   hasErrored, // status === "hasErrored"
@@ -102,6 +102,7 @@ Fires after any outcome (success, error, or navigation). Always runs.
 ```ts
 useAction(myAction, {
   onSettled: ({ result, input, navigationKind }) => {
+    // navigationKind is optional — only present when action triggered a navigation
     // Good for cleanup, analytics, re-enabling UI
     setLoading(false);
   },

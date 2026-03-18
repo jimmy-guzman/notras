@@ -53,6 +53,8 @@ export function CreateFolderButton() {
   }
 
   const handleSubmit = form.handleSubmit((data) => {
+    if (action.isPending) return;
+
     action.execute(data);
   });
 

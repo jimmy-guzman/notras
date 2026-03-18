@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createUser } from "@/app/actions";
 
 describe("createUser", () => {
-  it("returns user data on valid input", async () => {
+  it("should return user data on valid input", async () => {
     const result = await createUser({
       name: "Alice",
       email: "alice@example.com",
@@ -29,7 +29,7 @@ describe("createUser", () => {
     expect(result.validationErrors).toBeUndefined();
   });
 
-  it("returns validation errors on invalid input", async () => {
+  it("should return validation errors on invalid input", async () => {
     const result = await createUser({ name: "", email: "not-an-email" });
 
     expect(result.data).toBeUndefined();
@@ -37,7 +37,7 @@ describe("createUser", () => {
     expect(result.validationErrors?.email?._errors).toContain("Invalid email");
   });
 
-  it("returns server error on duplicate email", async () => {
+  it("should return server error on duplicate email", async () => {
     // Setup: create first user
     await createUser({ name: "Alice", email: "alice@example.com" });
 
@@ -64,7 +64,7 @@ describe("createUser", () => {
 import { updatePost } from "@/app/actions";
 
 describe("updatePost", () => {
-  it("updates the post", async () => {
+  it("should update the post", async () => {
     const postId = "123e4567-e89b-12d3-a456-426614174000";
     const boundAction = updatePost.bind(null, postId);
 
@@ -73,10 +73,10 @@ describe("updatePost", () => {
       content: "Updated content",
     });
 
-    expect(result.data).toEqual({ success: true });
+    expect(result.data).toStrictEqual({ success: true });
   });
 
-  it("returns validation error for invalid postId", async () => {
+  it("should return validation error for invalid postId", async () => {
     const boundAction = updatePost.bind(null, "not-a-uuid");
 
     // Bind args validation errors throw ActionBindArgsValidationError
@@ -114,16 +114,16 @@ const testAction = authClient.action(async ({ ctx }) => {
 });
 
 describe("auth middleware", () => {
-  it("passes userId to action when authenticated", async () => {
+  it("should pass userId to action when authenticated", async () => {
     vi.mocked(getSession).mockResolvedValue({
       user: { id: "user-1", role: "user" },
     });
 
     const result = await testAction();
-    expect(result.data).toEqual({ userId: "user-1" });
+    expect(result.data).toStrictEqual({ userId: "user-1" });
   });
 
-  it("returns server error when unauthenticated", async () => {
+  it("should return server error when unauthenticated", async () => {
     vi.mocked(getSession).mockResolvedValue(null);
 
     const result = await testAction();
@@ -145,15 +145,15 @@ import { useAction } from "next-safe-action/hooks";
 const mockAction = vi.fn();
 
 describe("useAction", () => {
-  it("starts idle", () => {
+  it("should start idle", () => {
     const { result } = renderHook(() => useAction(mockAction));
 
     expect(result.current.isIdle).toBe(true);
     expect(result.current.isExecuting).toBe(false);
-    expect(result.current.result).toEqual({});
+    expect(result.current.result).toStrictEqual({});
   });
 
-  it("executes and returns data", async () => {
+  it("should execute and return data", async () => {
     mockAction.mockResolvedValue({ data: { id: "1" } });
 
     const { result } = renderHook(() =>
@@ -170,10 +170,10 @@ describe("useAction", () => {
       expect(result.current.hasSucceeded).toBe(true);
     });
 
-    expect(result.current.result.data).toEqual({ id: "1" });
+    expect(result.current.result.data).toStrictEqual({ id: "1" });
   });
 
-  it("handles server errors", async () => {
+  it("should handle server errors", async () => {
     mockAction.mockResolvedValue({ serverError: "Something went wrong" });
 
     const onError = vi.fn();
@@ -191,7 +191,7 @@ describe("useAction", () => {
     expect(onError).toHaveBeenCalled();
   });
 
-  it("resets state", async () => {
+  it("should reset state", async () => {
     mockAction.mockResolvedValue({ data: { id: "1" } });
 
     const { result } = renderHook(() => useAction(mockAction));
@@ -209,7 +209,7 @@ describe("useAction", () => {
     });
 
     expect(result.current.isIdle).toBe(true);
-    expect(result.current.result).toEqual({});
+    expect(result.current.result).toStrictEqual({});
   });
 });
 ```
@@ -229,18 +229,18 @@ describe("validation error utilities", () => {
     name: { _errors: ["Too short", "Must start with uppercase"] },
   };
 
-  it("flattenValidationErrors", () => {
+  it("should flatten flattenValidationErrors", () => {
     const flattened = flattenValidationErrors(formatted);
 
-    expect(flattened.formErrors).toEqual(["Form error"]);
-    expect(flattened.fieldErrors.email).toEqual(["Invalid email"]);
-    expect(flattened.fieldErrors.name).toEqual([
+    expect(flattened.formErrors).toStrictEqual(["Form error"]);
+    expect(flattened.fieldErrors.email).toStrictEqual(["Invalid email"]);
+    expect(flattened.fieldErrors.name).toStrictEqual([
       "Too short",
       "Must start with uppercase",
     ]);
   });
 
-  it("formatValidationErrors is identity", () => {
+  it("should verify formatValidationErrors is identity", () => {
     expect(formatValidationErrors(formatted)).toBe(formatted);
   });
 });

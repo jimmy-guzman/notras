@@ -43,11 +43,13 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
     name: "markdownPreview",
   });
 
-  const handleSubmit = form.handleSubmit(async (data) => {
-    await action.executeAsync(data);
+  const handleSubmit = form.handleSubmit((data) => {
+    action.execute(data);
   });
 
   function submitForm() {
+    if (action.isPending) return;
+
     formRef.current?.requestSubmit();
   }
 
@@ -72,6 +74,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
               </FieldLabel>
               <Switch
                 checked={field.value}
+                disabled={action.isPending}
                 id="markdownPreview"
                 onCheckedChange={(checked) => {
                   field.onChange(checked);
@@ -107,7 +110,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
               </FieldLabel>
               <Switch
                 checked={field.value}
-                disabled={!markdownPreview}
+                disabled={!markdownPreview || action.isPending}
                 id="syntaxHighlighting"
                 onCheckedChange={(checked) => {
                   field.onChange(checked);

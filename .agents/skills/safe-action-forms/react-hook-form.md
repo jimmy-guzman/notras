@@ -66,7 +66,8 @@ const { form, action, handleSubmitWithAction, resetFormAndAction } = useHookForm
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createUser } from "@/app/actions";
+import { toast } from "sonner";
+import { createUser } from "@/actions/create-user";
 
 const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -141,6 +142,10 @@ Root-level `_errors` are mapped to the `root` key in `form.formState.errors`.
 Same API as `useHookFormAction`, but wraps `useOptimisticAction` instead:
 
 ```tsx
+import { useHookFormOptimisticAction } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+
 const { form, action, handleSubmitWithAction } = useHookFormOptimisticAction(
   updateSettings,
   zodResolver(schema),
@@ -174,6 +179,8 @@ A React hook that memoizes the error mapping:
 
 ```ts
 import { useHookFormActionErrorMapper } from "@next-safe-action/adapter-react-hook-form/hooks";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 
 const { hookFormValidationErrors } = useHookFormActionErrorMapper(
   result.validationErrors,

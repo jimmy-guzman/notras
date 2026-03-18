@@ -14,14 +14,23 @@ export const uploadAssets = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     const typedNoteId = toNoteId(parsedInput.noteId);
 
+    let firstError: Error | undefined;
+
     for (const file of parsedInput.files) {
-      await AppRuntime.runPromise(
-        AssetService.pipe(
-          Effect.flatMap((svc) => svc.upload(ctx.userId, typedNoteId, file)),
-        ),
-      );
+      try {
+        await AppRuntime.runPromise(
+          AssetService.pipe(
+            Effect.flatMap((svc) => svc.upload(ctx.userId, typedNoteId, file)),
+          ),
+        );
+      } catch (error) {
+        firstError ??=
+          error instanceof Error ? error : new Error(String(error));
+      }
     }
 
     updateTag("notes");
     revalidatePath(`/notes/${typedNoteId}`);
+
+    if (firstError !== undefined) throw firstError;
   });
