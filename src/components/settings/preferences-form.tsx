@@ -1,9 +1,8 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
+import { useAction } from "next-safe-action/hooks";
 import { useRef } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -22,15 +21,13 @@ interface PreferencesFormProps {
 export function PreferencesForm({ preferences }: PreferencesFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
-  const action = useServerAction(updatePreferences, {
-    interceptors: [
-      onSuccessDeferred((result) => {
-        toast.success(result.message);
-      }),
-      onErrorDeferred(() => {
-        toast.error("update failed");
-      }),
-    ],
+  const action = useAction(updatePreferences, {
+    onError: () => {
+      toast.error("update failed");
+    },
+    onSuccess: ({ data }) => {
+      toast.success(data.message);
+    },
   });
 
   const form = useForm({
@@ -50,7 +47,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
   });
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    await action.execute(data);
+    await action.executeAsync(data);
   });
 
   function submitForm() {

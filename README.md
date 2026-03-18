@@ -47,7 +47,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - [Radix UI](https://www.radix-ui.com) (headless primitives)
 - [Tailwind CSS](https://tailwindcss.com) 4
 - [React Hook Form](https://react-hook-form.com)
-- [oRPC](https://orpc.unnoq.com) (type-safe server actions)
+- [next-safe-action](https://next-safe-action.dev) (type-safe server actions)
 - [Motion](https://motion.dev)
 - [dnd-kit](https://dndkit.com) (drag-and-drop)
 - [Sonner](https://sonner.emilkowal.ski)
@@ -95,7 +95,7 @@ docker run -p 3000:3000 \
 
 ## API
 
-Binary and streaming endpoints are plain Next.js Route Handlers under `src/app/api/`. All data mutations and reads use oRPC server actions.
+Binary and streaming endpoints are plain Next.js Route Handlers under `src/app/api/`. All data mutations use `next-safe-action` server actions; reads are plain `async` functions called from RSCs.
 
 | Endpoint                    | Description                       |
 | --------------------------- | --------------------------------- |

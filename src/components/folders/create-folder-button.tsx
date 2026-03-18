@@ -1,10 +1,9 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { FolderPlusIcon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -29,15 +28,13 @@ export function CreateFolderButton() {
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const action = useServerAction(createFolder, {
-    interceptors: [
-      onSuccessDeferred(() => {
-        handleOpenChange(false);
-      }),
-      onErrorDeferred(() => {
-        toast.error("failed to create folder. please try again.");
-      }),
-    ],
+  const action = useAction(createFolder, {
+    onError: () => {
+      toast.error("failed to create folder. please try again.");
+    },
+    onSuccess: () => {
+      handleOpenChange(false);
+    },
   });
 
   const form = useForm({
@@ -56,7 +53,7 @@ export function CreateFolderButton() {
   }
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    await action.execute(data);
+    await action.executeAsync(data);
   });
 
   useHotkeys(

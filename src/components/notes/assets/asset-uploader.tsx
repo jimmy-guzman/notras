@@ -2,9 +2,8 @@
 
 import type { ChangeEvent, DragEvent } from "react";
 
-import { onErrorDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -21,24 +20,21 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const action = useServerAction(uploadAssets, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to upload files. please try again.");
-      }),
-    ],
+  const action = useAction(uploadAssets, {
+    onError: () => {
+      toast.error("failed to upload files. please try again.");
+    },
   });
 
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     const fileArray = [...files];
+    const result = await action.executeAsync({ files: fileArray, noteId });
 
-    void action.execute({ files: fileArray, noteId }).then((result) => {
-      if (!result.error && fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    });
+    if (!result.serverError && fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleDragOver = (e: DragEvent<HTMLElement>) => {
@@ -57,11 +53,11 @@ export function AssetUploader({ noteId }: AssetUploaderProps) {
 
     const { files } = e.dataTransfer;
 
-    handleFiles(files);
+    void handleFiles(files);
   };
 
   const handleFileInput = (e: ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files);
+    void handleFiles(e.target.files);
   };
 
   const handleClick = () => {

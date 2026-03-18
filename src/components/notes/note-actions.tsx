@@ -1,8 +1,7 @@
 "use client";
 
-import { onErrorDeferred } from "@orpc/react";
-import { useOptimisticServerAction } from "@orpc/react/hooks";
 import { PencilIcon, PinIcon } from "lucide-react";
+import { useOptimisticAction } from "next-safe-action/hooks";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
@@ -40,37 +39,33 @@ export function NoteActions({
 }: NoteActionsProps) {
   const router = useRouter();
 
-  const pinAction = useOptimisticServerAction(pinNote, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to pin note. please try again.");
-      }),
-    ],
-    optimisticPassthrough: pinned,
-    optimisticReducer: () => true,
+  const pinAction = useOptimisticAction(pinNote, {
+    currentState: { pinned },
+    onError: () => {
+      toast.error("failed to pin note. please try again.");
+    },
+    updateFn: () => ({ pinned: true }),
   });
 
-  const unpinAction = useOptimisticServerAction(unpinNote, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to unpin note. please try again.");
-      }),
-    ],
-    optimisticPassthrough: pinned,
-    optimisticReducer: () => false,
+  const unpinAction = useOptimisticAction(unpinNote, {
+    currentState: { pinned },
+    onError: () => {
+      toast.error("failed to unpin note. please try again.");
+    },
+    updateFn: () => ({ pinned: false }),
   });
 
   const optimisticPinned = pinAction.isPending
-    ? pinAction.optimisticState
+    ? pinAction.optimisticState.pinned
     : unpinAction.isPending
-      ? unpinAction.optimisticState
+      ? unpinAction.optimisticState.pinned
       : pinned;
 
   const handleTogglePin = useCallback(() => {
     if (optimisticPinned) {
-      void unpinAction.execute({ noteId });
+      unpinAction.execute({ noteId });
     } else {
-      void pinAction.execute({ noteId });
+      pinAction.execute({ noteId });
     }
   }, [noteId, optimisticPinned, pinAction, unpinAction]);
 

@@ -1,28 +1,27 @@
 "use server";
 
-import { ORPCError } from "@orpc/server";
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { authedProcedure } from "@/lib/orpc";
+import { authActionClient } from "@/lib/safe-action";
 import { AppRuntime } from "@/server/layer";
 import { importInputSchema } from "@/server/schemas/export-schemas";
 import { ImportService } from "@/server/services/import-service";
 
-export const importNotes = authedProcedure
-  .input(Schema.standardSchemaV1(importInputSchema))
-  .handler(async ({ context, input }) => {
-    const buffer = new Uint8Array(await input.file.arrayBuffer());
+export const importNotes = authActionClient
+  .inputSchema(Schema.standardSchemaV1(importInputSchema))
+  .action(async ({ ctx, parsedInput }) => {
+    const buffer = new Uint8Array(await parsedInput.file.arrayBuffer());
     const result = await AppRuntime.runPromise(
       ImportService.pipe(
         Effect.flatMap((svc) => {
-          return svc.importZip(context.userId, buffer, input.mode);
+          return svc.importZip(ctx.userId, buffer, parsedInput.mode);
         }),
       ),
     );
 
     if (!result.success) {
-      throw new ORPCError("IMPORT_FAILED", { message: result.message });
+      throw new Error(result.message);
     }
 
     updateTag("notes");
@@ -35,5 +34,4 @@ export const importNotes = authedProcedure
       skipped: result.skipped,
       updated: result.updated,
     };
-  })
-  .actionable();
+  });

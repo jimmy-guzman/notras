@@ -1,10 +1,9 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { onErrorDeferred, onSuccessDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Schema } from "effect";
 import { PencilIcon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -49,15 +48,13 @@ export function RenameFolderButton({
     ),
   });
 
-  const action = useServerAction(renameFolder, {
-    interceptors: [
-      onSuccessDeferred(() => {
-        handleOpenChange(false);
-      }),
-      onErrorDeferred(() => {
-        toast.error("failed to rename folder. please try again.");
-      }),
-    ],
+  const action = useAction(renameFolder, {
+    onError: () => {
+      toast.error("failed to rename folder. please try again.");
+    },
+    onSuccess: () => {
+      handleOpenChange(false);
+    },
   });
 
   function handleOpenChange(nextOpen: boolean) {
@@ -68,7 +65,7 @@ export function RenameFolderButton({
   }
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    await action.execute(data);
+    await action.executeAsync(data);
   });
 
   useHotkeys(

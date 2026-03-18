@@ -1,8 +1,7 @@
 "use client";
 
-import { onErrorDeferred } from "@orpc/react";
-import { useServerAction } from "@orpc/react/hooks";
 import { Trash2Icon } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -35,16 +34,14 @@ export function DeleteFolderButton({
 }: DeleteFolderButtonProps) {
   const [open, setOpen] = useState(false);
 
-  const action = useServerAction(deleteFolder, {
-    interceptors: [
-      onErrorDeferred(() => {
-        toast.error("failed to delete folder. please try again.");
-      }),
-    ],
+  const action = useAction(deleteFolder, {
+    onError: () => {
+      toast.error("failed to delete folder. please try again.");
+    },
   });
 
   const handleDelete = () => {
-    void action.execute({ folderId });
+    action.execute({ folderId });
   };
 
   return (

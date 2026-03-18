@@ -4,21 +4,21 @@ import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
 import { toFolderId } from "@/lib/id";
-import { authedProcedure } from "@/lib/orpc";
+import { authActionClient } from "@/lib/safe-action";
 import { AppRuntime } from "@/server/layer";
 import { renameFolderSchema } from "@/server/schemas/folder-schemas";
 import { FolderService } from "@/server/services/folder-service";
 
-export const renameFolder = authedProcedure
-  .input(Schema.standardSchemaV1(renameFolderSchema))
-  .handler(async ({ context, input }) => {
+export const renameFolder = authActionClient
+  .inputSchema(Schema.standardSchemaV1(renameFolderSchema))
+  .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       FolderService.pipe(
         Effect.flatMap((svc) => {
           return svc.rename(
-            context.userId,
-            toFolderId(input.folderId),
-            input.name,
+            ctx.userId,
+            toFolderId(parsedInput.folderId),
+            parsedInput.name,
           );
         }),
       ),
@@ -26,5 +26,4 @@ export const renameFolder = authedProcedure
 
     updateTag("folders");
     updateTag("notes");
-  })
-  .actionable();
+  });
