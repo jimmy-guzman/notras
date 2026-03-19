@@ -1,9 +1,7 @@
 import { asc, desc, sql } from "drizzle-orm";
 
+import { SNIPPET_END, SNIPPET_START } from "@/server/db/fts-markers";
 import { note } from "@/server/db/schemas/notes";
-
-const SNIPPET_END = "[[/hl]]";
-const SNIPPET_START = "[[hl]]";
 
 export function buildFtsMatchQuery(query: string | undefined) {
   if (query === undefined) {

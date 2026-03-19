@@ -38,12 +38,11 @@ export const NoteListItem = ({
     hasQuery && note.snippet !== null
       ? getCenteredSnippetParts(note.snippet)
       : [];
-  const queryParts =
-    query && query.trim().length > 0
-      ? note.snippet === null
-        ? getHighlightedParts(title, query)
-        : compactSnippetParts
-      : [];
+  const queryParts = hasQuery
+    ? note.snippet === null
+      ? getHighlightedParts(title, query)
+      : compactSnippetParts
+    : [];
   const noteId = toNoteId(note.id);
   const { handleRef, isDragging, ref } = useDraggable({ id: noteId });
 

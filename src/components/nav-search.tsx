@@ -15,10 +15,6 @@ interface NavSearchProps {
   layoutId?: string;
 }
 
-function isSearchRegionVisible(el: HTMLElement) {
-  return el.offsetParent !== null;
-}
-
 export function NavSearch({ layoutId }: NavSearchProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,7 +49,7 @@ export function NavSearch({ layoutId }: NavSearchProps) {
     const q = params.q.trim();
     const region = searchRegionRef.current;
 
-    if (pathname === "/notes" && q && region && isSearchRegionVisible(region)) {
+    if (pathname === "/notes" && q && region && region.offsetParent !== null) {
       const shouldFocus =
         prevPath === null || prevPath !== "/notes" || prevQ === "";
 

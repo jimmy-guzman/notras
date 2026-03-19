@@ -17,11 +17,17 @@ const FTS_SETUP_STATEMENTS = [
   `CREATE TRIGGER IF NOT EXISTS note_fts_delete AFTER DELETE ON note BEGIN
     INSERT INTO note_fts(note_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
   END`,
-  `INSERT INTO note_fts(note_fts) VALUES ('rebuild')`,
 ];
 
 export async function ensureFts(client: Client) {
   for (const statement of FTS_SETUP_STATEMENTS) {
     await client.execute(statement);
+  }
+
+  const result = await client.execute(`SELECT count(*) AS n FROM note_fts`);
+  const count = Number(result.rows[0]?.n ?? 0);
+
+  if (count === 0) {
+    await client.execute(`INSERT INTO note_fts(note_fts) VALUES ('rebuild')`);
   }
 }

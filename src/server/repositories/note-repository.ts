@@ -146,7 +146,11 @@ const pinnedFirst = asc(
   sql`CASE WHEN ${note.pinnedAt} IS NOT NULL THEN 0 ELSE 1 END`,
 );
 
-function buildWhereClause(userId: string, filters: NoteFilters) {
+function buildWhereClause(
+  userId: string,
+  filters: NoteFilters,
+  matchQuery?: string,
+) {
   const baseFilters = [eq(note.userId, userId)];
 
   const pinnedFilter = filters.excludePinned
@@ -171,7 +175,6 @@ function buildWhereClause(userId: string, filters: NoteFilters) {
     ? [eq(note.folderId, filters.folderId)]
     : [];
 
-  const matchQuery = buildFtsMatchQuery(filters.query);
   const queryFilter =
     matchQuery === undefined
       ? []
@@ -442,7 +445,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
       try: async () => {
         const matchQuery = buildFtsMatchQuery(filters.query);
         const snippet = getSnippetExpression(matchQuery);
-        const whereClause = buildWhereClause(userId, filters);
+        const whereClause = buildWhereClause(userId, filters, matchQuery);
         const orderBy = getSortOrder(filters.sort, matchQuery);
         const noteColumns = getNoteColumns(snippet);
 
@@ -489,7 +492,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
       try: async () => {
         const matchQuery = buildFtsMatchQuery(filters.query);
         const snippet = getSnippetExpression(matchQuery);
-        const whereClause = buildWhereClause(userId, filters);
+        const whereClause = buildWhereClause(userId, filters, matchQuery);
         const orderBy = getSortOrder(filters.sort, matchQuery);
         const noteColumns = getNoteWithFolderColumns(snippet);
 

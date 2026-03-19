@@ -1,5 +1,4 @@
-const SNIPPET_END = "[[/hl]]";
-const SNIPPET_START = "[[hl]]";
+import { SNIPPET_END, SNIPPET_START } from "@/server/db/fts-markers";
 
 interface SnippetPart {
   id: number;
@@ -47,27 +46,25 @@ export function getSnippetParts(snippet: string): SnippetPart[] {
 
   let isMatch = false;
 
-  return tokens
-    .flatMap((token, id) => {
-      if (token === SNIPPET_START) {
-        isMatch = true;
+  return tokens.flatMap((token, id) => {
+    if (token === SNIPPET_START) {
+      isMatch = true;
 
-        return [];
-      }
+      return [];
+    }
 
-      if (token === SNIPPET_END) {
-        isMatch = false;
+    if (token === SNIPPET_END) {
+      isMatch = false;
 
-        return [];
-      }
+      return [];
+    }
 
-      if (token.length === 0) {
-        return [];
-      }
+    if (token.length === 0) {
+      return [];
+    }
 
-      return [{ id, match: isMatch, text: token }];
-    })
-    .filter((part) => part.text.length > 0);
+    return [{ id, match: isMatch, text: token }];
+  });
 }
 
 export function getCenteredSnippetParts(snippet: string, maxChars = 80) {
