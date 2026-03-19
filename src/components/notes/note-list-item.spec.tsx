@@ -15,6 +15,7 @@ const makeNote = (
     id: string;
     pinnedAt: Date | null;
     remindAt: Date | null;
+    snippet: null | string;
   }> = {},
 ) => {
   return {
@@ -25,6 +26,7 @@ const makeNote = (
     id: overrides.id ?? "note_1",
     pinnedAt: overrides.pinnedAt ?? null,
     remindAt: overrides.remindAt ?? null,
+    snippet: overrides.snippet ?? null,
     syncedAt: null,
     updatedAt: new Date(2025, 5, 15),
     userId: "user_1",
@@ -73,6 +75,46 @@ describe("NoteListItem", () => {
     const mark = screen.getByText("world");
 
     expect(mark.tagName).toBe("MARK");
+  });
+
+  it("should render snippet highlights when snippet is provided", () => {
+    render(
+      <NoteListItem
+        note={makeNote({
+          content: "visible title",
+          snippet: "first [[hl]]match[[/hl]] second",
+        })}
+        query="match"
+      />,
+    );
+
+    const mark = screen.getByText("match");
+    const link = screen.getByRole("link", { name: /visible title/i });
+    const snippetLine = screen.getByLabelText("search match snippet");
+
+    expect(mark.tagName).toBe("MARK");
+    expect(link).toHaveTextContent("visible title");
+    expect(snippetLine).toHaveTextContent("first match second");
+  });
+
+  it("should show centered snippet in row for long fts snippets", () => {
+    const longBefore = "x".repeat(50);
+    const longAfter = "y".repeat(50);
+    const fullSnippet = `${longBefore} [[hl]]cosmos[[/hl]] ${longAfter}`;
+
+    render(
+      <NoteListItem
+        note={makeNote({
+          content: "visible title",
+          snippet: fullSnippet,
+        })}
+        query="cosmos"
+      />,
+    );
+
+    const snippetLine = screen.getByLabelText("search match snippet");
+
+    expect(snippetLine).toHaveTextContent(/^\.{3}.*cosmos.*\.{3}$/);
   });
 
   it("should render a pin button", () => {

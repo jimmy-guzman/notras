@@ -3,7 +3,7 @@
 import { AnimatePresence } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryStates } from "nuqs";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useDebouncedCallback } from "use-debounce";
 
@@ -15,10 +15,17 @@ interface NavSearchProps {
   layoutId?: string;
 }
 
+function isSearchRegionVisible(el: HTMLElement) {
+  return el.offsetParent !== null;
+}
+
 export function NavSearch({ layoutId }: NavSearchProps) {
   const pathname = usePathname();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchRegionRef = useRef<HTMLElement>(null);
+  const prevPathnameRef = useRef<null | string>(null);
+  const prevQRef = useRef("");
   const isHome = pathname === "/";
   const isNotesPage = pathname === "/notes";
 
@@ -40,6 +47,25 @@ export function NavSearch({ layoutId }: NavSearchProps) {
     }
   }, 300);
 
+  useEffect(() => {
+    const prevPath = prevPathnameRef.current;
+    const prevQ = prevQRef.current;
+    const q = params.q.trim();
+    const region = searchRegionRef.current;
+
+    if (pathname === "/notes" && q && region && isSearchRegionVisible(region)) {
+      const shouldFocus =
+        prevPath === null || prevPath !== "/notes" || prevQ === "";
+
+      if (shouldFocus) {
+        requestAnimationFrame(() => inputRef.current?.focus());
+      }
+    }
+
+    prevPathnameRef.current = pathname;
+    prevQRef.current = q;
+  }, [params.q, pathname]);
+
   useHotkeys("slash", () => inputRef.current?.focus(), {
     enabled: !isHome,
     preventDefault: true,
@@ -49,13 +75,15 @@ export function NavSearch({ layoutId }: NavSearchProps) {
     e.preventDefault();
     void debounced.flush();
     setDraft(null);
-    inputRef.current?.blur();
   };
 
   return (
     <AnimatePresence initial={false}>
       {!isHome && (
-        <search className="flex flex-1 justify-center sm:max-w-md">
+        <search
+          className="flex flex-1 justify-center sm:max-w-md"
+          ref={searchRegionRef}
+        >
           <form className="w-full" onSubmit={handleSubmit}>
             <label className="sr-only" htmlFor="nav-search">
               search notes

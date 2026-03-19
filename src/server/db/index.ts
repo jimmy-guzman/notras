@@ -4,6 +4,7 @@ import { Context, Effect, Layer } from "effect";
 
 import { env } from "@/env";
 
+import { ensureFts } from "./fts";
 import * as assets from "./schemas/assets";
 import * as folders from "./schemas/folders";
 import * as links from "./schemas/links";
@@ -27,8 +28,10 @@ export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
 export const DatabaseLive = Layer.scoped(
   Database,
   Effect.acquireRelease(
-    Effect.sync(() => {
+    Effect.tryPromise(async () => {
       const client = createClient({ url: env.DATABASE_PATH });
+
+      await ensureFts(client);
 
       return { client, db: drizzle(client, { schema }) };
     }),
