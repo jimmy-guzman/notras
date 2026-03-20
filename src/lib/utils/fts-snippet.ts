@@ -1,5 +1,13 @@
 import { SNIPPET_END, SNIPPET_START } from "@/server/db/fts-markers";
 
+function escapeRegExp(str: string) {
+  return str.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+}
+
+const SNIPPET_SPLIT_RE = new RegExp(
+  `(${escapeRegExp(SNIPPET_START)}|${escapeRegExp(SNIPPET_END)})`,
+);
+
 interface SnippetPart {
   id: number;
   match: boolean;
@@ -42,7 +50,7 @@ function slicePartsByCharRange(
 }
 
 export function getSnippetParts(snippet: string): SnippetPart[] {
-  const tokens = snippet.split(/(\[\[hl\]\]|\[\[\/hl\]\])/);
+  const tokens = snippet.split(SNIPPET_SPLIT_RE);
 
   let isMatch = false;
 

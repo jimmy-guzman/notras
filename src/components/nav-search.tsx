@@ -49,17 +49,25 @@ export function NavSearch({ layoutId }: NavSearchProps) {
     const q = params.q.trim();
     const region = searchRegionRef.current;
 
+    let rafId: number | undefined;
+
     if (pathname === "/notes" && q && region && region.offsetParent !== null) {
       const shouldFocus =
         prevPath === null || prevPath !== "/notes" || prevQ === "";
 
       if (shouldFocus) {
-        requestAnimationFrame(() => inputRef.current?.focus());
+        rafId = requestAnimationFrame(() => inputRef.current?.focus());
       }
     }
 
     prevPathnameRef.current = pathname;
     prevQRef.current = q;
+
+    return () => {
+      if (rafId !== undefined) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, [params.q, pathname]);
 
   useHotkeys("slash", () => inputRef.current?.focus(), {
