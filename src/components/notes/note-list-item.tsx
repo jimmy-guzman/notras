@@ -11,6 +11,7 @@ import { toNoteId } from "@/lib/id";
 import { cn } from "@/lib/ui/utils";
 import { extractNoteTitle } from "@/lib/utils/extract-note-title";
 import { formatDate } from "@/lib/utils/format";
+import { getCenteredSnippetParts } from "@/lib/utils/fts-snippet";
 import { getHighlightedParts } from "@/lib/utils/highlight";
 
 import { NoteTags } from "./note-tags";
@@ -31,7 +32,17 @@ export const NoteListItem = ({
   query?: string;
   tags?: SelectTag[];
 }) => {
-  const displayContent = extractNoteTitle(note.content);
+  const title = extractNoteTitle(note.content);
+  const hasQuery = query !== undefined && query.trim().length > 0;
+  const compactSnippetParts =
+    hasQuery && note.snippet !== null
+      ? getCenteredSnippetParts(note.snippet)
+      : [];
+  const queryParts = hasQuery
+    ? note.snippet === null
+      ? getHighlightedParts(title, query)
+      : compactSnippetParts
+    : [];
   const noteId = toNoteId(note.id);
   const { handleRef, isDragging, ref } = useDraggable({ id: noteId });
 
@@ -60,22 +71,28 @@ export const NoteListItem = ({
           href={`/notes/${note.id}`}
         >
           <p className="truncate text-sm leading-relaxed text-foreground transition-colors group-hover:text-foreground/90">
-            {query
-              ? getHighlightedParts(displayContent, query).map((part) => {
-                  return part.match ? (
-                    <mark
-                      className="bg-yellow-200 text-inherit dark:bg-yellow-800"
-                      key={part.id}
-                    >
-                      {part.text}
-                    </mark>
-                  ) : (
-                    <span key={part.id}>{part.text}</span>
-                  );
-                })
-              : displayContent}
+            {title}
           </p>
         </Link>
+        {queryParts.length > 0 && (
+          <p
+            aria-label="search match snippet"
+            className="mt-0.5 truncate text-xs leading-relaxed text-muted-foreground"
+          >
+            {queryParts.map((part) => {
+              return part.match ? (
+                <mark
+                  className="bg-yellow-200 text-inherit dark:bg-yellow-800"
+                  key={part.id}
+                >
+                  {part.text}
+                </mark>
+              ) : (
+                <span key={part.id}>{part.text}</span>
+              );
+            })}
+          </p>
+        )}
         {tags.length > 0 && (
           <div className="mt-1">
             <NoteTags currentParams={currentParams} tags={tags} />

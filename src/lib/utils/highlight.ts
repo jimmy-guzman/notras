@@ -3,15 +3,23 @@ function escapeRegExp(string: string): string {
 }
 
 export function getHighlightedParts(text: string, query: string) {
-  if (!query.trim()) return [{ id: -1, match: false, text }];
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 0);
 
-  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
+  if (terms.length === 0) return [{ id: -1, match: false, text }];
+
+  const normalizedTerms = new Set(terms.map((term) => term.toLowerCase()));
+  const pattern = terms.map(escapeRegExp).join("|");
+  const parts = text.split(new RegExp(`(${pattern})`, "gi"));
 
   return parts
     .map((part, id) => {
       return {
         id,
-        match: part.toLowerCase() === query.toLowerCase(),
+        match: normalizedTerms.has(part.toLowerCase()),
         text: part,
       };
     })

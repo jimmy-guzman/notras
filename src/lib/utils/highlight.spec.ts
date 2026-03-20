@@ -54,4 +54,14 @@ describe("getHighlightedParts", () => {
 
     expect(parts).toStrictEqual([{ id: 1, match: true, text: "Hello" }]);
   });
+
+  it("should highlight multiple terms from a spaced query", () => {
+    const parts = getHighlightedParts("alpha beta gamma", "alpha   gamma");
+
+    expect(parts).toStrictEqual([
+      { id: 1, match: true, text: "alpha" },
+      { id: 2, match: false, text: " beta " },
+      { id: 3, match: true, text: "gamma" },
+    ]);
+  });
 });

@@ -27,7 +27,6 @@ export function HomeSearch() {
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     debounced.flush();
-    inputRef.current?.blur();
   };
 
   return (

@@ -3,7 +3,9 @@ import { drizzle } from "drizzle-orm/libsql";
 import { Context, Effect, Layer } from "effect";
 
 import { env } from "@/env";
+import { DatabaseError } from "@/server/errors";
 
+import { ensureFts } from "./fts";
 import * as assets from "./schemas/assets";
 import * as folders from "./schemas/folders";
 import * as links from "./schemas/links";
@@ -27,10 +29,15 @@ export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
 export const DatabaseLive = Layer.scoped(
   Database,
   Effect.acquireRelease(
-    Effect.sync(() => {
-      const client = createClient({ url: env.DATABASE_PATH });
+    Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: async () => {
+        const client = createClient({ url: env.DATABASE_PATH });
 
-      return { client, db: drizzle(client, { schema }) };
+        await ensureFts(client);
+
+        return { client, db: drizzle(client, { schema }) };
+      },
     }),
     ({ client }) => {
       return Effect.sync(() => {

@@ -12,7 +12,7 @@ A personal, single-user note-taking app that runs locally with a SQLite database
 - automatic "markdown" formatting on save (powered by `oxfmt`)
 - pin notes to keep them at the top
 - set reminders on notes from time presets (30 min, 1 hour, 3 hours, tomorrow, etc.)
-- search across all notes
+- full-text search across all notes (SQLite FTS5 with tokenized prefix matching)
 - filter by time period (today, yesterday, this week, this month, all time)
 - sort by newest, oldest, or recently updated
 - tag notes and filter by tag
@@ -146,6 +146,10 @@ pnpm install
 The app uses a local SQLite database via libSQL. No external database setup is needed -- the database file is created automatically at `data/notras.db` on first run.
 
 A single "device" user is auto-seeded on first run. All browsers on the same machine share the same notes.
+
+Search indexing is managed automatically at runtime with SQLite FTS5 (`note_fts` + triggers). On startup, the app ensures index objects exist and rebuilds the index safely.
+
+Search behavior uses normalized prefix terms joined with `AND` (for example, `overclock re` -> `overclock* AND re*`), ranks matches with `bm25`, and returns contextual snippets for list previews.
 
 ---
 

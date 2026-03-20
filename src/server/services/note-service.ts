@@ -5,6 +5,7 @@ import type { SelectNote } from "@/server/db/schemas/notes";
 import type {
   NoteFilters,
   NoteWithFolder,
+  NoteWithSnippet,
 } from "@/server/repositories/note-repository";
 
 import { generateNoteId } from "@/lib/id";
@@ -38,7 +39,7 @@ interface INoteService {
     noteId: NoteId,
   ): Effect.Effect<SelectNote | undefined>;
   getDueReminders(userId: string): Effect.Effect<SelectNote[]>;
-  list(userId: string, filters: NoteFilters): Effect.Effect<SelectNote[]>;
+  list(userId: string, filters: NoteFilters): Effect.Effect<NoteWithSnippet[]>;
   listWithFolder(
     userId: string,
     filters: NoteFilters,
