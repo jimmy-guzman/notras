@@ -4,7 +4,7 @@
     "commands": {
       "1_format": {
         "glob": "*.{md,json,yml,yaml,html,js,cjs,ts,tsx}",
-        "run": "pnpm exec oxfmt {staged_files}",
+        "run": "pnpm exec oxfmt --no-error-on-unmatched-pattern {staged_files}",
         "stage_fixed": true
       },
       "2_lint": {
