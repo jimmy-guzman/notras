@@ -50,13 +50,19 @@ export const TagInput = ({
 
     if (!normalized || tags.includes(normalized)) return;
 
-    setTags((prev) => [...prev, normalized]);
+    setTags((prev) => {
+      return [...prev, normalized];
+    });
     setInputValue("");
     setShowSuggestions(false);
   };
 
   const removeTag = (index: number) => {
-    setTags((prev) => prev.filter((_, i) => i !== index));
+    setTags((prev) => {
+      return prev.filter((_, i) => {
+        return i !== index;
+      });
+    });
   };
 
   const suggestions = useMemo(() => {

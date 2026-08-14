@@ -228,7 +228,12 @@ export function NoteDropPanel({ folders }: NoteDropPanelProps) {
         return;
       }
 
-      if (!folders.some((f) => f.id === targetIdStr)) return;
+      if (
+        !folders.some((f) => {
+          return f.id === targetIdStr;
+        })
+      )
+        return;
 
       const folderId = toFolderId(targetIdStr);
 

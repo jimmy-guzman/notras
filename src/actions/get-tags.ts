@@ -9,11 +9,19 @@ export async function getTags() {
   "use cache";
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   const result = await AppRuntime.runPromise(
-    TagService.pipe(Effect.flatMap((svc) => svc.getAllTags(userId))),
+    TagService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getAllTags(userId);
+      }),
+    ),
   );
 
   cacheTag("notes", "tags");

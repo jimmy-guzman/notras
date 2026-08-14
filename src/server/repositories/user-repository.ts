@@ -57,7 +57,9 @@ const makeDbUserRepository = Effect.gen(function* () {
     id: string,
   ): Effect.Effect<undefined | UserProfile, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const results = await db
           .select({
@@ -79,7 +81,9 @@ const makeDbUserRepository = Effect.gen(function* () {
     id: string,
   ): Effect.Effect<Preferences, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const results = await db
           .select({ preferences: user.preferences })
@@ -100,8 +104,12 @@ const makeDbUserRepository = Effect.gen(function* () {
     input: UpdateUserInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
-      try: () => db.update(user).set(input).where(eq(user.id, id)),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
+      try: () => {
+        return db.update(user).set(input).where(eq(user.id, id));
+      },
     });
   };
 
@@ -110,7 +118,9 @@ const makeDbUserRepository = Effect.gen(function* () {
     preferences: Preferences,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(user)
@@ -127,8 +137,12 @@ const makeDbUserRepository = Effect.gen(function* () {
     input: CreateUserInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
-      try: () => db.insert(user).values(input).onConflictDoNothing(),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
+      try: () => {
+        return db.insert(user).values(input).onConflictDoNothing();
+      },
     });
   };
 

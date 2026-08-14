@@ -16,7 +16,9 @@ export const deleteAsset = authActionClient
 
     await AppRuntime.runPromise(
       AssetService.pipe(
-        Effect.flatMap((svc) => svc.delete(ctx.userId, typedAssetId)),
+        Effect.flatMap((svc) => {
+          return svc.delete(ctx.userId, typedAssetId);
+        }),
       ),
     );
 

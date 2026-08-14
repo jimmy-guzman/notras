@@ -30,7 +30,9 @@ export const DatabaseLive = Layer.scoped(
   Database,
   Effect.acquireRelease(
     Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const client = createClient({ url: env.DATABASE_PATH });
 
@@ -44,5 +46,9 @@ export const DatabaseLive = Layer.scoped(
         client.close();
       });
     },
-  ).pipe(Effect.map(({ db }) => db)),
+  ).pipe(
+    Effect.map(({ db }) => {
+      return db;
+    }),
+  ),
 );

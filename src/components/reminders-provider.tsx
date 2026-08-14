@@ -54,7 +54,9 @@ export function RemindersProvider({
   const router = useRouter();
 
   const decrement = useCallback(() => {
-    setOverdueCount((prev) => Math.max(0, prev - 1));
+    setOverdueCount((prev) => {
+      return Math.max(0, prev - 1);
+    });
   }, []);
 
   useEffect(() => {
@@ -64,7 +66,9 @@ export function RemindersProvider({
       const { content, noteId } = JSON.parse(event.data) as ReminderEvent;
       const preview = truncate(content, MAX_PREVIEW_LENGTH);
 
-      setOverdueCount((prev) => prev + 1);
+      setOverdueCount((prev) => {
+        return prev + 1;
+      });
 
       toast.info(preview, {
         action: {
@@ -85,10 +89,9 @@ export function RemindersProvider({
     };
   }, [router]);
 
-  const value = useMemo(
-    () => ({ decrement, overdueCount }),
-    [decrement, overdueCount],
-  );
+  const value = useMemo(() => {
+    return { decrement, overdueCount };
+  }, [decrement, overdueCount]);
 
   return <RemindersContext value={value}>{children}</RemindersContext>;
 }

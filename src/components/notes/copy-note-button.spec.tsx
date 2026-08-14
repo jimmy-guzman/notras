@@ -4,9 +4,11 @@ import { act, render, screen, waitFor } from "@/testing/utils";
 
 import { CopyNoteButton } from "./copy-note-button";
 
-vi.mock("react-hotkeys-hook", () => ({
-  useHotkeys: vi.fn(),
-}));
+vi.mock("react-hotkeys-hook", () => {
+  return {
+    useHotkeys: vi.fn(),
+  };
+});
 
 beforeEach(() => {
   Object.defineProperty(navigator, "clipboard", {

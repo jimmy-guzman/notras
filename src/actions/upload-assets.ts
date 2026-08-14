@@ -20,7 +20,9 @@ export const uploadAssets = authActionClient
       try {
         await AppRuntime.runPromise(
           AssetService.pipe(
-            Effect.flatMap((svc) => svc.upload(ctx.userId, typedNoteId, file)),
+            Effect.flatMap((svc) => {
+              return svc.upload(ctx.userId, typedNoteId, file);
+            }),
           ),
         );
       } catch (error) {

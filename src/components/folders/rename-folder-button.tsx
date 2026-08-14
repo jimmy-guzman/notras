@@ -68,6 +68,8 @@ export function RenameFolderButton({
     await action.executeAsync(data);
   });
 
+  const { ref: nameRef, ...nameField } = form.register("name");
+
   useHotkeys(
     "mod+enter",
     () => {
@@ -113,7 +115,8 @@ export function RenameFolderButton({
                 autoFocus
                 id="folder-name"
                 placeholder="folder name"
-                {...form.register("name")}
+                ref={nameRef}
+                {...nameField}
               />
               <FieldError>{form.formState.errors.name?.message}</FieldError>
             </Field>

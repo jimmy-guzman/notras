@@ -12,7 +12,11 @@ const actionClient = createSafeActionClient({
 
 export const authActionClient = actionClient.use(async ({ next }) => {
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   return next({ ctx: { userId } });

@@ -54,7 +54,9 @@ const makeExportService = Effect.gen(function* () {
         folderRepo.findByUserId(userId).pipe(Effect.orDie),
       ]);
 
-      const noteIds = notes.map((n) => n.id as NoteId);
+      const noteIds = notes.map((n) => {
+        return n.id as NoteId;
+      });
       const tagMap = yield* tagRepo
         .findByNoteIds(noteIds, userId)
         .pipe(Effect.orDie);
@@ -101,7 +103,9 @@ const makeExportService = Effect.gen(function* () {
           folderId: n.folderId ?? null,
           id: n.id,
           pinnedAt: n.pinnedAt?.toISOString() ?? null,
-          tags: noteTags.map((t) => t.name),
+          tags: noteTags.map((t) => {
+            return t.name;
+          }),
           updatedAt: n.updatedAt.toISOString(),
         });
       }

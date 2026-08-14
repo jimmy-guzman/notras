@@ -71,7 +71,9 @@ export function ReminderButton({ noteId, remindAt }: ReminderButtonProps) {
     setReminderAction.isPending || clearReminderAction.isPending;
 
   useHotkeys("r", () => {
-    setOpen((prev) => !prev);
+    setOpen((prev) => {
+      return !prev;
+    });
   });
 
   function handleSetReminder(preset: ReminderPreset) {

@@ -2,10 +2,14 @@ import { Schema } from "effect";
 
 export const preferencesSchema = Schema.Struct({
   markdownPreview: Schema.optionalWith(Schema.Boolean, {
-    default: () => false,
+    default: () => {
+      return false;
+    },
   }),
   syntaxHighlighting: Schema.optionalWith(Schema.Boolean, {
-    default: () => false,
+    default: () => {
+      return false;
+    },
   }),
 });
 
@@ -16,11 +20,17 @@ const EMAIL_PATTERN = /^[^\s@]+@(?:[a-z\d](?:[a-z\d-]*[a-z\d])?\.)+[a-z]{2,}$/i;
 export const updateProfileSchema = Schema.Struct({
   email: Schema.String.pipe(
     Schema.pattern(EMAIL_PATTERN, {
-      message: () => "Please enter a valid email address",
+      message: () => {
+        return "Please enter a valid email address";
+      },
     }),
   ),
   name: Schema.String.pipe(
     Schema.compose(Schema.Trim),
-    Schema.minLength(1, { message: () => "Name is required" }),
+    Schema.minLength(1, {
+      message: () => {
+        return "Name is required";
+      },
+    }),
   ),
 });

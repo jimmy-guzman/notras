@@ -74,7 +74,9 @@ const makeNoteService = Effect.gen(function* () {
     return noteRepo.clearReminder(noteId, userId).pipe(Effect.orDie);
   };
 
-  const count = (userId: string) => noteRepo.count(userId).pipe(Effect.orDie);
+  const count = (userId: string) => {
+    return noteRepo.count(userId).pipe(Effect.orDie);
+  };
 
   const countOverdueReminders = (userId: string) => {
     return noteRepo.countOverdueReminders(userId).pipe(Effect.orDie);

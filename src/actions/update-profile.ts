@@ -13,7 +13,9 @@ export const updateProfile = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       UserService.pipe(
-        Effect.flatMap((svc) => svc.updateProfile(ctx.userId, parsedInput)),
+        Effect.flatMap((svc) => {
+          return svc.updateProfile(ctx.userId, parsedInput);
+        }),
       ),
     );
 

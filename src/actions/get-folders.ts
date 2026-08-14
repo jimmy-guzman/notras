@@ -9,11 +9,19 @@ export async function getFolders() {
   "use cache";
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   const result = await AppRuntime.runPromise(
-    FolderService.pipe(Effect.flatMap((svc) => svc.getAll(userId))),
+    FolderService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getAll(userId);
+      }),
+    ),
   );
 
   cacheTag("folders");

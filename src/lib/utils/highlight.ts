@@ -6,12 +6,20 @@ export function getHighlightedParts(text: string, query: string) {
   const terms = query
     .trim()
     .split(/\s+/)
-    .map((term) => term.trim())
-    .filter((term) => term.length > 0);
+    .map((term) => {
+      return term.trim();
+    })
+    .filter((term) => {
+      return term.length > 0;
+    });
 
   if (terms.length === 0) return [{ id: -1, match: false, text }];
 
-  const normalizedTerms = new Set(terms.map((term) => term.toLowerCase()));
+  const normalizedTerms = new Set(
+    terms.map((term) => {
+      return term.toLowerCase();
+    }),
+  );
   const pattern = terms.map(escapeRegExp).join("|");
   const parts = text.split(new RegExp(`(${pattern})`, "gi"));
 
@@ -23,5 +31,7 @@ export function getHighlightedParts(text: string, query: string) {
         text: part,
       };
     })
-    .filter((part) => part.match || part.text.length > 0);
+    .filter((part) => {
+      return part.match || part.text.length > 0;
+    });
 }

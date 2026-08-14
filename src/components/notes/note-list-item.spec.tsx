@@ -2,9 +2,13 @@ import { render, screen } from "@/testing/utils";
 
 import { NoteListItem } from "./note-list-item";
 
-vi.mock("@/actions/pin-note", () => ({ pinNote: vi.fn() }));
+vi.mock("@/actions/pin-note", () => {
+  return { pinNote: vi.fn() };
+});
 
-vi.mock("@/actions/unpin-note", () => ({ unpinNote: vi.fn() }));
+vi.mock("@/actions/unpin-note", () => {
+  return { unpinNote: vi.fn() };
+});
 
 const makeNote = (
   overrides: Partial<{

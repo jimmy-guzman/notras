@@ -56,7 +56,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     input: CreateAssetInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.insert(asset).values({
           createdAt: new Date(),
@@ -82,7 +84,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.insert(asset).values(
           inputs.map((input) => {
@@ -109,7 +113,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(asset)
@@ -123,7 +129,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(asset)
@@ -137,7 +145,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectAsset | undefined, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const results = await db
           .select()
@@ -155,7 +165,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectAsset[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .select()
@@ -171,7 +183,9 @@ const makeDbAssetRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<AssetMetadataRow[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .select({

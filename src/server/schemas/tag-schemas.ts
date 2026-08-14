@@ -10,12 +10,18 @@ export const tagsInputSchema = Schema.transform(
         ...new Set(
           val
             .split(",")
-            .map((t) => t.trim().toLowerCase())
-            .filter((t) => t.length > 0),
+            .map((t) => {
+              return t.trim().toLowerCase();
+            })
+            .filter((t) => {
+              return t.length > 0;
+            }),
         ),
       ];
     },
-    encode: (arr) => arr.join(", "),
+    encode: (arr) => {
+      return arr.join(", ");
+    },
     strict: true,
   },
 );

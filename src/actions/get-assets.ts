@@ -12,12 +12,18 @@ export async function getAssets(noteId: string): Promise<AssetMetadata[]> {
   const validNoteId = Schema.decodeUnknownSync(noteIdSchema)(noteId);
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   return AppRuntime.runPromise(
     AssetService.pipe(
-      Effect.flatMap((svc) => svc.list(userId, toNoteId(validNoteId))),
+      Effect.flatMap((svc) => {
+        return svc.list(userId, toNoteId(validNoteId));
+      }),
     ),
   );
 }

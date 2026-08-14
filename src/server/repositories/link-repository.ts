@@ -45,7 +45,9 @@ const makeDbLinkRepository = Effect.gen(function* () {
   ): Effect.Effect<void, DatabaseError> => {
     if (keepUrls.length === 0) {
       return Effect.tryPromise({
-        catch: (cause) => new DatabaseError({ cause }),
+        catch: (cause) => {
+          return new DatabaseError({ cause });
+        },
         try: () => {
           return db
             .delete(link)
@@ -55,7 +57,9 @@ const makeDbLinkRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(link)
@@ -75,7 +79,9 @@ const makeDbLinkRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectLink[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .select()
@@ -93,7 +99,9 @@ const makeDbLinkRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .insert(link)

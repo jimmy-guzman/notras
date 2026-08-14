@@ -9,7 +9,9 @@ const ISO_DATETIME_PATTERN =
 
 const IsoDateTimeString = Schema.String.pipe(
   Schema.pattern(ISO_DATETIME_PATTERN, {
-    message: () => "Invalid ISO datetime string",
+    message: () => {
+      return "Invalid ISO datetime string";
+    },
   }),
 );
 
@@ -21,14 +23,16 @@ export const manifestSchema = Schema.Struct({
   version: Schema.Literal(1),
 });
 
-export const exportedAssetSchema = Schema.Struct({
+const exportedAssetSchema = Schema.Struct({
   createdAt: IsoDateTimeString,
   fileName: Schema.String.pipe(Schema.minLength(1)),
   fileSize: Schema.Int.pipe(Schema.positive()),
   height: Schema.Int.pipe(Schema.nonNegative()),
   id: Schema.String.pipe(
     Schema.pattern(ASSET_ID_PATTERN, {
-      message: () => "Invalid asset ID format",
+      message: () => {
+        return "Invalid asset ID format";
+      },
     }),
   ),
   mimeType: Schema.String.pipe(Schema.minLength(1)),
@@ -36,18 +40,20 @@ export const exportedAssetSchema = Schema.Struct({
   width: Schema.Int.pipe(Schema.nonNegative()),
 });
 
-export const exportedFolderSchema = Schema.Struct({
+const exportedFolderSchema = Schema.Struct({
   createdAt: IsoDateTimeString,
   id: Schema.String.pipe(
     Schema.pattern(FOLDER_ID_PATTERN, {
-      message: () => "Invalid folder ID format",
+      message: () => {
+        return "Invalid folder ID format";
+      },
     }),
   ),
   name: Schema.String.pipe(Schema.minLength(1)),
   updatedAt: IsoDateTimeString,
 });
 
-export const exportedNoteSchema = Schema.Struct({
+const exportedNoteSchema = Schema.Struct({
   assets: Schema.Array(exportedAssetSchema),
   content: Schema.String.pipe(Schema.minLength(1)),
   createdAt: IsoDateTimeString,
@@ -55,14 +61,18 @@ export const exportedNoteSchema = Schema.Struct({
     Schema.NullOr(
       Schema.String.pipe(
         Schema.pattern(FOLDER_ID_PATTERN, {
-          message: () => "Invalid folder ID format",
+          message: () => {
+            return "Invalid folder ID format";
+          },
         }),
       ),
     ),
   ),
   id: Schema.String.pipe(
     Schema.pattern(NOTE_ID_PATTERN, {
-      message: () => "Invalid note ID format",
+      message: () => {
+        return "Invalid note ID format";
+      },
     }),
   ),
   pinnedAt: Schema.NullOr(IsoDateTimeString),
@@ -74,15 +84,21 @@ export const exportDataSchema = Schema.Array(exportedNoteSchema);
 
 export const exportFolderDataSchema = Schema.Array(exportedFolderSchema);
 
-export const importModeSchema = Schema.Literal("merge", "mirror");
+const importModeSchema = Schema.Literal("merge", "mirror");
 
 const MAX_IMPORT_SIZE_MB = 50;
 
 const MAX_IMPORT_SIZE_BYTES = MAX_IMPORT_SIZE_MB * 1024 * 1024;
 
 export const importInputSchema = Schema.Struct({
-  file: Schema.instanceOf(File, { message: () => "please select a file" }).pipe(
-    Schema.filter((f) => f.size > 0 || "please select a non-empty file"),
+  file: Schema.instanceOf(File, {
+    message: () => {
+      return "please select a file";
+    },
+  }).pipe(
+    Schema.filter((f) => {
+      return f.size > 0 || "please select a non-empty file";
+    }),
     Schema.filter((f) => {
       return (
         f.size <= MAX_IMPORT_SIZE_BYTES ||

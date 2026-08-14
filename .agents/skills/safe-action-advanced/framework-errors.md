@@ -63,11 +63,7 @@ export const protectedAction = actionClient.action(async () => {
 
 ```ts
 type NavigationKind =
-  | "redirect"
-  | "notFound"
-  | "forbidden"
-  | "unauthorized"
-  | "other";
+  "redirect" | "notFound" | "forbidden" | "unauthorized" | "other";
 ```
 
 `"other"` covers edge cases like CSR bailout, dynamic usage errors, and React postpone.

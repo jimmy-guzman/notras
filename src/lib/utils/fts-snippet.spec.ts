@@ -44,8 +44,10 @@ describe("getCenteredSnippetParts", () => {
       match: false,
       text: "...",
     });
-    expect(parts.some((part) => part.match && part.text === "cosmos")).toBe(
-      true,
-    );
+    expect(
+      parts.some((part) => {
+        return part.match && part.text === "cosmos";
+      }),
+    ).toBe(true);
   });
 });

@@ -59,7 +59,9 @@ const makeDbFolderRepository = Effect.gen(function* () {
     input: CreateFolderInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.insert(folder).values({
           createdAt: new Date(),
@@ -77,7 +79,9 @@ const makeDbFolderRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(folder)
@@ -90,8 +94,12 @@ const makeDbFolderRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
-      try: () => db.delete(folder).where(eq(folder.userId, userId)),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
+      try: () => {
+        return db.delete(folder).where(eq(folder.userId, userId));
+      },
     });
   };
 
@@ -100,7 +108,9 @@ const makeDbFolderRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectFolder | undefined, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const results = await db
           .select()
@@ -117,7 +127,9 @@ const makeDbFolderRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<FolderWithCount[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .select({
@@ -146,7 +158,9 @@ const makeDbFolderRepository = Effect.gen(function* () {
     name: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(folder)
@@ -160,7 +174,9 @@ const makeDbFolderRepository = Effect.gen(function* () {
     input: UpsertFolderInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .insert(folder)

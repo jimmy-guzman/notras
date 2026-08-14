@@ -12,7 +12,11 @@ import { UserService } from "@/server/services/user-service";
 
 const inputSchema = Schema.Struct({
   content: createNoteSchema.fields.content,
-  tags: Schema.optionalWith(tagsInputSchema, { default: () => [] }),
+  tags: Schema.optionalWith(tagsInputSchema, {
+    default: () => {
+      return [];
+    },
+  }),
 });
 
 export async function createNote(formData: FormData) {
@@ -26,14 +30,18 @@ export async function createNote(formData: FormData) {
   const input = await Schema.decodePromise(inputSchema)(raw);
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   const id = await AppRuntime.runPromise(
     NoteService.pipe(
-      Effect.flatMap((svc) =>
-        svc.create(userId, input.content, [...input.tags]),
-      ),
+      Effect.flatMap((svc) => {
+        return svc.create(userId, input.content, [...input.tags]);
+      }),
     ),
   );
 

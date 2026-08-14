@@ -48,7 +48,9 @@ const makeDbTagRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(tag)
@@ -72,7 +74,9 @@ const makeDbTagRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectTag[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const rows = await db
           .select({ tag })
@@ -80,7 +84,9 @@ const makeDbTagRepository = Effect.gen(function* () {
           .innerJoin(tag, eq(noteTag.tagId, tag.id))
           .where(and(eq(noteTag.noteId, noteId), eq(tag.userId, userId)));
 
-        return rows.map((r) => r.tag);
+        return rows.map((r) => {
+          return r.tag;
+        });
       },
     });
   };
@@ -94,7 +100,9 @@ const makeDbTagRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const rows = await db
           .select({ noteId: noteTag.noteId, tag })
@@ -120,7 +128,9 @@ const makeDbTagRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<TagWithCount[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const rows = await db
           .select({ noteCount: drizzleCount(noteTag.noteId), tag })
@@ -129,7 +139,9 @@ const makeDbTagRepository = Effect.gen(function* () {
           .where(eq(tag.userId, userId))
           .groupBy(tag.id);
 
-        return rows.map((r) => ({ ...r.tag, noteCount: r.noteCount }));
+        return rows.map((r) => {
+          return { ...r.tag, noteCount: r.noteCount };
+        });
       },
     });
   };
@@ -143,7 +155,9 @@ const makeDbTagRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const existingRows = await db
           .select()
@@ -151,10 +165,14 @@ const makeDbTagRepository = Effect.gen(function* () {
           .where(and(eq(tag.userId, userId), inArray(tag.name, tagNames)));
 
         const existingByName = new Map(
-          existingRows.map((r) => [r.name, r.id as TagId]),
+          existingRows.map((r) => {
+            return [r.name, r.id as TagId];
+          }),
         );
 
-        const newNames = tagNames.filter((n) => !existingByName.has(n));
+        const newNames = tagNames.filter((n) => {
+          return !existingByName.has(n);
+        });
 
         if (newNames.length > 0) {
           const newRows = newNames.map((name) => {
@@ -179,8 +197,12 @@ const makeDbTagRepository = Effect.gen(function* () {
         }
 
         return tagNames
-          .map((n) => existingByName.get(n))
-          .filter((id): id is TagId => id !== undefined);
+          .map((n) => {
+            return existingByName.get(n);
+          })
+          .filter((id): id is TagId => {
+            return id !== undefined;
+          });
       },
     });
   };

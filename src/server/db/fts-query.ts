@@ -11,15 +11,25 @@ export function buildFtsMatchQuery(query: string | undefined) {
   const terms = query
     .trim()
     .split(/\s+/)
-    .map((term) => term.trim())
-    .map((term) => term.replaceAll(/[^\p{L}\p{N}_]+/gu, ""))
-    .filter((term) => term.length > 0);
+    .map((term) => {
+      return term.trim();
+    })
+    .map((term) => {
+      return term.replaceAll(/[^\p{L}\p{N}_]+/gu, "");
+    })
+    .filter((term) => {
+      return term.length > 0;
+    });
 
   if (terms.length === 0) {
     return undefined;
   }
 
-  return terms.map((term) => `${term}*`).join(" AND ");
+  return terms
+    .map((term) => {
+      return `${term}*`;
+    })
+    .join(" AND ");
 }
 
 function getSearchRankExpression(matchQuery: string) {
