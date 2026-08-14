@@ -32,14 +32,22 @@ export default async function Page({ searchParams }: PageProps) {
     getFolders(),
   ]);
 
-  const pinnedNotes = allNotes.filter((n) => n.pinnedAt !== null);
-  const unpinnedNotes = allNotes.filter((n) => n.pinnedAt === null);
+  const pinnedNotes = allNotes.filter((n) => {
+    return n.pinnedAt !== null;
+  });
+  const unpinnedNotes = allNotes.filter((n) => {
+    return n.pinnedAt === null;
+  });
   const totalCount = allNotes.length;
-  const noteIds = allNotes.map((n) => toNoteId(n.id));
+  const noteIds = allNotes.map((n) => {
+    return toNoteId(n.id);
+  });
   const tagMap = noteIds.length > 0 ? await getTagsForNotes(noteIds) : {};
 
   const activeFolder = params.folder
-    ? folders.find((f) => f.id === params.folder)
+    ? folders.find((f) => {
+        return f.id === params.folder;
+      })
     : undefined;
 
   return (

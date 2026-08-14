@@ -11,11 +11,16 @@ export const folder = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
     userId: text("user_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(
+        () => {
+          return user.id;
+        },
+        { onDelete: "cascade" },
+      ),
   },
-  (table) => [
-    unique("folder_user_id_name_unique").on(table.userId, table.name),
-  ],
+  (table) => {
+    return [unique("folder_user_id_name_unique").on(table.userId, table.name)];
+  },
 );
 
 export type SelectFolder = typeof folder.$inferSelect;

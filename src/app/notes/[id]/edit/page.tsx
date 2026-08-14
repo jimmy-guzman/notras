@@ -59,8 +59,12 @@ export default async function EditNotePage({ params }: PageProps) {
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">tags</span>
             <TagInput
-              allTags={allTags.map((t) => t.name)}
-              defaultValue={existingTags.map((t) => t.name)}
+              allTags={allTags.map((t) => {
+                return t.name;
+              })}
+              defaultValue={existingTags.map((t) => {
+                return t.name;
+              })}
             />
           </div>
           <div className="flex justify-end">

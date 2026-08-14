@@ -19,14 +19,18 @@ describe("REMINDER_PRESETS", () => {
   });
 
   it("should have unique keys", () => {
-    const keys = REMINDER_PRESETS.map((p) => p.key);
+    const keys = REMINDER_PRESETS.map((p) => {
+      return p.key;
+    });
 
     expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("should export keys matching the presets", () => {
     expect(REMINDER_PRESET_KEYS).toStrictEqual(
-      REMINDER_PRESETS.map((p) => p.key),
+      REMINDER_PRESETS.map((p) => {
+        return p.key;
+      }),
     );
   });
 });
@@ -90,8 +94,8 @@ describe("resolvePreset", () => {
   });
 
   it("should throw for an unknown preset", () => {
-    expect(() => resolvePreset("invalid" as "in-1-hour")).toThrow(
-      "unknown reminder preset: invalid",
-    );
+    expect(() => {
+      return resolvePreset("invalid" as "in-1-hour");
+    }).toThrow("unknown reminder preset: invalid");
   });
 });

@@ -44,11 +44,14 @@ export function ProfileForm({ profile }: ProfileFormProps) {
     await action.executeAsync(data);
   });
 
+  const { ref: nameRef, ...nameField } = form.register("name");
+  const { ref: emailRef, ...emailField } = form.register("email");
+
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
       <Field data-invalid={Boolean(form.formState.errors.name) || undefined}>
         <FieldLabel htmlFor="name">name</FieldLabel>
-        <Input id="name" placeholder="your name" {...form.register("name")} />
+        <Input id="name" placeholder="your name" ref={nameRef} {...nameField} />
         <FieldError>{form.formState.errors.name?.message}</FieldError>
       </Field>
 
@@ -57,8 +60,9 @@ export function ProfileForm({ profile }: ProfileFormProps) {
         <Input
           id="email"
           placeholder="your@email.com"
+          ref={emailRef}
           type="email"
-          {...form.register("email")}
+          {...emailField}
         />
         <FieldError>{form.formState.errors.email?.message}</FieldError>
       </Field>

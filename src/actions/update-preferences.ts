@@ -13,7 +13,9 @@ export const updatePreferences = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       UserService.pipe(
-        Effect.flatMap((svc) => svc.updatePreferences(ctx.userId, parsedInput)),
+        Effect.flatMap((svc) => {
+          return svc.updatePreferences(ctx.userId, parsedInput);
+        }),
       ),
     );
 

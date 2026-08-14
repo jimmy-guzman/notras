@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect";
-import sharp from "sharp";
+import { sharp } from "sharp";
 
 import type { AssetId, NoteId } from "@/lib/id";
 import type { SelectAsset } from "@/server/db/schemas/assets";
@@ -117,7 +117,9 @@ const makeAssetService = Effect.gen(function* () {
     return Effect.gen(function* () {
       const id = generateAssetId();
       const buffer = Buffer.from(
-        yield* Effect.promise(() => file.arrayBuffer()),
+        yield* Effect.promise(() => {
+          return file.arrayBuffer();
+        }),
       );
       const isPdf = file.type === "application/pdf";
 

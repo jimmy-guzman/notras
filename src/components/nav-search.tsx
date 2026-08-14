@@ -56,7 +56,9 @@ export function NavSearch({ layoutId }: NavSearchProps) {
         prevPath === null || prevPath !== "/notes" || prevQ === "";
 
       if (shouldFocus) {
-        rafId = requestAnimationFrame(() => inputRef.current?.focus());
+        rafId = requestAnimationFrame(() => {
+          return inputRef.current?.focus();
+        });
       }
     }
 
@@ -70,10 +72,16 @@ export function NavSearch({ layoutId }: NavSearchProps) {
     };
   }, [params.q, pathname]);
 
-  useHotkeys("slash", () => inputRef.current?.focus(), {
-    enabled: !isHome,
-    preventDefault: true,
-  });
+  useHotkeys(
+    "slash",
+    () => {
+      return inputRef.current?.focus();
+    },
+    {
+      enabled: !isHome,
+      preventDefault: true,
+    },
+  );
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();

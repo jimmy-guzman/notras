@@ -13,7 +13,9 @@ export const createFolder = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     await AppRuntime.runPromise(
       FolderService.pipe(
-        Effect.flatMap((svc) => svc.create(ctx.userId, parsedInput.name)),
+        Effect.flatMap((svc) => {
+          return svc.create(ctx.userId, parsedInput.name);
+        }),
       ),
     );
 

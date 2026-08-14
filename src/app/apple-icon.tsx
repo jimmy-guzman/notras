@@ -2,13 +2,11 @@ import { ImageResponse } from "next/og";
 
 import { ICON_PATH_DATA } from "@/lib/icon-paths";
 
-// eslint-disable-next-line react-refresh/only-export-components -- this file is used in a non-react context, so we can't export a React component
 export const size = {
   height: 180,
   width: 180,
 };
 
-// eslint-disable-next-line react-refresh/only-export-components -- this file is used in a non-react context, so we can't export a React component
 export const contentType = "image/png";
 
 export default function AppleIcon() {

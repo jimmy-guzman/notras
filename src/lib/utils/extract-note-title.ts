@@ -7,8 +7,12 @@ export const extractNoteTitle = (content: string): string => {
   const stripped =
     content
       .split("\n")
-      .map((line) => stripMarkdown(line))
-      .find((line) => line.trim().length > 0) ?? stripMarkdown(content);
+      .map((line) => {
+        return stripMarkdown(line);
+      })
+      .find((line) => {
+        return line.trim().length > 0;
+      }) ?? stripMarkdown(content);
 
   return truncate(stripped, MAX_TITLE_LENGTH);
 };

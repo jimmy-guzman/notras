@@ -13,10 +13,20 @@ export const asset = sqliteTable("asset", {
   mimeType: text("mime_type").notNull(),
   noteId: text("note_id")
     .notNull()
-    .references(() => note.id, { onDelete: "cascade" }),
+    .references(
+      () => {
+        return note.id;
+      },
+      { onDelete: "cascade" },
+    ),
   userId: text("user_id")
     .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
+    .references(
+      () => {
+        return user.id;
+      },
+      { onDelete: "cascade" },
+    ),
   width: integer("width").notNull(),
 });
 

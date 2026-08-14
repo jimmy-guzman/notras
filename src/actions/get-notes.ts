@@ -30,7 +30,9 @@ async function fetchNotes(
   return AppRuntime.runPromise(
     Effect.gen(function* () {
       const userId = yield* UserService.pipe(
-        Effect.flatMap((svc) => svc.getDeviceUserId()),
+        Effect.flatMap((svc) => {
+          return svc.getDeviceUserId();
+        }),
       );
 
       return yield* NoteService.pipe(
@@ -79,11 +81,15 @@ export async function getNotesCount() {
   return AppRuntime.runPromise(
     Effect.gen(function* () {
       const userId = yield* UserService.pipe(
-        Effect.flatMap((svc) => svc.getDeviceUserId()),
+        Effect.flatMap((svc) => {
+          return svc.getDeviceUserId();
+        }),
       );
 
       return yield* NoteService.pipe(
-        Effect.flatMap((svc) => svc.count(userId)),
+        Effect.flatMap((svc) => {
+          return svc.count(userId);
+        }),
       );
     }),
   );
@@ -97,11 +103,15 @@ export async function getTagsForNotes(noteIds: NoteId[]) {
   return AppRuntime.runPromise(
     Effect.gen(function* () {
       const userId = yield* UserService.pipe(
-        Effect.flatMap((svc) => svc.getDeviceUserId()),
+        Effect.flatMap((svc) => {
+          return svc.getDeviceUserId();
+        }),
       );
 
       return yield* TagService.pipe(
-        Effect.flatMap((svc) => svc.getTagsForNotes(userId, noteIds)),
+        Effect.flatMap((svc) => {
+          return svc.getTagsForNotes(userId, noteIds);
+        }),
       );
     }),
   );
@@ -117,7 +127,9 @@ async function fetchNotesWithFolder(
   return AppRuntime.runPromise(
     Effect.gen(function* () {
       const userId = yield* UserService.pipe(
-        Effect.flatMap((svc) => svc.getDeviceUserId()),
+        Effect.flatMap((svc) => {
+          return svc.getDeviceUserId();
+        }),
       );
 
       return yield* NoteService.pipe(

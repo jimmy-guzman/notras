@@ -9,11 +9,15 @@ export async function GET() {
     const zipBuffer = await AppRuntime.runPromise(
       Effect.gen(function* () {
         const userId = yield* UserService.pipe(
-          Effect.flatMap((svc) => svc.getDeviceUserId()),
+          Effect.flatMap((svc) => {
+            return svc.getDeviceUserId();
+          }),
         );
 
         return yield* ExportService.pipe(
-          Effect.flatMap((svc) => svc.exportAll(userId)),
+          Effect.flatMap((svc) => {
+            return svc.exportAll(userId);
+          }),
         );
       }),
     );

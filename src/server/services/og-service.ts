@@ -58,7 +58,11 @@ export async function fetchOgMetadata(url: string): Promise<OgMetadata> {
 }
 
 const makeOgService: IOgService = {
-  fetchOgMetadata: (url) => Effect.promise(() => fetchOgMetadata(url)),
+  fetchOgMetadata: (url) => {
+    return Effect.promise(() => {
+      return fetchOgMetadata(url);
+    });
+  },
 };
 
 export const OgServiceLive = Layer.succeed(OgService, makeOgService);

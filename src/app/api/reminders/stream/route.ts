@@ -8,7 +8,11 @@ import { UserService } from "@/server/services/user-service";
 export async function GET(request: Request) {
   try {
     const userId = await AppRuntime.runPromise(
-      UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+      UserService.pipe(
+        Effect.flatMap((svc) => {
+          return svc.getDeviceUserId();
+        }),
+      ),
     );
 
     const { signal } = request;
@@ -26,7 +30,9 @@ export async function GET(request: Request) {
 
         const check = Effect.gen(function* () {
           const dueNotes = yield* NoteService.pipe(
-            Effect.flatMap((svc) => svc.getDueReminders(userId)),
+            Effect.flatMap((svc) => {
+              return svc.getDueReminders(userId);
+            }),
           );
 
           for (const dueNote of dueNotes) {

@@ -11,12 +11,18 @@ export async function getNoteTags(noteId: NoteId) {
   "use cache";
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   const result = await AppRuntime.runPromise(
     TagService.pipe(
-      Effect.flatMap((svc) => svc.getTagsForNote(userId, noteId)),
+      Effect.flatMap((svc) => {
+        return svc.getTagsForNote(userId, noteId);
+      }),
     ),
   );
 

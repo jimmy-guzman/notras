@@ -1,10 +1,17 @@
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  sharp: true
+  unrs-resolver: true
 autoInstallPeers: false
 color: always
 engineStrict: true
-onlyBuiltDependencies:
-  - "@tailwindcss/oxide"
-  - esbuild
-  - lefthook
-  - sharp
-  - unrs-resolver
-savePrefix: ""
+minimumReleaseAgeExclude:
+  - "@radix-ui/*"
+  - happy-dom
+  - lucide-react
+  - radix-ui
+  - "@hookform/*"
+  - "@next/*"
+  - next
+saveExact: true

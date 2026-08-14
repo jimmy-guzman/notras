@@ -24,11 +24,15 @@ export async function GET(_request: Request, { params }: RouteParams) {
     const result = await AppRuntime.runPromise(
       Effect.gen(function* () {
         const userId = yield* UserService.pipe(
-          Effect.flatMap((svc) => svc.getDeviceUserId()),
+          Effect.flatMap((svc) => {
+            return svc.getDeviceUserId();
+          }),
         );
 
         return yield* AssetService.pipe(
-          Effect.flatMap((svc) => svc.get(userId, toAssetId(id))),
+          Effect.flatMap((svc) => {
+            return svc.get(userId, toAssetId(id));
+          }),
         );
       }),
     );

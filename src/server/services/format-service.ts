@@ -25,7 +25,11 @@ export async function formatMarkdown(content: string): Promise<string> {
 }
 
 const makeFormatService: IFormatService = {
-  formatMarkdown: (content) => Effect.promise(() => formatMarkdown(content)),
+  formatMarkdown: (content) => {
+    return Effect.promise(() => {
+      return formatMarkdown(content);
+    });
+  },
 };
 
 export const FormatServiceLive = Layer.succeed(

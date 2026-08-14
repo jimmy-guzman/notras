@@ -63,9 +63,7 @@ async ({
 }) => {
   // Optionally extend context
   return next({
-    ctx: {
-      /* new context properties */
-    },
+    ctx: {/* new context properties */},
   });
 };
 ```

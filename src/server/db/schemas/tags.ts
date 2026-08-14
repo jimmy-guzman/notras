@@ -17,9 +17,16 @@ export const tag = sqliteTable(
     name: text("name").notNull(),
     userId: text("user_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(
+        () => {
+          return user.id;
+        },
+        { onDelete: "cascade" },
+      ),
   },
-  (table) => [unique("tag_user_id_name_unique").on(table.userId, table.name)],
+  (table) => {
+    return [unique("tag_user_id_name_unique").on(table.userId, table.name)];
+  },
 );
 
 export const noteTag = sqliteTable(
@@ -28,12 +35,24 @@ export const noteTag = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     noteId: text("note_id")
       .notNull()
-      .references(() => note.id, { onDelete: "cascade" }),
+      .references(
+        () => {
+          return note.id;
+        },
+        { onDelete: "cascade" },
+      ),
     tagId: text("tag_id")
       .notNull()
-      .references(() => tag.id, { onDelete: "cascade" }),
+      .references(
+        () => {
+          return tag.id;
+        },
+        { onDelete: "cascade" },
+      ),
   },
-  (table) => [primaryKey({ columns: [table.noteId, table.tagId] })],
+  (table) => {
+    return [primaryKey({ columns: [table.noteId, table.tagId] })];
+  },
 );
 
 export type SelectTag = typeof tag.$inferSelect;

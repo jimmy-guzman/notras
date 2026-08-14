@@ -11,14 +11,26 @@ export const link = sqliteTable(
     id: text("id").primaryKey(),
     noteId: text("note_id")
       .notNull()
-      .references(() => note.id, { onDelete: "cascade" }),
+      .references(
+        () => {
+          return note.id;
+        },
+        { onDelete: "cascade" },
+      ),
     title: text("title"),
     url: text("url").notNull(),
     userId: text("user_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(
+        () => {
+          return user.id;
+        },
+        { onDelete: "cascade" },
+      ),
   },
-  (table) => [unique().on(table.noteId, table.url)],
+  (table) => {
+    return [unique().on(table.noteId, table.url)];
+  },
 );
 
 export type SelectLink = typeof link.$inferSelect;

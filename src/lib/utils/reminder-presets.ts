@@ -21,55 +21,72 @@ export const REMINDER_PRESETS = [
   {
     key: "in-5-minutes",
     label: "in 5 minutes",
-    resolve: (now) => addMinutes(now, 5),
+    resolve: (now) => {
+      return addMinutes(now, 5);
+    },
   },
   {
     key: "in-30-minutes",
     label: "in 30 minutes",
-    resolve: (now) => addMinutes(now, 30),
+    resolve: (now) => {
+      return addMinutes(now, 30);
+    },
   },
   {
     key: "in-1-hour",
     label: "in 1 hour",
-    resolve: (now) => addHours(now, 1),
+    resolve: (now) => {
+      return addHours(now, 1);
+    },
   },
   {
     key: "in-3-hours",
     label: "in 3 hours",
-    resolve: (now) => addHours(now, 3),
+    resolve: (now) => {
+      return addHours(now, 3);
+    },
   },
   {
     key: "tomorrow-morning",
     label: "tomorrow morning",
-    resolve: (now) => atTime(addDays(now, 1), 9),
+    resolve: (now) => {
+      return atTime(addDays(now, 1), 9);
+    },
   },
   {
     key: "tomorrow-evening",
     label: "tomorrow evening",
-    resolve: (now) => atTime(addDays(now, 1), 18),
+    resolve: (now) => {
+      return atTime(addDays(now, 1), 18);
+    },
   },
   {
     key: "in-3-days",
     label: "in 3 days",
-    resolve: (now) => atTime(addDays(now, 3), 9),
+    resolve: (now) => {
+      return atTime(addDays(now, 3), 9);
+    },
   },
   {
     key: "next-week",
     label: "next week",
-    resolve: (now) => atTime(addDays(now, 7), 9),
+    resolve: (now) => {
+      return atTime(addDays(now, 7), 9);
+    },
   },
 ] as const satisfies PresetConfig[];
 
-export const REMINDER_PRESET_KEYS = REMINDER_PRESETS.map((p) => p.key) as [
-  ReminderPreset,
-  ...ReminderPreset[],
-];
+export const REMINDER_PRESET_KEYS = REMINDER_PRESETS.map((p) => {
+  return p.key;
+}) as [ReminderPreset, ...ReminderPreset[]];
 
 export type ReminderPreset = (typeof REMINDER_PRESETS)[number]["key"];
 
 export function resolvePreset(key: ReminderPreset): Date {
   const now = new Date();
-  const preset = REMINDER_PRESETS.find((p) => p.key === key);
+  const preset = REMINDER_PRESETS.find((p) => {
+    return p.key === key;
+  });
 
   if (!preset) {
     throw new Error(`unknown reminder preset: ${key}`);

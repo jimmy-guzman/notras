@@ -20,9 +20,15 @@ export function HomeSearch() {
     }
   }, 300);
 
-  useHotkeys("slash", () => inputRef.current?.focus(), {
-    preventDefault: true,
-  });
+  useHotkeys(
+    "slash",
+    () => {
+      return inputRef.current?.focus();
+    },
+    {
+      preventDefault: true,
+    },
+  );
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();

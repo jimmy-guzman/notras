@@ -7,17 +7,25 @@ import { render, screen, within } from "@/testing/utils";
 
 import { DeleteNoteButton } from "./delete-note-button";
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}));
+vi.mock("next/navigation", () => {
+  return {
+    useRouter: () => {
+      return { push: vi.fn() };
+    },
+  };
+});
 
-vi.mock("@/actions/delete-note", () => ({
-  deleteNote: vi.fn(),
-}));
+vi.mock("@/actions/delete-note", () => {
+  return {
+    deleteNote: vi.fn(),
+  };
+});
 
-vi.mock("react-hotkeys-hook", () => ({
-  useHotkeys: vi.fn(),
-}));
+vi.mock("react-hotkeys-hook", () => {
+  return {
+    useHotkeys: vi.fn(),
+  };
+});
 
 const noteId: NoteId = toNoteId("note_abc123");
 

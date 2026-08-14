@@ -8,11 +8,19 @@ export async function getPreferences() {
   "use cache";
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   const result = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getPreferences(userId))),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getPreferences(userId);
+      }),
+    ),
   );
 
   cacheTag("preferences");

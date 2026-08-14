@@ -52,7 +52,9 @@ function buildAssetInputs(
   files: Record<string, Uint8Array>,
 ): CreateAssetInput[] {
   return exportedNote.assets
-    .filter((a) => a.path in files)
+    .filter((a) => {
+      return a.path in files;
+    })
     .map((a) => {
       return {
         data: Buffer.from(files[a.path]),
@@ -164,7 +166,9 @@ const makeImportService = Effect.gen(function* () {
 
       const manifestResult = Either.fromOption(
         Schema.decodeUnknownOption(manifestSchema)(manifestParsed),
-        () => "invalid manifest",
+        () => {
+          return "invalid manifest";
+        },
       );
 
       if (Either.isLeft(manifestResult)) {
@@ -332,7 +336,9 @@ const makeImportService = Effect.gen(function* () {
       if (mode === "mirror") {
         const localIds = yield* noteRepo.findAllIds(userId).pipe(Effect.orDie);
         const importedIdSet = new Set<string>(importedNoteIds);
-        const toDelete = localIds.filter((id) => !importedIdSet.has(id));
+        const toDelete = localIds.filter((id) => {
+          return !importedIdSet.has(id);
+        });
 
         if (toDelete.length > 0) {
           yield* noteRepo.deleteMany(toDelete, userId).pipe(Effect.orDie);
@@ -352,9 +358,9 @@ const makeImportService = Effect.gen(function* () {
           const allLocalFolders = yield* folderRepo
             .findByUserId(userId)
             .pipe(Effect.orDie);
-          const toDeleteFolders = allLocalFolders.filter(
-            (f) => !importedFolderIds.has(f.id),
-          );
+          const toDeleteFolders = allLocalFolders.filter((f) => {
+            return !importedFolderIds.has(f.id);
+          });
 
           for (const f of toDeleteFolders) {
             yield* folderRepo

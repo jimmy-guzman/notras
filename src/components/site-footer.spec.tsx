@@ -1,6 +1,8 @@
 import { render, screen } from "@/testing/utils";
 
-vi.mock("react-hotkeys-hook", () => ({ useHotkeys: vi.fn() }));
+vi.mock("react-hotkeys-hook", () => {
+  return { useHotkeys: vi.fn() };
+});
 
 beforeEach(() => {
   vi.unstubAllEnvs();

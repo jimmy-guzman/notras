@@ -30,7 +30,11 @@ export async function updateNote(formData: FormData) {
   const input = await Schema.decodePromise(inputSchema)(raw);
 
   const userId = await AppRuntime.runPromise(
-    UserService.pipe(Effect.flatMap((svc) => svc.getDeviceUserId())),
+    UserService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.getDeviceUserId();
+      }),
+    ),
   );
 
   const noteId = toNoteId(input.noteId);

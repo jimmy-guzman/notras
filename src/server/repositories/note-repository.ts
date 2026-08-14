@@ -258,7 +258,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -270,7 +272,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
 
   const count = (userId: string): Effect.Effect<number, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const [{ count: notesCount }] = await db
           .select({ count: drizzleCount() })
@@ -286,7 +290,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<number, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const [{ count: c }] = await db
           .select({ count: drizzleCount() })
@@ -308,7 +314,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     input: CreateNoteInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.insert(note).values({
           content: input.content,
@@ -326,7 +334,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     tagIds: TagId[],
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.transaction(async (tx) => {
           await tx.insert(note).values({
@@ -354,7 +364,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(note)
@@ -372,7 +384,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .delete(note)
@@ -385,14 +399,18 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<NoteId[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const results = await db
           .select({ id: note.id })
           .from(note)
           .where(eq(note.userId, userId));
 
-        return results.map((r) => r.id as NoteId);
+        return results.map((r) => {
+          return r.id as NoteId;
+        });
       },
     });
   };
@@ -402,7 +420,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectNote | undefined, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const results = await db
           .select()
@@ -419,7 +439,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<SelectNote[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .select()
@@ -441,7 +463,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     filters: NoteFilters,
   ): Effect.Effect<NoteWithSnippet[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const matchQuery = buildFtsMatchQuery(filters.query);
         const snippet = getSnippetExpression(matchQuery);
@@ -488,7 +512,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     filters: NoteFilters,
   ): Effect.Effect<NoteWithFolder[], DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: async () => {
         const matchQuery = buildFtsMatchQuery(filters.query);
         const snippet = getSnippetExpression(matchQuery);
@@ -542,7 +568,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     folderId: FolderId | null,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -557,7 +585,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -573,7 +603,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     remindAt: Date,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -588,7 +620,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     userId: string,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -604,7 +638,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     input: UpdateNoteInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -619,7 +655,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     tagIds: TagId[],
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.transaction(async (tx) => {
           if (tagIds.length === 0) {
@@ -654,7 +692,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     tagIds: TagId[],
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db.transaction(async (tx) => {
           await tx
@@ -696,7 +736,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     }
 
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .update(note)
@@ -710,7 +752,9 @@ const makeDbNoteRepository = Effect.gen(function* () {
     input: UpsertNoteInput,
   ): Effect.Effect<void, DatabaseError> => {
     return Effect.tryPromise({
-      catch: (cause) => new DatabaseError({ cause }),
+      catch: (cause) => {
+        return new DatabaseError({ cause });
+      },
       try: () => {
         return db
           .insert(note)

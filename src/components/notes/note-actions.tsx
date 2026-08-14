@@ -44,7 +44,9 @@ export function NoteActions({
     onError: () => {
       toast.error("failed to pin note. please try again.");
     },
-    updateFn: () => ({ pinned: true }),
+    updateFn: () => {
+      return { pinned: true };
+    },
   });
 
   const unpinAction = useOptimisticAction(unpinNote, {
@@ -52,7 +54,9 @@ export function NoteActions({
     onError: () => {
       toast.error("failed to unpin note. please try again.");
     },
-    updateFn: () => ({ pinned: false }),
+    updateFn: () => {
+      return { pinned: false };
+    },
   });
 
   const optimisticPinned = pinAction.isPending

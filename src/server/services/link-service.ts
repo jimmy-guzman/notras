@@ -76,8 +76,14 @@ const makeLinkService = Effect.gen(function* () {
       const existing = yield* linkRepo
         .findByNoteId(noteId, userId)
         .pipe(Effect.orDie);
-      const existingByUrl = new Map(existing.map((l) => [l.url, l]));
-      const newUrls = urls.filter((url) => !existingByUrl.has(url));
+      const existingByUrl = new Map(
+        existing.map((l) => {
+          return [l.url, l];
+        }),
+      );
+      const newUrls = urls.filter((url) => {
+        return !existingByUrl.has(url);
+      });
 
       if (newUrls.length === 0) {
         return;
