@@ -35,8 +35,9 @@ rebuilds it from your files on the next launch.
 - slash commands: `/` inserts headings, lists, task lists, code blocks,
   tables, quotes, dividers, today's date
 - focus mode (⌘D, dims all but the active paragraph) and typewriter scrolling
-- editable tables, clickable task checkboxes, inline images, highlighted
-  code blocks -- all round-tripping through GFM markdown
+- editable tables, clickable task checkboxes, inline images, code blocks
+  with copy + language picker -- all round-tripping through GFM markdown
+- links: ⌘⇧K to add/edit, ⌘-click to open in your browser
 - tags, pins, and folders; move notes between folders from the palette
 - drag any file in -> copied to `attachments/`, markdown link inserted
 - global quick capture: ⌘⇧N from anywhere -> jot -> esc saves to `inbox/`
@@ -135,6 +136,7 @@ Rust tests live in `src-tauri`: `cargo test`.
 | `⌘N`     | new note                        |
 | `⌘P`     | toggle raw markdown source      |
 | `⌘D`     | toggle focus mode               |
+| `⌘⇧K`    | add / edit link                 |
 | `⌘,`     | settings                        |
 | `⌘⇧N`    | global quick capture            |
 | `esc`    | (capture window) save + hide    |

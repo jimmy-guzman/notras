@@ -8,9 +8,11 @@ import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { Focus, Placeholder } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 
+import { CodeBlockView } from "./code-block-view";
 import { SlashMenu } from "./slash-menu";
 import { Wikilink } from "./wikilink";
 
@@ -21,7 +23,7 @@ export interface EditorExtensionOptions {
   resolveImageSrc?: (src: string) => string;
 }
 
-const lowlight = createLowlight(common);
+export const lowlight = createLowlight(common);
 
 const NoteImage = Image.extend<
   Record<string, unknown> & { resolveSrc: (src: string) => string }
@@ -100,7 +102,11 @@ export function createEditorExtensions(
     Markdown.configure({
       markedOptions: { gfm: true },
     }),
-    CodeBlockLowlight.configure({ lowlight }),
+    CodeBlockLowlight.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(CodeBlockView);
+      },
+    }).configure({ lowlight }),
     TableKit.configure({
       table: {
         // Hand-styled in styles.css; not-prose stops double-styling.

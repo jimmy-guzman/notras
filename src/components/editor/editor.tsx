@@ -1,5 +1,7 @@
 import type { Editor as TiptapEditor } from "@tiptap/core";
 
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Extension } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -7,8 +9,12 @@ import { toast } from "sonner";
 import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
 
+import type { LinkEditorState } from "./link-editor";
+
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
+import { LinkEditor } from "./link-editor";
 import { findSentinel, SENTINEL } from "./sentinel";
+import { normalizeUrl } from "./urls";
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
@@ -72,6 +78,32 @@ export function Editor({
   const [config] = useState(() => {
     return mountProps;
   });
+  const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
+  const [linkShortcut] = useState(() => {
+    // ⌘⇧K: open the link popover at the caret (⌘K belongs to the palette).
+    return Extension.create({
+      addKeyboardShortcuts: () => {
+        return {
+          "Mod-Shift-k": ({ editor: instance }) => {
+            const { empty, head } = instance.state.selection;
+            const attrs = instance.getAttributes("link");
+            const url = typeof attrs.href === "string" ? attrs.href : "";
+            const coords = instance.view.coordsAtPos(head);
+
+            setLinkEditor({
+              left: coords.left,
+              needsText: empty && url === "",
+              top: coords.bottom + 6,
+              url,
+            });
+
+            return true;
+          },
+        };
+      },
+      name: "linkShortcut",
+    });
+  });
 
   const editor = useEditor({
     content: config.initialContent,
@@ -102,7 +134,27 @@ export function Editor({
           return fallback;
         }
       },
-      handleClickOn: (_view, _pos, node) => {
+      handleClickOn: (view, pos, node, _nodePos, event) => {
+        // ⌘/ctrl+click on a link opens it in the browser.
+        if (event.metaKey || event.ctrlKey) {
+          const link = view.state.doc
+            .resolve(pos)
+            .marks()
+            .find((mark) => {
+              return mark.type.name === "link";
+            });
+          const href =
+            typeof link?.attrs.href === "string" ? link.attrs.href : "";
+
+          if (href !== "") {
+            void openUrl(href).catch(() => {
+              toast.error("could not open link");
+            });
+
+            return true;
+          }
+        }
+
         if (node.type.name === "wikilink" && config.onWikilinkClick) {
           config.onWikilinkClick(String(node.attrs.title ?? ""));
 
@@ -182,12 +234,15 @@ export function Editor({
       },
     },
     immediatelyRender: false,
-    extensions: createEditorExtensions({
-      getTitles: config.titles,
-      onWikilinkClick: config.onWikilinkClick,
-      placeholderText: config.placeholderText,
-      resolveImageSrc: config.resolveImageSrc,
-    }),
+    extensions: [
+      ...createEditorExtensions({
+        getTitles: config.titles,
+        onWikilinkClick: config.onWikilinkClick,
+        placeholderText: config.placeholderText,
+        resolveImageSrc: config.resolveImageSrc,
+      }),
+      linkShortcut,
+    ],
     onBlur: () => {
       config.onBlur?.();
     },
@@ -326,6 +381,50 @@ export function Editor({
       ref={scrollerRef}
     >
       <EditorContent className="min-h-full" editor={editor} />
+      {linkEditor === null || editor === null ? null : (
+        <LinkEditor
+          onCancel={() => {
+            setLinkEditor(null);
+            editor.commands.focus();
+          }}
+          onRemove={() => {
+            setLinkEditor(null);
+            editor.chain().focus().extendMarkRange("link").unsetLink().run();
+          }}
+          onSubmit={(rawUrl, text) => {
+            const href = normalizeUrl(rawUrl);
+
+            setLinkEditor(null);
+            if (href === null) {
+              editor.commands.focus();
+
+              return;
+            }
+
+            if (text === undefined) {
+              editor
+                .chain()
+                .focus()
+                .extendMarkRange("link")
+                .setLink({ href })
+                .run();
+            } else if (text.trim() === "") {
+              editor.commands.focus();
+            } else {
+              editor
+                .chain()
+                .focus()
+                .insertContent({
+                  marks: [{ attrs: { href }, type: "link" }],
+                  text: text.trim(),
+                  type: "text",
+                })
+                .run();
+            }
+          }}
+          state={linkEditor}
+        />
+      )}
     </div>
   );
 }

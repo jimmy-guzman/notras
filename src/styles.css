@@ -344,6 +344,88 @@
   border-radius: var(--radius-md);
   font-family: var(--font-editor-mono);
 }
+.code-block-wrapper {
+  position: relative;
+}
+.code-block-toolbar {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.code-block-wrapper:hover .code-block-toolbar,
+.code-block-wrapper:focus-within .code-block-toolbar {
+  opacity: 1;
+}
+.code-block-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.5rem;
+  padding-inline: 0.4rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.code-block-button:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+.code-block-language {
+  appearance: none;
+  height: 1.5rem;
+  padding-inline: 0.4rem;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  cursor: pointer;
+  outline: none;
+}
+.code-block-language:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+/* Link editor popover (⌘⇧K). */
+.link-editor {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.link-editor-input {
+  width: 14rem;
+  height: 1.75rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  font-size: 0.8rem;
+  outline: none;
+}
+.link-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-built_in {
