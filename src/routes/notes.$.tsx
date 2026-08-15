@@ -10,8 +10,13 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import type { EditorHandle } from "@/components/editor/editor";
+import type { SourceEditorHandle } from "@/components/editor/source-editor";
 
 import { Editor } from "@/components/editor/editor";
+import {
+  getMarkdownBlockOffsets,
+  offsetToBlockIndex,
+} from "@/components/editor/source-anchors";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
@@ -106,11 +111,20 @@ function NoteEditor({ note }: NoteEditorProps) {
   const [body, setBody] = useState(() => {
     return parseNote(note.content).body;
   });
+  const bodyRef = useRef(body);
+
+  useEffect(() => {
+    bodyRef.current = body;
+  });
   const [words, setWords] = useState(() => {
     return countWords(note.content);
   });
   const [reloadKey, setReloadKey] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
+  const sourceRef = useRef<null | SourceEditorHandle>(null);
+  // Anchors carried across mode toggles so the caret keeps its block.
+  const [sourceCursor, setSourceCursor] = useState(0);
+  const pendingRichBlockRef = useRef<null | number>(null);
   const [focusModeEnabled, toggleFocusMode] = usePersistentToggle("focus-mode");
   const [typewriterEnabled, toggleTypewriter] =
     usePersistentToggle("typewriter");
@@ -237,13 +251,33 @@ function NoteEditor({ note }: NoteEditorProps) {
     autosave.onChange(raw);
   };
 
+  // The raw file's first block is the frontmatter fence when present;
+  // body block indexes shift by one in the source view.
   const toggleSourceMode = () => {
+    const skew = frontmatterRef.current.length > 0 ? 1 : 0;
+
     setSourceMode((current) => {
       if (current) {
-        // Back to rich: remount the editor on the latest body.
+        // Source -> rich: land the caret on the block it was in.
+        const raw = composeNote(frontmatterRef.current, bodyRef.current);
+        const offsets = getMarkdownBlockOffsets(raw);
+        const offset = sourceRef.current?.getCursorOffset() ?? 0;
+
+        pendingRichBlockRef.current = Math.max(
+          0,
+          offsetToBlockIndex(offsets, offset) - skew,
+        );
         setReloadKey((key) => {
           return key + 1;
         });
+      } else {
+        // Rich -> source: open at the caret's block.
+        const raw = composeNote(frontmatterRef.current, bodyRef.current);
+        const offsets = getMarkdownBlockOffsets(raw);
+        const blockIndex =
+          (editorRef.current?.getCursorBlockIndex() ?? 0) + skew;
+
+        setSourceCursor(offsets[blockIndex] ?? raw.length);
       }
 
       return !current;
@@ -258,8 +292,13 @@ function NoteEditor({ note }: NoteEditorProps) {
       <NoteHeader path={note.path} pinned={note.pinned} tags={note.tags} />
       {sourceMode ? (
         <SourceEditor
+          initialCursor={sourceCursor}
+          initialValue={composeNote(frontmatterLines, body)}
+          key={`${note.path}:${reloadKey}:source`}
           onChange={handleSourceChange}
-          value={composeNote(frontmatterLines, body)}
+          onReady={(handle) => {
+            sourceRef.current = handle;
+          }}
         />
       ) : (
         <Editor
@@ -270,6 +309,13 @@ function NoteEditor({ note }: NoteEditorProps) {
           onChange={handleBodyChange}
           onReady={(handle) => {
             editorRef.current = handle;
+
+            const pending = pendingRichBlockRef.current;
+
+            if (pending !== null) {
+              pendingRichBlockRef.current = null;
+              handle.setCursorToBlock(pending);
+            }
           }}
           onWikilinkClick={openWikilink}
           resolveImageSrc={resolveImageSrc}

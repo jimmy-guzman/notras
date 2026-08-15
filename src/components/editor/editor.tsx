@@ -8,6 +8,7 @@ import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
 
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
+import { blockIndexToPos } from "./source-anchors";
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
@@ -15,7 +16,11 @@ const MARKDOWN_PASTE_PATTERN =
 export interface EditorHandle {
   focus(): void;
   getContent(): string;
+  /** Index of the top-level block containing the caret. */
+  getCursorBlockIndex(): number;
   insertText(text: string): void;
+  /** Move the caret to the start of the Nth top-level block. */
+  setCursorToBlock(index: number): void;
 }
 
 interface EditorProps {
@@ -188,9 +193,24 @@ export function Editor({
         getContent: () => {
           return serializeMarkdown(instance);
         },
+        getCursorBlockIndex: () => {
+          const { doc, selection } = instance.state;
+
+          return doc
+            .resolve(Math.min(selection.from, doc.content.size))
+            .index(0);
+        },
         insertText: (text) => {
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
+        },
+        setCursorToBlock: (index) => {
+          instance
+            .chain()
+            .focus()
+            .setTextSelection(blockIndexToPos(instance.state.doc, index))
+            .scrollIntoView()
+            .run();
         },
       });
     },

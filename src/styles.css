@@ -325,6 +325,19 @@
   font-size: 0.75em;
 }
 
+/* Source mode: the whole file as one bare, highlighted code block. */
+.source-editor .ProseMirror pre {
+  background: transparent;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-editor-mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Code blocks (lowlight tokens on the app palette). */
 .ProseMirror pre {
   background: var(--card);
