@@ -1,279 +1,236 @@
 # notras
 
-A personal note-taking app -- "Just write, otra vez."
+A local-first desktop notes app -- "Just write, otra vez."
+
+Read `SPEC.md` for the working rewrite spec (decisions, phase checklists,
+manual verification walkthrough, progress log). Keep it updated as work lands.
 
 ## Tech Stack
 
-- **Framework:** Next.js 16 (App Router, Turbopack, React Server Components)
-- **Language:** TypeScript (strict mode)
-- **Database:** SQLite via Turso/libSQL (`@libsql/client`) + Drizzle ORM
-- **Effect:** Effect-TS 3.x — typed errors, Layer/DI, Effect Schema, structured logging, fiber concurrency
-- **Actions:** `next-safe-action` for type-safe server actions; `next-safe-action/hooks` for client-side `useAction` and `useOptimisticAction`
+- **Shell:** Tauri 2 (Rust) -- file IO commands, FTS5 index, notify watcher,
+  tray, global shortcuts
+- **Frontend:** Vite + React 19 + TanStack Router (file routes, no SSR)
+- **Editor:** CodeMirror 6 (`@codemirror/lang-markdown`, live-styled source)
+- **Preview:** react-markdown + remark-gfm + rehype-expressive-code
+- **Effect:** Effect-TS 3.x -- typed errors, Layer/DI, services, ManagedRuntime
+- **Index queries:** Drizzle ORM `sqlite-proxy` (SELECT-only, see below)
 - **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
-- **Animation:** Motion (layout animations for shared element transitions)
-- **Formatting:** oxfmt (Prettier-compatible, Rust-based)
-- **Linting:** ESLint 9 with `@jimmy.codes/eslint-config`
-- **Testing:** Vitest + Testing Library + happy-dom (unit/component), Playwright (e2e)
+- **Formatting:** oxfmt (dev tooling); remark (runtime format-on-blur)
+- **Testing:** Vitest + happy-dom (TS), `cargo test` (Rust)
 - **Package Manager:** pnpm
 
 ## Project Structure
 
 ```txt
 src/
-  actions/          # Server actions (data reads with "use cache", mutations)
-  app/              # Next.js App Router pages and layouts
-    (home)/         # Route group for home page (scoped loading boundary)
-    api/
-      assets/[id]/  # GET /api/assets/:id — serve stored asset files
-      export/       # GET /api/export — zip export of all data
-      icons/        # PWA icon routes (Next.js ImageResponse)
-        192/
-        512/
-      reminders/
-        stream/     # GET /api/reminders/stream — SSE reminder events
-    notes/
-      (list)/       # Route group for notes list (scoped loading boundary)
-      [id]/
-        edit/       # Edit note page
-      new/          # New note page
-    settings/       # Settings page (profile, export, import)
-  components/       # React components
-    folders/          # Folder management (panel, create, rename, delete)
-    notes/          # Note-related components (cards, filters, actions, etc.)
-      assets/       # Asset components (uploader, preview, list)
-    settings/       # Settings-related components (profile form, export, import)
-    ui/             # Shadcn UI components (auto-generated, don't manually edit)
-  core/             # Isomorphic domain foundation -- the bottom layer (see "Layer boundaries")
-    background.ts   # forkBackground: fire-and-forget an Effect on the ambient runtime
-    cache-invalidator.ts # CacheInvalidator Context.Tag (framework-agnostic invalidation)
-    errors.ts       # Typed errors: DatabaseError, NotFoundError (Data.TaggedError)
-    fts-markers.ts  # Snippet highlight markers shared by SQL and the client renderer
-    id.ts           # TypeID types, generators, and casts
-    note-filters.ts # Sort/time filter types + getStartDateForFilter
-    reminder-presets.ts # Reminder preset table + resolvePreset
-  lib/              # Client utilities, search params, safe-action client
-    ui/             # Shadcn utility (cn)
-    utils/          # Pure utility functions (formatting, filters, etc.)
+  main.tsx            # Vite entry -> App (router, or capture window branch)
+  app-shell.tsx       # Router setup + ?window=capture branch
+  styles.css          # Tailwind 4 theme, fonts, CM6 + titlebar styling
+  routes/             # TanStack Router file routes
+    __root.tsx        # loader (notes/folders/notesDir/prefs), palette,
+                      # settings dialog, hotkeys, notes-changed listener
+    index.tsx         # redirect to last-edited note, else empty state
+    notes.$.tsx       # THE page: editor session keyed by note path
+    external.tsx      # edit a markdown file outside the notes dir
+  components/
+    editor/           # CM6 wrapper, autosave hook, completions, writing modes
+    notes/            # note-header (title/tags/pin), preview, status bar
+    command-palette.tsx
+    settings-dialog.tsx
+    capture-window.tsx
+    ui/               # Shadcn components (auto-generated, don't hand-edit)
+  core/               # Isomorphic bottom layer (no platform imports)
+    frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
+    notes.ts          # NoteMeta, NoteFilters, path/title helpers
+    file-store.ts     # FileStore port (Context.Tag)
+    errors.ts         # DatabaseError, FileError
+    fts-markers.ts    # [[hl]] snippet markers shared with SQL
+  data/               # Plain async fns the UI calls (ex-server-actions)
+    run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
   server/
-    cache-invalidator.ts # Next.js adapter: provides CacheInvalidator via updateTag
-    db/             # Drizzle client, schemas (SQLite), and Database Context.Tag
-    repositories/   # Data access layer (Effect Context.Tag interfaces + DB implementations)
-    runtime.ts      # AppRuntime (ManagedRuntime) -- the app-owned Effect boundary
-    schemas/        # Effect Schema validation schemas for server-side input
-    services/       # Business logic and external I/O (Effect Context.Tag, one Layer per service)
-      app-layer.ts  # makeAppLayer({ cacheInvalidator, database }) -- wires every service
-  testing/          # Shared test utilities
-  env.ts            # Type-safe env vars via @t3-oss/env-nextjs + Zod
-e2e/
-  smoke.spec.ts     # Playwright smoke tests (home page, navigation)
-  tsconfig.json     # Separate tsconfig for Playwright (no Vitest globals)
-data/
-  notras.db         # Local SQLite database (git-ignored)
+    adapters/         # ONLY files here + runtime.ts may import @tauri-apps/*
+      tauri-file-store.ts   # FileStore -> Rust commands
+      tauri-database.ts     # drizzle sqlite-proxy -> db_select command
+    db/               # Database tag, index schema mirror, fts-query helpers
+    repositories/     # note-repository: SELECTs against the index
+    schemas/          # Effect Schema validation (titles, folder names)
+    services/         # note-service, format-service, app-layer
+    runtime.ts        # AppRuntime (ManagedRuntime) -- wires the adapters
+  lib/                # Client utilities (preferences, fts-snippet, word-count)
+src-tauri/
+  src/lib.rs          # setup: notes dir, index, watcher, tray, shortcuts
+  src/notes.rs        # note IO commands (write/rename/delete/attach/external)
+  src/index.rs        # index schema, indexer, scan, read-only select
+  src/frontmatter.rs  # Rust twin of src/core/frontmatter.ts
+  src/watcher.rs      # debounced notify watcher -> reindex -> event
 ```
 
 ## Architecture
 
-- **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
+**Files are the source of truth.** Notes are `.md` files under the notes dir
+(default `~/notras`); folders are directories; `pinned`/`tags` live in YAML
+frontmatter. The SQLite index at `.notras/index.db` is derived and disposable
+-- deleting it triggers a rebuild on launch.
+
+- **Rust is the single writer of the index.** Every TS mutation goes through a
+  Rust command (`write_note`, `rename_note`, `delete_note`, ...) that writes
+  the file and updates the index in the same call, then emits `notes-changed`.
+  The `db_select` command rejects anything that is not SELECT/WITH. Never add
+  an index write path from TypeScript.
+- **External writers** (AI agents, other editors, git) are reconciled by the
+  debounced watcher; the mtime skip in `index_file` keeps self-writes from
+  echoing. UI refresh is event-driven: the root route listens for
+  `notes-changed` and calls `router.invalidate()`.
+- **Note identity is the relative path.** The filename is the title; renames
+  are delete+create in the index. Wikilinks resolve by title, so renames can
+  dangle links (accepted).
+- **Frontmatter parity:** `src/core/frontmatter.ts` and
+  `src-tauri/src/frontmatter.rs` implement the same deliberately tiny dialect
+  (`pinned: bool`, `tags` inline or block list). Change one, change the other,
+  and cover both with tests. The TS serializer preserves unknown keys
+  verbatim -- externally-authored notes must survive round-trips.
 
 ### Layer boundaries
 
-The data and service layers are deliberately framework-free so they can run outside Next.js (a desktop runtime is the eventual target). Two ESLint `no-restricted-imports` blocks at the bottom of `eslint.config.ts` enforce this -- they are not style preferences, and the fix is never to widen the glob.
+Enforced by two `no-restricted-imports` blocks at the bottom of
+`eslint.config.ts` -- they must stay last (flat config replaces rule options)
+and the fix is never to widen the glob:
 
-- **`src/core/**` is the bottom layer and is isomorphic.** It runs in the browser and in any server runtime, so it may not import `next/*`, `react`, `react-dom`, or `node:*` builtins, and it may not import upward from `@/server`, `@/lib`, `@/components`, or `@/actions`. Roughly ten client components value-import from `@/core`, so a Node-only import here breaks the client bundle. Anything shared between the server layer and the client belongs here.
-- **`src/server/{db,repositories,schemas,services}/**` may not import `next/*`, `react`, `react-dom`, or `@/env`,** nor reach into `@/lib`, `@/components`, or `@/actions`. Inject the behavior instead: `CacheInvalidator` (`src/core/cache-invalidator.ts`) for cache invalidation, `makeDatabaseLayer(config)` (`src/server/db/index.ts`) for the connection URL.
-- **`src/server/runtime.ts` and `src/server/cache-invalidator.ts` are the only adapters** allowed to import Next.js. They are the seam where the framework meets the framework-free core.
-
-Because flat config replaces rule options rather than merging them, these two blocks must stay last in `overrides`, and they intentionally shadow the global `lucide-react` restriction inside their scope (no server or core file imports icons). Do not reuse these globs for UI directories without re-including that pattern.
+- **`src/core/**`** is isomorphic: no `@tauri-apps/*`, `react`, `node:*`, and
+  no upward imports from `@/server`, `@/lib`, `@/components`, `@/data`.
+- **`src/server/{db,repositories,schemas,services}/**`** is platform-free: no
+  `@tauri-apps/*` or React. Inject behavior through the ports instead
+  (`FileStore` in `src/core`, `Database` in `src/server/db`). Only
+  `src/server/adapters/**` and `src/server/runtime.ts` may import
+  `@tauri-apps/*`.
+- UI code (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*`
+  for UI concerns (events, dialogs, window control, preferences store) but
+  never for note file IO or SQL -- that goes through `src/data`.
 
 ## Key Patterns
 
-- **Server actions** live in `src/actions/`. Two patterns coexist:
-  - **`next-safe-action` pattern** (mutations): Import `authActionClient` from `@/lib/safe-action`. Define as `authActionClient.inputSchema(Schema.standardSchemaV1(schema)).action(async ({ parsedInput, ctx }) => { ... })` and export the result. The `authActionClient` middleware resolves `userId` via `AppRuntime.runPromise(UserService.getDeviceUserId())` and injects it into `ctx`. Validation is automatic via the schema. On the client, use `useAction` from `next-safe-action/hooks` for state (`action.isPending`, `action.isSuccess`, `action.result`). Check `action.result.serverError` for error feedback and show toasts in the `onError` callback of `useAction`. Only show a success toast when the outcome isn't self-evident from the UI (e.g. a setting saved without a visible state change) — if the UI already reflects the change, skip it. Throw a plain `Error` for expected failures; the message is surfaced as `serverError` on the client.
-  - **Plain `"use server"` FormData pattern** (FormData mutations that redirect): For forms submitted via native `<form action={...}>` (i.e., `FormHotkeys`) that need a server-side `redirect()` after success. Export a plain `async function` that accepts `FormData`, manually parse fields with `formData.get()`, decode and validate with `Schema.decodePromise`, resolve `userId` via `AppRuntime.runPromise(UserService.pipe(Effect.flatMap(svc => svc.getDeviceUserId())))`, then call service methods and `redirect()`. Use `typeof val === "string" ? val : ""` (not `String(...)`) to extract string fields from FormData. The function can be passed directly to `<form action={...}>` and to `FormHotkeys`'s `action` prop (both accept `(formData: FormData) => Promise<void>`).
-  - **Read actions** (no `"use server"`, called directly from RSCs): Files like `get-notes.ts`, `get-note.ts`, `get-links.ts` export plain `async function`s with no directive. They call `AppRuntime.runPromise` to resolve the `userId` and fetch data, and use `"use cache"` at the top of cacheable function bodies with `cacheTag(...)` as the first statement. For queries that depend on relative time filters (e.g. `time: "today" | "yesterday" | ...`), caching is bypassed entirely — a separate uncached helper is called instead, since cached results would be stale immediately. Read actions are never called from client components.
-  - Keep server actions thin — one action per file. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
-- **API routes** for binary/streaming responses are plain Next.js Route Handlers under `src/app/api/`. There is no Hono layer. **New binary or streaming endpoints go directly in `src/app/api/<domain>/route.ts`** as standard `export async function GET(request: Request)` handlers. Do not use this for data mutations or reads that could be server actions.
-- **Effect runtime boundary:** `AppRuntime` (a `ManagedRuntime`) lives in `src/server/runtime.ts` and is the single point where Effects are executed. Never call `Effect.runPromise` or `Effect.runFork` directly -- always go through `AppRuntime.runPromise` / `AppRuntime.runFork`. This ensures fibers inherit the managed runtime's logger, context, and supervision. `makeAppLayer({ cacheInvalidator, database })` in `src/server/services/app-layer.ts` wires all service and repository Layers together over `makeDatabaseLayer(config)`; `runtime.ts` is what supplies the Next.js-specific pieces (`env.DATABASE_PATH`, `NextCacheInvalidatorLive`).
-- **Fire-and-forget inside services:** Services must never import `AppRuntime` -- that would reintroduce a cycle between `runtime.ts` and the service layer. Use `forkBackground(effect, label)` from `@/core` instead, which wraps `Effect.forkDaemon` so the fiber outlives the request and logs its cause on failure rather than failing silently. See the link sync in `note-service.ts` and `import-service.ts`.
-- **Services** live in `src/server/services/`. Each file defines an `interface IFooService`, a `class FooService extends Context.Tag("FooService")<FooService, IFooService>()`, a `makeFooService` factory via `Effect.gen`, and an exported `FooServiceLive` Layer. Services depend on repository Tags, not concrete implementations.
-- **Repositories** live in `src/server/repositories/`. Same pattern: `interface IFooRepository`, `class FooRepository extends Context.Tag(...)`, `FooRepositoryLive` Layer. Repositories depend on the `Database` Context.Tag (the Drizzle client).
-- **Typed errors** live in `src/core/errors.ts`: `DatabaseError` and `NotFoundError` extend `Data.TaggedError`. Services convert `DatabaseError` to defects via `.pipe(Effect.orDie)` — this is **intentional**: all DB errors are fatal and handled uniformly at the runtime boundary, so callers don't need to handle them differentially. Do not remove `.orDie` calls without also adding `Effect.catchTag` recovery at every call site — otherwise typed errors will propagate unhandled and cause runtime failures. The one exception is `NotFoundError` in `UserService.getProfile`, which is typed in the return signature but currently not caught by callers (a known gap, not an oversight to fix without a plan).
-- **Effect flatMap naming:** Use `ServiceTag.pipe(Effect.flatMap(svc => svc.method(...)))` — NOT `Effect.flatMap(ServiceTag, fn)`. The latter triggers the `unicorn/no-array-method-this-argument` lint rule.
-- **Validation** uses Effect Schema from `src/server/schemas/`. For `next-safe-action` mutations, pass the schema directly to `authActionClient.inputSchema(Schema.standardSchemaV1(schema))`.
-- **`readonly` arrays from Schema:** Effect Schema `decode` results are `readonly`. Spread before passing to service methods that accept mutable arrays: `[...tags]`.
-- **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
-- **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations. That import is fine in `src/actions/**` (app layer) but banned in the service layer -- services yield the `CacheInvalidator` tag from `@/core` and call `cacheInvalidator.invalidate("notes")`, which `src/server/cache-invalidator.ts` backs with `updateTag`. See `link-service.ts` for the pattern.
-- **`"use cache"` directive:** Read actions (e.g., `get-note.ts`, `get-notes.ts`) use the `"use cache"` directive with `cacheTag("notes")` for automatic caching. This is enabled by `experimental: { useCache: true }` in `next.config.ts`. Do **not** use `"use cache"` on time-dependent queries (e.g., "find reminders where `remindAt <= now()`") -- the cached result goes stale immediately since `now()` changes every call. For read actions with optional time filters (like `getNotes`), the exported function routes to a cached helper when `time === "all"` and calls an uncached helper directly for relative time values (`"today"`, `"yesterday"`, `"week"`, `"month"`, `"year"`). The `"use cache"` directive lives only on the cached helper, not on the exported entry point.
-- **FTS5 search bootstrap:** FTS setup is runtime-managed in `src/server/db/fts.ts` via `ensureFts(client)` and invoked from `makeDatabaseLayer` in `src/server/db/index.ts`. Keep setup idempotent (`IF NOT EXISTS` + rebuild) and avoid Drizzle schema migrations for `note_fts`/triggers.
-- **FTS query helpers:** Search query construction and ranking/snippet SQL live in `src/server/db/fts-query.ts` (`buildFtsMatchQuery`, `getSearchOrderBy`, `getSnippetExpression`). Repository code should consume these helpers rather than rebuilding `MATCH` logic inline.
-- **Search semantics:** Query normalization strips punctuation-only fragments, uses tokenized prefix terms (`term*`) combined with `AND`, and applies pinned-first ordering followed by FTS relevance ranking/tie-breaks for stable results.
-- **Snippet rendering contract:** FTS snippets use marker tokens (`[[hl]]`/`[[/hl]]`) and are parsed by `getSnippetParts` in `src/lib/utils/fts-snippet.ts`. Do not render snippet HTML directly with `dangerouslySetInnerHTML`.
-- **Navigation links** in the top nav use `Button` + `Link` + `Tooltip` + `Kbd` with single-letter hotkeys (e.g., `h` for home, `n` for new note, `s` for settings). No dropdowns -- keep it flat and minimal.
-- **Global hotkeys** are registered in `HotkeysProvider` (`src/components/hotkeys-provider.tsx`). When adding a new nav route, also register its hotkey there.
-- **`NoteDropPanel`** (`src/components/notes/note-drop-panel.tsx`) is a `"use client"` component rendered via `createPortal` → `document.body` as a fixed floating pill at the bottom center of the screen. It is always visible on `/notes` (even with 0 folders) and hidden on all other pages unless a drag is in progress. It receives `folders` as a server-side prop from `layout.tsx` (avoids async load delay), reads `activeFolder` internally via `useQueryStates`, and serves three purposes: (1) a filter surface (click a folder chip to filter by folder), (2) a drag-and-drop target for moving notes between folders (drop onto a `DropChip`), (3) an "unfiled" drop target (drop onto `UnfiledChip` → `moveNoteToFolder` with `folderId: null`), and (4) a trash drop target (drop onto `TrashChip` → confirmation `AlertDialog` → `deleteNote`). Use a `mounted` state guard (`useEffect` → `setMounted(true)`) before calling `createPortal` to prevent SSR errors. Wrap `<NoteDropPanel>` in `<Suspense>` in `layout.tsx` because it uses `useSearchParams` internally via `nuqs`.
-- **Tagging** — tags are stored in a separate `tags` table with a many-to-many `note_tags` join table. `getTagsForNotes(noteIds)` bulk-fetches tags for a list of note IDs and returns a `Record<noteId, SelectTag[]>` map. Tags are rendered as `Badge` links on note cards and list items via `NoteTags`; clicking a tag sets the `tag` search param to filter the notes list. The `TagInput` component in the edit form handles inline tag creation and deletion. Active tag and folder filter chips are rendered by `ActiveFiltersChip` (replaces the old `TagFilterChip`).
-- **Atomic note + tag writes** — `NoteRepository` owns the `note_tags` join table. `TagRepository` is scoped to the `tags` table only (no join-table writes). The write path for create/update is: (1) `tagRepo.ensureTags(userId, tagNames)` — idempotent insert of new `tag` rows, returns `TagId[]`; (2) `noteRepo.createWithTags` / `noteRepo.updateWithTags` — writes the note row and syncs `note_tags` in a single DB transaction; (3) `tagRepo.deleteOrphanedTags(userId)` — post-commit cleanup of unreferenced tags. `NoteRepository` also exposes `syncNoteTags(noteId, tagIds)` for callers (like `ImportService`) that upsert a note separately and then need to sync its tags. `NoteService` does **not** depend on `TagService` — tag reads go through `TagService` directly from the relevant read actions.
-
-### Forms
-
-- **Form hotkeys:** Forms that edit content use `useHotkeys("mod+enter")` to submit and `useHotkeys("escape")` to cancel, with `<Kbd>⌘</Kbd><Kbd>⏎</Kbd>` badges on the submit button. For note forms, use `FormHotkeys` wrapper; for non-note forms (like settings), wire hotkeys directly with `useHotkeys` and `enableOnFormTags: ["INPUT"]` or `["TEXTAREA"]`. The `mod+enter` hotkey handler must guard against duplicate submissions: check `action.isPending` and return early if true, since `disabled={action.isPending}` on the submit button only blocks clicks and does not protect the hotkey path.
-- **`useAction` pattern:** For forms that use `next-safe-action` mutations, use `useAction` from `next-safe-action/hooks`. Submit by calling `action.execute(parsedInput)` directly (no `react-hook-form` needed for simple forms). For loading state, check `action.isPending`. Show error toasts in the `onError` callback and success toasts in `onSuccess` only when the outcome isn't obvious from the UI. For reactive field values in complex forms, prefer `useWatch` over `form.watch()` (React Compiler compatibility). Use `Controller` for non-native inputs (file inputs needing `File` extraction, Radix Select) and `register()` for simple native text/email inputs.
-- **Field component:** Use `<Field>`, `<FieldLabel>`, `<FieldDescription>`, `<FieldError>` from `@/components/ui/field` for form field structure instead of raw `<div>` + `<Label>` + manual error `<p>` tags. Set `data-invalid={!!fieldState.error || undefined}` on `<Field>` to turn labels red on validation error.
-- **Button disabled state:** Keep submit buttons always enabled for a11y -- only disable during `action.isPending` to prevent double-submits, never based on validation state like `formState.isValid`.
-- **Form aesthetic:** Forms use bare inputs in a `flex flex-col gap-6` layout (no Card wrappers). Labels and button text are lowercase. Action buttons are right-aligned at the bottom: cancel (outline) + submit (primary with Kbd hints). Back button with `ArrowLeftIcon` at the top of the page.
+- **Data access:** UI calls plain async functions in `src/data/` (one concern
+  per file). They validate with Effect Schema where input is user-shaped and
+  run Effects via `run()` from `src/data/run.ts` -- the only place
+  `AppRuntime` is executed. `run()` unwraps typed failures into plain `Error`s
+  so callers can `toast.error(error.message)`.
+- **Effect style:** `ServiceTag.pipe(Effect.flatMap((svc) => svc.method(...)))`
+  -- never `Effect.flatMap(Tag, fn)` (trips
+  `unicorn/no-array-method-this-argument`). Services convert `DatabaseError`
+  to defects via `.pipe(Effect.orDie)`; `FileError` stays typed because its
+  message is user-facing.
+- **Routes:** TanStack Router file routes. `export const Route` sits at the
+  top of the file; components are function declarations below (hoisting makes
+  this lint-clean). `@tanstack/eslint-plugin-router` owns route-option
+  ordering (`create-route-property-order`), and `perfectionist/sort-objects`
+  is configured to leave `Route` option objects unsorted -- do not fight
+  either rule.
+- **The editor owns its buffer.** `Editor` (CM6 wrapper) freezes all props
+  except the writing-mode toggles at mount via a `useState` initializer;
+  loading different content means remounting via `key`. Callbacks passed to it
+  must be freeze-safe: read live values through refs/stable getters, never
+  closures over render state.
+- **Editing session per note:** `notes.$.tsx` renders `<NoteEditor
+key={note.path}>` so autosave state can never leak across notes. Autosave
+  (`use-autosave.ts`) debounces 800ms; formatting runs on window blur or
+  unmount, never mid-keystroke.
+- **External-change reload guard:** a loader refresh replaces the buffer only
+  when it is clean AND the file's mtime is newer than our own last write
+  (`lastSavedAtRef`) -- a stale loader snapshot of a just-saved note must
+  never clobber the buffer. Don't simplify this check away.
+- **Adding a Rust command:** define in `src-tauri/src/notes.rs` (or a new
+  module), register in `generate_handler!` in `lib.rs`, expose through the
+  `FileStore` port + `tauri-file-store.ts` adapter if it is note IO. Commands
+  that mutate must index synchronously and `emit_changed`.
+- **Palette:** `command-palette.tsx` is the action surface (search, tag
+  filter via `#`, pin/move/delete/reveal, settings, reindex). New note-level
+  actions belong here, not in new chrome.
+- **Preferences:** `@tauri-apps/plugin-store` via `src/lib/preferences.ts`
+  (`settings.json`, shared with Rust's `notesDir`).
+- **Snippet rendering:** FTS snippets use `[[hl]]`/`[[/hl]]` markers parsed by
+  `getSnippetParts` -- never `dangerouslySetInnerHTML`.
 
 ## Commands
 
 ```txt
-pnpm dev          # Start dev server (Turbopack)
-pnpm build        # Production build
-pnpm lint         # Lint (ESLint)
-pnpm lint:fix     # Lint and auto-fix
-pnpm format:fix   # Format (oxfmt)
-pnpm typecheck    # Type check (tsc)
-pnpm test         # Run tests (Vitest)
-pnpm coverage     # Tests with coverage
-pnpm knip         # Detect unused code/deps
-pnpm e2e          # Run e2e tests (Playwright)
-pnpm e2e:ui       # Run e2e tests with UI
-pnpm db:push      # Push schema changes to database
-pnpm db:studio    # Open Drizzle Studio
+pnpm dev          # run the desktop app (tauri dev)
+pnpm build        # desktop bundle (tauri build)
+pnpm dev:web      # web shell only (vite, port 1420)
+pnpm build:web    # web shell build
+pnpm lint         # ESLint (cached)     | pnpm lint:fix
+pnpm format       # oxfmt check         | pnpm format:fix
+pnpm typecheck    # tsc
+pnpm test         # vitest              | pnpm coverage
+pnpm knip         # unused code/deps
+cargo test        # (in src-tauri/) Rust unit tests
 ```
 
 ## Verification
 
-After **every** set of changes, run all of these checks before considering the task done. Do NOT skip any step -- the build in particular is easy to forget and catches errors (like missing Suspense boundaries) that other checks miss.
+After **every** set of changes, run all of these before considering the task
+done:
 
 ```txt
-pnpm knip         # 0. Check for unused code/deps (fix before proceeding)
-pnpm typecheck    # 1. Type check
-pnpm lint         # 2. Lint (fix errors before proceeding)
-pnpm test         # 3. Unit tests
-pnpm build        # 4. Production build (MUST pass -- catches SSR/prerender errors)
+pnpm knip         # 0. unused code/deps (fix before proceeding)
+pnpm typecheck    # 1. types
+pnpm lint         # 2. lint
+pnpm test         # 3. unit tests
+pnpm build:web    # 4. web bundle build
+cargo test        # 5. (when src-tauri changed) in src-tauri/
 ```
 
-If any step fails, fix the issue and re-run from that step. Do not move on until all four pass.
+For anything touching the Rust side or window behavior, also launch
+`pnpm dev` and walk the relevant steps of the SPEC.md verification list --
+there is no automated e2e (wdio + tauri-driver is a named follow-up).
 
 ## Conventions
 
-- **Path alias** `@/*` maps to `./src/*`.
-- **Environment variables** are validated in `src/env.ts` using `@t3-oss/env-nextjs` with Zod. Import from `@/env` -- never use `process.env` directly. The only env var is `DATABASE_PATH` (defaults to `file:./data/notras.db`). `NODE_ENV` is also validated as a shared env var.
-- **Database schemas** are in `src/server/db/schemas/`. Use Drizzle ORM query builder, not raw SQL. Dialect is SQLite (`sqliteTable`). New schema modules must be spread into the `schema` object in `src/server/db/index.ts`.
-- **Components** use Shadcn UI primitives from `@/components/ui/`. Add new Shadcn components via the CLI (`pnpm dlx shadcn@latest add <component>`). Always prefer a Shadcn component over hand-rolling custom UI -- check the registry first (`shadcn_search_items_in_registries`) before building something from scratch.
-- **Conditional classes:** Use `cn()` from `@/lib/ui/utils` for all conditional or merged Tailwind class strings -- never template literals. `cn` wraps `clsx` + `tailwind-merge`, so it handles conflict resolution correctly (e.g., `cn("px-3", isActive && "bg-primary/10")`).
-- **Icons** come from `lucide-react` exclusively. Always import using the `Icon` suffix (e.g., `PlusIcon` not `Plus`, `SettingsIcon` not `Settings`).
-- **Effect Schema (server layer):** Server-side validation schemas in `src/server/schemas/` use `Schema` from the `effect` package -- not Zod. Use `Schema.Struct`, `Schema.String`, `Schema.minLength`, `Schema.pattern`, etc.
-- **Zod (env only):** Zod is used in one place only: `src/env.ts` (via `@t3-oss/env-nextjs`). Do not use Zod for server action or service-layer validation — use Effect Schema instead.
-- Use `satisfies` for type narrowing when possible (e.g., config objects).
-- Test files use the `.spec.ts` suffix and live next to the code they test.
-- Sort object keys and import statements alphabetically.
-- Prefer named exports over default exports (except for Next.js pages/layouts).
-- **Bottom-up file structure:** Files should read bottom-up -- private/helper components and functions at the top, the main exported component at the bottom. This way the file's public API is immediately visible when you scroll to the end.
-- **Lowercase aesthetic:** All user-facing text in the UI is lowercase -- labels, button text, headings, placeholder text, toast messages, tooltips, etc. This is a deliberate design choice across the entire app, not just forms.
-- **Date formatting:** All date display in components goes through `formatDate` (date only) and `formatDateTime` (date + time) from `@/lib/utils/format.ts`. Both return lowercase output to match the app's aesthetic. Do not use raw `format()` from `date-fns` directly in components.
-- **Note preview / title extraction:** Notes have no title field. In list views, use `extractNoteTitle(content)` from `@/lib/utils/extract-note-title` to derive a display title. It takes the first non-empty line, strips Markdown syntax via `stripMarkdown` (`@/lib/utils/strip-markdown`), and truncates to 80 characters at a word boundary. Do not slice `content` directly in components.
-- **Search preview rendering:** In list views, prefer repository-provided `snippet` when present (active search path). Render a single truncated line centered on the first match via `getCenteredSnippetParts` in `NoteListItem` (`@/components/notes/note-list-item`). Fall back to title highlighting via `getHighlightedParts` when snippet is null.
-
-### Lint-enforced
-
-These rules are caught by the linter, but following them preemptively avoids round-trips:
-
-- Test titles (`it`/`test`) must start with "should" (enforced by `vitest/valid-title`).
-- Use `toStrictEqual()` instead of `toEqual()` (enforced by `vitest/prefer-strict-equal`).
-- Use top-level `import type` declarations, not inline `import { type Foo }` (enforced by `import-x/consistent-type-specifier-style`).
-- Arrow functions: use implicit return for single-expression bodies, explicit `return` for multi-line (enforced by `arrow-style/arrow-return-style`). Note: even single expressions that span multiple lines (e.g., a function call with multi-line args) require explicit `return`.
-- In tests, avoid direct DOM node access (`.closest()`, `.firstChild`, etc.) -- use Testing Library queries instead (enforced by `testing-library/no-node-access`).
-- Use `toHaveTextContent` instead of asserting on `.textContent` (enforced by `jest-dom/prefer-to-have-text-content`).
-- Use template literals instead of string concatenation (enforced by `prefer-template`).
-- Side-effect imports (e.g., `import "./types"`) must come before value imports within the same group (enforced by `perfectionist/sort-imports`).
-- Use `replaceAll()` instead of `replace()` with global regex (enforced by `unicorn/prefer-string-replace-all`).
-- Use `**` operator instead of `Math.pow()` (enforced by `prefer-exponentiation-operator`).
-- Do not use `??` or `||` fallbacks when the left-hand side type is already non-nullable (enforced by `@typescript-eslint/no-unnecessary-condition`).
-
-## Testing Notes
-
-The project uses **happy-dom** as the test environment. The custom `render` from `@/testing/utils` wraps components in `NuqsTestingAdapter`, `TooltipProvider`, and `Toaster`.
-
-### E2E tests (Playwright)
-
-- E2e tests live in `e2e/` at the project root and use a separate `e2e/tsconfig.json` (no Vitest globals).
-- `playwright.config.ts` auto-pushes the DB schema (`db:push`) before starting the server, using an isolated test database at `data/notras-test.db`.
-- Locally, tests run against the dev server (`pnpm dev`). On CI, tests run against a production build (`pnpm build` + `pnpm start`).
-- Only Chromium is configured (Desktop Chrome). Add more projects to `playwright.config.ts` if cross-browser testing is needed.
-- Test titles must start with "should" (same convention as Vitest).
-- Vitest is configured to exclude `e2e/` so the two test runners don't conflict.
-
-### Known happy-dom limitations
-
-- **Clipboard:** happy-dom's `navigator.clipboard.writeText` always resolves successfully. `Object.defineProperty` and `vi.stubGlobal` cannot make it reject, so clipboard error/toast tests are not feasible.
-- **Radix Select:** `target.hasPointerCapture` is not implemented, so Radix `<Select>` dropdowns can't be opened via `userEvent.click()`. Only the default rendered state can be tested.
-- **Timezone-safe dates:** Use `new Date(2025, 5, 15)` (local time constructor) instead of `new Date("2025-06-15")` (parsed as UTC midnight, shifts in local timezone).
-
-### Mocking patterns
-
-- **Prefer low-level stubs over module mocks:** Follow the MSW mentality -- mock at the lowest boundary possible. For environment variables, use `vi.stubEnv()` + `vi.resetModules()` + dynamic `import()` instead of `vi.mock("@/env")`. This exercises the real code path (`process.env` → `createEnv` → module under test) and catches integration issues.
-- **`vi.stubEnv` pattern for env-dependent code:** Since `@t3-oss/env-nextjs` validates at module load time, tests that vary env vars must reset and re-import:
-
-  ```ts
-  beforeEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  async function setupMyModule() {
-    const { myFunction } = await import("./my-module");
-    return myFunction;
-  }
-
-  it("should do something when ENV_VAR is set", async () => {
-    vi.stubEnv("ENV_VAR", "value");
-    const myFunction = await setupMyModule();
-    // ...
-  });
-  ```
-
-  Name the helper `setup*` (e.g., `setupSiteFooter`, `setupGetBuildInfo`) -- not `load*`.
-
-- **`motion/react`:** Mock `motion.li` / `motion.div` as plain HTML elements for components using Motion layout animations.
-- **`react-hotkeys-hook`:** Mock with `vi.mock("react-hotkeys-hook", () => ({ useHotkeys: vi.fn() }))` when testing components that use `useHotkeys`, since it captures keyboard events.
-- **Server actions:** Mock the action module (e.g., `vi.mock("@/actions/pin-note", () => ({ pinNote: vi.fn() }))`) to avoid `"use server"` context errors.
-
-### Querying Shadcn components
-
-- `<Separator>` renders with `role="none"` (decorative). Query by `[data-slot='separator']` instead of `role="separator"`.
+- Path alias `@/*` -> `./src/*`.
+- Components use Shadcn primitives from `@/components/ui/` (add via
+  `pnpm dlx shadcn@latest add <component>`; never hand-edit generated files --
+  fix non-autofixable lint via the `**/components/ui/**` override block).
+- `cn()` from `@/lib/ui/utils` for conditional Tailwind classes.
+- Icons from `lucide-react`, always the `Icon`-suffixed export.
+- Effect Schema (not zod) for validation, in `src/server/schemas/`.
+- Test files use `.spec.ts` and live next to the code they test; titles start
+  with "should". Rust tests live in `#[cfg(test)]` modules in the same file.
+- Sort object keys and imports alphabetically (perfectionist) -- except route
+  option objects, which the router plugin owns.
+- Prefer named exports; bottom-up file layout (helpers above, public API at
+  the bottom) -- except route files, where `Route` sits at the top.
+- **Lowercase aesthetic:** all user-facing text is lowercase -- labels,
+  buttons, toasts, tooltips, placeholders. Deliberate, app-wide.
+- Title = filename. There is no title field in note content; deriving titles
+  from content is a web-era pattern that no longer exists.
 
 ## Do NOT
 
-- Edit files in `src/components/ui/` manually -- these are Shadcn-generated. After installing new Shadcn components, run `pnpm lint:fix` for auto-fixable issues. For remaining errors that aren't auto-fixable (e.g., `eqeqeq`, `no-array-index-key`, `no-leaked-conditional-rendering`), add rule overrides to the `"**/components/ui/**/*.tsx"` config in `eslint.config.ts` instead of editing the component source.
-- Use Prettier -- this project uses oxfmt.
-- Add unnecessary `"use client"` directives -- prefer Server Components.
-- Leave comments in the codebase that are not JSDoc or TODO/FIXME notes.
-- Use redundant return types for internal functions that can be inferred. This includes unexported functions, local `const` arrow functions, and inline callbacks where the return type is obvious from the expression. Exception: interface method signatures and exported functions where the return type is part of the public contract.
-- Be lazy when dealing with static analysis warnings/errors -- address them promptly.
-- Reach for type shortcuts (`as`, `!`, `any`) without first exhausting proper solutions -- if a type error appears during a refactor, understand why before casting. Casts are occasionally correct but should never be the first response to a compiler error.
-- Silence lint errors or warnings by adding rule overrides to `eslint.config.ts` (e.g. `"no-console": "off"`) — the only valid exception is Shadcn-generated files under `**/components/ui/**`. Fix the root cause instead: if a rule fires, the code needs to change, not the config.
-- Leave unused exports, dependencies, or files -- run `pnpm knip` to detect and remove them.
-- Leave tests in a failing state -- after making changes, run `pnpm test` and fix any broken tests before finishing.
-- Leave lint errors -- after making changes, run `pnpm lint` and fix any errors before finishing.
-- Leave the build broken -- after making changes, run `pnpm build` and fix any errors before finishing.
-- Forget to update docs -- after introducing a new pattern, feature, convention, or structural change, ask the user if `AGENTS.md` and/or `README.md` should be updated, then apply the changes.
+- Write to the index from TypeScript, or add non-SELECT support to
+  `db_select`. Rust is the only writer.
+- Import `@tauri-apps/*` outside `src/server/adapters/**`, `runtime.ts`, and
+  UI-concern code -- and never widen the boundary globs in `eslint.config.ts`.
+- Change one frontmatter parser without the other (TS + Rust must stay in
+  parity, with tests).
+- Format note content while the user is typing -- format-on-blur only, and it
+  must return the original content on any error.
+- Use Prettier -- this project uses oxfmt. `oxfmt` is also a devDependency
+  only; runtime formatting is remark.
+- Add unnecessary dependencies; run `pnpm knip` and leave it clean.
+- Reach for `as`, `!`, or `any` before exhausting proper typing.
+- Silence lint errors with config overrides (exceptions: the Shadcn
+  `**/components/ui/**` block and the documented TanStack Router
+  accommodations).
+- Leave tests, lint, typecheck, knip, or the build red.
+- Forget docs -- after a new pattern, feature, or structural change, update
+  `SPEC.md` and ask whether `AGENTS.md`/`README.md` should change too.
 
 ## Branching & Commits
 
-- **Branch naming:** `{type}-{short-description}` in kebab-case. The type prefix matches commit types: `feat-`, `fix-`, `refactor-`, `chore-`, `docs-`, `ci-`. Examples: `feat-add-folder-drag-drop`, `fix-no-more-confusing-cancel`.
-- **Commits:** Use `pnpm gitzy` to create commits. It enforces Conventional Commits format with emojis and lowercase descriptions. Two approaches:
-  - **Interactive mode:** Run `pnpm gitzy` and answer prompts. Use `pnpm gitzy -p -a` to stage all changes first.
-  - **CLI flags (for automation/non-TTY):** Use flags to set values inline. Example: `pnpm gitzy -t feat -m "add pwa support" -d "detailed description" -p -a`. Available flags: `-t/--type`, `-m/--subject`, `-s/--scope`, `-d/--body`, `-b/--breaking`, `-i/--issues`, `-p/--passthrough`, `-D/--dry-run`, `--no-emoji`. See full flag list in gitzy docs.
-  - Keep the subject line under 50 characters and wrap the body at 72 characters.
-- **Pull requests:** Branch off `main`, push, and open a PR with `gh pr create`. PR titles follow the same conventional commit format as commits (e.g., `feat: ✨ add markdown preview`). Merge commits are disabled -- use squash merge.
-- **Working on `main`:** If changes are being made on `main`, create a new branch before committing. Do not commit directly to `main`.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+- **Branch naming:** `{type}-{short-description}` kebab-case (`feat-`, `fix-`,
+  `refactor-`, `chore-`, `docs-`, `ci-`).
+- **Commits:** use `pnpm gitzy commit` (Conventional Commits + emoji,
+  lowercase subjects under 50 chars, body wrapped at 72). Inline flags:
+  `pnpm gitzy commit --type feat --scope ui -m "subject" --body "..."
+--co-author "Name <email>"`; `-D` for a dry run.
+- **Pull requests:** branch off `main`, `gh pr create`, conventional title.
+  Squash merge only. Never commit directly to `main`.
