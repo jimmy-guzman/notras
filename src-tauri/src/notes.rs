@@ -170,6 +170,35 @@ pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String,
     Ok(format!("attachments/{candidate}"))
 }
 
+/// Save a pasted clipboard image into `attachments/`, returning the
+/// relative path for the markdown link.
+#[tauri::command]
+pub fn attach_image(state: State<'_, AppState>, base64_data: String) -> Result<String, String> {
+    use base64::Engine as _;
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| e.to_string())?;
+
+    let core = state.core.lock().unwrap();
+    let dir = core.notes_dir.join("attachments");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let stamp = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+    let mut candidate = format!("pasted-{stamp}.png");
+    let mut counter = 1;
+    while dir.join(&candidate).exists() {
+        counter += 1;
+        candidate = format!("pasted-{stamp}-{counter}.png");
+    }
+
+    fs::write(dir.join(&candidate), bytes).map_err(|e| e.to_string())?;
+    Ok(format!("attachments/{candidate}"))
+}
+
 #[tauri::command]
 pub fn read_external(path: String) -> Result<NoteFile, String> {
     let abs = PathBuf::from(&path);

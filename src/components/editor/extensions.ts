@@ -1,5 +1,6 @@
-import type { Extensions } from "@tiptap/core";
+import type { Editor, Extensions } from "@tiptap/core";
 
+import { Extension, InputRule } from "@tiptap/core";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Image } from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
@@ -43,6 +44,50 @@ const NoteImage = Image.extend<
   },
 });
 
+/** Typing `[text](url)` converts into a real link as you close the paren. */
+const MarkdownLinkInputRule = Extension.create({
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /\[([^\]]+)\]\(([^\s)]+)\)$/,
+        handler: ({ commands, match, range, state }) => {
+          const [, text, url] = match;
+
+          if (text === undefined || url === undefined) {
+            return;
+          }
+
+          commands.command(({ tr }) => {
+            const linkMark = state.schema.marks.link;
+
+            if (linkMark === undefined) {
+              return false;
+            }
+
+            tr.replaceWith(
+              range.from,
+              range.to,
+              state.schema.text(text, [linkMark.create({ href: url })]),
+            );
+
+            return true;
+          });
+        },
+      }),
+    ];
+  },
+  name: "markdownLinkInputRule",
+});
+
+/**
+ * Serialize the editor to markdown for the file on disk. TipTap leaks
+ * `&nbsp;` entities (table cells, blank paragraphs); files must stay
+ * clean, portable markdown.
+ */
+export function serializeMarkdown(editor: Editor) {
+  return editor.getMarkdown().replaceAll(/&nbsp;|&#160;/g, " ");
+}
+
 /** The full extension stack, shared by the component and headless tests. */
 export function createEditorExtensions(
   options: EditorExtensionOptions,
@@ -56,7 +101,13 @@ export function createEditorExtensions(
       markedOptions: { gfm: true },
     }),
     CodeBlockLowlight.configure({ lowlight }),
-    TableKit,
+    TableKit.configure({
+      table: {
+        // Hand-styled in styles.css; not-prose stops double-styling.
+        HTMLAttributes: { class: "not-prose" },
+        resizable: false,
+      },
+    }),
     TaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({
@@ -70,6 +121,7 @@ export function createEditorExtensions(
       placeholder: options.placeholderText ?? "just write...",
     }),
     Focus.configure({ className: "has-focus", mode: "shallowest" }),
+    MarkdownLinkInputRule,
     SlashMenu,
     Wikilink.configure({
       getTitles:

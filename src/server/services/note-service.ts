@@ -27,6 +27,7 @@ interface Note {
 
 interface INoteService {
   attach(sourcePath: string): Effect.Effect<string, FileError>;
+  attachImage(base64Data: string): Effect.Effect<string, FileError>;
   count(): Effect.Effect<number>;
   create(options?: {
     content?: string;
@@ -84,6 +85,10 @@ const makeNoteService = Effect.gen(function* () {
   const service: INoteService = {
     attach: (sourcePath) => {
       return fileStore.attach(sourcePath);
+    },
+
+    attachImage: (base64Data) => {
+      return fileStore.attachImage(base64Data);
     },
 
     count: () => {

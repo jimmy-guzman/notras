@@ -22,6 +22,9 @@ const fileStore: IFileStore = {
   attach: (sourcePath) => {
     return command<string>("attach_file", { source: sourcePath });
   },
+  attachImage: (base64Data) => {
+    return command<string>("attach_image", { base64Data });
+  },
   delete: (path) => {
     return command<null>("delete_note", { path }).pipe(Effect.asVoid);
   },

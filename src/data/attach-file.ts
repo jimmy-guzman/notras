@@ -14,3 +14,14 @@ export async function attachFile(sourcePath: string) {
     ),
   );
 }
+
+/** Save a pasted clipboard image; resolves to its relative path. */
+export async function attachImage(base64Data: string) {
+  return run(
+    NoteService.pipe(
+      Effect.flatMap((svc) => {
+        return svc.attachImage(base64Data);
+      }),
+    ),
+  );
+}

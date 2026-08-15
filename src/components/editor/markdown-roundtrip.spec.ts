@@ -1,6 +1,6 @@
 import { Editor } from "@tiptap/core";
 
-import { createEditorExtensions } from "./extensions";
+import { createEditorExtensions, serializeMarkdown } from "./extensions";
 
 /**
  * The markdown round-trip contract: what goes into a file must come back
@@ -15,7 +15,7 @@ function roundtrip(markdown: string) {
     element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
-  const output = editor.getMarkdown();
+  const output = serializeMarkdown(editor);
 
   editor.destroy();
 
@@ -67,5 +67,14 @@ describe("markdown round-trip", () => {
     const twice = roundtrip(once);
 
     expect(twice).toBe(once);
+  });
+
+  it("should never leak nbsp entities into files", () => {
+    const markdown =
+      "| a | b |\n| --- | --- |\n|  | 2 |\n\nparagraph\n\n- [ ] task";
+    const output = roundtrip(markdown);
+
+    expect(output).not.toContain("&nbsp;");
+    expect(output).not.toContain("&#160;");
   });
 });

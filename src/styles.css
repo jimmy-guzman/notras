@@ -184,26 +184,70 @@
   transition: opacity 0.3s ease;
 }
 
-/* Task lists. */
+/* Task lists (recipe proven in scratch: flex rows, zero p margins,
+   hand-drawn checkboxes locked to the first text line). */
 .ProseMirror ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0;
+  margin-block: 0.5em;
 }
 .ProseMirror ul[data-type="taskList"] li {
   display: flex;
-  gap: 0.5rem;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+  padding-block: 0.125em;
 }
 .ProseMirror ul[data-type="taskList"] li > label {
-  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 1.75em;
   user-select: none;
 }
 .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
-  accent-color: var(--primary);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border: 1.5px solid color-mix(in oklch, var(--foreground) 25%, transparent);
+  border-radius: 3px;
+  background: transparent;
   cursor: pointer;
+  position: relative;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--primary-foreground);
+  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
+    center / 70% no-repeat;
+}
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
 }
 .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
   color: var(--muted-foreground);
   text-decoration: line-through;
+  opacity: 0.7;
+}
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-block: 0.2em 0;
+}
+
+/* Regular lists get the same paragraph-margin taming. */
+.ProseMirror li > p {
+  margin-block: 0;
 }
 
 /* Tables. */
@@ -234,12 +278,15 @@
   outline: 2px solid var(--ring);
 }
 
-/* Wikilink pills. */
+/* Wikilinks: subtle dashed underline, distinct from external links. */
 .wikilink {
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--primary) 14%, transparent);
-  padding: 0.05em 0.35em;
+  font-weight: 500;
+  border-bottom: 1px dashed currentcolor;
   cursor: pointer;
+  transition: color 0.15s;
+}
+.wikilink:hover {
+  color: var(--muted-foreground);
 }
 
 /* Suggestion menus (slash commands, wikilink completion). */

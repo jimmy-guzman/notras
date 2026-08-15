@@ -159,6 +159,7 @@ pub fn run() {
     let app = builder
         .invoke_handler(tauri::generate_handler![
             notes::attach_file,
+            notes::attach_image,
             notes::db_select,
             notes::delete_note,
             notes::get_notes_dir,

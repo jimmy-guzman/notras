@@ -18,6 +18,8 @@ export interface NoteFileContent {
 export interface IFileStore {
   /** Copy an absolute host path into `attachments/`, returns the relative path. */
   attach(sourcePath: string): Effect.Effect<string, FileError>;
+  /** Save base64 image bytes into `attachments/`, returns the relative path. */
+  attachImage(base64Data: string): Effect.Effect<string, FileError>;
   delete(path: string): Effect.Effect<void, FileError>;
   exists(path: string): Effect.Effect<boolean, FileError>;
   getNotesDir(): Effect.Effect<string, FileError>;
