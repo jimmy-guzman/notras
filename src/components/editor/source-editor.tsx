@@ -5,7 +5,7 @@ import { Text } from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { common, createLowlight } from "lowlight";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export interface SourceEditorHandle {
   /** Caret position as a character offset into the raw text. */
@@ -105,6 +105,19 @@ export function SourceEditor({
       config.onChange(instance.state.doc.textContent);
     },
   });
+
+  // Focus and caret placement only work once EditorContent has attached
+  // the view to the DOM, which happens before this parent effect runs.
+  useEffect(() => {
+    if (editor === null || editor.isDestroyed) {
+      return;
+    }
+
+    const max = Math.max(1, editor.state.doc.content.size - 1);
+    const pos = Math.max(1, Math.min(1 + config.initialCursor, max));
+
+    editor.chain().focus().setTextSelection(pos).scrollIntoView().run();
+  }, [config, editor]);
 
   return (
     <div className="source-editor allow-select min-h-0 flex-1 overflow-y-auto">

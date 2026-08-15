@@ -129,3 +129,94 @@ export function blockIndexToPos(doc: DocLike, blockIndex: number) {
 
   return pos;
 }
+
+export interface CursorAnchor {
+  anchorText: string;
+  blockIndex: number;
+}
+
+interface BlockLike {
+  descendants(
+    callback: (
+      node: { isText: boolean; nodeSize: number; text?: string },
+      pos: number,
+    ) => boolean,
+  ): void;
+}
+
+/**
+ * Map a visible-text offset within a top-level block back to a ProseMirror
+ * position. Counts text runs by length and leaf atoms as one character,
+ * mirroring how `textBetween(..., "", " ")` produced the searched text.
+ */
+function textOffsetToPos(block: BlockLike, blockStart: number, offset: number) {
+  let remaining = offset;
+  let result = blockStart;
+
+  block.descendants((node, pos) => {
+    if (remaining < 0) {
+      return false;
+    }
+
+    if (node.isText) {
+      const length = node.text?.length ?? 0;
+
+      if (remaining <= length) {
+        result = blockStart + pos + remaining;
+        remaining = -1;
+
+        return false;
+      }
+
+      remaining -= length;
+    } else if (node.nodeSize === 1) {
+      remaining -= 1;
+      if (remaining <= 0) {
+        result = blockStart + pos + 1;
+        remaining = -1;
+
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  return remaining >= 0 ? blockStart : result;
+}
+
+interface AnchorDocLike {
+  child(
+    index: number,
+  ): BlockLike & { content: { size: number }; nodeSize: number };
+  childCount: number;
+  textBetween(
+    from: number,
+    to: number,
+    blockSeparator?: string,
+    leafText?: string,
+  ): string;
+}
+
+/** Resolve an anchor to a concrete caret position in the given doc. */
+export function anchorToPos(doc: AnchorDocLike, anchor: CursorAnchor) {
+  if (doc.childCount === 0) {
+    return 0;
+  }
+
+  const clamped = Math.max(0, Math.min(anchor.blockIndex, doc.childCount - 1));
+  const blockStart = blockIndexToPos(doc, clamped);
+  const block = doc.child(clamped);
+  const blockText = doc.textBetween(
+    blockStart,
+    blockStart + block.content.size,
+    "",
+    " ",
+  );
+  const matched =
+    anchor.anchorText === "" ? -1 : findAnchor(blockText, anchor.anchorText);
+
+  return matched === -1
+    ? blockStart
+    : textOffsetToPos(block, blockStart, matched);
+}

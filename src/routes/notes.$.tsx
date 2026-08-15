@@ -10,6 +10,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import type { EditorHandle } from "@/components/editor/editor";
+import type { CursorAnchor } from "@/components/editor/source-anchors";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 
 import { Editor } from "@/components/editor/editor";
@@ -127,10 +128,7 @@ function NoteEditor({ note }: NoteEditorProps) {
   const sourceRef = useRef<null | SourceEditorHandle>(null);
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
-  const pendingRichAnchorRef = useRef<null | {
-    anchorText: string;
-    blockIndex: number;
-  }>(null);
+  const [richAnchor, setRichAnchor] = useState<CursorAnchor | null>(null);
   const [focusModeEnabled, toggleFocusMode] = usePersistentToggle("focus-mode");
   const [typewriterEnabled, toggleTypewriter] =
     usePersistentToggle("typewriter");
@@ -198,6 +196,7 @@ function NoteEditor({ note }: NoteEditorProps) {
       lastSavedAtRef.current = note.updatedAt;
       setBody(parsed.body);
       setWords(countWords(note.content));
+      setRichAnchor(null);
       setReloadKey((key) => {
         return key + 1;
       });
@@ -261,48 +260,44 @@ function NoteEditor({ note }: NoteEditorProps) {
   // body block indexes shift by one in the source view.
   const toggleSourceMode = () => {
     const skew = frontmatterRef.current.length > 0 ? 1 : 0;
+    const raw = composeNote(frontmatterRef.current, bodyRef.current);
+    const offsets = getMarkdownBlockOffsets(raw);
 
-    setSourceMode((current) => {
-      if (current) {
-        // Source -> rich: land the caret where it was, matched by the
-        // visible text just before it (syntax stripped for the search).
-        const raw = composeNote(frontmatterRef.current, bodyRef.current);
-        const offsets = getMarkdownBlockOffsets(raw);
-        const offset = sourceRef.current?.getCursorOffset() ?? 0;
-        const blockIndex = offsetToBlockIndex(offsets, offset);
-        const blockStart = offsets[blockIndex] ?? 0;
+    if (sourceMode) {
+      // Source -> rich: land the caret where it was, matched by the
+      // visible text just before it (syntax stripped for the search).
+      const offset = sourceRef.current?.getCursorOffset() ?? 0;
+      const blockIndex = offsetToBlockIndex(offsets, offset);
+      const blockStart = offsets[blockIndex] ?? 0;
 
-        pendingRichAnchorRef.current = {
-          anchorText: stripInlineSyntax(
-            raw.slice(blockStart, offset).slice(-ANCHOR_LENGTH),
-          ),
-          blockIndex: Math.max(0, blockIndex - skew),
-        };
-        setReloadKey((key) => {
-          return key + 1;
-        });
-      } else {
-        // Rich -> source: open at the caret's spot, matched by the text
-        // just before it inside its block's source slice.
-        const raw = composeNote(frontmatterRef.current, bodyRef.current);
-        const offsets = getMarkdownBlockOffsets(raw);
-        const context = editorRef.current?.getCursorContext() ?? {
-          anchorText: "",
-          blockIndex: 0,
-        };
-        const sourceIndex = context.blockIndex + skew;
-        const blockStart = offsets[sourceIndex] ?? raw.length;
-        const blockEnd = offsets[sourceIndex + 1] ?? raw.length;
-        const matched =
-          context.anchorText === ""
-            ? -1
-            : findAnchor(raw.slice(blockStart, blockEnd), context.anchorText);
+      setRichAnchor({
+        anchorText: stripInlineSyntax(
+          raw.slice(blockStart, offset).slice(-ANCHOR_LENGTH),
+        ),
+        blockIndex: Math.max(0, blockIndex - skew),
+      });
+      setReloadKey((key) => {
+        return key + 1;
+      });
+    } else {
+      // Rich -> source: open at the caret's spot, matched by the text
+      // just before it inside its block's source slice.
+      const context = editorRef.current?.getCursorContext() ?? {
+        anchorText: "",
+        blockIndex: 0,
+      };
+      const sourceIndex = context.blockIndex + skew;
+      const blockStart = offsets[sourceIndex] ?? raw.length;
+      const blockEnd = offsets[sourceIndex + 1] ?? raw.length;
+      const matched =
+        context.anchorText === ""
+          ? -1
+          : findAnchor(raw.slice(blockStart, blockEnd), context.anchorText);
 
-        setSourceCursor(matched === -1 ? blockStart : blockStart + matched);
-      }
+      setSourceCursor(matched === -1 ? blockStart : blockStart + matched);
+    }
 
-      return !current;
-    });
+    setSourceMode(!sourceMode);
   };
 
   useHotkeys("mod+p", toggleSourceMode, HOTKEY_OPTIONS);
@@ -325,18 +320,12 @@ function NoteEditor({ note }: NoteEditorProps) {
         <Editor
           focusModeEnabled={focusModeEnabled}
           focusOnMount
+          initialAnchor={richAnchor}
           initialContent={body}
           key={`${note.path}:${reloadKey}`}
           onChange={handleBodyChange}
           onReady={(handle) => {
             editorRef.current = handle;
-
-            const pending = pendingRichAnchorRef.current;
-
-            if (pending !== null) {
-              pendingRichAnchorRef.current = null;
-              handle.setCursorInBlock(pending.blockIndex, pending.anchorText);
-            }
           }}
           onWikilinkClick={openWikilink}
           resolveImageSrc={resolveImageSrc}

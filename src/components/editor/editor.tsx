@@ -7,59 +7,10 @@ import { toast } from "sonner";
 import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
 
+import type { CursorAnchor } from "./source-anchors";
+
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
-import { ANCHOR_LENGTH, blockIndexToPos, findAnchor } from "./source-anchors";
-
-interface BlockLike {
-  descendants(
-    callback: (
-      node: { isText: boolean; nodeSize: number; text?: string },
-      pos: number,
-    ) => boolean,
-  ): void;
-}
-
-/**
- * Map a visible-text offset within a top-level block back to a ProseMirror
- * position. Counts text runs by length and leaf atoms as one character,
- * mirroring how `textBetween(..., " ", " ")` produced the searched text.
- */
-function textOffsetToPos(block: BlockLike, blockStart: number, offset: number) {
-  let remaining = offset;
-  let result = blockStart;
-
-  block.descendants((node, pos) => {
-    if (remaining < 0) {
-      return false;
-    }
-
-    if (node.isText) {
-      const length = node.text?.length ?? 0;
-
-      if (remaining <= length) {
-        result = blockStart + pos + remaining;
-        remaining = -1;
-
-        return false;
-      }
-
-      remaining -= length;
-    } else if (node.nodeSize === 1) {
-      // Inline leaf atom, rendered as one placeholder character.
-      remaining -= 1;
-      if (remaining <= 0) {
-        result = blockStart + pos + 1;
-        remaining = -1;
-
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  return remaining >= 0 ? blockStart : result;
-}
+import { ANCHOR_LENGTH, anchorToPos, blockIndexToPos } from "./source-anchors";
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
@@ -68,18 +19,15 @@ export interface EditorHandle {
   focus(): void;
   getContent(): string;
   /** The caret's top-level block plus the visible text just before it. */
-  getCursorContext(): { anchorText: string; blockIndex: number };
+  getCursorContext(): CursorAnchor;
   insertText(text: string): void;
-  /**
-   * Move the caret into the Nth top-level block, at the spot where
-   * `anchorText` ends (block start when the anchor can't be found).
-   */
-  setCursorInBlock(index: number, anchorText: string): void;
 }
 
 interface EditorProps {
   focusModeEnabled?: boolean;
   focusOnMount?: boolean;
+  /** Place the caret at this anchor on mount (wins over focusOnMount). */
+  initialAnchor?: CursorAnchor | null;
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
   onBlur?: () => void;
@@ -120,7 +68,6 @@ export function Editor({
   });
 
   const editor = useEditor({
-    autofocus: config.focusOnMount === true ? "end" : false,
     content: config.initialContent,
     contentType: "markdown",
     editorProps: {
@@ -265,26 +212,6 @@ export function Editor({
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
         },
-        setCursorInBlock: (index, anchorText) => {
-          const { doc } = instance.state;
-          const clamped = Math.max(0, Math.min(index, doc.childCount - 1));
-          const blockStart = blockIndexToPos(doc, clamped);
-          const block = doc.child(clamped);
-          const blockText = doc.textBetween(
-            blockStart,
-            blockStart + block.content.size,
-            "",
-            " ",
-          );
-          const matched =
-            anchorText === "" ? -1 : findAnchor(blockText, anchorText);
-          const pos =
-            matched === -1
-              ? blockStart
-              : textOffsetToPos(block, blockStart, matched);
-
-          instance.chain().focus().setTextSelection(pos).scrollIntoView().run();
-        },
       });
     },
     onSelectionUpdate: ({ editor: instance }) => {
@@ -308,6 +235,28 @@ export function Editor({
       config.onChange(serializeMarkdown(instance));
     },
   });
+
+  // Caret placement must run AFTER EditorContent attaches the view to the
+  // DOM -- focus/scroll are no-ops before that, and TipTap's own autofocus
+  // would race us, so this effect owns all mount-time caret behavior.
+  useEffect(() => {
+    if (editor === null || editor.isDestroyed) {
+      return;
+    }
+
+    const anchor = config.initialAnchor ?? null;
+
+    if (anchor !== null) {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(anchorToPos(editor.state.doc, anchor))
+        .scrollIntoView()
+        .run();
+    } else if (config.focusOnMount === true) {
+      editor.commands.focus("end");
+    }
+  }, [config, editor]);
 
   return (
     <div
