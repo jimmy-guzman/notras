@@ -1,38 +1,25 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
-    "target": "ESNext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
+    "incremental": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": true,
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vitest/globals"],
-    "incremental": true
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ESNext",
+    "types": ["vite/client", "vitest/globals"]
   },
-  "include": [
-    "eslint.config.ts",
-    "next.config.ts",
-    "postcss.config.mjs",
-    ".next/types/**/*.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "next-env.d.ts",
-    "reset.d.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": ["node_modules", "coverage", ".next"]
+  "exclude": ["node_modules", "dist", "src-tauri"],
+  "include": ["reset.d.ts", "**/*.ts", "**/*.tsx"]
 }

@@ -1,11 +1,10 @@
 import { defineConfig } from "@jimmy.codes/eslint-config";
+import pluginRouter from "@tanstack/eslint-plugin-router";
 
 export default defineConfig({
+  ignores: ["src-tauri/**", "src/routeTree.gen.ts"],
   overrides: [
-    {
-      files: ["**/next-env.d.ts"],
-      rules: { "import-x/extensions": "off" },
-    },
+    ...pluginRouter.configs["flat/recommended"],
     {
       files: ["**/components/ui/**/*.tsx"],
       rules: {
@@ -42,6 +41,24 @@ export default defineConfig({
             ],
           },
         ],
+        // Route option objects are left unsorted: TanStack Router's type
+        // inference is order-sensitive there, and the router plugin's
+        // create-route-property-order rule owns that ordering instead.
+        "perfectionist/sort-objects": [
+          "error",
+          {
+            type: "natural",
+            useConfigurationIf: {
+              declarationMatchesPattern: {
+                flags: "i",
+                pattern: "^(?!.*Route).*$",
+              },
+            },
+          },
+          {
+            type: "unsorted",
+          },
+        ],
       },
     },
     // Layer boundaries. These must come last: flat config replaces rule options
@@ -55,17 +72,12 @@ export default defineConfig({
           {
             patterns: [
               {
-                group: ["next", "next/*", "react", "react-dom", "node:*"],
+                group: ["@tauri-apps/*", "react", "react-dom", "node:*"],
                 message:
-                  "src/core is isomorphic -- it runs in the browser and in any server runtime. Keep it free of framework and Node-only imports.",
+                  "src/core is isomorphic -- it runs in the webview and in any other runtime (tests, a future MCP server). Keep it free of platform and framework imports.",
               },
               {
-                group: [
-                  "@/server/*",
-                  "@/lib/*",
-                  "@/components/*",
-                  "@/actions/*",
-                ],
+                group: ["@/server/*", "@/lib/*", "@/components/*", "@/data/*"],
                 message:
                   "src/core is the bottom layer and must not depend upward. Move the shared code into src/core instead.",
               },
@@ -82,12 +94,12 @@ export default defineConfig({
           {
             patterns: [
               {
-                group: ["next", "next/*", "react", "react-dom", "@/env"],
+                group: ["@tauri-apps/*", "react", "react-dom"],
                 message:
-                  "The data and service layers stay framework-free so they can run outside Next.js. Inject the behavior instead -- see CacheInvalidator in src/core and makeDatabaseLayer in src/server/db. Only src/server/runtime.ts and src/server/cache-invalidator.ts may import Next.js.",
+                  "The data and service layers stay platform-free so they can run outside the Tauri webview (tests, a future MCP server). Inject the behavior instead -- see the FileStore port in src/core and the adapters in src/server/adapters. Only src/server/adapters/** and src/server/runtime.ts may import @tauri-apps/*.",
               },
               {
-                group: ["@/lib/*", "@/components/*", "@/actions/*"],
+                group: ["@/lib/*", "@/components/*", "@/data/*"],
                 message:
                   "The server layer must not depend on app-layer code. Shared helpers belong in src/core.",
               },
@@ -97,4 +109,22 @@ export default defineConfig({
       },
     },
   ],
+  react: {
+    overrides: {
+      "react-refresh/only-export-components": [
+        "error",
+        {
+          extraHOCs: [
+            "createFileRoute",
+            "createLazyFileRoute",
+            "createRootRoute",
+            "createRootRouteWithContext",
+            "createLink",
+            "createRoute",
+            "createLazyRoute",
+          ],
+        },
+      ],
+    },
+  },
 });

@@ -10,12 +10,12 @@ export default defineConfig({
     coverage: {
       exclude: [
         ...(configDefaults.coverage.exclude ?? []),
-        "{tailwind,postcss,playwright,drizzle,next,knip}.config.*",
+        "{vite,vitest,knip}.config.*",
+        "src/routeTree.gen.ts",
       ],
     },
     environment: "happy-dom",
-    exclude: [...configDefaults.exclude, "e2e"],
+    exclude: [...configDefaults.exclude, "src-tauri"],
     globals: true,
-    setupFiles: "./vitest.setup.ts",
   },
 });
