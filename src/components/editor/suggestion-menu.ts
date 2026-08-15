@@ -34,6 +34,7 @@ export class SuggestionMenu {
       case "ArrowDown": {
         this.selected = (this.selected + 1) % this.items.length;
         this.render();
+        this.scrollSelectedIntoView();
 
         return true;
       }
@@ -41,6 +42,7 @@ export class SuggestionMenu {
         this.selected =
           (this.selected - 1 + this.items.length) % this.items.length;
         this.render();
+        this.scrollSelectedIntoView();
 
         return true;
       }
@@ -58,12 +60,29 @@ export class SuggestionMenu {
   update(items: SuggestionMenuItem[], rect: DOMRect | null | undefined) {
     this.items = items;
     this.selected = Math.min(this.selected, Math.max(0, items.length - 1));
-    if (rect) {
-      this.element.style.left = `${rect.left}px`;
-      this.element.style.top = `${rect.bottom + 4}px`;
-    }
-
+    // Render first so the menu's size is measurable for positioning.
     this.render();
+    if (rect) {
+      this.position(rect);
+    }
+  }
+
+  /** Place below the cursor; flip above when the viewport would clip it. */
+  private position(rect: DOMRect) {
+    const menu = this.element.getBoundingClientRect();
+    const margin = 8;
+    const fitsBelow =
+      rect.bottom + 4 + menu.height + margin <= window.innerHeight;
+    const fitsAbove = rect.top - 4 - menu.height >= margin;
+    const top =
+      fitsBelow || !fitsAbove ? rect.bottom + 4 : rect.top - 4 - menu.height;
+    const left = Math.max(
+      margin,
+      Math.min(rect.left, window.innerWidth - menu.width - margin),
+    );
+
+    this.element.style.left = `${left}px`;
+    this.element.style.top = `${Math.max(margin, top)}px`;
   }
 
   private render() {
@@ -93,5 +112,11 @@ export class SuggestionMenu {
       });
       this.element.append(button);
     }
+  }
+
+  private scrollSelectedIntoView() {
+    this.element
+      .querySelector(".suggestion-item-selected")
+      ?.scrollIntoView({ block: "nearest" });
   }
 }
