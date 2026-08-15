@@ -8,7 +8,58 @@ import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
 
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
-import { blockIndexToPos } from "./source-anchors";
+import { ANCHOR_LENGTH, blockIndexToPos, findAnchor } from "./source-anchors";
+
+interface BlockLike {
+  descendants(
+    callback: (
+      node: { isText: boolean; nodeSize: number; text?: string },
+      pos: number,
+    ) => boolean,
+  ): void;
+}
+
+/**
+ * Map a visible-text offset within a top-level block back to a ProseMirror
+ * position. Counts text runs by length and leaf atoms as one character,
+ * mirroring how `textBetween(..., " ", " ")` produced the searched text.
+ */
+function textOffsetToPos(block: BlockLike, blockStart: number, offset: number) {
+  let remaining = offset;
+  let result = blockStart;
+
+  block.descendants((node, pos) => {
+    if (remaining < 0) {
+      return false;
+    }
+
+    if (node.isText) {
+      const length = node.text?.length ?? 0;
+
+      if (remaining <= length) {
+        result = blockStart + pos + remaining;
+        remaining = -1;
+
+        return false;
+      }
+
+      remaining -= length;
+    } else if (node.nodeSize === 1) {
+      // Inline leaf atom, rendered as one placeholder character.
+      remaining -= 1;
+      if (remaining <= 0) {
+        result = blockStart + pos + 1;
+        remaining = -1;
+
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  return remaining >= 0 ? blockStart : result;
+}
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
@@ -16,11 +67,14 @@ const MARKDOWN_PASTE_PATTERN =
 export interface EditorHandle {
   focus(): void;
   getContent(): string;
-  /** Index of the top-level block containing the caret. */
-  getCursorBlockIndex(): number;
+  /** The caret's top-level block plus the visible text just before it. */
+  getCursorContext(): { anchorText: string; blockIndex: number };
   insertText(text: string): void;
-  /** Move the caret to the start of the Nth top-level block. */
-  setCursorToBlock(index: number): void;
+  /**
+   * Move the caret into the Nth top-level block, at the spot where
+   * `anchorText` ends (block start when the anchor can't be found).
+   */
+  setCursorInBlock(index: number, anchorText: string): void;
 }
 
 interface EditorProps {
@@ -193,24 +247,43 @@ export function Editor({
         getContent: () => {
           return serializeMarkdown(instance);
         },
-        getCursorBlockIndex: () => {
+        getCursorContext: () => {
           const { doc, selection } = instance.state;
+          const from = Math.min(selection.from, doc.content.size);
+          const resolved = doc.resolve(from);
+          const blockIndex = resolved.index(0);
+          const blockStart = blockIndexToPos(doc, blockIndex);
 
-          return doc
-            .resolve(Math.min(selection.from, doc.content.size))
-            .index(0);
+          return {
+            anchorText: doc
+              .textBetween(Math.min(blockStart, from), from, "", " ")
+              .slice(-ANCHOR_LENGTH),
+            blockIndex,
+          };
         },
         insertText: (text) => {
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
         },
-        setCursorToBlock: (index) => {
-          instance
-            .chain()
-            .focus()
-            .setTextSelection(blockIndexToPos(instance.state.doc, index))
-            .scrollIntoView()
-            .run();
+        setCursorInBlock: (index, anchorText) => {
+          const { doc } = instance.state;
+          const clamped = Math.max(0, Math.min(index, doc.childCount - 1));
+          const blockStart = blockIndexToPos(doc, clamped);
+          const block = doc.child(clamped);
+          const blockText = doc.textBetween(
+            blockStart,
+            blockStart + block.content.size,
+            "",
+            " ",
+          );
+          const matched =
+            anchorText === "" ? -1 : findAnchor(blockText, anchorText);
+          const pos =
+            matched === -1
+              ? blockStart
+              : textOffsetToPos(block, blockStart, matched);
+
+          instance.chain().focus().setTextSelection(pos).scrollIntoView().run();
         },
       });
     },

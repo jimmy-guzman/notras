@@ -1,7 +1,9 @@
 import {
   blockIndexToPos,
+  findAnchor,
   getMarkdownBlockOffsets,
   offsetToBlockIndex,
+  stripInlineSyntax,
 } from "./source-anchors";
 
 describe("getMarkdownBlockOffsets", () => {
@@ -67,5 +69,30 @@ describe("blockIndexToPos", () => {
   it("should clamp out-of-range indexes", () => {
     expect(blockIndexToPos(doc, 99)).toBe(11);
     expect(blockIndexToPos(doc, -1)).toBe(1);
+  });
+});
+
+describe("findAnchor", () => {
+  it("should find an exact anchor and return the end offset", () => {
+    expect(findAnchor("hello brave world", "hello brave")).toBe(11);
+  });
+
+  it("should fall back to shorter suffixes when syntax breaks the match", () => {
+    // Rich text "hello world" vs source "hello **world**": the suffix
+    // "world" still matches.
+    expect(findAnchor("hello **world**", "hello world")).toBe(13);
+  });
+
+  it("should return -1 when nothing matches", () => {
+    expect(findAnchor("abc", "xyz")).toBe(-1);
+    expect(findAnchor("abc", "")).toBe(-1);
+  });
+});
+
+describe("stripInlineSyntax", () => {
+  it("should strip emphasis, code, heading, and bracket characters", () => {
+    expect(stripInlineSyntax("## some **bold** `code` [link]")).toBe(
+      " some bold code link",
+    );
   });
 });

@@ -71,6 +71,46 @@ export function offsetToBlockIndex(offsets: number[], offset: number) {
   return index;
 }
 
+/** How much trailing context we carry across a mode switch. */
+export const ANCHOR_LENGTH = 24;
+
+const ANCHOR_LADDER = [ANCHOR_LENGTH, 16, 12, 8, 5, 3];
+
+/**
+ * Find where `anchor` (the text just before the caret on one side) ends
+ * inside `haystack` (the same block on the other side). Markdown syntax
+ * makes exact matches fail, so progressively shorter suffixes of the
+ * anchor are tried. Returns the offset just past the match, or -1.
+ */
+export function findAnchor(haystack: string, anchor: string) {
+  const trimmed = anchor.slice(-ANCHOR_LENGTH);
+
+  for (const length of ANCHOR_LADDER) {
+    const suffix = trimmed.slice(-length);
+
+    if (suffix === "") {
+      continue;
+    }
+
+    const index = haystack.indexOf(suffix);
+
+    if (index !== -1) {
+      return index + suffix.length;
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * Strip inline markdown syntax so source-side anchors can match the rich
+ * editor's visible text (`**bold**` -> `bold`, `[x](url)` -> `x(url)` --
+ * imperfect around links, which the suffix ladder absorbs).
+ */
+export function stripInlineSyntax(text: string) {
+  return text.replaceAll(/[*_~`[\]#>]/g, "");
+}
+
 interface DocLike {
   child(index: number): { nodeSize: number };
   childCount: number;
