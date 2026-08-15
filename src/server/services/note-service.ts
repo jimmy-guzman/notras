@@ -1,61 +1,52 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { NoteId } from "@/core";
-import type { SelectNote } from "@/server/db/schemas/notes";
-import type {
-  NoteFilters,
-  NoteWithFolder,
-  NoteWithSnippet,
-} from "@/server/repositories/note-repository";
+import type { NoteFileContent, NoteFilters, NoteMeta } from "@/core";
 
-import { forkBackground, generateNoteId } from "@/core";
+import {
+  FileError,
+  FileStore,
+  noteFolder,
+  notePath,
+  noteTitle,
+  parseNote,
+  updateFrontmatter,
+} from "@/core";
 import {
   NoteRepository,
   NoteRepositoryLive,
 } from "@/server/repositories/note-repository";
-import {
-  TagRepository,
-  TagRepositoryLive,
-} from "@/server/repositories/tag-repository";
-import {
-  FormatService,
-  FormatServiceLive,
-} from "@/server/services/format-service";
-import { LinkService, LinkServiceLive } from "@/server/services/link-service";
+
+import { FormatService, FormatServiceLive } from "./format-service";
+
+interface Note {
+  content: string;
+  path: string;
+  pinned: boolean;
+  tags: string[];
+  title: string;
+  updatedAt: Date;
+}
 
 interface INoteService {
-  clearReminder(userId: string, noteId: NoteId): Effect.Effect<void>;
-  count(userId: string): Effect.Effect<number>;
-  countOverdueReminders(userId: string): Effect.Effect<number>;
-  create(
-    userId: string,
-    content: string,
-    tags?: string[],
-  ): Effect.Effect<NoteId>;
-  delete(userId: string, noteId: NoteId): Effect.Effect<void>;
-  getById(
-    userId: string,
-    noteId: NoteId,
-  ): Effect.Effect<SelectNote | undefined>;
-  getDueReminders(userId: string): Effect.Effect<SelectNote[]>;
-  list(userId: string, filters: NoteFilters): Effect.Effect<NoteWithSnippet[]>;
-  listWithFolder(
-    userId: string,
-    filters: NoteFilters,
-  ): Effect.Effect<NoteWithFolder[]>;
-  pin(userId: string, noteId: NoteId): Effect.Effect<void>;
-  setReminder(
-    userId: string,
-    noteId: NoteId,
-    remindAt: Date,
-  ): Effect.Effect<void>;
-  unpin(userId: string, noteId: NoteId): Effect.Effect<void>;
-  update(
-    userId: string,
-    noteId: NoteId,
-    content: string,
-    tags?: string[],
-  ): Effect.Effect<void>;
+  attach(sourcePath: string): Effect.Effect<string, FileError>;
+  count(): Effect.Effect<number>;
+  create(options?: {
+    content?: string;
+    folder?: string;
+    title?: string;
+  }): Effect.Effect<string, FileError>;
+  delete(path: string): Effect.Effect<void, FileError>;
+  /** Format the body on blur/note-switch; returns the formatted content. */
+  format(path: string): Effect.Effect<string, FileError>;
+  getByPath(path: string): Effect.Effect<Note, FileError>;
+  list(filters?: NoteFilters): Effect.Effect<NoteMeta[]>;
+  listFolders(): Effect.Effect<{ count: number; folder: string }[]>;
+  listTags(): Effect.Effect<{ count: number; tag: string }[]>;
+  move(path: string, folder: string): Effect.Effect<string, FileError>;
+  rename(path: string, title: string): Effect.Effect<string, FileError>;
+  setPinned(path: string, pinned: boolean): Effect.Effect<void, FileError>;
+  setTags(path: string, tags: string[]): Effect.Effect<void, FileError>;
+  write(path: string, content: string): Effect.Effect<Date, FileError>;
 }
 
 export class NoteService extends Context.Tag("NoteService")<
@@ -63,156 +54,161 @@ export class NoteService extends Context.Tag("NoteService")<
   INoteService
 >() {}
 
-const makeNoteService = Effect.gen(function* () {
-  const noteRepo = yield* NoteRepository;
-  const tagRepo = yield* TagRepository;
-  const formatService = yield* FormatService;
-  const linkService = yield* LinkService;
-
-  const clearReminder = (userId: string, noteId: NoteId) => {
-    return noteRepo.clearReminder(noteId, userId).pipe(Effect.orDie);
-  };
-
-  const count = (userId: string) => {
-    return noteRepo.count(userId).pipe(Effect.orDie);
-  };
-
-  const countOverdueReminders = (userId: string) => {
-    return noteRepo.countOverdueReminders(userId).pipe(Effect.orDie);
-  };
-
-  const create = (userId: string, content: string, tags?: string[]) => {
-    return Effect.gen(function* () {
-      const id = generateNoteId();
-      const formatted = yield* formatService.formatMarkdown(content);
-
-      if (tags === undefined) {
-        yield* noteRepo
-          .create({ content: formatted, id, userId })
-          .pipe(Effect.orDie);
-      } else {
-        const tagIds = yield* tagRepo
-          .ensureTags(userId, tags)
-          .pipe(Effect.orDie);
-
-        yield* noteRepo
-          .createWithTags({ content: formatted, id, userId }, tagIds)
-          .pipe(Effect.orDie);
-        yield* tagRepo.deleteOrphanedTags(userId).pipe(
-          Effect.catchTag("DatabaseError", (e) => {
-            return Effect.logWarning(
-              "deleteOrphanedTags failed after create",
-              e,
-            );
-          }),
-        );
-      }
-
-      // Fire-and-forget link sync
-      yield* forkBackground(
-        linkService.syncLinks(userId, id, formatted),
-        "link sync failed after note create",
-      );
-
-      return id;
-    });
-  };
-
-  const deleteNote = (userId: string, noteId: NoteId) => {
-    return noteRepo.delete(noteId, userId).pipe(Effect.orDie);
-  };
-
-  const getById = (userId: string, noteId: NoteId) => {
-    return noteRepo.findById(noteId, userId).pipe(Effect.orDie);
-  };
-
-  const getDueReminders = (userId: string) => {
-    return noteRepo.findDueReminders(userId).pipe(Effect.orDie);
-  };
-
-  const list = (userId: string, filters: NoteFilters) => {
-    return noteRepo.findMany(userId, filters).pipe(Effect.orDie);
-  };
-
-  const listWithFolder = (userId: string, filters: NoteFilters) => {
-    return noteRepo.findManyWithFolder(userId, filters).pipe(Effect.orDie);
-  };
-
-  const pin = (userId: string, noteId: NoteId) => {
-    return noteRepo.pin(noteId, userId).pipe(Effect.orDie);
-  };
-
-  const setReminder = (userId: string, noteId: NoteId, remindAt: Date) => {
-    return noteRepo.setReminder(noteId, userId, remindAt).pipe(Effect.orDie);
-  };
-
-  const unpin = (userId: string, noteId: NoteId) => {
-    return noteRepo.unpin(noteId, userId).pipe(Effect.orDie);
-  };
-
-  const update = (
-    userId: string,
-    noteId: NoteId,
-    content: string,
-    tags?: string[],
-  ) => {
-    return Effect.gen(function* () {
-      const formatted = yield* formatService.formatMarkdown(content);
-
-      if (tags === undefined) {
-        yield* noteRepo
-          .update(noteId, userId, { content: formatted })
-          .pipe(Effect.orDie);
-      } else {
-        const tagIds = yield* tagRepo
-          .ensureTags(userId, tags)
-          .pipe(Effect.orDie);
-
-        yield* noteRepo
-          .updateWithTags(noteId, userId, { content: formatted }, tagIds)
-          .pipe(Effect.orDie);
-        yield* tagRepo.deleteOrphanedTags(userId).pipe(
-          Effect.catchTag("DatabaseError", (e) => {
-            return Effect.logWarning(
-              "deleteOrphanedTags failed after update",
-              e,
-            );
-          }),
-        );
-      }
-
-      // Fire-and-forget link sync
-      yield* forkBackground(
-        linkService.syncLinks(userId, noteId, formatted),
-        "link sync failed after note update",
-      );
-    });
-  };
+function toNote(path: string, file: NoteFileContent): Note {
+  const parsed = parseNote(file.content);
 
   return {
-    clearReminder,
-    count,
-    countOverdueReminders,
-    create,
-    delete: deleteNote,
-    getById,
-    getDueReminders,
-    list,
-    listWithFolder,
-    pin,
-    setReminder,
-    unpin,
-    update,
-  } satisfies INoteService;
+    content: file.content,
+    path,
+    pinned: parsed.frontmatter.pinned,
+    tags: parsed.frontmatter.tags,
+    title: noteTitle(path),
+    updatedAt: new Date(file.updatedAt),
+  };
+}
+
+const makeNoteService = Effect.gen(function* () {
+  const fileStore = yield* FileStore;
+  const formatService = yield* FormatService;
+  const noteRepo = yield* NoteRepository;
+
+  const rewriteFrontmatter = (
+    path: string,
+    patch: Parameters<typeof updateFrontmatter>[1],
+  ) => {
+    return Effect.gen(function* () {
+      const file = yield* fileStore.read(path);
+      const next = updateFrontmatter(file.content, patch);
+
+      if (next !== file.content) {
+        yield* fileStore.write(path, next);
+      }
+    });
+  };
+
+  const service: INoteService = {
+    attach: (sourcePath) => {
+      return fileStore.attach(sourcePath);
+    },
+
+    count: () => {
+      return noteRepo.count().pipe(Effect.orDie);
+    },
+
+    create: (options) => {
+      return Effect.gen(function* () {
+        const folder = options?.folder ?? "";
+        const baseTitle = options?.title ?? "untitled";
+
+        let title = baseTitle;
+        let counter = 1;
+
+        while (yield* fileStore.exists(notePath(folder, title))) {
+          counter += 1;
+          title = `${baseTitle}-${counter}`;
+        }
+
+        const path = notePath(folder, title);
+
+        yield* fileStore.write(path, options?.content ?? "");
+
+        return path;
+      });
+    },
+
+    delete: (path) => {
+      return fileStore.delete(path);
+    },
+
+    format: (path) => {
+      return Effect.gen(function* () {
+        const file = yield* fileStore.read(path);
+        const formatted = yield* formatService.formatMarkdown(file.content);
+
+        if (formatted !== file.content) {
+          yield* fileStore.write(path, formatted);
+        }
+
+        return formatted;
+      });
+    },
+
+    getByPath: (path) => {
+      return Effect.gen(function* () {
+        const file = yield* fileStore.read(path);
+
+        return toNote(path, file);
+      });
+    },
+
+    list: (filters) => {
+      return noteRepo.findMany(filters ?? {}).pipe(Effect.orDie);
+    },
+
+    listFolders: () => {
+      return noteRepo.listFolders().pipe(Effect.orDie);
+    },
+
+    listTags: () => {
+      return noteRepo.listTags().pipe(Effect.orDie);
+    },
+
+    move: (path, folder) => {
+      return Effect.gen(function* () {
+        const target = notePath(folder, noteTitle(path));
+
+        if (target === path) {
+          return path;
+        }
+
+        if (yield* fileStore.exists(target)) {
+          return yield* new FileError({
+            message: `a note named ${noteTitle(path)} already exists in ${
+              folder === "" ? "the notes root" : folder
+            }`,
+          });
+        }
+
+        yield* fileStore.rename(path, target);
+
+        return target;
+      });
+    },
+
+    rename: (path, title) => {
+      return Effect.gen(function* () {
+        const target = notePath(noteFolder(path), title);
+
+        if (target === path) {
+          return path;
+        }
+
+        yield* fileStore.rename(path, target);
+
+        return target;
+      });
+    },
+
+    setPinned: (path, pinned) => {
+      return rewriteFrontmatter(path, { pinned });
+    },
+
+    setTags: (path, tags) => {
+      return rewriteFrontmatter(path, { tags });
+    },
+
+    write: (path, content) => {
+      return Effect.gen(function* () {
+        const updatedAt = yield* fileStore.write(path, content);
+
+        return new Date(updatedAt);
+      });
+    },
+  };
+
+  return service;
 });
 
 export const NoteServiceLive = Layer.effect(NoteService, makeNoteService).pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      NoteRepositoryLive,
-      TagRepositoryLive,
-      FormatServiceLive,
-      LinkServiceLive,
-    ),
-  ),
+  Layer.provide(Layer.mergeAll(NoteRepositoryLive, FormatServiceLive)),
 );

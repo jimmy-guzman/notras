@@ -1,12 +1,4 @@
-import { format } from "oxfmt";
-
 import { formatMarkdown } from "./format-service";
-
-vi.mock("oxfmt", async (importOriginal) => {
-  const actual = await importOriginal<{ format: typeof format }>();
-
-  return { ...actual, format: vi.fn(actual.format) };
-});
 
 describe("formatMarkdown", () => {
   it("should normalize extra spaces in headings", async () => {
@@ -58,32 +50,24 @@ describe("formatMarkdown", () => {
     );
   });
 
-  it("should preserve content when format throws", async () => {
-    vi.mocked(format).mockRejectedValueOnce(new Error("format failed"));
-
-    const input = "some content that fails to format";
+  it("should format gfm tables", async () => {
+    const input = "| a | b |\n|---|---|\n| 1 | 2 |";
     const result = await formatMarkdown(input);
 
-    expect(result).toBe(input);
+    expect(result).toBe("| a | b |\n| - | - |\n| 1 | 2 |\n");
   });
 
-  it("should return original content when oxfmt returns errors", async () => {
-    vi.mocked(format).mockResolvedValueOnce({
-      code: "bad output",
-      errors: [
-        {
-          codeframe: null,
-          helpMessage: null,
-          labels: [],
-          message: "parse error",
-          severity: "Error" as never,
-        },
-      ],
-    });
-
-    const input = "original content";
+  it("should leave frontmatter untouched while formatting the body", async () => {
+    const input = "---\npinned: true\ntags: [a]\n---\n##  heading\n";
     const result = await formatMarkdown(input);
 
-    expect(result).toBe(input);
+    expect(result).toBe("---\npinned: true\ntags: [a]\n---\n## heading\n");
+  });
+
+  it("should preserve task lists", async () => {
+    const input = "- [ ] todo\n- [x] done";
+    const result = await formatMarkdown(input);
+
+    expect(result).toBe("- [ ] todo\n- [x] done\n");
   });
 });

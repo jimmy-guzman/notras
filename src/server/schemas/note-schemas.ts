@@ -1,37 +1,39 @@
 import { Schema } from "effect";
 
-export const NOTE_ID_PATTERN = /^note_[\da-hjkmnp-tv-z]{26}$/;
+import { NOTE_TITLE_PATTERN } from "@/core";
 
-export const noteIdSchema = Schema.String.pipe(
+export const noteTitleSchema = Schema.String.pipe(
+  Schema.trimmed(),
   Schema.minLength(1, {
     message: () => {
-      return "note id is required";
+      return "title is required";
     },
   }),
-  Schema.pattern(NOTE_ID_PATTERN, {
+  Schema.maxLength(120, {
     message: () => {
-      return "invalid note id format";
+      return "title must be 120 characters or fewer";
+    },
+  }),
+  Schema.pattern(NOTE_TITLE_PATTERN, {
+    message: () => {
+      return String.raw`title cannot contain / \ : or start with a dot`;
     },
   }),
 );
 
-export const createNoteSchema = Schema.Struct({
-  content: Schema.String.pipe(
-    Schema.minLength(1, {
-      message: () => {
-        return "content is required";
-      },
-    }),
-  ),
-});
-
-export const updateNoteSchema = Schema.Struct({
-  content: Schema.String.pipe(
-    Schema.minLength(1, {
-      message: () => {
-        return "content is required";
-      },
-    }),
-  ),
-  noteId: noteIdSchema,
-});
+export const folderNameSchema = Schema.String.pipe(
+  Schema.trimmed(),
+  Schema.maxLength(120, {
+    message: () => {
+      return "folder must be 120 characters or fewer";
+    },
+  }),
+  Schema.filter((value) => {
+    return (
+      value === "" ||
+      value.split("/").every((segment) => {
+        return NOTE_TITLE_PATTERN.test(segment);
+      })
+    );
+  }),
+);

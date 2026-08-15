@@ -1,12 +1,12 @@
 import { ManagedRuntime } from "effect";
 
-import { env } from "@/env";
-import { NextCacheInvalidatorLive } from "@/server/cache-invalidator";
+import { makeTauriDatabase } from "@/server/adapters/tauri-database";
+import { TauriFileStoreLive } from "@/server/adapters/tauri-file-store";
 import { makeAppLayer } from "@/server/services/app-layer";
 
 export const AppRuntime = ManagedRuntime.make(
   makeAppLayer({
-    cacheInvalidator: NextCacheInvalidatorLive,
-    database: { url: env.DATABASE_PATH },
+    database: makeTauriDatabase(),
+    fileStore: TauriFileStoreLive,
   }),
 );
