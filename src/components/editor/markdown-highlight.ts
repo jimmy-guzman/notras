@@ -1,12 +1,23 @@
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
+import { frontmatterContent, frontmatterMark } from "./frontmatter-extension";
+
 /**
  * iA-Writer-flavored live styling: the markdown source stays visible, but
  * structure reads at a glance -- big headings, real bold/italic, muted marks.
  * Colors come from the app's CSS variables so light/dark follow the system.
  */
 const markdownHighlightStyle = HighlightStyle.define([
+  // Frontmatter reads as quiet metadata: both dividers identical, no
+  // heading weight (see frontmatter-extension.ts).
+  {
+    color: "var(--muted-foreground)",
+    fontFamily: "var(--font-editor-mono)",
+    fontSize: "0.85em",
+    tag: frontmatterContent,
+  },
+  { color: "var(--muted-foreground)", tag: frontmatterMark },
   { fontSize: "1.6em", fontWeight: "700", tag: tags.heading1 },
   { fontSize: "1.35em", fontWeight: "700", tag: tags.heading2 },
   { fontSize: "1.15em", fontWeight: "700", tag: tags.heading3 },

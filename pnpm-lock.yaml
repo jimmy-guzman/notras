@@ -44,6 +44,9 @@ importers:
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
+      '@lezer/markdown':
+        specifier: 1.7.2
+        version: 1.7.2
       '@tailwindcss/typography':
         specifier: 0.5.20
         version: 0.5.20(tailwindcss@4.3.3)

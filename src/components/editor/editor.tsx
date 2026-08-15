@@ -7,6 +7,7 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
 
 import { slashCommands, wikilinkCompletions } from "./completions";
+import { frontmatterExtension } from "./frontmatter-extension";
 import { markdownHighlight } from "./markdown-highlight";
 import { focusMode, typewriterScrolling } from "./writing-modes";
 
@@ -66,7 +67,10 @@ export function Editor({
         doc: config.initialContent,
         extensions: [
           history(),
-          markdown({ codeLanguages: languages }),
+          markdown({
+            codeLanguages: languages,
+            extensions: [frontmatterExtension],
+          }),
           markdownHighlight,
           autocompletion({
             override: [wikilinkCompletions(getTitles), slashCommands],
