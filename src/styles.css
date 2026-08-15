@@ -193,6 +193,40 @@
   background: color-mix(in oklch, var(--primary) 22%, transparent) !important;
 }
 
+/* Preview typography mirrors the editor's live styling (face, rhythm,
+   heading scale from markdown-highlight.ts) so toggling ⌘P never makes
+   the text visually teleport. */
+.note-preview-prose {
+  font-family: var(--font-editor);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+.note-preview-prose h1 {
+  font-size: 1.6em;
+}
+.note-preview-prose h2 {
+  font-size: 1.35em;
+}
+.note-preview-prose h3 {
+  font-size: 1.15em;
+}
+.note-preview-prose h4,
+.note-preview-prose h5,
+.note-preview-prose h6 {
+  font-size: 1em;
+}
+.note-preview-prose code,
+.note-preview-prose pre {
+  font-family: var(--font-editor-mono);
+}
+
+/* Live preview: blockquote lines keep a quiet bar once `> ` is hidden. */
+.cm-editor .cm-line.cm-live-quote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+}
+
 /* Focus mode: dim everything but the active paragraph. */
 .cm-focus-mode .cm-line {
   transition: opacity 0.3s ease;

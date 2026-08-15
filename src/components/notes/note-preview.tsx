@@ -34,7 +34,7 @@ export function NotePreview({
 
   return (
     <div className="allow-select min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto prose max-w-2xl px-6 py-6 prose-stone dark:prose-invert">
+      <div className="note-preview-prose mx-auto prose max-w-2xl px-6 py-6 prose-stone dark:prose-invert">
         <Suspense fallback={<Skeleton className="h-24 w-full" />}>
           <MarkdownContent
             components={{

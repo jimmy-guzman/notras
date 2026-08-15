@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { slashCommands, wikilinkCompletions } from "./completions";
 import { frontmatterExtension } from "./frontmatter-extension";
+import { livePreview } from "./live-preview";
 import { markdownHighlight } from "./markdown-highlight";
 import { focusMode, typewriterScrolling } from "./writing-modes";
 
@@ -72,6 +73,7 @@ export function Editor({
             extensions: [frontmatterExtension],
           }),
           markdownHighlight,
+          livePreview(),
           autocompletion({
             override: [wikilinkCompletions(getTitles), slashCommands],
           }),
