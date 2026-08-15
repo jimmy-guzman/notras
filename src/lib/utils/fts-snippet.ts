@@ -96,7 +96,7 @@ export function getCenteredSnippetParts(snippet: string, maxChars = 80) {
       return sum + part.text.length;
     }, 0);
   const firstMatchLength =
-    firstMatchIndex === -1 ? 0 : parts[firstMatchIndex].text.length;
+    firstMatchIndex === -1 ? 0 : (parts[firstMatchIndex]?.text.length ?? 0);
   const focusOffset =
     firstMatchIndex === -1 ? 0 : cursorAtMatchStart + firstMatchLength / 2;
 

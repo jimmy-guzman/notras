@@ -23,22 +23,30 @@ const rehypePlugins: PluggableList = [
 // react-markdown renders <script> tags as inert React elements — React never
 // executes them. We intercept them with a client component that re-runs the
 // code via useEffect so expressive-code's copy-button handler is attached.
-const components = {
+const baseComponents = {
   script: ExpressiveCodeScript,
 };
 
+type MarkdownComponents = React.ComponentProps<
+  typeof MarkdownAsync
+>["components"];
+
 interface MarkdownContentProps {
+  components?: MarkdownComponents;
   content: string;
   syntaxHighlighting: boolean;
 }
 
 export function MarkdownContent({
+  components,
   content,
   syntaxHighlighting,
 }: MarkdownContentProps) {
   return (
     <MarkdownAsync
-      components={syntaxHighlighting ? components : undefined}
+      components={
+        syntaxHighlighting ? { ...baseComponents, ...components } : components
+      }
       rehypePlugins={syntaxHighlighting ? rehypePlugins : undefined}
       remarkPlugins={remarkPlugins}
     >
