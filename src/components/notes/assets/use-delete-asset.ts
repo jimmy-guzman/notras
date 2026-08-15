@@ -4,7 +4,7 @@ import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import type { AssetId, NoteId } from "@/lib/id";
+import type { AssetId, NoteId } from "@/core";
 
 import { deleteAsset } from "@/actions/delete-asset";
 

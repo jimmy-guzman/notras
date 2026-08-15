@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 import type { SelectNote } from "@/server/db/schemas/notes";
 import type {
   NoteFilters,
@@ -8,8 +8,7 @@ import type {
   NoteWithSnippet,
 } from "@/server/repositories/note-repository";
 
-import { generateNoteId } from "@/lib/id";
-import { AppRuntime } from "@/server/layer";
+import { forkBackground, generateNoteId } from "@/core";
 import {
   NoteRepository,
   NoteRepositoryLive,
@@ -110,7 +109,10 @@ const makeNoteService = Effect.gen(function* () {
       }
 
       // Fire-and-forget link sync
-      AppRuntime.runFork(linkService.syncLinks(userId, id, formatted));
+      yield* forkBackground(
+        linkService.syncLinks(userId, id, formatted),
+        "link sync failed after note create",
+      );
 
       return id;
     });
@@ -180,7 +182,10 @@ const makeNoteService = Effect.gen(function* () {
       }
 
       // Fire-and-forget link sync
-      AppRuntime.runFork(linkService.syncLinks(userId, noteId, formatted));
+      yield* forkBackground(
+        linkService.syncLinks(userId, noteId, formatted),
+        "link sync failed after note update",
+      );
     });
   };
 

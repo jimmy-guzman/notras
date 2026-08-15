@@ -43,16 +43,25 @@ src/
       assets/       # Asset components (uploader, preview, list)
     settings/       # Settings-related components (profile form, export, import)
     ui/             # Shadcn UI components (auto-generated, don't manually edit)
+  core/             # Isomorphic domain foundation -- the bottom layer (see "Layer boundaries")
+    background.ts   # forkBackground: fire-and-forget an Effect on the ambient runtime
+    cache-invalidator.ts # CacheInvalidator Context.Tag (framework-agnostic invalidation)
+    errors.ts       # Typed errors: DatabaseError, NotFoundError (Data.TaggedError)
+    fts-markers.ts  # Snippet highlight markers shared by SQL and the client renderer
+    id.ts           # TypeID types, generators, and casts
+    note-filters.ts # Sort/time filter types + getStartDateForFilter
+    reminder-presets.ts # Reminder preset table + resolvePreset
   lib/              # Client utilities, search params, safe-action client
     ui/             # Shadcn utility (cn)
     utils/          # Pure utility functions (formatting, filters, etc.)
   server/
+    cache-invalidator.ts # Next.js adapter: provides CacheInvalidator via updateTag
     db/             # Drizzle client, schemas (SQLite), and Database Context.Tag
-    errors.ts       # Typed errors: DatabaseError, NotFoundError (Data.TaggedError)
-    layer.ts        # AppLayer (unexported) + AppRuntime (ManagedRuntime, exported)
     repositories/   # Data access layer (Effect Context.Tag interfaces + DB implementations)
+    runtime.ts      # AppRuntime (ManagedRuntime) -- the app-owned Effect boundary
     schemas/        # Effect Schema validation schemas for server-side input
     services/       # Business logic and external I/O (Effect Context.Tag, one Layer per service)
+      app-layer.ts  # makeAppLayer({ cacheInvalidator, database }) -- wires every service
   testing/          # Shared test utilities
   env.ts            # Type-safe env vars via @t3-oss/env-nextjs + Zod
 e2e/
@@ -66,6 +75,16 @@ data/
 
 - **Single-user model:** No authentication. A single "device" user (ID: `"device"`) is auto-seeded on first run via `getDeviceUserId()` in `src/server/services/user-service.ts`. All browsers on the same machine share the same notes.
 
+### Layer boundaries
+
+The data and service layers are deliberately framework-free so they can run outside Next.js (a desktop runtime is the eventual target). Two ESLint `no-restricted-imports` blocks at the bottom of `eslint.config.ts` enforce this -- they are not style preferences, and the fix is never to widen the glob.
+
+- **`src/core/**` is the bottom layer and is isomorphic.** It runs in the browser and in any server runtime, so it may not import `next/*`, `react`, `react-dom`, or `node:*` builtins, and it may not import upward from `@/server`, `@/lib`, `@/components`, or `@/actions`. Roughly ten client components value-import from `@/core`, so a Node-only import here breaks the client bundle. Anything shared between the server layer and the client belongs here.
+- **`src/server/{db,repositories,schemas,services}/**` may not import `next/*`, `react`, `react-dom`, or `@/env`,** nor reach into `@/lib`, `@/components`, or `@/actions`. Inject the behavior instead: `CacheInvalidator` (`src/core/cache-invalidator.ts`) for cache invalidation, `makeDatabaseLayer(config)` (`src/server/db/index.ts`) for the connection URL.
+- **`src/server/runtime.ts` and `src/server/cache-invalidator.ts` are the only adapters** allowed to import Next.js. They are the seam where the framework meets the framework-free core.
+
+Because flat config replaces rule options rather than merging them, these two blocks must stay last in `overrides`, and they intentionally shadow the global `lucide-react` restriction inside their scope (no server or core file imports icons). Do not reuse these globs for UI directories without re-including that pattern.
+
 ## Key Patterns
 
 - **Server actions** live in `src/actions/`. Two patterns coexist:
@@ -74,17 +93,18 @@ data/
   - **Read actions** (no `"use server"`, called directly from RSCs): Files like `get-notes.ts`, `get-note.ts`, `get-links.ts` export plain `async function`s with no directive. They call `AppRuntime.runPromise` to resolve the `userId` and fetch data, and use `"use cache"` at the top of cacheable function bodies with `cacheTag(...)` as the first statement. For queries that depend on relative time filters (e.g. `time: "today" | "yesterday" | ...`), caching is bypassed entirely — a separate uncached helper is called instead, since cached results would be stale immediately. Read actions are never called from client components.
   - Keep server actions thin — one action per file. Read actions that share a cache scope (e.g., `getNotes` + `getNotesCount`) may coexist in one file.
 - **API routes** for binary/streaming responses are plain Next.js Route Handlers under `src/app/api/`. There is no Hono layer. **New binary or streaming endpoints go directly in `src/app/api/<domain>/route.ts`** as standard `export async function GET(request: Request)` handlers. Do not use this for data mutations or reads that could be server actions.
-- **Effect runtime boundary:** `AppRuntime` (a `ManagedRuntime`) lives in `src/server/layer.ts` and is the single point where Effects are executed. Never call `Effect.runPromise` or `Effect.runFork` directly -- always go through `AppRuntime.runPromise` / `AppRuntime.runFork`. This ensures fibers inherit the managed runtime's logger, context, and supervision. The `AppLayer` (unexported) wires all service and repository Layers together with `DatabaseLive` at the root.
+- **Effect runtime boundary:** `AppRuntime` (a `ManagedRuntime`) lives in `src/server/runtime.ts` and is the single point where Effects are executed. Never call `Effect.runPromise` or `Effect.runFork` directly -- always go through `AppRuntime.runPromise` / `AppRuntime.runFork`. This ensures fibers inherit the managed runtime's logger, context, and supervision. `makeAppLayer({ cacheInvalidator, database })` in `src/server/services/app-layer.ts` wires all service and repository Layers together over `makeDatabaseLayer(config)`; `runtime.ts` is what supplies the Next.js-specific pieces (`env.DATABASE_PATH`, `NextCacheInvalidatorLive`).
+- **Fire-and-forget inside services:** Services must never import `AppRuntime` -- that would reintroduce a cycle between `runtime.ts` and the service layer. Use `forkBackground(effect, label)` from `@/core` instead, which wraps `Effect.forkDaemon` so the fiber outlives the request and logs its cause on failure rather than failing silently. See the link sync in `note-service.ts` and `import-service.ts`.
 - **Services** live in `src/server/services/`. Each file defines an `interface IFooService`, a `class FooService extends Context.Tag("FooService")<FooService, IFooService>()`, a `makeFooService` factory via `Effect.gen`, and an exported `FooServiceLive` Layer. Services depend on repository Tags, not concrete implementations.
 - **Repositories** live in `src/server/repositories/`. Same pattern: `interface IFooRepository`, `class FooRepository extends Context.Tag(...)`, `FooRepositoryLive` Layer. Repositories depend on the `Database` Context.Tag (the Drizzle client).
-- **Typed errors** live in `src/server/errors.ts`: `DatabaseError` and `NotFoundError` extend `Data.TaggedError`. Services convert `DatabaseError` to defects via `.pipe(Effect.orDie)` — this is **intentional**: all DB errors are fatal and handled uniformly at the runtime boundary, so callers don't need to handle them differentially. Do not remove `.orDie` calls without also adding `Effect.catchTag` recovery at every call site — otherwise typed errors will propagate unhandled and cause runtime failures. The one exception is `NotFoundError` in `UserService.getProfile`, which is typed in the return signature but currently not caught by callers (a known gap, not an oversight to fix without a plan).
+- **Typed errors** live in `src/core/errors.ts`: `DatabaseError` and `NotFoundError` extend `Data.TaggedError`. Services convert `DatabaseError` to defects via `.pipe(Effect.orDie)` — this is **intentional**: all DB errors are fatal and handled uniformly at the runtime boundary, so callers don't need to handle them differentially. Do not remove `.orDie` calls without also adding `Effect.catchTag` recovery at every call site — otherwise typed errors will propagate unhandled and cause runtime failures. The one exception is `NotFoundError` in `UserService.getProfile`, which is typed in the return signature but currently not caught by callers (a known gap, not an oversight to fix without a plan).
 - **Effect flatMap naming:** Use `ServiceTag.pipe(Effect.flatMap(svc => svc.method(...)))` — NOT `Effect.flatMap(ServiceTag, fn)`. The latter triggers the `unicorn/no-array-method-this-argument` lint rule.
 - **Validation** uses Effect Schema from `src/server/schemas/`. For `next-safe-action` mutations, pass the schema directly to `authActionClient.inputSchema(Schema.standardSchemaV1(schema))`.
 - **`readonly` arrays from Schema:** Effect Schema `decode` results are `readonly`. Spread before passing to service methods that accept mutable arrays: `[...tags]`.
 - **IDs** are generated with `typeid-js`. Format: `prefix_<26-char base32>` (e.g., `note_01h455vb4pex5vsknk084sn02q`). Validate with regex: `/^prefix_[\da-hjkmnp-tv-z]{26}$/`.
-- **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations.
+- **Cache invalidation** uses `updateTag("notes")` from `next/cache` after mutations. That import is fine in `src/actions/**` (app layer) but banned in the service layer -- services yield the `CacheInvalidator` tag from `@/core` and call `cacheInvalidator.invalidate("notes")`, which `src/server/cache-invalidator.ts` backs with `updateTag`. See `link-service.ts` for the pattern.
 - **`"use cache"` directive:** Read actions (e.g., `get-note.ts`, `get-notes.ts`) use the `"use cache"` directive with `cacheTag("notes")` for automatic caching. This is enabled by `experimental: { useCache: true }` in `next.config.ts`. Do **not** use `"use cache"` on time-dependent queries (e.g., "find reminders where `remindAt <= now()`") -- the cached result goes stale immediately since `now()` changes every call. For read actions with optional time filters (like `getNotes`), the exported function routes to a cached helper when `time === "all"` and calls an uncached helper directly for relative time values (`"today"`, `"yesterday"`, `"week"`, `"month"`, `"year"`). The `"use cache"` directive lives only on the cached helper, not on the exported entry point.
-- **FTS5 search bootstrap:** FTS setup is runtime-managed in `src/server/db/fts.ts` via `ensureFts(client)` and invoked from `DatabaseLive` in `src/server/db/index.ts`. Keep setup idempotent (`IF NOT EXISTS` + rebuild) and avoid Drizzle schema migrations for `note_fts`/triggers.
+- **FTS5 search bootstrap:** FTS setup is runtime-managed in `src/server/db/fts.ts` via `ensureFts(client)` and invoked from `makeDatabaseLayer` in `src/server/db/index.ts`. Keep setup idempotent (`IF NOT EXISTS` + rebuild) and avoid Drizzle schema migrations for `note_fts`/triggers.
 - **FTS query helpers:** Search query construction and ranking/snippet SQL live in `src/server/db/fts-query.ts` (`buildFtsMatchQuery`, `getSearchOrderBy`, `getSnippetExpression`). Repository code should consume these helpers rather than rebuilding `MATCH` logic inline.
 - **Search semantics:** Query normalization strips punctuation-only fragments, uses tokenized prefix terms (`term*`) combined with `AND`, and applies pinned-first ordering followed by FTS relevance ranking/tie-breaks for stable results.
 - **Snippet rendering contract:** FTS snippets use marker tokens (`[[hl]]`/`[[/hl]]`) and are parsed by `getSnippetParts` in `src/lib/utils/fts-snippet.ts`. Do not render snippet HTML directly with `dangerouslySetInnerHTML`.
@@ -247,3 +267,13 @@ The project uses **happy-dom** as the test environment. The custom `render` from
   - Keep the subject line under 50 characters and wrap the body at 72 characters.
 - **Pull requests:** Branch off `main`, push, and open a PR with `gh pr create`. PR titles follow the same conventional commit format as commits (e.g., `feat: ✨ add markdown preview`). Merge commits are disabled -- use squash merge.
 - **Working on `main`:** If changes are being made on `main`, create a new branch before committing. Do not commit directly to `main`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

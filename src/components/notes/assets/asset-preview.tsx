@@ -3,7 +3,7 @@
 import { DownloadIcon } from "lucide-react";
 import Image from "next/image";
 
-import type { AssetId } from "@/lib/id";
+import type { AssetId } from "@/core";
 
 import { Button } from "@/components/ui/button";
 import {

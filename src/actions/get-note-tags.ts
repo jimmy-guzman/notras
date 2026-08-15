@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { cacheTag } from "next/cache";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { TagService } from "@/server/services/tag-service";
 import { UserService } from "@/server/services/user-service";
 

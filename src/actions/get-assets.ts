@@ -2,8 +2,8 @@ import { Effect, Schema } from "effect";
 
 import type { AssetMetadata } from "@/server/services/asset-service";
 
-import { toNoteId } from "@/lib/id";
-import { AppRuntime } from "@/server/layer";
+import { toNoteId } from "@/core";
+import { AppRuntime } from "@/server/runtime";
 import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { AssetService } from "@/server/services/asset-service";
 import { UserService } from "@/server/services/user-service";

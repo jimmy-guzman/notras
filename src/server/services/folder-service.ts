@@ -1,10 +1,10 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { FolderId, NoteId } from "@/lib/id";
+import type { FolderId, NoteId } from "@/core";
 import type { SelectFolder } from "@/server/db/schemas/folders";
 import type { FolderWithCount } from "@/server/repositories/folder-repository";
 
-import { generateFolderId } from "@/lib/id";
+import { generateFolderId } from "@/core";
 import {
   FolderRepository,
   FolderRepositoryLive,

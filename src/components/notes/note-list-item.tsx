@@ -7,7 +7,7 @@ import Link from "next/link";
 import type { SelectTag } from "@/server/db/schemas/tags";
 import type { NoteWithFolder } from "@/server/repositories/note-repository";
 
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 import { cn } from "@/lib/ui/utils";
 import { extractNoteTitle } from "@/lib/utils/extract-note-title";
 import { formatDate } from "@/lib/utils/format";

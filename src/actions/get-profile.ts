@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { UserService } from "@/server/services/user-service";
 
 export async function getProfile() {

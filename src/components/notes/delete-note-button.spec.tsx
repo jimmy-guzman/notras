@@ -1,8 +1,8 @@
 import { userEvent } from "@testing-library/user-event";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 import { render, screen, within } from "@/testing/utils";
 
 import { DeleteNoteButton } from "./delete-note-button";

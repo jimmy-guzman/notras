@@ -8,7 +8,7 @@ import { useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
 import { pinNote } from "@/actions/pin-note";
 import { unpinNote } from "@/actions/unpin-note";

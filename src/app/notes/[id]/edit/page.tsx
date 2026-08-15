@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 import { formatDateTime } from "@/lib/utils/format";
 
 interface PageProps {

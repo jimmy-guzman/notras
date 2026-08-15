@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 import type { FolderWithCount } from "@/server/repositories/folder-repository";
 
 import { deleteNote } from "@/actions/delete-note";
@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { toFolderId, toNoteId } from "@/lib/id";
+import { toFolderId, toNoteId } from "@/core";
 import { parsers } from "@/lib/notes-search-params";
 import { cn } from "@/lib/ui/utils";
 

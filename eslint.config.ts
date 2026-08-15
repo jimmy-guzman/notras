@@ -44,5 +44,57 @@ export default defineConfig({
         ],
       },
     },
+    // Layer boundaries. These must come last: flat config replaces rule options
+    // rather than merging them, so the global no-restricted-imports above would
+    // otherwise clobber them.
+    {
+      files: ["src/core/**"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              {
+                group: ["next", "next/*", "react", "react-dom", "node:*"],
+                message:
+                  "src/core is isomorphic -- it runs in the browser and in any server runtime. Keep it free of framework and Node-only imports.",
+              },
+              {
+                group: [
+                  "@/server/*",
+                  "@/lib/*",
+                  "@/components/*",
+                  "@/actions/*",
+                ],
+                message:
+                  "src/core is the bottom layer and must not depend upward. Move the shared code into src/core instead.",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: ["src/server/{db,repositories,schemas,services}/**"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              {
+                group: ["next", "next/*", "react", "react-dom", "@/env"],
+                message:
+                  "The data and service layers stay framework-free so they can run outside Next.js. Inject the behavior instead -- see CacheInvalidator in src/core and makeDatabaseLayer in src/server/db. Only src/server/runtime.ts and src/server/cache-invalidator.ts may import Next.js.",
+              },
+              {
+                group: ["@/lib/*", "@/components/*", "@/actions/*"],
+                message:
+                  "The server layer must not depend on app-layer code. Shared helpers belong in src/core.",
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
 });

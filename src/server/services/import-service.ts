@@ -3,12 +3,11 @@ import { TextDecoder } from "node:util";
 import { Context, Effect, Either, Layer, Schema } from "effect";
 import { unzipSync } from "fflate";
 
-import type { FolderId, NoteId } from "@/lib/id";
+import type { FolderId, NoteId } from "@/core";
 import type { CreateAssetInput } from "@/server/repositories/asset-repository";
 import type { ExportedNote, ImportMode } from "@/server/schemas/export-schemas";
 
-import { toAssetId, toFolderId, toNoteId } from "@/lib/id";
-import { AppRuntime } from "@/server/layer";
+import { forkBackground, toAssetId, toFolderId, toNoteId } from "@/core";
 import {
   AssetRepository,
   AssetRepositoryLive,
@@ -308,8 +307,9 @@ const makeImportService = Effect.gen(function* () {
         yield* assetRepo.createMany(assetInputs).pipe(Effect.orDie);
 
         // Fire-and-forget link sync
-        AppRuntime.runFork(
+        yield* forkBackground(
           linkService.syncLinks(userId, noteId, formattedContent),
+          "link sync failed during import",
         );
 
         const tagIds = yield* tagRepo

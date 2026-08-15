@@ -4,8 +4,8 @@ import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { toNoteId } from "@/lib/id";
-import { AppRuntime } from "@/server/layer";
+import { toNoteId } from "@/core";
+import { AppRuntime } from "@/server/runtime";
 import { updateNoteSchema } from "@/server/schemas/note-schemas";
 import { tagsInputSchema } from "@/server/schemas/tag-schemas";
 import { NoteService } from "@/server/services/note-service";

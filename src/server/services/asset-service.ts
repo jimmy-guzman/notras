@@ -1,10 +1,10 @@
 import { Context, Effect, Layer } from "effect";
 import { sharp } from "sharp";
 
-import type { AssetId, NoteId } from "@/lib/id";
+import type { AssetId, NoteId } from "@/core";
 import type { SelectAsset } from "@/server/db/schemas/assets";
 
-import { generateAssetId, toAssetId } from "@/lib/id";
+import { generateAssetId, toAssetId } from "@/core";
 import {
   AssetRepository,
   AssetRepositoryLive,

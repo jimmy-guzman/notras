@@ -3,9 +3,9 @@ import { Context, Effect, Layer, Schema } from "effect";
 
 import type { Preferences } from "@/server/schemas/user-schemas";
 
+import { DatabaseError } from "@/core";
 import { Database } from "@/server/db";
 import { user } from "@/server/db/schemas/users";
-import { DatabaseError } from "@/server/errors";
 import { preferencesSchema } from "@/server/schemas/user-schemas";
 
 interface CreateUserInput {

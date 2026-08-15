@@ -7,7 +7,7 @@ import { useAction } from "next-safe-action/hooks";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
 import { uploadAssets } from "@/actions/upload-assets";
 import { cn } from "@/lib/ui/utils";

@@ -4,7 +4,7 @@ import { Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
-import type { AssetId, NoteId } from "@/lib/id";
+import type { AssetId, NoteId } from "@/core";
 
 import {
   AlertDialog,

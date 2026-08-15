@@ -1,13 +1,13 @@
 import { and, count as drizzleCount, eq } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
-import type { FolderId } from "@/lib/id";
+import type { FolderId } from "@/core";
 import type { SelectFolder } from "@/server/db/schemas/folders";
 
+import { DatabaseError } from "@/core";
 import { Database } from "@/server/db";
 import { folder } from "@/server/db/schemas/folders";
 import { note } from "@/server/db/schemas/notes";
-import { DatabaseError } from "@/server/errors";
 
 export interface FolderWithCount extends SelectFolder {
   noteCount: number;

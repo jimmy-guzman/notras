@@ -3,7 +3,7 @@ import { TextEncoder } from "node:util";
 import { Context, Effect, Layer } from "effect";
 import { zipSync } from "fflate";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 import type {
   ExportedAsset,
   ExportedFolder,

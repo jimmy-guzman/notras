@@ -6,8 +6,7 @@ import { useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
-import type { NoteId } from "@/lib/id";
-import type { ReminderPreset } from "@/lib/utils/reminder-presets";
+import type { NoteId, ReminderPreset } from "@/core";
 
 import { clearReminder } from "@/actions/clear-reminder";
 import { setReminder } from "@/actions/set-reminder";
@@ -27,8 +26,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { REMINDER_PRESETS } from "@/core";
 import { formatDateTime } from "@/lib/utils/format";
-import { REMINDER_PRESETS } from "@/lib/utils/reminder-presets";
 
 interface ReminderButtonProps {
   noteId: NoteId;

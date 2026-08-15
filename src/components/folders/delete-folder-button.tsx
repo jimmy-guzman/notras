@@ -5,7 +5,7 @@ import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import type { FolderId } from "@/lib/id";
+import type { FolderId } from "@/core";
 
 import { deleteFolder } from "@/actions/delete-folder";
 import {

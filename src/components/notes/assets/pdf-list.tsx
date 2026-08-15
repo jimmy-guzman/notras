@@ -3,7 +3,7 @@
 import { DownloadIcon, FileTextIcon, Trash2Icon } from "lucide-react";
 
 import type { Asset } from "@/components/notes/assets/asset-list";
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
 import {
   AlertDialog,

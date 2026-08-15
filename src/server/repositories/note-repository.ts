@@ -15,11 +15,10 @@ import {
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
-import type { FolderId, NoteId, TagId } from "@/lib/id";
-import type { SortOption, TimeFilter } from "@/lib/utils/note-filters";
+import type { FolderId, NoteId, SortOption, TagId, TimeFilter } from "@/core";
 import type { SelectNote } from "@/server/db/schemas/notes";
 
-import { getStartDateForFilter } from "@/lib/utils/note-filters";
+import { DatabaseError, getStartDateForFilter } from "@/core";
 import { Database } from "@/server/db";
 import {
   buildFtsMatchQuery,
@@ -29,7 +28,6 @@ import {
 import { folder } from "@/server/db/schemas/folders";
 import { note } from "@/server/db/schemas/notes";
 import { noteTag, tag } from "@/server/db/schemas/tags";
-import { DatabaseError } from "@/server/errors";
 
 export type NoteWithFolder = SelectNote & {
   folderName: null | string;
