@@ -37,9 +37,12 @@ any time.
 **Keep / build:**
 
 - markdown notes as files; filename is the title (inline title field renames the file)
-- CodeMirror 6 editor: **live preview** -- styled markdown source with syntax
-  marks (`##`, `**`, backticks, link brackets/URLs, `> `) hidden on elements
-  the cursor isn't touching, Obsidian-style; syntax-highlighted code blocks
+- CodeMirror 6 editor: **live preview**, Obsidian-style -- syntax marks
+  (`##`, `**`, backticks, link brackets/URLs, `> `) hidden on elements the
+  cursor isn't touching; bullets render as •, task checkboxes are clickable
+  (writing `[x]` back to the file), fence lines vanish into a code card,
+  `---` draws a rule, images render inline via the asset protocol, tables
+  render (plain-text cells) and drop to source on touch
 - autosave + format-on-blur (remark pipeline)
 - ⌘P rendered preview (react-markdown + remark-gfm + rehype-expressive-code survive here)
 - FTS5 search (bm25, snippets) via the ⌘K palette
@@ -306,6 +309,7 @@ Manual walkthrough (`pnpm tauri dev`):
 
 | Date       | What landed                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-15 | Live preview phase 2: blocks + widgets (bullets, clickable checkboxes, code cards with hidden fences, hr, inline images, rendered tables); ViewPlugin → StateField for block decorations; fixed markdown base to GFM (`markdownLanguage`) -- tables/tasks/strikethrough were not parsing at all before                                                                                                                            |
 | 2026-08-15 | Live preview: hand-rolled CM6 mark-hiding extension (research ruled out ixora/rich-markdoc as dead, codemirror-live-markdown as alpha); ⌘P kept as reading mode with editor-matched type scale; overlay-transition WIP reverted as wrong direction                                                                                                                                                                                |
 | 2026-08-15 | Spec v1 (SQLite-first, keep-everything)                                                                                                                                                                                                                                                                                                                                                                                           |
 | 2026-08-15 | README + AGENTS.md rewritten for the files-first desktop app; rewrite landed as five conventional commits on feat-tauri-rewrite                                                                                                                                                                                                                                                                                                   |

@@ -1,4 +1,4 @@
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 
@@ -7,7 +7,9 @@ import { frontmatterExtension } from "./frontmatter-extension";
 function parseNodes(doc: string) {
   const state = EditorState.create({
     doc,
-    extensions: [markdown({ extensions: [frontmatterExtension] })],
+    extensions: [
+      markdown({ base: markdownLanguage, extensions: [frontmatterExtension] }),
+    ],
   });
   const tree = ensureSyntaxTree(state, doc.length, 5000);
   const names: string[] = [];

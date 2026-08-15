@@ -227,6 +227,56 @@
   color: var(--muted-foreground);
 }
 
+/* Live preview widgets. */
+.cm-live-bullet {
+  color: var(--muted-foreground);
+}
+.cm-live-checkbox input {
+  accent-color: var(--primary);
+  vertical-align: -0.125em;
+  cursor: pointer;
+}
+.cm-task-done {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+.cm-editor .cm-line.cm-live-code {
+  background: var(--card);
+  font-family: var(--font-editor-mono);
+  font-size: 0.9em;
+  padding-inline: 0.75rem;
+}
+.cm-live-hr {
+  display: block;
+  border-top: 1px solid var(--border);
+  margin-block: 0.8em;
+}
+.cm-live-image img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: var(--radius-md);
+  margin-block: 0.25rem;
+}
+.cm-live-image-fallback {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.cm-live-table {
+  border-collapse: collapse;
+  margin-block: 0.5rem;
+  font-size: 0.95em;
+}
+.cm-live-table th,
+.cm-live-table td {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.75rem;
+  text-align: left;
+}
+.cm-live-table th {
+  background: var(--card);
+  font-weight: 700;
+}
+
 /* Focus mode: dim everything but the active paragraph. */
 .cm-focus-mode .cm-line {
   transition: opacity 0.3s ease;

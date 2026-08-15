@@ -1,4 +1,5 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -102,6 +103,13 @@ function NoteEditor({ note }: NoteEditorProps) {
     });
   }, []);
 
+  const resolveImageSrc = useCallback(
+    (src: string) => {
+      return src.includes("://") ? src : convertFileSrc(`${notesDir}/${src}`);
+    },
+    [notesDir],
+  );
+
   const titleToPath = new Map(
     notes.map((meta) => {
       return [meta.title.toLowerCase(), meta.path] as const;
@@ -199,6 +207,7 @@ function NoteEditor({ note }: NoteEditorProps) {
           onReady={(handle) => {
             editorRef.current = handle;
           }}
+          resolveImageSrc={resolveImageSrc}
           titles={getTitles}
           typewriterEnabled={typewriterEnabled}
         />

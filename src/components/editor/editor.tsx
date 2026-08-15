@@ -1,6 +1,10 @@
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
+import {
+  markdown,
+  markdownKeymap,
+  markdownLanguage,
+} from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
@@ -27,6 +31,8 @@ interface EditorProps {
   onChange: (content: string) => void;
   onReady?: (handle: EditorHandle) => void;
   placeholderText?: string;
+  /** Resolve image sources (e.g. `attachments/x.png`) for live preview. */
+  resolveImageSrc?: (src: string) => string;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
   typewriterEnabled?: boolean;
@@ -69,11 +75,13 @@ export function Editor({
         extensions: [
           history(),
           markdown({
+            // GFM base: tables, task lists, strikethrough, autolinks.
+            base: markdownLanguage,
             codeLanguages: languages,
             extensions: [frontmatterExtension],
           }),
           markdownHighlight,
-          livePreview(),
+          livePreview({ resolveImageSrc: config.resolveImageSrc }),
           autocompletion({
             override: [wikilinkCompletions(getTitles), slashCommands],
           }),
