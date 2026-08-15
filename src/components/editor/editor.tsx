@@ -7,27 +7,27 @@ import { toast } from "sonner";
 import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
 
-import type { CursorAnchor } from "./source-anchors";
-
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
-import { ANCHOR_LENGTH, anchorToPos, blockIndexToPos } from "./source-anchors";
+import { findSentinel, SENTINEL } from "./sentinel";
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
 
 export interface EditorHandle {
   focus(): void;
+  /**
+   * The caret's exact offset in this buffer's markdown serialization,
+   * found by serializing a throwaway clone with a sentinel at the caret.
+   * -1 when it cannot be determined.
+   */
+  getCaretSourceOffset(): number;
   getContent(): string;
-  /** The caret's top-level block plus the visible text just before it. */
-  getCursorContext(): CursorAnchor;
   insertText(text: string): void;
 }
 
 interface EditorProps {
   focusModeEnabled?: boolean;
   focusOnMount?: boolean;
-  /** Place the caret at this anchor on mount (wins over focusOnMount). */
-  initialAnchor?: CursorAnchor | null;
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
   onBlur?: () => void;
@@ -38,6 +38,11 @@ interface EditorProps {
   placeholderText?: string;
   /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs. */
   resolveImageSrc?: (src: string) => string;
+  /**
+   * The initial content carries a SENTINEL at the caret spot (source-mode
+   * exit): strip it after mount and place the caret exactly there.
+   */
+  stripSentinel?: boolean;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
   typewriterEnabled?: boolean;
@@ -57,6 +62,7 @@ export function Editor({
 }: EditorProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<null | TiptapEditor>(null);
+  const suppressChangeRef = useRef(false);
   const typewriterRef = useRef(typewriterEnabled);
 
   useEffect(() => {
@@ -191,22 +197,28 @@ export function Editor({
         focus: () => {
           instance.commands.focus();
         },
+        getCaretSourceOffset: () => {
+          const manager = instance.markdown;
+
+          if (!manager) {
+            return -1;
+          }
+
+          try {
+            const marked = instance.state.tr.insertText(
+              SENTINEL,
+              instance.state.selection.head,
+            );
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
+            const md: string = manager.serialize(marked.doc.toJSON());
+
+            return md.replaceAll(/&nbsp;|&#160;/g, " ").indexOf(SENTINEL);
+          } catch {
+            return -1;
+          }
+        },
         getContent: () => {
           return serializeMarkdown(instance);
-        },
-        getCursorContext: () => {
-          const { doc, selection } = instance.state;
-          const from = Math.min(selection.from, doc.content.size);
-          const resolved = doc.resolve(from);
-          const blockIndex = resolved.index(0);
-          const blockStart = blockIndexToPos(doc, blockIndex);
-
-          return {
-            anchorText: doc
-              .textBetween(Math.min(blockStart, from), from, "", " ")
-              .slice(-ANCHOR_LENGTH),
-            blockIndex,
-          };
         },
         insertText: (text) => {
           instance.commands.insertContent(text, { contentType: "markdown" });
@@ -232,6 +244,10 @@ export function Editor({
       scroller.scrollTop += coords.top - (rect.top + rect.height / 2);
     },
     onUpdate: ({ editor: instance }) => {
+      if (suppressChangeRef.current) {
+        return;
+      }
+
       config.onChange(serializeMarkdown(instance));
     },
   });
@@ -244,13 +260,56 @@ export function Editor({
       return;
     }
 
-    const anchor = config.initialAnchor ?? null;
+    const pos =
+      config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
 
-    if (anchor !== null) {
+    if (pos !== null) {
+      // Remove the sentinel outside history and without notifying autosave;
+      // the buffer must end up byte-identical to the file.
+      suppressChangeRef.current = true;
+      editor.view.dispatch(
+        editor.state.tr.delete(pos, pos + 1).setMeta("addToHistory", false),
+      );
+
+      // Corruption guard: if the sentinel split a syntax token, the parse
+      // diverged and stripping the char does not restore it -- serializing
+      // would then write escaped syntax into the file. Compare canonical
+      // forms and reparse the clean body when they differ.
+      const cleanBody = config.initialContent.replaceAll(SENTINEL, "");
+      const manager = editor.markdown;
+      const diverged = (() => {
+        try {
+          const canonical = manager
+            ? manager
+                .serialize(manager.parse(cleanBody))
+                .replaceAll(/&nbsp;|&#160;/g, " ")
+            : serializeMarkdown(editor);
+
+          // Trailing whitespace differs benignly (StarterKit's
+          // trailing-node appends an empty paragraph after list-ending
+          // docs).
+          return serializeMarkdown(editor).trimEnd() !== canonical.trimEnd();
+        } catch {
+          // Comparison itself failing is not evidence of corruption.
+          return false;
+        }
+      })();
+
+      if (diverged) {
+        editor.commands.setContent(cleanBody, {
+          contentType: "markdown",
+          emitUpdate: false,
+        });
+      }
+
+      suppressChangeRef.current = false;
+
+      const max = editor.state.doc.content.size;
+
       editor
         .chain()
         .focus()
-        .setTextSelection(anchorToPos(editor.state.doc, anchor))
+        .setTextSelection(Math.min(pos, max))
         .scrollIntoView()
         .run();
     } else if (config.focusOnMount === true) {
