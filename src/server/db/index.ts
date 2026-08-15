@@ -46,7 +46,15 @@ export function makeDatabaseLayer(config: DatabaseConfig) {
         try: async () => {
           const client = createClient({ url: config.url });
 
-          await ensureFts(client);
+          try {
+            await ensureFts(client);
+          } catch (error) {
+            // acquireRelease only runs its release on success, so anything that
+            // fails after createClient has to close the client itself.
+            client.close();
+
+            throw error;
+          }
 
           return { client, db: drizzle(client, { schema }) };
         },
