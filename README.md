@@ -25,16 +25,18 @@ rebuilds it from your files on the next launch.
 
 ## Features
 
-- editor-first window: CodeMirror 6 markdown source with live styling
-  (iA Writer model), set in iA Writer Quattro
-- autosave on idle; markdown formatted on blur (never while you type)
+- editor-first window: true WYSIWYG markdown (TipTap 3) that reads and
+  writes plain `.md` -- set in iA Writer Quattro
+- autosave on idle; what lands on disk is clean, canonical markdown
 - ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
   `#tag` filters, and every note action
-- ⌘P rendered preview with GFM + syntax-highlighted code blocks
-- wikilinks `[[note title]]` with autocomplete; clickable in preview
-- slash commands: `/` at a line start inserts headings, task lists, code
-  blocks, tables, today's date
+- ⌘P raw markdown source mode (the escape hatch for anything exotic)
+- wikilinks `[[note title]]` as clickable pills with autocomplete
+- slash commands: `/` inserts headings, lists, task lists, code blocks,
+  tables, quotes, dividers, today's date
 - focus mode (⌘D, dims all but the active paragraph) and typewriter scrolling
+- editable tables, clickable task checkboxes, inline images, highlighted
+  code blocks -- all round-tripping through GFM markdown
 - tags, pins, and folders; move notes between folders from the palette
 - drag any file in -> copied to `attachments/`, markdown link inserted
 - global quick capture: ⌘⇧N from anywhere -> jot -> esc saves to `inbox/`
@@ -50,14 +52,12 @@ rebuilds it from your files on the next launch.
   [notify](https://github.com/notify-rs/notify)
 - [Vite](https://vite.dev) + [React](https://react.dev) 19 +
   [TanStack Router](https://tanstack.com/router)
-- [CodeMirror 6](https://codemirror.net) (editor) +
-  [react-markdown](https://github.com/remarkjs/react-markdown) /
-  [rehype-expressive-code](https://expressive-code.com) (preview)
+- [TipTap 3](https://tiptap.dev) + official bidirectional
+  [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown) (editor)
 - [Effect](https://effect.website) 3.x (typed errors, Layer/DI, services)
 - [Drizzle ORM](https://orm.drizzle.team) (`sqlite-proxy`, read-only queries
   against the index)
 - [Shadcn UI](https://ui.shadcn.dev) + [Tailwind CSS](https://tailwindcss.com) 4
-- [remark](https://remark.js.org) (format-on-blur)
 
 ## Architecture
 
@@ -133,7 +133,7 @@ Rust tests live in `src-tauri`: `cargo test`.
 | -------- | ------------------------------- |
 | `⌘K`     | command palette (search + acts) |
 | `⌘N`     | new note                        |
-| `⌘P`     | toggle rendered preview         |
+| `⌘P`     | toggle raw markdown source      |
 | `⌘D`     | toggle focus mode               |
 | `⌘,`     | settings                        |
 | `⌘⇧N`    | global quick capture            |

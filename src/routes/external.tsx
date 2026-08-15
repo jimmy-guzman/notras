@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
 import { Editor } from "@/components/editor/editor";
+import { composeNote, parseNote } from "@/core";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
 
 interface ExternalSearch {
@@ -27,10 +28,13 @@ function ExternalPage() {
   const { path } = Route.useSearch();
   const file = Route.useLoaderData();
   const [status, setStatus] = useState<"dirty" | "saved">("saved");
+  // The editor owns the body; any frontmatter in the file is preserved
+  // verbatim around it.
+  const frontmatterRef = useRef(parseNote(file.content).rawLines);
 
-  const save = useDebouncedCallback(async (content: string) => {
+  const save = useDebouncedCallback(async (body: string) => {
     try {
-      await writeExternalNote(path, content);
+      await writeExternalNote(path, composeNote(frontmatterRef.current, body));
       setStatus("saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "save failed");
@@ -47,11 +51,11 @@ function ExternalPage() {
       </div>
       <Editor
         focusOnMount
-        initialContent={file.content}
+        initialContent={parseNote(file.content).body}
         key={path}
-        onChange={(content) => {
+        onChange={(body) => {
           setStatus("dirty");
-          void save(content);
+          void save(body);
         }}
       />
     </div>

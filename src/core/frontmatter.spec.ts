@@ -1,4 +1,4 @@
-import { parseNote, updateFrontmatter } from "./frontmatter";
+import { composeNote, parseNote, updateFrontmatter } from "./frontmatter";
 
 describe("parseNote", () => {
   it("should return the whole content as body when there is no frontmatter", () => {
@@ -83,5 +83,27 @@ describe("updateFrontmatter", () => {
       tags: ["a", "b"],
     });
     expect(parsed.body).toBe("body\n");
+  });
+});
+
+describe("composeNote", () => {
+  it("should return the body alone when there is no frontmatter", () => {
+    expect(composeNote([], "# hi\n")).toBe("# hi\n");
+  });
+
+  it("should wrap raw lines in delimiters", () => {
+    expect(composeNote(["pinned: true", "custom: x"], "body\n")).toBe(
+      "---\npinned: true\ncustom: x\n---\nbody\n",
+    );
+  });
+
+  it("should round-trip through parseNote with the body replaced", () => {
+    const original = "---\npinned: true\ntags: [a]\n---\nold body\n";
+    const parsed = parseNote(original);
+    const next = composeNote(parsed.rawLines, "new body\n");
+    const reparsed = parseNote(next);
+
+    expect(reparsed.frontmatter).toStrictEqual(parsed.frontmatter);
+    expect(reparsed.body).toBe("new body\n");
   });
 });

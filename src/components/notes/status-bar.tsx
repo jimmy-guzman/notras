@@ -1,4 +1,4 @@
-import { CrosshairIcon, EyeIcon, KeyboardIcon } from "lucide-react";
+import { CodeIcon, CrosshairIcon, KeyboardIcon } from "lucide-react";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
 
@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<SaveStatus, string> = {
 interface StatusToggleProps {
   active: boolean;
   hint: string;
-  icon: typeof EyeIcon;
+  icon: typeof CodeIcon;
   label: string;
   onToggle: () => void;
 }
@@ -57,9 +57,9 @@ function StatusToggle({
 interface StatusBarProps {
   focusModeEnabled: boolean;
   onToggleFocusMode: () => void;
-  onTogglePreview: () => void;
+  onToggleSource: () => void;
   onToggleTypewriter: () => void;
-  previewEnabled: boolean;
+  sourceEnabled: boolean;
   status: SaveStatus;
   typewriterEnabled: boolean;
   words: number;
@@ -68,9 +68,9 @@ interface StatusBarProps {
 export function StatusBar({
   focusModeEnabled,
   onToggleFocusMode,
-  onTogglePreview,
+  onToggleSource,
   onToggleTypewriter,
-  previewEnabled,
+  sourceEnabled,
   status,
   typewriterEnabled,
   words,
@@ -99,11 +99,11 @@ export function StatusBar({
           onToggle={onToggleTypewriter}
         />
         <StatusToggle
-          active={previewEnabled}
+          active={sourceEnabled}
           hint="⌘p"
-          icon={EyeIcon}
-          label="preview"
-          onToggle={onTogglePreview}
+          icon={CodeIcon}
+          label="markdown source"
+          onToggle={onToggleSource}
         />
       </div>
     </footer>

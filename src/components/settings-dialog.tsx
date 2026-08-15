@@ -16,23 +16,19 @@ import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { setNotesDir } from "@/data/notes-dir";
-import { setPreference } from "@/lib/preferences";
 
 interface SettingsDialogProps {
   notesDir: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  syntaxHighlighting: boolean;
 }
 
 export function SettingsDialog({
   notesDir,
   onOpenChange,
   open,
-  syntaxHighlighting,
 }: SettingsDialogProps) {
   const router = useRouter();
-  const [highlighting, setHighlighting] = useState(syntaxHighlighting);
   const [autostart, setAutostart] = useState(false);
 
   useEffect(() => {
@@ -64,12 +60,6 @@ export function SettingsDialog({
         error instanceof Error ? error.message : "could not change folder",
       );
     }
-  };
-
-  const toggleHighlighting = async (value: boolean) => {
-    setHighlighting(value);
-    await setPreference("syntaxHighlighting", value);
-    await router.invalidate();
   };
 
   const toggleAutostart = async (value: boolean) => {
@@ -104,16 +94,6 @@ export function SettingsDialog({
                 change...
               </Button>
             </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="syntax-highlighting">
-              syntax highlighting in preview
-            </Label>
-            <Switch
-              checked={highlighting}
-              id="syntax-highlighting"
-              onCheckedChange={toggleHighlighting}
-            />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="autostart">launch at login</Label>

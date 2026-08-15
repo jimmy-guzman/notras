@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { formatNote } from "@/data/format-note";
 import { saveNote } from "@/data/save-note";
 
 export type SaveStatus = "dirty" | "saved" | "saving";
@@ -13,9 +12,8 @@ interface AutosaveOptions {
 }
 
 /**
- * Debounced autosave for one note buffer. Formatting runs when the note is
- * left (unmount or window blur), never mid-keystroke -- the formatted file
- * flows back in through the notes-changed reload path.
+ * Debounced autosave for one note buffer, flushed on window blur and
+ * unmount so nothing is ever left unsaved.
  */
 export function useAutosave(path: string, options?: AutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("saved");
@@ -72,21 +70,11 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     [flush],
   );
 
-  const saveAndFormat = useCallback(async () => {
-    const notePath = pathRef.current;
-
-    await flush();
-    // Fire-and-forget: the watcher/reload path picks up the result.
-    void formatNote(notePath).catch(() => {
-      return undefined;
-    });
-  }, [flush]);
-
-  // Leaving the note (or the app) saves and formats.
+  // Leaving the note (or the app) flushes any pending write.
   useEffect(() => {
     const handleWindowBlur = () => {
       if (pendingRef.current !== null) {
-        void saveAndFormat();
+        void flush();
       }
     };
 
@@ -95,10 +83,10 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     return () => {
       window.removeEventListener("blur", handleWindowBlur);
       if (pendingRef.current !== null) {
-        void saveAndFormat();
+        void flush();
       }
     };
-  }, [saveAndFormat]);
+  }, [flush]);
 
   return { flush, onChange, status };
 }

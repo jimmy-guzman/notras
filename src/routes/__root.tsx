@@ -18,19 +18,17 @@ import { createNote } from "@/data/create-note";
 import { getFolders } from "@/data/get-folders";
 import { getNotes } from "@/data/get-notes";
 import { getNotesDir } from "@/data/notes-dir";
-import { getPreference } from "@/lib/preferences";
 
 export const Route = createRootRoute({
   component: RootLayout,
   loader: async () => {
-    const [notes, folders, notesDir, syntaxHighlighting] = await Promise.all([
+    const [notes, folders, notesDir] = await Promise.all([
       getNotes(),
       getFolders(),
       getNotesDir(),
-      getPreference("syntaxHighlighting", true),
     ]);
 
-    return { folders, notes, notesDir, syntaxHighlighting };
+    return { folders, notes, notesDir };
   },
 });
 
@@ -41,8 +39,7 @@ const HOTKEY_OPTIONS = {
 } as const;
 
 function RootLayout() {
-  const { folders, notes, notesDir, syntaxHighlighting } =
-    Route.useLoaderData();
+  const { folders, notes, notesDir } = Route.useLoaderData();
   const router = useRouter();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -148,11 +145,10 @@ function RootLayout() {
         open={paletteOpen}
       />
       <SettingsDialog
-        key={`${notesDir}:${String(syntaxHighlighting)}`}
+        key={notesDir}
         notesDir={notesDir}
         onOpenChange={setSettingsOpen}
         open={settingsOpen}
-        syntaxHighlighting={syntaxHighlighting}
       />
       <Toaster />
     </TooltipProvider>

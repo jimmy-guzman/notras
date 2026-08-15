@@ -1,20 +1,9 @@
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import {
-  markdown,
-  markdownKeymap,
-  markdownLanguage,
-} from "@codemirror/lang-markdown";
-import { languages } from "@codemirror/language-data";
-import { Compartment, EditorState } from "@codemirror/state";
-import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 
-import { slashCommands, wikilinkCompletions } from "./completions";
-import { frontmatterExtension } from "./frontmatter-extension";
-import { livePreview } from "./live-preview";
-import { markdownHighlight } from "./markdown-highlight";
-import { focusMode, typewriterScrolling } from "./writing-modes";
+import { cn } from "@/lib/ui/utils";
+
+import { createEditorExtensions } from "./extensions";
 
 export interface EditorHandle {
   focus(): void;
@@ -25,13 +14,15 @@ export interface EditorHandle {
 interface EditorProps {
   focusModeEnabled?: boolean;
   focusOnMount?: boolean;
-  /** Initial content -- the editor owns the buffer after mount. */
+  /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
   onBlur?: () => void;
   onChange: (content: string) => void;
   onReady?: (handle: EditorHandle) => void;
+  /** Navigate when a wikilink pill is clicked. */
+  onWikilinkClick?: (title: string) => void;
   placeholderText?: string;
-  /** Resolve image sources (e.g. `attachments/x.png`) for live preview. */
+  /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs. */
   resolveImageSrc?: (src: string) => string;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
@@ -39,124 +30,101 @@ interface EditorProps {
 }
 
 /**
- * CodeMirror 6 markdown editor. All props except the writing-mode toggles
+ * TipTap WYSIWYG markdown editor. All props except the writing-mode toggles
  * are frozen at mount: the editor owns the buffer, so remount (via `key`)
  * to load different content. Callbacks must therefore be safe to freeze --
- * read live values through refs, not closures.
+ * read live values through refs, not closures. Content in/out is markdown
+ * (`@tiptap/markdown`); the buffer is the note BODY, never frontmatter.
  */
 export function Editor({
   focusModeEnabled = false,
   typewriterEnabled = false,
   ...mountProps
 }: EditorProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  const modesRef = useRef<Compartment | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const typewriterRef = useRef(typewriterEnabled);
+
+  useEffect(() => {
+    typewriterRef.current = typewriterEnabled;
+  });
+
   const [config] = useState(() => {
     return mountProps;
   });
 
-  useEffect(() => {
-    const container = containerRef.current;
-
-    if (container === null) {
-      return undefined;
-    }
-
-    const modes = new Compartment();
-    const getTitles = () => {
-      return config.titles?.() ?? [];
-    };
-
-    const view = new EditorView({
-      parent: container,
-      state: EditorState.create({
-        doc: config.initialContent,
-        extensions: [
-          history(),
-          markdown({
-            // GFM base: tables, task lists, strikethrough, autolinks.
-            base: markdownLanguage,
-            codeLanguages: languages,
-            extensions: [frontmatterExtension],
-          }),
-          markdownHighlight,
-          livePreview({ resolveImageSrc: config.resolveImageSrc }),
-          autocompletion({
-            override: [wikilinkCompletions(getTitles), slashCommands],
-          }),
-          keymap.of([
-            ...completionKeymap,
-            ...markdownKeymap,
-            ...defaultKeymap,
-            ...historyKeymap,
-          ]),
-          placeholder(config.placeholderText ?? "just write..."),
-          EditorView.lineWrapping,
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-              config.onChange(update.state.doc.toString());
-            }
-
-            if (update.focusChanged && !update.view.hasFocus) {
-              config.onBlur?.();
-            }
-          }),
-          modes.of([]),
-        ],
-      }),
-    });
-
-    viewRef.current = view;
-    modesRef.current = modes;
-
-    config.onReady?.({
-      focus: () => {
-        view.focus();
+  const editor = useEditor({
+    autofocus: config.focusOnMount === true ? "end" : false,
+    content: config.initialContent,
+    contentType: "markdown",
+    editorProps: {
+      attributes: {
+        class:
+          "note-preview-prose prose prose-stone dark:prose-invert mx-auto w-full max-w-2xl px-6 py-6 focus:outline-none",
       },
-      getContent: () => {
-        return view.state.doc.toString();
-      },
-      insertText: (text) => {
-        const { from, to } = view.state.selection.main;
+      handleClickOn: (_view, _pos, node) => {
+        if (node.type.name === "wikilink" && config.onWikilinkClick) {
+          config.onWikilinkClick(String(node.attrs.title ?? ""));
 
-        view.dispatch({
-          changes: { from, insert: text, to },
-          selection: { anchor: from + text.length },
-        });
-        view.focus();
-      },
-    });
+          return true;
+        }
 
-    if (config.focusOnMount === true) {
-      view.focus();
-      view.dispatch({
-        selection: { anchor: view.state.doc.length },
+        return false;
+      },
+    },
+    extensions: createEditorExtensions({
+      getTitles: config.titles,
+      onWikilinkClick: config.onWikilinkClick,
+      placeholderText: config.placeholderText,
+      resolveImageSrc: config.resolveImageSrc,
+    }),
+    onBlur: () => {
+      config.onBlur?.();
+    },
+    onCreate: ({ editor: instance }) => {
+      config.onReady?.({
+        focus: () => {
+          instance.commands.focus();
+        },
+        getContent: () => {
+          return instance.getMarkdown();
+        },
+        insertText: (text) => {
+          instance.commands.insertContent(text, { contentType: "markdown" });
+          instance.commands.focus();
+        },
       });
-    }
+    },
+    onSelectionUpdate: ({ editor: instance }) => {
+      // Typewriter scrolling: keep the caret vertically centered.
+      if (!typewriterRef.current) {
+        return;
+      }
 
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-      modesRef.current = null;
-    };
-  }, [config]);
+      const scroller = scrollerRef.current;
 
-  useEffect(() => {
-    const view = viewRef.current;
-    const modes = modesRef.current;
+      if (scroller === null) {
+        return;
+      }
 
-    if (view === null || modes === null) {
-      return;
-    }
+      const coords = instance.view.coordsAtPos(instance.state.selection.head);
+      const rect = scroller.getBoundingClientRect();
 
-    view.dispatch({
-      effects: modes.reconfigure([
-        focusModeEnabled ? focusMode() : [],
-        typewriterEnabled ? typewriterScrolling() : [],
-      ]),
-    });
-  }, [focusModeEnabled, typewriterEnabled]);
+      scroller.scrollTop += coords.top - (rect.top + rect.height / 2);
+    },
+    onUpdate: ({ editor: instance }) => {
+      config.onChange(instance.getMarkdown());
+    },
+  });
 
-  return <div className="allow-select min-h-0 flex-1" ref={containerRef} />;
+  return (
+    <div
+      className={cn(
+        "allow-select min-h-0 flex-1 overflow-y-auto",
+        focusModeEnabled && "focus-mode-on",
+      )}
+      ref={scrollerRef}
+    >
+      <EditorContent className="min-h-full" editor={editor} />
+    </div>
+  );
 }

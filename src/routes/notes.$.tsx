@@ -1,4 +1,8 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  getRouteApi,
+  useNavigate,
+} from "@tanstack/react-router";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,10 +12,11 @@ import { toast } from "sonner";
 import type { EditorHandle } from "@/components/editor/editor";
 
 import { Editor } from "@/components/editor/editor";
+import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
-import { NotePreview } from "@/components/notes/note-preview";
 import { StatusBar } from "@/components/notes/status-bar";
+import { composeNote, parseNote } from "@/core";
 import { attachFile } from "@/data/attach-file";
 import { getNote } from "@/data/get-note";
 import { countWords } from "@/lib/utils/word-count";
@@ -66,15 +71,46 @@ interface NoteEditorProps {
 }
 
 function NoteEditor({ note }: NoteEditorProps) {
-  const { notes, notesDir, syntaxHighlighting } = rootApi.useLoaderData();
+  const { notes, notesDir } = rootApi.useLoaderData();
+  const navigate = useNavigate();
 
   const editorRef = useRef<EditorHandle | null>(null);
-  const [content, setContent] = useState(note.content);
+  // The rich editor owns the BODY; frontmatter rides along from the latest
+  // loader snapshot so pin/tag toggles are never clobbered by a body save.
+  // State drives renders (source mode); the ref feeds the mount-frozen
+  // editor callbacks.
+  const [frontmatterLines, setFrontmatterLines] = useState(() => {
+    return parseNote(note.content).rawLines;
+  });
+  const frontmatterRef = useRef(frontmatterLines);
+
+  useEffect(() => {
+    frontmatterRef.current = frontmatterLines;
+  });
+
+  // Frontmatter follows the loader (adjust-during-render pattern): a pin or
+  // tag toggle rewrites the file, and the next body save must compose with
+  // that fresh block, not the one captured at mount.
+  const [syncedContent, setSyncedContent] = useState(note.content);
+
+  if (syncedContent !== note.content) {
+    setSyncedContent(note.content);
+
+    const fresh = parseNote(note.content).rawLines;
+
+    if (fresh.join("\n") !== frontmatterLines.join("\n")) {
+      setFrontmatterLines(fresh);
+    }
+  }
+
+  const [body, setBody] = useState(() => {
+    return parseNote(note.content).body;
+  });
   const [words, setWords] = useState(() => {
     return countWords(note.content);
   });
   const [reloadKey, setReloadKey] = useState(0);
-  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [sourceMode, setSourceMode] = useState(false);
   const [focusModeEnabled, toggleFocusMode] = usePersistentToggle("focus-mode");
   const [typewriterEnabled, toggleTypewriter] =
     usePersistentToggle("typewriter");
@@ -110,29 +146,43 @@ function NoteEditor({ note }: NoteEditorProps) {
     [notesDir],
   );
 
-  const titleToPath = new Map(
-    notes.map((meta) => {
-      return [meta.title.toLowerCase(), meta.path] as const;
-    }),
+  const openWikilink = useCallback(
+    (title: string) => {
+      const target = notesRef.current.find((meta) => {
+        return meta.title.toLowerCase() === title.toLowerCase();
+      });
+
+      if (target === undefined) {
+        toast.error(`no note named "${title.toLowerCase()}"`);
+
+        return;
+      }
+
+      void navigate({ params: { _splat: target.path }, to: "/notes/$" });
+    },
+    [navigate],
   );
 
-  // External edits (AI agents, other editors, format-on-blur) flow back in
-  // through router invalidation. Reload the buffer only when it is clean AND
-  // the file on disk is newer than our own last write -- a stale loader
-  // snapshot of a just-saved note must never clobber the buffer.
+  // External edits (AI agents, other editors) flow back in through router
+  // invalidation. Frontmatter always follows the loader; the body buffer
+  // reloads only when it is clean AND the file on disk is newer than our
+  // own last write -- a stale loader snapshot of a just-saved note must
+  // never clobber the buffer.
   useEffect(() => {
+    const parsed = parseNote(note.content);
+
     const isExternal =
       note.updatedAt.getTime() > lastSavedAtRef.current.getTime();
 
-    if (autosave.status === "saved" && isExternal && note.content !== content) {
+    if (autosave.status === "saved" && isExternal && parsed.body !== body) {
       lastSavedAtRef.current = note.updatedAt;
-      setContent(note.content);
+      setBody(parsed.body);
       setWords(countWords(note.content));
       setReloadKey((key) => {
         return key + 1;
       });
     }
-  }, [autosave.status, content, note.content, note.updatedAt]);
+  }, [autosave.status, body, note.content, note.updatedAt]);
 
   // Drag a file in -> copy to attachments/, insert a markdown link.
   useEffect(() => {
@@ -145,7 +195,7 @@ function NoteEditor({ note }: NoteEditorProps) {
             ? `![${name}](${relativePath})`
             : `[${name}](${relativePath})`;
 
-          editorRef.current?.insertText(`${link}\n`);
+          editorRef.current?.insertText(link);
         } catch (error) {
           toast.error(
             error instanceof Error ? error.message : "could not attach file",
@@ -167,46 +217,61 @@ function NoteEditor({ note }: NoteEditorProps) {
     };
   }, []);
 
-  useHotkeys(
-    "mod+p",
-    () => {
-      setPreviewEnabled((current) => {
-        return !current;
-      });
-    },
-    HOTKEY_OPTIONS,
-  );
-  useHotkeys("mod+d", toggleFocusMode, HOTKEY_OPTIONS);
+  const handleBodyChange = useCallback(
+    (nextBody: string) => {
+      const full = composeNote(frontmatterRef.current, nextBody);
 
-  const handleChange = useCallback(
-    (nextContent: string) => {
-      setContent(nextContent);
-      setWords(countWords(nextContent));
-      autosave.onChange(nextContent);
+      setBody(nextBody);
+      setWords(countWords(full));
+      autosave.onChange(full);
     },
     [autosave],
   );
 
+  const handleSourceChange = (raw: string) => {
+    const parsed = parseNote(raw);
+
+    setFrontmatterLines(parsed.rawLines);
+    setBody(parsed.body);
+    setWords(countWords(raw));
+    autosave.onChange(raw);
+  };
+
+  const toggleSourceMode = () => {
+    setSourceMode((current) => {
+      if (current) {
+        // Back to rich: remount the editor on the latest body.
+        setReloadKey((key) => {
+          return key + 1;
+        });
+      }
+
+      return !current;
+    });
+  };
+
+  useHotkeys("mod+p", toggleSourceMode, HOTKEY_OPTIONS);
+  useHotkeys("mod+d", toggleFocusMode, HOTKEY_OPTIONS);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <NoteHeader path={note.path} pinned={note.pinned} tags={note.tags} />
-      {previewEnabled ? (
-        <NotePreview
-          content={content}
-          notesDir={notesDir}
-          syntaxHighlighting={syntaxHighlighting}
-          titleToPath={titleToPath}
+      {sourceMode ? (
+        <SourceEditor
+          onChange={handleSourceChange}
+          value={composeNote(frontmatterLines, body)}
         />
       ) : (
         <Editor
           focusModeEnabled={focusModeEnabled}
           focusOnMount
-          initialContent={content}
+          initialContent={body}
           key={`${note.path}:${reloadKey}`}
-          onChange={handleChange}
+          onChange={handleBodyChange}
           onReady={(handle) => {
             editorRef.current = handle;
           }}
+          onWikilinkClick={openWikilink}
           resolveImageSrc={resolveImageSrc}
           titles={getTitles}
           typewriterEnabled={typewriterEnabled}
@@ -215,13 +280,9 @@ function NoteEditor({ note }: NoteEditorProps) {
       <StatusBar
         focusModeEnabled={focusModeEnabled}
         onToggleFocusMode={toggleFocusMode}
-        onTogglePreview={() => {
-          setPreviewEnabled((current) => {
-            return !current;
-          });
-        }}
+        onToggleSource={toggleSourceMode}
         onToggleTypewriter={toggleTypewriter}
-        previewEnabled={previewEnabled}
+        sourceEnabled={sourceMode}
         status={autosave.status}
         typewriterEnabled={typewriterEnabled}
         words={words}

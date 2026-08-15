@@ -10,12 +10,13 @@ manual verification walkthrough, progress log). Keep it updated as work lands.
 - **Shell:** Tauri 2 (Rust) -- file IO commands, FTS5 index, notify watcher,
   tray, global shortcuts
 - **Frontend:** Vite + React 19 + TanStack Router (file routes, no SSR)
-- **Editor:** CodeMirror 6 (`@codemirror/lang-markdown`, live-styled source)
-- **Preview:** react-markdown + remark-gfm + rehype-expressive-code
+- **Editor:** TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional
+  GFM); lowlight code blocks; ⌘P raw-source textarea
 - **Effect:** Effect-TS 3.x -- typed errors, Layer/DI, services, ManagedRuntime
 - **Index queries:** Drizzle ORM `sqlite-proxy` (SELECT-only, see below)
 - **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
-- **Formatting:** oxfmt (dev tooling); remark (runtime format-on-blur)
+- **Formatting:** oxfmt (dev tooling); TipTap's markdown serializer is the
+  runtime canonical form
 - **Testing:** Vitest + happy-dom (TS), `cargo test` (Rust)
 - **Package Manager:** pnpm
 
@@ -33,8 +34,8 @@ src/
     notes.$.tsx       # THE page: editor session keyed by note path
     external.tsx      # edit a markdown file outside the notes dir
   components/
-    editor/           # CM6 wrapper, autosave hook, completions, writing modes
-    notes/            # note-header (title/tags/pin), preview, status bar
+    editor/           # TipTap wrapper, extensions, suggestions, autosave
+    notes/            # note-header (title/tags/pin), status bar
     command-palette.tsx
     settings-dialog.tsx
     capture-window.tsx
@@ -125,15 +126,24 @@ and the fix is never to widen the glob:
   ordering (`create-route-property-order`), and `perfectionist/sort-objects`
   is configured to leave `Route` option objects unsorted -- do not fight
   either rule.
-- **The editor owns its buffer.** `Editor` (CM6 wrapper) freezes all props
-  except the writing-mode toggles at mount via a `useState` initializer;
-  loading different content means remounting via `key`. Callbacks passed to it
-  must be freeze-safe: read live values through refs/stable getters, never
-  closures over render state.
+- **The editor owns its buffer.** `Editor` (TipTap wrapper) freezes all
+  props except the writing-mode toggles at mount via a `useState`
+  initializer; loading different content means remounting via `key`.
+  Callbacks passed to it must be freeze-safe: read live values through
+  refs/stable getters, never closures over render state.
+- **Body-only editing.** The editor holds the note BODY as markdown;
+  frontmatter is parsed off at load (`parseNote`) and reattached at save
+  (`composeNote`), always from the LATEST loader snapshot so pin/tag
+  toggles are never clobbered by a body save. ⌘P is a raw-source textarea
+  over the full file.
+- **Markdown round-trip contract.** `markdown-roundtrip.spec.ts` pins the
+  set of constructs that must survive file -> editor -> file. Extend it
+  when adding nodes; custom syntax uses the extension-config trio
+  `markdownTokenName`/`markdownTokenizer`/`parseMarkdown`/`renderMarkdown`
+  (see `wikilink.ts`).
 - **Editing session per note:** `notes.$.tsx` renders `<NoteEditor
 key={note.path}>` so autosave state can never leak across notes. Autosave
-  (`use-autosave.ts`) debounces 800ms; formatting runs on window blur or
-  unmount, never mid-keystroke.
+  (`use-autosave.ts`) debounces 800ms and flushes on blur/unmount.
 - **External-change reload guard:** a loader refresh replaces the buffer only
   when it is clean AND the file's mtime is newer than our own last write
   (`lastSavedAtRef`) -- a stale loader snapshot of a just-saved note must
@@ -211,10 +221,10 @@ there is no automated e2e (wdio + tauri-driver is a named follow-up).
   UI-concern code -- and never widen the boundary globs in `eslint.config.ts`.
 - Change one frontmatter parser without the other (TS + Rust must stay in
   parity, with tests).
-- Format note content while the user is typing -- format-on-blur only, and it
-  must return the original content on any error.
-- Use Prettier -- this project uses oxfmt. `oxfmt` is also a devDependency
-  only; runtime formatting is remark.
+- Add editor nodes without markdown serialization: every node must define
+  its markdown form and be covered by the round-trip spec, or externally
+  authored files can lose content.
+- Use Prettier -- this project uses oxfmt (dev tooling only).
 - Add unnecessary dependencies; run `pnpm knip` and leave it clean.
 - Reach for `as`, `!`, or `any` before exhausting proper typing.
 - Silence lint errors with config overrides (exceptions: the Shadcn

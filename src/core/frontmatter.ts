@@ -148,6 +148,15 @@ function withoutOwnKeys(rawLines: string[]) {
   });
 }
 
+/** Reassemble a full note file from raw frontmatter lines and a body. */
+export function composeNote(rawLines: string[], body: string) {
+  if (rawLines.length === 0) {
+    return body;
+  }
+
+  return `---\n${rawLines.join("\n")}\n---\n${body}`;
+}
+
 /**
  * Rewrite a note's frontmatter with new `pinned`/`tags` values, preserving
  * every unknown key. Default values (`pinned: false`, no tags) are omitted;

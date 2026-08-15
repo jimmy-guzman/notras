@@ -5,7 +5,6 @@ import type { DrizzleDb } from "@/server/db";
 
 import { Database } from "@/server/db";
 
-import { FormatServiceLive } from "./format-service";
 import { NoteServiceLive } from "./note-service";
 
 export interface AppLayerConfig {
@@ -20,11 +19,7 @@ export interface AppLayerConfig {
  * framework-free; adapters and `runtime.ts` supply the platform.
  */
 export function makeAppLayer(config: AppLayerConfig) {
-  return Layer.mergeAll(
-    NoteServiceLive,
-    FormatServiceLive,
-    config.fileStore,
-  ).pipe(
+  return Layer.mergeAll(NoteServiceLive, config.fileStore).pipe(
     Layer.provide(
       Layer.merge(Layer.succeed(Database, config.database), config.fileStore),
     ),

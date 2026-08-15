@@ -160,37 +160,159 @@
   app-region: no-drag;
 }
 
-/* CodeMirror: iA-Writer-flavored live markdown source. */
-.cm-editor {
-  height: 100%;
-  font-family: var(--font-editor);
-  font-size: 1rem;
-  line-height: 1.75;
-  background: transparent;
-}
-.cm-editor.cm-focused {
-  outline: none;
-}
-.cm-editor .cm-scroller {
-  font-family: inherit;
-  padding-block: 1.5rem;
-}
-.cm-editor .cm-content {
+/* TipTap: the editor surface. */
+.ProseMirror {
+  min-height: 100%;
   caret-color: var(--foreground);
-  max-width: 42rem;
-  margin-inline: auto;
-  padding-inline: 1.5rem;
 }
-.cm-editor .cm-line {
-  padding-inline: 0;
+.ProseMirror ::selection,
+.ProseMirror::selection {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
 }
-.cm-editor .cm-cursor {
-  border-left-color: var(--foreground);
-  border-left-width: 2px;
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  pointer-events: none;
 }
-.cm-editor .cm-selectionBackground,
-.cm-editor.cm-focused .cm-selectionBackground {
-  background: color-mix(in oklch, var(--primary) 22%, transparent) !important;
+
+/* Focus mode: dim every top-level block except the active one. */
+.focus-mode-on .ProseMirror > :not(.has-focus) {
+  opacity: 0.28;
+  transition: opacity 0.3s ease;
+}
+
+/* Task lists. */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5rem;
+}
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  user-select: none;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+
+/* Tables. */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.75rem;
+  text-align: left;
+}
+.ProseMirror th {
+  background: var(--card);
+}
+.ProseMirror .selectedCell {
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+}
+
+/* Images. */
+.ProseMirror img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: var(--radius-md);
+}
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--ring);
+}
+
+/* Wikilink pills. */
+.wikilink {
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--primary) 14%, transparent);
+  padding: 0.05em 0.35em;
+  cursor: pointer;
+}
+
+/* Suggestion menus (slash commands, wikilink completion). */
+.suggestion-menu {
+  position: absolute;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.25rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+  font-size: 0.85rem;
+}
+.suggestion-item-selected {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.suggestion-hint {
+  color: var(--muted-foreground);
+  font-family: var(--font-editor-mono);
+  font-size: 0.75em;
+}
+
+/* Code blocks (lowlight tokens on the app palette). */
+.ProseMirror pre {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  font-family: var(--font-editor-mono);
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in {
+  color: var(--chart-2);
+}
+.hljs-string,
+.hljs-attr,
+.hljs-regexp {
+  color: var(--chart-3);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-name {
+  color: var(--chart-1);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol {
+  color: var(--chart-4);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.hljs-type,
+.hljs-class,
+.hljs-section {
+  color: var(--chart-5);
 }
 
 /* Preview typography mirrors the editor's live styling (face, rhythm,
@@ -218,70 +340,4 @@
 .note-preview-prose code,
 .note-preview-prose pre {
   font-family: var(--font-editor-mono);
-}
-
-/* Live preview: blockquote lines keep a quiet bar once `> ` is hidden. */
-.cm-editor .cm-line.cm-live-quote {
-  border-left: 2px solid var(--border);
-  padding-left: 0.75rem;
-  color: var(--muted-foreground);
-}
-
-/* Live preview widgets. */
-.cm-live-bullet {
-  color: var(--muted-foreground);
-}
-.cm-live-checkbox input {
-  accent-color: var(--primary);
-  vertical-align: -0.125em;
-  cursor: pointer;
-}
-.cm-task-done {
-  color: var(--muted-foreground);
-  text-decoration: line-through;
-}
-.cm-editor .cm-line.cm-live-code {
-  background: var(--card);
-  font-family: var(--font-editor-mono);
-  font-size: 0.9em;
-  padding-inline: 0.75rem;
-}
-.cm-live-hr {
-  display: block;
-  border-top: 1px solid var(--border);
-  margin-block: 0.8em;
-}
-.cm-live-image img {
-  max-width: 100%;
-  max-height: 320px;
-  border-radius: var(--radius-md);
-  margin-block: 0.25rem;
-}
-.cm-live-image-fallback {
-  color: var(--muted-foreground);
-  font-style: italic;
-}
-.cm-live-table {
-  border-collapse: collapse;
-  margin-block: 0.5rem;
-  font-size: 0.95em;
-}
-.cm-live-table th,
-.cm-live-table td {
-  border: 1px solid var(--border);
-  padding: 0.3rem 0.75rem;
-  text-align: left;
-}
-.cm-live-table th {
-  background: var(--card);
-  font-weight: 700;
-}
-
-/* Focus mode: dim everything but the active paragraph. */
-.cm-focus-mode .cm-line {
-  transition: opacity 0.3s ease;
-  opacity: 0.28;
-}
-.cm-focus-mode .cm-line.cm-focus-active {
-  opacity: 1;
 }

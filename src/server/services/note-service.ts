@@ -16,8 +16,6 @@ import {
   NoteRepositoryLive,
 } from "@/server/repositories/note-repository";
 
-import { FormatService, FormatServiceLive } from "./format-service";
-
 interface Note {
   content: string;
   path: string;
@@ -36,8 +34,6 @@ interface INoteService {
     title?: string;
   }): Effect.Effect<string, FileError>;
   delete(path: string): Effect.Effect<void, FileError>;
-  /** Format the body on blur/note-switch; returns the formatted content. */
-  format(path: string): Effect.Effect<string, FileError>;
   getByPath(path: string): Effect.Effect<Note, FileError>;
   list(filters?: NoteFilters): Effect.Effect<NoteMeta[]>;
   listFolders(): Effect.Effect<{ count: number; folder: string }[]>;
@@ -69,7 +65,6 @@ function toNote(path: string, file: NoteFileContent): Note {
 
 const makeNoteService = Effect.gen(function* () {
   const fileStore = yield* FileStore;
-  const formatService = yield* FormatService;
   const noteRepo = yield* NoteRepository;
 
   const rewriteFrontmatter = (
@@ -118,19 +113,6 @@ const makeNoteService = Effect.gen(function* () {
 
     delete: (path) => {
       return fileStore.delete(path);
-    },
-
-    format: (path) => {
-      return Effect.gen(function* () {
-        const file = yield* fileStore.read(path);
-        const formatted = yield* formatService.formatMarkdown(file.content);
-
-        if (formatted !== file.content) {
-          yield* fileStore.write(path, formatted);
-        }
-
-        return formatted;
-      });
     },
 
     getByPath: (path) => {
@@ -210,5 +192,5 @@ const makeNoteService = Effect.gen(function* () {
 });
 
 export const NoteServiceLive = Layer.effect(NoteService, makeNoteService).pipe(
-  Layer.provide(Layer.mergeAll(NoteRepositoryLive, FormatServiceLive)),
+  Layer.provide(NoteRepositoryLive),
 );
