@@ -7,13 +7,12 @@ import {
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
-import type { NoteId, TagId } from "@/lib/id";
+import type { NoteId, TagId } from "@/core";
 import type { SelectTag } from "@/server/db/schemas/tags";
 
-import { generateTagId } from "@/lib/id";
+import { DatabaseError, generateTagId } from "@/core";
 import { Database } from "@/server/db";
 import { noteTag, tag } from "@/server/db/schemas/tags";
-import { DatabaseError } from "@/server/errors";
 
 export interface TagWithCount extends SelectTag {
   noteCount: number;

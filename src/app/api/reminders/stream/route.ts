@@ -1,7 +1,7 @@
 import { Effect, Fiber, Schedule } from "effect";
 
-import { toNoteId } from "@/lib/id";
-import { AppRuntime } from "@/server/layer";
+import { toNoteId } from "@/core";
+import { AppRuntime } from "@/server/runtime";
 import { NoteService } from "@/server/services/note-service";
 import { UserService } from "@/server/services/user-service";
 

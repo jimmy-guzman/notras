@@ -3,9 +3,9 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { toFolderId } from "@/lib/id";
+import { toFolderId } from "@/core";
 import { authActionClient } from "@/lib/safe-action";
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { folderIdSchema } from "@/server/schemas/folder-schemas";
 import { FolderService } from "@/server/services/folder-service";
 

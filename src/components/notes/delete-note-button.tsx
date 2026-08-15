@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
 import { deleteNote } from "@/actions/delete-note";
 import {

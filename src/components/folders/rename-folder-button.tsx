@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
-import type { FolderId } from "@/lib/id";
+import type { FolderId } from "@/core";
 
 import { renameFolder } from "@/actions/rename-folder";
 import { Button } from "@/components/ui/button";

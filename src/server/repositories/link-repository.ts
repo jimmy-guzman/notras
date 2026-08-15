@@ -1,12 +1,12 @@
 import { and, eq, notInArray, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
-import type { LinkId, NoteId } from "@/lib/id";
+import type { LinkId, NoteId } from "@/core";
 import type { SelectLink } from "@/server/db/schemas/links";
 
+import { DatabaseError } from "@/core";
 import { Database } from "@/server/db";
 import { link } from "@/server/db/schemas/links";
-import { DatabaseError } from "@/server/errors";
 
 interface UpsertLinkInput {
   description: null | string;

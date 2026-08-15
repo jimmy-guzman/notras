@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SelectLink } from "@/server/db/schemas/links";
 
-import { toLinkId, toNoteId } from "@/lib/id";
+import { toLinkId, toNoteId } from "@/core";
 import { render, screen } from "@/testing/utils";
 
 import { NoteLinks } from "./note-links";

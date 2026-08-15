@@ -1,10 +1,9 @@
 import { Context, Effect, Layer } from "effect";
-import { updateTag } from "next/cache";
 
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 import type { SelectLink } from "@/server/db/schemas/links";
 
-import { generateLinkId } from "@/lib/id";
+import { CacheInvalidator, generateLinkId } from "@/core";
 import {
   LinkRepository,
   LinkRepositoryLive,
@@ -54,6 +53,7 @@ export class LinkService extends Context.Tag("LinkService")<
 >() {}
 
 const makeLinkService = Effect.gen(function* () {
+  const cacheInvalidator = yield* CacheInvalidator;
   const linkRepo = yield* LinkRepository;
   const ogService = yield* OgService;
 
@@ -107,7 +107,7 @@ const makeLinkService = Effect.gen(function* () {
       );
 
       yield* linkRepo.upsertMany(inputs).pipe(Effect.orDie);
-      updateTag("notes");
+      yield* cacheInvalidator.invalidate("notes");
     });
   };
 

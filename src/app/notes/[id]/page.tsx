@@ -12,7 +12,7 @@ import { MarkdownContent } from "@/components/notes/markdown-content";
 import { NoteActions } from "@/components/notes/note-actions";
 import { NoteLinks } from "@/components/notes/note-links";
 import { NoteTags } from "@/components/notes/note-tags";
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 import { partitionAssets } from "@/lib/utils/assets";
 import { formatDateTime } from "@/lib/utils/format";
 

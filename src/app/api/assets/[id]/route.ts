@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-import { toAssetId } from "@/lib/id";
-import { AppRuntime } from "@/server/layer";
+import { toAssetId } from "@/core";
+import { AppRuntime } from "@/server/runtime";
 import { ASSET_ID_PATTERN } from "@/server/schemas/asset-schemas";
 import { AssetService } from "@/server/services/asset-service";
 import { UserService } from "@/server/services/user-service";

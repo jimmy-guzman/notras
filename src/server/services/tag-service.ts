@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { NoteId, TagId } from "@/lib/id";
+import type { NoteId, TagId } from "@/core";
 import type { SelectTag } from "@/server/db/schemas/tags";
 import type { TagWithCount } from "@/server/repositories/tag-repository";
 

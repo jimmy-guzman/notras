@@ -1,12 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
-import type { AssetId, NoteId } from "@/lib/id";
+import type { AssetId, NoteId } from "@/core";
 import type { SelectAsset } from "@/server/db/schemas/assets";
 
+import { DatabaseError } from "@/core";
 import { Database } from "@/server/db";
 import { asset } from "@/server/db/schemas/assets";
-import { DatabaseError } from "@/server/errors";
 
 export interface CreateAssetInput {
   data: Buffer;

@@ -3,9 +3,9 @@
 import { Effect, Schema } from "effect";
 import { revalidatePath, updateTag } from "next/cache";
 
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 import { authActionClient } from "@/lib/safe-action";
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { uploadAssetsSchema } from "@/server/schemas/asset-schemas";
 import { AssetService } from "@/server/services/asset-service";
 

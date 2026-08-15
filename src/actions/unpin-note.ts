@@ -3,9 +3,9 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 import { authActionClient } from "@/lib/safe-action";
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { noteIdSchema } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 

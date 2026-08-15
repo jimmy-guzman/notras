@@ -13,7 +13,7 @@ import { ActiveFiltersChip } from "@/components/notes/active-filters-chip";
 import { NotesList } from "@/components/notes/notes";
 import { NotesFilters } from "@/components/notes/notes-filters";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { toNoteId } from "@/lib/id";
+import { toNoteId } from "@/core";
 
 interface PageProps {
   searchParams: Promise<SearchParams>;

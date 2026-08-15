@@ -1,7 +1,7 @@
 "use client";
 
 import type { Asset } from "@/components/notes/assets/asset-list";
-import type { NoteId } from "@/lib/id";
+import type { NoteId } from "@/core";
 
 import { AssetList } from "@/components/notes/assets/asset-list";
 import { AssetUploader } from "@/components/notes/assets/asset-uploader";

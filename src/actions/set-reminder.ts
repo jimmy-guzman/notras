@@ -3,10 +3,9 @@
 import { Effect, Schema } from "effect";
 import { updateTag } from "next/cache";
 
-import { toNoteId } from "@/lib/id";
+import { resolvePreset, toNoteId } from "@/core";
 import { authActionClient } from "@/lib/safe-action";
-import { resolvePreset } from "@/lib/utils/reminder-presets";
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { setReminderSchema } from "@/server/schemas/reminder-schemas";
 import { NoteService } from "@/server/services/note-service";
 

@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { REMINDER_PRESET_KEYS } from "@/lib/utils/reminder-presets";
+import { REMINDER_PRESET_KEYS } from "@/core";
 import { NOTE_ID_PATTERN } from "@/server/schemas/note-schemas";
 
 export const setReminderSchema = Schema.Struct({

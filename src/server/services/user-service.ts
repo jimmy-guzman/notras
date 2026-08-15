@@ -6,7 +6,7 @@ import type {
 } from "@/server/repositories/user-repository";
 import type { Preferences } from "@/server/schemas/user-schemas";
 
-import { NotFoundError } from "@/server/errors";
+import { NotFoundError } from "@/core";
 import {
   UserRepository,
   UserRepositoryLive,

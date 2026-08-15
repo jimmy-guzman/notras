@@ -4,7 +4,7 @@ import { Effect, Schema } from "effect";
 import { revalidatePath } from "next/cache";
 
 import { authActionClient } from "@/lib/safe-action";
-import { AppRuntime } from "@/server/layer";
+import { AppRuntime } from "@/server/runtime";
 import { updateProfileSchema } from "@/server/schemas/user-schemas";
 import { UserService } from "@/server/services/user-service";
 
