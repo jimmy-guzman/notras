@@ -2,221 +2,141 @@
 
 > Just write, otra vez.
 
-A personal, single-user note-taking app that runs locally with a SQLite database. No accounts, no cloud sync -- just your notes on your machine.
+A local-first, keyboard-driven notes app for your desktop. Your notes are plain
+markdown files in a folder you own -- no accounts, no cloud, no database to
+export from. The window is the editor; everything else is a keystroke away.
+
+## Your notes are files
+
+notras stores every note as a `.md` file (default: `~/notras`). Folders are
+real directories, tags and pins are YAML frontmatter, attachments are plain
+files. That one decision buys a lot:
+
+- **any tool works** -- edit notes in vim, sync the folder with git or iCloud,
+  grep them from a terminal
+- **AI agents are first-class writers** -- point Claude Code (or any agent) at
+  the folder; when it writes a markdown file, a Rust file watcher picks it up
+  and the app refreshes within a second. The filesystem is the API.
+- **backups are `cp -r`** -- there is nothing to export
+
+Search stays fast because a derived SQLite FTS5 index lives at
+`.notras/index.db` inside the folder. It is disposable: delete it and the app
+rebuilds it from your files on the next launch.
 
 ## Features
 
-- create, edit, and delete plain-text notes
-- markdown preview with GFM support (tables, task lists, strikethrough)
-- syntax highlighting in code blocks (powered by `rehype-expressive-code`)
-- automatic "markdown" formatting on save (powered by `oxfmt`)
-- pin notes to keep them at the top
-- set reminders on notes from time presets (30 min, 1 hour, 3 hours, tomorrow, etc.)
-- full-text search across all notes (SQLite FTS5 with tokenized prefix matching)
-- filter by time period (today, yesterday, this week, this month, all time)
-- sort by newest, oldest, or recently updated
-- tag notes and filter by tag
-- organize notes into folders with drag-and-drop
-- attach images and PDFs to notes (images auto-optimized to WebP)
-- extract links from note content and display them in a sidebar
-- export notes as a zip and import from backup (merge or mirror)
-- user preferences (markdown preview, syntax highlighting)
-- keyboard shortcuts for everything
-- animated transitions
-- dark/light mode (follows system preference)
-- installable as a progressive web app (pwa) on desktop and mobile
+- editor-first window: true WYSIWYG markdown (TipTap 3) that reads and
+  writes plain `.md` -- set in iA Writer Quattro
+- autosave on idle; what lands on disk is clean, canonical markdown
+- ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
+  `#tag` filters, and every note action
+- ⌘P raw markdown source mode (the escape hatch for anything exotic)
+- wikilinks `[[note title]]` as clickable pills with autocomplete
+- slash commands: `/` inserts headings, lists, task lists, code blocks,
+  tables, quotes, dividers, today's date
+- focus mode (⌘D, dims all but the active paragraph) and typewriter scrolling
+- editable tables, clickable task checkboxes, inline images, code blocks
+  with copy + language picker -- all round-tripping through GFM markdown
+- links: ⌘⇧K to add/edit, ⌘-click to open in your browser
+- tags, pins, and folders; move notes between folders from the palette
+- drag any file in -> copied to `attachments/`, markdown link inserted
+- global quick capture: ⌘⇧N from anywhere -> jot -> esc saves to `inbox/`
+- menu-bar tray, launch at login, macOS overlay title bar
+- "Open With" any external `.md` file
+- word count + reading time; lowercase everything; dark/light via system
 
 ## Technologies
 
-### Tooling
-
-- [pnpm](https://pnpm.io)
-- [ESLint](https://eslint.org)
-- [Oxfmt](https://oxc.dev)
-- [Vitest](https://vitest.dev)
-- [Lefthook](https://github.com/evilmartians/lefthook)
-- [Knip](https://knip.dev)
-- [Playwright](https://playwright.dev)
-- [GitHub Actions](https://github.com/features/actions)
-
-### Frontend
-
-- [Next.js](https://nextjs.org) 16 (App Router, Turbopack, React Server Components)
-- [React](https://react.dev) 19
-- [Shadcn UI](https://ui.shadcn.dev)
-- [Radix UI](https://www.radix-ui.com) (headless primitives)
-- [Tailwind CSS](https://tailwindcss.com) 4
-- [React Hook Form](https://react-hook-form.com)
-- [next-safe-action](https://next-safe-action.dev) (type-safe server actions)
-- [Motion](https://motion.dev)
-- [dnd-kit](https://dndkit.com) (drag-and-drop)
-- [Sonner](https://sonner.emilkowal.ski)
-- [Lucide](https://lucide.dev)
-- [nuqs](https://nuqs.47ng.com) (URL search state)
-- [react-hotkeys-hook](https://react-hotkeys-hook.vercel.app)
-- [react-markdown](https://github.com/remarkjs/react-markdown) + [remark-gfm](https://github.com/remarkjs/remark-gfm)
-- [rehype-expressive-code](https://expressive-code.com) (syntax highlighting)
-- [@tailwindcss/typography](https://tailwindcss.com/docs/typography-plugin) (prose styles)
-- [date-fns](https://date-fns.org) (date formatting)
-
-### Backend
-
-- [SQLite](https://www.sqlite.org) via [libSQL](https://turso.tech/libsql) (`@libsql/client`)
-- [Drizzle ORM](https://orm.drizzle.team)
-- [Effect](https://effect.website) 3.x (typed errors, Layer/DI, Effect Schema, structured logging)
-- [sharp](https://sharp.pixelplumbing.com) (image optimization)
-- [fflate](https://github.com/101arrowz/fflate) (zip compression)
-- [typeid-js](https://github.com/jetpack-io/typeid-js) (typed IDs)
-- [@t3-oss/env-nextjs](https://env.t3.gg) + [Zod](https://zod.dev) 4 (env validation only)
-
----
+- [Tauri](https://tauri.app) 2 (Rust shell: file watcher, FTS5 index, tray,
+  global shortcuts)
+- [rusqlite](https://github.com/rusqlite/rusqlite) (bundled SQLite + FTS5) +
+  [notify](https://github.com/notify-rs/notify)
+- [Vite](https://vite.dev) + [React](https://react.dev) 19 +
+  [TanStack Router](https://tanstack.com/router)
+- [TipTap 3](https://tiptap.dev) + official bidirectional
+  [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown) (editor)
+- [Effect](https://effect.website) 3.x (typed errors, Layer/DI, services)
+- [Drizzle ORM](https://orm.drizzle.team) (`sqlite-proxy`, read-only queries
+  against the index)
+- [Shadcn UI](https://ui.shadcn.dev) + [Tailwind CSS](https://tailwindcss.com) 4
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    Browser
-    Next.js
-    next-safe-action
-    Effect-TS
-    Drizzle["Drizzle ORM"]
-    SQLite
+    subgraph webview [Tauri webview]
+        UI[React + TanStack Router] --> Data[src/data async fns]
+        Data --> Services[Effect services]
+        Services --> FileStore[FileStore port]
+        Services --> Index[Database port -- read-only]
+    end
 
-    Browser --> Next.js --> next-safe-action --> Effect-TS --> Drizzle --> SQLite
+    subgraph rust [Rust: single writer of the index]
+        Commands[note IO commands] --> Files[(~/notras/**/*.md)]
+        Commands --> IndexDb[(.notras/index.db FTS5)]
+        Watcher[notify watcher] --> IndexDb
+        Files -.external edits.-> Watcher
+    end
 
-    Effect-TS --> sharp
-    Effect-TS --> OG["Open Graph"]
+    FileStore --> Commands
+    Index --> IndexDb
+    Agents[any editor / git / AI agent] -.write .md.-> Files
+    Watcher -. notes-changed event .-> UI
 ```
 
----
-
-## Docker
-
-Build and run with Docker:
-
-```bash
-docker build -t notras .
-docker run -p 3000:3000 -v ~/notras-data:/app/data notras
-```
-
-Open [http://localhost:3000](http://localhost:3000). Notes are persisted in `~/notras-data/notras.db` on the host.
-
-The `DATABASE_PATH` environment variable can be overridden at runtime:
-
-```bash
-docker run -p 3000:3000 \
-  -v ~/notras-data:/app/data \
-  -e DATABASE_PATH=file:./data/notras.db \
-  notras
-```
-
----
-
-## API
-
-Binary and streaming endpoints are plain Next.js Route Handlers under `src/app/api/`. All data mutations use `next-safe-action` server actions; reads are plain `async` functions called from RSCs.
-
-| Endpoint                    | Description                       |
-| --------------------------- | --------------------------------- |
-| `GET /api/assets/:id`       | serve a stored asset file         |
-| `GET /api/export`           | download a zip export of all data |
-| `GET /api/reminders/stream` | SSE stream of due reminder events |
-
----
+Files are the source of truth. TypeScript never writes SQL -- every mutation
+is a Rust command that writes the file and updates the index atomically;
+external writes are reconciled by the watcher and pushed to the UI as
+`notes-changed` events.
 
 ## Getting Started
 
-This project uses [pnpm](https://pnpm.io), so please [install](https://pnpm.io/installation) it first by running:
+You need [pnpm](https://pnpm.io) and a
+[Rust toolchain](https://www.rust-lang.org/tools/install):
 
 ```bash
 corepack enable
 corepack prepare pnpm@latest --activate
-```
-
-Then install dependencies:
-
-```bash
 pnpm install
 ```
 
----
-
-### Database
-
-The app uses a local SQLite database via libSQL. No external database setup is needed -- the database file is created automatically at `data/notras.db` on first run.
-
-A single "device" user is auto-seeded on first run. All browsers on the same machine share the same notes.
-
-Search indexing is managed automatically at runtime with SQLite FTS5 (`note_fts` + triggers). On startup, the app ensures index objects exist and rebuilds the index safely.
-
-Search behavior uses normalized prefix terms joined with `AND` (for example, `overclock re` -> `overclock* AND re*`), ranks matches with `bm25`, and returns contextual snippets for list previews.
-
----
-
-### Environment Variables
-
-Optionally, copy the example env file:
+Run the app:
 
 ```bash
-cp .env.example .env
-```
-
-The only environment variable is `DATABASE_PATH`, which defaults to `file:./data/notras.db` if not set:
-
-```dotenv
-# Database path (libSQL/SQLite URL)
-# Defaults to file:./data/notras.db if not set
-# DATABASE_PATH=file:./data/notras.db
-```
-
----
-
-### Running
-
-Push the database schema and start the dev server:
-
-```bash
-pnpm db:push
 pnpm dev
 ```
 
----
+On first launch notras creates `~/notras` and seeds the index. Change the
+folder any time in settings (⌘,).
 
 ## Scripts
 
-| Script            | Description                     |
-| ----------------- | ------------------------------- |
-| `pnpm dev`        | start dev server (Turbopack)    |
-| `pnpm build`      | production build                |
-| `pnpm start`      | start production server         |
-| `pnpm clean`      | clean build artifacts           |
-| `pnpm lint`       | lint (ESLint, cached)           |
-| `pnpm lint:fix`   | lint and auto-fix               |
-| `pnpm format`     | check formatting (oxfmt)        |
-| `pnpm format:fix` | fix formatting                  |
-| `pnpm typecheck`  | type check (tsc)                |
-| `pnpm test`       | run tests (Vitest)              |
-| `pnpm coverage`   | tests with coverage             |
-| `pnpm knip`       | detect unused code/deps         |
-| `pnpm e2e`        | run e2e tests (Playwright)      |
-| `pnpm e2e:ui`     | run e2e tests with UI           |
-| `pnpm db:push`    | push schema changes to database |
-| `pnpm db:studio`  | open Drizzle Studio             |
+| Script            | Description                       |
+| ----------------- | --------------------------------- |
+| `pnpm dev`        | run the desktop app (`tauri dev`) |
+| `pnpm build`      | build the desktop bundle          |
+| `pnpm dev:web`    | run only the web shell (Vite)     |
+| `pnpm build:web`  | build only the web shell          |
+| `pnpm lint`       | lint (ESLint, cached)             |
+| `pnpm lint:fix`   | lint and auto-fix                 |
+| `pnpm format`     | check formatting (oxfmt)          |
+| `pnpm format:fix` | fix formatting                    |
+| `pnpm typecheck`  | type check (tsc)                  |
+| `pnpm test`       | run tests (Vitest)                |
+| `pnpm coverage`   | tests with coverage               |
+| `pnpm knip`       | detect unused code/deps           |
+
+Rust tests live in `src-tauri`: `cargo test`.
 
 ## Keyboard Shortcuts
 
-| Key         | Context     | Action         |
-| ----------- | ----------- | -------------- |
-| `?`         | global      | view shortcuts |
-| `h`         | global      | go home        |
-| `n`         | global      | new note       |
-| `a`         | global      | all notes      |
-| `s`         | global      | settings       |
-| `/`         | global      | focus search   |
-| `e`         | note detail | edit note      |
-| `p`         | note detail | toggle pin     |
-| `r`         | note detail | reminder       |
-| `d`         | note detail | delete note    |
-| `c`         | note detail | copy content   |
-| `Cmd+Enter` | form        | submit         |
-| `Escape`    | form        | cancel         |
+| Shortcut | Action                          |
+| -------- | ------------------------------- |
+| `⌘K`     | command palette (search + acts) |
+| `⌘N`     | new note                        |
+| `⌘P`     | toggle raw markdown source      |
+| `⌘D`     | toggle focus mode               |
+| `⌘⇧K`    | add / edit link                 |
+| `⌘,`     | settings                        |
+| `⌘⇧N`    | global quick capture            |
+| `esc`    | (capture window) save + hide    |

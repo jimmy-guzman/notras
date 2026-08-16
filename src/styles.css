@@ -1,0 +1,485 @@
+@import "@fontsource-variable/dm-sans";
+@import "@fontsource/geist-mono";
+@import "@fontsource/ia-writer-quattro";
+@import "@fontsource/ia-writer-quattro/400-italic.css";
+@import "@fontsource/ia-writer-quattro/700.css";
+@import "@fontsource/ia-writer-mono";
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-editor:
+    "iA Writer Quattro", "DM Sans Variable", ui-sans-serif, sans-serif;
+  --font-editor-mono: "iA Writer Mono", "Geist Mono", ui-monospace, monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  --background: oklch(0.147 0.004 49.25);
+  --foreground: oklch(0.985 0.001 106.423);
+  --card: oklch(0.216 0.006 56.043);
+  --card-foreground: oklch(0.985 0.001 106.423);
+  --popover: oklch(0.216 0.006 56.043);
+  --popover-foreground: oklch(0.985 0.001 106.423);
+  --primary: oklch(0.923 0.003 48.717);
+  --primary-foreground: oklch(0.216 0.006 56.043);
+  --secondary: oklch(0.268 0.007 34.298);
+  --secondary-foreground: oklch(0.985 0.001 106.423);
+  --muted: oklch(0.268 0.007 34.298);
+  --muted-foreground: oklch(0.709 0.01 56.259);
+  --accent: oklch(0.268 0.007 34.298);
+  --accent-foreground: oklch(0.985 0.001 106.423);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.553 0.013 58.071);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --radius: 0.875rem;
+  --sidebar: oklch(0.216 0.006 56.043);
+  --sidebar-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-accent: oklch(0.268 0.007 34.298);
+  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.553 0.013 58.071);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.147 0.004 49.25);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.147 0.004 49.25);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.147 0.004 49.25);
+    --primary: oklch(0.216 0.006 56.043);
+    --primary-foreground: oklch(0.985 0.001 106.423);
+    --secondary: oklch(0.97 0.001 106.424);
+    --secondary-foreground: oklch(0.216 0.006 56.043);
+    --muted: oklch(0.97 0.001 106.424);
+    --muted-foreground: oklch(0.553 0.013 58.071);
+    --accent: oklch(0.97 0.001 106.424);
+    --accent-foreground: oklch(0.216 0.006 56.043);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.923 0.003 48.717);
+    --input: oklch(0.923 0.003 48.717);
+    --ring: oklch(0.709 0.01 56.259);
+    --chart-1: oklch(0.646 0.222 41.116);
+    --chart-2: oklch(0.6 0.118 184.704);
+    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-4: oklch(0.828 0.189 84.429);
+    --chart-5: oklch(0.769 0.188 70.08);
+    --sidebar: oklch(0.985 0.001 106.423);
+    --sidebar-foreground: oklch(0.147 0.004 49.25);
+    --sidebar-primary: oklch(0.216 0.006 56.043);
+    --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
+    --sidebar-accent: oklch(0.97 0.001 106.424);
+    --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
+    --sidebar-border: oklch(0.923 0.003 48.717);
+    --sidebar-ring: oklch(0.709 0.01 56.259);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* The whole window is chrome-less; text selection outside the editor
+     reads as web-page, not app. */
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .allow-select {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+/* macOS overlay title bar: an invisible strip that drags the window. */
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.titlebar-drag-region button,
+.titlebar-drag-region input {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* TipTap: the editor surface. */
+.ProseMirror {
+  min-height: 100%;
+  caret-color: var(--foreground);
+}
+.ProseMirror ::selection,
+.ProseMirror::selection {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Focus mode: dim every top-level block except the active one. */
+.focus-mode-on .ProseMirror > :not(.has-focus) {
+  opacity: 0.28;
+  transition: opacity 0.3s ease;
+}
+
+/* Task lists (recipe proven in scratch: flex rows, zero p margins,
+   hand-drawn checkboxes locked to the first text line). */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin-block: 0.5em;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+  padding-block: 0.125em;
+}
+.ProseMirror ul[data-type="taskList"] li > label {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 1.75em;
+  user-select: none;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border: 1.5px solid color-mix(in oklch, var(--foreground) 25%, transparent);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--primary-foreground);
+  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
+    center / 70% no-repeat;
+}
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-block: 0.2em 0;
+}
+
+/* Regular lists get the same paragraph-margin taming. */
+.ProseMirror li > p {
+  margin-block: 0;
+}
+
+/* Tables. */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.75rem;
+  text-align: left;
+}
+.ProseMirror th {
+  background: var(--card);
+}
+.ProseMirror .selectedCell {
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+}
+
+/* Images. */
+.ProseMirror img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: var(--radius-md);
+}
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--ring);
+}
+
+/* Wikilinks: subtle dashed underline, distinct from external links. */
+.wikilink {
+  font-weight: 500;
+  border-bottom: 1px dashed currentcolor;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.wikilink:hover {
+  color: var(--muted-foreground);
+}
+
+/* Suggestion menus (slash commands, wikilink completion). */
+.suggestion-menu {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.25rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+  font-size: 0.85rem;
+}
+.suggestion-item-selected {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.suggestion-hint {
+  color: var(--muted-foreground);
+  font-family: var(--font-editor-mono);
+  font-size: 0.75em;
+}
+
+/* Source mode: the whole file as one bare, highlighted code block. */
+.source-editor .ProseMirror pre {
+  background: transparent;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-editor-mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Code blocks (lowlight tokens on the app palette). */
+.ProseMirror pre {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  font-family: var(--font-editor-mono);
+}
+.code-block-wrapper {
+  position: relative;
+}
+.code-block-toolbar {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.code-block-wrapper:hover .code-block-toolbar,
+.code-block-wrapper:focus-within .code-block-toolbar {
+  opacity: 1;
+}
+.code-block-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.5rem;
+  padding-inline: 0.4rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.code-block-button:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+.code-block-language {
+  appearance: none;
+  height: 1.5rem;
+  padding-inline: 0.4rem;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  cursor: pointer;
+  outline: none;
+}
+.code-block-language:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+/* Link editor popover (⌘⇧K). */
+.link-editor {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.link-editor-input {
+  width: 14rem;
+  height: 1.75rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  font-size: 0.8rem;
+  outline: none;
+}
+.link-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in {
+  color: var(--chart-2);
+}
+.hljs-string,
+.hljs-attr,
+.hljs-regexp {
+  color: var(--chart-3);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-name {
+  color: var(--chart-1);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol {
+  color: var(--chart-4);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.hljs-type,
+.hljs-class,
+.hljs-section {
+  color: var(--chart-5);
+}
+
+/* Preview typography mirrors the editor's live styling (face, rhythm and
+   heading scale from src/components/editor/editor.tsx) so toggling ⌘P never
+   makes the text visually teleport. */
+.note-preview-prose {
+  font-family: var(--font-editor);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+.note-preview-prose h1 {
+  font-size: 1.6em;
+}
+.note-preview-prose h2 {
+  font-size: 1.35em;
+}
+.note-preview-prose h3 {
+  font-size: 1.15em;
+}
+.note-preview-prose h4,
+.note-preview-prose h5,
+.note-preview-prose h6 {
+  font-size: 1em;
+}
+.note-preview-prose code,
+.note-preview-prose pre {
+  font-family: var(--font-editor-mono);
+}

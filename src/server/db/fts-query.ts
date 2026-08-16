@@ -1,7 +1,7 @@
 import { asc, desc, sql } from "drizzle-orm";
 
 import { SNIPPET_END, SNIPPET_START } from "@/core";
-import { note } from "@/server/db/schemas/notes";
+import { note } from "@/server/db/schema";
 
 export function buildFtsMatchQuery(query: string | undefined) {
   if (query === undefined) {
@@ -36,7 +36,7 @@ function getSearchRankExpression(matchQuery: string) {
   return sql<number>`(
     SELECT bm25(note_fts)
     FROM note_fts
-    WHERE note_fts.rowid = note.rowid
+    WHERE note_fts.path = note.path
       AND note_fts MATCH ${matchQuery}
   )`;
 }
@@ -49,14 +49,14 @@ export function getSnippetExpression(matchQuery: string | undefined) {
   return sql<string>`(
     SELECT snippet(
       note_fts,
-      0,
+      2,
       ${SNIPPET_START},
       ${SNIPPET_END},
       '...',
       24
     )
     FROM note_fts
-    WHERE note_fts.rowid = note.rowid
+    WHERE note_fts.path = note.path
       AND note_fts MATCH ${matchQuery}
   )`;
 }
@@ -64,5 +64,18 @@ export function getSnippetExpression(matchQuery: string | undefined) {
 export function getSearchOrderBy(matchQuery: string) {
   const rank = getSearchRankExpression(matchQuery);
 
-  return [asc(rank), desc(note.createdAt), asc(note.id)];
+  return [asc(rank), desc(note.updatedAt), asc(note.path)];
+}
+
+export function getFtsMatchFilter(matchQuery: string) {
+  return sql`note.path IN (
+    SELECT note_fts.path FROM note_fts WHERE note_fts MATCH ${matchQuery}
+  )`;
+}
+
+/** Notes carrying a tag. Lives here so every raw note-table filter is in one place. */
+export function getTagFilter(tag: string) {
+  return sql`note.path IN (
+    SELECT note_tag.path FROM note_tag WHERE note_tag.tag = ${tag}
+  )`;
 }

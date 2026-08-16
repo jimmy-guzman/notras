@@ -1,73 +1,16 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
-import { Context, Effect, Layer } from "effect";
+import type { SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 
-import { DatabaseError } from "@/core";
+import { Context } from "effect";
 
-import { ensureFts } from "./fts";
-import * as assets from "./schemas/assets";
-import * as folders from "./schemas/folders";
-import * as links from "./schemas/links";
-import * as notes from "./schemas/notes";
-import * as tags from "./schemas/tags";
-import * as users from "./schemas/users";
+import * as tables from "./schema";
 
-const schema = {
-  ...users,
-  ...folders,
-  ...notes,
-  ...assets,
-  ...links,
-  ...tags,
-};
+export const schema = tables;
 
-type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
-
-export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
-
-export interface DatabaseConfig {
-  /** libSQL connection URL, e.g. `file:/abs/path/notras.db`. */
-  url: string;
-}
+export type DrizzleDb = SqliteRemoteDatabase<typeof schema>;
 
 /**
- * Build the `Database` layer for a given connection. The URL is injected rather
- * than read from the environment so this module stays free of any framework's
- * env handling.
+ * Read-only handle on the derived search index. The concrete driver is
+ * injected by an adapter (Tauri in the app, an in-memory stub in tests) so
+ * this module stays free of any platform APIs.
  */
-export function makeDatabaseLayer(config: DatabaseConfig) {
-  return Layer.scoped(
-    Database,
-    Effect.acquireRelease(
-      Effect.tryPromise({
-        catch: (cause) => {
-          return new DatabaseError({ cause });
-        },
-        try: async () => {
-          const client = createClient({ url: config.url });
-
-          try {
-            await ensureFts(client);
-          } catch (error) {
-            // acquireRelease only runs its release on success, so anything that
-            // fails after createClient has to close the client itself.
-            client.close();
-
-            throw error;
-          }
-
-          return { client, db: drizzle(client, { schema }) };
-        },
-      }),
-      ({ client }) => {
-        return Effect.sync(() => {
-          client.close();
-        });
-      },
-    ).pipe(
-      Effect.map(({ db }) => {
-        return db;
-      }),
-    ),
-  );
-}
+export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}

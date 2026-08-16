@@ -3,7 +3,7 @@
   "arrowParens": "always",
   "jsxSingleQuote": false,
   "experimentalTailwindcss": {
-    "stylesheet": "./src/app/globals.css"
+    "stylesheet": "./src/styles.css"
   },
   "printWidth": 80,
   "quoteProps": "consistent",

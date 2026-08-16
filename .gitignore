@@ -2,19 +2,12 @@
 
 # dependencies
 /node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
+
+# build output
+/dist
 
 # testing
 /coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
 
 # misc
 .DS_Store
@@ -29,24 +22,14 @@ yarn-error.log*
 .env*
 !.env.example
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
-# sqlite
+# legacy web-era local databases (kept for potential migration)
 data/*.db*
-
-# playwright
-/test-results/
-/playwright-report/
-/blob-report/
 
 # eslint
 .eslintcache
 
 # worktrees
 /.worktrees
-

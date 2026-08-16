@@ -13,7 +13,7 @@
         "stage_fixed": true
       },
       "3_knip": {
-        "run": "SKIP_ENV_VALIDATION=1 pnpm exec knip"
+        "run": "pnpm exec knip"
       }
     }
   }
