@@ -89,13 +89,82 @@ const MarkdownLinkInputRule = Extension.create({
   name: "markdownLinkInputRule",
 });
 
+const FENCE = /^\s*(`{3,}|~{3,})/;
+
+function scrubEntities(text: string) {
+  return text.replaceAll(/&nbsp;|&#160;/g, " ");
+}
+
+/**
+ * Scrub one line's prose, leaving backtick code spans verbatim -- inside a
+ * span the entity is content the user typed, not something we generated.
+ */
+function scrubLine(line: string) {
+  let out = "";
+  let index = 0;
+
+  while (index < line.length) {
+    const tick = line.indexOf("`", index);
+
+    if (tick === -1) {
+      return out + scrubEntities(line.slice(index));
+    }
+
+    out += scrubEntities(line.slice(index, tick));
+
+    const run = /^`+/.exec(line.slice(tick))?.[0] ?? "`";
+    const close = line.indexOf(run, tick + run.length);
+
+    if (close === -1) {
+      return out + scrubEntities(line.slice(tick));
+    }
+
+    out += line.slice(tick, close + run.length);
+    index = close + run.length;
+  }
+
+  return out;
+}
+
 /**
  * Scrub the `&nbsp;` entities TipTap leaks (table cells, blank paragraphs).
  * Every markdown string that could reach a file -- or be compared against one
  * -- goes through here, so the two sides always agree.
+ *
+ * Code is left alone: the serializer only emits the entity in prose, so inside
+ * a fence or a code span it is the author's literal text and rewriting it
+ * would silently edit the file. (Raw HTML needs no such guard -- the schema
+ * has no HTML node, so none survives to here.)
  */
 export function normalizeMarkdown(markdown: string) {
-  return markdown.replaceAll(/&nbsp;|&#160;/g, " ");
+  let fence: null | string = null;
+
+  return markdown
+    .split("\n")
+    .map((line) => {
+      const marker = FENCE.exec(line)?.[1];
+
+      if (fence !== null) {
+        if (
+          marker !== undefined &&
+          marker.startsWith(fence.charAt(0)) &&
+          marker.length >= fence.length
+        ) {
+          fence = null;
+        }
+
+        return line;
+      }
+
+      if (marker !== undefined) {
+        fence = marker;
+
+        return line;
+      }
+
+      return scrubLine(line);
+    })
+    .join("\n");
 }
 
 /** Serialize the editor to markdown for the file on disk. */

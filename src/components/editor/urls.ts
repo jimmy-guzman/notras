@@ -13,13 +13,28 @@ const SAFE_SCHEMES = new Set([
   "tel",
 ]);
 
-/** The scheme of a URL, or null when it carries none. */
+/**
+ * The scheme of a URL, or null when it carries none.
+ *
+ * The platform parser is the authority here: it strips the leading blanks and
+ * embedded tabs/newlines a browser would strip, so `java&Tab;script:` cannot
+ * sneak past as schemeless the way a hand-rolled regex lets it.
+ */
 function schemeOf(url: string) {
-  // No `.` in the class: `example.com:8080/path` is a host with a port, not a
-  // scheme, and must still get the https:// prefix.
-  const match = /^([a-z][\d+a-z-]*):/i.exec(url);
+  let protocol: string;
 
-  return match?.[1]?.toLowerCase() ?? null;
+  try {
+    protocol = new URL(url).protocol;
+  } catch {
+    return null;
+  }
+
+  const scheme = protocol.slice(0, -1).toLowerCase();
+
+  // A dotted "scheme" is really a host with a port -- `example.com:8080/path`
+  // parses as protocol `example.com:`, and still wants an https:// prefix.
+  // No dangerous scheme contains a dot, so this cannot open a hole.
+  return scheme.includes(".") ? null : scheme;
 }
 
 /** True when a href may be handed to the browser / system opener. */

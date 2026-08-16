@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::Ordering;
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
@@ -288,4 +289,11 @@ pub fn pending_open_files(state: State<'_, AppState>) -> Vec<String> {
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+/// Called instead of `quit_app` when a buffer could not be written: quitting
+/// would throw the user's text away, so the exit is called off.
+#[tauri::command]
+pub fn cancel_quit(state: State<'_, AppState>) {
+    state.quitting.store(false, Ordering::SeqCst);
 }

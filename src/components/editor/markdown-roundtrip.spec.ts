@@ -77,4 +77,13 @@ describe("markdown round-trip", () => {
     expect(output).not.toContain("&nbsp;");
     expect(output).not.toContain("&#160;");
   });
+
+  it("should keep nbsp entities that are the author's code, not ours", () => {
+    expect(roundtrip("use `&nbsp;` for a hard space")).toBe(
+      "use `&nbsp;` for a hard space",
+    );
+    expect(roundtrip("```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```")).toBe(
+      "```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```",
+    );
+  });
 });

@@ -65,10 +65,20 @@ function RootLayout() {
     // something in it, so draining is the single delivery mechanism.
     const drainPendingOpens = async () => {
       const paths = await invoke<string[]>("pending_open_files");
-      const [first] = paths;
+      const [first, ...rest] = paths;
 
-      if (first !== undefined) {
-        await navigate({ search: { path: first }, to: "/external" });
+      if (first === undefined) {
+        return;
+      }
+
+      await navigate({ search: { path: first }, to: "/external" });
+
+      // The queue is drained destructively and there is one window to show a
+      // file in, so say what was left behind rather than dropping it silently.
+      if (rest.length > 0) {
+        toast.warning(
+          `opened 1 file; ${rest.length} more were not opened -- notras shows one at a time`,
+        );
       }
     };
 
@@ -101,12 +111,25 @@ function RootLayout() {
     };
   }, [navigate]);
 
-  // Quit is held open by Rust until the buffers are on disk.
+  // Quit is held open by Rust until the buffers are on disk -- and called off
+  // entirely if one of them could not be written.
   useEffect(() => {
     const unlisten = listen("app-quit", () => {
-      void flushPendingWrites().finally(() => {
-        return invoke("quit_app");
-      });
+      void flushPendingWrites()
+        .then((saved) => {
+          if (saved) {
+            return invoke("quit_app");
+          }
+
+          toast.error("could not save your changes -- quit cancelled");
+
+          return invoke("cancel_quit");
+        })
+        .catch(() => {
+          toast.error("could not save your changes -- quit cancelled");
+
+          return invoke("cancel_quit");
+        });
     });
 
     return () => {

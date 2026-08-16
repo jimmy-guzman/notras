@@ -13,6 +13,14 @@ describe("isSafeUrl", () => {
     expect(isSafeUrl("data:text/html;base64,PHNjcmlwdD4=")).toBe(false);
     expect(isSafeUrl("vbscript:msgbox(1)")).toBe(false);
   });
+
+  it("should reject unsafe schemes hidden behind blanks a browser strips", () => {
+    expect(isSafeUrl("   javascript:alert(1)")).toBe(false);
+    expect(isSafeUrl("\u0001javascript:alert(1)")).toBe(false);
+    expect(isSafeUrl("java\tscript:alert(1)")).toBe(false);
+    expect(isSafeUrl("java\nscript:alert(1)")).toBe(false);
+    expect(normalizeUrl("  javascript:alert(1)")).toBeNull();
+  });
 });
 
 describe("normalizeUrl", () => {

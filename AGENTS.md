@@ -199,6 +199,10 @@ there is no automated e2e (wdio + tauri-driver is a named follow-up).
 - Components use Shadcn primitives from `@/components/ui/` (add via
   `pnpm dlx shadcn@latest add <component>`; never hand-edit generated files --
   fix non-autofixable lint via the `**/components/ui/**` override block).
+  One documented exception: `command.tsx` moves the sr-only `DialogHeader`
+  inside `DialogContent`. Radix portals the content, so upstream's placement
+  leaves `aria-labelledby` pointing outside the dialog. Re-apply it if you
+  ever re-add the component.
 - `cn()` from `@/lib/ui/utils` for conditional Tailwind classes.
 - Icons from `lucide-react`, always the `Icon`-suffixed export.
 - Effect Schema (not zod) for validation, in `src/server/schemas/`.

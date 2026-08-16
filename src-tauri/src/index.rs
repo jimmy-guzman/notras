@@ -99,10 +99,16 @@ pub fn index_file(
 ) -> rusqlite::Result<bool> {
     let abs = notes_dir.join(rel_path);
 
-    let Ok(meta) = fs::metadata(&abs) else {
+    // `symlink_metadata` does not follow the link, so a note symlinked to
+    // something outside the vault never gets its contents into the index.
+    let Ok(meta) = fs::symlink_metadata(&abs) else {
         remove(conn, rel_path)?;
         return Ok(true);
     };
+    if !meta.is_file() {
+        remove(conn, rel_path)?;
+        return Ok(true);
+    }
 
     let updated_at = timestamp_millis(meta.modified()).unwrap_or_default();
     let stored: Option<i64> = conn
@@ -343,6 +349,30 @@ mod tests {
         fs::remove_file(dir.join("ideas.md")).unwrap();
         let changed = scan_all(&conn, &dir).unwrap();
         assert_eq!(changed, vec!["ideas.md".to_string()]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn does_not_index_symlinked_notes() {
+        let dir = temp_notes_dir("symlink");
+        fs::write(dir.join("real.md"), "real note\n").unwrap();
+        std::os::unix::fs::symlink("/etc/hosts", dir.join("linked.md")).unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        let rows = select(&conn, "SELECT path FROM note ORDER BY path", &[]).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0][0], json!("real.md"));
+
+        // Even asked for directly, a symlink never lands a row.
+        index_file(&conn, &dir, "linked.md").unwrap();
+        let rows = select(&conn, "SELECT path FROM note WHERE path = ?1", &[json!("linked.md")])
+            .unwrap();
+        assert!(rows.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }

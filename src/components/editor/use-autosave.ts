@@ -29,12 +29,14 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     onSavedRef.current = options?.onSaved;
   });
 
+  // Resolves to whether the buffer is safely on disk: true when there was
+  // nothing to write or the write landed, false only on a failed write.
   const writeOnce = useCallback(async () => {
     clearTimeout(timerRef.current);
     const content = pendingRef.current;
 
     if (content === null) {
-      return false;
+      return true;
     }
 
     pendingRef.current = null;
@@ -61,6 +63,8 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
   }, []);
 
   /**
+   * Flush the buffer, resolving to whether nothing is left unsaved.
+   *
    * Saves are serialized on one chain. The debounce timer, the blur handler
    * and the unmount cleanup can all fire while a write is in flight, and two
    * overlapping writes could land out of order -- an older buffer last.

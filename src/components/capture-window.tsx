@@ -23,12 +23,21 @@ const HOTKEY_OPTIONS = {
  */
 export function CaptureWindow() {
   const editorRef = useRef<EditorHandle | null>(null);
+  const savingRef = useRef(false);
   const [session, setSession] = useState(0);
 
   const saveAndHide = async () => {
+    // Esc and ⌘⏎ both land here, and a fast double press would otherwise
+    // write the jot twice (the timestamp title collides and dedupes to -2).
+    if (savingRef.current) {
+      return;
+    }
+
     const content = editorRef.current?.getContent() ?? "";
 
     if (content.trim() !== "") {
+      savingRef.current = true;
+
       try {
         await createNote({
           content,
@@ -42,6 +51,8 @@ export function CaptureWindow() {
         );
 
         return;
+      } finally {
+        savingRef.current = false;
       }
     }
 

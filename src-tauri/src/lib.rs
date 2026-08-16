@@ -182,6 +182,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             notes::attach_file,
             notes::attach_image,
+            notes::cancel_quit,
             notes::db_select,
             notes::delete_note,
             notes::get_notes_dir,
@@ -220,10 +221,15 @@ pub fn run() {
             api.prevent_exit();
             let _ = app.emit("app-quit", ());
 
+            // Backstop for a webview that never answers. It re-checks the flag
+            // so a quit the frontend called off (a write failed, and exiting
+            // would lose the buffer) is not killed a moment later anyway.
             let fallback = app.clone();
             std::thread::spawn(move || {
-                std::thread::sleep(Duration::from_millis(1500));
-                fallback.exit(0);
+                std::thread::sleep(Duration::from_secs(5));
+                if fallback.state::<AppState>().quitting.load(Ordering::SeqCst) {
+                    fallback.exit(0);
+                }
             });
         }
         #[cfg(target_os = "macos")]

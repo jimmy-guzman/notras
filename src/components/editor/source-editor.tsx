@@ -37,14 +37,19 @@ const TabIndent = Extension.create({
     return {
       "Shift-Tab": () => {
         const { $from } = this.editor.state.selection;
-        const lineStart = $from.pos - $from.parentOffset;
-        const ahead = this.editor.state.doc.textBetween(
-          lineStart,
-          lineStart + INDENT.length,
-        );
+        // The whole file is one code block, so parentOffset is an offset into
+        // the entire document -- the current line starts after the last
+        // newline before the caret, not at the start of the parent.
+        const offset = $from.parentOffset;
+        const text = $from.parent.textContent;
+        const lineBreak =
+          offset === 0 ? -1 : text.lastIndexOf("\n", offset - 1);
+        const lineStart = $from.start() + lineBreak + 1;
 
         // Nothing to outdent -- let the browser move focus instead.
-        if (ahead !== INDENT) {
+        if (
+          text.slice(lineBreak + 1, lineBreak + 1 + INDENT.length) !== INDENT
+        ) {
           return false;
         }
 

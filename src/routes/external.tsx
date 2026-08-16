@@ -40,6 +40,9 @@ function ExternalPage() {
     frontmatterRef.current = parsed.rawLines;
   });
 
+  // Tracked so the quit handshake can tell a failed write from a quiet one.
+  const saveFailedRef = useRef(false);
+
   const save = useDebouncedCallback(
     async (body: string) => {
       try {
@@ -47,8 +50,10 @@ function ExternalPage() {
           path,
           composeNote(frontmatterRef.current, body),
         );
+        saveFailedRef.current = false;
         setStatus("saved");
       } catch (error) {
+        saveFailedRef.current = true;
         toast.error(error instanceof Error ? error.message : "save failed");
       }
     },
@@ -59,7 +64,9 @@ function ExternalPage() {
   // Quit waits for this the same way it waits for note autosave.
   useEffect(() => {
     return registerPendingFlush(async () => {
-      return save.flush();
+      await save.flush();
+
+      return !saveFailedRef.current;
     });
   }, [save]);
 
