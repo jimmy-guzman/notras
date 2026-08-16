@@ -130,6 +130,7 @@ Rust tests live in `src-tauri`: `cargo test`.
 | `⌘P`     | toggle raw markdown source      |
 | `⌘D`     | toggle focus mode               |
 | `⌘⇧K`    | add / edit link                 |
+| `⌘⇧T`    | edit tags                       |
 | `⌘,`     | settings                        |
 | `⌘⇧N`    | global quick capture            |
 | `esc`    | (capture window) save + hide    |

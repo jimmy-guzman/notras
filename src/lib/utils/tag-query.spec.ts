@@ -35,6 +35,27 @@ describe("parseTagQuery", () => {
     });
   });
 
+  it("should end the tag token on a tab", () => {
+    expect(parseTagQuery("#work\tbudget")).toStrictEqual({
+      query: "budget",
+      tag: "work",
+    });
+  });
+
+  it("should end the tag token on a newline", () => {
+    expect(parseTagQuery("#work\nbudget")).toStrictEqual({
+      query: "budget",
+      tag: "work",
+    });
+  });
+
+  it("should collapse a run of mixed whitespace", () => {
+    expect(parseTagQuery("#work \t q3 budget")).toStrictEqual({
+      query: "q3 budget",
+      tag: "work",
+    });
+  });
+
   it("should treat a trailing space as an empty query", () => {
     expect(parseTagQuery("#work ")).toStrictEqual({ query: "", tag: "work" });
   });

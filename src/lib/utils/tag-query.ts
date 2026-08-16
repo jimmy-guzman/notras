@@ -5,6 +5,9 @@ export interface TagQuery {
   tag: string;
 }
 
+/** Any whitespace ends the tag token: a pasted tab reaches a text input intact. */
+const TOKEN_SEPARATOR = /\s+/;
+
 /**
  * Split a palette query on its leading `#` tag token.
  *
@@ -18,7 +21,7 @@ export function parseTagQuery(input: string): TagQuery | undefined {
     return undefined;
   }
 
-  const [token = "", ...rest] = trimmed.slice(1).split(" ");
+  const [token = "", ...rest] = trimmed.slice(1).split(TOKEN_SEPARATOR);
 
   return { query: rest.join(" ").trim(), tag: token.toLowerCase() };
 }

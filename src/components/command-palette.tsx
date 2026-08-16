@@ -145,7 +145,10 @@ export function CommandPalette({
   const [results, setResults] = useState<NoteMeta[] | null>(null);
 
   // Only the newest search may write results: two in-flight queries can
-  // resolve out of order, and a slow "a" must not overwrite "abc".
+  // resolve out of order, and a slow "a" must not overwrite "abc". The counter
+  // advances when the input changes rather than when the debounced call fires,
+  // so a request already in flight is stale from the next keystroke on and not
+  // only from the moment its successor starts.
   const latestSearchRef = useRef(0);
 
   const knownTags = new Set(
@@ -156,41 +159,42 @@ export function CommandPalette({
 
   // Tag filtering is an indexed exact match that ANDs with full-text search,
   // so both paths run the same query and only differ in what they pass.
-  const search = useDebouncedCallback(async (value: string) => {
-    const request = latestSearchRef.current + 1;
-    const parsed = parseTagQuery(value);
-    const filters =
-      parsed === undefined
-        ? { query: value.trim() }
-        : { query: parsed.query, tag: parsed.tag };
+  const search = useDebouncedCallback(
+    async (value: string, request: number) => {
+      const parsed = parseTagQuery(value);
+      const filters =
+        parsed === undefined
+          ? { query: value.trim() }
+          : { query: parsed.query, tag: parsed.tag };
 
-    latestSearchRef.current = request;
+      if (
+        filters.query === "" &&
+        (filters.tag === undefined || !knownTags.has(filters.tag))
+      ) {
+        setResults(null);
 
-    if (
-      filters.query === "" &&
-      (filters.tag === undefined || !knownTags.has(filters.tag))
-    ) {
-      setResults(null);
-
-      return;
-    }
-
-    try {
-      const found = await getNotes({ limit: 30, ...filters });
-
-      if (latestSearchRef.current === request) {
-        setResults(found);
+        return;
       }
-    } catch {
-      if (latestSearchRef.current === request) {
-        setResults([]);
+
+      try {
+        const found = await getNotes({ limit: 30, ...filters });
+
+        if (latestSearchRef.current === request) {
+          setResults(found);
+        }
+      } catch {
+        if (latestSearchRef.current === request) {
+          setResults([]);
+        }
       }
-    }
-  }, 150);
+    },
+    150,
+  );
 
   const updateQuery = (value: string) => {
+    latestSearchRef.current += 1;
     setQuery(value);
-    void search(value);
+    void search(value, latestSearchRef.current);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -205,7 +209,8 @@ export function CommandPalette({
 
   useEffect(() => {
     if (tag !== undefined) {
-      void search(`#${tag} `);
+      latestSearchRef.current += 1;
+      void search(`#${tag} `, latestSearchRef.current);
     }
   }, [search, tag]);
 
