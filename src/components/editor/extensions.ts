@@ -89,7 +89,38 @@ const MarkdownLinkInputRule = Extension.create({
   name: "markdownLinkInputRule",
 });
 
-const FENCE = /^\s*(`{3,}|~{3,})/;
+const FENCE_RUN = /^(`{3,}|~{3,})/;
+
+/**
+ * The fence run opening a line, or null when there is none. Four or more
+ * spaces of indent is an indented code block rather than a fence.
+ */
+function fenceRun(line: string) {
+  const body = line.trimStart();
+
+  if (line.length - body.length > 3) {
+    return null;
+  }
+
+  return FENCE_RUN.exec(body)?.[1] ?? null;
+}
+
+/**
+ * A fence closes only on a bare run of its own character, at least as long as
+ * the opener and followed by nothing but whitespace -- an info string
+ * (` ```js `) or trailing prose is content, and closing on it would let the
+ * rest of the block be scrubbed as prose.
+ */
+function closesFence(line: string, open: string) {
+  const run = fenceRun(line);
+
+  return (
+    run !== null &&
+    run.startsWith(open.charAt(0)) &&
+    run.length >= open.length &&
+    line.trimStart().slice(run.length).trim() === ""
+  );
+}
 
 function scrubEntities(text: string) {
   return text.replaceAll(/&nbsp;|&#160;/g, " ");
@@ -142,21 +173,17 @@ export function normalizeMarkdown(markdown: string) {
   return markdown
     .split("\n")
     .map((line) => {
-      const marker = FENCE.exec(line)?.[1];
-
       if (fence !== null) {
-        if (
-          marker !== undefined &&
-          marker.startsWith(fence.charAt(0)) &&
-          marker.length >= fence.length
-        ) {
+        if (closesFence(line, fence)) {
           fence = null;
         }
 
         return line;
       }
 
-      if (marker !== undefined) {
+      const marker = fenceRun(line);
+
+      if (marker !== null) {
         fence = marker;
 
         return line;
