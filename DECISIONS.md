@@ -743,6 +743,12 @@ can, which is the gap `D11` exists to close.
 one implementation is the arrangement this entry permits; two implementations is
 what `DESIGN.md` forbids, and a third surface would take the hook too.
 
+**Constraint:** `useNoteTags` serializes its writes. `NoteService.setTags` is a
+read-modify-write of the file, and every call site is fire-and-forget, so two
+overlapping toggles could land in either order and leave disk holding the older
+set. Writes chain, and a failure rolls back only when it is the newest change,
+so a superseded request cannot restore a set the user has moved past.
+
 **Constraint:** rows in the tags view call `changeTags` directly rather than
 `runAction`, which closes the palette. The view is a working surface, so a
 toggle must leave it open. It is the only place in the palette where an action
