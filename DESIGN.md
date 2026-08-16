@@ -8,7 +8,8 @@ the system is built, and `DECISIONS.md` covers why.
 
 - **The window is the editor.** There is no persistent sidebar and no navigation
   chrome. Anything that is not the note reaches the screen through ⌘K, a
-  dialog, or the status strip.
+  dialog, or the status strip. The two bands that remain, the titlebar and the
+  status strip, carry the note's own state and nothing else.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
   reachable only by mouse is unfinished.
 - **Lowercase everywhere.** Labels, buttons, toasts, tooltips, placeholders, and
@@ -133,8 +134,25 @@ a real non-motion end state, so removing the transition costs nothing.
 - **The window is chrome-less.** `body` sets `user-select: none` so text
   selection outside the editor does not make the app read as a web page.
   `.allow-select` is the explicit opt-in for anything selectable.
-- **The title bar is an invisible drag strip.** `.titlebar-drag-region` drags the
-  window; buttons and inputs inside it set `no-drag` so they stay clickable.
+- **The titlebar carries the note's identity** (`D28`). Title, tags, and pin sit
+  in the drag region rather than in a band of their own, so the window title is
+  the note title, which is what `D5` already says it is. `Titlebar` in
+  `src/components/titlebar.tsx` is the only place the drag region is declared,
+  and every window and route renders it. Buttons and inputs inside it set
+  `no-drag` so they stay clickable.
+- **Chrome starts after the traffic lights.** macOS floats them over the content
+  at the top left, so `--spacing-titlebar` insets everything past them. The value
+  is a platform fact and lives in one place. Windows and Linux put the controls
+  on the right, and would need it mirrored.
+- **The titlebar height and the traffic light offset are one decision.** The bar
+  is 44px and `trafficLightPosition` centres the buttons in it, so plain centring
+  puts the title on their line and the space above and below them is equal by
+  construction. Both values come from scratch, which ships them against the same
+  overlay titlebar. Changing the height means rechecking the offset, and `D29`
+  records what happens when they drift apart.
+- **Two bands frame the note.** The titlebar above and the status strip below,
+  each with a hairline border. A band that reads as chrome needs an edge, and
+  without one the title floats as stray text over the document.
 - **The palette is the action surface.** Search, `#tag` filtering, pin, move,
   delete, reveal, settings, and reindex all live in ⌘K. A new note-level action
   goes there.

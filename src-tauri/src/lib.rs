@@ -26,12 +26,57 @@ use crate::state::{AppState, Core};
 const BG_DARK: Color = Color(0x19, 0x1b, 0x1d, 255);
 const BG_LIGHT: Color = Color(0xf7, 0xf8, 0xfa, 255);
 
+/// Centres the buttons in the 44px band `Titlebar` draws. The pair comes from
+/// erictli/scratch, which ships these values against the same overlay titlebar;
+/// `y` is the button's centre offset from the window top, not a margin above it.
+/// Changing the band height means rechecking this.
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 24.0);
+
 fn background_for(theme: Theme) -> Color {
     match theme {
         Theme::Light => BG_LIGHT,
         _ => BG_DARK,
     }
 }
+
+/// macOS 26 raised standard control metrics, so a window built against its SDK
+/// gets 16x16 buttons where every older app has 12x14. The property is
+/// documented to cover a view's descendants, and the buttons live in the frame
+/// view rather than under `contentView`, so it is set on both.
+#[cfg(target_os = "macos")]
+fn use_compact_window_controls(window: &tauri::WebviewWindow) {
+    use objc2::available;
+    use objc2_app_kit::{NSWindow, NSWindowButton};
+
+    if !available!(macos = 26.0) {
+        return;
+    }
+
+    let Ok(pointer) = window.ns_window() else {
+        return;
+    };
+
+    // Tauri hands back the NSWindow backing this webview window.
+    let ns_window: &NSWindow = unsafe { &*pointer.cast::<NSWindow>() };
+
+    if let Some(view) = ns_window.contentView() {
+        view.setPrefersCompactControlSizeMetrics(true);
+    }
+
+    for kind in [
+        NSWindowButton::CloseButton,
+        NSWindowButton::MiniaturizeButton,
+        NSWindowButton::ZoomButton,
+    ] {
+        if let Some(button) = ns_window.standardWindowButton(kind) {
+            button.setPrefersCompactControlSizeMetrics(true);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn use_compact_window_controls(_window: &tauri::WebviewWindow) {}
 
 #[derive(Clone, Serialize)]
 pub struct NotesChanged {
@@ -72,9 +117,12 @@ fn open_capture(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true);
+        .hidden_title(true)
+        .traffic_light_position(TRAFFIC_LIGHTS);
 
-    let _ = builder.build();
+    if let Ok(window) = builder.build() {
+        use_compact_window_controls(&window);
+    }
 }
 
 /// Grant the asset protocol read access to a notes dir. Images inside notes are
@@ -97,6 +145,7 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(theme) = window.theme() {
             let _ = window.set_background_color(Some(background_for(theme)));
         }
+        use_compact_window_controls(&window);
     }
 
     // Resolve the notes directory: saved setting, else ~/notras.

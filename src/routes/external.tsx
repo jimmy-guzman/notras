@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
 import { Editor } from "@/components/editor/editor";
+import { Titlebar } from "@/components/titlebar";
 import { composeNote, parseNote } from "@/core";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
 import { registerPendingFlush } from "@/lib/pending-flush";
@@ -72,12 +73,14 @@ function ExternalPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 px-6 pt-1 pb-2 text-xs text-muted-foreground">
-        <span className="truncate font-mono">{path}</span>
-        <span className="ml-auto shrink-0">
-          external file · {status === "saved" ? "saved" : "unsaved"}
-        </span>
-      </div>
+      <Titlebar>
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
+          <span className="truncate font-mono">{path}</span>
+          <span className="ml-auto shrink-0">
+            external file · {status === "saved" ? "saved" : "unsaved"}
+          </span>
+        </div>
+      </Titlebar>
       <Editor
         focusOnMount
         initialContent={parsed.body}

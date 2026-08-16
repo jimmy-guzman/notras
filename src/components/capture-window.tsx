@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { EditorHandle } from "@/components/editor/editor";
 
 import { Editor } from "@/components/editor/editor";
+import { Titlebar } from "@/components/titlebar";
 import { Kbd } from "@/components/ui/kbd";
 import { Toaster } from "@/components/ui/sonner";
 import { createNote } from "@/data/create-note";
@@ -72,10 +73,7 @@ export function CaptureWindow() {
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground">
-      <div
-        className="titlebar-drag-region h-8 shrink-0"
-        data-tauri-drag-region
-      />
+      <Titlebar />
       <Editor
         focusOnMount
         initialContent=""
@@ -88,7 +86,7 @@ export function CaptureWindow() {
         }}
         placeholderText="jot it down..."
       />
-      <footer className="flex h-8 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs text-muted-foreground">
+      <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs text-muted-foreground">
         <Kbd>esc</Kbd> saves to inbox
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}

@@ -108,6 +108,7 @@ src/
     command-palette.tsx
     settings-dialog.tsx
     capture-window.tsx
+    titlebar.tsx      # the drag region, declared once for every window/route
     ui/               # Shadcn components (generated, do not hand-edit)
   core/               # Isomorphic bottom layer (no platform imports)
     frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys

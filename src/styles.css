@@ -22,6 +22,9 @@
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "iA Writer Mono", ui-monospace, monospace;
   --font-editor: "Literata Variable", ui-serif, Georgia, serif;
+  /* Clears the macOS traffic lights, which float over the content at the top
+     left. The compact buttons end at 72px; the rest is breathing room. */
+  --spacing-titlebar: 5.25rem;
   --color-faint: var(--faint);
   --color-ring: var(--ring);
   --color-input: var(--input);

@@ -29,6 +29,19 @@ tauri-plugin-store = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 
+# Already in the tree through tao and wry; named here to reach
+# prefersCompactControlSizeMetrics, which is what keeps the window buttons at
+# their pre-Tahoe size.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = [
+  "NSButton",
+  "NSControl",
+  "NSResponder",
+  "NSView",
+  "NSWindow",
+] }
+
 [profile.release]
 codegen-units = 1
 lto = true

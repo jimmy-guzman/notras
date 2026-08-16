@@ -557,3 +557,85 @@ and `setup()` corrects it from `window.theme()`. A light-mode launch therefore
 has a frame where the window layer is dark before the correction lands. Moving
 the `main` window out of the config and building it in Rust would remove that
 frame, and is the fix if it ever proves visible.
+
+### D28 The titlebar carries the note's identity
+
+The note title, its tags, and the pin toggle live in the window's drag region.
+`Titlebar` in `src/components/titlebar.tsx` declares that region once, and every
+route and both windows render it.
+
+The app was spending two bands on one band's work: an empty 36px drag strip, and
+a 40px header directly beneath it. Folding one into the other returns 48px to the
+note and puts the title where macOS puts a document title, which `D5` already
+agrees with, since the filename is the title.
+
+The bar is `h-11`, 44px, with the traffic lights centred in it by `D29`. Content
+centres normally, so the title lands on the buttons' line and the space above and
+below them is equal. The status strip is `h-7`, since nothing forces its height,
+and both carry a hairline border so they frame the note.
+
+The drag region moved out of `__root.tsx` for this. A shared root strip cannot
+hold per-route content, and TanStack Router has no named outlet, so each route
+renders its own titlebar instead of the root rendering one for everybody.
+
+**Rejected: keeping the empty strip and shrinking it.** Simplest possible change,
+and it touches no layout. Rejected because the strip is unavoidable on macOS, so
+shrinking it converts wasted space into slightly less wasted space, while the
+header band goes on costing its full height.
+
+**Rejected: moving the status strip up as well.** Frees another 32px and leaves a
+single band. Rejected because the title, the word count, and three toggles do not
+fit beside the traffic lights at the 480px minimum width, and because save state
+belongs near where the eye rests rather than in the window chrome.
+
+**Constraint:** `--spacing-titlebar` insets content past the traffic lights, which
+macOS floats over the content at the top left. It is a macOS number. Windows and
+Linux put the controls on the right and would need it mirrored.
+
+**Constraint:** the title is an editable input inside a drag region, which is new
+in this codebase. `styles.css` exempts `button` and `input` from dragging, and any
+other interactive element added there needs that rule widened.
+
+### D29 Compact window controls
+
+`use_compact_window_controls` sets `prefersCompactControlSizeMetrics` on each
+window's `contentView` and on its three standard window buttons, guarded by
+`objc2::available!(macos = 26.0)`.
+
+macOS 26 raised standard control metrics, so a window built against its SDK gets
+16x16 buttons where every app built earlier has 12x14. notras builds against SDK
+26.5, so its buttons were visibly larger than those of apps beside it.
+
+It is set in two places because the documented behaviour covers "NSControls in
+the view or its descendants", and the buttons are not descendants of
+`contentView`: they belong to the window's frame view. Setting both costs four
+lines and does not rest on which mechanism carries it.
+
+**Rejected: building against SDK 15.x.** One `xcode-select` away, fixes every
+control at once, and is what the community writeup recommends first. Rejected
+because it pins the whole toolchain to an old Xcode to change one visual detail,
+and it would have to be reproduced on any machine or CI runner that builds
+notras.
+
+**Constraint:** nothing else in notras is an `NSControl`, since the interface is
+HTML in a webview, so this cannot resize anything unintended. That stops being
+true if native menus or panels are ever added.
+
+**Constraint:** `trafficLightPosition` is `{ x: 16, y: 24 }`, paired with the
+44px band in `src/components/titlebar.tsx`. Both come from
+[erictli/scratch](https://github.com/erictli/scratch), which ships them against
+the same overlay titlebar, rather than from derivation here.
+
+`y` is not a margin above the buttons. tao's `inset_traffic_lights` resizes the
+titlebar container to `buttonHeight + y`, anchors it to the window top, and
+leaves each button's offset inside it untouched, so in AppKit's bottom-up
+coordinates `y` lands as the button's **centre offset from the window top**.
+Misreading that cost four rounds: 12 in a 36px bar centred the buttons at 12pt
+against content at 18pt and crowded them into the rounded corner, and removing
+the override entirely traded the misalignment for a bar too tight to breathe.
+
+**Constraint:** the height and the offset are one decision. Changing the band
+means rechecking the offset, and both sites carry a comment saying so. They are
+deliberately not covered by a test: they are a verified pair rather than a
+repeated value, so the only honest assertion would either encode a derivation or
+pin two literals.
