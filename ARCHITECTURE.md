@@ -12,7 +12,7 @@ each choice was made, and `AGENTS.md` covers the rules for changing any of it.
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘P raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
-| UI              | Shadcn UI (base-maia style on Base UI, stone base) + Tailwind CSS 4                                          |
+| UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, on the stet palette (`D23`)                         |
 | Formatting      | oxfmt for dev tooling; TipTap's markdown serializer is the runtime canonical form                            |
 | Testing         | Vitest + happy-dom (TS), `cargo test` (Rust)                                                                 |
 | Package manager | pnpm                                                                                                         |
@@ -95,6 +95,7 @@ src/
   main.tsx            # Vite entry -> App (router, or capture window branch)
   app-shell.tsx       # Router setup + ?window=capture branch
   styles.css          # Tailwind 4 theme, fonts, editor + titlebar styling
+  styles.spec.ts      # WCAG AA gate over every token pair in both schemes
   routes/             # TanStack Router file routes
     __root.tsx        # loader (notes/folders/notesDir), palette, settings
                       # dialog, hotkeys, notes-changed listener

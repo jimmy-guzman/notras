@@ -76,7 +76,9 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
           {note.title}
           {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
           {note.folder === "" ? null : (
-            <span className="text-xs text-muted-foreground">{note.folder}</span>
+            <span className="text-xs text-muted-foreground">
+              · {note.folder}
+            </span>
           )}
         </span>
         {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
@@ -326,7 +328,10 @@ export function CommandPalette({
 
           {view === "root" ? (
             <>
-              <CommandEmpty>nothing found.</CommandEmpty>
+              <CommandEmpty>
+                <p className="text-muted-foreground">nothing found</p>
+                <p className="text-faint">start with # to search by tag</p>
+              </CommandEmpty>
               <CommandGroup heading="notes">
                 {visibleNotes.map((note) => {
                   return (

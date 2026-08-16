@@ -12,12 +12,26 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::window::Color;
 use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, Manager, RunEvent, Theme, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_store::StoreExt;
 
 use crate::state::{AppState, Core};
+
+/// `--background` from `src/styles.css`, restated because the window layer is
+/// painted by the OS before any stylesheet exists. `src/styles.spec.ts` fails if
+/// these drift from the tokens.
+const BG_DARK: Color = Color(0x19, 0x1b, 0x1d, 255);
+const BG_LIGHT: Color = Color(0xf7, 0xf8, 0xfa, 255);
+
+fn background_for(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => BG_LIGHT,
+        _ => BG_DARK,
+    }
+}
 
 #[derive(Clone, Serialize)]
 pub struct NotesChanged {
@@ -48,6 +62,11 @@ fn open_capture(app: &AppHandle) {
     .resizable(false)
     .always_on_top(true)
     .skip_taskbar(true)
+    .background_color(background_for(
+        app.get_webview_window("main")
+            .and_then(|window| window.theme().ok())
+            .unwrap_or(Theme::Dark),
+    ))
     .center();
 
     #[cfg(target_os = "macos")]
@@ -71,6 +90,15 @@ pub fn allow_assets(app: &AppHandle, notes_dir: &std::path::Path) {
 }
 
 fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // The config paints the window dark at creation, which is earlier than this
+    // runs. Correcting it here is what keeps a light-mode launch from flashing
+    // dark instead of white.
+    if let Some(window) = app.get_webview_window("main") {
+        if let Ok(theme) = window.theme() {
+            let _ = window.set_background_color(Some(background_for(theme)));
+        }
+    }
+
     // Resolve the notes directory: saved setting, else ~/notras.
     let store = app.store("settings.json")?;
     let notes_dir = match store
@@ -197,12 +225,18 @@ pub fn run() {
             notes::write_external,
             notes::write_note,
         ])
-        .on_window_event(|window, event| {
+        .on_window_event(|window, event| match event {
             // Close-to-tray for the main window; capture window just hides.
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            WindowEvent::CloseRequested { api, .. } => {
                 let _ = window.hide();
                 api.prevent_close();
             }
+            // Switching appearance while notras runs would otherwise leave the
+            // window layer painted for the scheme the app started in.
+            WindowEvent::ThemeChanged(theme) => {
+                let _ = window.set_background_color(Some(background_for(*theme)));
+            }
+            _ => {}
         })
         .setup(|app| setup(app))
         .build(tauri::generate_context!())

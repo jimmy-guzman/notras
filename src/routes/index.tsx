@@ -42,7 +42,7 @@ function EmptyState() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6">
       <div className="flex flex-col items-center gap-1">
-        <h1 className="text-5xl font-bold tracking-tight">notras</h1>
+        <h1 className="font-mono text-5xl font-bold tracking-tight">notras</h1>
         <p className="text-muted-foreground">just write, otra vez.</p>
       </div>
       <div className="flex items-center gap-4 text-sm text-muted-foreground">

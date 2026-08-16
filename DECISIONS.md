@@ -359,9 +359,10 @@ the components are regenerated.
    and footer "close" labels in `dialog.tsx`, and the default `title` and
    `description` in `command.tsx`.
 
-**Superseded in part by `D22`,** which moves the style to base-maia on Base UI.
-The stone base, the oklch tokens, the dark `:root` default and both constraints
-above carry over unchanged.
+**Superseded in part by `D22`,** which moves the style to base-maia on Base UI,
+and by `D23`, which replaces the stone base and the oklch tokens with the stet
+palette in hex. The dark `:root` default and both constraints above carry over
+unchanged.
 
 ### D20 Quick capture is a second window
 
@@ -409,3 +410,150 @@ keeps them above page content without a z-index race.
 **Constraint:** the palette stays on `cmdk`, which base-maia's `command.tsx`
 still wraps. `cmdk` pulls `@radix-ui/react-dialog` transitively, so Radix is
 absent from `package.json` and present in the lockfile.
+
+### D23 The stet palette
+
+Every colour in `src/styles.css` comes from stet, whose source of truth is
+`packages/tui/src/theme/{dark,light}.ts`, mapped onto the eleven role names
+shadcn generates against. `--primary` carries the accent: `#ffa7d9` in dark and
+`#c53794` in light.
+
+notras had no accent. `--primary` was near-white in dark and near-black in
+light, so the stone base did every job and nothing on screen could be
+emphasised without inventing a colour. playa.dev already imports this palette
+from the same source, so adopting it puts three projects on one system at no
+maintenance cost.
+
+Seven values are playa.dev's lifted variants rather than stet's own, because
+stet treats contrast as a comfortable target while `src/styles.spec.ts` makes
+WCAG AA a floor. Each was lifted in OKLCH holding chroma and hue.
+
+**Rejected: authoring a notras palette in the same structure.** The same role
+vocabulary and the same restraint, in a hue that is notras' alone. Rejected
+because the value of a shared palette is that it is shared, and a fourth hue is
+a fourth thing to keep above the contrast floor.
+
+**Rejected: keeping the stone base from `D19`.** Generated, consistent, and
+already shipped. Rejected because it has no accent, which is the one thing the
+redesign needed.
+
+**Constraint:** hex replaces the oklch-only rule in `D19`.
+`color-mix(in oklch, ...)` still interpolates in OKLCH, so the tint recipes are
+unaffected.
+
+**Constraint:** shadcn's `--accent` names a hover surface, not the accent. The
+accent is `--primary`. Code reaching for `--accent` to emphasise something has
+the wrong token.
+
+**Constraint:** a card moves away from the text colour, so it is darker in dark
+and lighter in light. Painting the light card at `surface.panel` drops
+`--syntax-number` to 3.96:1 against code-block text.
+
+**Constraint:** `@tailwindcss/typography` ships its own stone ramp, which
+rendered the note in a warmer grey than the chrome. `.note-preview-prose`
+repoints all sixteen `--tw-prose-*` colours at tokens, and
+`prose-stone dark:prose-invert` came off the editor. The override sits outside
+`@layer`, which is what makes it win.
+
+**Constraint:** `src/styles.spec.ts` fails the build when a text-on-surface pair
+drops below 4.5:1 in either scheme, and when the two schemes stop declaring the
+same token names.
+
+### D24 Literata on the note surface
+
+The note renders in Literata, a variable serif carrying an `opsz` 7-72 axis,
+bundled through `@fontsource-variable/literata`.
+
+notras is read as much as it is written. iA's stated goal for its duospace faces
+is that a monospaced-ish font slows reading down to force a more appropriate
+writing speed, which serves one half of that at the other's expense. Literata
+was drawn from scratch for screen reading, commissioned by Google for Play
+Books, and is the open counterpart to Kindle's proprietary Bookerly.
+
+**Rejected: iA Writer Quattro.** What the app shipped, distinctive, and strongly
+associated with focused writing. Rejected on the reading half, where its
+duospace metrics are a deliberate brake.
+
+**Rejected: New York, the macOS system serif.** Apple's own reading serif,
+already on every Mac and reachable through `ui-serif` since Tauri runs WKWebView.
+Rejected because the note surface is the one thing that should look the same
+everywhere the app runs, and a system face makes it the one thing that does not.
+
+**Constraint:** `font-optical-sizing: auto` on `.note-preview-prose` is what the
+`opsz` axis buys, and that Fontsource entry is roughly twice the size of the
+`wght` one. Accepted because the fonts ship in the bundle rather than over a
+network.
+
+### D25 The system sans for chrome
+
+`--font-sans` is `system-ui`, so the palette, dialogs, and status strip render in
+SF Pro on macOS, Segoe UI on Windows, and the system sans on Linux.
+
+notras is a desktop app before it is anything else, and chrome that matches the
+OS is chrome the user does not read as a web page. It also removes a bundled
+font.
+
+**Rejected: DM Sans Variable.** What the app shipped, rendering identically on
+every platform with a warmer geometric character. Rejected because chrome is the
+one place where matching the host beats matching itself across hosts.
+
+**Constraint:** the mono is iA Writer Mono everywhere now, inside the editor and
+out. `--font-editor-mono` is gone and Geist Mono with it, which is what holds the
+face count at three.
+
+### D26 Concentric radii
+
+A surface nested inside another takes the parent's radius less the parent's
+padding. `.suggestion-item` and `.link-editor-input` express that as `calc()`
+against the parent token rather than as a fixed step on the ladder.
+
+Apple formalised the rule as `ConcentricRectangle` in SwiftUI, and macOS 26
+rebuilt its controls to sit concentrically inside window corners. On a
+macOS-first app the mismatch reads as carelessness at exactly the sizes the
+`--radius` ladder produces.
+
+**Rejected: retuning the ladder so the generated classes land concentrically.**
+Would fix the command palette, whose items sit 4px off. Rejected because the
+ladder's steps are 4px and 8px apart while the nestings need arbitrary
+differences, so a retune that fixes one nesting breaks another, and it would move
+`rounded-2xl` for the tooltip at the same time.
+
+**Constraint:** the command palette stays 4px off concentric. Its item radius
+lives in `src/components/ui/command.tsx`, which `D19` puts off-limits, and the
+ladder cannot express the value. Recorded rather than fixed.
+
+### D27 The launch background is restated outside the stylesheet
+
+`--background` is declared four times: as the token in `src/styles.css`, as a
+`color-scheme` meta plus inline critical CSS in `index.html`, as the window's
+`backgroundColor` in `src-tauri/tauri.conf.json`, and as two `Color` constants in
+`src-tauri/src/lib.rs`.
+
+Both the native window and the webview paint before the stylesheet exists.
+WKWebView paints its default canvas, which is white, unless it is told which
+schemes the app supports, and the CSS `color-scheme` property cannot say so in
+time because honouring it waits on the stylesheet. The meta tag is read before
+the document is drawn, which is the whole reason it works.
+
+Tauri's `background_color` covers the window layer, but its own documentation
+records "macOS: Not implemented for the webview layer", so on the platform notras
+targets first the config option alone leaves the white in place.
+
+**Rejected: `backgroundColor` in the config alone.** One value in one place, and
+no duplication to keep honest. Rejected because it does not reach the webview
+layer on macOS, which is the layer painting the white a user actually sees.
+
+**Rejected: creating both windows hidden and showing them once the frontend
+reports ready.** Removes the flash outright and restates no colour anywhere.
+Rejected because it trades a flash for a delay: nothing would appear until React
+mounted and four IPC round trips resolved, and a window that takes a beat to show
+up reads as a slow app rather than a polished one.
+
+**Constraint:** four copies of one value. `src/styles.spec.ts` fails when any
+copy stops matching its token, which is what makes keeping them safe.
+
+**Constraint:** the config value cannot vary by scheme, so it holds the dark one
+and `setup()` corrects it from `window.theme()`. A light-mode launch therefore
+has a frame where the window layer is dark before the correction lands. Moving
+the `main` window out of the config and building it in Rust would remove that
+frame, and is the fix if it ever proves visible.
