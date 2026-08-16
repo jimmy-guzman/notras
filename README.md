@@ -55,7 +55,7 @@ rebuilds it from your files on the next launch.
   [TanStack Router](https://tanstack.com/router)
 - [TipTap 3](https://tiptap.dev) + official bidirectional
   [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown) (editor)
-- [Effect](https://effect.website) 3.x (typed errors, Layer/DI, services)
+- [Effect](https://effect.website) 4 (typed errors, Layer/DI, services)
 - [Drizzle ORM](https://orm.drizzle.team) (`sqlite-proxy`, read-only queries
   against the index)
 - [Shadcn UI](https://ui.shadcn.dev) + [Tailwind CSS](https://tailwindcss.com) 4

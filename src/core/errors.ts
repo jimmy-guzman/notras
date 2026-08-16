@@ -1,9 +1,12 @@
-import { Data } from "effect";
+import { Schema } from "effect";
 
-export class DatabaseError extends Data.TaggedError("DatabaseError")<{
-  cause: unknown;
-}> {}
+export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
+  "DatabaseError",
+  {
+    cause: Schema.Defect(),
+  },
+) {}
 
-export class FileError extends Data.TaggedError("FileError")<{
-  message: string;
-}> {}
+export class FileError extends Schema.TaggedError<FileError>()("FileError", {
+  message: Schema.String,
+}) {}

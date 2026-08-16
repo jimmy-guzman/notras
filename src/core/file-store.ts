@@ -37,7 +37,6 @@ export interface IFileStore {
   ): Effect.Effect<number, FileError>;
 }
 
-export class FileStore extends Context.Tag("FileStore")<
-  FileStore,
-  IFileStore
->() {}
+export class FileStore extends Context.Service<FileStore, IFileStore>()(
+  "notras/core/FileStore",
+) {}
