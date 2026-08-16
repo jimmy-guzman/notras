@@ -11,14 +11,16 @@ import {
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
+  TagPlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
 import type { NoteMeta } from "@/core";
 
+import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
   CommandDialog,
@@ -36,6 +38,7 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
+import { parseTagQuery } from "@/lib/utils/tag-query";
 
 function Snippet({ snippet }: { snippet: string }) {
   return (
@@ -54,6 +57,26 @@ function Snippet({ snippet }: { snippet: string }) {
       })}
     </span>
   );
+}
+
+const VISIBLE_TAGS = 3;
+
+// `CommandItem` appends its own `ml-auto` checkmark, so a second `ml-auto`
+// here would split the free space with it and let the label's width shift the
+// count. A flex-1 label and a fixed column keep the digits in one place.
+const COUNT_CLASS =
+  "w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums";
+
+function tagLabel(tags: string[]) {
+  const shown = tags
+    .slice(0, VISIBLE_TAGS)
+    .map((tag) => {
+      return `#${tag}`;
+    })
+    .join(" ");
+  const hidden = tags.length - VISIBLE_TAGS;
+
+  return hidden > 0 ? `${shown} +${hidden}` : shown;
 }
 
 interface NoteItemProps {
@@ -80,6 +103,11 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
               · {note.folder}
             </span>
           )}
+          {note.tags.length === 0 ? null : (
+            <span className="truncate text-xs text-muted-foreground">
+              · {tagLabel(note.tags)}
+            </span>
+          )}
         </span>
         {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
       </div>
@@ -87,24 +115,28 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
   );
 }
 
-type PaletteView = "delete" | "move" | "root";
+type PaletteView = "delete" | "move" | "root" | "tags";
 
 interface CommandPaletteProps {
+  allTags: { count: number; tag: string }[];
   folders: { count: number; folder: string }[];
   notes: NoteMeta[];
   notesDir: string;
   onOpenChange: (open: boolean) => void;
   onOpenSettings: () => void;
   open: boolean;
+  tag?: string;
 }
 
 export function CommandPalette({
+  allTags,
   folders,
   notes,
   notesDir,
   onOpenChange,
   onOpenSettings,
   open,
+  tag,
 }: CommandPaletteProps) {
   const navigate = useNavigate();
   const params = useParams({ strict: false });
@@ -113,37 +145,72 @@ export function CommandPalette({
     return note.path === currentPath;
   });
 
-  const [query, setQuery] = useState("");
+  // Empty path is unreachable: the tags view is gated on a current note.
+  const noteTags = useNoteTags(
+    currentNote?.path ?? "",
+    currentNote?.tags ?? [],
+  );
+
+  // A tag chip navigates with `?tag=`, which is what opens the palette. The
+  // parent keys this component on the tag, so the seed applies once per tag
+  // and typing afterwards is never overwritten.
+  const [query, setQuery] = useState(tag === undefined ? "" : `#${tag} `);
   const [view, setView] = useState<PaletteView>("root");
   const [results, setResults] = useState<NoteMeta[] | null>(null);
 
   // Only the newest search may write results: two in-flight queries can
-  // resolve out of order, and a slow "a" must not overwrite "abc".
+  // resolve out of order, and a slow "a" must not overwrite "abc". The counter
+  // advances when the input changes rather than when the debounced call fires,
+  // so a request already in flight is stale from the next keystroke on and not
+  // only from the moment its successor starts.
   const latestSearchRef = useRef(0);
 
-  const search = useDebouncedCallback(async (value: string) => {
-    const request = latestSearchRef.current + 1;
+  const tagCounts = new Map(
+    allTags.map(({ count, tag: name }) => {
+      return [name, count];
+    }),
+  );
+  const knownTags = new Set(tagCounts.keys());
 
-    latestSearchRef.current = request;
+  // Tag filtering is an indexed exact match that ANDs with full-text search,
+  // so both paths run the same query and only differ in what they pass.
+  const search = useDebouncedCallback(
+    async (value: string, request: number) => {
+      const parsed = parseTagQuery(value);
+      const filters =
+        parsed === undefined
+          ? { query: value.trim() }
+          : { query: parsed.query, tag: parsed.tag };
 
-    if (value.trim() === "" || value.startsWith("#")) {
-      setResults(null);
+      if (
+        filters.query === "" &&
+        (filters.tag === undefined || !knownTags.has(filters.tag))
+      ) {
+        setResults(null);
 
-      return;
-    }
-
-    try {
-      const found = await getNotes({ limit: 30, query: value });
-
-      if (latestSearchRef.current === request) {
-        setResults(found);
+        return;
       }
-    } catch {
-      if (latestSearchRef.current === request) {
-        setResults([]);
+
+      try {
+        const found = await getNotes({ limit: 30, ...filters });
+
+        if (latestSearchRef.current === request) {
+          setResults(found);
+        }
+      } catch {
+        if (latestSearchRef.current === request) {
+          setResults([]);
+        }
       }
-    }
-  }, 150);
+    },
+    150,
+  );
+
+  const updateQuery = (value: string) => {
+    latestSearchRef.current += 1;
+    setQuery(value);
+    void search(value, latestSearchRef.current);
+  };
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -155,35 +222,21 @@ export function CommandPalette({
     onOpenChange(next);
   };
 
-  const tagFilter = query.startsWith("#")
-    ? query.slice(1).trim().toLowerCase()
-    : undefined;
+  useEffect(() => {
+    if (tag !== undefined) {
+      latestSearchRef.current += 1;
+      void search(`#${tag} `, latestSearchRef.current);
+    }
+  }, [search, tag]);
 
-  const visibleNotes = useMemo(() => {
-    if (tagFilter !== undefined) {
-      return notes.filter((note) => {
-        return note.tags.some((tag) => {
-          return tag.includes(tagFilter);
-        });
-      });
+  const tagQuery = parseTagQuery(query);
+  const visibleNotes = (() => {
+    if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
+      return [];
     }
 
-    if (results !== null) {
-      return results;
-    }
-
-    return notes.slice(0, 20);
-  }, [notes, results, tagFilter]);
-
-  const allTags = useMemo(() => {
-    return [
-      ...new Set(
-        notes.flatMap((note) => {
-          return note.tags;
-        }),
-      ),
-    ].toSorted();
-  }, [notes]);
+    return results ?? notes.slice(0, 20);
+  })();
 
   const close = () => {
     handleOpenChange(false);
@@ -203,11 +256,21 @@ export function CommandPalette({
     });
   };
 
+  // A tag the note carries may not be in the index yet, so the choices are the
+  // union rather than the index alone.
+  const draftTag = query.trim().toLowerCase();
+  const tagChoices = [...new Set([...knownTags, ...noteTags.tags])]
+    .toSorted()
+    .filter((name) => {
+      return name.includes(draftTag);
+    });
+
+  // Actions match on the free text, so they stay reachable inside a tag
+  // filter rather than disappearing the moment a `#` is typed.
   const matchesQuery = (label: string) => {
-    return (
-      tagFilter === undefined &&
-      label.toLowerCase().includes(query.trim().toLowerCase())
-    );
+    const text = tagQuery === undefined ? query.trim() : tagQuery.query;
+
+    return label.toLowerCase().includes(text.toLowerCase());
   };
 
   return (
@@ -219,10 +282,7 @@ export function CommandPalette({
     >
       <Command shouldFilter={false}>
         <CommandInput
-          onValueChange={(value) => {
-            setQuery(value);
-            void search(value);
-          }}
+          onValueChange={updateQuery}
           placeholder={
             view === "move"
               ? "move to folder... (type a new name to create it)"
@@ -290,10 +350,8 @@ export function CommandPalette({
                       value={`move-${folder}`}
                     >
                       <FolderIcon />
-                      {folder}
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {count}
-                      </span>
+                      <span className="flex-1 truncate">{folder}</span>
+                      <span className={COUNT_CLASS}>{count}</span>
                     </CommandItem>
                   );
                 })}
@@ -326,12 +384,86 @@ export function CommandPalette({
             </CommandGroup>
           ) : null}
 
+          {view === "tags" && currentNote !== undefined ? (
+            <CommandGroup heading={`tags for "${currentNote.title}"`}>
+              {tagChoices.map((name) => {
+                const attached = noteTags.tags.includes(name);
+
+                return (
+                  <CommandItem
+                    data-checked={attached}
+                    key={name}
+                    onSelect={() => {
+                      void noteTags.changeTags(
+                        attached
+                          ? noteTags.tags.filter((existing) => {
+                              return existing !== name;
+                            })
+                          : [...noteTags.tags, name],
+                      );
+                    }}
+                    value={`tag-${name}`}
+                  >
+                    <HashIcon />
+                    <span className="flex-1 truncate">{name}</span>
+                    <span className={COUNT_CLASS}>
+                      {tagCounts.get(name) ?? 0}
+                    </span>
+                  </CommandItem>
+                );
+              })}
+              {draftTag === "" || tagChoices.includes(draftTag) ? null : (
+                <CommandItem
+                  onSelect={() => {
+                    setQuery("");
+                    void noteTags.changeTags([...noteTags.tags, draftTag]);
+                  }}
+                  value="tag-new"
+                >
+                  <TagPlusIcon />
+                  create "{draftTag}"
+                </CommandItem>
+              )}
+              <CommandItem
+                onSelect={() => {
+                  setView("root");
+                }}
+                value="cancel-tags"
+              >
+                done
+              </CommandItem>
+            </CommandGroup>
+          ) : null}
+
           {view === "root" ? (
             <>
               <CommandEmpty>
                 <p className="text-muted-foreground">nothing found</p>
                 <p className="text-faint">start with # to search by tag</p>
               </CommandEmpty>
+              {tagQuery?.query === "" ? (
+                <CommandGroup heading="tags">
+                  {allTags
+                    .filter(({ tag: name }) => {
+                      return name.includes(tagQuery.tag);
+                    })
+                    .map(({ count, tag: name }) => {
+                      return (
+                        <CommandItem
+                          key={name}
+                          onSelect={() => {
+                            updateQuery(`#${name} `);
+                          }}
+                          value={`tag-${name}`}
+                        >
+                          <HashIcon />
+                          <span className="flex-1 truncate">{name}</span>
+                          <span className={COUNT_CLASS}>{count}</span>
+                        </CommandItem>
+                      );
+                    })}
+                </CommandGroup>
+              ) : null}
               <CommandGroup heading="notes">
                 {visibleNotes.map((note) => {
                   return (
@@ -339,28 +471,6 @@ export function CommandPalette({
                   );
                 })}
               </CommandGroup>
-              {tagFilter === undefined ? null : (
-                <CommandGroup heading="tags">
-                  {allTags
-                    .filter((tag) => {
-                      return tag.includes(tagFilter);
-                    })
-                    .map((tag) => {
-                      return (
-                        <CommandItem
-                          key={tag}
-                          onSelect={() => {
-                            setQuery(`#${tag}`);
-                          }}
-                          value={`tag-${tag}`}
-                        >
-                          <HashIcon />
-                          {tag}
-                        </CommandItem>
-                      );
-                    })}
-                </CommandGroup>
-              )}
               <CommandSeparator />
               <CommandGroup heading="actions">
                 {matchesQuery("new note") ? (
@@ -392,6 +502,18 @@ export function CommandPalette({
                   >
                     <PinIcon />
                     {currentNote.pinned ? "unpin note" : "pin note"}
+                  </CommandItem>
+                ) : null}
+                {currentNote !== undefined && matchesQuery("edit tags") ? (
+                  <CommandItem
+                    onSelect={() => {
+                      setQuery("");
+                      setView("tags");
+                    }}
+                    value="edit-tags"
+                  >
+                    <TagPlusIcon />
+                    edit tags...
                   </CommandItem>
                 ) : null}
                 {currentNote !== undefined && matchesQuery("move to folder") ? (

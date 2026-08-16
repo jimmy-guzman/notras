@@ -310,6 +310,53 @@ describe("noteService frontmatter", () => {
   });
 });
 
+describe("noteService.listTags", () => {
+  it("should hand back the indexed tags with their counts", async () => {
+    const indexed = [
+      { count: 8, tag: "idea" },
+      { count: 2, tag: "work" },
+    ];
+    const layer = NoteService.layerNoDeps.pipe(
+      Layer.provide(
+        Layer.merge(
+          Layer.succeed(FileStore, makeFakeFileStore().fileStore),
+          Layer.succeed(
+            NoteRepository,
+            NoteRepository.of({
+              count: () => {
+                return Effect.succeed(0);
+              },
+              findByPath: () => {
+                return Effect.succeed(undefined);
+              },
+              findMany: () => {
+                return Effect.succeed([]);
+              },
+              listFolders: () => {
+                return Effect.succeed([]);
+              },
+              listTags: () => {
+                return Effect.succeed(indexed);
+              },
+            }),
+          ),
+        ),
+      ),
+    );
+
+    const tags = await Effect.runPromise(
+      Effect.provide(
+        NoteService.use((svc) => {
+          return svc.listTags();
+        }),
+        layer,
+      ),
+    );
+
+    expect(tags).toStrictEqual(indexed);
+  });
+});
+
 describe("noteService.getByPath", () => {
   it("should split frontmatter off the returned metadata", async () => {
     const harness = makeHarness({

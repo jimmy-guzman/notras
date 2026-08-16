@@ -17,19 +17,29 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { createNote } from "@/data/create-note";
 import { getFolders } from "@/data/get-folders";
 import { getNotes } from "@/data/get-notes";
+import { getTags } from "@/data/get-tags";
 import { getNotesDir } from "@/data/notes-dir";
 import { flushPendingWrites } from "@/lib/pending-flush";
 
+interface RootSearch {
+  /** Set by a tag chip to open the palette already filtered to that tag. */
+  tag?: string;
+}
+
 export const Route = createRootRoute({
   component: RootLayout,
+  validateSearch: (search: Record<string, unknown>): RootSearch => {
+    return typeof search.tag === "string" ? { tag: search.tag } : {};
+  },
   loader: async () => {
-    const [notes, folders, notesDir] = await Promise.all([
+    const [notes, folders, notesDir, tags] = await Promise.all([
       getNotes(),
       getFolders(),
       getNotesDir(),
+      getTags(),
     ]);
 
-    return { folders, notes, notesDir };
+    return { folders, notes, notesDir, tags };
   },
 });
 
@@ -40,11 +50,29 @@ const HOTKEY_OPTIONS = {
 } as const;
 
 function RootLayout() {
-  const { folders, notes, notesDir } = Route.useLoaderData();
+  const { folders, notes, notesDir, tags } = Route.useLoaderData();
+  const { tag } = Route.useSearch();
   const router = useRouter();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // A tag chip navigates rather than calling up here, so the search param is
+  // what opens the palette; clearing it on close keeps the URL from reopening
+  // it on the next render.
+  const closePalette = () => {
+    setPaletteOpen(false);
+
+    if (tag !== undefined) {
+      void navigate({
+        replace: true,
+        search: (previous: RootSearch) => {
+          return { ...previous, tag: undefined };
+        },
+        to: ".",
+      });
+    }
+  };
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   useEffect(() => {
@@ -177,14 +205,25 @@ function RootLayout() {
         <Outlet />
       </div>
       <CommandPalette
+        allTags={tags}
         folders={folders}
+        key={tag ?? "palette"}
         notes={notes}
         notesDir={notesDir}
-        onOpenChange={setPaletteOpen}
+        onOpenChange={(next) => {
+          if (next) {
+            setPaletteOpen(true);
+
+            return;
+          }
+
+          closePalette();
+        }}
         onOpenSettings={() => {
           setSettingsOpen(true);
         }}
-        open={paletteOpen}
+        open={paletteOpen || tag !== undefined}
+        tag={tag}
       />
       <SettingsDialog
         key={notesDir}

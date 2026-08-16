@@ -75,7 +75,7 @@ interface NoteEditorProps {
 }
 
 function NoteEditor({ note }: NoteEditorProps) {
-  const { notes, notesDir } = rootApi.useLoaderData();
+  const { notes, notesDir, tags } = rootApi.useLoaderData();
   const navigate = useNavigate();
 
   const editorRef = useRef<EditorHandle | null>(null);
@@ -303,7 +303,7 @@ function NoteEditor({ note }: NoteEditorProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <NoteHeader path={note.path} pinned={note.pinned} tags={note.tags} />
+        <NoteHeader path={note.path} pinned={note.pinned} />
       </Titlebar>
       {sourceMode ? (
         <SourceEditor
@@ -333,12 +333,18 @@ function NoteEditor({ note }: NoteEditorProps) {
         />
       )}
       <StatusBar
+        allTags={tags}
         focusModeEnabled={focusModeEnabled}
+        onFilterTag={(tag) => {
+          void navigate({ search: { tag }, to: "." });
+        }}
         onToggleFocusMode={toggleFocusMode}
         onToggleSource={toggleSourceMode}
         onToggleTypewriter={toggleTypewriter}
+        path={note.path}
         sourceEnabled={sourceMode}
         status={autosave.status}
+        tags={note.tags}
         typewriterEnabled={typewriterEnabled}
         words={words}
       />

@@ -19,8 +19,11 @@ the system is built, and `DECISIONS.md` covers why.
   more thing. New chrome is the last resort; the palette is the first.
 - **The last five percent is the work.** A feature that renders but reflows the
   caret, dims the wrong block, or teleports the text on toggle is not shipped.
-- **The same problem gets the same solution everywhere.** A second way to do
-  something the app already does is a bug in the design.
+- **The same problem gets the same solution everywhere.** A second
+  implementation of something the app already does is a bug in the design. A
+  second entry point into one implementation is not: pin is a titlebar toggle
+  and a palette action over one `setNotePinned`, and tags are a status-strip
+  picker and a palette view over one `useNoteTags` (`D31`).
 - **This is a macOS app.** Where a convention of the platform and a convention
   of the web disagree, the platform wins. Rounded controls, a blurred backdrop,
   and a dialog that scales on open are native behaviour, not decoration.
@@ -47,7 +50,7 @@ matches whatever the user is running (`D25`).
 - Headings scale from the body size, not from absolute values: `1.6em`,
   `1.35em`, `1.15em`, then `1em` for h4 through h6.
 - UI text sits at `text-xs` for secondary information (status strip, palette
-  metadata, tag input) and inherits the base size otherwise. Do not invent a
+  metadata, tag chips) and inherits the base size otherwise. Do not invent a
   per-component size.
 - **The wordmark is the only chrome in the mono.** Everything else in the
   interface is sans, and the note is the serif.
@@ -134,12 +137,18 @@ a real non-motion end state, so removing the transition costs nothing.
 - **The window is chrome-less.** `body` sets `user-select: none` so text
   selection outside the editor does not make the app read as a web page.
   `.allow-select` is the explicit opt-in for anything selectable.
-- **The titlebar carries the note's identity** (`D28`). Title, tags, and pin sit
-  in the drag region rather than in a band of their own, so the window title is
-  the note title, which is what `D5` already says it is. `Titlebar` in
+- **The titlebar carries the note's identity** (`D28`). Title and pin sit in the
+  drag region rather than in a band of their own, so the window title is the
+  note title, which is what `D5` already says it is. `Titlebar` in
   `src/components/titlebar.tsx` is the only place the drag region is declared,
   and every window and route renders it. Buttons and inputs inside it set
   `no-drag` so they stay clickable.
+- **Tags are picked from the status strip** (`D30`). A chip reads `#groceries`
+  and filters to that tag; the `TagPlus` button beside it reads `add tag` and
+  opens the combobox, whose vocabulary is the index's own counted tag list. The
+  button is labelled in every state, since an icon alone in a strip of status
+  text says nothing about what it adds. The chips are the only part that
+  shrinks, so they clip before the button or the word count does.
 - **Chrome starts after the traffic lights.** macOS floats them over the content
   at the top left, so `--spacing-titlebar` insets everything past them. The value
   is a platform fact and lives in one place. Windows and Linux put the controls
@@ -172,6 +181,7 @@ a real non-motion end state, so removing the transition costs nothing.
   | `⌘P`     | toggle raw markdown source      |
   | `⌘D`     | toggle focus mode               |
   | `⌘⇧K`    | add / edit link                 |
+  | `⌘⇧T`    | edit tags                       |
   | `⌘,`     | settings                        |
   | `⌘⇧N`    | global quick capture            |
   | `esc`    | (capture window) save + hide    |
@@ -249,4 +259,5 @@ a real non-motion end state, so removing the transition costs nothing.
   status strip, question the feature.
 - Do not capitalize user-facing text.
 - Do not animate anything that is not a state change.
-- Do not introduce a second way to reach an action that already has one.
+- Do not write an action twice. A second entry point is fine when both route
+  through one implementation; a second copy of the logic is not (`D31`).

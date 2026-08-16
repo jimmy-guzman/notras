@@ -104,7 +104,8 @@ src/
     external.tsx      # edit a markdown file outside the notes dir
   components/
     editor/           # TipTap wrapper, extensions, suggestions, autosave
-    notes/            # note-header (title/tags/pin), status-bar
+    notes/            # note-header (title/pin), note-tags, use-note-tags,
+                      # status-bar
     command-palette.tsx
     settings-dialog.tsx
     capture-window.tsx
@@ -241,9 +242,20 @@ index synchronously and call `emit_changed`.
 
 ### The palette is the action surface
 
-`command-palette.tsx` holds search, tag filtering via `#`, pin, move, delete,
-reveal, settings, and reindex. New note-level actions belong there rather than
-in new chrome.
+`command-palette.tsx` holds search, tag filtering via `#`, tag editing, pin,
+move, delete, reveal, settings, and reindex. New note-level actions belong there
+rather than in new chrome.
+
+`move`, `delete`, and `tags` are sub-views of `PaletteView`. The tags view is
+the one place an action row does not dismiss the palette: toggling calls
+`changeTags` from `useNoteTags` rather than `runAction`, so several tags can be
+set in one visit (`D31`).
+
+`#` parses through `parseTagQuery` in `src/lib/utils/tag-query.ts`: the token
+becomes `NoteFilters.tag`, an exact indexed match, and anything after it becomes
+the FTS query, which `findMany` ANDs with it. So `#work budget` searches
+"budget" inside the `work` tag. The counted vocabulary comes from
+`NoteService.listTags()` through the root loader, not from the loaded notes.
 
 ### Preferences
 
