@@ -20,7 +20,9 @@
         "minHeight": 360,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "backgroundColor": "#191b1d",
+        "trafficLightPosition": { "x": 16, "y": 24 }
       }
     ],
     "security": {

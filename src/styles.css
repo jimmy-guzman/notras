@@ -1,9 +1,12 @@
-@import "@fontsource-variable/dm-sans";
-@import "@fontsource/geist-mono";
-@import "@fontsource/ia-writer-quattro";
-@import "@fontsource/ia-writer-quattro/400-italic.css";
-@import "@fontsource/ia-writer-quattro/700.css";
-@import "@fontsource/ia-writer-mono";
+/* Literata carries an opsz 7-72 axis, which is what font-optical-sizing spends
+   on the note surface. iA Writer Mono ships one cut per file, and the three
+   pulled here are the three the syntax theme asks for: regular for code, 700
+   for keywords, italic for comments. */
+@import "@fontsource-variable/literata/opsz.css";
+@import "@fontsource-variable/literata/opsz-italic.css";
+@import "@fontsource/ia-writer-mono/latin-400.css";
+@import "@fontsource/ia-writer-mono/latin-400-italic.css";
+@import "@fontsource/ia-writer-mono/latin-700.css";
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -16,24 +19,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
-  --font-editor:
-    "iA Writer Quattro", "DM Sans Variable", ui-sans-serif, sans-serif;
-  --font-editor-mono: "iA Writer Mono", "Geist Mono", ui-monospace, monospace;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "iA Writer Mono", ui-monospace, monospace;
+  --font-editor: "Literata Variable", ui-serif, Georgia, serif;
+  /* Clears the macOS traffic lights, which float over the content at the top
+     left. The compact buttons end at 72px; the rest is breathing room. */
+  --spacing-titlebar: 5.25rem;
+  --color-faint: var(--faint);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -59,80 +51,96 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* The palette is stet's, whose source of truth is
+   packages/tui/src/theme/{dark,light}.ts. Seven values are playa.dev's lifted
+   variants rather than stet's own, because stet treats contrast as a
+   comfortable target while src/styles.spec.ts makes WCAG AA a floor. Each was
+   lifted in OKLCH holding chroma and hue.
+
+   --accent is shadcn's name for a hover surface, not for the accent. The accent
+   lands on --primary. */
 :root {
-  --background: oklch(0.147 0.004 49.25);
-  --foreground: oklch(0.985 0.001 106.423);
-  --card: oklch(0.216 0.006 56.043);
-  --card-foreground: oklch(0.985 0.001 106.423);
-  --popover: oklch(0.216 0.006 56.043);
-  --popover-foreground: oklch(0.985 0.001 106.423);
-  --primary: oklch(0.923 0.003 48.717);
-  --primary-foreground: oklch(0.216 0.006 56.043);
-  --secondary: oklch(0.268 0.007 34.298);
-  --secondary-foreground: oklch(0.985 0.001 106.423);
-  --muted: oklch(0.268 0.007 34.298);
-  --muted-foreground: oklch(0.709 0.01 56.259);
-  --accent: oklch(0.268 0.007 34.298);
-  --accent-foreground: oklch(0.985 0.001 106.423);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.553 0.013 58.071);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --background: #191b1d;
+  --foreground: #e9ebee;
+  --card: #101214;
+  --card-foreground: #e9ebee;
+  --popover: #101214;
+  --popover-foreground: #e9ebee;
+  --primary: #ffa7d9;
+  --primary-foreground: #101214;
+  --secondary: #2c2e30;
+  --secondary-foreground: #e9ebee;
+  --muted: #2c2e30;
+  --muted-foreground: #848688;
+  --accent: #2c2e30;
+  --accent-foreground: #e9ebee;
+  --destructive: #e76761;
+  --border: #2c2e30;
+  --input: #2c2e30;
+  --ring: #ffa7d9;
+  --faint: #5c5e60;
+  --selection: #234155;
+  --syntax-comment: #919395;
+  --syntax-function: #71c1f7;
+  --syntax-keyword: #ffa7d9;
+  --syntax-keyword-control: #eeae7b;
+  --syntax-keyword-import: #c79ef7;
+  --syntax-member: #7aacf6;
+  --syntax-number: #e7d398;
+  --syntax-operator: #78d0e5;
+  --syntax-punctuation: #9c9ea1;
+  --syntax-string: #91d39f;
+  --syntax-tag: #b4b9eb;
+  --syntax-type: #77ddca;
   --radius: 0.875rem;
-  --sidebar: oklch(0.216 0.006 56.043);
-  --sidebar-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.268 0.007 34.298);
-  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.553 0.013 58.071);
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.147 0.004 49.25);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.147 0.004 49.25);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.147 0.004 49.25);
-    --primary: oklch(0.216 0.006 56.043);
-    --primary-foreground: oklch(0.985 0.001 106.423);
-    --secondary: oklch(0.97 0.001 106.424);
-    --secondary-foreground: oklch(0.216 0.006 56.043);
-    --muted: oklch(0.97 0.001 106.424);
-    --muted-foreground: oklch(0.553 0.013 58.071);
-    --accent: oklch(0.97 0.001 106.424);
-    --accent-foreground: oklch(0.216 0.006 56.043);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.923 0.003 48.717);
-    --input: oklch(0.923 0.003 48.717);
-    --ring: oklch(0.709 0.01 56.259);
-    --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
-    --chart-4: oklch(0.828 0.189 84.429);
-    --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0.001 106.423);
-    --sidebar-foreground: oklch(0.147 0.004 49.25);
-    --sidebar-primary: oklch(0.216 0.006 56.043);
-    --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-    --sidebar-accent: oklch(0.97 0.001 106.424);
-    --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-    --sidebar-border: oklch(0.923 0.003 48.717);
-    --sidebar-ring: oklch(0.709 0.01 56.259);
+    --background: #f7f8fa;
+    --foreground: #2a2e33;
+    --card: #ffffff;
+    --card-foreground: #2a2e33;
+    --popover: #ffffff;
+    --popover-foreground: #2a2e33;
+    --primary: #c53794;
+    --primary-foreground: #ffffff;
+    --secondary: #d5d8db;
+    --secondary-foreground: #2a2e33;
+    --muted: #d5d8db;
+    --muted-foreground: #707274;
+    --accent: #d5d8db;
+    --accent-foreground: #2a2e33;
+    --destructive: #b64340;
+    --border: #bbbec1;
+    --input: #bbbec1;
+    --ring: #ab3276;
+    --faint: #8d8f92;
+    --selection: #b4d6ef;
+    --syntax-comment: #626467;
+    --syntax-function: #006aa5;
+    --syntax-keyword: #ab3276;
+    --syntax-keyword-control: #a36328;
+    --syntax-keyword-import: #7d4dad;
+    --syntax-member: #2a61b1;
+    --syntax-number: #876f1f;
+    --syntax-operator: #007890;
+    --syntax-punctuation: #5c5e60;
+    --syntax-string: #287c42;
+    --syntax-tag: #5e61a1;
+    --syntax-type: #007565;
   }
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Tells the webview which schemes exist, which themes the scrollbars, the
+     caret, and native controls like the code-block language picker. index.html
+     seeds the same value so the first paint is not white. */
+  html {
+    color-scheme: dark light;
   }
   body {
     @apply bg-background text-foreground;
@@ -151,6 +159,17 @@
   .allow-select {
     user-select: text;
     -webkit-user-select: text;
+  }
+  /* Motion carries a state change, so removing it costs nothing but the
+     transition. Every animation here has a real non-motion end state. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -172,14 +191,13 @@
 }
 .ProseMirror ::selection,
 .ProseMirror::selection {
-  background: color-mix(in oklch, var(--primary) 22%, transparent);
+  background: var(--selection);
 }
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
   height: 0;
-  color: var(--muted-foreground);
-  opacity: 0.5;
+  color: var(--faint);
   pointer-events: none;
 }
 
@@ -310,12 +328,14 @@
   padding: 0.25rem;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
+/* Concentric with the menu: the parent radius less the parent padding, so the
+   two curves stay parallel if --radius moves. */
 .suggestion-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-md) - 0.25rem);
   padding: 0.3rem 0.6rem;
   text-align: left;
   font-size: 0.85rem;
@@ -326,7 +346,7 @@
 }
 .suggestion-hint {
   color: var(--muted-foreground);
-  font-family: var(--font-editor-mono);
+  font-family: var(--font-mono);
   font-size: 0.75em;
 }
 
@@ -336,7 +356,7 @@
   border-radius: 0;
   margin: 0;
   padding: 0;
-  font-family: var(--font-editor-mono);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -347,7 +367,7 @@
 .ProseMirror pre {
   background: var(--card);
   border-radius: var(--radius-md);
-  font-family: var(--font-editor-mono);
+  font-family: var(--font-mono);
 }
 .code-block-wrapper {
   position: relative;
@@ -421,7 +441,7 @@
   width: 14rem;
   height: 1.75rem;
   padding-inline: 0.5rem;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-md) - 0.35rem);
   background: var(--input);
   font-size: 0.8rem;
   outline: none;
@@ -431,44 +451,106 @@
   align-items: center;
   gap: 0.15rem;
 }
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-built_in {
-  color: var(--chart-2);
-}
-.hljs-string,
-.hljs-attr,
-.hljs-regexp {
-  color: var(--chart-3);
-}
-.hljs-title,
-.hljs-title.function_,
-.hljs-name {
-  color: var(--chart-1);
-}
-.hljs-number,
-.hljs-literal,
-.hljs-symbol {
-  color: var(--chart-4);
-}
+/* Syntax highlighting: lowlight classes onto stet's twelve roles. Emphasis is
+   weight and slant rather than colour, so the theme survives a palette swap. */
 .hljs-comment,
 .hljs-quote {
-  color: var(--muted-foreground);
+  color: var(--syntax-comment);
   font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal {
+  color: var(--syntax-keyword);
+  font-weight: 700;
+}
+.hljs-section,
+.hljs-doctag {
+  color: var(--syntax-keyword);
+  font-weight: 700;
+}
+.hljs-meta,
+.hljs-meta-keyword {
+  color: var(--syntax-keyword-import);
+}
+.hljs-title,
+.hljs-title.function_ {
+  color: var(--syntax-function);
+}
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--syntax-tag);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--syntax-member);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-char.escape_,
+.hljs-subst {
+  color: var(--syntax-string);
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--syntax-number);
+}
+.hljs-operator {
+  color: var(--syntax-operator);
+}
+.hljs-punctuation {
+  color: var(--syntax-punctuation);
 }
 .hljs-type,
 .hljs-class,
-.hljs-section {
-  color: var(--chart-5);
+.hljs-built_in,
+.hljs-params {
+  color: var(--syntax-type);
+}
+.hljs-link {
+  color: var(--syntax-function);
+  text-decoration: underline;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 700;
 }
 
 /* Preview typography mirrors the editor's live styling (face, rhythm and
    heading scale from src/components/editor/editor.tsx) so toggling ⌘P never
    makes the text visually teleport. */
+/* @tailwindcss/typography ships its own stone ramp, which would render the note
+   in a warmer grey than the palette the chrome uses. Repointing every prose
+   colour at a token puts the reading surface back on the palette, and outranks
+   both prose-stone and prose-invert because this rule sits outside @layer. */
 .note-preview-prose {
   font-family: var(--font-editor);
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.75;
+  font-optical-sizing: auto;
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--foreground);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--border);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--muted-foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--card);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
 }
 .note-preview-prose h1 {
   font-size: 1.6em;
@@ -486,5 +568,5 @@
 }
 .note-preview-prose code,
 .note-preview-prose pre {
-  font-family: var(--font-editor-mono);
+  font-family: var(--font-mono);
 }

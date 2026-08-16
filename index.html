@@ -3,6 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The webview paints its own canvas before styles.css exists, and without a
+      color-scheme it paints white. The meta tag is read before the document is
+      drawn; the CSS property alone cannot help, because honouring it waits on
+      the stylesheet. Both backgrounds restate --background from src/styles.css,
+      and src/styles.spec.ts fails if the copies drift.
+    -->
+    <meta name="color-scheme" content="dark light" />
+    <style>
+      :root {
+        color-scheme: dark light;
+        background-color: #191b1d;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          background-color: #f7f8fa;
+        }
+      }
+    </style>
     <title>notras</title>
   </head>
   <body>

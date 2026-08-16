@@ -18,6 +18,7 @@ import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
 import { StatusBar } from "@/components/notes/status-bar";
+import { Titlebar } from "@/components/titlebar";
 import { composeNote, parseNote } from "@/core";
 import { attachFile } from "@/data/attach-file";
 import { getNote } from "@/data/get-note";
@@ -301,7 +302,9 @@ function NoteEditor({ note }: NoteEditorProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <NoteHeader path={note.path} pinned={note.pinned} tags={note.tags} />
+      <Titlebar>
+        <NoteHeader path={note.path} pinned={note.pinned} tags={note.tags} />
+      </Titlebar>
       {sourceMode ? (
         <SourceEditor
           initialCursor={sourceCursor}

@@ -26,7 +26,7 @@ rebuilds it from your files on the next launch.
 ## Features
 
 - editor-first window: true WYSIWYG markdown (TipTap 3) that reads and
-  writes plain `.md`, set in iA Writer Quattro
+  writes plain `.md`, set in Literata
 - autosave on idle; what lands on disk is clean, canonical markdown
 - ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
   `#tag` filters, and every note action

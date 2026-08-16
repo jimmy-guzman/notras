@@ -58,7 +58,7 @@ function TagEditor({ onTagsChange, tags }: TagEditorProps) {
       })}
       <input
         aria-label="add tag"
-        className="w-16 rounded-sm bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/50 focus-visible:ring-[2px] focus-visible:ring-ring/50"
+        className="w-16 rounded-sm bg-transparent text-xs text-muted-foreground outline-none placeholder:text-faint focus-visible:ring-[3px] focus-visible:ring-ring/50"
         onBlur={commitDraft}
         onChange={(event) => {
           setDraft(event.target.value);
@@ -160,10 +160,10 @@ export function NoteHeader({ path, pinned, tags }: NoteHeaderProps) {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-3 px-6 pt-1 pb-2">
+    <div className="flex min-w-0 flex-1 items-center gap-3">
       <input
         aria-label="note title"
-        className="min-w-0 flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground/50"
+        className="min-w-0 flex-1 truncate rounded-sm bg-transparent text-sm font-medium outline-none placeholder:text-faint focus-visible:ring-[3px] focus-visible:ring-ring/50"
         onBlur={commitTitle}
         onChange={(event) => {
           setTitle(event.target.value);
@@ -190,7 +190,7 @@ export function NoteHeader({ path, pinned, tags }: NoteHeaderProps) {
             <Button
               aria-label={optimisticPinned ? "unpin note" : "pin note"}
               aria-pressed={optimisticPinned}
-              className={cn("size-7", optimisticPinned && "text-primary")}
+              className={cn("size-6", optimisticPinned && "text-primary")}
               onClick={togglePinned}
               size="icon"
               variant="ghost"

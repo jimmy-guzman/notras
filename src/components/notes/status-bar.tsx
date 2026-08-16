@@ -81,8 +81,8 @@ export function StatusBar({
   words,
 }: StatusBarProps) {
   return (
-    <footer className="flex h-8 shrink-0 items-center gap-3 border-t px-3 text-xs text-muted-foreground">
-      <span className={cn(status === "saved" && "text-muted-foreground/60")}>
+    <footer className="flex h-7 shrink-0 items-center gap-3 border-t px-3 text-xs text-muted-foreground">
+      <span className={cn(status === "saved" && "text-faint")}>
         {STATUS_LABEL[status]}
       </span>
       <span className="ml-auto tabular-nums">

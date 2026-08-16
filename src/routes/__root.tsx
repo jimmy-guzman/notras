@@ -174,10 +174,6 @@ function RootLayout() {
   return (
     <TooltipProvider>
       <div className="flex h-svh flex-col bg-background text-foreground">
-        <div
-          className="titlebar-drag-region h-9 shrink-0"
-          data-tauri-drag-region
-        />
         <Outlet />
       </div>
       <CommandPalette
