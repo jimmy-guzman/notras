@@ -35,17 +35,22 @@ function StatusToggle({
 }: StatusToggleProps) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          aria-pressed={active}
-          className={cn("size-6", active && "bg-accent text-accent-foreground")}
-          onClick={onToggle}
-          size="icon"
-          variant="ghost"
-        >
-          <Icon className="size-3.5" />
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label={label}
+            aria-pressed={active}
+            className={cn(
+              "size-6",
+              active && "bg-accent text-accent-foreground",
+            )}
+            onClick={onToggle}
+            size="icon"
+            variant="ghost"
+          />
+        }
+      >
+        <Icon className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent>
         {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}

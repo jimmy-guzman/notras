@@ -13,6 +13,12 @@
       "skillPath": "skills/shadcn/SKILL.md",
       "computedHash": "c1a68ee06a668aced9ab2b5fbdea5f989864123794eb2e056b339a072dbb7f10"
     },
+    "tiptap": {
+      "source": "ueberdosis/tiptap",
+      "sourceType": "github",
+      "skillPath": "skills/tiptap/SKILL.md",
+      "computedHash": "109f4d9514b3c91fc3b0ffe1607b360a3e718f3b723421158651ec9e853fd944"
+    },
     "vite": {
       "source": "antfu/skills",
       "sourceType": "github",

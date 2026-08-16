@@ -137,6 +137,11 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Base UI portals popups to the body, after the app root. A stacking context
+     on the root keeps them above page content without a z-index race. */
+  #root {
+    isolation: isolate;
+  }
   /* The whole window is chrome-less; text selection outside the editor
      reads as web-page, not app. */
   body {

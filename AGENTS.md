@@ -1,181 +1,254 @@
-# notras
+# AGENTS.md
 
-A local-first desktop notes app -- "Just write, otra vez."
+Apply these when writing or changing code, and when writing prose in this repo.
+They override your defaults where they conflict.
 
-Read `SPEC.md` for the working rewrite spec (decisions, phase checklists,
-manual verification walkthrough, progress log). Keep it updated as work lands.
+## Project docs
 
-## Tech Stack
+The context for this repo lives in five documents. Read the ones your change
+touches before changing anything.
 
-- **Shell:** Tauri 2 (Rust) -- file IO commands, FTS5 index, notify watcher,
-  tray, global shortcuts
-- **Frontend:** Vite + React 19 + TanStack Router (file routes, no SSR)
-- **Editor:** TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional
-  GFM); lowlight code blocks; ⌘P raw-source textarea
-- **Effect:** Effect 4 (`4.0.0-rc.x`, pinned exactly) -- typed errors, Layer/DI,
-  `Context.Service`, ManagedRuntime
-- **Index queries:** Drizzle ORM `sqlite-proxy` (SELECT-only, see below)
-- **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
-- **Formatting:** oxfmt (dev tooling); TipTap's markdown serializer is the
-  runtime canonical form
-- **Testing:** Vitest + happy-dom (TS), `cargo test` (Rust)
-- **Package Manager:** pnpm
+| Doc               | What it holds                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `ARCHITECTURE.md` | How the system is built: stack, structure, the files-first invariants, layer boundaries, key patterns, the index schema.  |
+| `DESIGN.md`       | The interface conventions the app is built to: typography, color, space, motion, interaction, copy, accessibility.        |
+| `DECISIONS.md`    | Numbered decisions, each with its rationale, what it rejected, and the constraints it imposes.                            |
+| `SPEC.md`         | The working document for the rewrite: phase checklists, the manual verification walkthrough, deferred work, progress log. |
+| `README.md`       | The front door. What notras is, how to run it, what the shortcuts are.                                                    |
+
+`AGENTS.md` holds rules and this map. Project fact belongs in one of the files
+above, so a stack detail, a pattern, or a color token added here is in the wrong
+place.
+
+- **Keep `SPEC.md` current as you work.** Check a phase item when passing tests
+  or a completed walkthrough step cover it, and add a progress log row for what
+  landed.
+
+- **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out
+  an option for a reason worth recording makes the choice a decision. Add a
+  numbered entry with the rationale and what was rejected.
+
+- **Numbering is monotonic and IDs are never reused, even after the entry is
+  removed.** A citation in a commit or a comment outlives the line it points at.
+  Reusing an ID repoints every reference to it without any of them changing.
+
+- **Cite IDs, never restate.** Write `D7` in code, commit messages, PR bodies,
+  and the other docs. A copied constraint drifts away from its original as the
+  original changes, while a citation keeps pointing at whatever the entry says
+  now.
 
 ## Learning more about Effect
 
-This repository uses the Effect Typescript library.
+This repository uses the Effect TypeScript library.
 
 Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
 **completely**, and follow the links in the file when required.
 
-If you need to learn more about particular Effect apis and concepts that the
-guide doesn't cover, search through the source code in `node_modules/effect/src`.
+If you need to learn more about particular Effect APIs and concepts that the
+guide does not cover, search through the source code in
+`node_modules/effect/src`.
 
-## Project Structure
+## Naming and layout
 
-```txt
-src/
-  main.tsx            # Vite entry -> App (router, or capture window branch)
-  app-shell.tsx       # Router setup + ?window=capture branch
-  styles.css          # Tailwind 4 theme, fonts, CM6 + titlebar styling
-  routes/             # TanStack Router file routes
-    __root.tsx        # loader (notes/folders/notesDir/prefs), palette,
-                      # settings dialog, hotkeys, notes-changed listener
-    index.tsx         # redirect to last-edited note, else empty state
-    notes.$.tsx       # THE page: editor session keyed by note path
-    external.tsx      # edit a markdown file outside the notes dir
-  components/
-    editor/           # TipTap wrapper, extensions, suggestions, autosave
-    notes/            # note-header (title/tags/pin), status bar
-    command-palette.tsx
-    settings-dialog.tsx
-    capture-window.tsx
-    ui/               # Shadcn components (auto-generated, don't hand-edit)
-  core/               # Isomorphic bottom layer (no platform imports)
-    frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
-    notes.ts          # NoteMeta, NoteFilters, path/title helpers
-    file-store.ts     # FileStore port (Context.Tag)
-    errors.ts         # DatabaseError, FileError
-    fts-markers.ts    # [[hl]] snippet markers shared with SQL
-  data/               # Plain async fns the UI calls (ex-server-actions)
-    run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
-  server/
-    adapters/         # ONLY files here + runtime.ts may import @tauri-apps/*
-      tauri-file-store.ts   # FileStore -> Rust commands
-      tauri-database.ts     # drizzle sqlite-proxy -> db_select command
-    db/               # Database service, index schema mirror, fts-query helpers
-    repositories/     # note-repository: SELECTs against the index
-    schemas/          # Effect Schema validation (titles, folder names)
-    services/         # note-service, app-layer
-    runtime.ts        # AppRuntime (ManagedRuntime) -- wires the adapters
-  lib/                # Client utilities (preferences, fts-snippet, word-count)
-src-tauri/
-  src/lib.rs          # setup: notes dir, index, watcher, tray, shortcuts
-  src/notes.rs        # note IO commands (write/rename/delete/attach/external)
-  src/index.rs        # index schema, indexer, scan, read-only select
-  src/frontmatter.rs  # Rust twin of src/core/frontmatter.ts
-  src/watcher.rs      # debounced notify watcher -> reindex -> event
-```
+- **Files read bottom-up: helpers at the top, main exported symbol at the
+  bottom.** Scrolling to the end shows the file's public API. Implementation
+  details sit above it in the order you would compose them. Route files are the
+  exception: `export const Route` sits at the top, with components as function
+  declarations below, which hoisting makes lint-clean.
 
-## Architecture
+- **Follow the ecosystem's filename casing convention, and apply it to
+  directories too.** kebab-case in TypeScript, snake_case in Rust. Import
+  mechanics and tooling depend on the convention, so it belongs to the language.
+  Framework-reserved filenames are exempt.
 
-**Files are the source of truth.** Notes are `.md` files under the notes dir
-(default `~/notras`); folders are directories; `pinned`/`tags` live in YAML
-frontmatter. The SQLite index at `.notras/index.db` is derived and disposable
--- deleting it triggers a rebuild on launch.
+- **Test files are named `*.spec.ts` and live next to the code they test.**
+  Colocation puts a test where someone reading the code will find it, and one
+  suffix keeps the runner's glob config short. Rust tests live in `#[cfg(test)]`
+  modules in the same file.
 
-- **Rust is the single writer of the index.** Every TS mutation goes through a
-  Rust command (`write_note`, `rename_note`, `delete_note`, ...) that writes
-  the file and updates the index in the same call, then emits `notes-changed`.
-  The `db_select` command rejects anything that is not SELECT/WITH. Never add
-  an index write path from TypeScript.
-- **External writers** (AI agents, other editors, git) are reconciled by the
-  debounced watcher; the mtime skip in `index_file` keeps self-writes from
-  echoing. UI refresh is event-driven: the root route listens for
-  `notes-changed` and calls `router.invalidate()`.
-- **Note identity is the relative path.** The filename is the title; renames
-  are delete+create in the index. Wikilinks resolve by title, so renames can
-  dangle links (accepted).
-- **Frontmatter parity:** `src/core/frontmatter.ts` and
-  `src-tauri/src/frontmatter.rs` implement the same deliberately tiny dialect
-  (`pinned: bool`, `tags` inline or block list). Change one, change the other,
-  and cover both with tests. The TS serializer preserves unknown keys
-  verbatim -- externally-authored notes must survive round-trips.
+- **Name functions for what they do.** A caller should predict a function's
+  return and throw behavior from its name. Do not hide filtering, auth, routing,
+  or special-casing inside a function named for fetching or computing. Split a
+  function that decides whether work should happen from the one that does it,
+  and name the deciding part.
 
-### Layer boundaries
+- **No comments other than doc comments and `TODO`/`FIXME`.** Doc comments means
+  JSDoc and rustdoc. Naming and structure carry the rest. Comments drift away
+  from the code they describe, and the two kinds worth that risk are an API
+  contract and a known gap.
 
-Enforced by two `no-restricted-imports` blocks at the bottom of
-`eslint.config.ts` -- they must stay last (flat config replaces rule options)
-and the fix is never to widen the glob:
+- **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **`src/core/**`** is isomorphic: no `@tauri-apps/*`, `react`, `node:*`, and
-  no upward imports from `@/server`, `@/lib`, `@/components`, `@/data`.
-- **`src/server/{db,repositories,schemas,services}/**`** is platform-free: no
-  `@tauri-apps/*` or React. Inject behavior through the ports instead
-  (`FileStore` in `src/core`, `Database` in `src/server/db`). Only
-  `src/server/adapters/**` and `src/server/runtime.ts` may import
-  `@tauri-apps/*`.
-- UI code (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*`
-  for UI concerns (events, dialogs, window control, preferences store) but
-  never for note file IO or SQL -- that goes through `src/data`.
-
-## Key Patterns
-
-- **Data access:** UI calls plain async functions in `src/data/` (one concern
-  per file). They validate with Effect Schema where input is user-shaped and
-  run Effects via `run()` from `src/data/run.ts` -- the only place
-  `AppRuntime` is executed. `run()` unwraps typed failures into plain `Error`s
-  so callers can `toast.error(error.message)`.
-- **Effect style (v4):** services are `Context.Service<Self, IShape>()("notras/…")`
-  classes that carry their own `static readonly layer`; there are no `XxxLive`
-  consts. Reach a service with `Service.use((svc) => svc.method(...))` -- never
-  `Effect.flatMap(Tag, fn)` (trips `unicorn/no-array-method-this-argument`).
-  Methods with a generator body are `Effect.fn("Service.method")`; plain
-  delegations stay one-liners. Errors are `Schema.TaggedError`. Services convert
-  `DatabaseError` to defects via `.pipe(Effect.orDie)`; `FileError` stays typed
-  because its message is user-facing.
-- **Test seam:** a service whose layer bakes in dependencies also exposes
-  `layerNoDeps` (see `NoteService`), so specs can provide stubs. `note-service.spec.ts`
-  wires it with an in-memory `FileStore` and a stub `NoteRepository`.
-- **Routes:** TanStack Router file routes. `export const Route` sits at the
-  top of the file; components are function declarations below (hoisting makes
-  this lint-clean). `@tanstack/eslint-plugin-router` owns route-option
-  ordering (`create-route-property-order`), and `perfectionist/sort-objects`
-  is configured to leave `Route` option objects unsorted -- do not fight
+- **Sort object keys and imports alphabetically** (perfectionist), with two
+  exceptions the config already encodes: route option objects, which
+  `@tanstack/eslint-plugin-router` owns through `create-route-property-order`,
+  and the boundary blocks in `eslint.config.ts`, which stay last. Do not fight
   either rule.
-- **The editor owns its buffer.** `Editor` (TipTap wrapper) freezes all
-  props except the writing-mode toggles at mount via a `useState`
-  initializer; loading different content means remounting via `key`.
-  Callbacks passed to it must be freeze-safe: read live values through
-  refs/stable getters, never closures over render state.
-- **Body-only editing.** The editor holds the note BODY as markdown;
-  frontmatter is parsed off at load (`parseNote`) and reattached at save
-  (`composeNote`), always from the LATEST loader snapshot so pin/tag
-  toggles are never clobbered by a body save. ⌘P is a raw-source textarea
-  over the full file.
-- **Markdown round-trip contract.** `markdown-roundtrip.spec.ts` pins the
-  set of constructs that must survive file -> editor -> file. Extend it
-  when adding nodes; custom syntax uses the extension-config trio
-  `markdownTokenName`/`markdownTokenizer`/`parseMarkdown`/`renderMarkdown`
-  (see `wikilink.ts`).
-- **Editing session per note:** `notes.$.tsx` renders `<NoteEditor
-key={note.path}>` so autosave state can never leak across notes. Autosave
-  (`use-autosave.ts`) debounces 800ms and flushes on blur/unmount.
-- **External-change reload guard:** a loader refresh replaces the buffer only
-  when it is clean AND the file's mtime is newer than our own last write
-  (`lastSavedAtRef`) -- a stale loader snapshot of a just-saved note must
-  never clobber the buffer. Don't simplify this check away.
-- **Adding a Rust command:** define in `src-tauri/src/notes.rs` (or a new
-  module), register in `generate_handler!` in `lib.rs`, expose through the
-  `FileStore` port + `tauri-file-store.ts` adapter if it is note IO. Commands
-  that mutate must index synchronously and `emit_changed`.
-- **Palette:** `command-palette.tsx` is the action surface (search, tag
-  filter via `#`, pin/move/delete/reveal, settings, reindex). New note-level
-  actions belong here, not in new chrome.
-- **Preferences:** `@tauri-apps/plugin-store` via `src/lib/preferences.ts`
-  (`settings.json`, shared with Rust's `notesDir`).
-- **Snippet rendering:** FTS snippets use `[[hl]]`/`[[/hl]]` markers parsed by
-  `getSnippetParts` -- never `dangerouslySetInnerHTML`.
+
+- **Icons come from `lucide-react`, always the `Icon`-suffixed export.** Use
+  `cn()` from `@/lib/ui/utils` for conditional Tailwind classes.
+
+## Shaping a unit
+
+- **Build the smallest thing that answers the request.** Solve what was asked.
+  Skip config objects, options bags, plugin hooks, and abstraction layers for
+  needs nobody stated. Delete flexibility you are adding "for later". Reach for
+  a function before a class, and a class before a framework.
+
+- **One reason to change per unit.** A function or module should do one job.
+  Needing "and" to describe it means splitting it. Group code that changes
+  together and separate code that changes for different reasons.
+
+- **Derive values, do not assemble them.** A binding should be the result of an
+  expression at the point of declaration. Branching, trying, or looping to
+  populate a binding is a function waiting to be extracted, and pulling it out
+  leaves code that produces a value where code used to mutate one into place.
+
+- **Separate commands from queries.** A function should either do something or
+  answer something. Do not return a value from a function whose job is a side
+  effect, and do not mutate state in a function whose job is to answer a
+  question.
+
+- **Do not optimize before it is measured.** Write the clear version. Add
+  caching, memoization, or a clever data structure once a profiler names the
+  cost, and not before.
+
+## Boundaries between units
+
+- **Depend on abstractions you pass in, not concretions you reach for.** This
+  repo already names its ports: `FileStore` in `src/core`, `Database` in
+  `src/server/db`. A service that reaches for a Tauri command directly cannot be
+  tested, and `ARCHITECTURE.md` records the lint rules that stop it.
+
+- **Hide what varies behind a stable surface.** Keep implementation details,
+  data shapes, and library choices private to their module. Expose the narrowest
+  interface callers need.
+
+- **Keep changes local.** Do not chain through objects like `a.b.c.d`, and do
+  not wire modules together for convenience. A change in one place should not
+  force edits in five.
+
+- **Prefer composition over inheritance.** Compose small functions or pass
+  dependencies in. Inheritance suits a true is-a relationship, which comes up
+  rarely.
+
+## Editing existing code
+
+- **Replace, do not accumulate.** When changing behavior, remove the old path.
+  Do not add a branch or a flag beside the code you are superseding. Question
+  any change that only grows the file, and aim for code the next person can
+  delete.
+
+- **Duplicate before you abstract, and even then, ask.** Do not extract shared
+  code on the second occurrence. Wait for the third, and only when the copies
+  change together for the same reason. Even then, surface the duplication and
+  propose the extraction instead of doing it unprompted. Whether two similar
+  pieces are one concept takes context that the person reading the diff has and
+  you may not.
+
+- **Prefer duplication to an abstraction that might be wrong.** Deduping two
+  unrelated pieces couples their futures. Once one needs to change and the other
+  does not, the abstraction grows conditionals or splits back apart, and both
+  cost more than the copies would have.
+
+- **Inline by default, and extract only when the helper earns a name.** Leave
+  single-use helpers at the call site. Pull one out when it is reused, when it
+  hides a complex boundary, or when its name improves the caller. Once a
+  function grows several branches, let it read as the happy path and move the
+  supporting detail into small named helpers below it.
+
+## Types and errors
+
+- **Do not reach for `as`, `!`, or escape-hatch types before exhausting proper
+  solutions. Understand the type error before silencing it.** A type error is
+  signal. A cast silences the signal and leaves the mismatch, which then
+  surfaces somewhere further from its cause.
+
+- **Where TypeScript infers return types, do not annotate internal functions.**
+  That covers unexported functions, local closures, and inline callbacks.
+  Exported functions and interface method signatures are the exception, since
+  their return type is part of the public contract.
+
+- **Fail loud, never default silently.** Do not paper over missing or invalid
+  data with fallback values, coalescing defaults, or swallowed exceptions. Parse
+  and reject bad input where it enters, so the failure names its cause on the
+  first line of the stack trace. Validation is Effect Schema in
+  `src/server/schemas/`, not zod.
+
+- **A typed failure's message is user-facing text.** `run()` unwraps typed
+  failures into plain `Error`s and callers write `toast.error(error.message)`.
+  Write those messages to the copy rules in `DESIGN.md`.
+
+- **Resolve warnings and errors your changes introduce before finishing. Fix the
+  root cause.** A warning fires because something is off. Silencing it converts
+  a problem you can solve now into one that surfaces later without the warning
+  attached.
+
+## Testing
+
+- **Test behavior, not implementation.** Assert what a caller or user observes.
+  Both terms scale with the unit under test: for a component it is the person
+  clicking, for a function it is the code calling it. A test that asserts
+  internals breaks on every refactor while proving nothing about whether the
+  code works.
+
+- **Every test title starts with `should`.** The title has to finish the
+  sentence "it should ...", which forces it to name an observable outcome. A
+  title that cannot finish it is describing the implementation.
+
+- **Prefer clarity over DRY in tests.** Inline the setup, repeat the literals,
+  and skip a shared fixture that would hide the case under test. A test has to
+  be readable on its own, and the pull toward DRY that improves production code
+  tends to damage that.
+
+- **Test real behavior, not hypothetical behavior.** Cover the cases the
+  contract promises. Do not manufacture edge cases the code makes no claim
+  about, since coverage bought that way measures nothing.
+
+- **Avoid mocks.** Use the seams the code already has, described under "Test
+  seam" in `ARCHITECTURE.md`. Where faking is unavoidable, fake at the furthest
+  boundary, meaning the filesystem or the index, and not at the module sitting
+  next to the code under test.
+
+- **A test and the behavior it asserts do not change in the same commit.** A
+  failing test means the invariant is wrong or the change is, and deciding which
+  comes before editing either.
+
+## Fixing bugs
+
+- **Diagnose the root cause before fixing.** Assume a correct architecture has
+  no bugs. Every bug is then evidence that the architecture permits it, beyond
+  the one code path where it showed up. Before fixing, ask why the architecture
+  allowed the bug to exist and whether the same structure keeps producing others
+  like it.
+
+- **Prefer structural fixes over symptom patches.** A fix that removes the
+  structural condition beats a guard, a special case, or a workaround that
+  leaves the enabling structure standing. Reach for the symptom-layer patch once
+  the root-cause fix is infeasible or belongs in a separate change, and never
+  because it is larger or harder. When you do patch at the symptom layer, say so
+  and name the root cause you are deferring.
+
+- **Root-cause analysis is required. Refactoring on the analysis is not.** Think
+  first, and treat the analysis as mandatory on every fix.
+
+## Deciding what to do
+
+- **Judge work by correctness, not by ROI.** Decide each piece of work on
+  whether it should be done. Ask whether it is correct, whether the current
+  state is wrong or inconsistent, and whether it serves the goal. Cost, effort,
+  and "is it worth it" decide nothing. Do not label a known-wrong thing
+  low-value, marginal, an edge case, or not worth it to justify leaving it
+  unfixed.
+
+- **The only reason to stop is provable impossibility.** Hard, heavy, expensive,
+  and a lot of work are not reasons to stop. Proven impossible or blocked is.
+  Unsure which one you are looking at means finding out by trying it, measuring
+  it, or proving it, before deciding.
+
+- **Present choices by correctness and feasibility.** Frame options by whether
+  they are correct and whether they can be built, including real impossibilities
+  and real capability tradeoffs. ROI is not one of the frames.
 
 ## Commands
 
@@ -206,63 +279,243 @@ pnpm build:web    # 4. web bundle build
 cargo test        # 5. (when src-tauri changed) in src-tauri/
 ```
 
-For anything touching the Rust side or window behavior, also launch
-`pnpm dev` and walk the relevant steps of the SPEC.md verification list --
-there is no automated e2e (wdio + tauri-driver is a named follow-up).
+For anything touching the Rust side or window behavior, also launch `pnpm dev`
+and walk the relevant steps of the `SPEC.md` verification list. There is no
+automated end-to-end coverage, and `D21` records why.
 
-## Conventions
+## When to stop and ask
 
-- Path alias `@/*` -> `./src/*`.
-- Components use Shadcn primitives from `@/components/ui/` (add via
-  `pnpm dlx shadcn@latest add <component>`; never hand-edit generated files --
-  fix non-autofixable lint via the `**/components/ui/**` override block).
-  One documented exception: `command.tsx` moves the sr-only `DialogHeader`
-  inside `DialogContent`. Radix portals the content, so upstream's placement
-  leaves `aria-labelledby` pointing outside the dialog. Re-apply it if you
-  ever re-add the component.
-- `cn()` from `@/lib/ui/utils` for conditional Tailwind classes.
-- Icons from `lucide-react`, always the `Icon`-suffixed export.
-- Effect Schema (not zod) for validation, in `src/server/schemas/`.
-- Test files use `.spec.ts` and live next to the code they test; titles start
-  with "should". Rust tests live in `#[cfg(test)]` modules in the same file.
-- Sort object keys and imports alphabetically (perfectionist) -- except route
-  option objects, which the router plugin owns.
-- Prefer named exports; bottom-up file layout (helpers above, public API at
-  the bottom) -- except route files, where `Route` sits at the top.
-- **Lowercase aesthetic:** all user-facing text is lowercase -- labels,
-  buttons, toasts, tooltips, placeholders. Deliberate, app-wide.
-- Title = filename. There is no title field in note content; deriving titles
-  from content is a web-era pattern that no longer exists.
+- **Between phases:** after completing a discrete chunk of work, stop. Post a
+  short summary, then ask before starting the next. The summary is a checkpoint
+  where someone can correct course, before the next chunk compounds on the last.
+
+- **On scope:** list the files a task will touch before touching them. Anything
+  outside the list stops and asks. The list is what the reviewer approved when
+  they approved the task.
+
+- **On uncertainty:** where existing rules and the docs above do not cover a
+  decision, stop and ask instead of inventing. An invented convention reads as
+  authoritative while being arbitrary, which makes it harder to spot than a
+  missing one.
+
+- **On a debug loop:** after 3 consecutive fix attempts on the same error, stop.
+  Report the error, what was tried, and the likely cause. Do not attempt a
+  fourth fix without input. Repeated failures point at the mental model more
+  often than at the fix, and each further attempt buries the evidence deeper.
+
+## Evidence and verdicts
+
+- **Attach evidence to every summary.** List the commands run and their results,
+  the tests that now cover the change, and the observable behavior nothing
+  checked. A summary of what changed repeats the diff at lower resolution.
+  Evidence gives the reviewer something to check the change against.
+
+- **Propose a checked box. A human sets it.** A passing gate makes a `SPEC.md`
+  phase item ready for the move. Applying it weighs whether that evidence is
+  enough, and the person answerable for the result makes that call. Report the
+  proposal with its evidence and wait.
+
+- **Report the decisions the spec did not make.** A task leaves things open:
+  error shapes, ordering, what a partial state means. The implementation settles
+  them. List what it settled, so the verdict covers those choices.
+
+- **Name the weakest part of the change and how someone would catch it.** A
+  hedge covering the whole change gives a reviewer nowhere to start. Point at a
+  file and a line, then say what to run or read to test it. At the moment a
+  change is proposed you are the only one holding that information.
+
+- **Split a task you cannot produce complete evidence for.** A task whose weakest
+  part lands in several places at once, or whose decision list runs past what a
+  reviewer can hold, has bundled work that then takes one verdict. Diff size
+  measures how much code arrived and says nothing about how many choices sit
+  inside it.
+
+- **A finding you are not fixing gets written down.** An out-of-scope defect
+  goes in the `SPEC.md` progress log or an issue, and an out-of-scope question
+  goes to the person reviewing. Neither one widens the current change, and
+  neither one reaches the end of the phase unwritten.
+
+## Writing prose
+
+These merge three sources:
+[stop-slop](https://github.com/hardikpandya/stop-slop),
+[humanizer](https://github.com/blader/humanizer), and
+[azat-io on technical texts](https://github.com/azat-io/azat-io/blob/main/content/blog/how-to-write-technical-texts/en.mdx).
+They cover every markdown file here, plus commit messages and PR bodies.
+
+### Formatting
+
+- **No em dashes or en dashes.** Use a comma, a period, or a colon. Both set a
+  cadence that reads as machine-written. Neither states how the clauses relate,
+  and picking real punctuation states it. The ASCII `--` substitute goes too.
+
+- **No horizontal rules above a heading.** The heading already divides the
+  section. As a thematic break with no heading on either side, a rule is fine.
+
+- **Straight quotes only, never curly.** Editors and tools disagree about curly
+  quotes and some of them mangle the encoding. Code blocks are verbatim and
+  exempt.
+
+- **Sentence case subheadings.** Write `## Like this`, not `## Like This`.
+  Proper nouns and acronyms keep their own casing.
+
+- **No emoji in prose.** The gitmoji in a commit message is a required field of
+  that format and stays.
+
+- **Bold separates two kinds of content and never emphasizes one kind.** Use it
+  for a field name against its value, or a rule against its rationale. Bolding
+  the opening sentence of a paragraph fakes a heading. Promote it to a real
+  heading or leave it as a sentence.
+
+### Words
+
+- **User-facing text in the app is lowercase.** Labels, buttons, toasts,
+  tooltips, placeholders, error messages. `DESIGN.md` carries the rule and
+  `D18` carries the reasoning. Documentation prose is normal sentence case.
+
+- **Cut adverbs that only add emphasis.** Genuinely, actually, really, simply,
+  truly, fundamentally, inherently, crucially, importantly, just. They assert a
+  force the sentence has not earned. An adverb that changes the meaning, like
+  "only" or "directly", stays.
+
+- **Cut throat-clearing, emphasis crutches, and meta-commentary.** "Here's the
+  thing", "It turns out", "The truth is", "Let me be clear", "Full stop", "Let
+  that sink in", "This matters because", "Make no mistake", "It's worth noting",
+  "At its core", "At the end of the day", "When it comes to", "Let's dive in",
+  "In this section we'll". Each one delays the sentence carrying the
+  information.
+
+- **Cut business jargon.** Navigate, unpack, lean into, landscape, game-changer,
+  double down, deep dive, circle back, moving forward. Plain words exist for all
+  of them and mean something narrower.
+
+- **Cut filler.** "In order to" is "to". "Due to the fact that" is "because".
+
+- **Use verbs, not nominalizations.** "Creates interfaces" beats "the creation
+  of interfaces". A nominalization hides the actor and lengthens the sentence
+  around it.
+
+- **Repeat the clearest term instead of cycling synonyms.** A reader tracking
+  two words for one thing has to keep checking whether they mean the same thing.
+
+### Sentences
+
+- **Active voice, with the actor named where one exists.** Passive voice drops
+  the actor. Do not manufacture a human actor for a system behavior: "the index
+  is rebuilt on launch" is correct and has nobody to name.
+
+- **Short sentences.** Cut comma chains, participial constructions, and
+  parenthetical asides. Read it aloud. Stumbling means it is still too long.
+
+- **No sentence opens on an inverted Wh- clause.** "What triggers the reload is
+  a newer mtime" holds the subject back to build suspense. Write "a newer mtime
+  triggers the reload". A conditional opening is different and stays.
+
+- **No binary contrast where one side is a foil.** This bans "not X, it's Y",
+  "the question isn't X, it's Y", "stops being X and becomes Y", and "X. That's
+  it." A contrast earns its place when both sides name something a person would
+  pick, as in a rejection clause in `DECISIONS.md`. It fails when one side
+  exists to make the other sound better.
+
+- **No rhetorical setups, and no abstraction acting like a person.** This bans
+  "what if", "think about it", "the data tells us". Name whoever or whatever
+  does the thing.
+
+### Paragraphs
+
+- **One thought per paragraph, main idea first.** A reader decides from the
+  opening sentence whether to keep going.
+
+- **No paragraph ends on a punchy one-liner.** A closing fragment that sounds
+  quotable is doing rhythm instead of work. If it reads like a pull-quote,
+  rewrite it.
+
+- **Vary rhythm.** Avoid three consecutive sentences of the same length.
+
+- **Two items beat three.** Do not pad a list to a triplet. Readers hear the
+  rule of three as cadence, so a padded third item announces that the writing is
+  shaped for effect.
+
+### Claims
+
+- **State a claim with its evidence.** "Fast and lightweight" is not a claim. A
+  file size, a benchmark, or a cited `D` entry is.
+
+- **No unfounded evaluation.** This bans "the best framework", "everyone knows",
+  "obviously". `DECISIONS.md` compares by design, and evaluation there is
+  allowed when the entry names the ground for it.
+
+- **No vague declaratives.** This bans "the reasons are structural", "the
+  implications are significant". Name the reason or the implication.
+
+- **No lazy extreme doing vague work.** Every, always, never, everyone, nobody.
+  An invariant in `ARCHITECTURE.md` is exempt, where "never" is the normative
+  operator of a testable statement.
+
+- **Never invent a fact, a name, a date, or a citation to satisfy any rule
+  above.** Specificity comes from the source or from the author. Adding a
+  plausible detail during a rewrite puts a falsehood into a document people rely
+  on.
+
+### Voice
+
+- **Third person for the system, imperative for instructions.** `AGENTS.md`
+  gives instructions and addresses the reader. `ARCHITECTURE.md`, `DESIGN.md`,
+  and `DECISIONS.md` describe a system and do not.
+
+## Git and PRs
+
+- **Branch naming: `{type}-{short-description}` in kebab-case.** Types: `feat`,
+  `fix`, `refactor`, `chore`, `docs`, `ci`. A predictable branch name keeps
+  history scannable and lets tooling read intent off the name.
+
+- **Commit with `pnpm gitzy commit`** (Conventional Commits plus emoji,
+  lowercase subjects under 50 characters, body wrapped at 72). Inline flags:
+  `pnpm gitzy commit --type feat --scope ui -m "subject" --body "..."`, and `-D`
+  for a dry run. Write the message with gitzy rather than typing the header by
+  hand: the emoji is a required field of the format and the one for a type is
+  not guessable.
+
+- **Never commit directly to `main`.** Branch off `main`, open a PR with
+  `gh pr create`, and squash merge. Squashing keeps one logical change per
+  commit in history, and titles in the commit format double as release notes.
+
+- **PR description uses two sections and nothing else:**
+
+  ```markdown
+  ## What
+
+  <what changed, in plain terms>
+
+  ## Why
+
+  <the problem or need it addresses>
+  ```
+
+  Two sections force the description to answer the two questions a reviewer
+  opens with, and a third section pads.
+
+- **`## Why` also says what happens when the change is wrong and how someone
+  finds out.** The section carries the problem the change addresses. Two more
+  sentences make it answerable: the risk someone accepted, and the signal that
+  fires when the risk lands.
+
+- **After introducing a new pattern, feature, convention, or structural change,
+  ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`,
+  `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs
+  rot as soon as the code moves without them. Catching the update at the point
+  of change is when it reliably happens at all.
 
 ## Do NOT
 
-- Write to the index from TypeScript, or add non-SELECT support to
-  `db_select`. Rust is the only writer.
-- Import `@tauri-apps/*` outside `src/server/adapters/**`, `runtime.ts`, and
-  UI-concern code -- and never widen the boundary globs in `eslint.config.ts`.
-- Change one frontmatter parser without the other (TS + Rust must stay in
-  parity, with tests).
-- Add editor nodes without markdown serialization: every node must define
-  its markdown form and be covered by the round-trip spec, or externally
-  authored files can lose content.
-- Use Prettier -- this project uses oxfmt (dev tooling only).
-- Add unnecessary dependencies; run `pnpm knip` and leave it clean.
-- Reach for `as`, `!`, or `any` before exhausting proper typing.
-- Silence lint errors with config overrides (exceptions: the Shadcn
-  `**/components/ui/**` block, the documented TanStack Router accommodations,
-  and `unicorn/throw-new-error` off for `src/core/errors.ts` -- the rule takes
-  no options and its Effect exemption never reached `Schema.TaggedError`).
+- Use Prettier. This project uses oxfmt, for dev tooling only (`D15`).
+- Add unnecessary dependencies. Run `pnpm knip` and leave it clean.
+- Silence lint errors with config overrides. Three exceptions exist and are
+  documented: the Shadcn `**/components/ui/**` block, the TanStack Router
+  accommodations, and `unicorn/throw-new-error` off for `src/core/errors.ts`,
+  where the rule takes no options and its Effect exemption never reached
+  `Schema.TaggedError`.
 - Leave tests, lint, typecheck, knip, or the build red.
-- Forget docs -- after a new pattern, feature, or structural change, update
-  `SPEC.md` and ask whether `AGENTS.md`/`README.md` should change too.
-
-## Branching & Commits
-
-- **Branch naming:** `{type}-{short-description}` kebab-case (`feat-`, `fix-`,
-  `refactor-`, `chore-`, `docs-`, `ci-`).
-- **Commits:** use `pnpm gitzy commit` (Conventional Commits + emoji,
-  lowercase subjects under 50 chars, body wrapped at 72). Inline flags:
-  `pnpm gitzy commit --type feat --scope ui -m "subject" --body "..."
---co-author "Name <email>"`; `-D` for a dry run.
-- **Pull requests:** branch off `main`, `gh pr create`, conventional title.
-  Squash merge only. Never commit directly to `main`.
+- Break an invariant in `ARCHITECTURE.md`. Each one holds a property the
+  architecture depends on, so changing it is a design change and gets a
+  `DECISIONS.md` entry.

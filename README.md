@@ -3,7 +3,7 @@
 > Just write, otra vez.
 
 A local-first, keyboard-driven notes app for your desktop. Your notes are plain
-markdown files in a folder you own -- no accounts, no cloud, no database to
+markdown files in a folder you own: no accounts, no cloud, no database to
 export from. The window is the editor; everything else is a keystroke away.
 
 ## Your notes are files
@@ -12,12 +12,12 @@ notras stores every note as a `.md` file (default: `~/notras`). Folders are
 real directories, tags and pins are YAML frontmatter, attachments are plain
 files. That one decision buys a lot:
 
-- **any tool works** -- edit notes in vim, sync the folder with git or iCloud,
+- **any tool works.** Edit notes in vim, sync the folder with git or iCloud,
   grep them from a terminal
-- **AI agents are first-class writers** -- point Claude Code (or any agent) at
+- **AI agents are first-class writers.** Point Claude Code (or any agent) at
   the folder; when it writes a markdown file, a Rust file watcher picks it up
   and the app refreshes within a second. The filesystem is the API.
-- **backups are `cp -r`** -- there is nothing to export
+- **backups are `cp -r`.** There is nothing to export
 
 Search stays fast because a derived SQLite FTS5 index lives at
 `.notras/index.db` inside the folder. It is disposable: delete it and the app
@@ -26,7 +26,7 @@ rebuilds it from your files on the next launch.
 ## Features
 
 - editor-first window: true WYSIWYG markdown (TipTap 3) that reads and
-  writes plain `.md` -- set in iA Writer Quattro
+  writes plain `.md`, set in iA Writer Quattro
 - autosave on idle; what lands on disk is clean, canonical markdown
 - ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
   `#tag` filters, and every note action
@@ -36,7 +36,7 @@ rebuilds it from your files on the next launch.
   tables, quotes, dividers, today's date
 - focus mode (⌘D, dims all but the active paragraph) and typewriter scrolling
 - editable tables, clickable task checkboxes, inline images, code blocks
-  with copy + language picker -- all round-tripping through GFM markdown
+  with copy + language picker, all round-tripping through GFM markdown
 - links: ⌘⇧K to add/edit, ⌘-click to open in your browser
 - tags, pins, and folders; move notes between folders from the palette
 - drag any file in -> copied to `attachments/`, markdown link inserted
@@ -62,34 +62,27 @@ rebuilds it from your files on the next launch.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    subgraph webview [Tauri webview]
-        UI[React + TanStack Router] --> Data[src/data async fns]
-        Data --> Services[Effect services]
-        Services --> FileStore[FileStore port]
-        Services --> Index[Database port -- read-only]
-    end
+Files are the source of truth. TypeScript never writes SQL. Every mutation is a
+Rust command that writes the file and updates the index in the same call, and
+external writes are reconciled by a watcher that pushes `notes-changed` events
+to the UI.
 
-    subgraph rust [Rust: single writer of the index]
-        Commands[note IO commands] --> Files[(~/notras/**/*.md)]
-        Commands --> IndexDb[(.notras/index.db FTS5)]
-        Watcher[notify watcher] --> IndexDb
-        Files -.external edits.-> Watcher
-    end
+[ARCHITECTURE.md](ARCHITECTURE.md) holds the diagram, the layer boundaries, the
+key patterns, and the invariants.
 
-    FileStore --> Commands
-    Index --> IndexDb
-    Agents[any editor / git / AI agent] -.write .md.-> Files
-    Watcher -. notes-changed event .-> UI
-```
+## Docs
 
-Files are the source of truth. TypeScript never writes SQL -- every mutation
-is a Rust command that writes the file and updates the index atomically;
-external writes are reconciled by the watcher and pushed to the UI as
-`notes-changed` events.
+- [ARCHITECTURE.md](ARCHITECTURE.md) is how the system is built: stack,
+  structure, boundaries, patterns, index schema, invariants.
+- [DESIGN.md](DESIGN.md) is the interface conventions the app is built to.
+- [DECISIONS.md](DECISIONS.md) is every decision with its rationale and what it
+  rejected.
+- [SPEC.md](SPEC.md) is the working document for the rewrite: phase checklists,
+  the manual verification walkthrough, deferred work, and the progress log.
+- [AGENTS.md](AGENTS.md) is the conventions for anyone, human or agent, changing
+  this repo.
 
-## Getting Started
+## Getting started
 
 You need [pnpm](https://pnpm.io) and a
 [Rust toolchain](https://www.rust-lang.org/tools/install):
@@ -128,7 +121,7 @@ folder any time in settings (⌘,).
 
 Rust tests live in `src-tauri`: `cargo test`.
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Shortcut | Action                          |
 | -------- | ------------------------------- |
