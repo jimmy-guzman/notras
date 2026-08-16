@@ -1,0 +1,280 @@
+# ARCHITECTURE
+
+How notras is built. `DESIGN.md` covers the interface, `DECISIONS.md` covers why
+each choice was made, and `AGENTS.md` covers the rules for changing any of it.
+
+## Tech stack
+
+| Layer           | Choice                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| Shell           | Tauri 2 (Rust): file IO commands, FTS5 index, notify watcher, tray, global shortcuts                         |
+| Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR)                                                      |
+| Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘P raw-source view |
+| Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
+| Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
+| UI              | Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4                                                    |
+| Formatting      | oxfmt for dev tooling; TipTap's markdown serializer is the runtime canonical form                            |
+| Testing         | Vitest + happy-dom (TS), `cargo test` (Rust)                                                                 |
+| Package manager | pnpm                                                                                                         |
+
+## Files are the source of truth
+
+Notes are `.md` files under the notes dir (default `~/notras`). Folders are
+directories. `pinned` and `tags` live in YAML frontmatter. The SQLite index at
+`.notras/index.db` is derived and disposable: deleting it triggers a rebuild on
+launch.
+
+```mermaid
+flowchart TD
+    subgraph webview [Tauri webview]
+        UI[React + TanStack Router] --> Data[src/data async fns]
+        Data --> Services[Effect services]
+        Services --> FileStore[FileStore port]
+        Services --> Index[Database port, read-only]
+    end
+
+    subgraph rust [Rust: single writer of the index]
+        Commands[note IO commands] --> Files[(~/notras/**/*.md)]
+        Commands --> IndexDb[(.notras/index.db FTS5)]
+        Watcher[notify watcher] --> IndexDb
+        Files -.external edits.-> Watcher
+    end
+
+    FileStore --> Commands
+    Index --> IndexDb
+    Agents[any editor / git / AI agent] -.write .md.-> Files
+    Watcher -. notes-changed event .-> UI
+```
+
+**Rust is the single writer of the index.** Every TypeScript mutation goes
+through a Rust command (`write_note`, `rename_note`, `delete_note`, and the
+rest) that writes the file and updates the index in the same call, then emits
+`notes-changed`. The `db_select` command rejects anything that is not
+SELECT/WITH, gated on SQLite's own `sqlite3_stmt_readonly` so a writable
+`WITH ... DELETE` CTE cannot pass the prefix test. There is no index write path
+from TypeScript.
+
+**External writers** (AI agents, other editors, git) are reconciled by the
+debounced watcher. The mtime skip in `index_file` keeps self-writes from
+echoing. UI refresh is event-driven: the root route listens for `notes-changed`
+and calls `router.invalidate()`.
+
+**The index is disposable.** `ensure_schema` runs CREATE IF NOT EXISTS plus FTS5
+on startup, so deleting `.notras/index.db` triggers a rebuild. There is no
+drizzle-kit, no migration directory, and no `db:push`.
+
+**Note identity is the relative path.** The filename is the title. Renames are
+delete plus create in the index. Wikilinks resolve by title, so a rename can
+dangle links, which `DECISIONS.md` records as accepted.
+
+**Frontmatter has two parsers.** `src/core/frontmatter.ts` and
+`src-tauri/src/frontmatter.rs` implement the same deliberately tiny dialect:
+`pinned: bool`, `tags` inline or block list. Change one, change the other, and
+cover both with tests. The TypeScript serializer preserves unknown keys
+verbatim, so externally authored notes survive round-trips.
+
+## Index schema
+
+Rust creates the tables. `src/server/db/schema.ts` mirrors them as Drizzle
+definitions so SELECTs are typed.
+
+```sql
+note(path TEXT PK, title TEXT, folder TEXT, pinned INT, created_at INT, updated_at INT)
+note_tag(path TEXT, tag TEXT, PRIMARY KEY(path, tag))
+note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet()
+```
+
+`src/server/db/fts-query.ts` owns query normalization, ranking, and the snippet
+markers: `buildFtsMatchQuery`, `getSnippetExpression`, `getSearchOrderBy`,
+`getFtsMatchFilter`, `getTagFilter`.
+
+## Project structure
+
+```txt
+src/
+  main.tsx            # Vite entry -> App (router, or capture window branch)
+  app-shell.tsx       # Router setup + ?window=capture branch
+  styles.css          # Tailwind 4 theme, fonts, editor + titlebar styling
+  routes/             # TanStack Router file routes
+    __root.tsx        # loader (notes/folders/notesDir), palette, settings
+                      # dialog, hotkeys, notes-changed listener
+    index.tsx         # redirect to last-edited note, else empty state
+    notes.$.tsx       # THE page: editor session keyed by note path
+    external.tsx      # edit a markdown file outside the notes dir
+  components/
+    editor/           # TipTap wrapper, extensions, suggestions, autosave
+    notes/            # note-header (title/tags/pin), status-bar
+    command-palette.tsx
+    settings-dialog.tsx
+    capture-window.tsx
+    ui/               # Shadcn components (generated, do not hand-edit)
+  core/               # Isomorphic bottom layer (no platform imports)
+    frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
+    notes.ts          # NoteMeta, NoteFilters, path/title helpers
+    file-store.ts     # FileStore port (Context.Service)
+    errors.ts         # DatabaseError, FileError
+    fts-markers.ts    # [[hl]] snippet markers shared with SQL
+  data/               # Plain async fns the UI calls (ex-server-actions)
+    run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
+  server/
+    adapters/         # ONLY files here + runtime.ts may import @tauri-apps/*
+      tauri-file-store.ts   # FileStore -> Rust commands
+      tauri-database.ts     # drizzle sqlite-proxy -> db_select command
+    db/               # Database service, index schema mirror, fts-query helpers
+    repositories/     # note-repository: SELECTs against the index
+    schemas/          # Effect Schema validation (titles, folder names)
+    services/         # note-service, app-layer
+    runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
+  lib/                # Client utilities
+    pending-flush.ts  # autosave flush registry read by the quit handshake
+    ui/utils.ts       # cn()
+    utils/            # fts-snippet, word-count
+src-tauri/
+  src/lib.rs          # setup: notes dir, index, watcher, tray, shortcuts
+  src/notes.rs        # note IO commands (write/rename/delete/attach/external)
+                      # and db_select
+  src/index.rs        # index schema, indexer, scan, read-only select
+  src/frontmatter.rs  # Rust twin of src/core/frontmatter.ts
+  src/watcher.rs      # debounced notify watcher -> reindex -> event
+  src/state.rs        # AppState (notes dir, index connection, quit flags)
+```
+
+## Layer boundaries
+
+Two `no-restricted-imports` blocks at the bottom of `eslint.config.ts` enforce
+these. They must stay last, because flat config replaces rule options rather
+than merging them, and the fix for a violation is never to widen the glob.
+
+- **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or
+  `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or
+  `@/data`. It runs in the webview and in any other runtime, which is what makes
+  it testable without a window.
+- **`src/server/{db,repositories,schemas,services}/**` is platform-free.** No
+  `@tauri-apps/*`, `react`, or `react-dom`, and no imports from `@/lib`,
+  `@/components`, or `@/data`. Inject behavior through the ports instead:
+  `FileStore` in `src/core`, `Database` in `src/server/db`. Only
+  `src/server/adapters/**` and `src/server/runtime.ts` may import
+  `@tauri-apps/*`.
+- **UI code** (`src/components`, `src/routes`, `src/lib`) may use
+  `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO
+  and SQL go through `src/data`.
+
+## Key patterns
+
+### Data access
+
+The UI calls plain async functions in `src/data/`, one concern per file. They
+validate with Effect Schema where the input is user-shaped, and run effects via
+`run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()`
+unwraps typed failures into plain `Error`s, so a caller can write
+`toast.error(error.message)`.
+
+### Effect style
+
+Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying
+their own `static readonly layer`. There are no `XxxLive` consts. Reach a
+service with `Service.use((svc) => svc.method(...))` rather than
+`Effect.flatMap(Tag, fn)`, which trips `unicorn/no-array-method-this-argument`.
+Methods with a generator body are `Effect.fn("Service.method")`; plain
+delegations stay one-liners. Errors are `Schema.TaggedError`. Services convert
+`DatabaseError` to defects with `.pipe(Effect.orDie)`; `FileError` stays typed
+because its message reaches the user.
+
+### Test seam
+
+A service whose layer bakes in dependencies also exposes `layerNoDeps`, as
+`NoteService` does, so specs can provide stubs. `note-service.spec.ts` wires it
+with an in-memory `FileStore` and a stub `NoteRepository`.
+
+### Routes
+
+TanStack Router file routes. `export const Route` sits at the top of the file
+and components are function declarations below, which hoisting makes lint-clean.
+`@tanstack/eslint-plugin-router` owns route-option ordering through
+`create-route-property-order`, and `perfectionist/sort-objects` is configured to
+leave `Route` option objects unsorted. Do not fight either rule.
+
+### The editor owns its buffer
+
+`Editor`, the TipTap wrapper, freezes all props except the writing-mode toggles
+at mount through a `useState` initializer. Loading different content means
+remounting via `key`. Callbacks passed to it must be freeze-safe: read live
+values through refs or stable getters, never through closures over render state.
+
+### Body-only editing
+
+The editor holds the note body as markdown. Frontmatter is parsed off at load
+with `parseNote` and reattached at save with `composeNote`, always from the
+latest loader snapshot, so a body save never clobbers a pin or tag toggle. ⌘P is
+a raw-source view over the whole file.
+
+### Markdown round-trip contract
+
+`markdown-roundtrip.spec.ts` pins the set of constructs that must survive file
+to editor to file. Extend it when adding nodes. Custom syntax uses the
+extension-config trio `markdownTokenName`/`markdownTokenizer` plus
+`parseMarkdown` and `renderMarkdown`; `wikilink.ts` is the worked example.
+
+### Editing session per note
+
+`notes.$.tsx` renders `<NoteEditor key={note.path}>` so autosave state cannot
+leak across notes. Autosave in `use-autosave.ts` debounces 800ms, serializes on
+one chain so overlapping flushes cannot land out of order, and flushes on blur,
+unmount, and quit. Rust holds `ExitRequested` until the webview reports back,
+and a failed flush cancels the quit through `cancel_quit`.
+
+### External-change reload guard
+
+A loader refresh replaces the buffer only when the buffer is clean and the
+file's mtime is newer than our own last write, tracked in `lastSavedAtRef`. A
+stale loader snapshot of a just-saved note must never clobber the buffer. Do not
+simplify this check away.
+
+### Adding a Rust command
+
+Define it in `src-tauri/src/notes.rs` or a new module, register it in
+`generate_handler!` in `lib.rs`, and expose it through the `FileStore` port plus
+the `tauri-file-store.ts` adapter if it is note IO. A command that mutates must
+index synchronously and call `emit_changed`.
+
+### The palette is the action surface
+
+`command-palette.tsx` holds search, tag filtering via `#`, pin, move, delete,
+reveal, settings, and reindex. New note-level actions belong there rather than
+in new chrome.
+
+### Preferences
+
+`notesDir` lives in `settings.json`, written by Rust through
+`tauri-plugin-store`. TypeScript reaches it through the `FileStore` port:
+`get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the
+folder re-scans and re-watches, and re-grants the asset protocol scope at
+runtime.
+
+### Snippet rendering
+
+FTS snippets carry `[[hl]]` and `[[/hl]]` markers, defined in
+`src/core/fts-markers.ts` so the SQL and the renderer share one definition.
+`getSnippetParts` parses them into segments. Nothing renders a snippet through
+`dangerouslySetInnerHTML`.
+
+## Invariants
+
+Each of these holds a property the architecture depends on. Breaking one is a
+design change, not a refactor.
+
+- **TypeScript never writes the index.** No non-SELECT support in `db_select`,
+  no SQL writes from a repository. Rust is the only writer, which is what
+  removes the transaction-serialization problem entirely.
+- **`@tauri-apps/*` imports stay inside `src/server/adapters/**`,
+  `src/server/runtime.ts`, and UI-concern code.** The boundary globs in
+  `eslint.config.ts` are never widened to accommodate a new import.
+- **The two frontmatter parsers change together.** A change to one without the
+  other, with tests on both sides, lets an external note lose data on a
+  round-trip.
+- **Every editor node defines its markdown form and appears in the round-trip
+  spec.** A node without one silently drops content from externally authored
+  files.
+- **The notes dir is the only file scope.** Note IO goes through Rust commands
+  so the dynamic scope is enforced at runtime, which is why the `fs` plugin is
+  not installed.
