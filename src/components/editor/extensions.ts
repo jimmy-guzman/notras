@@ -89,20 +89,16 @@ const MarkdownLinkInputRule = Extension.create({
   name: "markdownLinkInputRule",
 });
 
-const FENCE_RUN = /^(`{3,}|~{3,})/;
-
 /**
- * The fence run opening a line, or null when there is none. Four or more
- * spaces of indent is an indented code block rather than a fence.
+ * Only ASCII spaces indent a fence, and only three of them: a fourth space or
+ * a leading tab makes the line an indented code block instead. Matching the
+ * indent here rather than trimming it keeps tabs out.
  */
+const FENCE_RUN = /^ {0,3}(`{3,}|~{3,})/;
+
+/** The fence run opening a line, or null when there is none. */
 function fenceRun(line: string) {
-  const body = line.trimStart();
-
-  if (line.length - body.length > 3) {
-    return null;
-  }
-
-  return FENCE_RUN.exec(body)?.[1] ?? null;
+  return FENCE_RUN.exec(line)?.[1] ?? null;
 }
 
 /**
@@ -112,13 +108,18 @@ function fenceRun(line: string) {
  * rest of the block be scrubbed as prose.
  */
 function closesFence(line: string, open: string) {
-  const run = fenceRun(line);
+  const match = FENCE_RUN.exec(line);
+
+  if (match === null) {
+    return false;
+  }
+
+  const run = match[1] ?? "";
 
   return (
-    run !== null &&
     run.startsWith(open.charAt(0)) &&
     run.length >= open.length &&
-    line.trimStart().slice(run.length).trim() === ""
+    line.slice(match[0].length).trim() === ""
   );
 }
 

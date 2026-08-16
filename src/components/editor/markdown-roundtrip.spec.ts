@@ -115,6 +115,16 @@ describe("normalizeMarkdown", () => {
     expect(normalizeMarkdown(markdown)).toBe(markdown);
   });
 
+  it("should not close a fence on a tab-prefixed run", () => {
+    const markdown = "```\n\t```\n&nbsp;\n```";
+
+    expect(normalizeMarkdown(markdown)).toBe(markdown);
+  });
+
+  it("should not open a fence on a tab-prefixed run", () => {
+    expect(normalizeMarkdown("\t```\n&nbsp;")).toBe("\t```\n ");
+  });
+
   it("should close on a bare run and scrub the prose after it", () => {
     expect(normalizeMarkdown("```\n&nbsp;\n```\n&nbsp;")).toBe(
       "```\n&nbsp;\n```\n ",
