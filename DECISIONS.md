@@ -349,10 +349,15 @@ default.
 hand-edited. Non-autofixable lint is handled through the
 `**/components/ui/**` override block.
 
-**Constraint:** one deviation is documented. `command.tsx` moves the sr-only
-`DialogHeader` inside `DialogContent`, because the content is portalled and
-upstream's placement leaves `aria-labelledby` pointing at a node outside the
-dialog. Re-apply it whenever the component is regenerated.
+**Constraint:** two deviations are documented, and both are re-applied whenever
+the components are regenerated.
+
+1. `command.tsx` moves the sr-only `DialogHeader` inside `DialogContent`,
+   because the content is portalled and upstream's placement leaves
+   `aria-labelledby` pointing at a node outside the dialog.
+2. Generated user-facing strings are lowercased to satisfy `D18`: the sr-only
+   and footer "close" labels in `dialog.tsx`, and the default `title` and
+   `description` in `command.tsx`.
 
 **Superseded in part by `D22`,** which moves the style to base-maia on Base UI.
 The stone base, the oklch tokens, the dark `:root` default and both constraints
