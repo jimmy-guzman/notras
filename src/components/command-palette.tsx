@@ -11,6 +11,7 @@ import {
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
+  TagPlusIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -19,6 +20,7 @@ import { useDebouncedCallback } from "use-debounce";
 
 import type { NoteMeta } from "@/core";
 
+import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
   CommandDialog,
@@ -58,6 +60,12 @@ function Snippet({ snippet }: { snippet: string }) {
 }
 
 const VISIBLE_TAGS = 3;
+
+// `CommandItem` appends its own `ml-auto` checkmark, so a second `ml-auto`
+// here would split the free space with it and let the label's width shift the
+// count. A flex-1 label and a fixed column keep the digits in one place.
+const COUNT_CLASS =
+  "w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums";
 
 function tagLabel(tags: string[]) {
   const shown = tags
@@ -107,7 +115,7 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
   );
 }
 
-type PaletteView = "delete" | "move" | "root";
+type PaletteView = "delete" | "move" | "root" | "tags";
 
 interface CommandPaletteProps {
   allTags: { count: number; tag: string }[];
@@ -137,6 +145,12 @@ export function CommandPalette({
     return note.path === currentPath;
   });
 
+  // Empty path is unreachable: the tags view is gated on a current note.
+  const noteTags = useNoteTags(
+    currentNote?.path ?? "",
+    currentNote?.tags ?? [],
+  );
+
   // A tag chip navigates with `?tag=`, which is what opens the palette. The
   // parent keys this component on the tag, so the seed applies once per tag
   // and typing afterwards is never overwritten.
@@ -151,11 +165,12 @@ export function CommandPalette({
   // only from the moment its successor starts.
   const latestSearchRef = useRef(0);
 
-  const knownTags = new Set(
-    allTags.map((entry) => {
-      return entry.tag;
+  const tagCounts = new Map(
+    allTags.map(({ count, tag: name }) => {
+      return [name, count];
     }),
   );
+  const knownTags = new Set(tagCounts.keys());
 
   // Tag filtering is an indexed exact match that ANDs with full-text search,
   // so both paths run the same query and only differ in what they pass.
@@ -240,6 +255,15 @@ export function CommandPalette({
       );
     });
   };
+
+  // A tag the note carries may not be in the index yet, so the choices are the
+  // union rather than the index alone.
+  const draftTag = query.trim().toLowerCase();
+  const tagChoices = [...new Set([...knownTags, ...noteTags.tags])]
+    .toSorted()
+    .filter((name) => {
+      return name.includes(draftTag);
+    });
 
   // Actions match on the free text, so they stay reachable inside a tag
   // filter rather than disappearing the moment a `#` is typed.
@@ -326,10 +350,8 @@ export function CommandPalette({
                       value={`move-${folder}`}
                     >
                       <FolderIcon />
-                      {folder}
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {count}
-                      </span>
+                      <span className="flex-1 truncate">{folder}</span>
+                      <span className={COUNT_CLASS}>{count}</span>
                     </CommandItem>
                   );
                 })}
@@ -362,6 +384,57 @@ export function CommandPalette({
             </CommandGroup>
           ) : null}
 
+          {view === "tags" && currentNote !== undefined ? (
+            <CommandGroup heading={`tags for "${currentNote.title}"`}>
+              {tagChoices.map((name) => {
+                const attached = noteTags.tags.includes(name);
+
+                return (
+                  <CommandItem
+                    data-checked={attached}
+                    key={name}
+                    onSelect={() => {
+                      void noteTags.changeTags(
+                        attached
+                          ? noteTags.tags.filter((existing) => {
+                              return existing !== name;
+                            })
+                          : [...noteTags.tags, name],
+                      );
+                    }}
+                    value={`tag-${name}`}
+                  >
+                    <HashIcon />
+                    <span className="flex-1 truncate">{name}</span>
+                    <span className={COUNT_CLASS}>
+                      {tagCounts.get(name) ?? 0}
+                    </span>
+                  </CommandItem>
+                );
+              })}
+              {draftTag === "" || tagChoices.includes(draftTag) ? null : (
+                <CommandItem
+                  onSelect={() => {
+                    setQuery("");
+                    void noteTags.changeTags([...noteTags.tags, draftTag]);
+                  }}
+                  value="tag-new"
+                >
+                  <TagPlusIcon />
+                  create "{draftTag}"
+                </CommandItem>
+              )}
+              <CommandItem
+                onSelect={() => {
+                  setView("root");
+                }}
+                value="cancel-tags"
+              >
+                done
+              </CommandItem>
+            </CommandGroup>
+          ) : null}
+
           {view === "root" ? (
             <>
               <CommandEmpty>
@@ -384,10 +457,8 @@ export function CommandPalette({
                           value={`tag-${name}`}
                         >
                           <HashIcon />
-                          {name}
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {count}
-                          </span>
+                          <span className="flex-1 truncate">{name}</span>
+                          <span className={COUNT_CLASS}>{count}</span>
                         </CommandItem>
                       );
                     })}
@@ -431,6 +502,18 @@ export function CommandPalette({
                   >
                     <PinIcon />
                     {currentNote.pinned ? "unpin note" : "pin note"}
+                  </CommandItem>
+                ) : null}
+                {currentNote !== undefined && matchesQuery("edit tags") ? (
+                  <CommandItem
+                    onSelect={() => {
+                      setQuery("");
+                      setView("tags");
+                    }}
+                    value="edit-tags"
+                  >
+                    <TagPlusIcon />
+                    edit tags...
                   </CommandItem>
                 ) : null}
                 {currentNote !== undefined && matchesQuery("move to folder") ? (

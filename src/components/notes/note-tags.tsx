@@ -1,8 +1,8 @@
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { toast } from "sonner";
 
+import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -13,7 +13,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
-import { setNoteTags } from "@/data/set-note-tags";
 
 const HOTKEY_OPTIONS = {
   enableOnContentEditable: true,
@@ -31,19 +30,7 @@ interface NoteTagsProps {
 export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [optimisticTags, setOptimisticTags] = useState(tags);
-
-  // Optimistic state follows the loader (adjust-during-render pattern): an
-  // agent editing the frontmatter on disk must show up here instead of being
-  // stuck on whatever we last set ourselves. Compared by value -- the loader
-  // hands back a fresh array every refresh.
-  const tagsKey = tags.join("\n");
-  const [syncedTags, setSyncedTags] = useState(tagsKey);
-
-  if (syncedTags !== tagsKey) {
-    setSyncedTags(tagsKey);
-    setOptimisticTags(tags);
-  }
+  const { changeTags, tags: optimisticTags } = useNoteTags(path, tags);
 
   useHotkeys(
     "mod+shift+t",
@@ -71,18 +58,11 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
     ]),
   ].toSorted();
 
-  const changeTags = async (nextTags: string[]) => {
-    const previous = optimisticTags;
-
-    setOptimisticTags(nextTags);
+  // Clearing the input belongs to this surface rather than to the write, so it
+  // wraps the shared writer instead of living inside it.
+  const commitTags = (nextTags: string[]) => {
     setQuery("");
-
-    try {
-      await setNoteTags(path, nextTags);
-    } catch {
-      setOptimisticTags(previous);
-      toast.error("could not update tags");
-    }
+    void changeTags(nextTags);
   };
 
   const hasTags = optimisticTags.length > 0;
@@ -114,7 +94,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
         multiple
         onInputValueChange={setQuery}
         onOpenChange={setOpen}
-        onValueChange={changeTags}
+        onValueChange={commitTags}
         open={open}
         value={optimisticTags}
       >

@@ -19,8 +19,11 @@ the system is built, and `DECISIONS.md` covers why.
   more thing. New chrome is the last resort; the palette is the first.
 - **The last five percent is the work.** A feature that renders but reflows the
   caret, dims the wrong block, or teleports the text on toggle is not shipped.
-- **The same problem gets the same solution everywhere.** A second way to do
-  something the app already does is a bug in the design.
+- **The same problem gets the same solution everywhere.** A second
+  implementation of something the app already does is a bug in the design. A
+  second entry point into one implementation is not: pin is a titlebar toggle
+  and a palette action over one `setNotePinned`, and tags are a status-strip
+  picker and a palette view over one `useNoteTags` (`D31`).
 - **This is a macOS app.** Where a convention of the platform and a convention
   of the web disagree, the platform wins. Rounded controls, a blurred backdrop,
   and a dialog that scales on open are native behaviour, not decoration.
@@ -256,4 +259,5 @@ a real non-motion end state, so removing the transition costs nothing.
   status strip, question the feature.
 - Do not capitalize user-facing text.
 - Do not animate anything that is not a state change.
-- Do not introduce a second way to reach an action that already has one.
+- Do not write an action twice. A second entry point is fine when both route
+  through one implementation; a second copy of the logic is not (`D31`).

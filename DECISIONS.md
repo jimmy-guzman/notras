@@ -707,3 +707,48 @@ complete view.
 `shadow-2xl ring-1` where `DESIGN.md` specifies a `--border` hairline and
 `0 8px 24px rgb(0 0 0 / 0.18)`, and `ComboboxTrigger` always appends a chevron,
 which reads as a dropdown affordance on what is an action button in a 28px band.
+
+### D31 Tags are edited from two surfaces over one implementation
+
+Tag editing is reachable from the status-strip picker (`D30`) and from a `tags`
+sub-view in the ⌘K palette. Both route through `useNoteTags` in
+`src/components/notes/use-note-tags.ts`, which owns the optimistic list, the
+loader sync, and the write.
+
+`D11` says a note-level action belongs in the palette, and tag editing was the
+one that did not have an entry there. Three things made the palette the natural
+second home rather than a new invention: `PaletteView` was already a sub-view
+machine for `move` and `delete`, `CommandItem` already shipped a
+`data-[checked=true]` checkmark that nothing used, and pin had been a titlebar
+toggle and a palette action since it shipped. So a note-identity control living
+in chrome and in ⌘K was established here, not novel.
+
+This entry exists because it reverses a rejection. The same change arrived as a
+review finding and was turned down, and the leading argument was that it
+contradicted `D28` and `D30`. That is not a reason. These entries record
+reasoning so it can be re-examined, and `D28` had been superseded by `D30` in
+the same sitting. Judged on the merits instead, the finding was right.
+
+**Rejected: the palette only, dropping the strip picker.** Removes a bespoke
+floating surface and its call-site overrides, and returns about 60px to a strip
+that is tight at the 480px minimum. Rejected because tagging happens while
+writing, and it would leave a note with no tags showing no way to add one
+without opening a dialog.
+
+**Rejected: the strip only, as shipped.** One surface, nothing new to build.
+Rejected because it left ⌘K unable to do a thing every other note-level action
+can, which is the gap `D11` exists to close.
+
+**Constraint:** a surface that edits tags calls `useNoteTags`. Two surfaces over
+one implementation is the arrangement this entry permits; two implementations is
+what `DESIGN.md` forbids, and a third surface would take the hook too.
+
+**Constraint:** rows in the tags view call `changeTags` directly rather than
+`runAction`, which closes the palette. The view is a working surface, so a
+toggle must leave it open. It is the only place in the palette where an action
+row does not dismiss.
+
+**Constraint:** the per-tag count in that view is a plain span, not a
+`CommandShortcut`. The generated checkmark carries
+`group-has-data-[slot=command-shortcut]/command-item:hidden`, so an item holding
+a shortcut slot hides the check that says whether the tag is attached.
