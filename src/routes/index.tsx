@@ -6,6 +6,24 @@ import { Kbd } from "@/components/ui/kbd";
 import { createNote } from "@/data/create-note";
 import { getNotes } from "@/data/get-notes";
 
+export const Route = createFileRoute("/")({
+  component: EmptyState,
+  loader: async () => {
+    // Launch straight into the last-edited note; the empty state only shows
+    // for a brand-new library.
+    const [latest] = await getNotes({ limit: 1, sort: "updated" });
+
+    if (latest !== undefined) {
+      return redirect({
+        params: { _splat: latest.path },
+        to: "/notes/$",
+      });
+    }
+
+    return undefined;
+  },
+});
+
 function EmptyState() {
   const navigate = useNavigate();
 
@@ -38,21 +56,3 @@ function EmptyState() {
     </div>
   );
 }
-
-export const Route = createFileRoute("/")({
-  component: EmptyState,
-  loader: async () => {
-    // Launch straight into the last-edited note; the empty state only shows
-    // for a brand-new library.
-    const [latest] = await getNotes({ limit: 1, sort: "updated" });
-
-    if (latest !== undefined) {
-      return redirect({
-        params: { _splat: latest.path },
-        to: "/notes/$",
-      });
-    }
-
-    return undefined;
-  },
-});

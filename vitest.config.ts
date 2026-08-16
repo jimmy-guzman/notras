@@ -15,7 +15,7 @@ export default defineConfig({
       ],
     },
     environment: "happy-dom",
-    exclude: [...configDefaults.exclude, "src-tauri"],
+    exclude: [...configDefaults.exclude, "src-tauri/**"],
     globals: true,
   },
 });

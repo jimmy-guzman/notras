@@ -3,6 +3,7 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { lowlight } from "./extensions";
 
@@ -17,9 +18,15 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const [copied, setCopied] = useState(false);
   const resetRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // A fence can name a language lowlight does not know (```mermaid). Keep it
+  // in the list, or the picker would silently rewrite it to "plain".
   const languages = useMemo(() => {
-    return lowlight.listLanguages().toSorted();
-  }, []);
+    const known = lowlight.listLanguages();
+
+    return (
+      language === "" || known.includes(language) ? known : [...known, language]
+    ).toSorted();
+  }, [language]);
 
   useEffect(() => {
     return () => {
@@ -28,15 +35,20 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   }, []);
 
   const copy = () => {
-    void navigator.clipboard.writeText(node.textContent).then(() => {
-      setCopied(true);
-      clearTimeout(resetRef.current);
-      resetRef.current = setTimeout(() => {
-        setCopied(false);
-      }, 1500);
+    void navigator.clipboard
+      .writeText(node.textContent)
+      .then(() => {
+        setCopied(true);
+        clearTimeout(resetRef.current);
+        resetRef.current = setTimeout(() => {
+          setCopied(false);
+        }, 1500);
 
-      return undefined;
-    });
+        return undefined;
+      })
+      .catch(() => {
+        toast.error("could not copy the code block");
+      });
   };
 
   return (

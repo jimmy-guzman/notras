@@ -2,11 +2,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
 import { useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { toast } from "sonner";
 
 import type { EditorHandle } from "@/components/editor/editor";
 
 import { Editor } from "@/components/editor/editor";
 import { Kbd } from "@/components/ui/kbd";
+import { Toaster } from "@/components/ui/sonner";
 import { createNote } from "@/data/create-note";
 
 const HOTKEY_OPTIONS = {
@@ -27,11 +29,20 @@ export function CaptureWindow() {
     const content = editorRef.current?.getContent() ?? "";
 
     if (content.trim() !== "") {
-      await createNote({
-        content,
-        folder: "inbox",
-        title: format(new Date(), "yyyy-MM-dd-HHmmss"),
-      });
+      try {
+        await createNote({
+          content,
+          folder: "inbox",
+          title: format(new Date(), "yyyy-MM-dd-HHmmss"),
+        });
+      } catch (error) {
+        // Keep the jot on screen -- hiding would lose it.
+        toast.error(
+          error instanceof Error ? error.message : "could not save the capture",
+        );
+
+        return;
+      }
     }
 
     setSession((current) => {
@@ -69,6 +80,8 @@ export function CaptureWindow() {
       <footer className="flex h-8 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs text-muted-foreground">
         <Kbd>esc</Kbd> saves to inbox
       </footer>
+      {/* This window bypasses the router, so it needs its own Toaster. */}
+      <Toaster />
     </div>
   );
 }

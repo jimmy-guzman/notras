@@ -10,7 +10,8 @@ import type { SuggestionMenuItem } from "./suggestion-menu";
 import { SuggestionMenu } from "./suggestion-menu";
 
 interface SlashCommand {
-  hint: string;
+  /** Markdown shorthand shown on the right; omitted when there is none. */
+  hint?: string;
   label: string;
   run: (editor: Editor, range: Range) => void;
 }
@@ -88,7 +89,6 @@ const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
-    hint: "",
     label: "table",
     run: (editor, range) => {
       editor
@@ -107,7 +107,6 @@ const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
-    hint: "",
     label: "today's date",
     run: (editor, range) => {
       const today = new Date().toLocaleDateString(undefined, {
@@ -150,8 +149,14 @@ export const SlashMenu = Extension.create({
         item.run(instance, range);
       },
       items: ({ query }) => {
+        const needle = query.toLowerCase();
+
+        // Hints are matchable too, so `/h1` finds "heading 1".
         return SLASH_COMMANDS.filter((item) => {
-          return item.label.includes(query.toLowerCase());
+          return (
+            item.label.toLowerCase().includes(needle) ||
+            (item.hint?.toLowerCase().includes(needle) ?? false)
+          );
         });
       },
       pluginKey: new PluginKey("slashMenuSuggestion"),

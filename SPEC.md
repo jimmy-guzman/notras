@@ -25,10 +25,10 @@ any time.
 | Shell         | Tauri v2 + Vite + React 19 SPA, TanStack Router                                                                                 |
 | Storage       | **Files-first**: `.md` + YAML frontmatter; directories = folders; SQLite FTS5 as derived index (`.notras/index.db`), Rust-owned |
 | Editor        | TipTap 3 WYSIWYG over `@tiptap/markdown` (bidirectional GFM); ⌘P raw source mode                                                |
-| Editing model | Edit-in-place, autosave on ~800ms idle; format-on-blur/note-switch (remark), never while typing                                 |
+| Editing model | Edit-in-place, autosave on ~800ms idle; TipTap's markdown serializer is the canonical form (no separate format pass)            |
 | Layout        | **Editor-first**: the window is the editor; ⌘K floating palette for search/switch/filter; no persistent sidebar                 |
 | Launch        | Last-edited note, editor focused; wordmark + tagline as empty state                                                             |
-| Settings      | Dialog (⌘,) — notes folder picker, syntax highlighting toggle                                                                   |
+| Settings      | Dialog (⌘,) — notes folder picker, launch at login                                                                              |
 | Effect-TS     | Keep as-is: services, Context.Tag/Layer, ManagedRuntime, typed errors                                                           |
 | AI notes      | **Solved by architecture** — agents write `.md` files; watcher → index → UI                                                     |
 
@@ -37,24 +37,26 @@ any time.
 **Keep / build:**
 
 - markdown notes as files; filename is the title (inline title field renames the file)
-- CodeMirror 6 editor: **live preview**, Obsidian-style -- syntax marks
-  (`##`, `**`, backticks, link brackets/URLs, `> `) hidden on elements the
-  cursor isn't touching; bullets render as •, task checkboxes are clickable
-  (writing `[x]` back to the file), fence lines vanish into a code card,
-  `---` draws a rule, images render inline via the asset protocol, tables
-  render (plain-text cells) and drop to source on touch
-- autosave + format-on-blur (remark pipeline)
-- ⌘P rendered preview (react-markdown + remark-gfm + rehype-expressive-code survive here)
+- TipTap 3 WYSIWYG editor over `@tiptap/markdown`: what you see is the rendered
+  document, not styled source -- headings, bold/italic, bullets, clickable task
+  checkboxes (writing `[x]` back to the file), editable tables, inline images via
+  the asset protocol, lowlight-highlighted code blocks, horizontal rules
+- the editor holds the note BODY; frontmatter is parsed off at load and
+  reattached at save from the latest loader snapshot
+- autosave on ~800ms idle, flushed on blur, note switch, and quit
+- ⌘P raw source mode: the whole file (frontmatter included) in one
+  lowlight-highlighted code block, with the caret carried across the toggle
 - FTS5 search (bm25, snippets) via the ⌘K palette
 - tags (frontmatter `tags:`), pins (frontmatter `pinned:`), folders (real directories)
 - **wikilinks** `[[note title]]` with autocomplete (replaces the old links sidebar with
-  links between _your_ notes); rendered + clickable in preview, cmd-click in editor
+  links between _your_ notes); rendered as clickable pills in the editor
 - **slash commands** — `/` quick-insert menu (heading, task list, code block, date)
 - **open external `.md`** — drag-and-drop or "Open With" any markdown file
 - code-block chrome (copy, language picker); link editing (⌘⇧K) and
   ⌘-click to open in the browser
-- drag a file/image into the editor → copied to `attachments/`, markdown link inserted;
-  images render in preview via the Tauri asset protocol
+- drag a file/image into the editor (or paste an image) → copied to `attachments/`,
+  markdown link inserted; images render via the Tauri asset protocol, whose scope
+  follows the notes dir at runtime
 - iA-Writer-style writing niceties: **focus mode** (dim all but active paragraph),
   **typewriter scrolling** (active line stays centered), word count + reading time in
   the status strip, iA Writer Quattro as the editor face (SIL OFL, bundled)
@@ -78,18 +80,19 @@ any time.
 
 ```
 ┌───────────────────── Tauri window (webview) ─────────────────────┐
-│  React SPA — routes: /  /notes/$path                             │
-│  CodeMirror editor · ⌘K palette · ⌘P preview · settings dialog   │
+│  React SPA — routes: /  /notes/$  /external                      │
+│  TipTap editor · ⌘K palette · ⌘P source mode · settings dialog   │
 │                                                                  │
 │  src/data/*  →  Effect services  →  two ports:                   │
-│    FileStore  ──plugin-fs──►  ~/notras/**/*.md   (writes)        │
+│    FileStore  ──commands──►  ~/notras/**/*.md   (writes)         │
 │    Index      ──db_select──►  .notras/index.db   (reads only)    │
 └──────────────────────────────┬───────────────────────────────────┘
-                               │ after write: index_paths([...])
+                               │ write_note / rename_note / delete_note
 ┌──────────────────────────────▼───────────────────────────────────┐
-│  Rust (src-tauri) — SINGLE WRITER of the index                   │
+│  Rust (src-tauri) — SINGLE WRITER of files AND the index         │
+│  · every mutation writes the file and indexes in the same call   │
 │  · notify watcher on notes dir (debounced)                       │
-│  · frontmatter parse (serde_yaml) + scan/reconcile by mtime      │
+│  · hand-rolled frontmatter parse + scan/reconcile by mtime       │
 │  · rusqlite (bundled, FTS5): note / note_tag / note_fts          │
 │  · emits "notes-changed" event → webview refreshes               │
 └───────────────────────────────────────────────────────────────────┘
@@ -100,21 +103,24 @@ any time.
 
 Key properties:
 
-- **Rust owns all index writes.** TS never executes SQL writes — Drizzle (`sqlite-proxy`)
-  issues read-only SELECTs through a `db_select` command. The transaction-serialization
-  problem from the SQLite-first design **does not exist** here.
-- **Index is disposable.** `ensure_index_schema` (CREATE IF NOT EXISTS + FTS5) runs on
+- **Rust owns all file and index writes.** TS never touches the filesystem or executes
+  SQL writes — Drizzle (`sqlite-proxy`) issues read-only SELECTs through a `db_select`
+  command, which is gated on SQLite's own `sqlite3_stmt_readonly` (a `WITH ... DELETE`
+  CTE is not read-only). The transaction-serialization problem from the SQLite-first
+  design **does not exist** here.
+- **Index is disposable.** `ensure_schema` (CREATE IF NOT EXISTS + FTS5) runs on
   startup; deleting `.notras/index.db` just triggers a rebuild. No drizzle-kit, no
   migrations, no `db:push`.
-- **Write path:** service → FileStore writes the `.md` → `await index_paths([path])` →
-  `router.invalidate()`. The watcher also reindexes (idempotent) — it exists for
-  _external_ writers; self-writes are reconciled by mtime/hash so events don't echo.
+- **Write path:** service → FileStore → a Rust command that writes the `.md`, indexes
+  it in one transaction, and emits `notes-changed` → `router.invalidate()`. The watcher
+  also reindexes (idempotent) — it exists for _external_ writers; self-writes are
+  reconciled by mtime so events don't echo.
 - **External edit while note is open:** if the buffer is clean, reload from disk; if
   dirty, the user's next autosave wins (single-user; last-write-wins is fine).
 - **Note identity = relative path.** Renames are delete+create in the index; wikilinks
   resolve by filename/title, so a rename can dangle links (accepted; scratch does same).
-- Frontmatter is parsed in both Rust (indexing, serde_yaml) and TS (editing pins/tags —
-  small module in `src/core/frontmatter.ts` with tests). Keep the two in parity; the
+- Frontmatter is parsed by twin hand-rolled parsers, in Rust (indexing) and TS (editing
+  pins/tags — `src/core/frontmatter.ts`), both with tests. Keep the two in parity; the
   format is deliberately tiny: `pinned: bool`, `tags: string[]`, nothing else.
 
 ### Index schema (Rust-created, mirrored as Drizzle defs for typed SELECTs)
@@ -181,44 +187,50 @@ note_fts(title, content)  -- fts5, unicode61; bm25 + snippet() as today
       over); writes = FileStore + `index_paths`
 - [x] folder/tag repositories folded into `note-repository` reads (folders
       emerge from paths; tags from frontmatter)
-- [x] Preferences via plugin-store (`syntaxHighlighting`, `notesDir`, `launchAtLogin`)
+- [x] Preferences via plugin-store (`notesDir`, shared with Rust) + autostart plugin
 - [x] `runtime.ts`: `ManagedRuntime.make(makeAppLayer({ fileStore, database }))`
 - [x] `src/actions/` → `src/data/`: plain async fns; validation stays Effect Schema;
       mutations end with `router.invalidate()`
 
 ## Phase 3 — Editor
 
-- [x] CodeMirror 6: `@codemirror/lang-markdown` + lezer highlighting; live-styled source
-      (big headings, bold/italic, highlighted code blocks); theme on the stone/oklch
-      tokens, dark via system
-- [x] Autosave: 800ms idle debounce → save file → index; status strip shows saved state
-- [x] Format-on-blur/note-switch: remark-parse → remark-gfm → remark-stringify (return
-      original on any error, as today); update `format-service.spec.ts`, drop
-      `vi.mock("oxfmt")`; `oxfmt` → devDependency (kept for `pnpm format` only)
-- [x] Focus mode (⌘D): dim non-active paragraphs via CM6 decorations; typewriter
-      scrolling toggle (scroll active line to vertical center)
+- [x] TipTap 3 + `@tiptap/markdown` (bidirectional GFM); StarterKit, tables, task
+      lists, images, lowlight code blocks; theme on the stone/oklch tokens, dark via
+      system. Editing is body-only: frontmatter is parsed off at load and recomposed
+      at save from the latest loader snapshot
+- [x] Markdown round-trip contract (`markdown-roundtrip.spec.ts`): every node must
+      define its markdown form or externally-authored files lose content
+- [x] Autosave: 800ms idle debounce → save file → index; serialized on one chain so
+      overlapping flushes cannot land out of order; flushed on blur, unmount, and quit
+      (Rust holds `ExitRequested` until the webview reports back)
+- [x] Focus mode (⌘D): dim non-active paragraphs; typewriter scrolling toggle
+      (scroll active line to vertical center)
 - [x] Status strip: saved state · word count · reading time
 - [x] Bundle iA Writer Quattro (+ Mono for code spans) as the editor font
-- [x] Wikilink autocomplete: `[[` triggers completion sourced from index titles
-- [x] Slash commands: `/` at line start → completion menu (headings, task list, code
-      block, date)
-- [x] ⌘P preview: existing MarkdownContent stack + hand-rolled `[[...]]` link
-      transform (clickable) + image URLs rewritten through the asset protocol
+- [x] Wikilink autocomplete: `[[` triggers completion sourced from index titles;
+      custom tokenizer + node so pills survive the markdown round trip
+- [x] Slash commands: `/` → completion menu (headings, lists, quote, code block,
+      table, divider, date), matched on label and shorthand hint
+- [x] ⌘P raw source mode: the whole file in one lowlight-highlighted code block; the
+      caret rides across the toggle as a sentinel through the markdown converters
+- [x] Code-block chrome (copy, language picker); link editing (⌘⇧K) with url
+      normalization and a scheme allowlist; ⌘-click opens in the browser
 - [x] Inline title field above editor → `rename_note`
-- [x] Drag file/image in → copy to `attachments/`, insert markdown link
+- [x] Drag file/image in (or paste an image) → copy to `attachments/`, insert
+      markdown link
 
 ## Phase 4 — Shell & UI
 
 - [x] Routes: `__root.tsx`, `index.tsx` (redirect to last note or empty state),
-      `notes.$path.tsx` (splat for nested dirs)
+      `notes.$.tsx` (splat for nested dirs), `external.tsx` (files outside the
+      notes dir)
 - [x] ⌘K palette (shadcn Command/cmdk): FTS search with highlighted snippets, filter
       tokens (tag/folder/pinned), recent notes, "create note", "settings"
 - [x] Empty state: wordmark + "just write, otra vez." + ⌘n / ⌘k hints
-- [x] Settings dialog (⌘,): notes folder picker (plugin-dialog), syntax highlighting,
-      launch at login
+- [x] Settings dialog (⌘,): notes folder picker (plugin-dialog), launch at login
 - [x] `notes-changed` listener → reload clean buffer / refresh palette + lists
-- [x] Hotkeys: ⌘n new, ⌘k palette, ⌘p preview, ⌘d focus, ⌘, settings
-      (shift+/ shortcuts help: still todo)
+- [x] Hotkeys: ⌘n new, ⌘k palette, ⌘p source mode, ⌘d focus, ⌘, settings,
+      ⌘⇧k link (shift+/ shortcuts help: still todo)
 - [x] Delete/pin/tag via palette actions + editor toolbar strip
 - [x] Port lowercase aesthetic, globals.css tokens, Toaster; delete SiteNav, home hero,
       NoteDropPanel, dnd-kit (drag-to-folder replaced by palette "move to folder")
@@ -311,6 +323,7 @@ Manual walkthrough (`pnpm tauri dev`):
 
 | Date       | What landed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-15 | Code review pass: `db_select` now gated on `sqlite3_stmt_readonly` (writable CTEs were slipping through the `WITH` prefix test); real CSP + runtime-managed asset scope replacing `csp: null` / `$HOME/**`; autosave serialized on one chain and awaited on quit (Rust holds `ExitRequested`); frontmatter parity fixes across both parsers (value-wide dedupe, separator-stripping tags, CRLF raw lines, `--- ` delimiters); link scheme allowlist; wikilink HTML round-trip; note header follows the loader; plus ~20 smaller correctness/a11y fixes. SPEC's editor sections rewritten for TipTap (they still described CodeMirror)     |
 | 2026-08-15 | Editor polish: code blocks get hover chrome (copy button + language picker via React nodeview); links become functional (⌘⇧K add/edit/remove popover with url normalization, ⌘-click opens in browser via plugin-opener)                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 2026-08-15 | Source mode fidelity saga: highlighted source mode (single lowlight code block) with anchored toggles; block-offset heuristics replaced by exact sentinel round-trip through the markdown converters (caret spot survives toggles deterministically; corruption guard for syntax-interior carets); suggestion menus viewport-clamped                                                                                                                                                                                                                                                                                                      |
 | 2026-08-15 | Studied erictli/scratch's shipped editor and adopted its polish: task-list CSS recipe (flex rows, zero p margins, hand-drawn checkboxes -- fixes broken task rendering), nbsp scrub on every serialize, markdown-sniffing paste, copy-as-markdown, [text](url) input rule, clipboard image paste via new attach_image Rust command (improved over scratch: relative attachments/ src stays in the file), tables not-prose, autocorrect/autocapitalize off (lowercase aesthetic + kills the blue underline), wikilinks restyled to dashed underline. Skipped: KaTeX/mermaid, code-block nodeview, frontmatter-as-node (ours is race-proof) |

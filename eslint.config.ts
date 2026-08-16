@@ -1,6 +1,16 @@
 import { defineConfig } from "@jimmy.codes/eslint-config";
 import pluginRouter from "@tanstack/eslint-plugin-router";
 
+// Repeated into every scoped no-restricted-imports override below: flat config
+// replaces rule options rather than merging them, so a scoped block that omits
+// this pattern silently drops the guard for those files.
+const lucideIconPattern = {
+  group: ["lucide-react"],
+  importNamePattern: "^[A-Z](?!.*Icon$)",
+  message:
+    "Import the Icon-suffixed version instead (e.g., PlusIcon instead of Plus).",
+};
+
 export default defineConfig({
   ignores: ["src-tauri/**", "src/routeTree.gen.ts"],
   overrides: [
@@ -28,19 +38,7 @@ export default defineConfig({
           "error",
           { ignorePattern: String.raw`^\s*(TODO|FIXME):` },
         ],
-        "no-restricted-imports": [
-          "error",
-          {
-            patterns: [
-              {
-                group: ["lucide-react"],
-                importNamePattern: "^[A-Z](?!.*Icon$)",
-                message:
-                  "Import the Icon-suffixed version instead (e.g., PlusIcon instead of Plus).",
-              },
-            ],
-          },
-        ],
+        "no-restricted-imports": ["error", { patterns: [lucideIconPattern] }],
         // Route option objects are left unsorted: TanStack Router's type
         // inference is order-sensitive there, and the router plugin's
         // create-route-property-order rule owns that ordering instead.
@@ -71,6 +69,7 @@ export default defineConfig({
           "error",
           {
             patterns: [
+              lucideIconPattern,
               {
                 group: ["@tauri-apps/*", "react", "react-dom", "node:*"],
                 message:
@@ -93,6 +92,7 @@ export default defineConfig({
           "error",
           {
             patterns: [
+              lucideIconPattern,
               {
                 group: ["@tauri-apps/*", "react", "react-dom"],
                 message:

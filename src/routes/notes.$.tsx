@@ -40,17 +40,18 @@ const HOTKEY_OPTIONS = {
 
 function usePersistentToggle(key: string, initial = false) {
   const [value, setValue] = useState(() => {
-    return localStorage.getItem(key) === null
-      ? initial
-      : localStorage.getItem(key) === "true";
+    const stored = localStorage.getItem(key);
+
+    return stored === null ? initial : stored === "true";
   });
 
+  // The next value is computed outside the updater: React may call an updater
+  // more than once, so it has to stay free of side effects.
   const toggle = () => {
-    setValue((current) => {
-      localStorage.setItem(key, String(!current));
+    const next = !value;
 
-      return !current;
-    });
+    localStorage.setItem(key, String(next));
+    setValue(next);
   };
 
   return [value, toggle] as const;
@@ -119,6 +120,11 @@ function NoteEditor({ note }: NoteEditorProps) {
   const [reloadKey, setReloadKey] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
+  const sourceModeRef = useRef(sourceMode);
+
+  useEffect(() => {
+    sourceModeRef.current = sourceMode;
+  });
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source
@@ -137,6 +143,9 @@ function NoteEditor({ note }: NoteEditorProps) {
       lastSavedAtRef.current = updatedAt;
     },
   });
+  // Stable across renders, unlike `autosave` itself (a fresh object every
+  // render, since `status` changes on every keystroke).
+  const { onChange } = autosave;
 
   // Live values behind stable getters, so the mount-frozen editor callbacks
   // never go stale.
@@ -203,13 +212,23 @@ function NoteEditor({ note }: NoteEditorProps) {
     const attachDropped = async (paths: string[]) => {
       for (const sourcePath of paths) {
         try {
+          // Whichever surface is live owns the caret; the other one's handle
+          // is stale (it was torn down by the mode toggle).
+          const target = sourceModeRef.current
+            ? sourceRef.current
+            : editorRef.current;
+
+          if (target === null) {
+            throw new Error("no editor to insert the attachment into");
+          }
+
           const relativePath = await attachFile(sourcePath);
           const name = relativePath.split("/").at(-1) ?? relativePath;
           const link = isImagePath(relativePath)
             ? `![${name}](${relativePath})`
             : `[${name}](${relativePath})`;
 
-          editorRef.current?.insertText(link);
+          target.insertText(link);
         } catch (error) {
           toast.error(
             error instanceof Error ? error.message : "could not attach file",
@@ -237,9 +256,9 @@ function NoteEditor({ note }: NoteEditorProps) {
 
       setBody(nextBody);
       setWords(countWords(full));
-      autosave.onChange(full);
+      onChange(full);
     },
-    [autosave],
+    [onChange],
   );
 
   const handleSourceChange = (raw: string) => {

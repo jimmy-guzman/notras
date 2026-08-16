@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 /// Tolerant parser for the tiny frontmatter dialect notras cares about.
 ///
 /// Only `pinned` and `tags` are interpreted; everything else is ignored (the
@@ -20,6 +22,9 @@ fn clean_tag(raw: &str) -> Option<String> {
     let tag = raw
         .trim()
         .trim_matches(|c| c == '"' || c == '\'')
+        // Separators are dropped, never kept: a tag carrying one would
+        // serialize into `tags: [a, b]` and re-parse as two tags.
+        .replace([',', '[', ']'], "")
         .trim()
         .to_lowercase();
 
@@ -57,7 +62,7 @@ pub fn parse(content: &str) -> Parsed<'_> {
     let mut close = None;
     let mut offset = 0;
     for line in rest.split_inclusive('\n') {
-        let trimmed = line.trim_end_matches(['\r', '\n']);
+        let trimmed = line.trim_end();
         if trimmed == "---" || trimmed == "..." {
             close = Some((offset, offset + line.len()));
             break;
@@ -106,7 +111,13 @@ pub fn parse(content: &str) -> Parsed<'_> {
         }
     }
 
-    parsed.frontmatter.tags.dedup();
+    // Dedupe by value, not just adjacency -- the TypeScript twin uses a Set.
+    let mut seen = HashSet::new();
+    parsed
+        .frontmatter
+        .tags
+        .retain(|tag| seen.insert(tag.clone()));
+
     parsed
 }
 
@@ -145,6 +156,29 @@ mod tests {
         let unclosed = parse("---\npinned: true\nno close");
         assert!(!unclosed.frontmatter.pinned);
         assert_eq!(unclosed.body, "---\npinned: true\nno close");
+    }
+
+    #[test]
+    fn dedupes_non_adjacent_tags() {
+        let parsed = parse("---\ntags: [a, b, A]\n---\nbody");
+        assert_eq!(parsed.frontmatter.tags, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn closes_on_a_delimiter_with_trailing_space() {
+        let parsed = parse("---\npinned: true\n---  \nbody\n");
+        assert!(parsed.frontmatter.pinned);
+        assert_eq!(parsed.body, "body\n");
+
+        let dots = parse("---\npinned: true\n...\nbody\n");
+        assert!(dots.frontmatter.pinned);
+        assert_eq!(dots.body, "body\n");
+    }
+
+    #[test]
+    fn strips_separators_from_tags() {
+        let parsed = parse("---\ntags:\n  - \"a,b\"\n---\nbody\n");
+        assert_eq!(parsed.frontmatter.tags, vec!["ab"]);
     }
 
     #[test]

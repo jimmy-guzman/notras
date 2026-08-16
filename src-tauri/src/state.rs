@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 use notify::RecommendedWatcher;
@@ -17,4 +18,7 @@ pub struct AppState {
     pub watcher: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
     /// Files handed to us by "Open With" before the frontend was listening.
     pub pending_open: Mutex<Vec<String>>,
+    /// Set once a quit is in flight, so the webview gets exactly one chance to
+    /// flush pending writes before the process goes away.
+    pub quitting: AtomicBool,
 }

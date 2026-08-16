@@ -30,28 +30,36 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const router = useRouter();
   const [autostart, setAutostart] = useState(false);
+  // The switch cannot claim "off" when the real state is unknown.
+  const [autostartReadable, setAutostartReadable] = useState(true);
 
   useEffect(() => {
     if (open) {
       void isEnabled()
-        .then(setAutostart)
-        .catch(() => {
+        .then((enabled) => {
+          setAutostart(enabled);
+          setAutostartReadable(true);
+
           return undefined;
+        })
+        .catch(() => {
+          setAutostartReadable(false);
+          toast.error("could not read the launch at login setting");
         });
     }
   }, [open]);
 
   const changeNotesDir = async () => {
-    const selected = await openDialog({
-      directory: true,
-      title: "choose your notes folder",
-    });
-
-    if (typeof selected !== "string") {
-      return;
-    }
-
     try {
+      const selected = await openDialog({
+        directory: true,
+        title: "choose your notes folder",
+      });
+
+      if (typeof selected !== "string") {
+        return;
+      }
+
       await setNotesDir(selected);
       await router.invalidate();
       toast.success("notes folder updated");
@@ -99,6 +107,7 @@ export function SettingsDialog({
             <Label htmlFor="autostart">launch at login</Label>
             <Switch
               checked={autostart}
+              disabled={!autostartReadable}
               id="autostart"
               onCheckedChange={toggleAutostart}
             />

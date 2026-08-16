@@ -29,10 +29,22 @@ export function LinkEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
+  // The popover stays mounted between invocations, so a second ⌘⇧K on a
+  // different link arrives as a new `state` rather than a remount. Reset the
+  // draft during render (the pattern used in the notes route) and refocus
+  // afterwards.
+  const [syncedState, setSyncedState] = useState(state);
+
+  if (syncedState !== state) {
+    setSyncedState(state);
+    setUrl(state.url);
+    setText("");
+  }
+
   useEffect(() => {
     firstFieldRef.current?.focus();
     firstFieldRef.current?.select();
-  }, []);
+  }, [state]);
 
   // Clamp inside the viewport once rendered (same policy as the
   // suggestion menu).
@@ -75,7 +87,9 @@ export function LinkEditor({
   };
 
   return (
-    <div className="link-editor" ref={containerRef}>
+    // Keys are handled on the container so Escape works from the buttons too.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- popover-level key handling; focus always sits on a real control inside
+    <div className="link-editor" onKeyDown={handleKeyDown} ref={containerRef}>
       {state.needsText ? (
         <input
           aria-label="link text"
@@ -83,7 +97,6 @@ export function LinkEditor({
           onChange={(event) => {
             setText(event.target.value);
           }}
-          onKeyDown={handleKeyDown}
           placeholder="link text..."
           ref={firstFieldRef}
           value={text}
@@ -95,7 +108,6 @@ export function LinkEditor({
         onChange={(event) => {
           setUrl(event.target.value);
         }}
-        onKeyDown={handleKeyDown}
         placeholder="enter url..."
         ref={state.needsText ? undefined : firstFieldRef}
         type="url"

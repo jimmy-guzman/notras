@@ -1,4 +1,11 @@
-import { and, desc, count as drizzleCount, eq, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  count as drizzleCount,
+  eq,
+  inArray,
+  sql,
+} from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 
 import type { NoteFilters, NoteMeta } from "@/core";
@@ -10,6 +17,7 @@ import {
   getFtsMatchFilter,
   getSearchOrderBy,
   getSnippetExpression,
+  getTagFilter,
 } from "@/server/db/fts-query";
 import { note, noteTag } from "@/server/db/schema";
 
@@ -47,12 +55,18 @@ const makeDbNoteRepository = Effect.gen(function* () {
         return [];
       }
 
+      // Scoped to the rows in hand: a single-note read has no business
+      // pulling the whole tag table across the IPC bridge.
+      const paths = rows.map((row) => {
+        return row.path;
+      });
+
       const tagRows = yield* Effect.tryPromise({
         catch: (cause) => {
           return new DatabaseError({ cause });
         },
         try: () => {
-          return db.select().from(noteTag);
+          return db.select().from(noteTag).where(inArray(noteTag.path, paths));
         },
       });
 
@@ -132,11 +146,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
             ? undefined
             : eq(note.folder, filters.folder),
           filters.pinnedOnly === true ? eq(note.pinned, true) : undefined,
-          filters.tag === undefined
-            ? undefined
-            : sql`note.path IN (
-                SELECT note_tag.path FROM note_tag WHERE note_tag.tag = ${filters.tag}
-              )`,
+          filters.tag === undefined ? undefined : getTagFilter(filters.tag),
           matchQuery === undefined ? undefined : getFtsMatchFilter(matchQuery),
         ].filter((condition) => {
           return condition !== undefined;

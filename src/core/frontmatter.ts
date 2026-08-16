@@ -22,7 +22,10 @@ const CLOSING_DELIMITERS = new Set(["---", "..."]);
 function cleanTag(raw: string) {
   const tag = raw
     .trim()
-    .replaceAll(/^["']|["']$/g, "")
+    .replaceAll(/^["']+|["']+$/g, "")
+    // Separators are dropped, never kept: a tag carrying one would serialize
+    // into `tags: [a, b]` and re-parse as two tags.
+    .replaceAll(/[,[\]]/g, "")
     .trim()
     .toLowerCase();
 
@@ -32,8 +35,8 @@ function cleanTag(raw: string) {
 function parseInlineTags(value: string) {
   return value
     .trim()
-    .replace(/^\[/, "")
-    .replace(/\]$/, "")
+    .replace(/^\[+/, "")
+    .replace(/\]+$/, "")
     .split(",")
     .map(cleanTag)
     .filter((tag) => {
@@ -61,7 +64,11 @@ export function parseNote(content: string): ParsedNote {
     return fallback;
   }
 
-  const rawLines = lines.slice(1, closeIndex);
+  // CRLF files leave a trailing \r on every split line; strip it here so
+  // `composeNote`'s \n joins cannot emit a block with mixed line endings.
+  const rawLines = lines.slice(1, closeIndex).map((line) => {
+    return line.replace(/\r$/, "");
+  });
   const body = lines.slice(closeIndex + 1).join("\n");
   const frontmatter: Frontmatter = { pinned: false, tags: [] };
 
@@ -180,8 +187,18 @@ export function updateFrontmatter(
     ownLines.push("pinned: true");
   }
 
-  if (next.tags.length > 0) {
-    ownLines.push(`tags: [${[...new Set(next.tags)].join(", ")}]`);
+  // Clean on the way out too, so a tag can never carry a separator into the
+  // inline form and come back as two tags.
+  const tags = [
+    ...new Set(
+      next.tags.map(cleanTag).filter((tag) => {
+        return tag !== undefined;
+      }),
+    ),
+  ];
+
+  if (tags.length > 0) {
+    ownLines.push(`tags: [${tags.join(", ")}]`);
   }
 
   const blockLines = [...ownLines, ...foreignLines];

@@ -23,13 +23,3 @@ export async function setNotesDir(path: string) {
     ),
   );
 }
-
-export async function reindexAll() {
-  return run(
-    FileStore.pipe(
-      Effect.flatMap((store) => {
-        return store.reindexAll();
-      }),
-    ),
-  );
-}

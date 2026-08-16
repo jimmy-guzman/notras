@@ -17,7 +17,7 @@ pub fn start(
     notes_dir: PathBuf,
 ) -> Option<notify_debouncer_full::Debouncer<notify::RecommendedWatcher, notify_debouncer_full::RecommendedCache>> {
     let handler_app = app.clone();
-    let mut debouncer = new_debouncer(
+    let debouncer = new_debouncer(
         Duration::from_millis(300),
         None,
         move |result: DebounceEventResult| {
@@ -25,12 +25,23 @@ pub fn start(
                 handle(&handler_app, &events);
             }
         },
-    )
-    .ok()?;
+    );
 
-    debouncer
-        .watch(&notes_dir, RecursiveMode::Recursive)
-        .ok()?;
+    let mut debouncer = match debouncer {
+        Ok(debouncer) => debouncer,
+        Err(error) => {
+            eprintln!("notras: could not start the notes watcher: {error}");
+            return None;
+        }
+    };
+
+    if let Err(error) = debouncer.watch(&notes_dir, RecursiveMode::Recursive) {
+        eprintln!(
+            "notras: could not watch {}: {error}",
+            notes_dir.display()
+        );
+        return None;
+    }
 
     Some(debouncer)
 }
@@ -51,9 +62,10 @@ fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
                 if index::index_file(&core.conn, &core.notes_dir, &rel).unwrap_or(false) {
                     changed.push(rel);
                 }
-            } else {
+            } else if path.is_dir() || !path.exists() {
                 // A directory changed (rename/move/delete) -- children events
-                // are not guaranteed, so reconcile everything.
+                // are not guaranteed, so reconcile everything. Attachments and
+                // other files that still exist cannot affect the index.
                 full_scan = true;
             }
         }

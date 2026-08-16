@@ -11,14 +11,21 @@ export interface SuggestionMenuItem {
 }
 
 export class SuggestionMenu {
+  private static instances = 0;
+
   private element: HTMLDivElement;
+  private id: string;
   private items: SuggestionMenuItem[] = [];
   private selected = 0;
 
   constructor() {
     this.element = document.createElement("div");
     this.element.className = "suggestion-menu";
+    this.element.role = "listbox";
     document.body.append(this.element);
+    SuggestionMenu.instances += 1;
+    this.id = `suggestion-menu-${SuggestionMenu.instances}`;
+    this.element.id = this.id;
   }
 
   destroy() {
@@ -97,6 +104,9 @@ export class SuggestionMenu {
         index === this.selected
           ? "suggestion-item suggestion-item-selected"
           : "suggestion-item";
+      button.role = "option";
+      button.id = `${this.id}-option-${index}`;
+      button.ariaSelected = String(index === this.selected);
       button.textContent = item.label;
       if (item.hint !== undefined) {
         const hint = document.createElement("span");

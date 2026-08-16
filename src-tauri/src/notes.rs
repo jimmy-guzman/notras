@@ -241,6 +241,7 @@ pub fn set_notes_dir(
 ) -> Result<(), String> {
     let notes_dir = PathBuf::from(&path);
     fs::create_dir_all(notes_dir.join(".notras")).map_err(|e| e.to_string())?;
+    crate::allow_assets(&app, &notes_dir);
 
     let conn = rusqlite::Connection::open(notes_dir.join(".notras/index.db"))
         .map_err(|e| e.to_string())?;
@@ -280,4 +281,11 @@ pub fn reindex_all(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Str
 #[tauri::command]
 pub fn pending_open_files(state: State<'_, AppState>) -> Vec<String> {
     std::mem::take(&mut *state.pending_open.lock().unwrap())
+}
+
+/// Called by the frontend once it has flushed pending writes, in answer to the
+/// `app-quit` event.
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    app.exit(0);
 }

@@ -335,7 +335,7 @@
   font-size: 0.85rem;
   line-height: 1.7;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Code blocks (lowlight tokens on the app palette). */
@@ -457,9 +457,9 @@
   color: var(--chart-5);
 }
 
-/* Preview typography mirrors the editor's live styling (face, rhythm,
-   heading scale from markdown-highlight.ts) so toggling ⌘P never makes
-   the text visually teleport. */
+/* Preview typography mirrors the editor's live styling (face, rhythm and
+   heading scale from src/components/editor/editor.tsx) so toggling ⌘P never
+   makes the text visually teleport. */
 .note-preview-prose {
   font-family: var(--font-editor);
   font-size: 1rem;

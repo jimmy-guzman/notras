@@ -72,3 +72,10 @@ export function getFtsMatchFilter(matchQuery: string) {
     SELECT note_fts.path FROM note_fts WHERE note_fts MATCH ${matchQuery}
   )`;
 }
+
+/** Notes carrying a tag. Lives here so every raw note-table filter is in one place. */
+export function getTagFilter(tag: string) {
+  return sql`note.path IN (
+    SELECT note_tag.path FROM note_tag WHERE note_tag.tag = ${tag}
+  )`;
+}

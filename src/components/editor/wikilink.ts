@@ -11,8 +11,6 @@ import { SuggestionMenu } from "./suggestion-menu";
 export interface WikilinkOptions {
   /** Live note titles for completion. */
   getTitles: () => string[];
-  /** Called when a wikilink is clicked in the editor. */
-  onNavigate?: (title: string) => void;
 }
 
 function toItems(props: {
@@ -37,7 +35,18 @@ function toItems(props: {
 export const Wikilink = Node.create<WikilinkOptions>({
   addAttributes() {
     return {
-      title: { default: "" },
+      title: {
+        default: "",
+        parseHTML: (element: HTMLElement) => {
+          return element.dataset.wikilink ?? element.textContent;
+        },
+        renderHTML: (attributes: Record<string, unknown>) => {
+          return {
+            "data-wikilink":
+              typeof attributes.title === "string" ? attributes.title : "",
+          };
+        },
+      },
     };
   },
 
@@ -46,7 +55,6 @@ export const Wikilink = Node.create<WikilinkOptions>({
       getTitles: () => {
         return [];
       },
-      onNavigate: undefined,
     };
   },
 
@@ -147,13 +155,13 @@ export const Wikilink = Node.create<WikilinkOptions>({
     });
   },
 
-  renderHTML({ node }) {
-    const title = String(node.attrs.title ?? "");
-
+  renderHTML({ HTMLAttributes, node }) {
+    // `data-wikilink` comes from the attribute's own renderHTML, so the
+    // matching parseHTML can read the title back on an HTML round-trip.
     return [
       "span",
-      mergeAttributes({ "class": "wikilink", "data-wikilink": title }),
-      title,
+      mergeAttributes({ class: "wikilink" }, HTMLAttributes),
+      String(node.attrs.title ?? ""),
     ];
   },
 

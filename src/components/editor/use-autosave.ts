@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { saveNote } from "@/data/save-note";
+import { registerPendingFlush } from "@/lib/pending-flush";
 
 export type SaveStatus = "dirty" | "saved" | "saving";
 
@@ -18,6 +19,7 @@ interface AutosaveOptions {
 export function useAutosave(path: string, options?: AutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const pendingRef = useRef<null | string>(null);
+  const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pathRef = useRef(path);
   const onSavedRef = useRef(options?.onSaved);
@@ -27,7 +29,7 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     onSavedRef.current = options?.onSaved;
   });
 
-  const flush = useCallback(async () => {
+  const writeOnce = useCallback(async () => {
     clearTimeout(timerRef.current);
     const content = pendingRef.current;
 
@@ -58,6 +60,19 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     }
   }, []);
 
+  /**
+   * Saves are serialized on one chain. The debounce timer, the blur handler
+   * and the unmount cleanup can all fire while a write is in flight, and two
+   * overlapping writes could land out of order -- an older buffer last.
+   */
+  const flush = useCallback(async () => {
+    const next = inFlightRef.current.then(writeOnce, writeOnce);
+
+    inFlightRef.current = next;
+
+    return next;
+  }, [writeOnce]);
+
   const onChange = useCallback(
     (content: string) => {
       pendingRef.current = content;
@@ -79,9 +94,11 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     };
 
     window.addEventListener("blur", handleWindowBlur);
+    const unregister = registerPendingFlush(flush);
 
     return () => {
       window.removeEventListener("blur", handleWindowBlur);
+      unregister();
       if (pendingRef.current !== null) {
         void flush();
       }

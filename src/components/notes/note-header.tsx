@@ -58,7 +58,7 @@ function TagEditor({ onTagsChange, tags }: TagEditorProps) {
       })}
       <input
         aria-label="add tag"
-        className="w-16 bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/50"
+        className="w-16 rounded-sm bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/50 focus-visible:ring-[2px] focus-visible:ring-ring/50"
         onBlur={commitDraft}
         onChange={(event) => {
           setDraft(event.target.value);
@@ -93,6 +93,24 @@ export function NoteHeader({ path, pinned, tags }: NoteHeaderProps) {
   });
   const [optimisticPinned, setOptimisticPinned] = useState(pinned);
   const [optimisticTags, setOptimisticTags] = useState(tags);
+
+  // Optimistic state follows the loader (adjust-during-render pattern): a pin
+  // from the palette, or an agent editing the frontmatter on disk, must show
+  // up here instead of being stuck on whatever we last set ourselves. Tags are
+  // compared by value -- the loader hands back a fresh array every refresh.
+  const tagsKey = tags.join("\n");
+  const [syncedPinned, setSyncedPinned] = useState(pinned);
+  const [syncedTags, setSyncedTags] = useState(tagsKey);
+
+  if (syncedPinned !== pinned) {
+    setSyncedPinned(pinned);
+    setOptimisticPinned(pinned);
+  }
+
+  if (syncedTags !== tagsKey) {
+    setSyncedTags(tagsKey);
+    setOptimisticTags(tags);
+  }
 
   const commitTitle = async () => {
     const trimmed = title.trim();

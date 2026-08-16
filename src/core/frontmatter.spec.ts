@@ -32,10 +32,42 @@ describe("parseNote", () => {
     expect(parsed.body).toBe("---\npinned: true\nno close");
   });
 
-  it("should dedupe tags", () => {
-    const parsed = parseNote("---\ntags: [a, A, a]\n---\nbody");
+  it("should dedupe tags that are not adjacent", () => {
+    const parsed = parseNote("---\ntags: [a, b, A]\n---\nbody");
 
-    expect(parsed.frontmatter.tags).toStrictEqual(["a"]);
+    expect(parsed.frontmatter.tags).toStrictEqual(["a", "b"]);
+  });
+
+  it("should strip separators from tags", () => {
+    const parsed = parseNote('---\ntags:\n  - "a,b"\n---\nbody\n');
+
+    expect(parsed.frontmatter.tags).toStrictEqual(["ab"]);
+  });
+
+  it("should close on the ... delimiter", () => {
+    const parsed = parseNote("---\npinned: true\n...\nbody\n");
+
+    expect(parsed.frontmatter.pinned).toBe(true);
+    expect(parsed.body).toBe("body\n");
+  });
+
+  it("should close on a delimiter with trailing space", () => {
+    const parsed = parseNote("---\npinned: true\n---  \nbody\n");
+
+    expect(parsed.frontmatter.pinned).toBe(true);
+    expect(parsed.body).toBe("body\n");
+  });
+
+  it("should strip carriage returns from raw lines of a crlf file", () => {
+    const parsed = parseNote(
+      "---\r\npinned: true\r\ncustom: x\r\n---\r\nbody\r\n",
+    );
+
+    expect(parsed.frontmatter.pinned).toBe(true);
+    expect(parsed.rawLines).toStrictEqual(["pinned: true", "custom: x"]);
+    expect(composeNote(parsed.rawLines, "body\n")).toBe(
+      "---\npinned: true\ncustom: x\n---\nbody\n",
+    );
   });
 });
 
@@ -69,6 +101,13 @@ describe("updateFrontmatter", () => {
     const next = updateFrontmatter(content, { tags: ["fresh"] });
 
     expect(next).toBe("---\ntags: [fresh]\nkeep: me\n---\nbody\n");
+  });
+
+  it("should not let a tag separator split into two tags", () => {
+    const next = updateFrontmatter("body\n", { tags: ["a,b"] });
+
+    expect(next).toBe("---\ntags: [ab]\n---\nbody\n");
+    expect(parseNote(next).frontmatter.tags).toStrictEqual(["ab"]);
   });
 
   it("should round-trip parse after update", () => {

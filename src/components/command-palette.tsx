@@ -13,7 +13,7 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
@@ -33,8 +33,8 @@ import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { getNotes } from "@/data/get-notes";
 import { moveNote } from "@/data/move-note";
-import { reindexAll } from "@/data/notes-dir";
 import { setNotePinned } from "@/data/pin-note";
+import { reindexAll } from "@/data/reindex";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 
 function Snippet({ snippet }: { snippet: string }) {
@@ -115,7 +115,15 @@ export function CommandPalette({
   const [view, setView] = useState<PaletteView>("root");
   const [results, setResults] = useState<NoteMeta[] | null>(null);
 
+  // Only the newest search may write results: two in-flight queries can
+  // resolve out of order, and a slow "a" must not overwrite "abc".
+  const latestSearchRef = useRef(0);
+
   const search = useDebouncedCallback(async (value: string) => {
+    const request = latestSearchRef.current + 1;
+
+    latestSearchRef.current = request;
+
     if (value.trim() === "" || value.startsWith("#")) {
       setResults(null);
 
@@ -123,9 +131,15 @@ export function CommandPalette({
     }
 
     try {
-      setResults(await getNotes({ limit: 30, query: value }));
+      const found = await getNotes({ limit: 30, query: value });
+
+      if (latestSearchRef.current === request) {
+        setResults(found);
+      }
     } catch {
-      setResults([]);
+      if (latestSearchRef.current === request) {
+        setResults([]);
+      }
     }
   }, 150);
 
@@ -299,6 +313,14 @@ export function CommandPalette({
                   new folder "{query.trim().toLowerCase()}"
                 </CommandItem>
               )}
+              <CommandItem
+                onSelect={() => {
+                  setView("root");
+                }}
+                value="cancel-move"
+              >
+                cancel
+              </CommandItem>
             </CommandGroup>
           ) : null}
 

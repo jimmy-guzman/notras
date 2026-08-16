@@ -11,10 +11,16 @@ import { cn } from "@/lib/ui/utils";
 
 import type { LinkEditorState } from "./link-editor";
 
-import { createEditorExtensions, serializeMarkdown } from "./extensions";
+import {
+  createEditorExtensions,
+  normalizeMarkdown,
+  serializeMarkdown,
+} from "./extensions";
 import { LinkEditor } from "./link-editor";
 import { findSentinel, SENTINEL } from "./sentinel";
-import { normalizeUrl } from "./urls";
+import { isSafeUrl, normalizeUrl } from "./urls";
+
+const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
@@ -147,6 +153,14 @@ export function Editor({
             typeof link?.attrs.href === "string" ? link.attrs.href : "";
 
           if (href !== "") {
+            // Hrefs arrive from the file on disk (parse, paste, input rule),
+            // never only from the link editor -- so gate the scheme here too.
+            if (!isSafeUrl(href)) {
+              toast.error(UNSAFE_LINK_MESSAGE);
+
+              return true;
+            }
+
             void openUrl(href).catch(() => {
               toast.error("could not open link");
             });
@@ -182,10 +196,19 @@ export function Editor({
           if (blob) {
             const reader = new FileReader();
 
+            reader.addEventListener("error", () => {
+              toast.error("could not read the pasted image");
+            });
             reader.addEventListener("load", () => {
               const result =
                 typeof reader.result === "string" ? reader.result : "";
               const base64 = result.split(",")[1] ?? "";
+
+              if (base64 === "") {
+                toast.error("could not read the pasted image");
+
+                return;
+              }
 
               void attachImage(base64)
                 .then((relativePath) => {
@@ -237,7 +260,6 @@ export function Editor({
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
-        onWikilinkClick: config.onWikilinkClick,
         placeholderText: config.placeholderText,
         resolveImageSrc: config.resolveImageSrc,
       }),
@@ -267,7 +289,7 @@ export function Editor({
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
             const md: string = manager.serialize(marked.doc.toJSON());
 
-            return md.replaceAll(/&nbsp;|&#160;/g, " ").indexOf(SENTINEL);
+            return normalizeMarkdown(md).indexOf(SENTINEL);
           } catch {
             return -1;
           }
@@ -335,9 +357,7 @@ export function Editor({
       const diverged = (() => {
         try {
           const canonical = manager
-            ? manager
-                .serialize(manager.parse(cleanBody))
-                .replaceAll(/&nbsp;|&#160;/g, " ")
+            ? normalizeMarkdown(manager.serialize(manager.parse(cleanBody)))
             : serializeMarkdown(editor);
 
           // Trailing whitespace differs benignly (StarterKit's
@@ -396,6 +416,10 @@ export function Editor({
 
             setLinkEditor(null);
             if (href === null) {
+              if (rawUrl.trim() !== "") {
+                toast.error(UNSAFE_LINK_MESSAGE);
+              }
+
               editor.commands.focus();
 
               return;

@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
 import { Editor } from "@/components/editor/editor";
 import { composeNote, parseNote } from "@/core";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
+import { registerPendingFlush } from "@/lib/pending-flush";
 
 interface ExternalSearch {
   path: string;
@@ -29,17 +30,38 @@ function ExternalPage() {
   const file = Route.useLoaderData();
   const [status, setStatus] = useState<"dirty" | "saved">("saved");
   // The editor owns the body; any frontmatter in the file is preserved
-  // verbatim around it.
-  const frontmatterRef = useRef(parseNote(file.content).rawLines);
+  // verbatim around it. Read from the latest loader snapshot at save time --
+  // this component is not keyed by path, so a mount-time copy would write one
+  // file's frontmatter onto the next.
+  const parsed = parseNote(file.content);
+  const frontmatterRef = useRef(parsed.rawLines);
 
-  const save = useDebouncedCallback(async (body: string) => {
-    try {
-      await writeExternalNote(path, composeNote(frontmatterRef.current, body));
-      setStatus("saved");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "save failed");
-    }
-  }, 800);
+  useEffect(() => {
+    frontmatterRef.current = parsed.rawLines;
+  });
+
+  const save = useDebouncedCallback(
+    async (body: string) => {
+      try {
+        await writeExternalNote(
+          path,
+          composeNote(frontmatterRef.current, body),
+        );
+        setStatus("saved");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "save failed");
+      }
+    },
+    800,
+    { flushOnExit: true },
+  );
+
+  // Quit waits for this the same way it waits for note autosave.
+  useEffect(() => {
+    return registerPendingFlush(async () => {
+      return save.flush();
+    });
+  }, [save]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -51,7 +73,7 @@ function ExternalPage() {
       </div>
       <Editor
         focusOnMount
-        initialContent={parseNote(file.content).body}
+        initialContent={parsed.body}
         key={path}
         onChange={(body) => {
           setStatus("dirty");

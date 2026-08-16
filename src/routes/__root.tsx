@@ -18,6 +18,7 @@ import { createNote } from "@/data/create-note";
 import { getFolders } from "@/data/get-folders";
 import { getNotes } from "@/data/get-notes";
 import { getNotesDir } from "@/data/notes-dir";
+import { flushPendingWrites } from "@/lib/pending-flush";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -60,28 +61,35 @@ function RootLayout() {
 
   // Tray menu + "Open With" plumbing from Rust.
   useEffect(() => {
-    const openExternal = (paths: string[]) => {
+    // Rust queues every "Open With" path and only signals that the queue has
+    // something in it, so draining is the single delivery mechanism.
+    const drainPendingOpens = async () => {
+      const paths = await invoke<string[]>("pending_open_files");
       const [first] = paths;
 
       if (first !== undefined) {
-        void navigate({ search: { path: first }, to: "/external" });
+        await navigate({ search: { path: first }, to: "/external" });
       }
     };
 
+    const reportFailure = (fallback: string) => {
+      return (error: unknown) => {
+        toast.error(error instanceof Error ? error.message : fallback);
+      };
+    };
+
     const unlistenNew = listen("menu-new-note", () => {
-      void createNote().then((path) => {
-        return navigate({ params: { _splat: path }, to: "/notes/$" });
-      });
+      void createNote()
+        .then((path) => {
+          return navigate({ params: { _splat: path }, to: "/notes/$" });
+        })
+        .catch(reportFailure("could not create note"));
     });
-    const unlistenOpen = listen<string[]>("open-file", (event) => {
-      openExternal(event.payload);
+    const unlistenOpen = listen("open-file", () => {
+      void drainPendingOpens().catch(reportFailure("could not open file"));
     });
 
-    void invoke<string[]>("pending_open_files").then((paths) => {
-      if (paths.length > 0) {
-        openExternal(paths);
-      }
-    });
+    void drainPendingOpens().catch(reportFailure("could not open file"));
 
     return () => {
       void unlistenNew.then((dispose) => {
@@ -92,6 +100,21 @@ function RootLayout() {
       });
     };
   }, [navigate]);
+
+  // Quit is held open by Rust until the buffers are on disk.
+  useEffect(() => {
+    const unlisten = listen("app-quit", () => {
+      void flushPendingWrites().finally(() => {
+        return invoke("quit_app");
+      });
+    });
+
+    return () => {
+      void unlisten.then((dispose) => {
+        dispose();
+      });
+    };
+  }, []);
 
   useHotkeys(
     "mod+k",

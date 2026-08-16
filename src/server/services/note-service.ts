@@ -5,6 +5,7 @@ import type { NoteFileContent, NoteFilters, NoteMeta } from "@/core";
 import {
   FileError,
   FileStore,
+  NOTE_TITLE_PATTERN,
   noteFolder,
   notePath,
   noteTitle,
@@ -64,6 +65,19 @@ function toNote(path: string, file: NoteFileContent): Note {
   };
 }
 
+/**
+ * Defense in depth: `src/data/` validates user-shaped input with Effect
+ * Schema, but the service is the layer everything else calls, and a bad
+ * segment here would become a path.
+ */
+function invalidSegment(segment: string, label: string) {
+  return NOTE_TITLE_PATTERN.test(segment)
+    ? undefined
+    : new FileError({
+        message: String.raw`${label} cannot contain / \ : or start with a dot`,
+      });
+}
+
 const makeNoteService = Effect.gen(function* () {
   const fileStore = yield* FileStore;
   const noteRepo = yield* NoteRepository;
@@ -99,6 +113,20 @@ const makeNoteService = Effect.gen(function* () {
       return Effect.gen(function* () {
         const folder = options?.folder ?? "";
         const baseTitle = options?.title ?? "untitled";
+
+        const badTitle = invalidSegment(baseTitle, "title");
+
+        if (badTitle !== undefined) {
+          return yield* badTitle;
+        }
+
+        for (const segment of folder === "" ? [] : folder.split("/")) {
+          const badFolder = invalidSegment(segment, "folder");
+
+          if (badFolder !== undefined) {
+            return yield* badFolder;
+          }
+        }
 
         let title = baseTitle;
         let counter = 1;
@@ -164,6 +192,12 @@ const makeNoteService = Effect.gen(function* () {
 
     rename: (path, title) => {
       return Effect.gen(function* () {
+        const badTitle = invalidSegment(title, "title");
+
+        if (badTitle !== undefined) {
+          return yield* badTitle;
+        }
+
         const target = notePath(noteFolder(path), title);
 
         if (target === path) {

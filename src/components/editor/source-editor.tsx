@@ -1,3 +1,5 @@
+import type { Editor } from "@tiptap/core";
+
 import { Extension } from "@tiptap/core";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Document } from "@tiptap/extension-document";
@@ -10,6 +12,7 @@ import { useEffect, useState } from "react";
 export interface SourceEditorHandle {
   /** Caret position as a character offset into the raw text. */
   getCursorOffset(): number;
+  insertText(text: string): void;
 }
 
 interface SourceEditorProps {
@@ -27,16 +30,43 @@ const SourceDocument = Document.extend({
   content: "codeBlock",
 });
 
+const INDENT = "  ";
+
 const TabIndent = Extension.create({
   addKeyboardShortcuts() {
     return {
-      Tab: () => {
-        return this.editor.commands.insertContent("  ");
+      "Shift-Tab": () => {
+        const { $from } = this.editor.state.selection;
+        const lineStart = $from.pos - $from.parentOffset;
+        const ahead = this.editor.state.doc.textBetween(
+          lineStart,
+          lineStart + INDENT.length,
+        );
+
+        // Nothing to outdent -- let the browser move focus instead.
+        if (ahead !== INDENT) {
+          return false;
+        }
+
+        return this.editor
+          .chain()
+          .deleteRange({ from: lineStart, to: lineStart + INDENT.length })
+          .run();
+      },
+      "Tab": () => {
+        return this.editor.commands.insertContent(INDENT);
       },
     };
   },
   name: "tabIndent",
 });
+
+/** Clamp a source offset to a caret position inside the code block. */
+function caretPosition(editor: Editor, offset: number) {
+  const max = Math.max(1, editor.state.doc.content.size - 1);
+
+  return Math.max(1, Math.min(1 + offset, max));
+}
 
 /**
  * Raw markdown source mode (⌘P): the whole file in a single code block,
@@ -90,14 +120,19 @@ export function SourceEditor({
     ],
     immediatelyRender: false,
     onCreate: ({ editor: instance }) => {
-      const max = instance.state.doc.content.size - 1;
-      const pos = Math.max(1, Math.min(1 + config.initialCursor, max));
-
-      instance.chain().focus().setTextSelection(pos).scrollIntoView().run();
+      instance
+        .chain()
+        .focus()
+        .setTextSelection(caretPosition(instance, config.initialCursor))
+        .scrollIntoView()
+        .run();
 
       config.onReady?.({
         getCursorOffset: () => {
           return Math.max(0, instance.state.selection.from - 1);
+        },
+        insertText: (text) => {
+          instance.chain().focus().insertContent(text).run();
         },
       });
     },
@@ -113,10 +148,12 @@ export function SourceEditor({
       return;
     }
 
-    const max = Math.max(1, editor.state.doc.content.size - 1);
-    const pos = Math.max(1, Math.min(1 + config.initialCursor, max));
-
-    editor.chain().focus().setTextSelection(pos).scrollIntoView().run();
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(caretPosition(editor, config.initialCursor))
+      .scrollIntoView()
+      .run();
   }, [config, editor]);
 
   return (

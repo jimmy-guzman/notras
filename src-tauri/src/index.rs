@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -124,7 +125,10 @@ pub fn index_file(
     let created_at = timestamp_millis(meta.created()).unwrap_or(updated_at);
     let title = title_of(rel_path);
 
-    conn.execute(
+    // One note, one transaction: the three tables must never drift apart.
+    let tx = conn.unchecked_transaction()?;
+
+    tx.execute(
         "INSERT INTO note (path, title, folder, pinned, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)
          ON CONFLICT(path) DO UPDATE SET
@@ -142,19 +146,21 @@ pub fn index_file(
         ],
     )?;
 
-    conn.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
+    tx.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
     for tag in &parsed.frontmatter.tags {
-        conn.execute(
+        tx.execute(
             "INSERT OR IGNORE INTO note_tag (path, tag) VALUES (?1, ?2)",
             rusqlite::params![rel_path, tag],
         )?;
     }
 
-    conn.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
-    conn.execute(
+    tx.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
+    tx.execute(
         "INSERT INTO note_fts (path, title, content) VALUES (?1, ?2, ?3)",
         rusqlite::params![rel_path, title, parsed.body],
     )?;
+
+    tx.commit()?;
 
     Ok(true)
 }
@@ -165,15 +171,17 @@ fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path
-            .file_name()
-            .is_some_and(|name| is_hidden(name))
-        {
+        if path.file_name().is_some_and(is_hidden) {
             continue;
         }
-        if path.is_dir() {
+        // `file_type` does not follow symlinks, so a symlinked directory is
+        // neither recursed into nor mistaken for a note file.
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_dir() {
             collect_note_files(&path, out);
-        } else if is_note_file(&path) {
+        } else if file_type.is_file() && is_note_file(&path) {
             out.push(path);
         }
     }
@@ -185,7 +193,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> rusqlite::Result<Vec<Str
     let mut files = Vec::new();
     collect_note_files(notes_dir, &mut files);
 
-    let mut seen = Vec::with_capacity(files.len());
+    let mut seen = HashSet::with_capacity(files.len());
     let mut changed = Vec::new();
 
     for file in files {
@@ -195,7 +203,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> rusqlite::Result<Vec<Str
         if index_file(conn, notes_dir, &rel)? {
             changed.push(rel.clone());
         }
-        seen.push(rel);
+        seen.insert(rel);
     }
 
     let mut stale = Vec::new();
@@ -245,13 +253,15 @@ fn column_value(value: ValueRef<'_>) -> Value {
 /// Read-only query surface for the webview (Drizzle's sqlite-proxy driver).
 /// Returns positional row arrays. Anything that isn't a SELECT is rejected --
 /// the index has exactly one writer, and it is not the webview.
+///
+/// The gate is SQLite's own `sqlite3_stmt_readonly` rather than a prefix test:
+/// a `WITH ... DELETE`/`UPDATE`/`INSERT` CTE starts with `with` but writes.
 pub fn select(conn: &Connection, sql: &str, params: &[Value]) -> Result<Vec<Vec<Value>>, String> {
-    let head = sql.trim_start().to_ascii_lowercase();
-    if !head.starts_with("select") && !head.starts_with("with") {
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    if !stmt.readonly() {
         return Err("only SELECT statements are allowed".into());
     }
 
-    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let column_count = stmt.column_count();
 
     let bound: Vec<rusqlite::types::Value> = params.iter().map(bind_value).collect();
@@ -342,6 +352,14 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
         assert!(select(&conn, "DELETE FROM note", &[]).is_err());
+        // A writable CTE starts with "with" but is not read-only.
+        assert!(select(
+            &conn,
+            "WITH doomed AS (SELECT path FROM note) DELETE FROM note",
+            &[],
+        )
+        .is_err());
         assert!(select(&conn, "  select 1", &[]).is_ok());
+        assert!(select(&conn, "WITH one AS (SELECT 1) SELECT * FROM one", &[]).is_ok());
     }
 }
