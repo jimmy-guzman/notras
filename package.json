@@ -23,6 +23,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@base-ui/react": "1.7.0",
     "@fontsource-variable/dm-sans": "5.3.0",
     "@fontsource/geist-mono": "5.3.0",
     "@fontsource/ia-writer-mono": "5.3.0",
@@ -55,7 +56,6 @@
     "effect": "4.0.0-rc.109",
     "lowlight": "3.3.0",
     "lucide-react": "1.31.0",
-    "radix-ui": "1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hotkeys-hook": "5.3.3",

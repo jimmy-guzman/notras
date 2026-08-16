@@ -149,9 +149,9 @@ The three live durations, all `ease`:
 - **FTS snippets never use `dangerouslySetInnerHTML`.** `getSnippetParts` parses
   the `[[hl]]` markers into segments that render as elements.
 - **The `command.tsx` deviation is deliberate.** The sr-only `DialogHeader` moves
-  inside `DialogContent`, because Radix portals the content and upstream's
+  inside `DialogContent`, because the content is portalled and upstream's
   placement leaves `aria-labelledby` pointing at a node outside the dialog.
-  Re-apply it if the component is ever re-added.
+  Re-apply it whenever the component is regenerated.
 - Focus is visible on every interactive element. Inputs that drop the default
   outline (the tag input, the title field) replace it with a
   `focus-visible:ring` rather than removing the affordance.

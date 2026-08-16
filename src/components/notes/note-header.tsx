@@ -185,21 +185,23 @@ export function NoteHeader({ path, pinned, tags }: NoteHeaderProps) {
       />
       <TagEditor onTagsChange={changeTags} tags={optimisticTags} />
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            aria-label={optimisticPinned ? "unpin note" : "pin note"}
-            aria-pressed={optimisticPinned}
-            className={cn("size-7", optimisticPinned && "text-primary")}
-            onClick={togglePinned}
-            size="icon"
-            variant="ghost"
-          >
-            {optimisticPinned ? (
-              <PinIcon className="size-4" />
-            ) : (
-              <PinOffIcon className="size-4 opacity-60" />
-            )}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              aria-label={optimisticPinned ? "unpin note" : "pin note"}
+              aria-pressed={optimisticPinned}
+              className={cn("size-7", optimisticPinned && "text-primary")}
+              onClick={togglePinned}
+              size="icon"
+              variant="ghost"
+            />
+          }
+        >
+          {optimisticPinned ? (
+            <PinIcon className="size-4" />
+          ) : (
+            <PinOffIcon className="size-4 opacity-60" />
+          )}
         </TooltipTrigger>
         <TooltipContent>{optimisticPinned ? "unpin" : "pin"}</TooltipContent>
       </Tooltip>

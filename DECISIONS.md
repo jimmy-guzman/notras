@@ -350,9 +350,13 @@ hand-edited. Non-autofixable lint is handled through the
 `**/components/ui/**` override block.
 
 **Constraint:** one deviation is documented. `command.tsx` moves the sr-only
-`DialogHeader` inside `DialogContent`, because Radix portals the content and
+`DialogHeader` inside `DialogContent`, because the content is portalled and
 upstream's placement leaves `aria-labelledby` pointing at a node outside the
-dialog. Re-apply it if the component is ever re-added.
+dialog. Re-apply it whenever the component is regenerated.
+
+**Superseded in part by `D22`,** which moves the style to base-maia on Base UI.
+The stone base, the oklch tokens, the dark `:root` default and both constraints
+above carry over unchanged.
 
 ### D20 Quick capture is a second window
 
@@ -373,3 +377,30 @@ tauri-driver, is recorded as deferred in `SPEC.md`.
 **Constraint:** the 14-step manual walkthrough in `SPEC.md` is the only coverage
 for window behavior, the asset protocol, and the quit handshake. It is run
 before anything touching Rust or window behavior merges.
+
+### D22 Base UI under the shadcn base-maia style
+
+The generated primitives move from the radix-maia style to base-maia, which is
+the same Maia look on `@base-ui/react` instead of `radix-ui`. The `D19` palette
+and both of its constraints carry over.
+
+`radix-ui` is one package that installs 57. Base UI is one tree-shakable
+package, and shadcn made it the default in July 2026, so base-maia gets the same
+updates radix-maia does. The `data-open:` and `data-checked:` Tailwind variants
+that the styles depend on ship in `shadcn/tailwind.css` and match both
+libraries' attributes, so the swap is a regeneration rather than a restyle.
+
+**Rejected: staying on radix-maia.** Shadcn has not deprecated it and ships
+every component for both. Rejected because carrying 57 packages to reach nine
+primitives is the cost of a default the project no longer has a reason to hold.
+
+**Constraint:** `asChild` does not exist in Base UI. Composition goes through
+the `render` prop, and `useRender` covers the cases that used `Slot.Root`.
+
+**Constraint:** `#root` sets `isolation: isolate` in `src/styles.css`. Base UI
+portals popups to the body after the app root, and the stacking context is what
+keeps them above page content without a z-index race.
+
+**Constraint:** the palette stays on `cmdk`, which base-maia's `command.tsx`
+still wraps. `cmdk` pulls `@radix-ui/react-dialog` transitively, so Radix is
+absent from `package.json` and present in the lockfile.

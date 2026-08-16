@@ -1,5 +1,3 @@
-"use client";
-
 import type { VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
@@ -27,9 +25,6 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
 const inputGroupAddonVariants = cva(
   "flex h-auto cursor-text items-center justify-center gap-2 py-2 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 **:data-[slot=kbd]:rounded-4xl **:data-[slot=kbd]:bg-muted-foreground/10 **:data-[slot=kbd]:px-1.5 [&>svg:not([class*='size-'])]:size-4",
   {
-    defaultVariants: {
-      align: "inline-start",
-    },
     variants: {
       align: {
         "block-end":
@@ -42,12 +37,15 @@ const inputGroupAddonVariants = cva(
           "order-first pl-3 has-[>button]:-ml-1 has-[>kbd]:ml-[-0.15rem]",
       },
     },
+    defaultVariants: {
+      align: "inline-start",
+    },
   },
 );
 
 function InputGroupAddon({
-  align = "inline-start",
   className,
+  align = "inline-start",
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
   return (
@@ -71,9 +69,6 @@ function InputGroupAddon({
 const inputGroupButtonVariants = cva(
   "flex items-center gap-2 rounded-4xl text-sm shadow-none",
   {
-    defaultVariants: {
-      size: "xs",
-    },
     variants: {
       size: {
         "icon-sm": "size-8 p-0 has-[>svg]:p-0",
@@ -82,17 +77,22 @@ const inputGroupButtonVariants = cva(
         "xs": "h-6 gap-1 px-1.5 [&>svg:not([class*='size-'])]:size-3.5",
       },
     },
+    defaultVariants: {
+      size: "xs",
+    },
   },
 );
 
 function InputGroupButton({
   className,
-  size = "xs",
   type = "button",
   variant = "ghost",
+  size = "xs",
   ...props
-}: Omit<React.ComponentProps<typeof Button>, "size"> &
-  VariantProps<typeof inputGroupButtonVariants>) {
+}: Omit<React.ComponentProps<typeof Button>, "size" | "type"> &
+  VariantProps<typeof inputGroupButtonVariants> & {
+    type?: "button" | "reset" | "submit";
+  }) {
   return (
     <Button
       className={cn(inputGroupButtonVariants({ size }), className)}

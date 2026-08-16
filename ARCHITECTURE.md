@@ -12,7 +12,7 @@ each choice was made, and `AGENTS.md` covers the rules for changing any of it.
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘P raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
-| UI              | Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4                                                    |
+| UI              | Shadcn UI (base-maia style on Base UI, stone base) + Tailwind CSS 4                                          |
 | Formatting      | oxfmt for dev tooling; TipTap's markdown serializer is the runtime canonical form                            |
 | Testing         | Vitest + happy-dom (TS), `cargo test` (Rust)                                                                 |
 | Package manager | pnpm                                                                                                         |
