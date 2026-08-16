@@ -52,7 +52,7 @@
     "cmdk": "1.1.1",
     "date-fns": "4.4.0",
     "drizzle-orm": "0.45.2",
-    "effect": "3.22.1",
+    "effect": "4.0.0-rc.109",
     "lowlight": "3.3.0",
     "lucide-react": "1.31.0",
     "radix-ui": "1.6.7",
@@ -89,5 +89,5 @@
     "vite": "8.2.1",
     "vitest": "4.1.10"
   },
-  "packageManager": "pnpm@11.21.0"
+  "packageManager": "pnpm@11.22.0"
 }
