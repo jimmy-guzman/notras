@@ -565,7 +565,7 @@ The note title, its tags, and the pin toggle live in the window's drag region.
 route and both windows render it.
 
 The app was spending two bands on one band's work: an empty 36px drag strip, and
-a 40px header directly beneath it. Folding one into the other returns 48px to the
+a 40px header directly beneath it. Folding one into the other returns 32px to the
 note and puts the title where macOS puts a document title, which `D5` already
 agrees with, since the filename is the title.
 
