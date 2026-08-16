@@ -58,7 +58,7 @@ function TagEditor({ onTagsChange, tags }: TagEditorProps) {
       })}
       <input
         aria-label="add tag"
-        className="w-16 rounded-sm bg-transparent text-xs text-muted-foreground outline-none placeholder:text-faint focus-visible:ring-[2px] focus-visible:ring-ring/50"
+        className="w-16 rounded-sm bg-transparent text-xs text-muted-foreground outline-none placeholder:text-faint focus-visible:ring-[3px] focus-visible:ring-ring/50"
         onBlur={commitDraft}
         onChange={(event) => {
           setDraft(event.target.value);
@@ -163,7 +163,7 @@ export function NoteHeader({ path, pinned, tags }: NoteHeaderProps) {
     <div className="flex min-w-0 flex-1 items-center gap-3">
       <input
         aria-label="note title"
-        className="min-w-0 flex-1 truncate bg-transparent text-sm font-medium outline-none placeholder:text-faint"
+        className="min-w-0 flex-1 truncate rounded-sm bg-transparent text-sm font-medium outline-none placeholder:text-faint focus-visible:ring-[3px] focus-visible:ring-ring/50"
         onBlur={commitTitle}
         onChange={(event) => {
           setTitle(event.target.value);

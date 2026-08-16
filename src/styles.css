@@ -532,7 +532,7 @@
    both prose-stone and prose-invert because this rule sits outside @layer. */
 .note-preview-prose {
   font-family: var(--font-editor);
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.75;
   font-optical-sizing: auto;
   --tw-prose-body: var(--foreground);
