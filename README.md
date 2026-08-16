@@ -29,7 +29,7 @@ rebuilds it from your files on the next launch.
   writes plain `.md`, set in Literata
 - autosave on idle; what lands on disk is clean, canonical markdown
 - ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
-  `#tag` filters, and every note action
+  `#tag` filters that narrow the search (`#work budget`), and every note action
 - ⌘P raw markdown source mode (the escape hatch for anything exotic)
 - wikilinks `[[note title]]` as clickable pills with autocomplete
 - slash commands: `/` inserts headings, lists, task lists, code blocks,

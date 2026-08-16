@@ -47,7 +47,7 @@ matches whatever the user is running (`D25`).
 - Headings scale from the body size, not from absolute values: `1.6em`,
   `1.35em`, `1.15em`, then `1em` for h4 through h6.
 - UI text sits at `text-xs` for secondary information (status strip, palette
-  metadata, tag input) and inherits the base size otherwise. Do not invent a
+  metadata, tag chips) and inherits the base size otherwise. Do not invent a
   per-component size.
 - **The wordmark is the only chrome in the mono.** Everything else in the
   interface is sans, and the note is the serif.
@@ -134,12 +134,18 @@ a real non-motion end state, so removing the transition costs nothing.
 - **The window is chrome-less.** `body` sets `user-select: none` so text
   selection outside the editor does not make the app read as a web page.
   `.allow-select` is the explicit opt-in for anything selectable.
-- **The titlebar carries the note's identity** (`D28`). Title, tags, and pin sit
-  in the drag region rather than in a band of their own, so the window title is
-  the note title, which is what `D5` already says it is. `Titlebar` in
+- **The titlebar carries the note's identity** (`D28`). Title and pin sit in the
+  drag region rather than in a band of their own, so the window title is the
+  note title, which is what `D5` already says it is. `Titlebar` in
   `src/components/titlebar.tsx` is the only place the drag region is declared,
   and every window and route renders it. Buttons and inputs inside it set
   `no-drag` so they stay clickable.
+- **Tags are picked from the status strip** (`D30`). A chip reads `#groceries`
+  and filters to that tag; the `TagPlus` button beside it reads `add tag` and
+  opens the combobox, whose vocabulary is the index's own counted tag list. The
+  button is labelled in every state, since an icon alone in a strip of status
+  text says nothing about what it adds. The chips are the only part that
+  shrinks, so they clip before the button or the word count does.
 - **Chrome starts after the traffic lights.** macOS floats them over the content
   at the top left, so `--spacing-titlebar` insets everything past them. The value
   is a platform fact and lives in one place. Windows and Linux put the controls
@@ -172,6 +178,7 @@ a real non-motion end state, so removing the transition costs nothing.
   | `⌘P`     | toggle raw markdown source      |
   | `⌘D`     | toggle focus mode               |
   | `⌘⇧K`    | add / edit link                 |
+  | `⌘⇧T`    | edit tags                       |
   | `⌘,`     | settings                        |
   | `⌘⇧N`    | global quick capture            |
   | `esc`    | (capture window) save + hide    |

@@ -564,6 +564,9 @@ The note title, its tags, and the pin toggle live in the window's drag region.
 `Titlebar` in `src/components/titlebar.tsx` declares that region once, and every
 route and both windows render it.
 
+**Superseded in part by `D30`,** which moves the tags to the status strip. The
+title and the pin stay, and every other part of this entry carries over.
+
 The app was spending two bands on one band's work: an empty 36px drag strip, and
 a 40px header directly beneath it. Folding one into the other returns 32px to the
 note and puts the title where macOS puts a document title, which `D5` already
@@ -639,3 +642,68 @@ means rechecking the offset, and both sites carry a comment saying so. They are
 deliberately not covered by a test: they are a verified pair rather than a
 repeated value, so the only honest assertion would either encode a derivation or
 pin two literals.
+
+### D30 Tags are picked, not typed
+
+The tag editor is a `Combobox` generated from the shadcn `base-maia` registry,
+it reads its vocabulary from `NoteService.listTags()`, and it lives in the
+status strip rather than the titlebar. The palette's `#` token filters through
+`NoteFilters.tag` instead of scanning the loaded notes in JavaScript.
+
+Both halves of the old tag UX were hand-rolled over capabilities that already
+existed. `listTags()` returns every tag with its count, grouped and sorted by
+the index, and `getTagFilter()` matches a tag exactly and ANDs with the FTS
+filter. Neither had a caller. The editor was a 64px input with no suggestions,
+so a typo forked `standup` from `standups` with nothing to surface it, and the
+palette recomputed the vocabulary from `notes.flatMap` on every keystroke and
+substring-matched it, which disagreed with the index it was standing in for.
+
+The combobox costs one registry entry. `input-group.tsx` already carried
+`in-data-[slot=combobox-content]` hooks for it, and its two registry
+dependencies were both installed, so adding it regenerated `button`, `input`,
+`textarea`, and `input-group` byte-identically once `lint:fix` and `format:fix`
+had run.
+
+Tags moved down because the titlebar could not hold them. `D28` put title, tags,
+and pin in a 44px band, where the chip row and the title input compete for the
+same line and the input was pinned at `w-16` to keep the title readable. The
+status strip is where the note's other metadata already sits.
+
+**Rejected: keeping tags in the titlebar with the combobox inline.** Smallest
+diff, and it leaves `D28` whole. Rejected because it keeps the space war that
+produced `w-16`, and because `D28`'s own constraint requires widening the
+`button, input` no-drag rule for any other interactive element in the drag
+region. Moving the tags out satisfies that constraint by deletion.
+
+**Rejected: hand-writing the chips input against Base UI directly.** Base UI
+ships `Combobox.Chips`, `Combobox.ChipRemove`, and the rest, so the primitives
+were reachable without the registry. Rejected because the generated file is the
+one that stays in step with `D22`, and writing it here would put it outside
+`components/ui/**` where nothing regenerates it.
+
+**Constraint:** a chip in the strip is a filter button, not a `ComboboxChip`. It
+answers "show me this tag" where a picker row answers "does this note carry it",
+so it has no remove affordance and removal is unchecking a row. That is what
+keeps every element in the 28px strip flat, and it is why `ComboboxChips`,
+`ComboboxChip`, and `ComboboxChipsInput` go unused.
+
+**Constraint:** dropping `ComboboxChip` also dropped the marking that said a
+chip was a tag, so the chip carries a literal `#` and reads `#groceries`.
+Without it the names sit as bare words in a strip of status text. The same
+applies to a palette note row, which reads `title · folder · #work #notes`. For
+the same reason the picker's trigger is a `TagPlus` icon rather than a `#`: a
+`#` glyph at the end of a run of tag names reads as one more tag.
+
+**Constraint:** the chips sit in their own box carrying `min-w-0` **and**
+`overflow-hidden`, with the add button outside it. `Button` is `shrink-0`, so a
+container that is merely allowed to shrink spills its chips over whatever sits
+to the right rather than clipping them; `min-w-0` on its own clips nothing. The
+button stays outside that box because it is the action while the chips are the
+display, so at the 480px minimum width the tags clip and the picker is the
+complete view.
+
+**Constraint:** two call-site overrides sit on the generated popup, because
+`D19` puts `components/ui/**` off-limits. `ComboboxContent` carries
+`shadow-2xl ring-1` where `DESIGN.md` specifies a `--border` hairline and
+`0 8px 24px rgb(0 0 0 / 0.18)`, and `ComboboxTrigger` always appends a chevron,
+which reads as a dropdown affordance on what is an action button in a 28px band.

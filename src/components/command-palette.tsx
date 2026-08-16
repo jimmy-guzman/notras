@@ -13,7 +13,7 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
@@ -36,6 +36,7 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
+import { parseTagQuery } from "@/lib/utils/tag-query";
 
 function Snippet({ snippet }: { snippet: string }) {
   return (
@@ -54,6 +55,20 @@ function Snippet({ snippet }: { snippet: string }) {
       })}
     </span>
   );
+}
+
+const VISIBLE_TAGS = 3;
+
+function tagLabel(tags: string[]) {
+  const shown = tags
+    .slice(0, VISIBLE_TAGS)
+    .map((tag) => {
+      return `#${tag}`;
+    })
+    .join(" ");
+  const hidden = tags.length - VISIBLE_TAGS;
+
+  return hidden > 0 ? `${shown} +${hidden}` : shown;
 }
 
 interface NoteItemProps {
@@ -80,6 +95,11 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
               · {note.folder}
             </span>
           )}
+          {note.tags.length === 0 ? null : (
+            <span className="truncate text-xs text-muted-foreground">
+              · {tagLabel(note.tags)}
+            </span>
+          )}
         </span>
         {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
       </div>
@@ -90,21 +110,25 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
 type PaletteView = "delete" | "move" | "root";
 
 interface CommandPaletteProps {
+  allTags: { count: number; tag: string }[];
   folders: { count: number; folder: string }[];
   notes: NoteMeta[];
   notesDir: string;
   onOpenChange: (open: boolean) => void;
   onOpenSettings: () => void;
   open: boolean;
+  tag?: string;
 }
 
 export function CommandPalette({
+  allTags,
   folders,
   notes,
   notesDir,
   onOpenChange,
   onOpenSettings,
   open,
+  tag,
 }: CommandPaletteProps) {
   const navigate = useNavigate();
   const params = useParams({ strict: false });
@@ -113,7 +137,10 @@ export function CommandPalette({
     return note.path === currentPath;
   });
 
-  const [query, setQuery] = useState("");
+  // A tag chip navigates with `?tag=`, which is what opens the palette. The
+  // parent keys this component on the tag, so the seed applies once per tag
+  // and typing afterwards is never overwritten.
+  const [query, setQuery] = useState(tag === undefined ? "" : `#${tag} `);
   const [view, setView] = useState<PaletteView>("root");
   const [results, setResults] = useState<NoteMeta[] | null>(null);
 
@@ -121,19 +148,35 @@ export function CommandPalette({
   // resolve out of order, and a slow "a" must not overwrite "abc".
   const latestSearchRef = useRef(0);
 
+  const knownTags = new Set(
+    allTags.map((entry) => {
+      return entry.tag;
+    }),
+  );
+
+  // Tag filtering is an indexed exact match that ANDs with full-text search,
+  // so both paths run the same query and only differ in what they pass.
   const search = useDebouncedCallback(async (value: string) => {
     const request = latestSearchRef.current + 1;
+    const parsed = parseTagQuery(value);
+    const filters =
+      parsed === undefined
+        ? { query: value.trim() }
+        : { query: parsed.query, tag: parsed.tag };
 
     latestSearchRef.current = request;
 
-    if (value.trim() === "" || value.startsWith("#")) {
+    if (
+      filters.query === "" &&
+      (filters.tag === undefined || !knownTags.has(filters.tag))
+    ) {
       setResults(null);
 
       return;
     }
 
     try {
-      const found = await getNotes({ limit: 30, query: value });
+      const found = await getNotes({ limit: 30, ...filters });
 
       if (latestSearchRef.current === request) {
         setResults(found);
@@ -145,6 +188,11 @@ export function CommandPalette({
     }
   }, 150);
 
+  const updateQuery = (value: string) => {
+    setQuery(value);
+    void search(value);
+  };
+
   const handleOpenChange = (next: boolean) => {
     if (!next) {
       setQuery("");
@@ -155,35 +203,20 @@ export function CommandPalette({
     onOpenChange(next);
   };
 
-  const tagFilter = query.startsWith("#")
-    ? query.slice(1).trim().toLowerCase()
-    : undefined;
+  useEffect(() => {
+    if (tag !== undefined) {
+      void search(`#${tag} `);
+    }
+  }, [search, tag]);
 
-  const visibleNotes = useMemo(() => {
-    if (tagFilter !== undefined) {
-      return notes.filter((note) => {
-        return note.tags.some((tag) => {
-          return tag.includes(tagFilter);
-        });
-      });
+  const tagQuery = parseTagQuery(query);
+  const visibleNotes = (() => {
+    if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
+      return [];
     }
 
-    if (results !== null) {
-      return results;
-    }
-
-    return notes.slice(0, 20);
-  }, [notes, results, tagFilter]);
-
-  const allTags = useMemo(() => {
-    return [
-      ...new Set(
-        notes.flatMap((note) => {
-          return note.tags;
-        }),
-      ),
-    ].toSorted();
-  }, [notes]);
+    return results ?? notes.slice(0, 20);
+  })();
 
   const close = () => {
     handleOpenChange(false);
@@ -203,11 +236,12 @@ export function CommandPalette({
     });
   };
 
+  // Actions match on the free text, so they stay reachable inside a tag
+  // filter rather than disappearing the moment a `#` is typed.
   const matchesQuery = (label: string) => {
-    return (
-      tagFilter === undefined &&
-      label.toLowerCase().includes(query.trim().toLowerCase())
-    );
+    const text = tagQuery === undefined ? query.trim() : tagQuery.query;
+
+    return label.toLowerCase().includes(text.toLowerCase());
   };
 
   return (
@@ -219,10 +253,7 @@ export function CommandPalette({
     >
       <Command shouldFilter={false}>
         <CommandInput
-          onValueChange={(value) => {
-            setQuery(value);
-            void search(value);
-          }}
+          onValueChange={updateQuery}
           placeholder={
             view === "move"
               ? "move to folder... (type a new name to create it)"
@@ -332,6 +363,31 @@ export function CommandPalette({
                 <p className="text-muted-foreground">nothing found</p>
                 <p className="text-faint">start with # to search by tag</p>
               </CommandEmpty>
+              {tagQuery?.query === "" ? (
+                <CommandGroup heading="tags">
+                  {allTags
+                    .filter(({ tag: name }) => {
+                      return name.includes(tagQuery.tag);
+                    })
+                    .map(({ count, tag: name }) => {
+                      return (
+                        <CommandItem
+                          key={name}
+                          onSelect={() => {
+                            updateQuery(`#${name} `);
+                          }}
+                          value={`tag-${name}`}
+                        >
+                          <HashIcon />
+                          {name}
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {count}
+                          </span>
+                        </CommandItem>
+                      );
+                    })}
+                </CommandGroup>
+              ) : null}
               <CommandGroup heading="notes">
                 {visibleNotes.map((note) => {
                   return (
@@ -339,28 +395,6 @@ export function CommandPalette({
                   );
                 })}
               </CommandGroup>
-              {tagFilter === undefined ? null : (
-                <CommandGroup heading="tags">
-                  {allTags
-                    .filter((tag) => {
-                      return tag.includes(tagFilter);
-                    })
-                    .map((tag) => {
-                      return (
-                        <CommandItem
-                          key={tag}
-                          onSelect={() => {
-                            setQuery(`#${tag}`);
-                          }}
-                          value={`tag-${tag}`}
-                        >
-                          <HashIcon />
-                          {tag}
-                        </CommandItem>
-                      );
-                    })}
-                </CommandGroup>
-              )}
               <CommandSeparator />
               <CommandGroup heading="actions">
                 {matchesQuery("new note") ? (
