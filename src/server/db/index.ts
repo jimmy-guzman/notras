@@ -13,4 +13,6 @@ export type DrizzleDb = SqliteRemoteDatabase<typeof schema>;
  * injected by an adapter (Tauri in the app, an in-memory stub in tests) so
  * this module stays free of any platform APIs.
  */
-export class Database extends Context.Tag("Database")<Database, DrizzleDb>() {}
+export class Database extends Context.Service<Database, DrizzleDb>()(
+  "notras/server/db/Database",
+) {}

@@ -59,6 +59,17 @@ export default defineConfig({
         ],
       },
     },
+    // unicorn/throw-new-error flags every call whose callee name ends in
+    // `Error` and accepts no options, so this is the only lever. It ships a
+    // hardcoded exemption for `Data.TaggedError` (eslint-plugin-unicorn#2654,
+    // added for Effect) that was never extended to `Schema.TaggedError`, its
+    // Effect 4 replacement. Remove once unicorn widens the exemption.
+    {
+      files: ["src/core/errors.ts"],
+      rules: {
+        "unicorn/throw-new-error": "off",
+      },
+    },
     // Layer boundaries. These must come last: flat config replaces rule options
     // rather than merging them, so the global no-restricted-imports above would
     // otherwise clobber them.

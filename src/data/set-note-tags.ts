@@ -1,5 +1,3 @@
-import { Effect } from "effect";
-
 import { NoteService } from "@/server/services/note-service";
 
 import { run } from "./run";
@@ -18,10 +16,8 @@ export async function setNoteTags(path: string, tags: string[]) {
   ];
 
   return run(
-    NoteService.pipe(
-      Effect.flatMap((svc) => {
-        return svc.setTags(path, normalized);
-      }),
-    ),
+    NoteService.use((svc) => {
+      return svc.setTags(path, normalized);
+    }),
   );
 }

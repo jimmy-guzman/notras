@@ -4,7 +4,7 @@ import { Cause, Exit, Option } from "effect";
 
 import { AppRuntime } from "@/server/runtime";
 
-type AppContext = ManagedRuntime.ManagedRuntime.Context<typeof AppRuntime>;
+type AppServices = ManagedRuntime.ManagedRuntime.Services<typeof AppRuntime>;
 
 /**
  * Run an Effect on the app runtime, unwrapping typed failures into plain
@@ -12,7 +12,7 @@ type AppContext = ManagedRuntime.ManagedRuntime.Context<typeof AppRuntime>;
  * FiberFailure dump.
  */
 export async function run<A, E>(
-  effect: Effect.Effect<A, E, AppContext>,
+  effect: Effect.Effect<A, E, AppServices>,
 ): Promise<A> {
   const exit = await AppRuntime.runPromiseExit(effect);
 
@@ -20,7 +20,7 @@ export async function run<A, E>(
     return exit.value;
   }
 
-  const failure = Cause.failureOption(exit.cause);
+  const failure = Cause.findErrorOption(exit.cause);
 
   if (Option.isSome(failure) && failure.value instanceof Error) {
     throw failure.value;

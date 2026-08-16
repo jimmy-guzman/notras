@@ -12,10 +12,7 @@ import {
   parseNote,
   updateFrontmatter,
 } from "@/core";
-import {
-  NoteRepository,
-  NoteRepositoryLive,
-} from "@/server/repositories/note-repository";
+import { NoteRepository } from "@/server/repositories/note-repository";
 
 interface Note {
   content: string;
@@ -47,11 +44,6 @@ interface INoteService {
   write(path: string, content: string): Effect.Effect<Date, FileError>;
 }
 
-export class NoteService extends Context.Tag("NoteService")<
-  NoteService,
-  INoteService
->() {}
-
 function toNote(path: string, file: NoteFileContent): Note {
   const parsed = parseNote(file.content);
 
@@ -82,21 +74,116 @@ const makeNoteService = Effect.gen(function* () {
   const fileStore = yield* FileStore;
   const noteRepo = yield* NoteRepository;
 
-  const rewriteFrontmatter = (
-    path: string,
-    patch: Parameters<typeof updateFrontmatter>[1],
-  ) => {
-    return Effect.gen(function* () {
+  const rewriteFrontmatter = Effect.fn("NoteService.rewriteFrontmatter")(
+    function* (path: string, patch: Parameters<typeof updateFrontmatter>[1]) {
       const file = yield* fileStore.read(path);
       const next = updateFrontmatter(file.content, patch);
 
       if (next !== file.content) {
         yield* fileStore.write(path, next);
       }
-    });
-  };
+    },
+  );
 
-  const service: INoteService = {
+  const create = Effect.fn("NoteService.create")(function* (options?: {
+    content?: string;
+    folder?: string;
+    title?: string;
+  }) {
+    const folder = options?.folder ?? "";
+    const baseTitle = options?.title ?? "untitled";
+
+    const badTitle = invalidSegment(baseTitle, "title");
+
+    if (badTitle !== undefined) {
+      return yield* badTitle;
+    }
+
+    for (const segment of folder === "" ? [] : folder.split("/")) {
+      const badFolder = invalidSegment(segment, "folder");
+
+      if (badFolder !== undefined) {
+        return yield* badFolder;
+      }
+    }
+
+    let title = baseTitle;
+    let counter = 1;
+
+    while (yield* fileStore.exists(notePath(folder, title))) {
+      counter += 1;
+      title = `${baseTitle}-${counter}`;
+    }
+
+    const path = notePath(folder, title);
+
+    yield* fileStore.write(path, options?.content ?? "");
+
+    return path;
+  });
+
+  const getByPath = Effect.fn("NoteService.getByPath")(function* (
+    path: string,
+  ) {
+    const file = yield* fileStore.read(path);
+
+    return toNote(path, file);
+  });
+
+  const move = Effect.fn("NoteService.move")(function* (
+    path: string,
+    folder: string,
+  ) {
+    const target = notePath(folder, noteTitle(path));
+
+    if (target === path) {
+      return path;
+    }
+
+    if (yield* fileStore.exists(target)) {
+      return yield* new FileError({
+        message: `a note named ${noteTitle(path)} already exists in ${
+          folder === "" ? "the notes root" : folder
+        }`,
+      });
+    }
+
+    yield* fileStore.rename(path, target);
+
+    return target;
+  });
+
+  const rename = Effect.fn("NoteService.rename")(function* (
+    path: string,
+    title: string,
+  ) {
+    const badTitle = invalidSegment(title, "title");
+
+    if (badTitle !== undefined) {
+      return yield* badTitle;
+    }
+
+    const target = notePath(noteFolder(path), title);
+
+    if (target === path) {
+      return path;
+    }
+
+    yield* fileStore.rename(path, target);
+
+    return target;
+  });
+
+  const write = Effect.fn("NoteService.write")(function* (
+    path: string,
+    content: string,
+  ) {
+    const updatedAt = yield* fileStore.write(path, content);
+
+    return new Date(updatedAt);
+  });
+
+  return NoteService.of({
     attach: (sourcePath) => {
       return fileStore.attach(sourcePath);
     },
@@ -109,52 +196,13 @@ const makeNoteService = Effect.gen(function* () {
       return noteRepo.count().pipe(Effect.orDie);
     },
 
-    create: (options) => {
-      return Effect.gen(function* () {
-        const folder = options?.folder ?? "";
-        const baseTitle = options?.title ?? "untitled";
-
-        const badTitle = invalidSegment(baseTitle, "title");
-
-        if (badTitle !== undefined) {
-          return yield* badTitle;
-        }
-
-        for (const segment of folder === "" ? [] : folder.split("/")) {
-          const badFolder = invalidSegment(segment, "folder");
-
-          if (badFolder !== undefined) {
-            return yield* badFolder;
-          }
-        }
-
-        let title = baseTitle;
-        let counter = 1;
-
-        while (yield* fileStore.exists(notePath(folder, title))) {
-          counter += 1;
-          title = `${baseTitle}-${counter}`;
-        }
-
-        const path = notePath(folder, title);
-
-        yield* fileStore.write(path, options?.content ?? "");
-
-        return path;
-      });
-    },
+    create,
 
     delete: (path) => {
       return fileStore.delete(path);
     },
 
-    getByPath: (path) => {
-      return Effect.gen(function* () {
-        const file = yield* fileStore.read(path);
-
-        return toNote(path, file);
-      });
-    },
+    getByPath,
 
     list: (filters) => {
       return noteRepo.findMany(filters ?? {}).pipe(Effect.orDie);
@@ -168,47 +216,9 @@ const makeNoteService = Effect.gen(function* () {
       return noteRepo.listTags().pipe(Effect.orDie);
     },
 
-    move: (path, folder) => {
-      return Effect.gen(function* () {
-        const target = notePath(folder, noteTitle(path));
+    move,
 
-        if (target === path) {
-          return path;
-        }
-
-        if (yield* fileStore.exists(target)) {
-          return yield* new FileError({
-            message: `a note named ${noteTitle(path)} already exists in ${
-              folder === "" ? "the notes root" : folder
-            }`,
-          });
-        }
-
-        yield* fileStore.rename(path, target);
-
-        return target;
-      });
-    },
-
-    rename: (path, title) => {
-      return Effect.gen(function* () {
-        const badTitle = invalidSegment(title, "title");
-
-        if (badTitle !== undefined) {
-          return yield* badTitle;
-        }
-
-        const target = notePath(noteFolder(path), title);
-
-        if (target === path) {
-          return path;
-        }
-
-        yield* fileStore.rename(path, target);
-
-        return target;
-      });
-    },
+    rename,
 
     setPinned: (path, pinned) => {
       return rewriteFrontmatter(path, { pinned });
@@ -218,18 +228,16 @@ const makeNoteService = Effect.gen(function* () {
       return rewriteFrontmatter(path, { tags });
     },
 
-    write: (path, content) => {
-      return Effect.gen(function* () {
-        const updatedAt = yield* fileStore.write(path, content);
-
-        return new Date(updatedAt);
-      });
-    },
-  };
-
-  return service;
+    write,
+  });
 });
 
-export const NoteServiceLive = Layer.effect(NoteService, makeNoteService).pipe(
-  Layer.provide(NoteRepositoryLive),
-);
+export class NoteService extends Context.Service<NoteService, INoteService>()(
+  "notras/server/NoteService",
+) {
+  /** Split out so tests can swap in stub deps; `layer` is what the app uses. */
+  static readonly layerNoDeps = Layer.effect(NoteService, makeNoteService);
+  static readonly layer = NoteService.layerNoDeps.pipe(
+    Layer.provide(NoteRepository.layer),
+  );
+}

@@ -5,7 +5,7 @@ import type { DrizzleDb } from "@/server/db";
 
 import { Database } from "@/server/db";
 
-import { NoteServiceLive } from "./note-service";
+import { NoteService } from "./note-service";
 
 export interface AppLayerConfig {
   /** Read-only handle on the derived search index. */
@@ -19,10 +19,15 @@ export interface AppLayerConfig {
  * framework-free; adapters and `runtime.ts` supply the platform.
  */
 export function makeAppLayer(config: AppLayerConfig) {
-  return Layer.mergeAll(NoteServiceLive, config.fileStore).pipe(
+  // The logger is merged, not provided: `Layer.provide` would scope it to
+  // layer construction, where nothing logs.
+  return Layer.mergeAll(
+    NoteService.layer,
+    config.fileStore,
+    Logger.layer([Logger.consolePretty()]),
+  ).pipe(
     Layer.provide(
       Layer.merge(Layer.succeed(Database, config.database), config.fileStore),
     ),
-    Layer.provide(Logger.pretty),
   );
 }

@@ -12,7 +12,8 @@ manual verification walkthrough, progress log). Keep it updated as work lands.
 - **Frontend:** Vite + React 19 + TanStack Router (file routes, no SSR)
 - **Editor:** TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional
   GFM); lowlight code blocks; ⌘P raw-source textarea
-- **Effect:** Effect-TS 3.x -- typed errors, Layer/DI, services, ManagedRuntime
+- **Effect:** Effect 4 (`4.0.0-rc.x`, pinned exactly) -- typed errors, Layer/DI,
+  `Context.Service`, ManagedRuntime
 - **Index queries:** Drizzle ORM `sqlite-proxy` (SELECT-only, see below)
 - **UI:** Shadcn UI (radix-maia style, stone base) + Tailwind CSS 4
 - **Formatting:** oxfmt (dev tooling); TipTap's markdown serializer is the
@@ -62,10 +63,10 @@ src/
     adapters/         # ONLY files here + runtime.ts may import @tauri-apps/*
       tauri-file-store.ts   # FileStore -> Rust commands
       tauri-database.ts     # drizzle sqlite-proxy -> db_select command
-    db/               # Database tag, index schema mirror, fts-query helpers
+    db/               # Database service, index schema mirror, fts-query helpers
     repositories/     # note-repository: SELECTs against the index
     schemas/          # Effect Schema validation (titles, folder names)
-    services/         # note-service, format-service, app-layer
+    services/         # note-service, app-layer
     runtime.ts        # AppRuntime (ManagedRuntime) -- wires the adapters
   lib/                # Client utilities (preferences, fts-snippet, word-count)
 src-tauri/
@@ -125,11 +126,17 @@ and the fix is never to widen the glob:
   run Effects via `run()` from `src/data/run.ts` -- the only place
   `AppRuntime` is executed. `run()` unwraps typed failures into plain `Error`s
   so callers can `toast.error(error.message)`.
-- **Effect style:** `ServiceTag.pipe(Effect.flatMap((svc) => svc.method(...)))`
-  -- never `Effect.flatMap(Tag, fn)` (trips
-  `unicorn/no-array-method-this-argument`). Services convert `DatabaseError`
-  to defects via `.pipe(Effect.orDie)`; `FileError` stays typed because its
-  message is user-facing.
+- **Effect style (v4):** services are `Context.Service<Self, IShape>()("notras/…")`
+  classes that carry their own `static readonly layer`; there are no `XxxLive`
+  consts. Reach a service with `Service.use((svc) => svc.method(...))` -- never
+  `Effect.flatMap(Tag, fn)` (trips `unicorn/no-array-method-this-argument`).
+  Methods with a generator body are `Effect.fn("Service.method")`; plain
+  delegations stay one-liners. Errors are `Schema.TaggedError`. Services convert
+  `DatabaseError` to defects via `.pipe(Effect.orDie)`; `FileError` stays typed
+  because its message is user-facing.
+- **Test seam:** a service whose layer bakes in dependencies also exposes
+  `layerNoDeps` (see `NoteService`), so specs can provide stubs. `note-service.spec.ts`
+  wires it with an in-memory `FileStore` and a stub `NoteRepository`.
 - **Routes:** TanStack Router file routes. `export const Route` sits at the
   top of the file; components are function declarations below (hoisting makes
   this lint-clean). `@tanstack/eslint-plugin-router` owns route-option
@@ -242,8 +249,9 @@ there is no automated e2e (wdio + tauri-driver is a named follow-up).
 - Add unnecessary dependencies; run `pnpm knip` and leave it clean.
 - Reach for `as`, `!`, or `any` before exhausting proper typing.
 - Silence lint errors with config overrides (exceptions: the Shadcn
-  `**/components/ui/**` block and the documented TanStack Router
-  accommodations).
+  `**/components/ui/**` block, the documented TanStack Router accommodations,
+  and `unicorn/throw-new-error` off for `src/core/errors.ts` -- the rule takes
+  no options and its Effect exemption never reached `Schema.TaggedError`).
 - Leave tests, lint, typecheck, knip, or the build red.
 - Forget docs -- after a new pattern, feature, or structural change, update
   `SPEC.md` and ask whether `AGENTS.md`/`README.md` should change too.
