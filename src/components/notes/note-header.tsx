@@ -2,23 +2,26 @@ import { PinIcon, PinOffIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import type { SaveStatus } from "@/components/editor/use-autosave";
+
+import { SaveIndicator } from "@/components/notes/save-indicator";
+import { Toggle } from "@/components/ui/toggle";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { setNotePinned } from "@/data/pin-note";
-import { cn } from "@/lib/ui/utils";
 
 interface NoteHeaderProps {
   path: string;
   pinned: boolean;
+  status: SaveStatus;
   /** Resolved by `D32`'s chain, so it is display-only: renaming is a palette action. */
   title: string;
 }
 
-export function NoteHeader({ path, pinned, title }: NoteHeaderProps) {
+export function NoteHeader({ path, pinned, status, title }: NoteHeaderProps) {
   const [optimisticPinned, setOptimisticPinned] = useState(pinned);
 
   // Optimistic state follows the loader (adjust-during-render pattern): a pin
@@ -47,16 +50,16 @@ export function NoteHeader({ path, pinned, title }: NoteHeaderProps) {
       <span className="min-w-0 flex-1 truncate text-sm font-medium">
         {title}
       </span>
+      <SaveIndicator status={status} />
       <Tooltip>
         <TooltipTrigger
           render={
-            <Button
+            <Toggle
               aria-label={optimisticPinned ? "unpin note" : "pin note"}
-              aria-pressed={optimisticPinned}
-              className={cn("size-6", optimisticPinned && "text-primary")}
-              onClick={togglePinned}
-              size="icon"
-              variant="ghost"
+              className="aria-pressed:bg-transparent aria-pressed:text-foreground"
+              onPressedChange={togglePinned}
+              pressed={optimisticPinned}
+              size="icon-xs"
             />
           }
         >

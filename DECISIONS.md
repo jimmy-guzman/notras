@@ -363,7 +363,7 @@ default.
 hand-edited. Non-autofixable lint is handled through the
 `**/components/ui/**` override block.
 
-**Constraint:** two deviations are documented, and both are re-applied whenever
+**Constraint:** three deviations are documented, and each is re-applied whenever
 the components are regenerated.
 
 1. `command.tsx` moves the sr-only `DialogHeader` inside `DialogContent`,
@@ -372,6 +372,9 @@ the components are regenerated.
 2. Generated user-facing strings are lowercased to satisfy `D18`: the sr-only
    and footer "close" labels in `dialog.tsx`, and the default `title` and
    `description` in `command.tsx`.
+3. `toggle.tsx` gains the `xs` and `icon-xs` sizes `button.tsx` already ships,
+   copied from it. `D37` records why the app needs a 24px toggle that upstream's
+   `h-9` / `h-8` / `h-10` ladder does not reach.
 
 **Superseded in part by `D22`,** which moves the style to base-maia on Base UI,
 and by `D23`, which replaces the stone base and the oklch tokens with the stet
@@ -581,6 +584,11 @@ route and both windows render it.
 **Superseded in part by `D30`,** which moves the tags to the status strip. The
 title and the pin stay, and every other part of this entry carries over.
 
+**Superseded in part by `D38`,** which brings the save glyph into the bar. The
+rejection below says save state belongs near where the eye rests rather than in
+the window chrome, and it was written about moving the whole strip up. `D38`
+re-examines it for one glyph, which the width argument does not reach.
+
 The app was spending two bands on one band's work: an empty 36px drag strip, and
 a 40px header directly beneath it. Folding one into the other returns 32px to the
 note and puts the title where macOS puts a document title. `D32` later changed
@@ -611,8 +619,9 @@ Linux put the controls on the right and would need it mirrored.
 
 **Constraint:** `styles.css` exempts `button` and `input` from dragging, and any
 other interactive element added to the region needs that rule widened. The title
-was such an element until `D32` made it display-only text, so the exemption now
-covers the pin toggle alone.
+was such an element until `D32` made it display-only text, so the exemption
+covers the pin toggle and the `.no-drag` class `D35` added for elements that are
+hoverable without being clickable.
 
 ### D29 Compact window controls
 
@@ -876,3 +885,189 @@ to the title.
 **Constraint:** a resolved title is not unique. `D12` gains a filename-stem
 fallback and a deterministic tie-break, because the filesystem no longer enforces
 uniqueness over the thing being displayed.
+
+### D35 The save state is a glyph
+
+`SaveIndicator` renders one lucide save icon per state. This entry decides the
+three that existed when it was written: `SavePenIcon` for `dirty`, `SaveIcon` for
+`saving`, `SaveCheckIcon` for `saved`. All three share a floppy body and differ
+in the badge at its lower-right corner, so the shared shape names the subject and
+the badge names the state. The word survives in a hover tooltip and in `sr-only`
+text. `D38` adds a fourth state and keeps the rule.
+
+The strip opened on a word that rewrote itself on every keystroke and settled
+800ms later, `unsaved` to `saving...` to `saved`. It was the widest item in a row
+already carrying chips, a button, a word count and three toggles, and it was the
+only one that changed while the user was reading the note above it.
+
+One component covers both surfaces. `src/routes/external.tsx` spelled the same
+state a second way, as `external file · saved`, which is the second
+implementation `DESIGN.md` calls a bug in the design.
+
+**Rejected: the word.** What shipped until now, and the only version that says
+what it means without being hovered. Rejected because a status nobody acts on
+does not earn the widest slot in the strip, and because the churn was the
+complaint.
+
+**Rejected: a bare dot,** which is what editors use for an unsaved buffer.
+Rejected because a dot names no subject. In a strip already carrying tags, a
+count and three toggles, it reads as an indicator of something.
+
+**Rejected: showing nothing once saved.** The quietest option, and defensible for
+an app that autosaves. Rejected because `D2` ruled out an explicit save on the
+grounds that there is no lost-write ambiguity, and that argument assumed the
+state stayed on screen to be checked.
+
+**Constraint:** the three glyphs above differ by a badge roughly 4px wide at
+`size-3.5`, so the tone carries the rest. `saved` sits on `--faint` and the other
+two on `--muted-foreground`. Changing either tone makes the states harder to tell
+apart, not just quieter. `D38` moved the indicator out of the status strip and
+gave its fourth state a tone of its own.
+
+**Constraint:** the indicator is a status and not a control, so its tooltip
+trigger renders a `span`. It takes no tab stop and hover is the only opener,
+which is why the `sr-only` text exists rather than an `aria-label` on the svg.
+
+**Constraint:** anything hoverable inside `.titlebar-drag-region` needs
+`no-drag`, which `styles.css` now exposes as a class beside its `button` and
+`input` selectors. Without it macOS swallows the pointer and the tooltip never
+opens, which `D28` records as the rule this widens.
+
+### D36 Every item in the status strip is a shaped item
+
+The strip sets one gap and each item carries its own padding, which comes from
+the component it is. The footer is `px-3 gap-1`, each run of like items is
+`gap-0.5`, and nothing overrides a variant to reach a number.
+
+The insets follow from the components: the save glyph and the view toggles sit
+in a 24px box at 5px, a tag chip is a `Badge` at 8px, `add tag` is a
+`Button size="xs"` at 10px, and the word count is text given the badge's `px-2`
+so it is shaped like what it sits between. Between-item distances land at 17px
+and both window edges at 17px, and the toggle run stays clustered at 12px.
+
+Those distances are an outcome rather than a target. Spacing is stated once, at
+the footer, and adding an item to the strip means choosing what the item is, not
+re-deriving a sum.
+
+**Rejected: holding equal optical gaps by hand.** The first version of this
+entry did, with `px-1` on two chips, a `size-6` box on the glyph, and a wrapper
+`div` carrying a third gap. It was exact on the day it was written. Rejected
+because a text pill and an icon square have different padding by nature, so
+equality between them is a coincidence someone re-establishes after every
+change, and nothing in the gate notices when it lapses.
+
+**Rejected: one gap and no shaped items.** Simplest possible rule: give the
+footer a gap and leave every child as it was. Rejected because the word count is
+bare text with no inset while a chip carries 10px, so the same gap yields
+distances 10px apart no matter which gap is chosen. Shaping the items is what
+lets one number work.
+
+**Constraint:** the chips are the only part of the strip that shrinks, so
+`min-w-0` has to reach `NoteTags` unbroken from the footer. The wrapper `div`
+that briefly sat between them is gone, and any future one carries `min-w-0`.
+
+**Constraint:** the gap inside a control is not one of these numbers. The 4px
+between the `TagPlus` icon and the words `add tag` is `size="xs"`'s own `gap-1`.
+
+### D37 Chrome toggles come from `Toggle`, at one size and one on-state
+
+Anything in chrome that turns on and off is `Toggle` or `ToggleGroupItem` from
+`@base-ui/react`, at `size="icon-xs"`, and shows its on-state as
+`--foreground` against the idle `--muted-foreground`.
+
+Two hand-rolled versions preceded it. `StatusToggle` in `status-bar.tsx` wrote
+`aria-pressed` by hand, shrank `size="icon"` three steps with a `size-6`
+className when `size="icon-xs"` was already `size-6`, and drew its on-state as
+`bg-accent text-accent-foreground`. `note-header.tsx` was the same component a
+second time, with an on-state of `text-primary`. `DESIGN.md` rules out both
+colours: the accent stays out of chrome and `--primary` belongs on the focus
+ring.
+
+The three view toggles are one `ToggleGroup`, which is one tab stop with
+arrow-key movement inside it rather than three separate stops. They stay three
+independent settings: `StatusBar` still takes three booleans and three
+handlers, and a descriptor array derives the group's value from them and routes
+a change back to the one handler whose membership flipped.
+
+**Rejected: `Marker` for the save indicator.** Named as a candidate, and its
+anatomy is the right shape, an `aria-hidden` icon slot beside content. Rejected
+on its classes: the root is `flex min-h-4 w-full items-center gap-2 text-sm`,
+where the strip needs neither full width nor `text-sm`, its variants are a
+`::before`/`::after` hairline separator and a `border-b` row, and `role="status"`
+is not built in. Adopting it means overriding `w-full` and `text-sm` to arrive
+back at the span already there.
+
+**Rejected: `ButtonGroup` for the toggles.** The other named candidate. Rejected
+because its horizontal variant attaches its children, `rounded-r-none` on every
+slot and `border-l-0` on each one after the first, which turns a spaced run into
+one continuous control. The toggles read as separate at 12px and that reading is
+the one being kept.
+
+**Constraint:** the on-state is a `className` at the call site, not a change to
+the generated variant. `toggleVariants` ships `aria-pressed:bg-muted` alongside
+`hover:bg-muted`, so pressed and hover would be the same surface;
+`aria-pressed:bg-transparent aria-pressed:text-foreground` overrides it through
+`cn`, whose `twMerge` drops the losing class rather than relying on stylesheet
+order.
+
+**Constraint:** the generated `toggle-group.tsx` carries
+`data-[state=on]:bg-muted`, a Radix attribute Base UI does not emit. It is dead
+and stays dead, since `src/components/ui/**` is not hand-edited beyond `D19`'s
+listed deviations. `aria-pressed` is the working hook.
+
+**Constraint:** `toggle-group.tsx` added four rules to the
+`**/components/ui/**` override block in `eslint.config.ts`, which `D19` names as
+where non-autofixable lint in generated files goes.
+
+### D38 The save glyph sits in the titlebar and can say it failed
+
+`SaveIndicator` renders between the title and the pin, and `SaveStatus` carries
+a fourth member, `failed`, drawn as `SaveOffIcon` on `--destructive`.
+
+The app had two answers to where it goes. `notes.$.tsx` put it first in the
+status strip and `external.tsx` put it in the titlebar, because that route has
+no strip. Both are routes in the `main` window, so the split showed inside one
+window. Every route renders a `Titlebar`, including the capture window and the
+launch screen, which render an empty one; one route renders a `StatusBar`. The
+bar the app has everywhere is the one that can hold this.
+
+That leaves the strip carrying the note's own metadata and the view controls,
+with no app state in it, and the titlebar carrying what the note is: its title,
+whether it is pinned, whether it is written.
+
+The `failed` member matters more than the placement. `useAutosave` caught a
+failed write, restored the buffer and set `dirty`, which is the state a
+keystroke produces and is drawn with the same glyph and the same `unsaved`
+label. A disk refusing writes and a note typed into half a second ago were
+identical on screen. Nothing else covered it: pin toggles, tag edits and even
+copying a code block toast on failure, while the note body did not, and the only
+save-failure message in the app arrived from the quit handshake when the user
+pressed ⌘Q.
+
+**Rejected: the strip's leading slot,** where it shipped. Rejected because it is
+the most prominent position in the band, held by the least informative item in
+it whenever nothing is wrong, and because it cannot be applied to the external
+route without giving that route a status strip it does not otherwise need.
+
+**Rejected: a toast from `useAutosave`,** matching `external.tsx`, which already
+does this. Rejected because that write is debounced and retried on every
+keystroke, so a disk that keeps refusing stacks a toast per attempt. The route
+that toasts does so from a single debounced callback and now sets `failed` as
+well.
+
+**Rejected: hiding the glyph once saved,** revisited from `D35`. Rejected again,
+and harder now: with `failed` as a real state, a hidden `saved` would make
+"nothing on screen" mean both "written" and "this route does not show it".
+
+**Constraint:** `failed` clears on its own rather than being dismissed. A later
+keystroke sets `dirty`, and the next flush either lands in `saved` or returns to
+`failed`. There is no acknowledge action and no retry timer.
+
+**Constraint:** the tooltip reads `could not save`, a fixed string, while
+`run.ts` unwraps a specific message that the `catch` still discards. Carrying the
+real one means threading it through `useAutosave`, `NoteHeader` and
+`SaveIndicator`, which is its own change.
+
+**Constraint:** the titlebar costs 36px more at the 480px minimum width, leaving
+the title 312px. `--spacing-titlebar` takes 84px and `pe-3` takes 12px, and the
+pin already took 36px.

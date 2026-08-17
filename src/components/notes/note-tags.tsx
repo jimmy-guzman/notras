@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { useNoteTags } from "@/components/notes/use-note-tags";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -68,22 +69,26 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   const hasTags = optimisticTags.length > 0;
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="flex min-w-0 items-center gap-0.5">
       {hasTags ? (
-        <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
           {optimisticTags.map((tag) => {
             return (
-              <Button
+              <Badge
                 className="text-muted-foreground hover:text-foreground"
                 key={tag}
-                onClick={() => {
-                  onFilter(tag);
-                }}
-                size="xs"
+                render={
+                  <button
+                    onClick={() => {
+                      onFilter(tag);
+                    }}
+                    type="button"
+                  />
+                }
                 variant="ghost"
               >
                 {`#${tag}`}
-              </Button>
+              </Badge>
             );
           })}
         </div>

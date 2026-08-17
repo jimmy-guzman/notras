@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
+import type { SaveStatus } from "@/components/editor/use-autosave";
+
 import { Editor } from "@/components/editor/editor";
+import { SaveIndicator } from "@/components/notes/save-indicator";
 import { Titlebar } from "@/components/titlebar";
 import { composeNote, parseNote } from "@/core";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
@@ -29,12 +32,24 @@ export const Route = createFileRoute("/external")({
 function ExternalPage() {
   const { path } = Route.useSearch();
   const file = Route.useLoaderData();
-  const [status, setStatus] = useState<"dirty" | "saved">("saved");
+
+  // Keyed by path because "Open With" navigates this same route rather than
+  // opening a window, so save status, the failure flag and any pending write
+  // have to end with the file that produced them.
+  return <ExternalNote content={file.content} key={path} path={path} />;
+}
+
+interface ExternalNoteProps {
+  content: string;
+  path: string;
+}
+
+function ExternalNote({ content, path }: ExternalNoteProps) {
+  const [status, setStatus] = useState<SaveStatus>("saved");
   // The editor owns the body; any frontmatter in the file is preserved
-  // verbatim around it. Read from the latest loader snapshot at save time --
-  // this component is not keyed by path, so a mount-time copy would write one
-  // file's frontmatter onto the next.
-  const parsed = parseNote(file.content);
+  // verbatim around it. Read from the latest loader snapshot at save time,
+  // since the loader re-runs for this path without remounting.
+  const parsed = parseNote(content);
   const frontmatterRef = useRef(parsed.rawLines);
 
   useEffect(() => {
@@ -44,28 +59,55 @@ function ExternalPage() {
   // Tracked so the quit handshake can tell a failed write from a quiet one.
   const saveFailedRef = useRef(false);
 
+  // The body as of the last keystroke, so a write that lands can tell whether
+  // it wrote what the editor currently holds.
+  const latestBodyRef = useRef<null | string>(null);
+
+  // Serialized on one chain the way `useAutosave` does it: the debounce timer
+  // and the unmount flush can both fire while a write is in flight, and two
+  // overlapping writes could land out of order -- an older body last.
+  const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  const writeOnce = async (body: string) => {
+    try {
+      await writeExternalNote(path, composeNote(frontmatterRef.current, body));
+      saveFailedRef.current = false;
+      // A keystroke may have landed while the write was in flight, and its own
+      // write is still debounced. Claiming "saved" here would be a lie until
+      // that one lands.
+      setStatus(latestBodyRef.current === body ? "saved" : "dirty");
+    } catch (error) {
+      saveFailedRef.current = true;
+      setStatus("failed");
+      toast.error(error instanceof Error ? error.message : "save failed");
+    }
+  };
+
   const save = useDebouncedCallback(
-    async (body: string) => {
-      try {
-        await writeExternalNote(
-          path,
-          composeNote(frontmatterRef.current, body),
-        );
-        saveFailedRef.current = false;
-        setStatus("saved");
-      } catch (error) {
-        saveFailedRef.current = true;
-        toast.error(error instanceof Error ? error.message : "save failed");
-      }
+    (body: string) => {
+      const next = inFlightRef.current.then(
+        () => {
+          return writeOnce(body);
+        },
+        () => {
+          return writeOnce(body);
+        },
+      );
+
+      inFlightRef.current = next;
+
+      return next;
     },
     800,
     { flushOnExit: true },
   );
 
-  // Quit waits for this the same way it waits for note autosave.
+  // Quit waits for this the same way it waits for note autosave. Awaiting the
+  // chain rather than the flush covers a write that was already running.
   useEffect(() => {
     return registerPendingFlush(async () => {
-      await save.flush();
+      void save.flush();
+      await inFlightRef.current;
 
       return !saveFailedRef.current;
     });
@@ -76,16 +118,17 @@ function ExternalPage() {
       <Titlebar>
         <div className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
           <span className="truncate font-mono">{path}</span>
-          <span className="ml-auto shrink-0">
-            external file · {status === "saved" ? "saved" : "unsaved"}
+          <span className="no-drag ml-auto flex shrink-0 items-center gap-3">
+            external file
+            <SaveIndicator status={status} />
           </span>
         </div>
       </Titlebar>
       <Editor
         focusOnMount
         initialContent={parsed.body}
-        key={path}
         onChange={(body) => {
+          latestBodyRef.current = body;
           setStatus("dirty");
           void save(body);
         }}

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { saveNote } from "@/data/save-note";
 import { registerPendingFlush } from "@/lib/pending-flush";
 
-export type SaveStatus = "dirty" | "saved" | "saving";
+export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -51,8 +51,10 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
 
       return true;
     } catch {
-      pendingRef.current = content;
-      setStatus("dirty");
+      // A keystroke may have landed while the failing write was in flight, and
+      // that buffer is newer than the snapshot this call started from.
+      pendingRef.current ??= content;
+      setStatus("failed");
 
       return false;
     }
