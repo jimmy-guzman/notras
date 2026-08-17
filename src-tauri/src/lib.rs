@@ -137,6 +137,14 @@ pub fn allow_assets(app: &AppHandle, notes_dir: &std::path::Path) {
     }
 }
 
+/// The menu bar wants a template image: the alpha carries the shape and macOS
+/// picks the colour, so one asset serves both appearances. `tray-icon` scales
+/// whatever it is handed to 18pt, which makes 36px the 2x size. Bundled with
+/// `include_bytes!` so the tray does not depend on a resource path at runtime.
+fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
+    tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))
+}
+
 fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // The config paints the window dark at creation, which is earlier than this
     // runs. Correcting it here is what keeps a light-mode launch from flashing
@@ -202,10 +210,9 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let quit = MenuItem::with_id(app, "quit", "quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &new_note, &capture, &quit])?;
 
-    let icon = app.default_window_icon().ok_or("no app icon")?.clone();
-
     TrayIconBuilder::with_id("tray")
-        .icon(icon)
+        .icon(tray_icon()?)
+        .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
