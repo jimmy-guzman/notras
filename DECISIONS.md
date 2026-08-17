@@ -886,6 +886,116 @@ to the title.
 fallback and a deterministic tie-break, because the filesystem no longer enforces
 uniqueness over the thing being displayed.
 
+### D33 The icon is generated from a vector master and a render, split by size
+
+`scripts/icons.sh` builds every file in `src-tauri/icons/` from sources in
+`assets/`. Four vector files carry the mark and a 1254px clay render carries the
+large sizes. Sizes at 16px come from `icon-tiny.svg`, 17 to 40 from
+`icon-small.svg`, 41 to 96 from `icon.svg`, and 97 and up from `icon-render.png`.
+`iconutil` assembles the ten representations into `icon.icns`, because
+`pnpm tauri icon` takes one source per run and the icns spans 16px to 1024px.
+
+Detail has to drop out as pixels run out. Measured on the render, an eye is 4.1%
+of the tile and an accent dot 2.5%, so through Apple's 824-on-1024 grid an eye is
+4.2px at 128, 2.1px at 64, and 1.1px at 32, where an accent dot is down to
+0.6px. Below 64px the accent renders as colour noise rather than a dot, and at 16px
+two eyes 1px wide and 2px apart merge into a bar that reads as a smudge. So
+`icon-small.svg` drops the accent and the back blob's eyes and enlarges the
+remaining pair, and `icon-tiny.svg` drops every dot and keeps the two-blob
+silhouette. The icon is the accented variant at large sizes and close to
+monochrome at small ones.
+
+**Rejected: one `tauri icon` pass from a single source.** One command, no script,
+and nothing to keep in step. Rejected because a single source cannot vary detail
+by size, and the same artwork scaled to 16px is the smudge above.
+
+**Rejected: shipping the render as it arrived.** It is opaque, with a flat
+`#0f1013` surround and its tile inset inside a 1254px canvas, so it would put a
+dark square in the Dock where a squircle belongs. The script crops to the tile,
+masks it to a superellipse, and centres it on Apple's grid instead.
+
+**Rejected: keying the icon's palette to the tokens.** The reference sheet's
+swatches are the light palette, and `DESIGN.md` says every colour is a token. The
+render is a lit scene, so its tile reads `#1c1e21` against the token's `#2a2e33`
+and its accent `#913168` against `#c53794`. Matching the tokens in the vector
+files would have made the icon visibly change shade between 64px and 128px inside
+one icns, so the vector files match the render instead.
+
+**Rejected: a Node script with a rasterizer dependency.** `tsconfig.json` covers
+`**/*.ts` and `eslint.config.ts` ignores only `src-tauri/**`, so it would be
+typechecked and linted, and knip's `project` glob does not reach `scripts/`, so
+the dependency would read as unused. Bash sidesteps all four gates and matches
+`scripts/update-shadcn.sh`.
+
+**Constraint:** generation is macOS-only and needs ImageMagick on the PATH.
+`iconutil` ships with macOS and `magick` does not, so the script checks for both
+and names `brew install imagemagick`. No CI step runs it.
+
+**Constraint:** the crop constants in `scripts/icons.sh` were measured against
+this render. Its tile is 972x972 at (141, 113) in a 1254px canvas, sitting 28px
+above centre, with a superellipse exponent near 4.7 solved from four edge
+scanlines. A replacement render has to be re-measured, so the script asserts the
+source is 1254px square and fails loud when it is not. `D34` takes the shipped
+shape to exponent 5.0; the 4.7 here still describes the render and still governs
+the crop.
+
+**Constraint:** the tray asset is one 36px square. `tray-icon` hardcodes an 18pt
+height and scales by aspect ratio, so a second file would never be read, and the
+glyph fills 92% of its frame to sit right in the menu bar.
+
+### D34 The icon's edge follows measured macOS geometry
+
+The tile is a superellipse at exponent 5.0 on Apple's 824-on-1024 grid, carrying a lit
+edge ~20px wide and a soft drop shadow offset ~10px down at 13% opacity. Every figure
+comes from measuring the platform rather than from a spec: this machine runs macOS 26,
+so the ICNS containers of seven system apps were parsed and probed directly.
+
+Those apps agree exactly. All seven put the art at 80.5% of the canvas with a 9.8%
+margin and fit an exponent of 5.00. Five of five bake a drop shadow into that margin,
+which is what the margin is for, reading 13% alpha two pixels below the shape and 3 to
+4% above. The lit edge is not universal, since Notes reads 238 at its boundary and Maps
+251, both being light icons; it is shared by the dark-tiled ones, TV and Terminal, which
+run 144 at the boundary down to their base over five pixels. Those two are the
+precedent a `#1c1e21` tile follows.
+
+**Amends `D33`.** The exponent 4.7 recorded there stays true of the render and is still
+what the crop uses; it is no longer the shape notras ships.
+
+**Rejected: keeping the render's 4.7.** It cost nothing and the mask already existed.
+Rejected because it is the shape an image model happened to draw, and matching the
+platform is the whole reason the icon is a squircle rather than a rounded rectangle. The
+gap is 9.4px on an 824px art square, worst near the middle of the straight sides, so
+Apple's reads fuller and flatter-sided.
+
+**Rejected: masking the render at 5.0 without redrawing the tile.** One fewer step.
+Rejected because 5.0 extends 4.5px beyond 4.7, so the mask reaches past the artwork and
+exposes its opaque `#0f1013` surround as a fringe. The render is composited onto a tile
+drawn at 5.0 instead, and the rim covers the 4.5px seam with 19px to spare.
+
+**Rejected: a `.icon` package for system-drawn Liquid Glass.** `tauri-bundler` 2.9.4
+does support it, matching `.icns`, `.car`, and `.icon` in `bundle.icon`, compiling the
+package with `actool` and deriving `CFBundleIconName` from the resulting `Assets.car`.
+Rejected because `actool` ships inside Xcode 26 and only the Command Line Tools are
+installed here, so the build logs a skip and ships the `.icns` alone. Deferred rather
+than closed.
+
+**Constraint:** the tile shape lives twice, as bezier data in `assets/*.svg` and as the
+`-fx` mask in `scripts/icons.sh`, and nothing derives one from the other.
+`assert_svg_tile_matches_mask` rasterizes `icon-tiny.svg`, whose alpha silhouette is the
+tile because its blobs sit wholly inside, and diffs it against the mask at 512px.
+Tolerance is 0.005 against 0.0022 of antialiasing. It earned its place on the first run
+by catching a 1px inset that would have split the silhouette across sizes.
+
+**Constraint:** the rim and shadow are rebuilt at every output size rather than
+downscaled from the master, so a 16px icon gets a sub-pixel edge instead of a blurred
+one. The rim uses a distance map, `-morphology Distance Euclidean:1`, whose values are
+pixels over 655.35 in this Q16 build, and it must be multiplied by the mask because the
+map reads zero outside the shape and would otherwise paint the whole margin.
+
+**Constraint:** generated PNGs are written with `-strip`. ImageMagick embeds `png:tIME`
+and `date:` chunks, which left the output pixel-identical but byte-different on every
+run, so regenerating dirtied 19 binary files in git for no change.
+
 ### D35 The save state is a glyph
 
 `SaveIndicator` renders one lucide save icon per state. This entry decides the

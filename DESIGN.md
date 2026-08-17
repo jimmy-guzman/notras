@@ -103,6 +103,42 @@ lifted variants, because stet treats contrast as a comfortable target while
 4.5:1 in either scheme, or when the two schemes stop declaring the same token
 names. Adding a token means adding it to both.
 
+## The icon
+
+The mark is two overlapping organic blobs on a dark squircle: one sheet of paper
+with another behind it, which is the app's subject drawn literally. The front blob
+carries two dot eyes flanked by two accent dots, and the back blob carries two
+eyes only.
+
+- **The icon's palette follows the render, not the tokens** (`D33`). This is the
+  one place the no-hardcoded-colour rule above does not reach. The render is a lit
+  scene, so its tile is `#1c1e21` where the token is `#2a2e33`, and the vector
+  files match the render so the icon does not change shade between sizes.
+- **The accent appears here and nowhere else in chrome.** The rule above keeps
+  `--primary` on the focus ring and the checked box. An app icon is identity
+  rather than chrome, so the two accent dots are the exception, and they are two
+  dots at 2.5% of the tile rather than a field of colour.
+- **Detail is keyed to size, not scaled** (`D33`). The accent drops out below
+  64px and every dot drops out at 16px, because a 2.5%-of-tile dot is sub-pixel
+  there. Three vector files cover the three ranges.
+- **The tile is a superellipse at exponent 5.0 on Apple's 824-on-1024 grid,** so
+  the art fills 80.5% of the canvas and the corners match what macOS draws around
+  it. The figure is measured, not chosen: seven macOS 26 system icons all fit 5.00
+  at that same 80.5% fill (`D34`). `D26` governs radii inside the interface; this
+  is the same concern at the app's outer edge.
+- **The edge carries a lit rim and a baked drop shadow** (`D34`). macOS puts both
+  into every icon it ships, and the 9.8% margin exists to hold the shadow. The rim
+  is ~20px at 1024, brightest at the top, decaying to the tile colour; the shadow
+  sits 10px down at 13% opacity. Without them the icon reads flat beside its Dock
+  neighbours, which is the one thing a dark tile cannot hide.
+- **The tray glyph is a silhouette with a gap, and carries no dots.** At the 18pt
+  the menu bar gives it, an eye would be 0.7pt. The two shapes read only because a
+  transparent gap separates them.
+- **The light favicon's tile is `--secondary`, not `--background`.** A favicon is
+  the one place the mark switches scheme, and a white front blob on `#f7f8fa` has
+  almost no edge, which left the blob defined only by its neighbours. The darker
+  tile gives it one.
+
 ## Space and radius
 
 `--radius` is `0.875rem`, and `sm` through `4xl` derive from it in fixed steps.
