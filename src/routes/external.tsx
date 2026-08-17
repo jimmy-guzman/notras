@@ -59,6 +59,10 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
   // Tracked so the quit handshake can tell a failed write from a quiet one.
   const saveFailedRef = useRef(false);
 
+  // The body as of the last keystroke, so a write that lands can tell whether
+  // it wrote what the editor currently holds.
+  const latestBodyRef = useRef<null | string>(null);
+
   // Serialized on one chain the way `useAutosave` does it: the debounce timer
   // and the unmount flush can both fire while a write is in flight, and two
   // overlapping writes could land out of order -- an older body last.
@@ -68,7 +72,10 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
     try {
       await writeExternalNote(path, composeNote(frontmatterRef.current, body));
       saveFailedRef.current = false;
-      setStatus("saved");
+      // A keystroke may have landed while the write was in flight, and its own
+      // write is still debounced. Claiming "saved" here would be a lie until
+      // that one lands.
+      setStatus(latestBodyRef.current === body ? "saved" : "dirty");
     } catch (error) {
       saveFailedRef.current = true;
       setStatus("failed");
@@ -121,6 +128,7 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
         focusOnMount
         initialContent={parsed.body}
         onChange={(body) => {
+          latestBodyRef.current = body;
           setStatus("dirty");
           void save(body);
         }}
