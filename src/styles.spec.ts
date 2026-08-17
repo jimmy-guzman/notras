@@ -69,6 +69,17 @@ const valueOf = (scheme: string, tokens: Map<string, string>, name: string) => {
   return value;
 };
 
+const firstMatch = (pattern: RegExp, text: string, what: string) => {
+  const found = pattern.exec(text);
+  const value = found?.[1];
+
+  if (value === undefined) {
+    throw new Error(`could not read ${what}`);
+  }
+
+  return value;
+};
+
 const SYNTAX = [
   "syntax-comment",
   "syntax-function",
@@ -87,12 +98,15 @@ const SYNTAX = [
 /**
  * Every pair a reader actually sees, as `[text, surface]`. A code block sits on
  * `--card` while source mode is transparent onto `--background`, so the syntax
- * ramp is painted on both and has to clear the floor on both.
+ * ramp is painted on both and has to clear the floor on both. `--muted` carries
+ * the inline-code chip Typeset paints (`D40`), which body text and a muted
+ * heading both sit inside.
  */
 const PAIRS: [text: string, surface: string][] = [
   ["foreground", "background"],
   ["card-foreground", "card"],
   ["popover-foreground", "popover"],
+  ["foreground", "muted"],
   ["muted-foreground", "background"],
   ["muted-foreground", "card"],
   ["muted-foreground", "popover"],
@@ -217,63 +231,140 @@ describe("task list styling", () => {
   });
 });
 
-const PROSE_ROLE = /--tw-prose-([\w-]+):\s*var\(--([\w-]+)\)/g;
+const typeset = projectFile("src", "typeset.css");
 
-const proseRoles = new Map<string, string>();
+const TEXT_TONES = ["destructive", "faint", "foreground", "muted-foreground"];
 
-for (const [, role, token] of source.matchAll(PROSE_ROLE)) {
-  if (role !== undefined && token !== undefined) {
-    proseRoles.set(role, token);
-  }
-}
-
-const tokenFor = (role: string) => {
-  const token = proseRoles.get(role);
+/**
+ * Typeset takes no colour of its own. It derives two paint roles from theme
+ * tokens, and every colour it draws comes from one of those two or from
+ * `--color-foreground` (`D40`). Reading them out of the vendored file is what
+ * catches an upgrade that repoints one, since nothing else would.
+ */
+const typesetRole = (role: string) => {
+  const found = new RegExp(
+    String.raw`--typeset-${role}:\s*var\(\s*--color-([\w-]+)`,
+  ).exec(typeset);
+  const token = found?.[1];
 
   if (token === undefined) {
-    throw new Error(`--tw-prose-${role} is missing from .note-preview-prose`);
+    throw new Error(`--typeset-${role} does not read a --color-* token`);
   }
 
   return token;
 };
 
-const TEXT_TONES = ["destructive", "faint", "foreground", "muted-foreground"];
+const MARKER_COLOUR = /::marker\s*\{\s*color:\s*var\(--typeset-([\w-]+)\)/g;
+
+const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(([, role]) => {
+  return role;
+});
 
 /**
- * The `--tw-prose-*` roles that paint a glyph rather than a surface or a
- * border. A `::marker` is a painted glyph, and pointing it at `--border` put a
- * bullet on the dark background at 1.27:1 before `D39`.
+ * A `::marker` is a painted glyph, and pointing one at `--border` put a bullet
+ * on the dark background at 1.27:1 before `D39`. Typeset paints every marker
+ * from `--typeset-muted`, which is the conclusion `D39` reached, so the gate
+ * asserts it still arrives that way rather than trusting the file.
  */
-const PROSE_GLYPH_ROLES = [
-  "body",
-  "bold",
-  "bullets",
-  "captions",
-  "code",
-  "counters",
-  "headings",
-  "lead",
-  "links",
-  "pre-code",
-  "quotes",
-];
+describe("note surface colours", () => {
+  it("should paint every muted glyph in a text tone", () => {
+    expect(TEXT_TONES).toContain(typesetRole("muted"));
+  });
 
-describe("prose colours", () => {
-  it.each(PROSE_GLYPH_ROLES)("should paint %s in a text tone", (role) => {
-    expect(TEXT_TONES).toContain(tokenFor(role));
+  it("should paint every rule in the border tone", () => {
+    expect(typesetRole("rule")).toBe("border");
+  });
+
+  it("should paint every marker in the muted role", () => {
+    expect(markerRoles).not.toStrictEqual([]);
+    expect([...new Set(markerRoles)]).toStrictEqual(["muted"]);
+  });
+
+  it("should pin the inline-code chip rather than let it inherit a muted tone", () => {
+    expect(
+      firstMatch(
+        /\.typeset-note :not\(pre\) > code \{\s*color: var\(--([\w-]+)\)/,
+        source,
+        "the inline-code colour",
+      ),
+    ).toBe("foreground");
   });
 });
 
-const firstMatch = (pattern: RegExp, text: string, what: string) => {
-  const found = pattern.exec(text);
-  const value = found?.[1];
+const blockOf = (css: string, selector: string) => {
+  const at = css.indexOf(`${selector} {`);
 
-  if (value === undefined) {
-    throw new Error(`could not read ${what}`);
+  if (at === -1) {
+    throw new Error(`${selector} is missing from src/styles.css`);
   }
 
-  return value;
+  return css.slice(at, css.indexOf("}", at));
 };
+
+const notePreset = blockOf(source, ".typeset-note");
+
+/**
+ * The three controls plus the three faces are the whole tuning surface, so a
+ * dropped line falls back to a Typeset default in silence: `--typeset-size`
+ * would follow the container instead of the base size, and
+ * `--typeset-font-heading` would resolve `var(--font-heading)`, which this app
+ * does not define, making the `font-family` declaration invalid (`D40`).
+ */
+const TYPESET_CONTROLS = [
+  "flow",
+  "font-body",
+  "font-heading",
+  "font-mono",
+  "leading",
+  "size",
+];
+
+describe("the note preset", () => {
+  it.each(TYPESET_CONTROLS)("should set --typeset-%s", (control) => {
+    expect(notePreset).toContain(`--typeset-${control}:`);
+  });
+
+  it("should keep the optical sizing Literata's opsz axis asks for", () => {
+    expect(notePreset).toContain("font-optical-sizing: auto");
+  });
+});
+
+/**
+ * `D39` logged the row's pull-back drifting out of step with the checkbox and
+ * the flex gap as unenforced, and `D40` moved all three onto `em` so the ladder
+ * survives the size Typeset uses below 768px. Both are readable from the
+ * stylesheet, so neither has to stay unenforced: the pull-back has to cancel
+ * exactly the box and the gap, or the marker column moves with nothing failing.
+ */
+describe("task list ladder", () => {
+  it("should cancel exactly the checkbox and the gap beside it", () => {
+    const box = firstMatch(
+      /> label > input \{[^}]*?width:\s*([\d.]+)em/,
+      source,
+      "the checkbox width",
+    );
+    const gap = firstMatch(
+      /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/,
+      source,
+      "the task row gap",
+    );
+
+    expect(source).toContain(
+      `margin-inline-start: calc(-${box}em - ${gap}em);`,
+    );
+  });
+
+  it("should pad a task list like the lists it shares a ladder with", () => {
+    expect(typeset).toContain("padding-inline-start: 1.5em;");
+    expect(
+      firstMatch(
+        /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/,
+        source,
+        "the task list padding",
+      ),
+    ).toBe("1.5");
+  });
+});
 
 const rustBackground = (rust: string, name: string) => {
   const pattern = new RegExp(

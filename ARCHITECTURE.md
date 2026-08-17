@@ -13,6 +13,7 @@ each choice was made, and `AGENTS.md` covers the rules for changing any of it.
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, on the stet palette (`D23`)                         |
+| Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
 | Formatting      | oxfmt for dev tooling; TipTap's markdown serializer is the runtime canonical form                            |
 | Testing         | Vitest + happy-dom (TS), `cargo test` (Rust)                                                                 |
 | Package manager | pnpm                                                                                                         |
@@ -115,6 +116,7 @@ src/
   main.tsx            # Vite entry -> App (router, or capture window branch)
   app-shell.tsx       # Router setup + ?window=capture branch
   styles.css          # Tailwind 4 theme, fonts, editor + titlebar styling
+  typeset.css         # shadcn/typeset, vendored verbatim (D40); do not edit
   styles.spec.ts      # WCAG AA gate over every token pair in both schemes
   routes/             # TanStack Router file routes
     __root.tsx        # loader (notes/folders/notesDir), palette, settings

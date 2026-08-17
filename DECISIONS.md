@@ -466,11 +466,11 @@ the wrong token.
 and lighter in light. Painting the light card at `surface.panel` drops
 `--syntax-number` to 3.96:1 against code-block text.
 
-**Constraint:** `@tailwindcss/typography` ships its own stone ramp, which
+**Constraint:** `@tailwindcss/typography` shipped its own stone ramp, which
 rendered the note in a warmer grey than the chrome. `.note-preview-prose`
-repoints all sixteen `--tw-prose-*` colours at tokens, and
-`prose-stone dark:prose-invert` came off the editor. The override sits outside
-`@layer`, which is what makes it win.
+repointed all sixteen `--tw-prose-*` colours at tokens, and
+`prose-stone dark:prose-invert` came off the editor. `D40` replaced the plugin
+with shadcn/typeset, which reads the tokens itself, so the repointing is gone.
 
 **Constraint:** `src/styles.spec.ts` fails the build when a text-on-surface pair
 drops below 4.5:1 in either scheme, and when the two schemes stop declaring the
@@ -496,10 +496,10 @@ already on every Mac and reachable through `ui-serif` since Tauri runs WKWebView
 Rejected because the note surface is the one thing that should look the same
 everywhere the app runs, and a system face makes it the one thing that does not.
 
-**Constraint:** `font-optical-sizing: auto` on `.note-preview-prose` is what the
-`opsz` axis buys, and that Fontsource entry is roughly twice the size of the
-`wght` one. Accepted because the fonts ship in the bundle rather than over a
-network.
+**Constraint:** `font-optical-sizing: auto` is what the `opsz` axis buys, and that
+Fontsource entry is roughly twice the size of the `wght` one. Accepted because the
+fonts ship in the bundle rather than over a network. `D40` moved the declaration to
+`.typeset-note`, where `src/styles.spec.ts` now gates it.
 
 ### D25 The system sans for chrome
 
@@ -1263,3 +1263,91 @@ the attribute did, and it holds the selector inside oxfmt's 80 columns.
 over `src/styles.css`. It drops comments and `url()` values first, because either
 can carry a brace, and a declaration value that grows one would read as a
 selector.
+
+**Superseded in part by `D40`.** The scoping and the shared-ladder rule stand, and
+the method for measuring a marker column stands and was re-run. Every number
+above moved: the ladder is Typeset's `1.5em` plus `0.4em`, the checkbox and the
+gap are `em` rather than `rem`, and `--tw-prose-bullets` no longer exists, with
+Typeset painting every `::marker` from `--typeset-muted`. The pull-back staying in
+step with the checkbox and the gap is no longer unenforced.
+
+### D40 shadcn/typeset renders the note surface
+
+The note surface takes shadcn/typeset, vendored verbatim at `src/typeset.css` and
+refreshed by `scripts/update-typeset.sh`. `@tailwindcss/typography` is gone, and
+the sixteen `--tw-prose-*` repoints with it. The editor container carries
+`typeset typeset-note`, and `.typeset-note` sets three rhythm controls and three
+faces.
+
+Typeset reads `--color-foreground`, `--color-muted-foreground`, `--color-border`,
+`--color-muted`, `--color-primary`, `--color-ring`, and `--radius` directly, all
+of which the `@theme inline` block already emits. The reading surface lands on the
+palette with nothing to repoint, which is the problem `D23`'s constraint existed
+to solve. Heading sizes, list indents, and the gap under a heading derive from
+`--typeset-size`, `--typeset-leading`, and `--typeset-flow`, so the preset is the
+whole tuning surface at six declarations. The built stylesheet goes from 104.35 kB
+to 103.36 kB.
+
+**Rejected: staying on `@tailwindcss/typography`.** It is built for exactly this
+job and the app shipped on it for two palettes. Rejected because it ships a stone
+ramp, so every colour on the app's most-read surface had to be repointed to undo
+it, and a plugin whose defaults have to be cancelled in sixteen declarations is
+being fought rather than used.
+
+**Rejected: overriding Typeset's heading scale to keep the app's own.**
+`1.6em`, `1.35em`, `1.15em`, `1em` was documented in `DESIGN.md` and shipped.
+Rejected because the heading margins derive from `--typeset-flow` either way, so
+the override would buy only the sizes, and a preset that restates half the
+stylesheet it sits on stops being a preset.
+
+**Rejected: vendoring the file reformatted to house style.** oxfmt formats CSS and
+would reflow it, and it carries about twenty section comments `AGENTS.md` bans in
+first-party code. Rejected because a file with no registry entry has no upgrade
+path except a re-fetch and a diff, and reformatting turns every re-fetch into a
+whole-file diff merged by hand.
+
+**Constraint:** Typeset has no registry entry. `https://ui.shadcn.com/r/typeset.json`
+is a 404, and the `shadcn` CLI carries no `typeset` anywhere in its dist, so there
+is no `shadcn add` for it and `components.json` is untouched.
+`scripts/update-typeset.sh` re-fetches `https://ui.shadcn.com/typeset.css`, which
+is the same 12158 bytes as the file in `shadcn-ui/ui`.
+
+**Constraint:** h6 carries `text-transform: uppercase`, so a note holding
+`###### foo` draws `FOO`. This is a WYSIWYG editor over the user's own file, and
+it is the one place the surface draws characters the file does not hold.
+
+**Constraint:** the note re-sizes at 768px. Typeset's base is
+`calc(var(--typeset-size) * 1.125)` and a `min-width: 48rem` query resets it, so a
+window narrower than 768px reads at `1.125rem`. The minimum window is 480px, so
+both sizes are reachable by dragging one edge.
+
+**Constraint:** the checkbox, the flex gap, and the row's pull-back are all `em`.
+Typeset's list paddings are `em` and its size changes at 768px, so a `rem`
+checkbox beside an `em` marker column drifts out of the gutter whenever the size
+moves. Measured at both sizes, the checkbox's right edge holds within `0.016em` of
+the disc's.
+
+**Constraint:** a marker steps disc, circle, then square with depth, where the
+plugin held every marker at a disc, and a blockquote loses the quotation marks the
+plugin drew through `content: open-quote`.
+
+**Constraint:** the inline-code chip pins its colour to `--foreground`. Typeset
+lets a chip inherit its context, and this app paints h5, h6, `del`, `dd`, and a
+footnote in `--muted-foreground`, which put a muted glyph on the `--muted` chip at
+3.73:1 in dark and 3.37:1 in light. `src/styles.spec.ts` caught it and now gates
+both halves.
+
+**Constraint:** the hand-styled table sets its own `margin-block-start`.
+`not-typeset` opts it out of every Typeset rule, the block rhythm included, and
+Typeset spaces blocks with `margin-block-start` alone, so nothing above a table
+supplies a gap and it sat flush against a code block.
+
+**Constraint:** the marker column was re-measured through `qlmanage` per `D39`, and
+the fonts have to be loaded to do it. Rendering the probe with the font URLs
+unresolved put the disc at `0.426em` to `0.782em` against `0.320em` to `0.747em`
+with Literata, so a probe missing its faces measures the fallback serif and
+reports a column the app never paints.
+
+**Constraint:** a task list still sets `margin-block: 0.5em` where every other
+block takes `--typeset-flow`, so it sits tighter to what precedes it than a bullet
+list does. The plugin had the same split and this change did not widen it.

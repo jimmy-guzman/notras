@@ -45,10 +45,20 @@ matches whatever the user is running (`D25`).
 
 - The editor column is `max-w-2xl`, which holds body text inside a readable
   measure at the editor's `1rem` size and `1.75` line-height. Literata carries an
-  `opsz` axis and `.note-preview-prose` sets `font-optical-sizing: auto`, so the
+  `opsz` axis and `.typeset-note` sets `font-optical-sizing: auto`, so the
   note gets the reading cut rather than the caption cut.
-- Headings scale from the body size, not from absolute values: `1.6em`,
-  `1.35em`, `1.15em`, then `1em` for h4 through h6.
+- **The note surface is a shadcn/typeset preset** (`D40`). `.typeset-note` in
+  `src/styles.css` sets three rhythm controls and three faces, and every heading
+  size, list indent and block gap derives from them. Tuning the reading surface
+  means moving `--typeset-size`, `--typeset-leading`, or `--typeset-flow`, not
+  writing a rule per element.
+- **The note reads a size larger below 768px.** Typeset sizes against its
+  container, so a window narrower than that renders at `1.125rem` and wider at
+  `1rem`. The minimum window is 480px, so both are reachable.
+- Headings scale from the body size, not from absolute values: `1.75em`,
+  `1.25em`, `1.125em`, `1em`, then `0.875em` and `0.8125em`. h5 and h6 drop to
+  `--muted-foreground` at weight 500, and h6 is uppercased with `0.08em`
+  tracking, so the two deepest levels read as labels rather than headings.
 - UI text sits at `text-xs` for secondary information (status strip, palette
   metadata, tag chips) and inherits the base size otherwise. Do not invent a
   per-component size.
@@ -257,30 +267,35 @@ a real non-motion end state, so removing the transition costs nothing.
 - The caret takes `--foreground`, and selection takes `--selection`.
 - The empty-document placeholder renders through
   `p.is-editor-empty:first-child::before` on `--faint`, and never as a real node.
-- **Prose colours are repointed at tokens.** `@tailwindcss/typography` ships its
-  own stone ramp, so `.note-preview-prose` sets all sixteen `--tw-prose-*`
-  colours from the palette. The rule sits outside `@layer`, which is what makes
-  it outrank the utility. Do not add `prose-stone` or `prose-invert` back. The
-  eleven roles that paint a glyph resolve to one of the four tones under Color,
-  which `src/styles.spec.ts` asserts.
-- **Bullet and ordered lists come from the typography plugin.** Markers,
-  indentation, and the space between items are `@tailwindcss/typography`'s at
-  every depth, and a marker stays a disc however deep it sits. `src/styles.css`
-  adds two things: `li > p` loses its block margins so a one-line item stays on
-  one line, and `--tw-prose-bullets` takes `--muted-foreground`, the tone
-  `--tw-prose-counters` already had, so a disc and a number read alike.
+- **The reading surface takes no colour of its own** (`D40`). Typeset reads
+  `--color-foreground`, `--color-muted-foreground`, `--color-border`,
+  `--color-muted`, `--color-primary`, and `--color-ring`, all of which the
+  `@theme inline` block already emits, so the note is on the palette with nothing
+  repointed. `src/styles.spec.ts` asserts the two roles it derives resolve to a
+  token, and that every `::marker` paints from the muted one.
+- **Bullet and ordered lists come from Typeset.** Markers, indentation, and the
+  space between items are its at every depth, and a marker steps disc, circle,
+  then square with depth. `src/styles.css` adds one thing: `li > p` loses its
+  block margins so a one-line item stays on one line.
+- **Inline code is a chip, code blocks are a card.** A code span sits on `--muted`
+  in the mono at `0.85em` with a derived radius. Its colour is pinned to
+  `--foreground` rather than inherited, because h5, h6, a strikethrough and a
+  definition are all muted and a muted glyph on the chip measures 3.73:1
+  (`D40`).
 - **Task lists** use flex rows with zero paragraph margins and hand-drawn
-  checkboxes locked to the first text line: a `1rem` box with a `1.5px` border,
+  checkboxes locked to the first text line: a `1em` box with a `1.5px` border,
   `3px` radius, filled with the primary when checked and masked with an SVG
   check. A checked item goes muted, struck through, and drops to `0.7` opacity.
   Every selector reaches a row as `ul[data-type="taskList"] > li` (`D39`). The
   list is padded like any other list and the row is pulled back by the checkbox
-  column, so text lands at `2em` whatever the list kind and at `4em` one level
-  in. The gap puts the box's right edge on `0.9em`, the column a disc paints
-  in, and the pull-back cancels box plus gap so the text does not follow. The
-  two are one measured pair and moving either alone moves the ladder.
+  column, so text lands at `1.9em` whatever the list kind and at `3.8em` one
+  level in. The gap puts the box's right edge on `0.747em`, the column a disc
+  paints in, and the pull-back cancels box plus gap so the text does not follow.
+  All three are `em`, so the ladder holds at both note sizes, and
+  `src/styles.spec.ts` asserts the pull-back cancels exactly the box and the gap.
 - **Tables** collapse borders, span the full column, and left-align. The header
-  row sits on `--card`.
+  row sits on `--card`. They opt out of Typeset with `not-typeset`, which is why
+  the table sets its own `margin-block-start` from `--typeset-flow` (`D40`).
 - **Images** cap at `320px` tall, take `--radius-md`, and show a `--ring`
   outline when selected.
 - **Wikilinks** read as a dashed underline in the current color at weight 500,

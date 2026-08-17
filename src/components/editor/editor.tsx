@@ -119,7 +119,7 @@ export function Editor({
         autocapitalize: "off",
         autocorrect: "off",
         class:
-          "note-preview-prose prose mx-auto w-full max-w-2xl px-6 py-6 focus:outline-none",
+          "typeset typeset-note mx-auto w-full max-w-2xl px-6 py-6 focus:outline-none",
         spellcheck: "true",
       },
       // Copying out of the editor puts markdown on the clipboard.

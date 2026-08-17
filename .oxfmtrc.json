@@ -14,6 +14,7 @@
   "ignorePatterns": [
     "pnpm-lock.yaml",
     "CHANGELOG.md",
+    "src/typeset.css",
     "*.gen.*",
     ".next",
     "dist",
