@@ -1,6 +1,6 @@
-# notras
+![notras: just write, otra vez.](assets/hero.png)
 
-> Just write, otra vez.
+# notras
 
 A local-first, keyboard-driven notes app for your desktop. Your notes are plain
 markdown files in a folder you own: no accounts, no cloud, no database to

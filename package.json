@@ -12,6 +12,7 @@
     "dev": "tauri dev",
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
+    "icons": "./scripts/icons.sh",
     "knip": "knip",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "lint:fix": "eslint . --fix --cache --cache-location node_modules/.cache/eslint/",
