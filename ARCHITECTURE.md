@@ -175,6 +175,7 @@ public/               # GENERATED favicons, served at the web root
 scripts/
   icons.sh            # assets/ -> src-tauri/icons/ + public/ (macOS only)
   update-shadcn.sh    # regenerate every installed Shadcn component
+  update-typeset.sh   # re-fetch src/typeset.css from upstream (D40)
 ```
 
 ## Layer boundaries
