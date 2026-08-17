@@ -40,15 +40,27 @@ fn clean_tag(raw: &str) -> Option<String> {
     }
 }
 
-/// A `title:` value with surrounding quotes stripped. An empty value counts as
-/// absent so title resolution falls through to the next source.
+/// A `title:` value with its quoting undone. An empty value counts as absent so
+/// title resolution falls through to the next source.
+///
+/// A single-quoted scalar has one escape, `''` for a literal quote, which is what
+/// the TypeScript side writes. A double-quoted one is only unwrapped: notras
+/// never writes that form, and decoding YAML's backslash escapes would widen a
+/// dialect this parser keeps deliberately small. Kept in parity with
+/// `cleanTitle` in `src/core/frontmatter.ts`.
 fn clean_title(raw: &str) -> Option<String> {
-    let title = raw.trim().trim_matches(|c| c == '"' || c == '\'').trim();
+    let value = raw.trim();
+    let quote = value.chars().next().filter(|_| value.len() > 1);
+    let title = match quote {
+        Some('\'') if value.ends_with('\'') => value[1..value.len() - 1].replace("''", "'"),
+        Some('"') if value.ends_with('"') => value[1..value.len() - 1].to_string(),
+        _ => value.to_string(),
+    };
 
     if title.is_empty() {
         None
     } else {
-        Some(title.to_string())
+        Some(title)
     }
 }
 
@@ -217,6 +229,31 @@ mod tests {
 
         let single = parse("---\ntitle: 'my note'\n---\nbody\n");
         assert_eq!(single.frontmatter.title, Some("my note".to_string()));
+    }
+
+    /// Mirrors the round-trip cases in `src/core/frontmatter.spec.ts`: the
+    /// TypeScript side writes single-quoted values, so this side has to undo the
+    /// one escape that form has.
+    #[test]
+    fn undoes_single_quote_escaping() {
+        let apostrophe = parse("---\ntitle: 'it''s: mine'\n---\nbody\n");
+        assert_eq!(apostrophe.frontmatter.title, Some("it's: mine".to_string()));
+
+        let quote = parse("---\ntitle: 'he said \"hi\": ok'\n---\nbody\n");
+        assert_eq!(
+            quote.frontmatter.title,
+            Some("he said \"hi\": ok".to_string())
+        );
+
+        let backslash = parse("---\ntitle: 'back\\slash: x'\n---\nbody\n");
+        assert_eq!(
+            backslash.frontmatter.title,
+            Some("back\\slash: x".to_string())
+        );
+
+        // A bare value keeps every character, quotes included.
+        let bare = parse("---\ntitle: he said \"hi\"\n---\nbody\n");
+        assert_eq!(bare.frontmatter.title, Some("he said \"hi\"".to_string()));
     }
 
     #[test]

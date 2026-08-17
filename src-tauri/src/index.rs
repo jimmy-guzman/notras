@@ -67,15 +67,33 @@ pub fn relative_path(notes_dir: &Path, path: &Path) -> Option<String> {
     )
 }
 
+/// `strip_suffix`, ignoring ASCII case, so `.MD` strips the way `.md` does.
+fn strip_suffix_ignore_case<'a>(name: &'a str, suffix: &str) -> Option<&'a str> {
+    let split = name.len().checked_sub(suffix.len())?;
+
+    if !name.is_char_boundary(split) {
+        return None;
+    }
+
+    let (head, tail) = name.split_at(split);
+
+    tail.eq_ignore_ascii_case(suffix).then_some(head)
+}
+
+/// The filename stem, which is the last source `resolve_title` falls back to.
+///
+/// The extension is stripped case-insensitively, matching `noteTitle` in
+/// `src/core/notes.ts`. The two must agree or the same file gets one title in
+/// the index and another in the open note.
 fn title_of(rel_path: &str) -> String {
     let name = rel_path.rsplit('/').next().unwrap_or(rel_path);
-    name.strip_suffix(".markdown")
-        .or_else(|| name.strip_suffix(".md"))
+    strip_suffix_ignore_case(name, ".markdown")
+        .or_else(|| strip_suffix_ignore_case(name, ".md"))
         .unwrap_or(name)
         .to_string()
 }
 
-/// The body's leading `# ` heading, when it has one.
+/// The body's leading `#` heading, when it has one.
 ///
 /// CommonMark's ATX level-1 shape: up to three spaces of indent, one `#`, then
 /// a space, a tab, or end of line. `##` never matches, and a tab indent makes
@@ -113,7 +131,7 @@ fn leading_heading(body: &str) -> Option<String> {
     }
 }
 
-/// A note's display title: frontmatter `title:`, then the leading `# ` heading,
+/// A note's display title: frontmatter `title:`, then the leading `#` heading,
 /// then the filename stem. Kept in parity with `resolveTitle` in
 /// `src/core/notes.ts`.
 fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
@@ -410,14 +428,18 @@ mod tests {
         }
     }
 
-    /// Pins the extension-stripping divergence the chain inherits from
-    /// `title_of`: `noteTitle` in TypeScript strips `.md` case-insensitively.
+    /// The extension strips case-insensitively, the same way `noteTitle` does in
+    /// TypeScript, so the index and the open note cannot disagree.
     #[test]
-    fn strips_the_markdown_extension_case_sensitively() {
+    fn strips_the_markdown_extension_case_insensitively() {
         let parsed = frontmatter::parse("body\n");
-        assert_eq!(resolve_title(&parsed, "NOTE.MD"), "NOTE.MD");
+        assert_eq!(resolve_title(&parsed, "NOTE.MD"), "NOTE");
         assert_eq!(resolve_title(&parsed, "note.md"), "note");
+        assert_eq!(resolve_title(&parsed, "Note.Markdown"), "Note");
         assert_eq!(resolve_title(&parsed, "note.markdown"), "note");
+        // Not an extension, so nothing is stripped.
+        assert_eq!(resolve_title(&parsed, "notes.txt"), "notes.txt");
+        assert_eq!(resolve_title(&parsed, ".md"), "");
     }
 
     /// `SPEC.md` walkthrough step 4, through the real indexing path: a file

@@ -184,7 +184,43 @@ describe("retitleFrontmatter", () => {
   it("should quote a title carrying a colon so real yaml survives", () => {
     expect(
       retitleFrontmatter(["title: old"], "effect: a primer"),
-    ).toStrictEqual(['title: "effect: a primer"']);
+    ).toStrictEqual(["title: 'effect: a primer'"]);
+  });
+
+  it("should leave a plain title unquoted", () => {
+    expect(retitleFrontmatter(["title: old"], "team sync 2")).toStrictEqual([
+      "title: team sync 2",
+    ]);
+  });
+
+  /**
+   * Single quotes are the safe form: their only escape is `''`, so a backslash
+   * and a double quote both stay literal, where the double-quoted form would
+   * read `\` as an escape introducer and emit invalid YAML.
+   */
+  it.each([
+    ["a double quote", 'he said "hi": ok', `'he said "hi": ok'`],
+    ["a backslash", String.raw`back\slash: x`, String.raw`'back\slash: x'`],
+    ["an apostrophe", "it's: mine", "'it''s: mine'"],
+    ["both", String.raw`a"b\c'd: e`, String.raw`'a"b\c''d: e'`],
+  ])("should escape %s", (_label, title, expected) => {
+    expect(retitleFrontmatter(["title: old"], title)).toStrictEqual([
+      `title: ${expected}`,
+    ]);
+  });
+
+  it.each([
+    ['he said "hi": ok'],
+    [String.raw`back\slash: x`],
+    ["it's: mine"],
+    [String.raw`a"b\c'd: e`],
+    ["effect: a primer"],
+    ["#hashtag"],
+    ["team sync 2"],
+  ])("should round-trip %j through parseNote", (title) => {
+    const lines = retitleFrontmatter(["title: old"], title);
+
+    expect(parseNote(composeNote(lines, "body")).frontmatter.title).toBe(title);
   });
 
   it("should preserve indentation", () => {

@@ -776,7 +776,7 @@ a shortcut slot hides the check that says whether the tag is attached.
 
 ### D32 The title resolves from frontmatter, then a heading, then the filename
 
-A note's displayed title is its frontmatter `title:`, else its leading `# `
+A note's displayed title is its frontmatter `title:`, else its leading `#`
 heading, else its filename stem. `resolve_title` in `src-tauri/src/index.rs`
 fills the index column, `resolveTitle` in `src/core/notes.ts` serves the open
 note, and both read the same three sources in the same order.
@@ -820,7 +820,7 @@ already put in the file is different from adding one, so nothing above changes.
 **Rejected: deriving the title from the heading and syncing the filename to it,**
 which is what scratch does in `save_note`. Finder and a GitHub file listing would
 always match the title. Rejected because it renames on a content edit: a daily
-note at `2026-08-16.md` headed `# Thursday, August 16` loses a sortable filename,
+note at `2026-08-16.md` headed `# Sunday, August 16` loses a sortable filename,
 quick capture's timestamps are eaten the moment a heading is added, and with git
 sync planned every retitle becomes history churn.
 

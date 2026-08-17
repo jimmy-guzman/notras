@@ -72,10 +72,11 @@ only recovery is deleting the database.
 
 **Note identity is the relative path.** Renames are delete plus create in the
 index. Wikilinks resolve by title and then by filename stem, so a retitle can
-dangle links, which `DECISIONS.md` records as accepted.
+dangle links, which `D12` accepts and where it also fixes the order duplicate
+titles resolve in.
 
 **The title is resolved, not stored.** Frontmatter `title:`, else the leading
-`# ` heading, else the filename stem. `resolve_title` in
+`#` heading, else the filename stem. `resolve_title` in
 `src-tauri/src/index.rs` fills the index column and `resolveTitle` in
 `src/core/notes.ts` serves the open note.
 

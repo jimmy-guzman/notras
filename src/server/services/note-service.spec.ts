@@ -350,6 +350,25 @@ describe("noteService.retitle", () => {
     expect(harness.files.get("taken.md")?.content).toBe("other");
   });
 
+  /**
+   * `filenameFromTitle` lowercases, so a note whose file carries uppercase would
+   * otherwise collide with itself: `exists("foo.md")` finds `Foo.md` on a
+   * case-insensitive filesystem.
+   */
+  it("should not treat a case-only difference as a collision", async () => {
+    const harness = makeHarness({ "Foo.md": "# old" });
+
+    const path = await harness.run(
+      NoteService.use((svc) => {
+        return svc.retitle("Foo.md", "Foo");
+      }),
+    );
+
+    expect(path).toBe("Foo.md");
+    expect(harness.files.get("Foo.md")?.content).toBe("# Foo");
+    expect(harness.files.has("foo.md")).toBe(false);
+  });
+
   it("should not write when the title already matches", async () => {
     const harness = makeHarness({ "same.md": "# same" });
 

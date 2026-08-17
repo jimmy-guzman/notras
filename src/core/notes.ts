@@ -49,7 +49,7 @@ function firstContentLine(lines: string[]) {
 }
 
 /**
- * The body's leading `# ` heading, when it has one. Kept in parity with
+ * The body's leading `#` heading, when it has one. Kept in parity with
  * `leading_heading` in `src-tauri/src/index.rs`.
  */
 function leadingHeading(body: string) {
@@ -73,7 +73,7 @@ function leadingHeading(body: string) {
 }
 
 /**
- * Rewrite the body's leading `# ` heading to `title`, or return `body`
+ * Rewrite the body's leading `#` heading to `title`, or return `body`
  * byte-identical when there is none.
  *
  * The rule is deliberately narrow: an existing heading is rewritten, one is
@@ -123,7 +123,7 @@ export function filenameFromTitle(title: string) {
 }
 
 /**
- * A note's display title: frontmatter `title:`, then the leading `# ` heading,
+ * A note's display title: frontmatter `title:`, then the leading `#` heading,
  * then the filename stem. Kept in parity with `resolve_title` in
  * `src-tauri/src/index.rs`.
  */

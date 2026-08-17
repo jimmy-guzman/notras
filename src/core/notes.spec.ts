@@ -62,10 +62,15 @@ describe("resolveTitle", () => {
     );
   });
 
+  // Mirrors `strips_the_markdown_extension_case_insensitively` in
+  // `src-tauri/src/index.rs`, case for case, so the two cannot drift.
   it("should strip the markdown extension case-insensitively", () => {
     expect(resolveTitle("NOTE.MD", "body\n")).toBe("NOTE");
     expect(resolveTitle("note.md", "body\n")).toBe("note");
+    expect(resolveTitle("Note.Markdown", "body\n")).toBe("Note");
     expect(resolveTitle("note.markdown", "body\n")).toBe("note");
+    expect(resolveTitle("notes.txt", "body\n")).toBe("notes.txt");
+    expect(resolveTitle(".md", "body\n")).toBe("");
   });
 });
 

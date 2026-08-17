@@ -45,16 +45,43 @@ function cleanTag(raw: string) {
 }
 
 /**
- * A `title:` value with surrounding quotes stripped. An empty value counts as
- * absent so title resolution falls through to the next source.
+ * A `title:` value with its quoting undone. An empty value counts as absent so
+ * title resolution falls through to the next source.
+ *
+ * A single-quoted scalar has one escape, `''` for a literal quote, which is what
+ * `serializeTitle` writes. A double-quoted one is only unwrapped: notras never
+ * writes that form, and decoding YAML's backslash escapes would widen a dialect
+ * `D6` keeps deliberately small. Kept in parity with `clean_title` in
+ * `src-tauri/src/frontmatter.rs`.
  */
 function cleanTitle(raw: string) {
-  const title = raw
-    .trim()
-    .replaceAll(/^["']+|["']+$/g, "")
-    .trim();
+  const value = raw.trim();
+  const quote = value.length > 1 ? value.at(0) : undefined;
+  const quoted =
+    (quote === "'" || quote === '"') && value.endsWith(quote)
+      ? value.slice(1, -1)
+      : undefined;
+  const title =
+    quoted === undefined
+      ? value
+      : quote === "'"
+        ? quoted.replaceAll("''", "'")
+        : quoted;
 
   return title.length > 0 ? title : undefined;
+}
+
+/**
+ * A title as a frontmatter value, quoted whenever plain YAML would misread it.
+ *
+ * Single quotes are the safe form for prose: the only escape inside one is `''`,
+ * so a title carrying a backslash or a double quote needs no further handling,
+ * where the double-quoted form would treat `\` as an escape introducer.
+ */
+function serializeTitle(title: string) {
+  return /^[\p{L}\p{N}][\p{L}\p{N} \-._]*$/u.test(title)
+    ? title
+    : `'${title.replaceAll("'", "''")}'`;
 }
 
 function parseInlineTags(value: string) {
@@ -204,8 +231,9 @@ function withoutOwnKeys(rawLines: string[]) {
  *
  * The key is matched the way `parseNote` reads it, and the last match wins for
  * the same reason: a duplicated key is invalid YAML, and the two must agree
- * about which one is live. A value carrying a colon is quoted, which is what
- * real YAML needs and what `cleanTitle` strips back off on the way in.
+ * about which one is live. `serializeTitle` decides the quoting, so a title
+ * carrying a colon, a quote, or a backslash stays valid YAML for the other tools
+ * reading the file.
  */
 export function retitleFrontmatter(rawLines: string[], title: string) {
   const index = rawLines.findLastIndex((line) => {
@@ -224,9 +252,8 @@ export function retitleFrontmatter(rawLines: string[], title: string) {
     0,
     existing.length - existing.trimStart().length,
   );
-  const value = title.includes(":") ? `"${title}"` : title;
 
-  return rawLines.with(index, `${indent}title: ${value}`);
+  return rawLines.with(index, `${indent}title: ${serializeTitle(title)}`);
 }
 
 /** Reassemble a full note file from raw frontmatter lines and a body. */

@@ -180,8 +180,13 @@ const makeNoteService = Effect.gen(function* () {
     }
 
     const target = notePath(noteFolder(path), filename);
+    // A case-only difference is the same file on a case-insensitive filesystem,
+    // where `exists(target)` would find the note itself and report a collision
+    // against it. Treating it as the same path skips both the error and a rename
+    // that would only change the casing.
+    const samePath = target.toLowerCase() === path.toLowerCase();
 
-    if (target !== path && (yield* fileStore.exists(target))) {
+    if (!samePath && (yield* fileStore.exists(target))) {
       return yield* new FileError({
         message: `a note named ${filename} already exists in ${
           noteFolder(path) === "" ? "the notes root" : noteFolder(path)
@@ -200,7 +205,7 @@ const makeNoteService = Effect.gen(function* () {
       yield* fileStore.write(path, next);
     }
 
-    if (target === path) {
+    if (samePath) {
       return path;
     }
 
