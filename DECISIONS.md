@@ -888,11 +888,12 @@ uniqueness over the thing being displayed.
 
 ### D35 The save state is a glyph
 
-`SaveIndicator` renders one lucide save icon per `SaveStatus`: `SavePenIcon` for
-`dirty`, `SaveIcon` for `saving`, `SaveCheckIcon` for `saved`. All three share a
-floppy body and differ in the badge at its lower-right corner, so the shared
-shape names the subject and the badge names the state. The word survives in a
-hover tooltip and in `sr-only` text.
+`SaveIndicator` renders one lucide save icon per state. This entry decides the
+three that existed when it was written: `SavePenIcon` for `dirty`, `SaveIcon` for
+`saving`, `SaveCheckIcon` for `saved`. All three share a floppy body and differ
+in the badge at its lower-right corner, so the shared shape names the subject and
+the badge names the state. The word survives in a hover tooltip and in `sr-only`
+text. `D38` adds a fourth state and keeps the rule.
 
 The strip opened on a word that rewrote itself on every keystroke and settled
 800ms later, `unsaved` to `saving...` to `saved`. It was the widest item in a row
@@ -917,10 +918,11 @@ an app that autosaves. Rejected because `D2` ruled out an explicit save on the
 grounds that there is no lost-write ambiguity, and that argument assumed the
 state stayed on screen to be checked.
 
-**Constraint:** the three glyphs differ by a badge roughly 4px wide at
+**Constraint:** the three glyphs above differ by a badge roughly 4px wide at
 `size-3.5`, so the tone carries the rest. `saved` sits on `--faint` and the other
-two on the strip's `--muted-foreground`. Changing either tone makes the states
-harder to tell apart, not just quieter.
+two on `--muted-foreground`. Changing either tone makes the states harder to tell
+apart, not just quieter. `D38` moved the indicator out of the status strip and
+gave its fourth state a tone of its own.
 
 **Constraint:** the indicator is a status and not a control, so its tooltip
 trigger renders a `span`. It takes no tab stop and hover is the only opener,
