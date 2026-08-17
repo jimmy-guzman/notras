@@ -338,7 +338,12 @@ function NoteEditor({ note }: NoteEditorProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <NoteHeader path={note.path} pinned={note.pinned} title={title} />
+        <NoteHeader
+          path={note.path}
+          pinned={note.pinned}
+          status={autosave.status}
+          title={title}
+        />
       </Titlebar>
       {sourceMode ? (
         <SourceEditor
@@ -378,7 +383,6 @@ function NoteEditor({ note }: NoteEditorProps) {
         onToggleTypewriter={toggleTypewriter}
         path={note.path}
         sourceEnabled={sourceMode}
-        status={autosave.status}
         tags={note.tags}
         typewriterEnabled={typewriterEnabled}
         words={words}

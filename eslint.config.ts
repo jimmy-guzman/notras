@@ -18,11 +18,15 @@ export default defineConfig({
     {
       files: ["**/components/ui/**/*.tsx"],
       rules: {
+        "@typescript-eslint/prefer-nullish-coalescing": "off",
         "jsx-a11y/click-events-have-key-events": "off",
         "jsx-a11y/label-has-associated-control": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off",
         "react-refresh/only-export-components": "off",
+        "react-x/no-context-provider": "off",
         "react-x/no-implicit-children": "off",
+        "react-x/no-unstable-context-value": "off",
+        "react-x/no-use-context": "off",
       },
     },
     {

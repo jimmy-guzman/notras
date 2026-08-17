@@ -117,6 +117,15 @@ Spacing follows Tailwind's scale. Interior padding on small controls stays in
 the `0.25rem` to `0.75rem` range, which is what the suggestion menu, the code
 block toolbar, and the link editor already use.
 
+**Every item in the status strip is a shaped item, and the strip sets one gap**
+(`D36`). The footer is `px-3 gap-1`, a run of like items is `gap-0.5`, and each
+item's inset comes from the component it is: a 24px box for the view toggles,
+`Badge` for a tag chip, `Button size="xs"` for `add tag`, and the badge's `px-2`
+on the word count so bare text is shaped like its neighbours.
+Adding an item means choosing what it is. Do not override a variant's padding to
+reach a distance, which is what the first version of `D36` did and could not
+keep.
+
 ## Motion
 
 Motion carries a state change and nothing else. There is no decorative
@@ -137,19 +146,38 @@ a real non-motion end state, so removing the transition costs nothing.
 - **The window is chrome-less.** `body` sets `user-select: none` so text
   selection outside the editor does not make the app read as a web page.
   `.allow-select` is the explicit opt-in for anything selectable.
-- **The titlebar carries the note's identity** (`D28`). Title and pin sit in the
-  drag region rather than in a band of their own, so the window title is the
-  note title, resolved by `D32` from frontmatter, a leading `#`, then the
+- **The titlebar carries the note's identity** (`D28`): what it is called,
+  whether it is pinned, and whether it is written (`D38`). Those sit in the drag
+  region rather than in a band of their own, so the window title is the note
+  title, resolved by `D32` from frontmatter, a leading `#`, then the
   filename. It is display-only text: renaming a file is a ⌘K action. `Titlebar`
   in
   `src/components/titlebar.tsx` is the only place the drag region is declared,
   and every window and route renders it. Buttons and inputs inside it set
-  `no-drag` so they stay clickable.
+  `no-drag` so they stay clickable, and `.no-drag` is the opt-in for anything
+  else that has to receive the pointer there.
+- **The save state is a glyph, and it sits in the titlebar** (`D35`, `D38`).
+  `SaveIndicator` renders between the title and the pin, a floppy carrying a pen
+  for `dirty`, no badge for `saving`, a check for `saved`, and a slash for
+  `failed`, at `size-3.5` in the same 24px box the pin and the view toggles use.
+  `saved` drops to `--faint`, `failed` takes `--destructive`, and the other two
+  stay on `--muted-foreground`, so tone separates the states the badge alone
+  would not at that size. The word reaches a hover tooltip and `sr-only` text,
+  never the bar. The external-file route renders the same component in its own
+  titlebar, which is why it carries `no-drag`.
+- **Anything in chrome that turns on and off is a `Toggle`** (`D37`), at
+  `size="icon-xs"`, showing its on-state as `--foreground` against the idle
+  `--muted-foreground`. That covers the three view toggles, which are one
+  `ToggleGroup` and so one tab stop with arrow keys inside it, and the pin in the
+  titlebar. Hover is a surface and pressed is a tone, which is what keeps the two
+  states apart.
 - **Tags are picked from the status strip** (`D30`). A chip reads `#groceries`
   and filters to that tag; the `TagPlus` button beside it reads `add tag` and
   opens the combobox, whose vocabulary is the index's own counted tag list. The
   button is labelled in every state, since an icon alone in a strip of status
-  text says nothing about what it adds. The chips are the only part that
+  text says nothing about what it adds. That rule covers an action and not a
+  status: the save glyph above it names a state the user does not operate, so
+  the two are consistent rather than opposed. The chips are the only part that
   shrinks, so they clip before the button or the word count does.
 - **Chrome starts after the traffic lights.** macOS floats them over the content
   at the top left, so `--spacing-titlebar` insets everything past them. The value
