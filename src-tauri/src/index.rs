@@ -67,12 +67,80 @@ pub fn relative_path(notes_dir: &Path, path: &Path) -> Option<String> {
     )
 }
 
+/// `strip_suffix`, ignoring ASCII case, so `.MD` strips the way `.md` does.
+fn strip_suffix_ignore_case<'a>(name: &'a str, suffix: &str) -> Option<&'a str> {
+    let split = name.len().checked_sub(suffix.len())?;
+
+    if !name.is_char_boundary(split) {
+        return None;
+    }
+
+    let (head, tail) = name.split_at(split);
+
+    tail.eq_ignore_ascii_case(suffix).then_some(head)
+}
+
+/// The filename stem, which is the last source `resolve_title` falls back to.
+///
+/// The extension is stripped case-insensitively, matching `noteTitle` in
+/// `src/core/notes.ts`. The two must agree or the same file gets one title in
+/// the index and another in the open note.
 fn title_of(rel_path: &str) -> String {
     let name = rel_path.rsplit('/').next().unwrap_or(rel_path);
-    name.strip_suffix(".markdown")
-        .or_else(|| name.strip_suffix(".md"))
+    strip_suffix_ignore_case(name, ".markdown")
+        .or_else(|| strip_suffix_ignore_case(name, ".md"))
         .unwrap_or(name)
         .to_string()
+}
+
+/// The body's leading `#` heading, when it has one.
+///
+/// CommonMark's ATX level-1 shape: up to three spaces of indent, one `#`, then
+/// a space, a tab, or end of line. `##` never matches, and a tab indent makes
+/// the line a code block rather than a heading.
+///
+/// Only the first non-blank line is considered, which is what lets this skip
+/// fenced code blocks without tracking them: a fence opener cannot match the
+/// pattern. Kept in parity with `leadingHeading` in `src/core/notes.ts`.
+fn leading_heading(body: &str) -> Option<String> {
+    let line = body.lines().find(|line| !line.trim().is_empty())?;
+    let indent = line.len() - line.trim_start_matches(' ').len();
+
+    if indent > 3 {
+        return None;
+    }
+
+    let rest = line[indent..].strip_prefix('#')?;
+
+    if !rest.is_empty() && !rest.starts_with(' ') && !rest.starts_with('\t') {
+        return None;
+    }
+
+    let text = rest.trim();
+    // Closed ATX form: `# title #`. The closing run has to be preceded by
+    // whitespace, so `# C#` keeps its trailing character.
+    let text = match text.rsplit_once(char::is_whitespace) {
+        Some((head, tail)) if !tail.is_empty() && tail.chars().all(|c| c == '#') => head.trim_end(),
+        _ => text,
+    };
+
+    if text.is_empty() {
+        None
+    } else {
+        Some(text.to_string())
+    }
+}
+
+/// A note's display title: frontmatter `title:`, then the leading `#` heading,
+/// then the filename stem. Kept in parity with `resolveTitle` in
+/// `src/core/notes.ts`.
+fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
+    parsed
+        .frontmatter
+        .title
+        .clone()
+        .or_else(|| leading_heading(parsed.body))
+        .unwrap_or_else(|| title_of(rel_path))
 }
 
 fn folder_of(rel_path: &str) -> String {
@@ -87,6 +155,20 @@ pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
     conn.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
     Ok(())
+}
+
+/// Empty the derived index so the next scan rebuilds every row.
+///
+/// `index_file` skips a file whose mtime matches its stored row, which makes a
+/// plain re-scan a no-op. Dropping the rows first is what lets a deliberate
+/// rebuild pick up a change in how a row is derived, such as `resolve_title`,
+/// on notes nobody has edited since.
+pub fn clear(conn: &Connection) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute("DELETE FROM note", [])?;
+    tx.execute("DELETE FROM note_tag", [])?;
+    tx.execute("DELETE FROM note_fts", [])?;
+    tx.commit()
 }
 
 /// Index a single note file. Returns `true` when the index changed. Files
@@ -129,7 +211,7 @@ pub fn index_file(
 
     let parsed = frontmatter::parse(&content);
     let created_at = timestamp_millis(meta.created()).unwrap_or(updated_at);
-    let title = title_of(rel_path);
+    let title = resolve_title(&parsed, rel_path);
 
     // One note, one transaction: the three tables must never drift apart.
     let tx = conn.unchecked_transaction()?;
@@ -295,6 +377,135 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
+    /// same cases in the same order, so the two resolvers can be diffed by eye.
+    #[test]
+    fn resolves_titles_from_frontmatter_then_heading_then_filename() {
+        // Held one-per-line against rustfmt so this table stays diffable by eye
+        // against its twin in `src/core/notes.spec.ts`.
+        #[rustfmt::skip]
+        let cases: &[(&str, &str, &str)] = &[
+            // Frontmatter wins over a heading that disagrees.
+            ("---\ntitle: from frontmatter\n---\n# from heading\n", "note.md", "from frontmatter"),
+            ("---\ntitle: \"effect: a primer\"\n---\nbody\n", "note.md", "effect: a primer"),
+            ("---\ntitle: effect: a primer\n---\nbody\n", "note.md", "effect: a primer"),
+            // An empty title is absent, so the heading takes over.
+            ("---\ntitle:\n---\n# from heading\n", "note.md", "from heading"),
+            // Heading beats the filename.
+            ("# from heading\n", "note.md", "from heading"),
+            ("\n\n# after blank lines\n", "note.md", "after blank lines"),
+            ("   # three spaces\n", "note.md", "three spaces"),
+            ("# closed form #\n", "note.md", "closed form"),
+            ("# closed form ###\n", "note.md", "closed form"),
+            // No whitespace before the trailing run, so it is part of the text.
+            ("# C#\n", "note.md", "C#"),
+            ("#\ttab after hash\n", "note.md", "tab after hash"),
+            // Not headings: too much indent, deeper level, no space, empty.
+            ("    # four spaces\n", "note.md", "note"),
+            ("## level two\n", "note.md", "note"),
+            ("#nospace\n", "note.md", "note"),
+            ("#\n", "note.md", "note"),
+            // A heading below content is a section heading, not the title.
+            ("intro paragraph\n\n# a section\n", "note.md", "note"),
+            // A fence opener cannot match, so code blocks need no tracking.
+            ("```\n# not a heading\n```\n", "note.md", "note"),
+            // Filename fallback.
+            ("just an idea\n", "work/ideas.md", "ideas"),
+            ("", "untitled.md", "untitled"),
+            ("# crlf heading\r\n", "note.md", "crlf heading"),
+            ("---\r\ntitle: crlf fm\r\n---\r\nbody\r\n", "note.md", "crlf fm"),
+        ];
+
+        for (content, rel_path, expected) in cases {
+            let parsed = frontmatter::parse(content);
+            assert_eq!(
+                resolve_title(&parsed, rel_path),
+                *expected,
+                "resolving {content:?} at {rel_path:?}"
+            );
+        }
+    }
+
+    /// The extension strips case-insensitively, the same way `noteTitle` does in
+    /// TypeScript, so the index and the open note cannot disagree.
+    #[test]
+    fn strips_the_markdown_extension_case_insensitively() {
+        let parsed = frontmatter::parse("body\n");
+        assert_eq!(resolve_title(&parsed, "NOTE.MD"), "NOTE");
+        assert_eq!(resolve_title(&parsed, "note.md"), "note");
+        assert_eq!(resolve_title(&parsed, "Note.Markdown"), "Note");
+        assert_eq!(resolve_title(&parsed, "note.markdown"), "note");
+        // Not an extension, so nothing is stripped.
+        assert_eq!(resolve_title(&parsed, "notes.txt"), "notes.txt");
+        assert_eq!(resolve_title(&parsed, ".md"), "");
+    }
+
+    /// `SPEC.md` walkthrough step 4, through the real indexing path: a file
+    /// written from a terminal states its own title, and the index reads that
+    /// rather than the filename.
+    #[test]
+    fn indexes_a_heading_as_the_title() {
+        let dir = temp_notes_dir("heading-title");
+        fs::write(dir.join("agent-note.md"), "# from claude\nbody\n").unwrap();
+        fs::write(
+            dir.join("with-frontmatter.md"),
+            "---\ntitle: effect: a primer\n---\n# ignored\n",
+        )
+        .unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        let rows = select(&conn, "SELECT path, title FROM note ORDER BY path", &[]).unwrap();
+
+        assert_eq!(rows[0][0], json!("agent-note.md"));
+        assert_eq!(rows[0][1], json!("from claude"));
+        assert_eq!(rows[1][1], json!("effect: a primer"));
+
+        // The title is searchable even though it never appears in the filename.
+        let hits = select(
+            &conn,
+            "SELECT path FROM note_fts WHERE note_fts MATCH ?1",
+            &[json!("claude")],
+        )
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The mtime skip means a re-scan alone cannot pick up a change in how a
+    /// row is derived. `clear` is what makes `reindex_all` a real rebuild, so a
+    /// note nobody has edited still gets its title re-resolved.
+    #[test]
+    fn clear_lets_a_rescan_refresh_an_untouched_note() {
+        let dir = temp_notes_dir("clear-rebuild");
+        fs::write(dir.join("agent-note.md"), "# from claude\n").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        // Stand in for a row written by an older derivation, without touching
+        // the file, so the mtime skip is live.
+        conn.execute("UPDATE note SET title = 'agent-note'", []).unwrap();
+        assert!(scan_all(&conn, &dir).unwrap().is_empty());
+        let stale: String = conn
+            .query_row("SELECT title FROM note", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stale, "agent-note");
+
+        clear(&conn).unwrap();
+        assert_eq!(scan_all(&conn, &dir).unwrap().len(), 1);
+        let fresh: String = conn
+            .query_row("SELECT title FROM note", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(fresh, "from claude");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

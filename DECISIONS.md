@@ -97,6 +97,10 @@ The filename is the title. There is no title field in note content, and no
 stable ID beside the path. Renaming a note renames the file, which the index
 records as a delete plus a create.
 
+**Superseded in part by `D32`,** which resolves the title from frontmatter, then
+a leading heading, then the filename. Relative-path identity carries over: the
+path is still the primary key, and there is still no stable ID beside it.
+
 Deriving a title from the first heading is a web-era pattern that `D2` removes
 the need for: the file already has a name, and the user sees it in Finder.
 
@@ -114,8 +118,8 @@ problem a single user hits rarely.
 ### D6 Two hand-rolled frontmatter parsers
 
 `src/core/frontmatter.ts` and `src-tauri/src/frontmatter.rs` implement the same
-dialect independently: `pinned: bool`, `tags` as an inline or block list, and
-nothing else.
+dialect independently: `pinned: bool`, `tags` as an inline or block list,
+`title` as a read-only string since `D32`, and nothing else.
 
 The Rust side needs it for indexing, the TypeScript side needs it for editing
 pins and tags. The dialect is two fields, so two parsers cost less than a shared
@@ -123,7 +127,12 @@ serialization boundary would.
 
 **Constraint:** the two must stay in parity, and a change to one is a change to
 both, with tests on both sides. The risk is drift, and the mitigation is that
-the format is small enough to enumerate.
+the format is small enough to enumerate. `D32` extends the same obligation to
+the two title resolvers that read this dialect.
+
+**Constraint:** `title` is parsed and never serialized. It is not one of
+`withoutOwnKeys`'s own keys, so it survives a pin or tag toggle as a foreign
+line, and `updateFrontmatter` takes a patch type that cannot name it.
 
 **Constraint:** the TypeScript serializer preserves unknown keys verbatim. An
 externally authored note carrying keys notras does not model must survive a
@@ -220,6 +229,11 @@ for it reopens `D10`.
 `[[note title]]` autocompletes from index titles and renders as a clickable
 pill, with a custom tokenizer and node so it survives the markdown round trip.
 Resolution is by title, and links are one-directional this pass.
+
+**Amended by `D32`,** which added a filename-stem fallback and a tie-break of
+nearest folder then path order. A resolved title stopped being unique once it
+came from content, so resolution needed both a second source and a rule for
+duplicates.
 
 Wikilinks replaced the old links sidebar and its OG preview stack, which pointed
 outward at the web. Links between the user's own notes are the feature that
@@ -569,8 +583,8 @@ title and the pin stay, and every other part of this entry carries over.
 
 The app was spending two bands on one band's work: an empty 36px drag strip, and
 a 40px header directly beneath it. Folding one into the other returns 32px to the
-note and puts the title where macOS puts a document title, which `D5` already
-agrees with, since the filename is the title.
+note and puts the title where macOS puts a document title. `D32` later changed
+where that title comes from, which does not affect where it is shown.
 
 The bar is `h-11`, 44px, with the traffic lights centred in it by `D29`. Content
 centres normally, so the title lands on the buttons' line and the space above and
@@ -595,9 +609,10 @@ belongs near where the eye rests rather than in the window chrome.
 macOS floats over the content at the top left. It is a macOS number. Windows and
 Linux put the controls on the right and would need it mirrored.
 
-**Constraint:** the title is an editable input inside a drag region, which is new
-in this codebase. `styles.css` exempts `button` and `input` from dragging, and any
-other interactive element added there needs that rule widened.
+**Constraint:** `styles.css` exempts `button` and `input` from dragging, and any
+other interactive element added to the region needs that rule widened. The title
+was such an element until `D32` made it display-only text, so the exemption now
+covers the pin toggle alone.
 
 ### D29 Compact window controls
 
@@ -758,3 +773,106 @@ row does not dismiss.
 `CommandShortcut`. The generated checkmark carries
 `group-has-data-[slot=command-shortcut]/command-item:hidden`, so an item holding
 a shortcut slot hides the check that says whether the tag is attached.
+
+### D32 The title resolves from frontmatter, then a heading, then the filename
+
+A note's displayed title is its frontmatter `title:`, else its leading `#`
+heading, else its filename stem. `resolve_title` in `src-tauri/src/index.rs`
+fills the index column, `resolveTitle` in `src/core/notes.ts` serves the open
+note, and both read the same three sources in the same order.
+
+**Supersedes the filename-is-title half of `D5`.** Relative-path identity carries
+over unchanged: the path is still the primary key, and nothing here introduces a
+second identifier.
+
+Two things forced it. The filename constrained the title to what a filesystem
+accepts, so `NOTE_SEGMENT_PATTERN` banned `/`, `\`, `:` and a leading dot from
+what is otherwise prose. And `SPEC.md`'s own walkthrough writes
+`echo "# from claude" > agent-note.md`, producing a note with two titles that
+disagree, where the app read the one nobody wrote. Stating a title as a heading
+is the convention every other markdown tool follows, so honouring it is `D2`
+applied to titles.
+
+`D5` argued the opposite from need rather than portability: the file already has
+a name and the user sees it in Finder. Finder is one tool. `D2`'s promise is that
+any tool can write into the folder and be understood, and the old rule met that
+promise for the one reader that browses filenames.
+
+**notras never introduces a title, and never renames a file on its own.** It
+reads all three conventions and imposes none on a file that did not already
+carry one. This is what keeps the entry small, and it is the part most likely to
+erode.
+
+Resolving a title is not enough on its own, because nothing puts the sources back
+in step and so no single act means "retitle this note." A file named `foo.md`
+holding `# bar` shows `foo` in Finder and `bar` in the app, renaming it looks
+inert, and editing the heading moves nothing on disk. **The ⌘K action closes that
+gap:** it takes a title, rewrites an existing leading heading, updates an
+existing `title:` key, and renames the file to `filenameFromTitle` of the title.
+
+That sync is deliberately narrow, which is the whole trick. An existing heading
+is rewritten and one is never invented, so a note opening with prose, a list, a
+quote, or a deeper heading is left byte-identical, and deleting the heading opts a
+note out for good. Because it fires only on an explicit rename, it avoids what
+made continuous syncing untenable in the rejection below. Updating a key someone
+already put in the file is different from adding one, so nothing above changes.
+
+**Rejected: deriving the title from the heading and syncing the filename to it,**
+which is what scratch does in `save_note`. Finder and a GitHub file listing would
+always match the title. Rejected because it renames on a content edit: a daily
+note at `2026-08-16.md` headed `# Sunday, August 16` loses a sortable filename,
+quick capture's timestamps are eaten the moment a heading is added, and with git
+sync planned every retitle becomes history churn.
+
+**Rejected: a frontmatter `title:` that notras writes.** Unambiguous, and what
+Hugo, Astro and Dendron read. Rejected because GitHub renders a frontmatter block
+as a malformed table above every file it displays, so authoring one degrades
+reading the vault on the destination the sync plan names.
+
+**Rejected: ordering the heading above frontmatter,** which is what ZenNotes does
+in `export-title.ts`, reasoning that visible content beats metadata. Kept as the
+fallback rather than the winner because frontmatter is the only one of the three
+a person sets deliberately as a title, where a heading usually doubles as one.
+Notes carrying both are rare, and flipping the order is a one-line change.
+
+**Rejected: leaving the three sources unsynced.** No new writes and no new
+decisions, which is where this entry first landed. Rejected because it makes the
+⌘K rename look broken on exactly the notes the chain was built for, and leaves
+the app with no act that means "retitle."
+
+**Rejected: syncing the heading but not the `title:` key,** which is
+[ZenNotes' rule](https://github.com/ZenNotes/zennotes) in `note-heading-sync.ts`
+and keeps the never-writes claim whole. Rejected because a note carrying a key
+would still ignore a rename, which is the same defect in a smaller place.
+
+**Constraint:** the heading must be the first non-blank line of the body. A
+heading further down is a section heading. This is also what lets the extractor
+skip fenced code blocks without tracking them, since a fence opener cannot match
+the heading pattern.
+
+**Constraint:** a title round-trips only for a note with somewhere to keep one. A
+note with neither a heading nor a key falls back to its filename, so retitling
+`Effect: A Primer` there displays `effect-a-primer`, the slug, because the
+filesystem cannot hold the colon and nothing may be invented to hold it.
+
+**Constraint:** `filenameFromTitle` lowercases and hyphenates, and does not fold
+non-ASCII, so `café notes` yields `café-notes.md`. That keeps the exposure to the
+macOS NFD versus NFC filename mismatch, which is not a regression, since nothing
+stopped that filename before.
+
+**Constraint:** a title is written into a heading verbatim rather than
+markdown-escaped, so `my *title*` renders as emphasis and reads back
+byte-identical. Escaping would break the round trip unless the read path
+unescaped too.
+
+**Constraint:** the two resolvers stay in parity, the same way `D6` binds the two
+frontmatter parsers. `src-tauri/src/index.rs` and `src/core/notes.spec.ts` assert
+one shared table of cases in the same order so it can be diffed by eye.
+
+**Constraint:** the titlebar title is display-only, so renaming a file is a ⌘K
+action. `D28`'s note about an editable input in the drag region no longer applies
+to the title.
+
+**Constraint:** a resolved title is not unique. `D12` gains a filename-stem
+fallback and a deterministic tie-break, because the filesystem no longer enforces
+uniqueness over the thing being displayed.

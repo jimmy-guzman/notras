@@ -7,6 +7,7 @@ import {
   FolderInputIcon,
   FolderSearchIcon,
   HashIcon,
+  PencilIcon,
   PinIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -31,12 +32,14 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { filenameFromTitle } from "@/core";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { getNotes } from "@/data/get-notes";
 import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
+import { retitleNote } from "@/data/retitle-note";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
 
@@ -115,7 +118,7 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
   );
 }
 
-type PaletteView = "delete" | "move" | "root" | "tags";
+type PaletteView = "delete" | "move" | "rename" | "root" | "tags";
 
 interface CommandPaletteProps {
   allTags: { count: number; tag: string }[];
@@ -284,9 +287,13 @@ export function CommandPalette({
         <CommandInput
           onValueChange={updateQuery}
           placeholder={
-            view === "move"
-              ? "move to folder... (type a new name to create it)"
-              : "search notes, # for tags..."
+            {
+              delete: "search notes, # for tags...",
+              move: "move to folder... (type a new name to create it)",
+              rename: "new title...",
+              root: "search notes, # for tags...",
+              tags: "search notes, # for tags...",
+            }[view]
           }
           value={query}
         />
@@ -378,6 +385,44 @@ export function CommandPalette({
                   setView("root");
                 }}
                 value="cancel-move"
+              >
+                cancel
+              </CommandItem>
+            </CommandGroup>
+          ) : null}
+
+          {view === "rename" && currentNote !== undefined ? (
+            <CommandGroup heading={`rename "${currentNote.title}"`}>
+              {query.trim() === "" ? null : (
+                <CommandItem
+                  onSelect={() => {
+                    runAction(async () => {
+                      const next = await retitleNote(
+                        currentNote.path,
+                        query.trim(),
+                      );
+
+                      openNote(next);
+                    });
+                  }}
+                  value="confirm-rename"
+                >
+                  <PencilIcon />
+                  <span className="truncate">
+                    rename to "{query.trim()}"
+                    {/* The filename is derived, so it is shown, not hidden. */}
+                    <span className="text-muted-foreground">
+                      {" · "}
+                      {filenameFromTitle(query.trim())}.md
+                    </span>
+                  </span>
+                </CommandItem>
+              )}
+              <CommandItem
+                onSelect={() => {
+                  setView("root");
+                }}
+                value="cancel-rename"
               >
                 cancel
               </CommandItem>
@@ -514,6 +559,18 @@ export function CommandPalette({
                   >
                     <TagPlusIcon />
                     edit tags...
+                  </CommandItem>
+                ) : null}
+                {currentNote !== undefined && matchesQuery("rename note") ? (
+                  <CommandItem
+                    onSelect={() => {
+                      setQuery(currentNote.title);
+                      setView("rename");
+                    }}
+                    value="rename-note"
+                  >
+                    <PencilIcon />
+                    rename note...
                   </CommandItem>
                 ) : null}
                 {currentNote !== undefined && matchesQuery("move to folder") ? (

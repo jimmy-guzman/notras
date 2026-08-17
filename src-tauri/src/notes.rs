@@ -268,14 +268,21 @@ pub fn set_notes_dir(
     Ok(())
 }
 
+/// Rebuild the derived index from the files.
+///
+/// The rows are dropped before scanning, because `index_file` skips a file whose
+/// mtime matches its stored row and a plain re-scan would leave every untouched
+/// note holding whatever the old derivation produced.
 #[tauri::command]
 pub fn reindex_all(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let core = state.core.lock().unwrap();
+    index::clear(&core.conn).map_err(|e| e.to_string())?;
     let changed = index::scan_all(&core.conn, &core.notes_dir).map_err(|e| e.to_string())?;
     drop(core);
-    if !changed.is_empty() {
-        emit_changed(&app, changed.clone());
-    }
+    // Unconditional, because `clear` is itself a change: a vault whose files were
+    // all deleted outside the app scans back empty, and without an event the
+    // webview would keep reading the rows that were just dropped.
+    emit_changed(&app, changed.clone());
     Ok(changed)
 }
 

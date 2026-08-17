@@ -3,13 +3,18 @@ import { Context, Effect, Layer } from "effect";
 import type { NoteFileContent, NoteFilters, NoteMeta } from "@/core";
 
 import {
+  composeNote,
   FileError,
+  filenameFromTitle,
   FileStore,
-  NOTE_TITLE_PATTERN,
+  NOTE_SEGMENT_PATTERN,
   noteFolder,
   notePath,
   noteTitle,
   parseNote,
+  resolveTitle,
+  retitleFrontmatter,
+  retitleLeadingHeading,
   updateFrontmatter,
 } from "@/core";
 import { NoteRepository } from "@/server/repositories/note-repository";
@@ -29,8 +34,8 @@ interface INoteService {
   count(): Effect.Effect<number>;
   create(options?: {
     content?: string;
+    filename?: string;
     folder?: string;
-    title?: string;
   }): Effect.Effect<string, FileError>;
   delete(path: string): Effect.Effect<void, FileError>;
   getByPath(path: string): Effect.Effect<Note, FileError>;
@@ -38,7 +43,8 @@ interface INoteService {
   listFolders(): Effect.Effect<{ count: number; folder: string }[]>;
   listTags(): Effect.Effect<{ count: number; tag: string }[]>;
   move(path: string, folder: string): Effect.Effect<string, FileError>;
-  rename(path: string, title: string): Effect.Effect<string, FileError>;
+  /** Renames the file and syncs a heading or `title:` key the note already has. */
+  retitle(path: string, title: string): Effect.Effect<string, FileError>;
   setPinned(path: string, pinned: boolean): Effect.Effect<void, FileError>;
   setTags(path: string, tags: string[]): Effect.Effect<void, FileError>;
   write(path: string, content: string): Effect.Effect<Date, FileError>;
@@ -52,7 +58,7 @@ function toNote(path: string, file: NoteFileContent): Note {
     path,
     pinned: parsed.frontmatter.pinned,
     tags: parsed.frontmatter.tags,
-    title: noteTitle(path),
+    title: resolveTitle(path, parsed.body, parsed.frontmatter.title),
     updatedAt: new Date(file.updatedAt),
   };
 }
@@ -63,7 +69,7 @@ function toNote(path: string, file: NoteFileContent): Note {
  * segment here would become a path.
  */
 function invalidSegment(segment: string, label: string) {
-  return NOTE_TITLE_PATTERN.test(segment)
+  return NOTE_SEGMENT_PATTERN.test(segment)
     ? undefined
     : new FileError({
         message: String.raw`${label} cannot contain / \ : or start with a dot`,
@@ -87,16 +93,16 @@ const makeNoteService = Effect.gen(function* () {
 
   const create = Effect.fn("NoteService.create")(function* (options?: {
     content?: string;
+    filename?: string;
     folder?: string;
-    title?: string;
   }) {
     const folder = options?.folder ?? "";
-    const baseTitle = options?.title ?? "untitled";
+    const baseFilename = options?.filename ?? "untitled";
 
-    const badTitle = invalidSegment(baseTitle, "title");
+    const badFilename = invalidSegment(baseFilename, "filename");
 
-    if (badTitle !== undefined) {
-      return yield* badTitle;
+    if (badFilename !== undefined) {
+      return yield* badFilename;
     }
 
     for (const segment of folder === "" ? [] : folder.split("/")) {
@@ -107,15 +113,15 @@ const makeNoteService = Effect.gen(function* () {
       }
     }
 
-    let title = baseTitle;
+    let filename = baseFilename;
     let counter = 1;
 
-    while (yield* fileStore.exists(notePath(folder, title))) {
+    while (yield* fileStore.exists(notePath(folder, filename))) {
       counter += 1;
-      title = `${baseTitle}-${counter}`;
+      filename = `${baseFilename}-${counter}`;
     }
 
-    const path = notePath(folder, title);
+    const path = notePath(folder, filename);
 
     yield* fileStore.write(path, options?.content ?? "");
 
@@ -153,19 +159,53 @@ const makeNoteService = Effect.gen(function* () {
     return target;
   });
 
-  const rename = Effect.fn("NoteService.rename")(function* (
+  /**
+   * Retitle a note: rewrite an existing leading heading and an existing
+   * frontmatter `title:`, then rename the file to a slug of the title. Neither
+   * a heading nor a key is ever introduced, so a note carrying neither is only
+   * renamed.
+   *
+   * The collision check runs before the write, so the failure a caller can
+   * actually provoke leaves the file untouched rather than half-retitled.
+   */
+  const retitle = Effect.fn("NoteService.retitle")(function* (
     path: string,
     title: string,
   ) {
-    const badTitle = invalidSegment(title, "title");
+    const filename = filenameFromTitle(title);
+    const badFilename = invalidSegment(filename, "filename");
 
-    if (badTitle !== undefined) {
-      return yield* badTitle;
+    if (badFilename !== undefined) {
+      return yield* badFilename;
     }
 
-    const target = notePath(noteFolder(path), title);
+    const target = notePath(noteFolder(path), filename);
+    // A case-only difference is the same file on a case-insensitive filesystem,
+    // where `exists(target)` would find the note itself and report a collision
+    // against it. Treating it as the same path skips both the error and a rename
+    // that would only change the casing.
+    const samePath = target.toLowerCase() === path.toLowerCase();
 
-    if (target === path) {
+    if (!samePath && (yield* fileStore.exists(target))) {
+      return yield* new FileError({
+        message: `a note named ${filename} already exists in ${
+          noteFolder(path) === "" ? "the notes root" : noteFolder(path)
+        }`,
+      });
+    }
+
+    const file = yield* fileStore.read(path);
+    const parsed = parseNote(file.content);
+    const next = composeNote(
+      retitleFrontmatter(parsed.rawLines, title),
+      retitleLeadingHeading(parsed.body, title),
+    );
+
+    if (next !== file.content) {
+      yield* fileStore.write(path, next);
+    }
+
+    if (samePath) {
       return path;
     }
 
@@ -218,7 +258,7 @@ const makeNoteService = Effect.gen(function* () {
 
     move,
 
-    rename,
+    retitle,
 
     setPinned: (path, pinned) => {
       return rewriteFrontmatter(path, { pinned });

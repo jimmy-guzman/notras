@@ -5,12 +5,16 @@ import { NoteService } from "@/server/services/note-service";
 
 import { run } from "./run";
 
-export async function renameNote(path: string, title: string) {
+/**
+ * Renames the note's file and syncs a heading or `title:` key it already has
+ * (`D32`). The title's charset is unrestricted: the filename is derived from it.
+ */
+export async function retitleNote(path: string, title: string) {
   const validTitle = await Schema.decodePromise(noteTitleSchema)(title);
 
   return run(
     NoteService.use((svc) => {
-      return svc.rename(path, validTitle);
+      return svc.retitle(path, validTitle);
     }),
   );
 }

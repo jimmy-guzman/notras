@@ -2,14 +2,19 @@ use std::collections::HashSet;
 
 /// Tolerant parser for the tiny frontmatter dialect notras cares about.
 ///
-/// Only `pinned` and `tags` are interpreted; everything else is ignored (the
-/// TypeScript side preserves unknown keys verbatim when rewriting). Kept as a
-/// hand-rolled parser so Rust and TS stay in parity over a deliberately tiny
-/// format instead of dragging in a full YAML implementation.
+/// Only `pinned`, `tags` and `title` are interpreted; everything else is
+/// ignored (the TypeScript side preserves unknown keys verbatim when
+/// rewriting). Kept as a hand-rolled parser so Rust and TS stay in parity over
+/// a deliberately tiny format instead of dragging in a full YAML
+/// implementation.
+///
+/// `title` is read-only: notras resolves a title from it but never authors it,
+/// so it round-trips as a foreign key through the TypeScript serializer.
 #[derive(Debug, Default, PartialEq)]
 pub struct Frontmatter {
     pub pinned: bool,
     pub tags: Vec<String>,
+    pub title: Option<String>,
 }
 
 pub struct Parsed<'a> {
@@ -32,6 +37,30 @@ fn clean_tag(raw: &str) -> Option<String> {
         None
     } else {
         Some(tag)
+    }
+}
+
+/// A `title:` value with its quoting undone. An empty value counts as absent so
+/// title resolution falls through to the next source.
+///
+/// A single-quoted scalar has one escape, `''` for a literal quote, which is what
+/// the TypeScript side writes. A double-quoted one is only unwrapped: notras
+/// never writes that form, and decoding YAML's backslash escapes would widen a
+/// dialect this parser keeps deliberately small. Kept in parity with
+/// `cleanTitle` in `src/core/frontmatter.ts`.
+fn clean_title(raw: &str) -> Option<String> {
+    let value = raw.trim();
+    let quote = value.chars().next().filter(|_| value.len() > 1);
+    let title = match quote {
+        Some('\'') if value.ends_with('\'') => value[1..value.len() - 1].replace("''", "'"),
+        Some('"') if value.ends_with('"') => value[1..value.len() - 1].to_string(),
+        _ => value.to_string(),
+    };
+
+    if title.is_empty() {
+        None
+    } else {
+        Some(title)
     }
 }
 
@@ -107,6 +136,9 @@ pub fn parse(content: &str) -> Parsed<'_> {
                     parsed.frontmatter.tags = parse_inline_tags(value);
                 }
             }
+            "title" => {
+                parsed.frontmatter.title = clean_title(value);
+            }
             _ => {}
         }
     }
@@ -179,6 +211,61 @@ mod tests {
     fn strips_separators_from_tags() {
         let parsed = parse("---\ntags:\n  - \"a,b\"\n---\nbody\n");
         assert_eq!(parsed.frontmatter.tags, vec!["ab"]);
+    }
+
+    #[test]
+    fn parses_title_with_quotes_and_colons() {
+        let plain = parse("---\ntitle: effect: a primer\n---\nbody\n");
+        assert_eq!(
+            plain.frontmatter.title,
+            Some("effect: a primer".to_string())
+        );
+
+        let quoted = parse("---\ntitle: \"effect: a primer\"\n---\nbody\n");
+        assert_eq!(
+            quoted.frontmatter.title,
+            Some("effect: a primer".to_string())
+        );
+
+        let single = parse("---\ntitle: 'my note'\n---\nbody\n");
+        assert_eq!(single.frontmatter.title, Some("my note".to_string()));
+    }
+
+    /// Mirrors the round-trip cases in `src/core/frontmatter.spec.ts`: the
+    /// TypeScript side writes single-quoted values, so this side has to undo the
+    /// one escape that form has.
+    #[test]
+    fn undoes_single_quote_escaping() {
+        let apostrophe = parse("---\ntitle: 'it''s: mine'\n---\nbody\n");
+        assert_eq!(apostrophe.frontmatter.title, Some("it's: mine".to_string()));
+
+        let quote = parse("---\ntitle: 'he said \"hi\": ok'\n---\nbody\n");
+        assert_eq!(
+            quote.frontmatter.title,
+            Some("he said \"hi\": ok".to_string())
+        );
+
+        let backslash = parse("---\ntitle: 'back\\slash: x'\n---\nbody\n");
+        assert_eq!(
+            backslash.frontmatter.title,
+            Some("back\\slash: x".to_string())
+        );
+
+        // A bare value keeps every character, quotes included.
+        let bare = parse("---\ntitle: he said \"hi\"\n---\nbody\n");
+        assert_eq!(bare.frontmatter.title, Some("he said \"hi\"".to_string()));
+    }
+
+    #[test]
+    fn treats_an_empty_title_as_absent() {
+        let empty = parse("---\ntitle:\n---\nbody\n");
+        assert_eq!(empty.frontmatter.title, None);
+
+        let blank = parse("---\ntitle: \"\"\n---\nbody\n");
+        assert_eq!(blank.frontmatter.title, None);
+
+        let missing = parse("---\npinned: true\n---\nbody\n");
+        assert_eq!(missing.frontmatter.title, None);
     }
 
     #[test]
