@@ -260,11 +260,25 @@ a real non-motion end state, so removing the transition costs nothing.
 - **Prose colours are repointed at tokens.** `@tailwindcss/typography` ships its
   own stone ramp, so `.note-preview-prose` sets all sixteen `--tw-prose-*`
   colours from the palette. The rule sits outside `@layer`, which is what makes
-  it outrank the utility. Do not add `prose-stone` or `prose-invert` back.
+  it outrank the utility. Do not add `prose-stone` or `prose-invert` back. The
+  eleven roles that paint a glyph resolve to one of the four tones under Color,
+  which `src/styles.spec.ts` asserts.
+- **Bullet and ordered lists come from the typography plugin.** Markers,
+  indentation, and the space between items are `@tailwindcss/typography`'s at
+  every depth, and a marker stays a disc however deep it sits. `src/styles.css`
+  adds two things: `li > p` loses its block margins so a one-line item stays on
+  one line, and `--tw-prose-bullets` takes `--muted-foreground`, the tone
+  `--tw-prose-counters` already had, so a disc and a number read alike.
 - **Task lists** use flex rows with zero paragraph margins and hand-drawn
   checkboxes locked to the first text line: a `1rem` box with a `1.5px` border,
   `3px` radius, filled with the primary when checked and masked with an SVG
   check. A checked item goes muted, struck through, and drops to `0.7` opacity.
+  Every selector reaches a row as `ul[data-type="taskList"] > li` (`D39`). The
+  list is padded like any other list and the row is pulled back by the checkbox
+  column, so text lands at `2em` whatever the list kind and at `4em` one level
+  in. The gap puts the box's right edge on `0.9em`, the column a disc paints
+  in, and the pull-back cancels box plus gap so the text does not follow. The
+  two are one measured pair and moving either alone moves the ladder.
 - **Tables** collapse borders, span the full column, and left-align. The header
   row sits on `--card`.
 - **Images** cap at `320px` tall, take `--radius-md`, and show a `--ring`

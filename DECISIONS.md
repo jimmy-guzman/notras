@@ -1181,3 +1181,85 @@ real one means threading it through `useAutosave`, `NoteHeader` and
 **Constraint:** the titlebar costs 36px more at the 480px minimum width, leaving
 the title 312px. `--spacing-titlebar` takes 84px and `pe-3` takes 12px, and the
 pin already took 36px.
+
+### D39 The task row recipe stops at a task list's own children
+
+Every selector styling a task row in `src/styles.css` reaches it as
+`ul[data-type="taskList"] > li`, the list is padded like any other list with the
+row pulled back by the checkbox column, and `--tw-prose-bullets` moves from
+`--border` to `--muted-foreground`.
+
+The recipe arrived from scratch as descendant selectors. A task item's content
+is `paragraph block*`, so a bullet list nested under a task renders as a plain
+`ul` of plain `li` inside the item's content div, and
+`ul[data-type="taskList"] li` matched every one of them. The row rule sets
+`display: flex`, which is not `list-item` and so generates no marker box at all,
+and a list nested under a task rendered with no bullets and no numbers. The same
+selector zeroed those items' margins and claimed the `.code-block-wrapper` div
+of a fence sitting in one.
+
+The scoping alone puts no bullet on screen. `--tw-prose-bullets` pointed at
+`--border`, which measures 1.27:1 in dark and 1.76:1 in light against the
+background, so a restored disc is a shape nobody can see, while a restored
+number is legible because `--tw-prose-counters` already took
+`--muted-foreground`. The stylesheet answered "what colour is a list marker" two
+ways on adjacent lines, and `DESIGN.md` names four text tones of which `--border`
+is not one.
+
+A task list also sat on its own indent ladder, stepping 1.4em per level from a
+left edge of 0 while every other list stepped 2em from 2em, so two lists at one
+indent in a file started at different left edges on screen and drifted further
+apart with depth. Padding the list and pulling the row back puts the checkbox in
+the gutter a marker would occupy, which lands every list kind on one ladder.
+
+The gap inside the row was then measured rather than chosen. `::marker` is not
+in the DOM and has no box to query, and where WebKit paints one inside the
+gutter does not follow from the box model, so the number came off a rendered
+frame: the built stylesheet through `qlmanage`, which draws with WebKit, scaled
+against a 320px calibration bar. A disc paints `0.55em` to `0.90em` and a `1.`
+paints `0.30em` to `1.00em`, both right-aligned boxes whose ink edges differ by
+the glyphs' own widths. A gap of `1.05rem` puts the box at `0.00em` to `0.90em`,
+landing its right edge on the disc's, and text stays at `2em` at depth zero and
+`4em` one level in for all three kinds.
+
+**Rejected: a class on the task item, handed down from `extensions.ts`.**
+`TaskItem.configure({ HTMLAttributes: { class: ... } })` reaches the node view,
+and `TableKit` passes `not-prose` that way already, so the precedent is there.
+Rejected because the schema states the relationship: `TaskList.content` is
+`taskItem+`, so a direct-child `li` of a task list is a task item and no other
+`li` is. A class restates that in a second file and leaves the descendant
+selectors free to come back.
+
+**Rejected: restoring `display: list-item` on nested items.** One rule and the
+markers return. Rejected because the leak stands: the same selectors still zero
+those items' margins and still claim their `div` children, and the next
+declaration added to the row rule leaks again with nothing to catch it.
+
+**Rejected: adding `border` against `background` to the contrast gate.** It would
+have failed on the measured numbers. Rejected because `--border` is a border
+token everywhere else it is used, and putting it in a list of text pairs treats
+the symptom rather than the role pointing at the wrong token.
+
+**Constraint:** `TaskItem` ships an `addNodeView`, which receives only the
+extension attributes. The `li` in the editor carries `data-checked` and never the
+`data-type="taskItem"` that `renderHTML` writes, so a selector on that attribute
+matches nothing. `src/components/editor/extensions.spec.ts` pins the shape.
+
+**Constraint:** the row's `calc(-1rem - 1.05rem)` pull-back has to stay in step
+with the checkbox width and the flex gap, which sit in a different rule. Nothing
+enforces it, and a mismatch moves the ladder without failing anything.
+
+**Constraint:** `0.9em` is where WebKit paints a disc, so it is an observation
+about one engine rather than a value the specification pins. An engine update
+that moves the marker moves the alignment, and the check is to re-render the
+probe rather than to reason about it.
+
+**Constraint:** the checkbox selectors reach the input as `> li > label > input`
+and drop the `[type="checkbox"]` filter. The label is the node view's own
+wrapper and holds one input, so the path names the element more narrowly than
+the attribute did, and it holds the selector inside oxfmt's 80 columns.
+
+**Constraint:** `src/styles.spec.ts` reads rule preludes by tracking brace depth
+over `src/styles.css`. It drops comments and `url()` values first, because either
+can carry a brace, and a declaration value that grows one would read as a
+selector.

@@ -149,6 +149,108 @@ describe.each([
   });
 });
 
+const COMMENT = /\/\*[\s\S]*?\*\//g;
+const URL_VALUE = /url\([^)]*\)/g;
+
+/**
+ * Rule preludes in source order, whitespace collapsed so a selector oxfmt
+ * wrapped across lines reads as one string. Tracks brace depth rather than
+ * splitting on braces, so a rule nested in an at-rule is still seen, and drops
+ * comments and `url()` values first because either can carry a brace.
+ */
+const preludesOf = (css: string) => {
+  const preludes: string[] = [];
+
+  let buffer = "";
+
+  for (const character of css
+    .replaceAll(COMMENT, "")
+    .replaceAll(URL_VALUE, "")) {
+    if (character === "{") {
+      preludes.push(buffer.trim().replaceAll(/\s+/g, " "));
+      buffer = "";
+    } else if (character === "}" || character === ";") {
+      buffer = "";
+    } else {
+      buffer += character;
+    }
+  }
+
+  return preludes.filter((prelude) => {
+    return prelude !== "";
+  });
+};
+
+const TASK_LIST = 'ul[data-type="taskList"]';
+
+const taskRowSelectors = preludesOf(source).filter((prelude) => {
+  return prelude.includes(TASK_LIST) && /\bli\b/.test(prelude);
+});
+
+/**
+ * A task item holds `paragraph block*`, so a list nested inside one renders as
+ * an ordinary `ul` of plain `li`. The row recipe sets `display: flex`, which is
+ * not `list-item` and generates no marker box, so reaching a row through a
+ * descendant `li` deletes the markers of every list a task carries (`D39`).
+ */
+describe("task list styling", () => {
+  it("should reach a task row as a child of its own list", () => {
+    expect(taskRowSelectors).not.toStrictEqual([]);
+    expect(
+      taskRowSelectors.filter((prelude) => {
+        return prelude.includes(`${TASK_LIST} > li`);
+      }),
+    ).toStrictEqual(taskRowSelectors);
+  });
+});
+
+const PROSE_ROLE = /--tw-prose-([\w-]+):\s*var\(--([\w-]+)\)/g;
+
+const proseRoles = new Map<string, string>();
+
+for (const [, role, token] of source.matchAll(PROSE_ROLE)) {
+  if (role !== undefined && token !== undefined) {
+    proseRoles.set(role, token);
+  }
+}
+
+const tokenFor = (role: string) => {
+  const token = proseRoles.get(role);
+
+  if (token === undefined) {
+    throw new Error(`--tw-prose-${role} is missing from .note-preview-prose`);
+  }
+
+  return token;
+};
+
+const TEXT_TONES = ["destructive", "faint", "foreground", "muted-foreground"];
+
+/**
+ * The `--tw-prose-*` roles that paint a glyph rather than a surface or a
+ * border. A `::marker` is a painted glyph, and pointing it at `--border` put a
+ * bullet on the dark background at 1.27:1 before `D39`.
+ */
+const PROSE_GLYPH_ROLES = [
+  "body",
+  "bold",
+  "bullets",
+  "captions",
+  "code",
+  "counters",
+  "headings",
+  "lead",
+  "links",
+  "pre-code",
+  "quotes",
+];
+
+describe("prose colours", () => {
+  it.each(PROSE_GLYPH_ROLES)("should paint %s in a text tone", (role) => {
+    expect(TEXT_TONES).toContain(tokenFor(role));
+  });
+});
+
 const firstMatch = (pattern: RegExp, text: string, what: string) => {
   const found = pattern.exec(text);
   const value = found?.[1];

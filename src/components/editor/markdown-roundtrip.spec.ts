@@ -33,6 +33,8 @@ describe("markdown round-trip", () => {
     ["inline code", "run `pnpm dev` locally"],
     ["bullet list", "- one\n- two"],
     ["ordered list", "1. first\n2. second"],
+    ["nested bullet list", "- one\n  - nested"],
+    ["nested ordered list", "1. first\n  1. nested"],
     ["blockquote", "> quoted"],
     ["link", "[notes](https://example.com)"],
     ["image with relative src", "![shot](attachments/x.png)"],
@@ -48,6 +50,12 @@ describe("markdown round-trip", () => {
 
     expect(output).toContain("[ ] todo");
     expect(output).toContain("[x] done");
+  });
+
+  it("should round-trip a bullet list nested under a task item", () => {
+    const markdown = "- [ ] better command palette\n  - organization";
+
+    expect(roundtrip(markdown)).toBe(markdown);
   });
 
   it("should round-trip fenced code with language", () => {
