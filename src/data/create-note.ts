@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 
 import {
   folderNameSchema,
-  noteTitleSchema,
+  noteFilenameSchema,
 } from "@/server/schemas/note-schemas";
 import { NoteService } from "@/server/services/note-service";
 
@@ -10,8 +10,8 @@ import { run } from "./run";
 
 interface CreateNoteOptions {
   content?: string;
+  filename?: string;
   folder?: string;
-  title?: string;
 }
 
 export async function createNote(options?: CreateNoteOptions) {
@@ -19,15 +19,15 @@ export async function createNote(options?: CreateNoteOptions) {
     options?.folder === undefined
       ? undefined
       : await Schema.decodePromise(folderNameSchema)(options.folder);
-  const title =
-    options?.title === undefined
+  const filename =
+    options?.filename === undefined
       ? undefined
-      : await Schema.decodePromise(noteTitleSchema)(options.title);
+      : await Schema.decodePromise(noteFilenameSchema)(options.filename);
 
   return run(
     NoteService.pipe(
       Effect.flatMap((svc) => {
-        return svc.create({ content: options?.content, folder, title });
+        return svc.create({ content: options?.content, filename, folder });
       }),
     ),
   );

@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { PinIcon, PinOffIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,21 +8,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { noteTitle } from "@/core";
 import { setNotePinned } from "@/data/pin-note";
-import { renameNote } from "@/data/rename-note";
 import { cn } from "@/lib/ui/utils";
 
 interface NoteHeaderProps {
   path: string;
   pinned: boolean;
+  /** Resolved by `D32`'s chain, so it is display-only: renaming is a palette action. */
+  title: string;
 }
 
-export function NoteHeader({ path, pinned }: NoteHeaderProps) {
-  const navigate = useNavigate();
-  const [title, setTitle] = useState(() => {
-    return noteTitle(path);
-  });
+export function NoteHeader({ path, pinned, title }: NoteHeaderProps) {
   const [optimisticPinned, setOptimisticPinned] = useState(pinned);
 
   // Optimistic state follows the loader (adjust-during-render pattern): a pin
@@ -35,29 +30,6 @@ export function NoteHeader({ path, pinned }: NoteHeaderProps) {
     setSyncedPinned(pinned);
     setOptimisticPinned(pinned);
   }
-
-  const commitTitle = async () => {
-    const trimmed = title.trim();
-
-    if (trimmed === "" || trimmed === noteTitle(path)) {
-      setTitle(noteTitle(path));
-
-      return;
-    }
-
-    try {
-      const nextPath = await renameNote(path, trimmed);
-
-      await navigate({
-        params: { _splat: nextPath },
-        replace: true,
-        to: "/notes/$",
-      });
-    } catch (error) {
-      setTitle(noteTitle(path));
-      toast.error(error instanceof Error ? error.message : "rename failed");
-    }
-  };
 
   const togglePinned = async () => {
     setOptimisticPinned(!optimisticPinned);
@@ -72,28 +44,9 @@ export function NoteHeader({ path, pinned }: NoteHeaderProps) {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-3">
-      <input
-        aria-label="note title"
-        className="min-w-0 flex-1 truncate rounded-sm bg-transparent text-sm font-medium outline-none placeholder:text-faint focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        onBlur={commitTitle}
-        onChange={(event) => {
-          setTitle(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            event.currentTarget.blur();
-          }
-
-          if (event.key === "Escape") {
-            setTitle(noteTitle(path));
-            event.currentTarget.blur();
-          }
-        }}
-        placeholder="untitled"
-        spellCheck={false}
-        value={title}
-      />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+        {title}
+      </span>
       <Tooltip>
         <TooltipTrigger
           render={

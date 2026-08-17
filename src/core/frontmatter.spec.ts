@@ -1,11 +1,20 @@
-import { composeNote, parseNote, updateFrontmatter } from "./frontmatter";
+import {
+  composeNote,
+  parseNote,
+  retitleFrontmatter,
+  updateFrontmatter,
+} from "./frontmatter";
 
 describe("parseNote", () => {
   it("should return the whole content as body when there is no frontmatter", () => {
     const parsed = parseNote("# hello\n");
 
     expect(parsed.body).toBe("# hello\n");
-    expect(parsed.frontmatter).toStrictEqual({ pinned: false, tags: [] });
+    expect(parsed.frontmatter).toStrictEqual({
+      pinned: false,
+      tags: [],
+      title: undefined,
+    });
   });
 
   it("should parse pinned and inline tags", () => {
@@ -96,6 +105,16 @@ describe("updateFrontmatter", () => {
     );
   });
 
+  it("should preserve a title key through a pin toggle", () => {
+    const content = '---\ntitle: "effect: a primer"\n---\nbody\n';
+    const next = updateFrontmatter(content, { pinned: true });
+
+    expect(next).toBe(
+      '---\npinned: true\ntitle: "effect: a primer"\n---\nbody\n',
+    );
+    expect(parseNote(next).frontmatter.title).toBe("effect: a primer");
+  });
+
   it("should replace block-list tags with the inline form", () => {
     const content = "---\ntags:\n  - old\n  - stale\nkeep: me\n---\nbody\n";
     const next = updateFrontmatter(content, { tags: ["fresh"] });
@@ -120,6 +139,7 @@ describe("updateFrontmatter", () => {
     expect(parsed.frontmatter).toStrictEqual({
       pinned: true,
       tags: ["a", "b"],
+      title: undefined,
     });
     expect(parsed.body).toBe("body\n");
   });
@@ -144,5 +164,40 @@ describe("composeNote", () => {
 
     expect(reparsed.frontmatter).toStrictEqual(parsed.frontmatter);
     expect(reparsed.body).toBe("new body\n");
+  });
+});
+
+describe("retitleFrontmatter", () => {
+  it("should rewrite an existing key where it sits", () => {
+    expect(
+      retitleFrontmatter(["pinned: true", "title: old", "custom: x"], "new"),
+    ).toStrictEqual(["pinned: true", "title: new", "custom: x"]);
+  });
+
+  it("should never introduce a key", () => {
+    const lines = ["pinned: true", "tags: [a]"];
+
+    expect(retitleFrontmatter(lines, "new")).toStrictEqual(lines);
+    expect(retitleFrontmatter([], "new")).toStrictEqual([]);
+  });
+
+  it("should quote a title carrying a colon so real yaml survives", () => {
+    expect(
+      retitleFrontmatter(["title: old"], "effect: a primer"),
+    ).toStrictEqual(['title: "effect: a primer"']);
+  });
+
+  it("should preserve indentation", () => {
+    expect(retitleFrontmatter(["  title: old"], "new")).toStrictEqual([
+      "  title: new",
+    ]);
+  });
+
+  it("should round-trip a colon through parseNote", () => {
+    const lines = retitleFrontmatter(["title: old"], "effect: a primer");
+
+    expect(parseNote(composeNote(lines, "body")).frontmatter.title).toBe(
+      "effect: a primer",
+    );
   });
 });

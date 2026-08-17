@@ -63,15 +63,34 @@ and calls `router.invalidate()`.
 on startup, so deleting `.notras/index.db` triggers a rebuild. There is no
 drizzle-kit, no migration directory, and no `db:push`.
 
-**Note identity is the relative path.** The filename is the title. Renames are
-delete plus create in the index. Wikilinks resolve by title, so a rename can
+**A rebuild drops the rows first.** `index_file` skips a file whose mtime matches
+its stored row, which suppresses watcher echo but also makes a plain re-scan a
+no-op. `reindex_all` calls `index::clear` before scanning, so changing how a row
+is derived, `resolve_title` for instance, reaches notes nobody has edited since.
+Without that, an unedited note keeps whatever the old derivation produced and the
+only recovery is deleting the database.
+
+**Note identity is the relative path.** Renames are delete plus create in the
+index. Wikilinks resolve by title and then by filename stem, so a retitle can
 dangle links, which `DECISIONS.md` records as accepted.
+
+**The title is resolved, not stored.** Frontmatter `title:`, else the leading
+`# ` heading, else the filename stem. `resolve_title` in
+`src-tauri/src/index.rs` fills the index column and `resolveTitle` in
+`src/core/notes.ts` serves the open note.
+
+**Retitling is the one act that writes a title.** `NoteService.retitle` rewrites
+an existing leading heading and an existing `title:` key, then renames the file
+to `filenameFromTitle` of the title. Neither a heading nor a key is ever
+introduced, so a note carrying neither is only renamed, and nothing renames a
+file except that explicit action.
 
 **Frontmatter has two parsers.** `src/core/frontmatter.ts` and
 `src-tauri/src/frontmatter.rs` implement the same deliberately tiny dialect:
-`pinned: bool`, `tags` inline or block list. Change one, change the other, and
-cover both with tests. The TypeScript serializer preserves unknown keys
-verbatim, so externally authored notes survive round-trips.
+`pinned: bool`, `tags` inline or block list, `title` read-only. Change one,
+change the other, and cover both with tests. The TypeScript serializer preserves
+unknown keys verbatim, so externally authored notes survive round-trips, and
+`title` is one of them.
 
 ## Index schema
 
@@ -286,6 +305,10 @@ design change, not a refactor.
 - **The two frontmatter parsers change together.** A change to one without the
   other, with tests on both sides, lets an external note lose data on a
   round-trip.
+- **The two title resolvers change together.** `resolve_title` and
+  `resolveTitle` assert one shared table of cases, in the same order, in
+  `src-tauri/src/index.rs` and `src/core/notes.spec.ts`. Drift shows up as an
+  index title that disagrees with the open note's, which nothing else catches.
 - **Every editor node defines its markdown form and appears in the round-trip
   spec.** A node without one silently drops content from externally authored
   files.

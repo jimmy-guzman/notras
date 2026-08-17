@@ -126,12 +126,12 @@ function makeHarness(seed?: Record<string, string>) {
 }
 
 describe("noteService.create", () => {
-  it("should write the note at folder/title.md", async () => {
+  it("should write the note at folder/filename.md", async () => {
     const harness = makeHarness();
 
     const path = await harness.run(
       NoteService.use((svc) => {
-        return svc.create({ content: "hi", folder: "work", title: "notes" });
+        return svc.create({ content: "hi", filename: "notes", folder: "work" });
       }),
     );
 
@@ -141,7 +141,7 @@ describe("noteService.create", () => {
     ]);
   });
 
-  it("should suffix the title until the path is free", async () => {
+  it("should suffix the filename until the path is free", async () => {
     const harness = makeHarness({
       "untitled-2.md": "taken",
       "untitled.md": "taken",
@@ -157,19 +157,19 @@ describe("noteService.create", () => {
   });
 
   it.each([["a/b"], [String.raw`a\b`], ["a:b"], [".hidden"]])(
-    "should reject the title %s",
-    async (title) => {
+    "should reject the filename %s",
+    async (filename) => {
       const harness = makeHarness();
 
       const error = await harness.runFailure(
         NoteService.use((svc) => {
-          return svc.create({ title });
+          return svc.create({ filename });
         }),
       );
 
       expect(error).toBeInstanceOf(FileError);
       expect(error.message).toBe(
-        String.raw`title cannot contain / \ : or start with a dot`,
+        String.raw`filename cannot contain / \ : or start with a dot`,
       );
       expect(harness.writes).toStrictEqual([]);
     },
@@ -238,13 +238,13 @@ describe("noteService.move", () => {
   });
 });
 
-describe("noteService.rename", () => {
+describe("noteService.retitle", () => {
   it("should keep the note in its folder", async () => {
     const harness = makeHarness({ "work/old.md": "body" });
 
     const path = await harness.run(
       NoteService.use((svc) => {
-        return svc.rename("work/old.md", "new");
+        return svc.retitle("work/old.md", "new");
       }),
     );
 
@@ -253,17 +253,114 @@ describe("noteService.rename", () => {
     expect(harness.files.has("work/old.md")).toBe(false);
   });
 
-  it("should reject an invalid title before touching the file", async () => {
-    const harness = makeHarness({ "old.md": "body" });
+  it("should slug a title the filesystem could not take", async () => {
+    const harness = makeHarness({ "old.md": "# old" });
+
+    const path = await harness.run(
+      NoteService.use((svc) => {
+        return svc.retitle("old.md", "Effect: A Primer");
+      }),
+    );
+
+    expect(path).toBe("effect-a-primer.md");
+    expect(harness.files.get("effect-a-primer.md")?.content).toBe(
+      "# Effect: A Primer",
+    );
+  });
+
+  // The property the feature rests on: a note with somewhere to keep a title
+  // gets the title back verbatim, colon and all.
+  it.each([
+    ["a heading", "# old title\n\nbody\n"],
+    ["a frontmatter title", "---\ntitle: old title\n---\nbody\n"],
+    ["both", "---\ntitle: old\n---\n# older\n"],
+  ])("should round-trip a title through %s", async (_label, content) => {
+    const harness = makeHarness({ "note.md": content });
+
+    const path = await harness.run(
+      NoteService.use((svc) => {
+        return svc.retitle("note.md", "effect: a primer");
+      }),
+    );
+
+    const note = await harness.run(
+      NoteService.use((svc) => {
+        return svc.getByPath(path);
+      }),
+    );
+
+    expect(note.title).toBe("effect: a primer");
+  });
+
+  /**
+   * The visible cost of never inventing: a note with neither a heading nor a
+   * key has nowhere to keep a title, so it falls back to the filename and the
+   * slug is what the user sees.
+   */
+  it("should fall back to the slug when there is nowhere to keep a title", async () => {
+    const harness = makeHarness({ "old.md": "just prose\n" });
+
+    const path = await harness.run(
+      NoteService.use((svc) => {
+        return svc.retitle("old.md", "Effect: A Primer");
+      }),
+    );
+
+    const note = await harness.run(
+      NoteService.use((svc) => {
+        return svc.getByPath(path);
+      }),
+    );
+
+    expect(path).toBe("effect-a-primer.md");
+    expect(harness.files.get(path)?.content).toBe("just prose\n");
+    expect(note.title).toBe("effect-a-primer");
+  });
+
+  it("should leave a deeper heading alone", async () => {
+    const harness = makeHarness({ "old.md": "## section\n\nbody\n" });
+
+    await harness.run(
+      NoteService.use((svc) => {
+        return svc.retitle("old.md", "new");
+      }),
+    );
+
+    expect(harness.files.get("new.md")?.content).toBe("## section\n\nbody\n");
+  });
+
+  it("should reject a collision before writing anything", async () => {
+    const harness = makeHarness({
+      "taken.md": "other",
+      "work.md": "# work",
+    });
 
     const error = await harness.runFailure(
       NoteService.use((svc) => {
-        return svc.rename("old.md", "a/b");
+        return svc.retitle("work.md", "taken");
       }),
     );
 
     expect(error).toBeInstanceOf(FileError);
-    expect(harness.files.has("old.md")).toBe(true);
+    expect(error.message).toBe(
+      "a note named taken already exists in the notes root",
+    );
+    // The heading must not be left pointing at a name the note never got.
+    expect(harness.files.get("work.md")?.content).toBe("# work");
+    expect(harness.files.get("taken.md")?.content).toBe("other");
+  });
+
+  it("should not write when the title already matches", async () => {
+    const harness = makeHarness({ "same.md": "# same" });
+
+    const path = await harness.run(
+      NoteService.use((svc) => {
+        return svc.retitle("same.md", "same");
+      }),
+    );
+
+    expect(path).toBe("same.md");
+    expect(harness.writes).toStrictEqual([]);
   });
 });
 
@@ -374,5 +471,31 @@ describe("noteService.getByPath", () => {
     expect(note.tags).toStrictEqual(["idea"]);
     expect(note.content).toContain("body");
     expect(note.updatedAt).toStrictEqual(new Date(1000));
+  });
+
+  it("should prefer a heading over the filename", async () => {
+    const harness = makeHarness({ "agent-note.md": "# from claude\n" });
+
+    const note = await harness.run(
+      NoteService.use((svc) => {
+        return svc.getByPath("agent-note.md");
+      }),
+    );
+
+    expect(note.title).toBe("from claude");
+  });
+
+  it("should prefer a frontmatter title over a heading", async () => {
+    const harness = makeHarness({
+      "agent-note.md": "---\ntitle: effect: a primer\n---\n# from claude\n",
+    });
+
+    const note = await harness.run(
+      NoteService.use((svc) => {
+        return svc.getByPath("agent-note.md");
+      }),
+    );
+
+    expect(note.title).toBe("effect: a primer");
   });
 });

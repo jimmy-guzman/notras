@@ -139,7 +139,9 @@ a real non-motion end state, so removing the transition costs nothing.
   `.allow-select` is the explicit opt-in for anything selectable.
 - **The titlebar carries the note's identity** (`D28`). Title and pin sit in the
   drag region rather than in a band of their own, so the window title is the
-  note title, which is what `D5` already says it is. `Titlebar` in
+  note title, resolved by `D32` from frontmatter, a leading `#`, then the
+  filename. It is display-only text: renaming a file is a ⌘K action. `Titlebar`
+  in
   `src/components/titlebar.tsx` is the only place the drag region is declared,
   and every window and route renders it. Buttons and inputs inside it set
   `no-drag` so they stay clickable.
@@ -237,8 +239,8 @@ a real non-motion end state, so removing the transition costs nothing.
   placement leaves `aria-labelledby` pointing at a node outside the dialog.
   Re-apply it whenever the component is regenerated.
 - Focus is visible on every interactive element. Inputs that drop the default
-  outline (the tag input, the title field) replace it with a
-  `focus-visible:ring` rather than removing the affordance.
+  outline replace it with a `focus-visible:ring` rather than removing the
+  affordance.
 - Contrast is a build gate, not a judgement call. `src/styles.spec.ts` measures
   every text token against the surface it is actually painted on.
 - `prefers-reduced-motion: reduce` is honoured globally.

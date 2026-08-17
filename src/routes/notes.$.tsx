@@ -19,7 +19,13 @@ import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
 import { StatusBar } from "@/components/notes/status-bar";
 import { Titlebar } from "@/components/titlebar";
-import { composeNote, parseNote } from "@/core";
+import {
+  composeNote,
+  noteFolder,
+  noteTitle,
+  parseNote,
+  resolveTitle,
+} from "@/core";
 import { attachFile } from "@/data/attach-file";
 import { getNote } from "@/data/get-note";
 import { countWords } from "@/lib/utils/word-count";
@@ -112,6 +118,15 @@ function NoteEditor({ note }: NoteEditorProps) {
   });
   const bodyRef = useRef(body);
 
+  // `D32`'s chain, resolved off the live buffer rather than the loader, so the
+  // titlebar follows a heading as it is typed. The body already re-renders this
+  // component on every change, so nothing extra is scheduled here.
+  const title = resolveTitle(
+    note.path,
+    body,
+    parseNote(composeNote(frontmatterLines, "")).frontmatter.title,
+  );
+
   useEffect(() => {
     bodyRef.current = body;
   });
@@ -169,21 +184,41 @@ function NoteEditor({ note }: NoteEditorProps) {
     [notesDir],
   );
 
+  // Resolution is by title, then by filename stem. `D32` decoupled the two, so
+  // a title is no longer unique and links written against a filename have to
+  // keep working. Ties break by nearest folder, then by path.
   const openWikilink = useCallback(
     (title: string) => {
-      const target = notesRef.current.find((meta) => {
-        return meta.title.toLowerCase() === title.toLowerCase();
-      });
+      const wanted = title.trim().toLowerCase();
+      const currentFolder = noteFolder(note.path);
+      const candidates = notesRef.current
+        .filter((meta) => {
+          return (
+            meta.title.toLowerCase() === wanted ||
+            noteTitle(meta.path).toLowerCase() === wanted
+          );
+        })
+        .toSorted((left, right) => {
+          const byTitle =
+            Number(right.title.toLowerCase() === wanted) -
+            Number(left.title.toLowerCase() === wanted);
+          const byFolder =
+            Number(noteFolder(right.path) === currentFolder) -
+            Number(noteFolder(left.path) === currentFolder);
+
+          return byTitle || byFolder || left.path.localeCompare(right.path);
+        });
+      const target = candidates.at(0);
 
       if (target === undefined) {
-        toast.error(`no note named "${title.toLowerCase()}"`);
+        toast.error(`no note named "${wanted}"`);
 
         return;
       }
 
       void navigate({ params: { _splat: target.path }, to: "/notes/$" });
     },
-    [navigate],
+    [navigate, note.path],
   );
 
   // External edits (AI agents, other editors) flow back in through router
@@ -303,7 +338,7 @@ function NoteEditor({ note }: NoteEditorProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <NoteHeader path={note.path} pinned={note.pinned} />
+        <NoteHeader path={note.path} pinned={note.pinned} title={title} />
       </Titlebar>
       {sourceMode ? (
         <SourceEditor

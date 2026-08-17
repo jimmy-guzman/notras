@@ -42,8 +42,8 @@ export function CaptureWindow() {
       try {
         await createNote({
           content,
+          filename: format(new Date(), "yyyy-MM-dd-HHmmss"),
           folder: "inbox",
-          title: format(new Date(), "yyyy-MM-dd-HHmmss"),
         });
       } catch (error) {
         // Keep the jot on screen -- hiding would lose it.
