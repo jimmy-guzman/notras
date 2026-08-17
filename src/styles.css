@@ -208,28 +208,38 @@
   transition: opacity 0.3s ease;
 }
 
-/* Task lists (recipe proven in scratch: flex rows, zero p margins,
-   hand-drawn checkboxes locked to the first text line). */
+/* Task lists: flex rows with hand-drawn checkboxes locked to the first text
+   line. Every selector reaches a row as a child of its own list, because a task
+   item holds `paragraph block*`, so a list nested inside one is an ordinary
+   list and keeps its markers (`D39`). The list is padded like any other list
+   and the row is pulled back by the checkbox column, so a checkbox sits in the
+   marker gutter and a task, a bullet and a number share one indent ladder. The
+   gap and the pull-back are one measured pair: the gap puts the box's right
+   edge on the column a disc paints in, and the pull-back cancels box plus gap
+   so the text stays put. Moving either alone moves the ladder. */
 .ProseMirror ul[data-type="taskList"] {
   list-style: none;
-  padding-left: 0;
+  padding-inline-start: 1.625em;
   margin-block: 0.5em;
 }
-.ProseMirror ul[data-type="taskList"] li {
+.ProseMirror ul[data-type="taskList"] > li {
   display: flex;
   align-items: flex-start;
-  gap: 0.4rem;
-  margin: 0;
+  gap: 1.05rem;
+  margin-block: 0;
+  /* cancels the checkbox and the gap above, which have to stay in step */
+  margin-inline-start: calc(-1rem - 1.05rem);
   padding-block: 0.125em;
+  padding-inline-start: 0.375em;
 }
-.ProseMirror ul[data-type="taskList"] li > label {
+.ProseMirror ul[data-type="taskList"] > li > label {
   display: flex;
   align-items: center;
   flex-shrink: 0;
   height: 1.75em;
   user-select: none;
 }
-.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+.ProseMirror ul[data-type="taskList"] > li > label > input {
   appearance: none;
   -webkit-appearance: none;
   width: 1rem;
@@ -241,11 +251,11 @@
   cursor: pointer;
   position: relative;
 }
-.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+.ProseMirror ul[data-type="taskList"] > li > label > input:checked {
   background: var(--primary);
   border-color: var(--primary);
 }
-.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+.ProseMirror ul[data-type="taskList"] > li > label > input:checked::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -253,14 +263,14 @@
   mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
     center / 70% no-repeat;
 }
-.ProseMirror ul[data-type="taskList"] li > div {
+.ProseMirror ul[data-type="taskList"] > li > div {
   flex: 1;
   min-width: 0;
 }
-.ProseMirror ul[data-type="taskList"] li > div > p {
+.ProseMirror ul[data-type="taskList"] > li > div > p {
   margin: 0;
 }
-.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+.ProseMirror ul[data-type="taskList"] > li[data-checked="true"] > div {
   color: var(--muted-foreground);
   text-decoration: line-through;
   opacity: 0.7;
@@ -542,7 +552,7 @@
   --tw-prose-links: var(--foreground);
   --tw-prose-bold: var(--foreground);
   --tw-prose-counters: var(--muted-foreground);
-  --tw-prose-bullets: var(--border);
+  --tw-prose-bullets: var(--muted-foreground);
   --tw-prose-hr: var(--border);
   --tw-prose-quotes: var(--muted-foreground);
   --tw-prose-quote-borders: var(--border);
