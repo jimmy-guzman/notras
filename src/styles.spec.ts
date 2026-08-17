@@ -188,6 +188,14 @@ const taskRowSelectors = preludesOf(source).filter((prelude) => {
 });
 
 /**
+ * A prelude is a whole selector list, so one comma-separated rule can hold a
+ * child-combinator selector and a descendant one at once. Requiring `> li`
+ * somewhere in the prelude would pass on the safe half alone, which is why the
+ * descendant form is rejected outright rather than left to the positive check.
+ */
+const DESCENDANT_ROW = /ul\[data-type="taskList"\]\s+li\b/;
+
+/**
  * A task item holds `paragraph block*`, so a list nested inside one renders as
  * an ordinary `ul` of plain `li`. The row recipe sets `display: flex`, which is
  * not `list-item` and generates no marker box, so reaching a row through a
@@ -201,6 +209,11 @@ describe("task list styling", () => {
         return prelude.includes(`${TASK_LIST} > li`);
       }),
     ).toStrictEqual(taskRowSelectors);
+    expect(
+      taskRowSelectors.filter((prelude) => {
+        return DESCENDANT_ROW.test(prelude);
+      }),
+    ).toStrictEqual([]);
   });
 });
 
