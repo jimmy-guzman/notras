@@ -27,7 +27,6 @@
     "@base-ui/react": "1.7.0",
     "@fontsource-variable/literata": "5.3.0",
     "@fontsource/ia-writer-mono": "5.3.0",
-    "@tailwindcss/typography": "0.5.20",
     "@tanstack/react-router": "1.170.29",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-autostart": "2.5.1",

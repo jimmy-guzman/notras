@@ -75,7 +75,14 @@ guide does not cover, search through the source code in
 - **No comments other than doc comments and `TODO`/`FIXME`.** Doc comments means
   JSDoc and rustdoc. Naming and structure carry the rest. Comments drift away
   from the code they describe, and the two kinds worth that risk are an API
-  contract and a known gap.
+  contract and a known gap. `src/styles.css` is the standing exception, where a
+  comment carries the reasoning behind a measured value.
+
+- **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file
+  byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and
+  diff cleanly, so it is exempt from the comment rule above and listed in
+  `.oxfmtrc.json`'s `ignorePatterns` (`D40`). Change the note surface through the
+  `.typeset-note` preset in `src/styles.css`, never in the vendored file.
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
@@ -516,6 +523,7 @@ They cover every markdown file here, plus commit messages and PR bodies.
   where the rule takes no options and its Effect exemption never reached
   `Schema.TaggedError`.
 - Leave tests, lint, typecheck, knip, or the build red.
+- Hand-edit `src/typeset.css`. It is vendored (`D40`); tune `.typeset-note`.
 - Break an invariant in `ARCHITECTURE.md`. Each one holds a property the
   architecture depends on, so changing it is a design change and gets a
   `DECISIONS.md` entry.

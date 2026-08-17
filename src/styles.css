@@ -11,8 +11,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-
-@plugin "@tailwindcss/typography";
+/* shadcn/typeset, vendored verbatim and refreshed by scripts/update-typeset.sh
+   (`D40`). It reads the --color-* tokens directly, so the note surface is on the
+   palette with nothing to repoint. */
+@import "./typeset.css";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
@@ -219,18 +221,18 @@
    so the text stays put. Moving either alone moves the ladder. */
 .ProseMirror ul[data-type="taskList"] {
   list-style: none;
-  padding-inline-start: 1.625em;
+  padding-inline-start: 1.5em;
   margin-block: 0.5em;
 }
 .ProseMirror ul[data-type="taskList"] > li {
   display: flex;
   align-items: flex-start;
-  gap: 1.05rem;
+  gap: 1.15em;
   margin-block: 0;
   /* cancels the checkbox and the gap above, which have to stay in step */
-  margin-inline-start: calc(-1rem - 1.05rem);
+  margin-inline-start: calc(-1em - 1.15em);
   padding-block: 0.125em;
-  padding-inline-start: 0.375em;
+  padding-inline-start: 0.4em;
 }
 .ProseMirror ul[data-type="taskList"] > li > label {
   display: flex;
@@ -242,8 +244,8 @@
 .ProseMirror ul[data-type="taskList"] > li > label > input {
   appearance: none;
   -webkit-appearance: none;
-  width: 1rem;
-  height: 1rem;
+  width: 1em;
+  height: 1em;
   margin: 0;
   border: 1.5px solid color-mix(in oklch, var(--foreground) 25%, transparent);
   border-radius: 3px;
@@ -284,10 +286,15 @@
   margin-block: 0;
 }
 
-/* Tables. */
+/* Tables. `not-typeset` keeps the recipe below from being double-styled, and
+   that opts the table out of the block rhythm too. Typeset spaces blocks with
+   margin-block-start alone, so nothing above a table supplies the gap and it
+   sits flush against whatever precedes it. The flow control is the same one
+   every other block reads (`D40`). */
 .ProseMirror table {
   border-collapse: collapse;
   width: 100%;
+  margin-block-start: var(--typeset-flow);
 }
 .ProseMirror th,
 .ProseMirror td {
@@ -534,50 +541,30 @@
   font-weight: 700;
 }
 
-/* Preview typography mirrors the editor's live styling (face, rhythm and
-   heading scale from src/components/editor/editor.tsx) so toggling ⌘P never
-   makes the text visually teleport. */
-/* @tailwindcss/typography ships its own stone ramp, which would render the note
-   in a warmer grey than the palette the chrome uses. Repointing every prose
-   colour at a token puts the reading surface back on the palette, and outranks
-   both prose-stone and prose-invert because this rule sits outside @layer. */
-.note-preview-prose {
-  font-family: var(--font-editor);
-  font-size: var(--text-base);
-  line-height: 1.75;
+/* The note surface, as a typeset preset (`D40`). Typeset derives every heading
+   size, list indent and block gap from three controls, so this block is the
+   whole tuning surface: size, leading, flow, plus the three faces. Colour and
+   radius it reads from the --color-* tokens itself.
+
+   The rule sits outside @layer, which is what lets font-optical-sizing reach the
+   surface past Typeset's own @layer components. --typeset-font-heading has to be
+   named even though it wants the body face: it defaults to var(--font-heading),
+   which this app does not define, and an undefined custom property inside
+   font-family makes the declaration invalid rather than inherited. */
+.typeset-note {
+  --typeset-font-body: var(--font-editor);
+  --typeset-font-heading: var(--font-editor);
+  --typeset-font-mono: var(--font-mono);
+  --typeset-size: 1rem;
+  --typeset-leading: 1.75;
+  --typeset-flow: 1.25em;
   font-optical-sizing: auto;
-  --tw-prose-body: var(--foreground);
-  --tw-prose-headings: var(--foreground);
-  --tw-prose-lead: var(--muted-foreground);
-  --tw-prose-links: var(--foreground);
-  --tw-prose-bold: var(--foreground);
-  --tw-prose-counters: var(--muted-foreground);
-  --tw-prose-bullets: var(--muted-foreground);
-  --tw-prose-hr: var(--border);
-  --tw-prose-quotes: var(--muted-foreground);
-  --tw-prose-quote-borders: var(--border);
-  --tw-prose-captions: var(--muted-foreground);
-  --tw-prose-code: var(--foreground);
-  --tw-prose-pre-code: var(--foreground);
-  --tw-prose-pre-bg: var(--card);
-  --tw-prose-th-borders: var(--border);
-  --tw-prose-td-borders: var(--border);
 }
-.note-preview-prose h1 {
-  font-size: 1.6em;
-}
-.note-preview-prose h2 {
-  font-size: 1.35em;
-}
-.note-preview-prose h3 {
-  font-size: 1.15em;
-}
-.note-preview-prose h4,
-.note-preview-prose h5,
-.note-preview-prose h6 {
-  font-size: 1em;
-}
-.note-preview-prose code,
-.note-preview-prose pre {
-  font-family: var(--font-mono);
+/* Typeset leaves an inline-code chip inheriting whatever colour it sits in, and
+   this app paints h5, h6, a strikethrough, a definition and a footnote in
+   --muted-foreground. That put a muted glyph on the --muted chip at 3.73:1 in
+   dark and 3.37:1 in light, which src/styles.spec.ts caught. A chip carries
+   content, so it takes --foreground wherever it sits (`D40`). */
+.typeset-note :not(pre) > code {
+  color: var(--foreground);
 }

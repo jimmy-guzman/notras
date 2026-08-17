@@ -219,8 +219,7 @@ export function createEditorExtensions(
     }).configure({ lowlight }),
     TableKit.configure({
       table: {
-        // Hand-styled in styles.css; not-prose stops double-styling.
-        HTMLAttributes: { class: "not-prose" },
+        HTMLAttributes: { class: "not-typeset" },
         resizable: false,
       },
     }),
