@@ -30,9 +30,8 @@ whole window.
 
 **Rejected: staying on Next.js 16 in Docker.** Working, and already built.
 Rejected because it cannot reach the filesystem the user owns, which `D2`
-depends on, and because the framing had failed on its own terms: shipping a
-notes app as a container is asking the user to run infrastructure to write a
-paragraph.
+depends on, and because shipping a notes app as a container asks the user to run
+infrastructure to write a paragraph.
 
 **Rejected: Electron.** More mature tooling and a larger ecosystem. Rejected on
 bundle size and because the parts that matter here, a file watcher and a SQLite
@@ -62,16 +61,13 @@ property `D2` is buying.
 
 ### D3 The index is derived and disposable
 
-The SQLite FTS5 index at `.notras/index.db` holds a mirror of the files for
-search and listing. It is rebuilt from the files whenever it is missing.
-
-Deleting the file is therefore a supported recovery path rather than data loss.
-Step 12 of the manual walkthrough in `SPEC.md` exercises exactly that.
+The index at `.notras/index.db` mirrors the files and is rebuilt whenever it is
+missing, so deleting it is a supported recovery path rather than data loss. Step
+12 of the `SPEC.md` walkthrough exercises exactly that.
 
 **Rejected: drizzle-kit migrations.** Standard, and already configured before
 the rewrite. Rejected because a derived cache does not need schema history: the
-recovery for any drift is to delete the file. Dropping it removed drizzle-kit,
-`@libsql/client`, `drizzle.config.ts`, and the `db:push` step.
+recovery for any drift is to delete the file.
 
 ### D4 Rust is the single writer
 
@@ -84,8 +80,7 @@ the same call produced both.
 
 **Constraint:** the read gate asks SQLite whether a statement is read-only
 rather than reading the statement. The first implementation tested the prefix
-for SELECT or WITH, and a code review found a writable `WITH ... DELETE` CTE
-passes that test.
+and a code review found a CTE that passes a prefix test and still writes.
 
 **Rejected: writes from TypeScript through Drizzle.** Fewer hops and no IPC
 round trip. Rejected because two writers to one SQLite file need coordination
@@ -126,13 +121,9 @@ serialization boundary would.
 format is small enough to enumerate. `D32` extends the same obligation to the
 two title resolvers that read this dialect.
 
-**Constraint:** `title` is parsed and never serialized. It is not one of
-`withoutOwnKeys`'s own keys, so it survives a pin or tag toggle as a foreign
-line, and `updateFrontmatter` takes a patch type that cannot name it.
-
-**Constraint:** the TypeScript serializer preserves unknown keys verbatim. An
-externally authored note carrying keys notras does not model must survive a
-round-trip through the editor.
+**Constraint:** `title` is parsed and never serialized, so it survives a pin or
+tag toggle as one of the foreign keys the serializer preserves verbatim. An
+externally authored note must round-trip through the editor intact.
 
 **Rejected: a YAML library on both sides.** Correct for arbitrary YAML.
 Rejected because it accepts a much larger surface than the app writes, and
@@ -145,16 +136,11 @@ The editor is TipTap 3 WYSIWYG over the official `@tiptap/markdown`, which
 round-trips GFM in both directions. ⌘P shows the raw file in a single
 lowlight-highlighted code block.
 
-A CodeMirror 6 live-preview editor was built first and replaced. Research had
-ruled out the existing CM6 live-markdown extensions as dead or alpha, so the
-mark-hiding, block decorations, and widgets were hand-rolled: bullets, clickable
-checkboxes, code cards with hidden fences, rules, inline images, rendered
-tables. `@tiptap/markdown` shipping an official bidirectional serializer is what
-made a real WYSIWYG document viable, which is the thing the CM6 work was
-approximating.
-
-This supersedes the risk the spec carried about CM6 live styling being the
-largest new UI effort. The effort was real and the answer was to stop paying it.
+A CodeMirror 6 live-preview editor was built first and replaced. The existing
+CM6 live-markdown extensions were dead or alpha, so every rendered construct was
+hand-rolled as a decoration. `@tiptap/markdown` shipping an official
+bidirectional serializer made a real WYSIWYG document viable, which is what that
+work was approximating, so the answer to the effort was to stop paying it.
 
 **Rejected: CodeMirror 6 live preview.** Built, working, and it kept the file
 and the buffer identical. Rejected because every rendered construct was a
@@ -165,14 +151,13 @@ result as document nodes.
 risk at all. Rejected because "just write" means seeing the document, and ⌘P
 keeps the textarea available for anything exotic.
 
-**Constraint:** every editor node must define its markdown form and appear in
-`markdown-roundtrip.spec.ts`. A node without one drops content from externally
-authored files silently.
+**Constraint:** every editor node must define its markdown form, which
+`ARCHITECTURE.md` carries as an invariant.
 
 ### D8 The editor holds the body, not the file
 
-The editor buffer holds the note body. Frontmatter is parsed off at load and
-reattached at save, which `ARCHITECTURE.md` describes under "Body-only editing".
+The editor buffer holds the note body, and `ARCHITECTURE.md` describes the
+parse-off and reattach under "Body-only editing".
 
 A body save and a pin toggle can race. Composing from the latest loader snapshot
 rather than the copy the editor started with means the body save cannot clobber
@@ -182,22 +167,6 @@ a tag or pin the user changed while typing.
 everything in the file, in one buffer. Rejected because it puts the racing
 values back into the buffer that the race is about.
 
-### D9 Autosave on idle
-
-Nothing asks the user to save. An idle pause writes the file, and the quit path
-waits for the last write, both of which `ARCHITECTURE.md` describes under
-"Editing session per note".
-
-`D2` makes a save cheap: writing a file the user owns, not a transaction against
-a server.
-
-**Rejected: explicit save.** No lost-write ambiguity and no autosave state to
-reason about. Rejected because a notes app that can lose a paragraph to a closed
-window is not one people trust, and the tagline is "just write".
-
-**Constraint:** step 14 of the `SPEC.md` walkthrough is manual, because nothing
-automated covers the quit handshake.
-
 ### D10 Editor-first layout
 
 The window is the editor. There is no persistent sidebar and no navigation
@@ -206,19 +175,7 @@ state is the wordmark, the tagline, and two key hints.
 
 **Rejected: a sidebar list of notes.** The conventional shape, and it makes the
 note count visible. Rejected because a sidebar is permanently on screen to serve
-an action taken a few times an hour, which `D11` covers with a keystroke.
-
-### D11 The palette is the action surface
-
-Every note-level action reaches the user through ⌘K, and `ARCHITECTURE.md`
-lists what that is today.
-
-Concentrating actions in one surface is what lets `D10` remove the chrome. It
-also gives every new action a home, so the question "where does this button go"
-has one answer.
-
-**Constraint:** a new note-level action belongs in the palette. Adding chrome
-for it reopens `D10`.
+an action taken a few times an hour, which ⌘K covers with a keystroke.
 
 ### D12 Wikilinks resolve by title
 
@@ -231,32 +188,11 @@ nearest folder then path order. A resolved title stopped being unique once it
 came from content, so resolution needed both a second source and a rule for
 duplicates.
 
-Wikilinks replaced the old links sidebar and its OG preview stack, which pointed
-outward at the web. Links between the user's own notes are the feature that
-folder-of-files notes actually want.
+Wikilinks replaced a links sidebar that pointed outward at the web. Links
+between the user's own notes are what a folder of files wants.
 
 **Rejected: resolving by path.** Survives renames. Rejected because the user
 types a title, and `D5` already accepts the dangling-link consequence.
-
-**Deferred: backlinks.** Recorded in `SPEC.md` rather than here, because nothing
-was ruled out.
-
-### D13 Effect 4 service classes
-
-A service is a class carrying its own layer, which `ARCHITECTURE.md` spells out
-under "Effect style".
-
-The Effect 3 to 4 migration turned 117 type errors into zero, cascading from
-nine files. `Tag.pipe(Effect.flatMap(...))` became `Service.use(...)` across
-every file in `src/data/`, which also retired the
-`unicorn/no-array-method-this-argument` workaround the old form required.
-
-**Rejected: the Effect 3 `XxxLive` const pattern.** What the codebase had.
-Rejected because Effect 4 puts the layer on the class, so the parallel const
-became a second name for one thing.
-
-**Constraint:** the RC line is pinned exactly (`4.0.0-rc.x`), since a release
-candidate can move under a range.
 
 ### D14 Layer boundaries
 
@@ -265,16 +201,12 @@ The core and service layers may not reach for a platform, and
 nothing enforces it today.
 
 The property being protected is that the core and service layers run outside the
-Tauri webview, in tests today and in anything else later. Behavior crosses the
-boundary through ports: `FileStore` in `src/core`, `Database` in
-`src/server/db`.
+Tauri webview, in tests today and in anything else later.
 
 **Rejected: separate workspace packages.** The compiler would enforce what lint
 enforced here. Rejected as too much structure for one app with one consumer of
 each layer. `D43` retired the lint half of that comparison, so the boundaries
 now rest on review alone and this rejection is worth revisiting if one slips.
-
-**Constraint:** the fix for a violation is never to move the import.
 
 ### D15 TipTap's serializer is the canonical form
 
@@ -283,31 +215,23 @@ formatter runs on its own source and never on note content (`D41`).
 
 An earlier design ran a remark-based format pass on blur, which carried a
 question about whether remark-stringify and the repo formatter would agree.
-Making the
-editor's own serializer canonical removes both the question and the pass, and
-took `remark-parse`, `remark-stringify`, `react-markdown`, the preview stack,
-and a syntax-highlighting preference with it.
+Making the editor's own serializer canonical removes both the question and the
+pass, and the remark and preview stacks with them.
 
 **Rejected: formatting note content on blur.** Produces uniform markdown across
 externally authored files. Rejected because it rewrites files the user did not
 change in that session, and because moving the caret after a blur is a visible
 defect.
 
-**Rejected: Prettier anywhere in the repo.** Biome is the formatter (`D41`).
 
 ### D16 A debounced notify watcher reconciles external writes
 
-A `notify` watcher on the notes dir, debounced at roughly 300ms and ignoring
-`.notras/`, reindexes changed paths and emits `notes-changed`. The root route
-listens and calls `router.invalidate()`.
+A debounced `notify` watcher reindexes external writes and the UI refreshes on
+its event, which `ARCHITECTURE.md` describes along with the echo and reload
+guards.
 
-**Constraint:** the watcher sees the app's own writes too. The mtime skip in
-`index_file` makes reindexing idempotent, so self-writes do not echo, and UI
-updates come from the awaited command rather than from the event.
-
-**Constraint:** an external edit to the note currently open reloads the buffer
-only when the buffer is clean and the file's mtime is newer than the app's last
-write. Last-write-wins is acceptable for a single user.
+**Constraint:** last-write-wins on an external edit to the open note. Acceptable
+for a single user, and the reason nothing merges the two versions.
 
 **Rejected: polling the directory.** Simpler and portable. Rejected on latency,
 since the property being sold is that an agent's write appears within about a
@@ -321,8 +245,8 @@ than file writes.
 
 ### D18 Lowercase user-facing text
 
-Every label, button, toast, tooltip, placeholder, menu item, and empty state is
-lowercase, including the wordmark.
+Every user-facing string is lowercase, the wordmark included, and `DESIGN.md`
+enumerates the surfaces.
 
 **Rejected: sentence case.** The convention, and easier to keep consistent by
 accident. Rejected because the lowercase reading is the app's voice, and it is
@@ -331,9 +255,10 @@ remember.
 
 ### D19 Shadcn radix-maia on a stone base
 
-UI primitives come from `pnpm dlx shadcn@latest add`, in the radix-maia style on
-the stone base color, with tokens as oklch CSS variables and dark as the `:root`
-default.
+UI primitives come from `pnpm dlx shadcn@latest add`, originally in the
+radix-maia style on a stone base with oklch tokens. **`D22` moved the style to
+base-maia on Base UI and `D23` replaced the palette**, so only the dark `:root`
+default and the two constraints below survive.
 
 **Constraint:** files in `src/components/ui/**` are generated and not
 hand-edited. Lint with no autofix is turned off for them in `biome.jsonc`'s
@@ -353,11 +278,6 @@ the components are regenerated.
    copied from it. `D37` records why the app needs a 24px toggle that upstream's
    `h-9` / `h-8` / `h-10` ladder does not reach.
 
-**Superseded in part by `D22`,** which moves the style to base-maia on Base UI,
-and by `D23`, which replaces the stone base and the oklch tokens with the stet
-palette in hex. The dark `:root` default and both constraints above carry over
-unchanged.
-
 ### D20 Quick capture is a second window
 
 The global shortcut opens a small always-on-top window running a bare editor.
@@ -369,14 +289,10 @@ focused app, which is the whole feature.
 
 ### D21 No end-to-end tests this pass
 
-The Playwright smoke tests were deleted rather than ported.
-
-Playwright cannot drive a Tauri window. The replacement, wdio plus
-tauri-driver, is recorded as deferred in `SPEC.md`.
-
-**Constraint:** the manual walkthrough in `SPEC.md` is the only coverage
-for window behavior, the asset protocol, and the quit handshake. It is run
-before anything touching Rust or window behavior merges.
+Playwright cannot drive a Tauri window, so its smoke tests were deleted rather
+than ported and wdio plus tauri-driver is deferred. `SPEC.md` holds the manual
+walkthrough that is the only coverage left for window behaviour, and `AGENTS.md`
+says when to run it.
 
 ### D22 Base UI under the shadcn base-maia style
 
@@ -384,15 +300,10 @@ The generated primitives move from the radix-maia style to base-maia, which is
 the same Maia look on `@base-ui/react` instead of `radix-ui`. `D19`'s two
 constraints carry over, and `D23` later replaced its palette.
 
-`radix-ui` is one package that installs 57. Base UI is one tree-shakable
-package, and shadcn made it the default in July 2026, so base-maia gets the same
-updates radix-maia does. The `data-open:` and `data-checked:` Tailwind variants
-that the styles depend on ship in `shadcn/tailwind.css` and match both
-libraries' attributes, so the swap is a regeneration rather than a restyle.
-
-**Rejected: staying on radix-maia.** Shadcn has not deprecated it and ships
-every component for both. Rejected because carrying 57 packages to reach nine
-primitives is the cost of a default the project no longer has a reason to hold.
+Base UI is one tree-shakable package where `radix-ui` installs 57, and shadcn
+made base-maia the default in July 2026, so it gets the same updates. The
+`data-open:` and `data-checked:` variants match both libraries' attributes, so
+the swap is a regeneration rather than a restyle.
 
 **Constraint:** `asChild` does not exist in Base UI. Composition goes through
 the `render` prop, and `useRender` covers the cases that used `Slot.Root`.
@@ -435,21 +346,9 @@ redesign needed.
 `color-mix(in oklch, ...)` still interpolates in OKLCH, so the tint recipes are
 unaffected.
 
-**Constraint:** shadcn's `--accent` names a hover surface and `--primary` is the
-accent, which `DESIGN.md` states as a rule for callers.
-
-**Constraint:** a card moves away from the text colour, which `DESIGN.md` states
-as a rule. Painting the light card at `surface.panel` drops
-`--syntax-number` to 3.96:1 against code-block text.
-
-**Constraint:** `@tailwindcss/typography` shipped its own stone ramp, which
-rendered the note in a warmer grey than the chrome. `.note-preview-prose`
-repointed all sixteen `--tw-prose-*` colours at tokens, and
-`prose-stone dark:prose-invert` came off the editor. `D40` replaced the plugin
-with shadcn/typeset, which reads the tokens itself, so the repointing is gone.
-
-**Constraint:** `src/styles.spec.ts` gates the palette, and `DESIGN.md` states
-what it fails on.
+**Constraint:** the card cannot sit at `surface.panel` in light, which drops
+`--syntax-number` to 3.96:1 against code-block text. `DESIGN.md` states the
+resulting rule, and `src/styles.spec.ts` gates it.
 
 ### D24 Literata on the note surface
 
@@ -489,15 +388,14 @@ font.
 every platform with a warmer geometric character. Rejected because chrome is the
 one place where matching the host beats matching itself across hosts.
 
-**Constraint:** the mono is iA Writer Mono everywhere now, inside the editor and
-out. `--font-editor-mono` is gone and Geist Mono with it, which is what holds the
-face count at three.
+**Constraint:** one mono serves the editor and the chrome, which is what holds
+the face count at three.
 
 ### D26 Concentric radii
 
 A surface nested inside another takes the parent's radius less the parent's
-padding. `.suggestion-item` and `.link-editor-input` express that as `calc()`
-against the parent token rather than as a fixed step on the ladder.
+padding, expressed as `calc()` rather than a fixed step on the ladder, which
+`DESIGN.md` states with its examples.
 
 Apple formalised the rule as `ConcentricRectangle` in SwiftUI, and macOS 26
 rebuilt its controls to sit concentrically inside window corners. On a
@@ -563,19 +461,14 @@ rejection below says save state belongs near where the eye rests rather than in
 the window chrome, and it was written about moving the whole strip up. `D38`
 re-examines it for one glyph, which the width argument does not reach.
 
-The app was spending two bands on one band's work: an empty 36px drag strip, and
-a 40px header directly beneath it. Folding one into the other returns 32px to the
-note and puts the title where macOS puts a document title. `D32` later changed
-where that title comes from, which does not affect where it is shown.
+The app was spending two bands on one band's work: an empty drag strip above a
+header. Folding one into the other returns 32px to the note and puts the title
+where macOS puts a document title. The bar is 44px so the traffic lights `D29`
+centres in it land on the title's line.
 
-The bar is `h-11`, 44px, with the traffic lights centred in it by `D29`. Content
-centres normally, so the title lands on the buttons' line and the space above and
-below them is equal. The status strip is `h-7`, since nothing forces its height,
-and both carry a hairline border so they frame the note.
-
-The drag region moved out of `__root.tsx` for this. A shared root strip cannot
-hold per-route content, and TanStack Router has no named outlet, so each route
-renders its own titlebar instead of the root rendering one for everybody.
+Each route renders its own titlebar rather than the root rendering one, because
+a shared root strip cannot hold per-route content and TanStack Router has no
+named outlet.
 
 **Rejected: keeping the empty strip and shrinking it.** Simplest possible change,
 and it touches no layout. Rejected because the strip is unavoidable on macOS, so
@@ -586,9 +479,6 @@ header band goes on costing its full height.
 single band. Rejected because the title, the word count, and three toggles do not
 fit beside the traffic lights at the 480px minimum width, and because save state
 belongs near where the eye rests rather than in the window chrome.
-
-**Constraint:** `--spacing-titlebar` insets content past the traffic lights, and
-`DESIGN.md` carries what that means for a port to another platform.
 
 **Constraint:** `styles.css` exempts `button` and `input` from dragging, and any
 other interactive element added to the region needs that rule widened. The title
@@ -647,24 +537,16 @@ it reads its vocabulary from `NoteService.listTags()`, and it lives in the
 status strip rather than the titlebar. The palette's `#` token filters through
 `NoteFilters.tag` instead of scanning the loaded notes in JavaScript.
 
-Both halves of the old tag UX were hand-rolled over capabilities that already
-existed. `listTags()` returns every tag with its count, grouped and sorted by
-the index, and `getTagFilter()` matches a tag exactly and ANDs with the FTS
-filter. Neither had a caller. The editor was a 64px input with no suggestions,
-so a typo forked `standup` from `standups` with nothing to surface it, and the
-palette recomputed the vocabulary from `notes.flatMap` on every keystroke and
-substring-matched it, which disagreed with the index it was standing in for.
+Both halves of the old tag UX were hand-rolled over capabilities the index
+already had. `listTags()` and `getTagFilter()` existed with no caller, while a
+64px input let a typo fork `standup` from `standups` and the palette
+substring-matched a vocabulary it recomputed on every keystroke, disagreeing
+with the index it stood in for.
 
-The combobox costs one registry entry. `input-group.tsx` already carried
-`in-data-[slot=combobox-content]` hooks for it, and its two registry
-dependencies were both installed, so adding it regenerated `button`, `input`,
-`textarea`, and `input-group` byte-identically once `lint:fix` and `format:fix`
-had run.
-
-Tags moved down because the titlebar could not hold them. `D28` put title, tags,
-and pin in a 44px band, where the chip row and the title input compete for the
-same line and the input was pinned at `w-16` to keep the title readable. The
-status strip is where the note's other metadata already sits.
+Tags moved down because the titlebar could not hold them: `D28` put title, tags,
+and pin in one 44px band, where the chip row was pinned to `w-16` to keep the
+title readable. The status strip is where the note's other metadata already
+sits.
 
 **Rejected: keeping tags in the titlebar with the combobox inline.** Smallest
 diff, and it leaves `D28` whole. Rejected because it keeps the space war that
@@ -680,24 +562,16 @@ one that stays in step with `D22`, and writing it here would put it outside
 
 **Constraint:** a chip in the strip is a filter button, not a `ComboboxChip`. It
 answers "show me this tag" where a picker row answers "does this note carry it",
-so it has no remove affordance and removal is unchecking a row. That is what
-keeps every element in the 28px strip flat, and it is why `ComboboxChips`,
-`ComboboxChip`, and `ComboboxChipsInput` go unused.
+so it has no remove affordance and `ComboboxChips`, `ComboboxChip` and
+`ComboboxChipsInput` go unused. Dropping `ComboboxChip` dropped the marking that
+said a chip was a tag, which is why it carries a literal `#`, and why the
+picker's trigger is a `TagPlus` icon: a `#` after a run of tag names reads as
+one more tag.
 
-**Constraint:** dropping `ComboboxChip` also dropped the marking that said a
-chip was a tag, so the chip carries a literal `#` and reads `#groceries`.
-Without it the names sit as bare words in a strip of status text. The same
-applies to a palette note row, which reads `title · folder · #work #notes`. For
-the same reason the picker's trigger is a `TagPlus` icon rather than a `#`: a
-`#` glyph at the end of a run of tag names reads as one more tag.
-
-**Constraint:** the chips sit in their own box carrying `min-w-0` **and**
-`overflow-hidden`, with the add button outside it. `Button` is `shrink-0`, so a
-container that is merely allowed to shrink spills its chips over whatever sits
-to the right rather than clipping them; `min-w-0` on its own clips nothing. The
-button stays outside that box because it is the action while the chips are the
-display, so at the 480px minimum width the tags clip and the picker is the
-complete view.
+**Constraint:** the chips box carries `min-w-0` **and** `overflow-hidden` with
+the add button outside it. `Button` is `shrink-0`, so a container merely allowed
+to shrink spills its chips over its neighbour rather than clipping them, and
+`min-w-0` alone clips nothing.
 
 **Constraint:** two call-site overrides sit on the generated popup, because
 `D19` puts `components/ui/**` off-limits. `ComboboxContent` carries
@@ -712,13 +586,11 @@ sub-view in the ⌘K palette. Both route through `useNoteTags` in
 `src/components/notes/use-note-tags.ts`, which owns the optimistic list, the
 loader sync, and the write.
 
-`D11` says a note-level action belongs in the palette, and tag editing was the
-one that did not have an entry there. Three things made the palette the natural
-second home rather than a new invention: `PaletteView` was already a sub-view
-machine for `move` and `delete`, `CommandItem` already shipped a
-`data-[checked=true]` checkmark that nothing used, and pin had been a titlebar
-toggle and a palette action since it shipped. So a note-identity control living
-in chrome and in ⌘K was established here, not novel.
+A note-level action belongs in the palette, and tag editing was the one without
+an entry there. The palette was the natural second home rather than a new
+invention: `PaletteView` was already a sub-view machine, `CommandItem` already
+shipped an unused checkmark, and pin had been a titlebar toggle and a palette
+action since it shipped.
 
 This entry exists because it reverses a rejection. The same change arrived as a
 review finding and was turned down, and the leading argument was that it
@@ -734,7 +606,7 @@ without opening a dialog.
 
 **Rejected: the strip only, as shipped.** One surface, nothing new to build.
 Rejected because it left ⌘K unable to do a thing every other note-level action
-can, which is the gap `D11` exists to close.
+can.
 
 **Constraint:** a surface that edits tags calls `useNoteTags`. Two surfaces over
 one implementation is the arrangement this entry permits; two implementations is
@@ -746,12 +618,7 @@ overlapping toggles could land in either order and leave disk holding the older
 set. Writes chain, and a failure rolls back only when it is the newest change,
 so a superseded request cannot restore a set the user has moved past.
 
-**Constraint:** rows in the tags view call `changeTags` directly rather than
-`runAction`, which closes the palette. The view is a working surface, so a
-toggle must leave it open. It is the only place in the palette where an action
-row does not dismiss.
-
-**Constraint:** the per-tag count in that view is a plain span, not a
+**Constraint:** the per-tag count in the tags view is a plain span, not a
 `CommandShortcut`. The generated checkmark carries
 `group-has-data-[slot=command-shortcut]/command-item:hidden`, so an item holding
 a shortcut slot hides the check that says whether the tag is attached.
@@ -780,8 +647,7 @@ kept only for the reader that browses filenames.
 
 **notras never introduces a title, and never renames a file on its own.** It
 reads all three conventions and imposes none on a file that did not already
-carry one. This is what keeps the entry small, and it is the part most likely to
-erode.
+carry one. This is the part most likely to erode.
 
 Resolving a title is not enough on its own, because nothing puts the sources
 back in step and so no single act means "retitle this note." A file named
@@ -790,11 +656,9 @@ looks inert, and editing the heading moves nothing on disk. **The ⌘K action
 closes that gap,** and `ARCHITECTURE.md` describes what it rewrites.
 
 That sync is deliberately narrow, which is the whole trick. Nothing is ever
-invented, so a note opening with prose, a list, a quote, or a deeper heading is
-left byte-identical, and deleting the heading opts a note out for good. Because
-it fires only on an explicit rename, it avoids what made continuous syncing
-untenable in the rejection below. Updating a key someone already put in the file
-is different from adding one, so nothing above changes.
+invented, so a note carrying neither a heading nor a key is left byte-identical
+and deleting the heading opts it out for good. Because it fires only on an
+explicit rename, it avoids what made continuous syncing untenable below.
 
 **Rejected: deriving the title from the heading and syncing the filename to it,**
 which is what scratch does in `save_note`. Finder and a GitHub file listing would
@@ -864,11 +728,9 @@ large sizes. Sizes at 16px come from `icon-tiny.svg`, 17 to 40 from
 `iconutil` assembles the ten representations into `icon.icns`, because
 `pnpm tauri icon` takes one source per run and the icns spans 16px to 1024px.
 
-Detail has to drop out as pixels run out. Measured on the render, an eye is 4.1%
-of the tile and an accent dot 2.5%, so through Apple's 824-on-1024 grid an eye is
-4.2px at 128, 2.1px at 64, and 1.1px at 32, where an accent dot is down to
-0.6px. Below 64px the accent renders as colour noise rather than a dot, and at 16px
-two eyes 1px wide and 2px apart merge into a bar that reads as a smudge. So
+Detail has to drop out as pixels run out. An eye is 4.1% of the tile and an
+accent dot 2.5%, so at 32px the dot is down to 0.6px and reads as colour noise,
+and at 16px two eyes merge into a bar that reads as a smudge. So
 `icon-small.svg` drops the accent and the back blob's eyes and enlarges the
 remaining pair, and `icon-tiny.svg` drops every dot and keeps the two-blob
 silhouette. The icon is the accented variant at large sizes and close to
@@ -942,12 +804,10 @@ Rejected because 5.0 extends 4.5px beyond 4.7, so the mask reaches past the artw
 exposes its opaque `#0f1013` surround as a fringe. The render is composited onto a tile
 drawn at 5.0 instead, and the rim covers the 4.5px seam with 19px to spare.
 
-**Rejected: a `.icon` package for system-drawn Liquid Glass.** `tauri-bundler` 2.9.4
-does support it, matching `.icns`, `.car`, and `.icon` in `bundle.icon`, compiling the
-package with `actool` and deriving `CFBundleIconName` from the resulting `Assets.car`.
-Rejected because `actool` ships inside Xcode 26 and only the Command Line Tools are
-installed here, so the build logs a skip and ships the `.icns` alone. Deferred rather
-than closed.
+**Rejected: a `.icon` package for system-drawn Liquid Glass.** `tauri-bundler`
+supports it, but `actool` ships inside Xcode and only the Command Line Tools are
+installed here, so the build logs a skip and ships the `.icns` alone. Deferred
+in `SPEC.md` rather than closed.
 
 **Constraint:** the tile shape lives twice, as bezier data in `assets/*.svg` and as the
 `-fx` mask in `scripts/icons.sh`, and nothing derives one from the other.
@@ -957,10 +817,9 @@ Tolerance is 0.005 against 0.0022 of antialiasing. It earned its place on the fi
 by catching a 1px inset that would have split the silhouette across sizes.
 
 **Constraint:** the rim and shadow are rebuilt at every output size rather than
-downscaled from the master, so a 16px icon gets a sub-pixel edge instead of a blurred
-one. The rim uses a distance map, `-morphology Distance Euclidean:1`, whose values are
-pixels over 655.35 in this Q16 build, and it must be multiplied by the mask because the
-map reads zero outside the shape and would otherwise paint the whole margin.
+downscaled from the master, so a 16px icon gets a sub-pixel edge instead of a
+blurred one. `scripts/icons.sh` carries the distance-map mechanics that make it
+work.
 
 **Constraint:** generated PNGs are written with `-strip`. ImageMagick embeds `png:tIME`
 and `date:` chunks, which left the output pixel-identical but byte-different on every
@@ -975,14 +834,10 @@ in the badge at its lower-right corner, so the shared shape names the subject an
 the badge names the state. The word survives in a hover tooltip and in `sr-only`
 text. `D38` adds a fourth state and keeps the rule.
 
-The strip opened on a word that rewrote itself on every keystroke and settled
-800ms later, `unsaved` to `saving...` to `saved`. It was the widest item in a row
-already carrying chips, a button, a word count and three toggles, and it was the
-only one that changed while the user was reading the note above it.
-
-One component covers both surfaces. `src/routes/external.tsx` spelled the same
-state a second way, as `external file · saved`, which is the second
-implementation `DESIGN.md` calls a bug in the design.
+The strip opened on a word that rewrote itself on every keystroke, `unsaved` to
+`saving...` to `saved`. It was the widest item in the row and the only one that
+changed while the user was reading the note above it, and a second surface spelled
+the same state a second way.
 
 **Rejected: the word.** What shipped until now, and the only version that says
 what it means without being hovered. Rejected because a status nobody acts on
@@ -993,29 +848,20 @@ complaint.
 Rejected because a dot names no subject. In a strip already carrying tags, a
 count and three toggles, it reads as an indicator of something.
 
-**Rejected: showing nothing once saved.** The quietest option, and defensible for
-an app that autosaves. Rejected because `D2` ruled out an explicit save on the
-grounds that there is no lost-write ambiguity, and that argument assumed the
-state stayed on screen to be checked.
+**Rejected: showing nothing once saved.** The quietest option, and defensible
+for an app that autosaves. `D38` re-rejects it on harder grounds once a `failed`
+state exists.
 
-**Constraint:** the three glyphs above differ by a badge roughly 4px wide at
-`size-3.5`, so the tone carries the rest. `saved` sits on `--faint` and the other
-two set none and inherit the band's. Changing a tone makes the states harder to
-tell apart rather than only quieter. `D38` moved the indicator out of the status
-strip, where the inherited tone was `--muted-foreground`, and gave its fourth
-state a tone of its own.
+**Constraint:** the glyphs differ by a badge roughly 4px wide at `size-3.5`, so
+tone carries the rest and `DESIGN.md` assigns it. Changing a tone makes the
+states harder to tell apart rather than only quieter.
 
 **Constraint:** the indicator is a status and not a control, so its tooltip
 trigger renders a `span`. It takes no tab stop and hover is the only opener,
 which is why the `sr-only` text exists rather than an `aria-label` on the svg.
-
-**Constraint:** anything hoverable inside `.titlebar-drag-region` needs
-`no-drag`, which `styles.css` now exposes as a class beside its `button` and
-`input` selectors. Without it macOS swallows the pointer and the tooltip never
-opens, which `D28` records as the rule this widens. `D38` moved the glyph into
-that region without carrying the class, so the tooltip was dead on the note
-route until `SaveIndicator` took `no-drag` itself. `src/styles.spec.ts` asserts
-both halves now.
+That is also why it needs `no-drag`: `D38` moved it into the drag region without
+the class and the tooltip was dead until `SaveIndicator` carried it, which
+`src/styles.spec.ts` now asserts.
 
 ### D36 Every item in the status strip is a shaped item
 
@@ -1026,15 +872,9 @@ the component it is. The footer is `px-3 gap-1`, each run of like items is
 **Superseded in part by `D38`,** which moved the save glyph out of the strip and
 into the titlebar. The recipe stands and the strip is one item shorter.
 
-The insets follow from the components: the view toggles sit
-in a 24px box at 5px, a tag chip is a `Badge` at 8px, `add tag` is a
-`Button size="xs"` at 10px, and the word count is text given the badge's `px-2`
-so it is shaped like what it sits between. Between-item distances land at 17px
-and both window edges at 17px, and the toggle run stays clustered at 12px.
-
-Those distances are an outcome rather than a target. Spacing is stated once, at
-the footer, and adding an item to the strip means choosing what the item is, not
-re-deriving a sum.
+`DESIGN.md` lists which component each item is. The distances that fall out are
+an outcome rather than a target: spacing is stated once, at the footer, and
+adding an item means choosing what the item is rather than re-deriving a sum.
 
 **Rejected: holding equal optical gaps by hand.** The first version of this
 entry did, with `px-1` on two chips, a `size-6` box on the glyph, and a wrapper
@@ -1053,27 +893,19 @@ lets one number work.
 `min-w-0` has to reach `NoteTags` unbroken from the footer. The wrapper `div`
 that briefly sat between them is gone, and any future one carries `min-w-0`.
 
-**Constraint:** the gap inside a control is not one of these numbers. The 4px
-between the `TagPlus` icon and the words `add tag` is `size="xs"`'s own `gap-1`.
+**Constraint:** the gap inside a control is not one of these numbers. The space
+between the `TagPlus` icon and the words `add tag` is `size="xs"`'s own.
 
 ### D37 Chrome toggles come from `Toggle`, at one size and one on-state
 
 Anything in chrome that turns on and off is `Toggle` or `ToggleGroupItem` from
-`@base-ui/react`, at `size="icon-xs"`, and shows its on-state as
-`--foreground` against the idle `--muted-foreground`.
+`@base-ui/react`, at the size and on-state `DESIGN.md` states. Two hand-rolled
+versions preceded it, one per surface, drawing their on-states in the accent and
+the primary, which `DESIGN.md` rules out of chrome.
 
-Two hand-rolled versions preceded it. `StatusToggle` in `status-bar.tsx` wrote
-`aria-pressed` by hand, shrank `size="icon"` three steps with a `size-6`
-className when `size="icon-xs"` was already `size-6`, and drew its on-state as
-`bg-accent text-accent-foreground`. `note-header.tsx` was the same component a
-second time, with an on-state of `text-primary`. `DESIGN.md` rules out both
-colours: the accent stays out of chrome and `--primary` belongs on the focus
-ring.
-
-The three view toggles are one `ToggleGroup`, which `DESIGN.md` states as the
-rule. They stay three independent settings: `StatusBar` still takes three booleans and three
-handlers, and a descriptor array derives the group's value from them and routes
-a change back to the one handler whose membership flipped.
+The three view toggles are one `ToggleGroup` but stay three independent
+settings: `StatusBar` takes three booleans and three handlers, and a descriptor
+array routes a change back to the one whose membership flipped.
 
 **Rejected: `Marker` for the save indicator.** Named as a candidate, and its
 anatomy is the right shape, an `aria-hidden` icon slot beside content. Rejected
@@ -1155,16 +987,15 @@ keystroke sets `dirty`, and the next flush either lands in `saved` or returns to
 real one means threading it through `useAutosave`, `NoteHeader` and
 `SaveIndicator`, which is its own change.
 
-**Constraint:** the titlebar costs 36px more at the 480px minimum width, leaving
-the title 312px. `--spacing-titlebar` takes 84px and `pe-3` takes 12px, and the
-pin already took 36px.
+**Constraint:** the glyph costs the title another 36px at the 480px minimum
+width, on top of what the traffic-light inset and the pin already take.
 
 ### D39 The task row recipe stops at a task list's own children
 
 Every selector styling a task row in `src/styles.css` reaches it as
 `ul[data-type="taskList"] > li`, the list is padded like any other list with the
-row pulled back by the checkbox column, and `--tw-prose-bullets` moves from
-`--border` to `--muted-foreground`.
+row pulled back by the checkbox column, and a list marker takes the muted tone
+rather than the border one.
 
 **Superseded in part by `D40`.** The scoping and the shared ladder stand, and so
 does the method for measuring a marker column, which was re-run. Every number
@@ -1182,13 +1013,11 @@ and a list nested under a task rendered with no bullets and no numbers. The same
 selector zeroed those items' margins and claimed the `.code-block-wrapper` div
 of a fence sitting in one.
 
-The scoping alone puts no bullet on screen. `--tw-prose-bullets` pointed at
-`--border`, which measures 1.27:1 in dark and 1.76:1 in light against the
-background, so a restored disc is a shape nobody can see, while a restored
-number is legible because `--tw-prose-counters` already took
-`--muted-foreground`. The stylesheet answered "what colour is a list marker" two
-ways on adjacent lines, and `DESIGN.md` names four text tones of which `--border`
-is not one.
+The scoping alone puts no bullet on screen. The bullet colour pointed at
+`--border`, which measures 1.27:1 in dark against the background, so a restored
+disc is a shape nobody can see while a restored number is legible. The
+stylesheet answered "what colour is a list marker" two ways on adjacent lines,
+and `--border` is not one of the text tones `DESIGN.md` names.
 
 A task list also sat on its own indent ladder, stepping 1.4em per level from a
 left edge of 0 while every other list stepped 2em from 2em, so two lists at one
@@ -1296,20 +1125,11 @@ checkbox beside an `em` marker column drifts out of the gutter whenever the size
 moves. Measured at both sizes, the checkbox's right edge holds within `0.016em` of
 the disc's.
 
-**Constraint:** a marker steps disc, circle, then square with depth, where the
-plugin held every marker at a disc, and a blockquote loses the quotation marks the
-plugin drew through `content: open-quote`.
-
-**Constraint:** the inline-code chip pins its colour to `--foreground`. Typeset
-lets a chip inherit its context, and this app paints h5, h6, `del`, `dd`, and a
-footnote in `--muted-foreground`, which put a muted glyph on the `--muted` chip at
-3.73:1 in dark and 3.37:1 in light. `src/styles.spec.ts` caught it and now gates
-both halves.
-
-**Constraint:** the hand-styled table sets its own `margin-block-start`.
-`not-typeset` opts it out of every Typeset rule, the block rhythm included, and
-Typeset spaces blocks with `margin-block-start` alone, so nothing above a table
-supplies a gap and it sat flush against a code block.
+**Constraint:** the inline-code chip pins its colour rather than inheriting,
+because this app paints five roles in `--muted-foreground` and a muted glyph on
+the `--muted` chip measured 3.73:1 in dark and 3.37:1 in light.
+`src/styles.spec.ts` caught it and gates both halves. `DESIGN.md` states the
+resulting rules for the chip, the markers and the opted-out table.
 
 **Constraint:** the marker column was re-measured through `qlmanage` per `D39`, and
 the fonts have to be loaded to do it. Rendering the probe with the font URLs
@@ -1407,21 +1227,3 @@ comply and no boundary is currently crossed.
 catches it. `D14` rejected workspace packages because lint was doing the work,
 and that comparison no longer holds, so a boundary that actually slips is a
 reason to revisit it rather than to re-add the rule.
-
-### D44 `src/core` has no barrel
-
-Consumers import `@/core/notes`, `@/core/frontmatter`, `@/core/errors`,
-`@/core/file-store`, and `@/core/fts-markers` directly. `src/core/index.ts`,
-which re-exported all five, is deleted, and its twenty-one importing statements
-became twenty-eight.
-
-Ultracite reports `performance/noBarrelFile`. The layer is still the layer:
-`ARCHITECTURE.md` names what belongs in `src/core` and what may not import it.
-
-**Rejected: turning `noBarrelFile` off for the one file.** The barrel named the
-layer's public surface in one place. Rejected because it is a rule override in a
-config `D41` keeps small, and because `src/core`'s own files already imported
-their siblings directly, so the barrel only ever served consumers.
-
-**Constraint:** an import from `@/core` no longer resolves. There is no
-deprecation window, and the compiler reports every stale one.
