@@ -32,11 +32,13 @@ interface FolderWithCount {
 }
 
 interface INoteRepository {
-  count(): Effect.Effect<number, DatabaseError>;
-  findByPath(path: string): Effect.Effect<NoteMeta | undefined, DatabaseError>;
-  findMany(filters: NoteFilters): Effect.Effect<NoteMeta[], DatabaseError>;
-  listFolders(): Effect.Effect<FolderWithCount[], DatabaseError>;
-  listTags(): Effect.Effect<TagWithCount[], DatabaseError>;
+  count: () => Effect.Effect<number, DatabaseError>;
+  findByPath: (
+    path: string
+  ) => Effect.Effect<NoteMeta | undefined, DatabaseError>;
+  findMany: (filters: NoteFilters) => Effect.Effect<NoteMeta[], DatabaseError>;
+  listFolders: () => Effect.Effect<FolderWithCount[], DatabaseError>;
+  listTags: () => Effect.Effect<TagWithCount[], DatabaseError>;
 }
 
 type NoteRow = typeof note.$inferSelect & { snippet: null | string };

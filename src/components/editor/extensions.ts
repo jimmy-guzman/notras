@@ -52,12 +52,14 @@ const NoteImage = Image.extend<
   },
 });
 
+const MARKDOWN_LINK = /\[([^\]]+)\]\(([^\s)]+)\)$/;
+
 /** Typing `[text](url)` converts into a real link as you close the paren. */
 const MarkdownLinkInputRule = Extension.create({
   addInputRules() {
     return [
       new InputRule({
-        find: /\[([^\]]+)\]\(([^\s)]+)\)$/,
+        find: MARKDOWN_LINK,
         handler: ({ commands, match, range, state }) => {
           const [, text, url] = match;
 
@@ -93,6 +95,8 @@ const MarkdownLinkInputRule = Extension.create({
  * indent here rather than trimming it keeps tabs out.
  */
 const FENCE_RUN = /^ {0,3}(`{3,}|~{3,})/;
+
+const BACKTICK_RUN = /^`+/;
 
 /** The fence run opening a line, or null when there is none. */
 function fenceRun(line: string) {
@@ -142,7 +146,7 @@ function scrubLine(line: string) {
 
     out += scrubEntities(line.slice(index, tick));
 
-    const run = /^`+/.exec(line.slice(tick))?.[0] ?? "`";
+    const run = BACKTICK_RUN.exec(line.slice(tick))?.[0] ?? "`";
     const close = line.indexOf(run, tick + run.length);
 
     if (close === -1) {

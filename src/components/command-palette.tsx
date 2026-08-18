@@ -204,7 +204,7 @@ export function CommandPalette({
   const updateQuery = (value: string) => {
     latestSearchRef.current += 1;
     setQuery(value);
-    void search(value, latestSearchRef.current);
+    search(value, latestSearchRef.current);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -220,7 +220,7 @@ export function CommandPalette({
   useEffect(() => {
     if (tag !== undefined) {
       latestSearchRef.current += 1;
-      void search(`#${tag} `, latestSearchRef.current);
+      search(`#${tag} `, latestSearchRef.current);
     }
   }, [search, tag]);
 
@@ -239,12 +239,12 @@ export function CommandPalette({
 
   const openNote = (path: string) => {
     close();
-    void navigate({ params: { _splat: path }, to: "/notes/$" });
+    navigate({ params: { _splat: path }, to: "/notes/$" });
   };
 
   const runAction = (action: () => Promise<void>) => {
     close();
-    void action().catch((error: unknown) => {
+    action().catch((error: unknown) => {
       toast.error(
         error instanceof Error ? error.message : "something went wrong"
       );
@@ -427,7 +427,7 @@ export function CommandPalette({
                     data-checked={attached}
                     key={name}
                     onSelect={() => {
-                      void noteTags.changeTags(
+                      noteTags.changeTags(
                         attached
                           ? noteTags.tags.filter(
                               (existing) => existing !== name
@@ -449,7 +449,7 @@ export function CommandPalette({
                 <CommandItem
                   onSelect={() => {
                     setQuery("");
-                    void noteTags.changeTags([...noteTags.tags, draftTag]);
+                    noteTags.changeTags([...noteTags.tags, draftTag]);
                   }}
                   value="tag-new"
                 >

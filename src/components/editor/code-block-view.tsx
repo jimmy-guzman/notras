@@ -36,7 +36,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   );
 
   const copy = () => {
-    void navigator.clipboard
+    navigator.clipboard
       .writeText(node.textContent)
       .then(() => {
         setCopied(true);

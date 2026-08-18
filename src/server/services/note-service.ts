@@ -29,25 +29,25 @@ interface Note {
 }
 
 interface INoteService {
-  attach(sourcePath: string): Effect.Effect<string, FileError>;
-  attachImage(base64Data: string): Effect.Effect<string, FileError>;
-  count(): Effect.Effect<number>;
-  create(options?: {
+  attach: (sourcePath: string) => Effect.Effect<string, FileError>;
+  attachImage: (base64Data: string) => Effect.Effect<string, FileError>;
+  count: () => Effect.Effect<number>;
+  create: (options?: {
     content?: string;
     filename?: string;
     folder?: string;
-  }): Effect.Effect<string, FileError>;
-  delete(path: string): Effect.Effect<void, FileError>;
-  getByPath(path: string): Effect.Effect<Note, FileError>;
-  list(filters?: NoteFilters): Effect.Effect<NoteMeta[]>;
-  listFolders(): Effect.Effect<{ count: number; folder: string }[]>;
-  listTags(): Effect.Effect<{ count: number; tag: string }[]>;
-  move(path: string, folder: string): Effect.Effect<string, FileError>;
+  }) => Effect.Effect<string, FileError>;
+  delete: (path: string) => Effect.Effect<void, FileError>;
+  getByPath: (path: string) => Effect.Effect<Note, FileError>;
+  list: (filters?: NoteFilters) => Effect.Effect<NoteMeta[]>;
+  listFolders: () => Effect.Effect<{ count: number; folder: string }[]>;
+  listTags: () => Effect.Effect<{ count: number; tag: string }[]>;
+  move: (path: string, folder: string) => Effect.Effect<string, FileError>;
   /** Renames the file and syncs a heading or `title:` key the note already has. */
-  retitle(path: string, title: string): Effect.Effect<string, FileError>;
-  setPinned(path: string, pinned: boolean): Effect.Effect<void, FileError>;
-  setTags(path: string, tags: string[]): Effect.Effect<void, FileError>;
-  write(path: string, content: string): Effect.Effect<Date, FileError>;
+  retitle: (path: string, title: string) => Effect.Effect<string, FileError>;
+  setPinned: (path: string, pinned: boolean) => Effect.Effect<void, FileError>;
+  setTags: (path: string, tags: string[]) => Effect.Effect<void, FileError>;
+  write: (path: string, content: string) => Effect.Effect<Date, FileError>;
 }
 
 function toNote(path: string, file: NoteFileContent): Note {

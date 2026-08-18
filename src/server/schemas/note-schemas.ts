@@ -2,6 +2,8 @@ import { Schema } from "effect";
 
 import { NOTE_SEGMENT_PATTERN } from "@/core";
 
+const LINE_BREAK = /[\n\r]/;
+
 // A title carries no charset restriction: `D32` resolves it from frontmatter or
 // a heading, and `filenameFromTitle` derives a legal filename from whatever it
 // says. Only emptiness and a line break are rejected, the second because it
@@ -10,7 +12,7 @@ export const noteTitleSchema = Schema.Trim.pipe(
   Schema.check(
     Schema.isMinLength(1, { message: "title is required" }),
     Schema.makeFilter<string>((value) =>
-      /[\n\r]/.test(value) ? "title cannot span lines" : undefined
+      LINE_BREAK.test(value) ? "title cannot span lines" : undefined
     )
   )
 );

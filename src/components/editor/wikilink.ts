@@ -7,6 +7,8 @@ import type { SuggestionMenuItem } from "./suggestion-menu";
 
 import { SuggestionMenu } from "./suggestion-menu";
 
+const WIKILINK_TOKEN = /^\[\[([^\n[\]]+)\]\]/;
+
 export interface WikilinkOptions {
   /** Live note titles for completion. */
   getTitles: () => string[];
@@ -114,7 +116,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
     name: "wikilink",
     start: (src: string) => src.indexOf("[["),
     tokenize: (src: string) => {
-      const match = /^\[\[([^\n[\]]+)\]\]/.exec(src);
+      const match = WIKILINK_TOKEN.exec(src);
 
       if (match) {
         return {

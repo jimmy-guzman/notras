@@ -192,8 +192,10 @@ const preludesOf = (css: string) => {
 
 const TASK_LIST = 'ul[data-type="taskList"]';
 
+const LIST_ITEM = /\bli\b/;
+
 const taskRowSelectors = preludesOf(source).filter(
-  (prelude) => prelude.includes(TASK_LIST) && /\bli\b/.test(prelude)
+  (prelude) => prelude.includes(TASK_LIST) && LIST_ITEM.test(prelude)
 );
 
 /**
@@ -249,6 +251,9 @@ const typesetRole = (role: string) => {
 
 const MARKER_COLOUR = /::marker\s*\{\s*color:\s*var\(--typeset-([\w-]+)\)/g;
 
+const INLINE_CODE_COLOUR =
+  /\.typeset-note :not\(pre\) > code \{\s*color: var\(--([\w-]+)\)/;
+
 const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(
   ([, role]) => role
 );
@@ -275,11 +280,7 @@ describe("note surface colours", () => {
 
   it("should pin the inline-code chip rather than let it inherit a muted tone", () => {
     expect(
-      firstMatch(
-        /\.typeset-note :not\(pre\) > code \{\s*color: var\(--([\w-]+)\)/,
-        source,
-        "the inline-code colour"
-      )
+      firstMatch(INLINE_CODE_COLOUR, source, "the inline-code colour")
     ).toBe("foreground");
   });
 });
@@ -329,18 +330,17 @@ describe("the note preset", () => {
  * stylesheet, so neither has to stay unenforced: the pull-back has to cancel
  * exactly the box and the gap, or the marker column moves with nothing failing.
  */
+const CHECKBOX_WIDTH = /> label > input \{[^}]*?width:\s*([\d.]+)em/;
+
+const TASK_ROW_GAP = /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/;
+
+const TASK_LIST_PADDING =
+  /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/;
+
 describe("task list ladder", () => {
   it("should cancel exactly the checkbox and the gap beside it", () => {
-    const box = firstMatch(
-      /> label > input \{[^}]*?width:\s*([\d.]+)em/,
-      source,
-      "the checkbox width"
-    );
-    const gap = firstMatch(
-      /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/,
-      source,
-      "the task row gap"
-    );
+    const box = firstMatch(CHECKBOX_WIDTH, source, "the checkbox width");
+    const gap = firstMatch(TASK_ROW_GAP, source, "the task row gap");
 
     expect(source).toContain(
       `margin-inline-start: calc(-${box}em - ${gap}em);`
@@ -349,13 +349,9 @@ describe("task list ladder", () => {
 
   it("should pad a task list like the lists it shares a ladder with", () => {
     expect(typeset).toContain("padding-inline-start: 1.5em;");
-    expect(
-      firstMatch(
-        /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/,
-        source,
-        "the task list padding"
-      )
-    ).toBe("1.5");
+    expect(firstMatch(TASK_LIST_PADDING, source, "the task list padding")).toBe(
+      "1.5"
+    );
   });
 });
 
@@ -373,6 +369,8 @@ const rustBackground = (rust: string, name: string) => {
 };
 
 const BACKGROUND = /background-color:\s*(#[\da-f]{6})\b/;
+
+const TAURI_BACKGROUND = /"backgroundColor":\s*"(#[\da-f]{6})"/;
 
 /** Attribute order is the formatter's business, so the tag is found by name. */
 const COLOR_SCHEME_META =
@@ -419,7 +417,7 @@ describe("launch background", () => {
   it("should give the tauri window the dark background at creation", () => {
     expect(
       firstMatch(
-        /"backgroundColor":\s*"(#[\da-f]{6})"/,
+        TAURI_BACKGROUND,
         tauriConfig,
         "backgroundColor in tauri.conf.json"
       )

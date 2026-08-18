@@ -97,7 +97,7 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
   useEffect(
     () =>
       registerPendingFlush(async () => {
-        void save.flush();
+        save.flush();
         await inFlightRef.current;
 
         return !saveFailedRef.current;
@@ -122,7 +122,7 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
         onChange={(body) => {
           latestBodyRef.current = body;
           setStatus("dirty");
-          void save(body);
+          save(body);
         }}
       />
     </div>

@@ -15,9 +15,9 @@ export function insertSentinel(text: string, offset: number) {
 }
 
 interface DocLike {
-  descendants(
+  descendants: (
     callback: (node: { isText: boolean; text?: string }, pos: number) => boolean
-  ): void;
+  ) => void;
 }
 
 /** Absolute position of the sentinel character in a parsed doc, or null. */

@@ -2,7 +2,7 @@ import { NoteService } from "@/server/services/note-service";
 
 import { run } from "./run";
 
-export async function setNoteTags(path: string, tags: string[]) {
+export function setNoteTags(path: string, tags: string[]) {
   const normalized = [
     ...new Set(
       tags

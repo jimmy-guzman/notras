@@ -22,10 +22,12 @@ export interface NoteFilters {
 /** Valid path segment: no separators or colons, not hidden, not blank. */
 export const NOTE_SEGMENT_PATTERN = /^(?!\.)[^/\\:]+$/;
 
+const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
+
 export function noteTitle(path: string) {
   const name = path.split("/").at(-1) ?? path;
 
-  return name.replace(/\.(?:md|markdown)$/i, "");
+  return name.replace(MARKDOWN_EXTENSION, "");
 }
 
 /**
@@ -34,6 +36,14 @@ export function noteTitle(path: string) {
  * line a code block rather than a heading.
  */
 const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/;
+
+const ATX_OPENING_HASH = /^ {0,3}#/;
+
+const ATX_CLOSING_RUN = /\s+#+$/;
+
+const TRAILING_CR = /\r$/;
+
+const LINE_BREAK = /[\n\r]/;
 
 /**
  * Index of the body's first non-blank line, or -1.
@@ -53,7 +63,8 @@ function firstContentLine(lines: string[]) {
 function leadingHeading(body: string) {
   const lines = body.split("\n");
   const index = firstContentLine(lines);
-  const line = index === -1 ? undefined : lines[index]?.replace(/\r$/, "");
+  const line =
+    index === -1 ? undefined : lines[index]?.replace(TRAILING_CR, "");
 
   if (line === undefined || !ATX_HEADING.test(line)) {
     return;
@@ -62,9 +73,9 @@ function leadingHeading(body: string) {
   // Closed ATX form: `# title #`. The closing run has to be preceded by
   // whitespace, so `# C#` keeps its trailing character.
   const text = line
-    .replace(/^ {0,3}#/, "")
+    .replace(ATX_OPENING_HASH, "")
     .trim()
-    .replace(/\s+#+$/, "")
+    .replace(ATX_CLOSING_RUN, "")
     .trim();
 
   return text === "" ? undefined : text;
@@ -85,7 +96,7 @@ export function retitleLeadingHeading(body: string, title: string) {
   const raw = index === -1 ? undefined : lines[index];
 
   // A title carrying a line break would split the heading in two.
-  if (raw === undefined || title === "" || /[\n\r]/.test(title)) {
+  if (raw === undefined || title === "" || LINE_BREAK.test(title)) {
     return body;
   }
 
@@ -108,14 +119,18 @@ export function retitleLeadingHeading(body: string, title: string) {
  * them collapses to one hyphen. The result always satisfies
  * `NOTE_SEGMENT_PATTERN`: no separators, no leading dot, never blank.
  */
+const LEADING_DOTS_OR_HYPHENS = /^[.-]+/;
+
+const TRAILING_DOTS_OR_HYPHENS = /[.-]+$/;
+
 export function filenameFromTitle(title: string) {
   const slug = title
     .toLowerCase()
     .replaceAll(/[\s"*/:<>?\\|\p{Cc}]+/gu, "-")
     .replaceAll(/-{2,}/g, "-")
     .slice(0, 120)
-    .replace(/^[.-]+/, "")
-    .replace(/[.-]+$/, "");
+    .replace(LEADING_DOTS_OR_HYPHENS, "")
+    .replace(TRAILING_DOTS_OR_HYPHENS, "");
 
   return slug === "" ? "untitled" : slug;
 }

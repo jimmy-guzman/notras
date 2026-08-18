@@ -63,7 +63,7 @@ function RootLayout() {
     setPaletteOpen(false);
 
     if (tag !== undefined) {
-      void navigate({
+      navigate({
         replace: true,
         search: (previous: RootSearch) => ({ ...previous, tag: undefined }),
         to: ".",
@@ -74,11 +74,11 @@ function RootLayout() {
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   useEffect(() => {
     const unlisten = listen("notes-changed", () => {
-      void router.invalidate();
+      router.invalidate();
     });
 
     return () => {
-      void unlisten.then((dispose) => {
+      unlisten.then((dispose) => {
         dispose();
       });
     };
@@ -112,21 +112,21 @@ function RootLayout() {
     };
 
     const unlistenNew = listen("menu-new-note", () => {
-      void createNote()
+      createNote()
         .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
         .catch(reportFailure("could not create note"));
     });
     const unlistenOpen = listen("open-file", () => {
-      void drainPendingOpens().catch(reportFailure("could not open file"));
+      drainPendingOpens().catch(reportFailure("could not open file"));
     });
 
-    void drainPendingOpens().catch(reportFailure("could not open file"));
+    drainPendingOpens().catch(reportFailure("could not open file"));
 
     return () => {
-      void unlistenNew.then((dispose) => {
+      unlistenNew.then((dispose) => {
         dispose();
       });
-      void unlistenOpen.then((dispose) => {
+      unlistenOpen.then((dispose) => {
         dispose();
       });
     };
@@ -136,7 +136,7 @@ function RootLayout() {
   // entirely if one of them could not be written.
   useEffect(() => {
     const unlisten = listen("app-quit", () => {
-      void flushPendingWrites()
+      flushPendingWrites()
         .then((saved) => {
           if (saved) {
             return invoke("quit_app");
@@ -154,7 +154,7 @@ function RootLayout() {
     });
 
     return () => {
-      void unlisten.then((dispose) => {
+      unlisten.then((dispose) => {
         dispose();
       });
     };
@@ -170,7 +170,7 @@ function RootLayout() {
   useHotkeys(
     "mod+n",
     () => {
-      void createNote()
+      createNote()
         .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
         .catch((error: unknown) => {
           toast.error(

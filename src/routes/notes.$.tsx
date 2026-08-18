@@ -61,8 +61,10 @@ function usePersistentToggle(key: string, initial = false) {
   return [value, toggle] as const;
 }
 
+const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/i;
+
 function isImagePath(path: string) {
-  return /\.(?:gif|jpe?g|png|svg|webp)$/i.test(path);
+  return IMAGE_EXTENSION.test(path);
 }
 
 function NotePage() {
@@ -206,7 +208,7 @@ function NoteEditor({ note }: NoteEditorProps) {
         return;
       }
 
-      void navigate({ params: { _splat: target.path }, to: "/notes/$" });
+      navigate({ params: { _splat: target.path }, to: "/notes/$" });
     },
     [navigate, note.path]
   );
@@ -263,12 +265,12 @@ function NoteEditor({ note }: NoteEditorProps) {
 
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === "drop") {
-        void attachDropped(event.payload.paths);
+        attachDropped(event.payload.paths);
       }
     });
 
     return () => {
-      void unlisten.then((dispose) => {
+      unlisten.then((dispose) => {
         dispose();
       });
     };
@@ -362,7 +364,7 @@ function NoteEditor({ note }: NoteEditorProps) {
         allTags={tags}
         focusModeEnabled={focusModeEnabled}
         onFilterTag={(tag) => {
-          void navigate({ search: { tag }, to: "." });
+          navigate({ search: { tag }, to: "." });
         }}
         onToggleFocusMode={toggleFocusMode}
         onToggleSource={toggleSourceMode}

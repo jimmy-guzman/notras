@@ -23,15 +23,15 @@ const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
 
 export interface EditorHandle {
-  focus(): void;
+  focus: () => void;
   /**
    * The caret's exact offset in this buffer's markdown serialization,
    * found by serializing a throwaway clone with a sentinel at the caret.
    * -1 when it cannot be determined.
    */
-  getCaretSourceOffset(): number;
-  getContent(): string;
-  insertText(text: string): void;
+  getCaretSourceOffset: () => number;
+  getContent: () => string;
+  insertText: (text: string) => void;
 }
 
 interface EditorProps {
@@ -152,7 +152,7 @@ export function Editor({
               return true;
             }
 
-            void openUrl(href).catch(() => {
+            openUrl(href).catch(() => {
               toast.error("could not open link");
             });
 
@@ -201,7 +201,7 @@ export function Editor({
                 return;
               }
 
-              void attachImage(base64)
+              attachImage(base64)
                 .then((relativePath) => {
                   editorRef.current
                     ?.chain()

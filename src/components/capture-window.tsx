@@ -64,7 +64,7 @@ export function CaptureWindow() {
   useHotkeys(
     "esc, mod+enter",
     () => {
-      void saveAndHide();
+      saveAndHide();
     },
     HOTKEY_OPTIONS
   );

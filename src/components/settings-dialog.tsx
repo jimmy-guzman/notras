@@ -35,7 +35,7 @@ export function SettingsDialog({
 
   useEffect(() => {
     if (open) {
-      void isEnabled()
+      isEnabled()
         .then((enabled) => {
           setAutostart(enabled);
           setAutostartReadable(true);

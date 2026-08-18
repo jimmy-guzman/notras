@@ -27,7 +27,7 @@ function EmptyState() {
   const navigate = useNavigate();
 
   const newNote = () => {
-    void createNote()
+    createNote()
       .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
       .catch((error: unknown) => {
         toast.error(

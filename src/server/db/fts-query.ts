@@ -3,6 +3,8 @@ import { asc, desc, sql } from "drizzle-orm";
 import { SNIPPET_END, SNIPPET_START } from "@/core";
 import { note } from "@/server/db/schema";
 
+const WHITESPACE_RUN = /\s+/;
+
 export function buildFtsMatchQuery(query: string | undefined) {
   if (query === undefined) {
     return;
@@ -10,7 +12,7 @@ export function buildFtsMatchQuery(query: string | undefined) {
 
   const terms = query
     .trim()
-    .split(/\s+/)
+    .split(WHITESPACE_RUN)
     .map((term) => term.trim())
     .map((term) => term.replaceAll(/[^\p{L}\p{N}_]+/gu, ""))
     .filter((term) => term.length > 0);

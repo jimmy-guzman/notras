@@ -59,7 +59,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   // wraps the shared writer instead of living inside it.
   const commitTags = (nextTags: string[]) => {
     setQuery("");
-    void changeTags(nextTags);
+    changeTags(nextTags);
   };
 
   const hasTags = optimisticTags.length > 0;

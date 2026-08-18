@@ -4,6 +4,6 @@ import { NoteService } from "@/server/services/note-service";
 
 import { run } from "./run";
 
-export async function getNotes(filters?: NoteFilters) {
+export function getNotes(filters?: NoteFilters) {
   return run(NoteService.use((svc) => svc.list(filters)));
 }

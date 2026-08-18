@@ -31,6 +31,8 @@ export interface ParsedNote {
 
 const CLOSING_DELIMITERS = new Set(["---", "..."]);
 
+const TRAILING_CR = /\r$/;
+
 function cleanTag(raw: string) {
   const tag = raw
     .trim()
@@ -78,17 +80,23 @@ function cleanTitle(raw: string) {
  * so a title carrying a backslash or a double quote needs no further handling,
  * where the double-quoted form would treat `\` as an escape introducer.
  */
+const BARE_YAML_TITLE = /^[\p{L}\p{N}][\p{L}\p{N} \-._]*$/u;
+
 function serializeTitle(title: string) {
-  return /^[\p{L}\p{N}][\p{L}\p{N} \-._]*$/u.test(title)
+  return BARE_YAML_TITLE.test(title)
     ? title
     : `'${title.replaceAll("'", "''")}'`;
 }
 
+const LEADING_BRACKETS = /^\[+/;
+
+const TRAILING_BRACKETS = /\]+$/;
+
 function parseInlineTags(value: string) {
   return value
     .trim()
-    .replace(/^\[+/, "")
-    .replace(/\]+$/, "")
+    .replace(LEADING_BRACKETS, "")
+    .replace(TRAILING_BRACKETS, "")
     .split(",")
     .map(cleanTag)
     .filter((tag) => tag !== undefined);
@@ -118,7 +126,7 @@ export function parseNote(content: string): ParsedNote {
   // `composeNote`'s \n joins cannot emit a block with mixed line endings.
   const rawLines = lines
     .slice(1, closeIndex)
-    .map((line) => line.replace(/\r$/, ""));
+    .map((line) => line.replace(TRAILING_CR, ""));
   const body = lines.slice(closeIndex + 1).join("\n");
   const frontmatter: Frontmatter = {
     pinned: false,

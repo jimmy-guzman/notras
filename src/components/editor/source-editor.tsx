@@ -11,8 +11,8 @@ import { useEffect, useState } from "react";
 
 export interface SourceEditorHandle {
   /** Caret position as a character offset into the raw text. */
-  getCursorOffset(): number;
-  insertText(text: string): void;
+  getCursorOffset: () => number;
+  insertText: (text: string) => void;
 }
 
 interface SourceEditorProps {
