@@ -29,6 +29,10 @@ place. `D47` records why a fact lives in one of them and not two.
   an option for a reason worth recording makes the choice a decision. Add a
   numbered entry with the rationale and what was rejected.
 
+- **Breaking an invariant in `ARCHITECTURE.md` is a design change.** Each one
+  holds a property the architecture depends on, so changing one is never a
+  refactor and gets a `DECISIONS.md` entry of its own.
+
 - **Numbering is monotonic and IDs are never reused, even after the entry is
   removed.** A citation in a commit or a comment outlives the line it points at.
   Reusing an ID repoints every reference to it without any of them changing.
@@ -89,6 +93,14 @@ guide does not cover, search through the source code in
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
+- **Ultracite, a Biome preset, is the only formatter and linter** (`D15`,
+  `D41`), and it is dev tooling only. No Prettier and no ESLint. Do not silence
+  a lint error with a config override: suppress a false positive at the call
+  site with `biome-ignore` and a reason. One override exists and is documented,
+  the Shadcn `src/components/ui/**` block in `biome.jsonc`, which turns off the
+  rules with no autofix because `scripts/update-shadcn.sh` regenerates those
+  files (`D19`, `D37`).
+
 - **Sort object keys and imports alphabetically.** Biome's `organizeImports`
   assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit
   hook, since neither editor config wires it. One exception the preset already
@@ -103,7 +115,8 @@ guide does not cover, search through the source code in
 - **Build the smallest thing that answers the request.** Solve what was asked.
   Skip config objects, options bags, plugin hooks, and abstraction layers for
   needs nobody stated. Delete flexibility you are adding "for later". Reach for
-  a function before a class, and a class before a framework.
+  a function before a class, and a class before a framework, and a dependency
+  last of all. `pnpm knip` has to stay clean.
 
 - **One reason to change per unit.** A function or module should do one job.
   Needing "and" to describe it means splitting it. Group code that changes
@@ -153,14 +166,11 @@ guide does not cover, search through the source code in
 - **Duplicate before you abstract, and even then, ask.** Do not extract shared
   code on the second occurrence. Wait for the third, and only when the copies
   change together for the same reason. Even then, surface the duplication and
-  propose the extraction instead of doing it unprompted. Whether two similar
-  pieces are one concept takes context that the person reading the diff has and
-  you may not.
-
-- **Prefer duplication to an abstraction that might be wrong.** Deduping two
-  unrelated pieces couples their futures. Once one needs to change and the other
-  does not, the abstraction grows conditionals or splits back apart, and both
-  cost more than the copies would have.
+  propose the extraction rather than doing it unprompted: whether two similar
+  pieces are one concept takes context the person reading the diff has and you
+  may not. A wrong abstraction couples two futures, and once one has to change
+  and the other does not it grows conditionals or splits back apart, costing
+  more than the copies would have.
 
 - **Inline by default, and extract only when the helper earns a name.** Leave
   single-use helpers at the call site. Pull one out when it is reused, when it
@@ -227,9 +237,10 @@ guide does not cover, search through the source code in
 
 ## Fixing bugs
 
-- **Diagnose the root cause before fixing.** Assume a correct architecture has
-  no bugs. Every bug is then evidence that the architecture permits it, beyond
-  the one code path where it showed up. Before fixing, ask why the architecture
+- **Diagnose the root cause before fixing, on every fix.** The analysis is
+  mandatory; refactoring on it is not. Assume a correct architecture has no
+  bugs. Every bug is then evidence that the architecture permits it, beyond the
+  one code path where it showed up. Before fixing, ask why the architecture
   allowed the bug to exist and whether the same structure keeps producing others
   like it.
 
@@ -240,26 +251,19 @@ guide does not cover, search through the source code in
   because it is larger or harder. When you do patch at the symptom layer, say so
   and name the root cause you are deferring.
 
-- **Root-cause analysis is required. Refactoring on the analysis is not.** Think
-  first, and treat the analysis as mandatory on every fix.
-
 ## Deciding what to do
 
-- **Judge work by correctness, not by ROI.** Decide each piece of work on
-  whether it should be done. Ask whether it is correct, whether the current
-  state is wrong or inconsistent, and whether it serves the goal. Cost, effort,
-  and "is it worth it" decide nothing. Do not label a known-wrong thing
-  low-value, marginal, an edge case, or not worth it to justify leaving it
-  unfixed.
+- **Judge work by correctness and feasibility, and frame choices the same
+  way.** Ask whether a piece of work is correct, whether the current state is
+  wrong or inconsistent, and whether it serves the goal. Cost, effort, and "is
+  it worth it" decide nothing, and ROI is not one of the frames to present.
+  Do not label a known-wrong thing low-value, marginal, an edge case, or not
+  worth it to justify leaving it unfixed.
 
 - **The only reason to stop is provable impossibility.** Hard, heavy, expensive,
   and a lot of work are not reasons to stop. Proven impossible or blocked is.
   Unsure which one you are looking at means finding out by trying it, measuring
   it, or proving it, before deciding.
-
-- **Present choices by correctness and feasibility.** Frame options by whether
-  they are correct and whether they can be built, including real impossibilities
-  and real capability tradeoffs. ROI is not one of the frames.
 
 ## Verification
 
@@ -306,10 +310,12 @@ automated end-to-end coverage, and `D21` records why.
 
 ## Evidence and verdicts
 
-- **Attach evidence to every summary.** List the commands run and their results,
-  the tests that now cover the change, and the observable behavior nothing
-  checked. A summary of what changed repeats the diff at lower resolution.
-  Evidence gives the reviewer something to check the change against.
+- **Attach evidence to every summary, and name the weakest part of it.** List
+  the commands run and their results, the tests that now cover the change, and
+  the observable behavior nothing checked. Then point at a file and a line and
+  say what to run or read to test it, since a hedge covering the whole change
+  gives a reviewer nowhere to start and you are the only one holding that
+  information. A summary of what changed repeats the diff at lower resolution.
 
 - **Propose a checked box. A human sets it.** Walking a `SPEC.md` step makes it
   ready for the move. Applying it weighs whether that evidence is
@@ -320,16 +326,11 @@ automated end-to-end coverage, and `D21` records why.
   error shapes, ordering, what a partial state means. The implementation settles
   them. List what it settled, so the verdict covers those choices.
 
-- **Name the weakest part of the change and how someone would catch it.** A
-  hedge covering the whole change gives a reviewer nowhere to start. Point at a
-  file and a line, then say what to run or read to test it. At the moment a
-  change is proposed you are the only one holding that information.
-
-- **Split a task you cannot produce complete evidence for.** A task whose weakest
-  part lands in several places at once, or whose decision list runs past what a
-  reviewer can hold, has bundled work that then takes one verdict. Diff size
-  measures how much code arrived and says nothing about how many choices sit
-  inside it.
+- **Split a task you cannot produce complete evidence for.** A task whose
+  weakest part lands in several places at once, or whose decision list runs past
+  what a reviewer can hold, has bundled work that then takes one verdict. Diff
+  size measures how much code arrived and says nothing about how many choices
+  sit inside it.
 
 - **A finding you are not fixing gets written down.** An out-of-scope defect
   goes in `SPEC.md`'s Deferred list or an issue, and an out-of-scope question
@@ -506,19 +507,3 @@ They cover every markdown file here, plus commit messages and PR bodies.
   `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs
   rot as soon as the code moves without them. Catching the update at the point
   of change is when it reliably happens at all.
-
-## Do not
-
-- Use Prettier or ESLint. This project uses Ultracite, a Biome preset, for
-  dev tooling only (`D15`, `D41`).
-- Add unnecessary dependencies. Run `pnpm knip` and leave it clean.
-- Silence lint errors with config overrides. One exception exists and is
-  documented: the Shadcn `src/components/ui/**` block in `biome.jsonc`, which
-  turns off the rules with no autofix because `scripts/update-shadcn.sh`
-  regenerates those files (`D19`, `D37`). Suppress a false positive at the call
-  site with `biome-ignore` and a reason instead.
-- Leave tests, lint, typecheck, knip, or the build red.
-- Hand-edit `src/typeset.css`. It is vendored (`D40`); tune `.typeset-note`.
-- Break an invariant in `ARCHITECTURE.md`. Each one holds a property the
-  architecture depends on, so changing it is a design change and gets a
-  `DECISIONS.md` entry.
