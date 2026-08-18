@@ -8,7 +8,8 @@ export from. The window is the editor; everything else is a keystroke away.
 
 ## Your notes are files
 
-notras stores every note as a `.md` file (default: `~/notras`). Folders are
+notras stores every note as a `.md` or `.markdown` file (default: `~/notras`).
+Folders are
 real directories, tags and pins are YAML frontmatter, attachments are plain
 files. That one decision buys a lot:
 
@@ -42,7 +43,7 @@ rebuilds it from your files on the next launch.
 - drag any file in -> copied to `attachments/`, markdown link inserted
 - global quick capture: ⌘⇧N from anywhere -> jot -> esc saves to `inbox/`
 - menu-bar tray, launch at login, macOS overlay title bar
-- "Open With" any external `.md` file
+- "Open With" any external markdown file
 - word count + reading time; lowercase everything; dark/light via system
 
 ## Technologies

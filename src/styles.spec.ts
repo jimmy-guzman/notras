@@ -445,8 +445,13 @@ describe("launch background", () => {
 const DRAG_REGION_OPT_OUT =
   /((?:\.titlebar-drag-region[^,{]*,\s*)+\.titlebar-drag-region[^,{]*)\{\s*-webkit-app-region:\s*no-drag/;
 
-/** The first `cn()` class list in a component, which is its root element's. */
-const FIRST_CLASS_LIST = /className=\{cn\(\s*"([^"]+)"/;
+/**
+ * The class list on `TooltipTrigger`'s rendered element. Anchored on the trigger
+ * rather than on the first `cn()` in the file, so adding a call above it cannot
+ * silently point this at a different element.
+ */
+const TRIGGER_CLASS_LIST =
+  /<TooltipTrigger[\s\S]*?render=\{[\s\S]*?className=\{cn\(\s*"([^"]+)"/;
 
 const WHITESPACE = /\s+/;
 
@@ -477,9 +482,9 @@ describe("titlebar drag region", () => {
 
   it("should give the save indicator's span trigger the opt-out", () => {
     const classes = firstMatch(
-      FIRST_CLASS_LIST,
+      TRIGGER_CLASS_LIST,
       saveIndicator,
-      "the trigger class list in save-indicator.tsx"
+      "the tooltip trigger's class list in save-indicator.tsx"
     );
 
     expect(classes.split(WHITESPACE)).toContain("no-drag");

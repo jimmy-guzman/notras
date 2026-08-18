@@ -39,7 +39,8 @@ index, are work Rust does well and Node does adequately.
 
 ### D2 Notes are files
 
-Every note is a `.md` file under a folder the user owns, default `~/notras`.
+Every note is a `.md` or `.markdown` file under a folder the user owns,
+default `~/notras`.
 Folders are directories, `pinned` and `tags` are YAML frontmatter, attachments
 are plain files in `attachments/`.
 
@@ -75,8 +76,10 @@ Rust writes the index and TypeScript only reads it. `ARCHITECTURE.md` carries
 how the two halves connect.
 
 One writer removes the transaction-serialization problem the SQLite-first design
-had. It also means the index cannot disagree with the file it describes, because
-the same call produced both.
+had. It also means a mutation the app makes cannot leave the index disagreeing
+with the file, because the same call produced both. An external writer still
+can: the file changes and the index catches up when the watcher reindexes
+(`D16`).
 
 **Constraint:** the read gate asks SQLite whether a statement is read-only
 rather than reading the statement. The first implementation tested the prefix
