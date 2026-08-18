@@ -73,10 +73,8 @@ matches whatever the user is running (`D25`).
 
 ## Color
 
-The palette is stet's, whose source of truth is
-`packages/tui/src/theme/{dark,light}.ts` (`D23`). Seven values are playa.dev's
-lifted variants, because stet treats contrast as a comfortable target while
-`src/styles.spec.ts` makes WCAG AA a floor.
+The palette is stet's, with seven values lifted from playa.dev so the gate below
+passes (`D23`).
 
 - **Every colour is a hex CSS variable in `src/styles.css`.** No component
   hardcodes a colour value.
@@ -269,11 +267,9 @@ a real non-motion end state, so removing the transition costs nothing.
 - The caret takes `--foreground`, and selection takes `--selection`.
 - The empty-document placeholder renders through
   `p.is-editor-empty:first-child::before` on `--faint`, and never as a real node.
-- **The reading surface takes no colour of its own** (`D40`). Typeset reads
-  `--color-foreground`, `--color-muted-foreground`, `--color-border`,
-  `--color-muted`, `--color-primary`, and `--color-ring`, all of which the
-  `@theme inline` block already emits, so the note is on the palette with nothing
-  repointed. `src/styles.spec.ts` asserts the two roles it derives resolve to a
+- **The reading surface takes no colour of its own** (`D40`). Typeset reads the
+  `--color-*` tokens the `@theme inline` block already emits, so the note is on
+  the palette with nothing repointed. `src/styles.spec.ts` asserts the two roles it derives resolve to a
   token, and that every `::marker` paints from the muted one.
 - **Bullet and ordered lists come from Typeset.** Markers, indentation, and the
   space between items are its at every depth, and a marker steps disc, circle,

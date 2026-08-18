@@ -358,9 +358,9 @@ hand-edited. Lint with no autofix is turned off for them in `biome.jsonc`'s
 **Constraint:** three deviations are documented, and each is re-applied whenever
 the components are regenerated.
 
-1. `command.tsx` moves the sr-only `DialogHeader` inside `DialogContent`,
-   because the content is portalled and upstream's placement leaves
-   `aria-labelledby` pointing at a node outside the dialog.
+1. `command.tsx` moves the sr-only `DialogHeader` inside `DialogContent`, which
+   `DESIGN.md` states as an accessibility rule and this entry accepts as a
+   deviation from generated output.
 2. Generated user-facing strings are lowercased to satisfy `D18`: the sr-only
    and footer "close" labels in `dialog.tsx`, and the default `title` and
    `description` in `command.tsx`.
@@ -450,12 +450,11 @@ redesign needed.
 `color-mix(in oklch, ...)` still interpolates in OKLCH, so the tint recipes are
 unaffected.
 
-**Constraint:** shadcn's `--accent` names a hover surface, not the accent. The
-accent is `--primary`. Code reaching for `--accent` to emphasise something has
-the wrong token.
+**Constraint:** shadcn's `--accent` names a hover surface and `--primary` is the
+accent, which `DESIGN.md` states as a rule for callers.
 
-**Constraint:** a card moves away from the text colour, so it is darker in dark
-and lighter in light. Painting the light card at `surface.panel` drops
+**Constraint:** a card moves away from the text colour, which `DESIGN.md` states
+as a rule. Painting the light card at `surface.panel` drops
 `--syntax-number` to 3.96:1 against code-block text.
 
 **Constraint:** `@tailwindcss/typography` shipped its own stone ramp, which
@@ -464,9 +463,8 @@ repointed all sixteen `--tw-prose-*` colours at tokens, and
 `prose-stone dark:prose-invert` came off the editor. `D40` replaced the plugin
 with shadcn/typeset, which reads the tokens itself, so the repointing is gone.
 
-**Constraint:** `src/styles.spec.ts` fails the build when a text-on-surface pair
-drops below 4.5:1 in either scheme, and when the two schemes stop declaring the
-same token names.
+**Constraint:** `src/styles.spec.ts` gates the palette, and `DESIGN.md` states
+what it fails on.
 
 ### D24 Literata on the note surface
 
@@ -570,8 +568,7 @@ frame, and is the fix if it ever proves visible.
 ### D28 The titlebar carries the note's identity
 
 The note title, its tags, and the pin toggle live in the window's drag region.
-`Titlebar` in `src/components/titlebar.tsx` declares that region once, and every
-route and both windows render it.
+`Titlebar` in `src/components/titlebar.tsx` declares that region once.
 
 **Superseded in part by `D30`,** which moves the tags to the status strip. The
 title and the pin stay, and every other part of this entry carries over.
@@ -605,9 +602,8 @@ single band. Rejected because the title, the word count, and three toggles do no
 fit beside the traffic lights at the 480px minimum width, and because save state
 belongs near where the eye rests rather than in the window chrome.
 
-**Constraint:** `--spacing-titlebar` insets content past the traffic lights, which
-macOS floats over the content at the top left. It is a macOS number. Windows and
-Linux put the controls on the right and would need it mirrored.
+**Constraint:** `--spacing-titlebar` insets content past the traffic lights, and
+`DESIGN.md` carries what that means for a port to another platform.
 
 **Constraint:** `styles.css` exempts `button` and `input` from dragging, and any
 other interactive element added to the region needs that rule widened. The title
@@ -1089,9 +1085,8 @@ second time, with an on-state of `text-primary`. `DESIGN.md` rules out both
 colours: the accent stays out of chrome and `--primary` belongs on the focus
 ring.
 
-The three view toggles are one `ToggleGroup`, which is one tab stop with
-arrow-key movement inside it rather than three separate stops. They stay three
-independent settings: `StatusBar` still takes three booleans and three
+The three view toggles are one `ToggleGroup`, which `DESIGN.md` states as the
+rule. They stay three independent settings: `StatusBar` still takes three booleans and three
 handlers, and a descriptor array derives the group's value from them and routes
 a change back to the one handler whose membership flipped.
 
@@ -1307,10 +1302,8 @@ is the 12142 bytes vendored at `src/typeset.css`.
 `###### foo` draws `FOO`. This is a WYSIWYG editor over the user's own file, and
 it is the one place the surface draws characters the file does not hold.
 
-**Constraint:** the note re-sizes at 768px. Typeset's base is
-`calc(var(--typeset-size) * 1.125)` and a `min-width: 48rem` query resets it, so a
-window narrower than 768px reads at `1.125rem`. The minimum window is 480px, so
-both sizes are reachable by dragging one edge.
+**Constraint:** the note re-sizes at 768px, which `DESIGN.md` states. The
+minimum window is 480px, so both sizes are reachable by dragging one edge.
 
 **Constraint:** the checkbox, the flex gap, and the row's pull-back are all `em`.
 Typeset's list paddings are `em` and its size changes at 768px, so a `rem`
@@ -1519,10 +1512,9 @@ names the document and the concept rather than a heading or a line.
 
 ### D48 A comment carries a why, never a what
 
-A line comment is allowed where it holds reasoning the code cannot: a platform
-quirk, a race, a measured value, or a rejected alternative worth naming at the
-call site. A comment restating what the line below already says is not, and is
-the kind that drifts into a lie.
+A line comment is allowed where it holds reasoning the code cannot, and banned
+where it restates the line below it. `AGENTS.md` carries the rule and the kinds
+it covers.
 
 The previous rule banned every comment outside JSDoc, rustdoc, `TODO` and
 `FIXME`, and named `src/styles.css` as the one exception. The tree carries 211

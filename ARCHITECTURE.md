@@ -231,9 +231,8 @@ with an in-memory `FileStore` and a stub `NoteRepository`.
 
 ### Routes
 
-TanStack Router file routes. `export const Route` sits at the top of the file
-and components are function declarations below, which hoisting makes lint-clean.
-Route option objects are left unsorted: `ultracite/biome/tanstack` turns the
+TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option
+objects are left unsorted: `ultracite/biome/tanstack` turns the
 `useSortedKeys` assist off under `src/routes/**` because the option types infer
 in declaration order. Nothing checks the order itself.
 

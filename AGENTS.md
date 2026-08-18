@@ -186,9 +186,9 @@ guide does not cover, search through the source code in
   first line of the stack trace. Validation is Effect Schema in
   `src/server/schemas/`, not zod.
 
-- **A typed failure's message is user-facing text.** `run()` unwraps typed
-  failures into plain `Error`s and callers write `toast.error(error.message)`.
-  Write those messages to the copy rules in `DESIGN.md`.
+- **A typed failure's message is user-facing text.** `ARCHITECTURE.md` covers how
+  `run()` gets it to a toast. Write those messages to the copy rules in
+  `DESIGN.md`.
 
 - **Resolve warnings and errors your changes introduce before finishing. Fix the
   root cause.** A warning fires because something is off. Silencing it converts
