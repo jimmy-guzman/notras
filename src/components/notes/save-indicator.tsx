@@ -35,6 +35,10 @@ interface SaveIndicatorProps {
 /**
  * The note's save state as a glyph (`D35`). Not a control: the tooltip is
  * hover-only and the word lives in the accessibility tree.
+ *
+ * `no-drag` is load-bearing since `D38` put this in the titlebar: the drag
+ * region exempts only `button`, `input` and `.no-drag`, and a `span` without it
+ * never receives the hover that opens the tooltip.
  */
 export function SaveIndicator({ status }: SaveIndicatorProps) {
   const { icon: Icon, label, tone } = STATUS[status];
@@ -45,7 +49,7 @@ export function SaveIndicator({ status }: SaveIndicatorProps) {
         render={
           <span
             className={cn(
-              "inline-flex size-6 shrink-0 items-center justify-center",
+              "no-drag inline-flex size-6 shrink-0 items-center justify-center",
               tone
             )}
           />

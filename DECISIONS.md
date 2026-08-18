@@ -246,7 +246,7 @@ under "Effect style".
 
 The Effect 3 to 4 migration turned 117 type errors into zero, cascading from
 nine files. `Tag.pipe(Effect.flatMap(...))` became `Service.use(...)` across
-`src/data/`, with `create-note.ts` still on the old form, which also retired the
+every file in `src/data/`, which also retired the
 `unicorn/no-array-method-this-argument` workaround the old form required.
 
 **Rejected: the Effect 3 `XxxLive` const pattern.** What the codebase had.
@@ -1032,8 +1032,9 @@ which is why the `sr-only` text exists rather than an `aria-label` on the svg.
 `no-drag`, which `styles.css` now exposes as a class beside its `button` and
 `input` selectors. Without it macOS swallows the pointer and the tooltip never
 opens, which `D28` records as the rule this widens. `D38` moved the glyph into
-that region on the note route without carrying the class, so only
-`src/routes/external.tsx` satisfies this today.
+that region without carrying the class, so the tooltip was dead on the note
+route until `SaveIndicator` took `no-drag` itself. `src/styles.spec.ts` asserts
+both halves now.
 
 ### D36 Every item in the status strip is a shaped item
 
