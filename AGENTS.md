@@ -5,16 +5,16 @@ They override your defaults where they conflict.
 
 ## Project docs
 
-The context for this repo lives in five documents. Read the ones your change
-touches before changing anything.
+The context for this repo lives in the five documents below. Read the ones your
+change touches before changing anything.
 
 | Doc               | What it holds                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `ARCHITECTURE.md` | How the system is built: stack, structure, the files-first invariants, layer boundaries, key patterns, the index schema.  |
-| `DESIGN.md`       | The interface conventions the app is built to: typography, color, space, motion, interaction, copy, accessibility.        |
+| `ARCHITECTURE.md` | How the system is built: stack, files as the source of truth, the index schema, structure, layer boundaries, key patterns, invariants. |
+| `DESIGN.md`       | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
 | `DECISIONS.md`    | Numbered decisions, each with its rationale, what it rejected, and the constraints it imposes.                            |
 | `SPEC.md`         | The manual verification walkthrough, and the work that is deferred rather than done.                                     |
-| `README.md`       | The front door. What notras is, how to run it, what the shortcuts are.                                                    |
+| `README.md`       | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns (`D47`).                     |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files
 above, so a stack detail, a pattern, or a color token added here is in the wrong
@@ -42,8 +42,8 @@ place. `D47` records why a fact lives in one of them and not two.
 
 This repository uses the Effect TypeScript library.
 
-Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
-**completely**, and follow the links in the file when required.
+Before writing any Effect code, read `node_modules/effect/AGENTS.md` in full first, and follow the links in the
+file when required.
 
 If you need to learn more about particular Effect APIs and concepts that the
 guide does not cover, search through the source code in
@@ -76,8 +76,11 @@ guide does not cover, search through the source code in
 - **No comments other than doc comments and `TODO`/`FIXME`.** Doc comments means
   JSDoc and rustdoc. Naming and structure carry the rest. Comments drift away
   from the code they describe, and the two kinds worth that risk are an API
-  contract and a known gap. `src/styles.css` is the standing exception, where a
-  comment carries the reasoning behind a measured value.
+  contract and a known gap. `src/styles.css` is an exception, where a comment
+  carries the reasoning behind a measured value, and `src/typeset.css` is another
+  for the reason below. The rule is aspirational rather than met: 211 line
+  comments sit under `src/` today, nothing checks for them (`D41`), and
+  `SPEC.md` carries the enforcement as deferred.
 
 - **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file
   byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and
@@ -87,8 +90,9 @@ guide does not cover, search through the source code in
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **Sort object keys and imports alphabetically.** Biome's `useSortedKeys` and
-  `organizeImports` assists do it on save, with one exception the preset already
+- **Sort object keys and imports alphabetically.** Biome's `organizeImports`
+  assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit
+  hook, since neither editor config wires it. One exception the preset already
   encodes: route option objects, which `ultracite/biome/tanstack` leaves
   unsorted because their types infer in declaration order.
 
@@ -260,17 +264,22 @@ guide does not cover, search through the source code in
 
 ## Verification
 
-`README.md` lists every script. This is the gate, and it is a different list.
-After **every** set of changes, run all of it before considering the task done:
+`README.md` lists the scripts. This is the gate: a subset, in the order that
+fails cheapest first. After every set of changes, run all of it before
+considering the task done:
 
 ```txt
 pnpm knip         # 0. unused code/deps (fix before proceeding)
 pnpm typecheck    # 1. types
 pnpm check        # 2. lint + format
-pnpm test         # 3. unit tests
+pnpm coverage     # 3. unit tests (pnpm test watches, so it will not exit)
 pnpm build:web    # 4. web bundle build
 cargo test        # 5. (when src-tauri changed) in src-tauri/
 ```
+
+CI runs the same commands in a different order and runs `cargo test` on every
+pull request, so a Rust change that passes here can still be the one that fails
+there.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev`
 and walk the relevant steps of the `SPEC.md` verification list. There is no
@@ -499,7 +508,7 @@ They cover every markdown file here, plus commit messages and PR bodies.
   rot as soon as the code moves without them. Catching the update at the point
   of change is when it reliably happens at all.
 
-## Do NOT
+## Do not
 
 - Use Prettier or ESLint. This project uses Ultracite, a Biome preset, for
   dev tooling only (`D15`, `D41`).

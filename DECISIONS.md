@@ -245,8 +245,8 @@ A service is a class carrying its own layer, which `ARCHITECTURE.md` spells out
 under "Effect style".
 
 The Effect 3 to 4 migration turned 117 type errors into zero, cascading from
-nine files. `Tag.pipe(Effect.flatMap(...))` became `Service.use(...)` across all
-15 `src/data/` files, which also retired the
+nine files. `Tag.pipe(Effect.flatMap(...))` became `Service.use(...)` across
+`src/data/`, with `create-note.ts` still on the old form, which also retired the
 `unicorn/no-array-method-this-argument` workaround the old form required.
 
 **Rejected: the Effect 3 `XxxLive` const pattern.** What the codebase had.
@@ -396,8 +396,8 @@ before anything touching Rust or window behavior merges.
 ### D22 Base UI under the shadcn base-maia style
 
 The generated primitives move from the radix-maia style to base-maia, which is
-the same Maia look on `@base-ui/react` instead of `radix-ui`. The `D19` palette
-and both of its constraints carry over.
+the same Maia look on `@base-ui/react` instead of `radix-ui`. `D19`'s two
+constraints carry over, and `D23` later replaced its palette.
 
 `radix-ui` is one package that installs 57. Base UI is one tree-shakable
 package, and shadcn made it the default in July 2026, so base-maia gets the same
@@ -1019,9 +1019,10 @@ state stayed on screen to be checked.
 
 **Constraint:** the three glyphs above differ by a badge roughly 4px wide at
 `size-3.5`, so the tone carries the rest. `saved` sits on `--faint` and the other
-two on `--muted-foreground`. Changing either tone makes the states harder to tell
-apart, not just quieter. `D38` moved the indicator out of the status strip and
-gave its fourth state a tone of its own.
+two set none and inherit the band's. Changing a tone makes the states harder to
+tell apart rather than only quieter. `D38` moved the indicator out of the status
+strip, where the inherited tone was `--muted-foreground`, and gave its fourth
+state a tone of its own.
 
 **Constraint:** the indicator is a status and not a control, so its tooltip
 trigger renders a `span`. It takes no tab stop and hover is the only opener,
@@ -1030,7 +1031,9 @@ which is why the `sr-only` text exists rather than an `aria-label` on the svg.
 **Constraint:** anything hoverable inside `.titlebar-drag-region` needs
 `no-drag`, which `styles.css` now exposes as a class beside its `button` and
 `input` selectors. Without it macOS swallows the pointer and the tooltip never
-opens, which `D28` records as the rule this widens.
+opens, which `D28` records as the rule this widens. `D38` moved the glyph into
+that region on the note route without carrying the class, so only
+`src/routes/external.tsx` satisfies this today.
 
 ### D36 Every item in the status strip is a shaped item
 
@@ -1038,7 +1041,10 @@ The strip sets one gap and each item carries its own padding, which comes from
 the component it is. The footer is `px-3 gap-1`, each run of like items is
 `gap-0.5`, and nothing overrides a variant to reach a number.
 
-The insets follow from the components: the save glyph and the view toggles sit
+**Superseded in part by `D38`,** which moved the save glyph out of the strip and
+into the titlebar. The recipe stands and the strip is one item shorter.
+
+The insets follow from the components: the view toggles sit
 in a 24px box at 5px, a tag chip is a `Badge` at 8px, `add tag` is a
 `Button size="xs"` at 10px, and the word count is text given the badge's `px-2`
 so it is shaped like what it sits between. Between-item distances land at 17px
@@ -1294,7 +1300,7 @@ whole-file diff merged by hand.
 is a 404, and the `shadcn` CLI carries no `typeset` anywhere in its dist, so there
 is no `shadcn add` for it and `components.json` is untouched.
 `scripts/update-typeset.sh` re-fetches `https://ui.shadcn.com/typeset.css`, which
-is the same 12158 bytes as the file in `shadcn-ui/ui`.
+is the 12142 bytes vendored at `src/typeset.css`.
 
 **Constraint:** h6 carries `text-transform: uppercase`, so a note holding
 `###### foo` draws `FOO`. This is a WYSIWYG editor over the user's own file, and
@@ -1344,7 +1350,7 @@ Lint and formatting come from `ultracite`, a Biome preset, extended in
 `.lefthook.json`, and `@jimmy.codes/eslint-config` are gone, and CI runs one
 check step where it ran a format step and a lint step.
 
-The whole config is thirty lines: four extends, a two-entry `files.includes`,
+The whole config is under forty lines: four extends, a two-entry `files.includes`,
 and one override. Writing more than that was the first attempt and it went
 backwards, which is the constraint below.
 
@@ -1412,7 +1418,7 @@ engine supporting no lookahead. Porting them cost about seventy lines of the
 hundred and twenty `D41` rejected.
 
 **Rejected: a spec that reads the source and asserts on imports.**
-`src/styles.spec.ts` already guards `D6`, `D39`, and `D40` that way, so the
+`src/styles.spec.ts` already guards `D27`, `D39`, and `D40` that way, so the
 pattern exists and would have cost about fifty lines of test instead of seventy
 lines of config. Rejected together with the config, on the same ground: neither
 had caught anything, since all eleven files importing `lucide-react` already
