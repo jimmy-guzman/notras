@@ -3,9 +3,7 @@
 What a person still checks by hand, and what is not built. The rewrite this file
 tracked is done, and `git log` holds how it went.
 
-`ARCHITECTURE.md` covers how the system is built, `DESIGN.md` the interface,
-`DECISIONS.md` why each choice was made, and `AGENTS.md` the rules for changing
-any of it.
+`AGENTS.md` maps the rest of the docs.
 
 ## Verification
 
@@ -48,8 +46,8 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - A floating-promise check (`D42` left fire-and-forget calls unmarked and unchecked)
 - Enforcement for the `D14` layer boundaries and the lucide icon rule (`D43`)
 - Enforcement for the `AGENTS.md` comment rule (`D41`: Biome has no `no-inline-comments`)
-- A focus-visible affordance for `.link-editor-input`, `.code-block-language`,
-  and `.code-block-button`, which drop the outline and replace nothing
+- A focus-visible affordance for `.link-editor-input` and `.code-block-language`,
+  which set `outline: none` and replace nothing
 - A message on `DatabaseError` (`src/core/errors.ts`), which carries only
   `cause`, so a database failure reaches `toast.error` as Effect's own text
 - A shortcut or palette entry for typewriter scrolling, the one action reachable

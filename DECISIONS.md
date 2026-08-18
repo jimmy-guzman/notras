@@ -1409,9 +1409,9 @@ gate, and the failure surfaces as a rejection nobody reports.
 
 ### D43 Layer boundaries and the icon import rule are conventions
 
-`D14`'s two layer boundaries and the rule that `lucide-react` imports use the
-`Icon`-suffixed export are written in `ARCHITECTURE.md` and `AGENTS.md` and
-checked by nobody.
+`D14`'s two layer boundaries, written in `ARCHITECTURE.md`, and the rule that
+`lucide-react` imports use the `Icon`-suffixed export, written in `AGENTS.md`,
+are checked by nobody.
 
 Biome expresses both: `style/noRestrictedImports` takes gitignore-style groups,
 and its `invertImportNamePattern` covers the icon rule despite the Rust regex

@@ -1,15 +1,15 @@
 # DESIGN
 
 Interface conventions for notras. Every rule here is either implemented in
-`src/styles.css` or observable in the running app. `ARCHITECTURE.md` covers how
-the system is built, and `DECISIONS.md` covers why.
+`src/styles.css` or observable in the running app. `AGENTS.md` maps the rest of
+the docs.
 
 ## Operating principles
 
 - **The window is the editor.** There is no persistent sidebar and no navigation
   chrome. Anything that is not the note reaches the screen through ⌘K, a
-  dialog, or the status strip. The two bands that remain, the titlebar and the
-  status strip, carry the note's own state and nothing else.
+  dialog, or the status strip. The two bands that remain carry the note's state
+  and the editor's view state, and nothing else.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
   reachable only by mouse is unfinished. Typewriter scrolling is the one that
   still is: it toggles from the status strip and nowhere else.
@@ -63,11 +63,13 @@ matches whatever the user is running (`D25`).
   tracking, so the two deepest levels read as labels rather than headings.
 - UI text sits at `text-xs` for secondary information (status strip, palette
   metadata, tag chips) and inherits the base size otherwise. Do not invent a
-  per-component size. The five that predate the rule all sit in hand-written CSS
-  for floating surfaces and code-block chrome, and none of them is a precedent.
-- **The mono is for the wordmark and for paths.** The wordmark, the external
-  file's path in its titlebar, and a suggestion's shorthand hint. Everything
-  else in the interface is sans, and the note is the serif.
+  per-component size. The six that predate the rule all sit in hand-written CSS,
+  for floating surfaces, code-block chrome, and source mode, and none of them is
+  a precedent.
+- **In chrome the mono is for identity and machine text.** The wordmark, the
+  external file's path in its titlebar, and a suggestion's shorthand hint.
+  Everything else in the interface is sans. Inside the note it does the job the
+  table above gives it, which is code.
 
 ## Color
 
@@ -127,16 +129,17 @@ carries two dot eyes flanked by two accent dots, and the back blob carries two
 eyes only.
 
 - **The icon's palette follows the render, not the tokens** (`D33`). This is the
-  one place the no-hardcoded-colour rule above does not reach. The render is a lit
-  scene, so its tile is `#1c1e21` where the token is `#2a2e33`, and the vector
-  files match the render so the icon does not change shade between sizes.
+  one place the no-hardcoded-colour rule above does not reach. The vector files
+  match the render so the icon does not change shade between sizes, and `D33`
+  carries the swatches and why they sit off the palette.
 - **The accent appears here and nowhere else in chrome.** The rule above keeps
   `--primary` on the focus ring and the checked box. An app icon is identity
   rather than chrome, so the two accent dots are the exception, and they are two
   dots at 2.5% of the tile rather than a field of colour.
-- **Detail is keyed to size, not scaled** (`D33`). The accent drops out below
-  64px and every dot drops out at 16px, because a 2.5%-of-tile dot is sub-pixel
-  there. Three vector files cover the three ranges.
+- **Detail is keyed to size, not scaled** (`D33`). The accent drops at 40px and
+  every dot at 16px, because a 2.5%-of-tile dot is sub-pixel there. Three vector
+  files cover the three ranges, and `source_for` in `scripts/icons.sh` sets the
+  boundaries.
 - **The tile is a superellipse at exponent 5.0 on Apple's 824-on-1024 grid,** so
   the art fills 80.5% of the canvas and the corners match what macOS draws around
   it. The figure is measured, not chosen: seven macOS 26 system icons all fit 5.00
@@ -186,12 +189,12 @@ animation, no entrance choreography beyond the platform's own, and no spring.
 - Focus mode fades non-active blocks to `0.28` opacity over `0.3s`.
 - Hover affordances (code block toolbar, code block buttons, wikilinks) resolve
   over `0.15s`.
-- Dialogs, tooltips, and the tag combobox fade and scale on open and close.
-  This is macOS behaviour for a sheet, and it is the reason the backdrop blurs
-  too.
-- Shadcn primitives carry their own `transition-colors` on hover and press, and
-  the toast spinner spins. Nothing in first-party CSS animates beyond the three
-  cases above.
+- Dialogs, tooltips, and the tag combobox fade, scale, and slide on open and
+  close. This is macOS behaviour for a sheet, and it is the reason the backdrop
+  blurs too.
+- Shadcn primitives carry their own hover and press transitions, and the toast
+  spinner spins. Beyond those, `src/styles.css` animates only focus mode,
+  wikilinks, and the code-block toolbar and its buttons.
 
 `prefers-reduced-motion: reduce` collapses all of it. Every animation above has
 a real non-motion end state, so removing the transition costs nothing.
@@ -332,8 +335,9 @@ a real non-motion end state, so removing the transition costs nothing.
   Re-apply it whenever the component is regenerated.
 - Focus is visible on every interactive element. Inputs that drop the default
   outline replace it with a `focus-visible:ring` rather than removing the
-  affordance. Three hand-written controls still break this and are the standing
-  gap: `.link-editor-input`, `.code-block-language`, and `.code-block-button`.
+  affordance. Two hand-written controls still break this and are the standing
+  gap: `.link-editor-input` and `.code-block-language`, which set `outline: none`
+  and replace nothing.
 - Contrast is a build gate, not a judgement call. `src/styles.spec.ts` measures
   every text token against the surface it is actually painted on.
 - `prefers-reduced-motion: reduce` is honoured globally.

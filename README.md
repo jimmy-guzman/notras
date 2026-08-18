@@ -70,7 +70,7 @@ does, the diagram, the layer boundaries, the key patterns, and the invariants.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) for how it is built,
 [DESIGN.md](DESIGN.md) for the interface, [DECISIONS.md](DECISIONS.md) for why,
-[SPEC.md](SPEC.md) for what is unverified or unbuilt, and
+[SPEC.md](SPEC.md) for what a person checks by hand and what is unbuilt, and
 [AGENTS.md](AGENTS.md) for the rules on changing any of it, where the table at
 the top says which one a given fact belongs in.
 
@@ -105,12 +105,14 @@ folder any time in settings (⌘,).
 | `pnpm check`     | lint and format check (Ultracite)   |
 | `pnpm fix`       | lint and format, auto-fixing        |
 | `pnpm typecheck` | type check (tsc)                    |
-| `pnpm test`      | run tests (Vitest)                  |
+| `pnpm test`      | run tests (Vitest, watches)         |
 | `pnpm coverage`  | tests with coverage                 |
 | `pnpm knip`      | detect unused code/deps             |
 | `pnpm icons`     | regenerate app icons from `assets/` |
 | `pnpm deps:up`   | interactive dependency upgrade      |
 | `pnpm clean`     | remove build output                 |
+| `pnpm prepare`   | install the git hooks (lefthook)    |
+| `pnpm tauri`     | run the tauri cli directly          |
 
 Rust tests live in `src-tauri`: `cargo test`.
 
@@ -130,4 +132,5 @@ Rust tests live in `src-tauri`: `cargo test`.
 | `⌘⏎`     | (capture window) save + hide    |
 
 `⌘P`, `⌘D`, and `⌘⇧T` act on the open note, so they do nothing on the empty
-state or in the capture window.
+state or the external-file view. The capture window runs outside the router, so
+only `⌘⇧K`, `esc`, and `⌘⏎` reach it.

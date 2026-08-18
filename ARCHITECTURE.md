@@ -1,7 +1,6 @@
 # ARCHITECTURE
 
-How notras is built. `DESIGN.md` covers the interface, `DECISIONS.md` covers why
-each choice was made, and `AGENTS.md` covers the rules for changing any of it.
+How notras is built. `AGENTS.md` maps the rest of the docs.
 
 ## Tech stack
 
@@ -35,15 +34,16 @@ flowchart TD
     end
 
     subgraph rust [Rust: single writer of the index]
-        Commands[note IO commands] --> Files[(~/notras/**/*.md)]
+        Commands[note IO commands] --> Files[(~/notras/**/*.md, *.markdown)]
         Commands --> IndexDb[(.notras/index.db FTS5)]
         Watcher[notify watcher] --> IndexDb
         Files -.external edits.-> Watcher
     end
 
     FileStore --> Commands
-    Index --> IndexDb
-    Agents[any editor / git / AI agent] -.write .md.-> Files
+    Index --> Commands
+    Agents[any editor / git / AI agent] -.write markdown.-> Files
+    Commands -. notes-changed event .-> UI
     Watcher -. notes-changed event .-> UI
 ```
 
@@ -144,8 +144,8 @@ src/
   data/               # Plain async fns the UI calls (ex-server-actions)
     run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
   server/
-    adapters/         # note IO and SQL reach @tauri-apps/* only from here
-                      # and runtime.ts; UI concerns may import it anywhere
+    adapters/         # the only note IO and SQL path to @tauri-apps/*;
+                      # UI code reaches it for events, dialogs and windows
       tauri-file-store.ts   # FileStore -> Rust commands
       tauri-database.ts     # drizzle sqlite-proxy -> db_select command
     db/               # Database service, index schema mirror, fts-query helpers
@@ -279,8 +279,8 @@ Define it in `src-tauri/src/notes.rs` or a new module, register it in
 `generate_handler!` in `lib.rs`, and expose it through the `FileStore` port plus
 the `tauri-file-store.ts` adapter if it is note IO. A command that mutates an
 indexed note must index synchronously and call `emit_changed`. The three that do
-neither write outside the index: `attach_file` and `attach_image` copy into
-`attachments/`, and `write_external` writes outside the notes dir.
+neither write nothing the index covers: `attach_file` and `attach_image` copy
+into `attachments/`, and `write_external` writes outside the notes dir.
 
 ### The palette is the action surface
 
