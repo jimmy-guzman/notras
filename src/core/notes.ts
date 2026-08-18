@@ -43,9 +43,7 @@ const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/;
  * match `ATX_HEADING`.
  */
 function firstContentLine(lines: string[]) {
-  return lines.findIndex((line) => {
-    return line.trim() !== "";
-  });
+  return lines.findIndex((line) => line.trim() !== "");
 }
 
 /**
@@ -58,7 +56,7 @@ function leadingHeading(body: string) {
   const line = index === -1 ? undefined : lines[index]?.replace(/\r$/, "");
 
   if (line === undefined || !ATX_HEADING.test(line)) {
-    return undefined;
+    return;
   }
 
   // Closed ATX form: `# title #`. The closing run has to be preceded by
@@ -130,7 +128,7 @@ export function filenameFromTitle(title: string) {
 export function resolveTitle(
   path: string,
   body: string,
-  frontmatterTitle?: string,
+  frontmatterTitle?: string
 ) {
   return frontmatterTitle ?? leadingHeading(body) ?? noteTitle(path);
 }

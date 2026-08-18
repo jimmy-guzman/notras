@@ -4,18 +4,16 @@
     "prettier": {
       "disabled": true
     },
-    "oxfmt": {
-      "command": ["npx", "oxfmt", "--write", "$FILE"],
+    "biome": {
+      "command": ["pnpm", "exec", "ultracite", "fix", "$FILE"],
       "extensions": [
         ".js",
         ".jsx",
         ".ts",
         ".tsx",
         ".css",
-        ".md",
         ".json",
-        ".yaml",
-        ".yml",
+        ".jsonc",
         ".html"
       ]
     }
@@ -24,11 +22,6 @@
     "shadcn": {
       "type": "local",
       "command": ["npx", "shadcn@latest", "mcp"],
-      "enabled": true
-    },
-    "eslint": {
-      "type": "local",
-      "command": ["npx", "@eslint/mcp@latest"],
       "enabled": true
     },
     "knip": {

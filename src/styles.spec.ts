@@ -7,9 +7,8 @@ import { describe, expect, it } from "vitest";
  * Read from disk rather than importing. The Tailwind plugin owns `.css`
  * resolution, so a `?raw` import of `styles.css` resolves to an empty string.
  */
-const projectFile = (...segments: string[]) => {
-  return readFileSync(join(process.cwd(), ...segments), "utf8");
-};
+const projectFile = (...segments: string[]) =>
+  readFileSync(join(process.cwd(), ...segments), "utf8");
 
 const source = projectFile("src", "styles.css");
 
@@ -41,9 +40,9 @@ const toChannel = (byte: number) => {
 };
 
 const luminance = (hex: string) => {
-  const [red, green, blue] = [1, 3, 5].map((offset) => {
-    return toChannel(Number.parseInt(hex.slice(offset, offset + 2), 16));
-  });
+  const [red, green, blue] = [1, 3, 5].map((offset) =>
+    toChannel(Number.parseInt(hex.slice(offset, offset + 2), 16))
+  );
 
   if (red === undefined || green === undefined || blue === undefined) {
     throw new Error(`${hex} is not a six-digit hex colour`);
@@ -117,12 +116,10 @@ const PAIRS: [text: string, surface: string][] = [
   ["destructive", "background"],
   ["destructive", "popover"],
   ["foreground", "selection"],
-  ...SYNTAX.flatMap((role): [string, string][] => {
-    return [
-      [role, "background"],
-      [role, "card"],
-    ];
-  }),
+  ...SYNTAX.flatMap((role): [string, string][] => [
+    [role, "background"],
+    [role, "card"],
+  ]),
 ];
 
 const AA = 4.5;
@@ -141,7 +138,7 @@ describe.each([
   it.each(PAIRS)("should clear WCAG AA for %s on %s", (text, surface) => {
     const ratio = contrast(
       valueOf(scheme, tokens, text),
-      valueOf(scheme, tokens, surface),
+      valueOf(scheme, tokens, surface)
     );
 
     expect(ratio).toBeGreaterThanOrEqual(AA);
@@ -150,7 +147,7 @@ describe.each([
   it("should keep the placeholder readable without competing with the caret", () => {
     const ratio = contrast(
       valueOf(scheme, tokens, "faint"),
-      valueOf(scheme, tokens, "background"),
+      valueOf(scheme, tokens, "background")
     );
 
     expect(ratio).toBeGreaterThanOrEqual(PLACEHOLDER_FLOOR);
@@ -158,7 +155,7 @@ describe.each([
 
   it("should define the same token names as the other scheme", () => {
     expect([...tokens.keys()].toSorted()).toStrictEqual(
-      [...other.keys()].toSorted(),
+      [...other.keys()].toSorted()
     );
   });
 });
@@ -167,8 +164,8 @@ const COMMENT = /\/\*[\s\S]*?\*\//g;
 const URL_VALUE = /url\([^)]*\)/g;
 
 /**
- * Rule preludes in source order, whitespace collapsed so a selector oxfmt
- * wrapped across lines reads as one string. Tracks brace depth rather than
+ * Rule preludes in source order, whitespace collapsed so a selector the
+ * formatter wrapped across lines reads as one string. Tracks brace depth rather than
  * splitting on braces, so a rule nested in an at-rule is still seen, and drops
  * comments and `url()` values first because either can carry a brace.
  */
@@ -190,16 +187,14 @@ const preludesOf = (css: string) => {
     }
   }
 
-  return preludes.filter((prelude) => {
-    return prelude !== "";
-  });
+  return preludes.filter((prelude) => prelude !== "");
 };
 
 const TASK_LIST = 'ul[data-type="taskList"]';
 
-const taskRowSelectors = preludesOf(source).filter((prelude) => {
-  return prelude.includes(TASK_LIST) && /\bli\b/.test(prelude);
-});
+const taskRowSelectors = preludesOf(source).filter(
+  (prelude) => prelude.includes(TASK_LIST) && /\bli\b/.test(prelude)
+);
 
 /**
  * A prelude is a whole selector list, so one comma-separated rule can hold a
@@ -219,14 +214,12 @@ describe("task list styling", () => {
   it("should reach a task row as a child of its own list", () => {
     expect(taskRowSelectors).not.toStrictEqual([]);
     expect(
-      taskRowSelectors.filter((prelude) => {
-        return prelude.includes(`${TASK_LIST} > li`);
-      }),
+      taskRowSelectors.filter((prelude) =>
+        prelude.includes(`${TASK_LIST} > li`)
+      )
     ).toStrictEqual(taskRowSelectors);
     expect(
-      taskRowSelectors.filter((prelude) => {
-        return DESCENDANT_ROW.test(prelude);
-      }),
+      taskRowSelectors.filter((prelude) => DESCENDANT_ROW.test(prelude))
     ).toStrictEqual([]);
   });
 });
@@ -243,7 +236,7 @@ const TEXT_TONES = ["destructive", "faint", "foreground", "muted-foreground"];
  */
 const typesetRole = (role: string) => {
   const found = new RegExp(
-    String.raw`--typeset-${role}:\s*var\(\s*--color-([\w-]+)`,
+    String.raw`--typeset-${role}:\s*var\(\s*--color-([\w-]+)`
   ).exec(typeset);
   const token = found?.[1];
 
@@ -256,9 +249,9 @@ const typesetRole = (role: string) => {
 
 const MARKER_COLOUR = /::marker\s*\{\s*color:\s*var\(--typeset-([\w-]+)\)/g;
 
-const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(([, role]) => {
-  return role;
-});
+const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(
+  ([, role]) => role
+);
 
 /**
  * A `::marker` is a painted glyph, and pointing one at `--border` put a bullet
@@ -285,8 +278,8 @@ describe("note surface colours", () => {
       firstMatch(
         /\.typeset-note :not\(pre\) > code \{\s*color: var\(--([\w-]+)\)/,
         source,
-        "the inline-code colour",
-      ),
+        "the inline-code colour"
+      )
     ).toBe("foreground");
   });
 });
@@ -341,16 +334,16 @@ describe("task list ladder", () => {
     const box = firstMatch(
       /> label > input \{[^}]*?width:\s*([\d.]+)em/,
       source,
-      "the checkbox width",
+      "the checkbox width"
     );
     const gap = firstMatch(
       /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/,
       source,
-      "the task row gap",
+      "the task row gap"
     );
 
     expect(source).toContain(
-      `margin-inline-start: calc(-${box}em - ${gap}em);`,
+      `margin-inline-start: calc(-${box}em - ${gap}em);`
     );
   });
 
@@ -360,15 +353,15 @@ describe("task list ladder", () => {
       firstMatch(
         /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/,
         source,
-        "the task list padding",
-      ),
+        "the task list padding"
+      )
     ).toBe("1.5");
   });
 });
 
 const rustBackground = (rust: string, name: string) => {
   const pattern = new RegExp(
-    String.raw`${name}: Color = Color\(\s*0x([\da-f]{2}),\s*0x([\da-f]{2}),\s*0x([\da-f]{2})`,
+    String.raw`${name}: Color = Color\(\s*0x([\da-f]{2}),\s*0x([\da-f]{2}),\s*0x([\da-f]{2})`
   );
   const found = pattern.exec(rust);
 
@@ -380,6 +373,10 @@ const rustBackground = (rust: string, name: string) => {
 };
 
 const BACKGROUND = /background-color:\s*(#[\da-f]{6})\b/;
+
+/** Attribute order is the formatter's business, so the tag is found by name. */
+const COLOR_SCHEME_META =
+  /<meta(?=[^>]*name="color-scheme")[^>]*content="([^"]+)"/;
 
 const html = projectFile("index.html");
 const htmlMarkerAt = html.indexOf(LIGHT_MARKER);
@@ -397,8 +394,8 @@ describe("launch background", () => {
       firstMatch(
         BACKGROUND,
         html.slice(0, htmlMarkerAt),
-        "the dark background in index.html",
-      ),
+        "the dark background in index.html"
+      )
     ).toBe(valueOf("dark", darkTokens, "background"));
   });
 
@@ -407,13 +404,15 @@ describe("launch background", () => {
       firstMatch(
         BACKGROUND,
         html.slice(htmlMarkerAt),
-        "the light background in index.html",
-      ),
+        "the light background in index.html"
+      )
     ).toBe(valueOf("light", lightTokens, "background"));
   });
 
   it("should declare a color-scheme so the canvas is never painted white", () => {
-    expect(html).toContain('<meta name="color-scheme" content="dark light" />');
+    expect(
+      firstMatch(COLOR_SCHEME_META, html, "the color-scheme meta in index.html")
+    ).toBe("dark light");
     expect(source).toContain("color-scheme: dark light;");
   });
 
@@ -422,17 +421,17 @@ describe("launch background", () => {
       firstMatch(
         /"backgroundColor":\s*"(#[\da-f]{6})"/,
         tauriConfig,
-        "backgroundColor in tauri.conf.json",
-      ),
+        "backgroundColor in tauri.conf.json"
+      )
     ).toBe(valueOf("dark", darkTokens, "background"));
   });
 
   it("should carry both scheme backgrounds into the rust window layer", () => {
     expect(rustBackground(rust, "BG_DARK")).toBe(
-      valueOf("dark", darkTokens, "background"),
+      valueOf("dark", darkTokens, "background")
     );
     expect(rustBackground(rust, "BG_LIGHT")).toBe(
-      valueOf("light", lightTokens, "background"),
+      valueOf("light", lightTokens, "background")
     );
   });
 });

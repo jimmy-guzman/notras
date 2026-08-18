@@ -18,9 +18,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
-
-import type { NoteMeta } from "@/core";
-
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
@@ -32,6 +29,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import type { NoteMeta } from "@/core";
 import { filenameFromTitle } from "@/core";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
@@ -45,9 +43,9 @@ import { parseTagQuery } from "@/lib/utils/tag-query";
 
 function Snippet({ snippet }: { snippet: string }) {
   return (
-    <span className="truncate text-xs text-muted-foreground">
-      {getSnippetParts(snippet).map((part) => {
-        return part.match ? (
+    <span className="truncate text-muted-foreground text-xs">
+      {getSnippetParts(snippet).map((part) =>
+        part.match ? (
           <mark
             className="rounded-xs bg-primary/20 text-foreground"
             key={part.id}
@@ -56,8 +54,8 @@ function Snippet({ snippet }: { snippet: string }) {
           </mark>
         ) : (
           <span key={part.id}>{part.text}</span>
-        );
-      })}
+        )
+      )}
     </span>
   );
 }
@@ -73,9 +71,7 @@ const COUNT_CLASS =
 function tagLabel(tags: string[]) {
   const shown = tags
     .slice(0, VISIBLE_TAGS)
-    .map((tag) => {
-      return `#${tag}`;
-    })
+    .map((tag) => `#${tag}`)
     .join(" ");
   const hidden = tags.length - VISIBLE_TAGS;
 
@@ -102,12 +98,12 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
           {note.title}
           {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
           {note.folder === "" ? null : (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               · {note.folder}
             </span>
           )}
           {note.tags.length === 0 ? null : (
-            <span className="truncate text-xs text-muted-foreground">
+            <span className="truncate text-muted-foreground text-xs">
               · {tagLabel(note.tags)}
             </span>
           )}
@@ -144,14 +140,12 @@ export function CommandPalette({
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const currentPath = params._splat;
-  const currentNote = notes.find((note) => {
-    return note.path === currentPath;
-  });
+  const currentNote = notes.find((note) => note.path === currentPath);
 
   // Empty path is unreachable: the tags view is gated on a current note.
   const noteTags = useNoteTags(
     currentNote?.path ?? "",
-    currentNote?.tags ?? [],
+    currentNote?.tags ?? []
   );
 
   // A tag chip navigates with `?tag=`, which is what opens the palette. The
@@ -169,9 +163,7 @@ export function CommandPalette({
   const latestSearchRef = useRef(0);
 
   const tagCounts = new Map(
-    allTags.map(({ count, tag: name }) => {
-      return [name, count];
-    }),
+    allTags.map(({ count, tag: name }) => [name, count])
   );
   const knownTags = new Set(tagCounts.keys());
 
@@ -206,7 +198,7 @@ export function CommandPalette({
         }
       }
     },
-    150,
+    150
   );
 
   const updateQuery = (value: string) => {
@@ -254,7 +246,7 @@ export function CommandPalette({
     close();
     void action().catch((error: unknown) => {
       toast.error(
-        error instanceof Error ? error.message : "something went wrong",
+        error instanceof Error ? error.message : "something went wrong"
       );
     });
   };
@@ -264,9 +256,7 @@ export function CommandPalette({
   const draftTag = query.trim().toLowerCase();
   const tagChoices = [...new Set([...knownTags, ...noteTags.tags])]
     .toSorted()
-    .filter((name) => {
-      return name.includes(draftTag);
-    });
+    .filter((name) => name.includes(draftTag));
 
   // Actions match on the free text, so they stay reachable inside a tag
   // filter rather than disappearing the moment a `#` is typed.
@@ -340,35 +330,33 @@ export function CommandPalette({
                 notes root
               </CommandItem>
               {folders
-                .filter(({ folder }) => {
-                  return folder.includes(query.trim().toLowerCase());
-                })
-                .map(({ count, folder }) => {
-                  return (
-                    <CommandItem
-                      key={folder}
-                      onSelect={() => {
-                        runAction(async () => {
-                          const next = await moveNote(currentNote.path, folder);
+                .filter(({ folder }) =>
+                  folder.includes(query.trim().toLowerCase())
+                )
+                .map(({ count, folder }) => (
+                  <CommandItem
+                    key={folder}
+                    onSelect={() => {
+                      runAction(async () => {
+                        const next = await moveNote(currentNote.path, folder);
 
-                          openNote(next);
-                        });
-                      }}
-                      value={`move-${folder}`}
-                    >
-                      <FolderIcon />
-                      <span className="flex-1 truncate">{folder}</span>
-                      <span className={COUNT_CLASS}>{count}</span>
-                    </CommandItem>
-                  );
-                })}
+                        openNote(next);
+                      });
+                    }}
+                    value={`move-${folder}`}
+                  >
+                    <FolderIcon />
+                    <span className="flex-1 truncate">{folder}</span>
+                    <span className={COUNT_CLASS}>{count}</span>
+                  </CommandItem>
+                ))}
               {query.trim() === "" ? null : (
                 <CommandItem
                   onSelect={() => {
                     runAction(async () => {
                       const next = await moveNote(
                         currentNote.path,
-                        query.trim().toLowerCase(),
+                        query.trim().toLowerCase()
                       );
 
                       openNote(next);
@@ -399,7 +387,7 @@ export function CommandPalette({
                     runAction(async () => {
                       const next = await retitleNote(
                         currentNote.path,
-                        query.trim(),
+                        query.trim()
                       );
 
                       openNote(next);
@@ -441,10 +429,10 @@ export function CommandPalette({
                     onSelect={() => {
                       void noteTags.changeTags(
                         attached
-                          ? noteTags.tags.filter((existing) => {
-                              return existing !== name;
-                            })
-                          : [...noteTags.tags, name],
+                          ? noteTags.tags.filter(
+                              (existing) => existing !== name
+                            )
+                          : [...noteTags.tags, name]
                       );
                     }}
                     value={`tag-${name}`}
@@ -489,32 +477,26 @@ export function CommandPalette({
               {tagQuery?.query === "" ? (
                 <CommandGroup heading="tags">
                   {allTags
-                    .filter(({ tag: name }) => {
-                      return name.includes(tagQuery.tag);
-                    })
-                    .map(({ count, tag: name }) => {
-                      return (
-                        <CommandItem
-                          key={name}
-                          onSelect={() => {
-                            updateQuery(`#${name} `);
-                          }}
-                          value={`tag-${name}`}
-                        >
-                          <HashIcon />
-                          <span className="flex-1 truncate">{name}</span>
-                          <span className={COUNT_CLASS}>{count}</span>
-                        </CommandItem>
-                      );
-                    })}
+                    .filter(({ tag: name }) => name.includes(tagQuery.tag))
+                    .map(({ count, tag: name }) => (
+                      <CommandItem
+                        key={name}
+                        onSelect={() => {
+                          updateQuery(`#${name} `);
+                        }}
+                        value={`tag-${name}`}
+                      >
+                        <HashIcon />
+                        <span className="flex-1 truncate">{name}</span>
+                        <span className={COUNT_CLASS}>{count}</span>
+                      </CommandItem>
+                    ))}
                 </CommandGroup>
               ) : null}
               <CommandGroup heading="notes">
-                {visibleNotes.map((note) => {
-                  return (
-                    <NoteItem key={note.path} note={note} onSelect={openNote} />
-                  );
-                })}
+                {visibleNotes.map((note) => (
+                  <NoteItem key={note.path} note={note} onSelect={openNote} />
+                ))}
               </CommandGroup>
               <CommandSeparator />
               <CommandGroup heading="actions">
@@ -536,12 +518,9 @@ export function CommandPalette({
                 {currentNote !== undefined && matchesQuery("pin") ? (
                   <CommandItem
                     onSelect={() => {
-                      runAction(() => {
-                        return setNotePinned(
-                          currentNote.path,
-                          !currentNote.pinned,
-                        );
-                      });
+                      runAction(() =>
+                        setNotePinned(currentNote.path, !currentNote.pinned)
+                      );
                     }}
                     value="toggle-pin"
                   >
@@ -600,11 +579,9 @@ export function CommandPalette({
                 matchesQuery("reveal in finder") ? (
                   <CommandItem
                     onSelect={() => {
-                      runAction(() => {
-                        return revealItemInDir(
-                          `${notesDir}/${currentNote.path}`,
-                        );
-                      });
+                      runAction(() =>
+                        revealItemInDir(`${notesDir}/${currentNote.path}`)
+                      );
                     }}
                     value="reveal-in-finder"
                   >

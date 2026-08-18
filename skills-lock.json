@@ -19,6 +19,12 @@
       "skillPath": "skills/tiptap/SKILL.md",
       "computedHash": "109f4d9514b3c91fc3b0ffe1607b360a3e718f3b723421158651ec9e853fd944"
     },
+    "ultracite": {
+      "source": "haydenbleasel/ultracite",
+      "sourceType": "github",
+      "skillPath": "skills/ultracite/SKILL.md",
+      "computedHash": "e061f8c74bb2ee6ceb57d4a904fc83be81fd559febe6e76971f055913910df75"
+    },
     "vite": {
       "source": "antfu/skills",
       "sourceType": "github",

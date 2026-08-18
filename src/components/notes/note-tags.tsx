@@ -38,14 +38,10 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
     () => {
       setOpen(true);
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
 
-  const counts = new Map(
-    allTags.map(({ count, tag }) => {
-      return [tag, count];
-    }),
-  );
+  const counts = new Map(allTags.map(({ count, tag }) => [tag, count]));
 
   // A tag the note carries may not be in the index yet, and the typed draft is
   // the "create" row. Both are the same kind of string an existing tag is, so
@@ -72,25 +68,23 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
     <div className="flex min-w-0 items-center gap-0.5">
       {hasTags ? (
         <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
-          {optimisticTags.map((tag) => {
-            return (
-              <Badge
-                className="text-muted-foreground hover:text-foreground"
-                key={tag}
-                render={
-                  <button
-                    onClick={() => {
-                      onFilter(tag);
-                    }}
-                    type="button"
-                  />
-                }
-                variant="ghost"
-              >
-                {`#${tag}`}
-              </Badge>
-            );
-          })}
+          {optimisticTags.map((tag) => (
+            <Badge
+              className="text-muted-foreground hover:text-foreground"
+              key={tag}
+              render={
+                <button
+                  onClick={() => {
+                    onFilter(tag);
+                  }}
+                  type="button"
+                />
+              }
+              variant="ghost"
+            >
+              {`#${tag}`}
+            </Badge>
+          ))}
         </div>
       ) : null}
       <Combobox
@@ -121,17 +115,15 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
             <p className="text-faint">type to create one</p>
           </ComboboxEmpty>
           <ComboboxList>
-            {(tag: string) => {
-              return (
-                <ComboboxItem key={tag} value={tag}>
-                  <HashIcon className="text-muted-foreground" />
-                  <span className="truncate">{tag}</span>
-                  <span className="ml-auto text-faint">
-                    {counts.get(tag) ?? "new"}
-                  </span>
-                </ComboboxItem>
-              );
-            }}
+            {(tag: string) => (
+              <ComboboxItem key={tag} value={tag}>
+                <HashIcon className="text-muted-foreground" />
+                <span className="truncate">{tag}</span>
+                <span className="ml-auto text-faint">
+                  {counts.get(tag) ?? "new"}
+                </span>
+              </ComboboxItem>
+            )}
           </ComboboxList>
         </ComboboxContent>
       </Combobox>

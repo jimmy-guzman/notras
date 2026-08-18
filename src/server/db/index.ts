@@ -14,5 +14,5 @@ export type DrizzleDb = SqliteRemoteDatabase<typeof schema>;
  * this module stays free of any platform APIs.
  */
 export class Database extends Context.Service<Database, DrizzleDb>()(
-  "notras/server/db/Database",
+  "notras/server/db/Database"
 ) {}

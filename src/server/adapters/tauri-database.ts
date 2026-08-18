@@ -15,6 +15,6 @@ export function makeTauriDatabase() {
 
       return { rows: method === "get" ? (rows[0] ?? []) : rows };
     },
-    { schema },
+    { schema }
   );
 }

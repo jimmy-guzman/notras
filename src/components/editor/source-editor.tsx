@@ -58,9 +58,7 @@ const TabIndent = Extension.create({
           .deleteRange({ from: lineStart, to: lineStart + INDENT.length })
           .run();
       },
-      "Tab": () => {
-        return this.editor.commands.insertContent(INDENT);
-      },
+      Tab: () => this.editor.commands.insertContent(INDENT),
     };
   },
   name: "tabIndent",
@@ -85,9 +83,12 @@ export function SourceEditor({
   onChange,
   onReady,
 }: SourceEditorProps) {
-  const [config] = useState(() => {
-    return { initialCursor, initialValue, onChange, onReady };
-  });
+  const [config] = useState(() => ({
+    initialCursor,
+    initialValue,
+    onChange,
+    onReady,
+  }));
 
   const editor = useEditor({
     content: {
@@ -133,9 +134,7 @@ export function SourceEditor({
         .run();
 
       config.onReady?.({
-        getCursorOffset: () => {
-          return Math.max(0, instance.state.selection.from - 1);
-        },
+        getCursorOffset: () => Math.max(0, instance.state.selection.from - 1),
         insertText: (text) => {
           instance.chain().focus().insertContent(text).run();
         },

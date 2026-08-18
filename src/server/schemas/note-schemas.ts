@@ -9,10 +9,10 @@ import { NOTE_SEGMENT_PATTERN } from "@/core";
 export const noteTitleSchema = Schema.Trim.pipe(
   Schema.check(
     Schema.isMinLength(1, { message: "title is required" }),
-    Schema.makeFilter<string>((value) => {
-      return /[\n\r]/.test(value) ? "title cannot span lines" : undefined;
-    }),
-  ),
+    Schema.makeFilter<string>((value) =>
+      /[\n\r]/.test(value) ? "title cannot span lines" : undefined
+    )
+  )
 );
 
 // `Schema.Trim` normalizes; `Schema.isTrimmed()` would reject "my note " with
@@ -28,8 +28,8 @@ export const noteFilenameSchema = Schema.Trim.pipe(
     }),
     Schema.isPattern(NOTE_SEGMENT_PATTERN, {
       message: String.raw`filename cannot contain / \ : or start with a dot`,
-    }),
-  ),
+    })
+  )
 );
 
 export const folderNameSchema = Schema.Trim.pipe(
@@ -42,13 +42,11 @@ export const folderNameSchema = Schema.Trim.pipe(
     Schema.makeFilter<string>((value) => {
       const valid =
         value === "" ||
-        value.split("/").every((segment) => {
-          return NOTE_SEGMENT_PATTERN.test(segment);
-        });
+        value.split("/").every((segment) => NOTE_SEGMENT_PATTERN.test(segment));
 
       return valid
         ? undefined
         : String.raw`folder cannot contain \ : or start with a dot`;
-    }),
-  ),
+    })
+  )
 );

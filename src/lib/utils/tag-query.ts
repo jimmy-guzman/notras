@@ -18,7 +18,7 @@ export function parseTagQuery(input: string): TagQuery | undefined {
   const trimmed = input.trimStart();
 
   if (!trimmed.startsWith("#")) {
-    return undefined;
+    return;
   }
 
   const [token = "", ...rest] = trimmed.slice(1).split(TOKEN_SEPARATOR);

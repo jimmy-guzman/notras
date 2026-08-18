@@ -17,14 +17,11 @@ jobs:
       - name: 📦 Install
         uses: ./.github/actions/install
 
-      - name: 🎨 Format
-        run: pnpm format
-
       - name: ✂️ Knip
         run: pnpm knip
 
-      - name: 🚨 Lint
-        run: pnpm lint
+      - name: 🚨 Check
+        run: pnpm check
 
       - name: 🏷️ Typecheck
         run: pnpm typecheck

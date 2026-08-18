@@ -26,9 +26,9 @@ export async function createNote(options?: CreateNoteOptions) {
 
   return run(
     NoteService.pipe(
-      Effect.flatMap((svc) => {
-        return svc.create({ content: options?.content, filename, folder });
-      }),
-    ),
+      Effect.flatMap((svc) =>
+        svc.create({ content: options?.content, filename, folder })
+      )
+    )
   );
 }

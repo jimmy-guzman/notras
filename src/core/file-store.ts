@@ -33,10 +33,10 @@ export interface IFileStore {
   write(path: string, content: string): Effect.Effect<number, FileError>;
   writeExternal(
     path: string,
-    content: string,
+    content: string
   ): Effect.Effect<number, FileError>;
 }
 
 export class FileStore extends Context.Service<FileStore, IFileStore>()(
-  "notras/core/FileStore",
+  "notras/core/FileStore"
 ) {}

@@ -28,8 +28,5 @@ yarn-error.log*
 # legacy web-era local databases (kept for potential migration)
 data/*.db*
 
-# eslint
-.eslintcache
-
 # worktrees
 /.worktrees

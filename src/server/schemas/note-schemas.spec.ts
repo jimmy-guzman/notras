@@ -26,7 +26,7 @@ describe("noteFilenameSchema", () => {
 
   it("should reject a filename longer than 120 characters", async () => {
     await expect(decodeFilename("a".repeat(121))).rejects.toThrow(
-      "filename must be 120 characters or fewer",
+      "filename must be 120 characters or fewer"
     );
   });
 
@@ -34,9 +34,9 @@ describe("noteFilenameSchema", () => {
     "should reject %s",
     async (filename) => {
       await expect(decodeFilename(filename)).rejects.toThrow(
-        String.raw`filename cannot contain / \ : or start with a dot`,
+        String.raw`filename cannot contain / \ : or start with a dot`
       );
-    },
+    }
   );
 });
 
@@ -45,12 +45,12 @@ describe("folderNameSchema", () => {
     "should accept %s",
     async (folder) => {
       await expect(decodeFolder(folder)).resolves.toBe(folder.trim());
-    },
+    }
   );
 
   it("should reject a folder longer than 120 characters", async () => {
     await expect(decodeFolder("a".repeat(121))).rejects.toThrow(
-      "folder must be 120 characters or fewer",
+      "folder must be 120 characters or fewer"
     );
   });
 
@@ -58,9 +58,9 @@ describe("folderNameSchema", () => {
     "should reject %s",
     async (folder) => {
       await expect(decodeFolder(folder)).rejects.toThrow(
-        String.raw`folder cannot contain \ : or start with a dot`,
+        String.raw`folder cannot contain \ : or start with a dot`
       );
-    },
+    }
   );
 });
 
@@ -75,7 +75,7 @@ describe("noteTitleSchema", () => {
 
   it("should reject a title spanning lines", async () => {
     await expect(decodeTitle("a\nb")).rejects.toThrow(
-      "title cannot span lines",
+      "title cannot span lines"
     );
   });
 
@@ -84,6 +84,6 @@ describe("noteTitleSchema", () => {
     "should accept %s",
     async (title) => {
       await expect(decodeTitle(title)).resolves.toBe(title);
-    },
+    }
   );
 });

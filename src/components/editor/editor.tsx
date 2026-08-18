@@ -1,6 +1,5 @@
-import type { Editor as TiptapEditor } from "@tiptap/core";
-
 import { openUrl } from "@tauri-apps/plugin-opener";
+import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
@@ -8,14 +7,12 @@ import { toast } from "sonner";
 
 import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
-
-import type { LinkEditorState } from "./link-editor";
-
 import {
   createEditorExtensions,
   normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
+import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import { findSentinel, SENTINEL } from "./sentinel";
 import { isSafeUrl, normalizeUrl } from "./urls";
@@ -81,32 +78,28 @@ export function Editor({
     typewriterRef.current = typewriterEnabled;
   });
 
-  const [config] = useState(() => {
-    return mountProps;
-  });
+  const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkShortcut] = useState(() => {
     // ⌘⇧K: open the link popover at the caret (⌘K belongs to the palette).
     return Extension.create({
-      addKeyboardShortcuts: () => {
-        return {
-          "Mod-Shift-k": ({ editor: instance }) => {
-            const { empty, head } = instance.state.selection;
-            const attrs = instance.getAttributes("link");
-            const url = typeof attrs.href === "string" ? attrs.href : "";
-            const coords = instance.view.coordsAtPos(head);
+      addKeyboardShortcuts: () => ({
+        "Mod-Shift-k": ({ editor: instance }) => {
+          const { empty, head } = instance.state.selection;
+          const attrs = instance.getAttributes("link");
+          const url = typeof attrs.href === "string" ? attrs.href : "";
+          const coords = instance.view.coordsAtPos(head);
 
-            setLinkEditor({
-              left: coords.left,
-              needsText: empty && url === "",
-              top: coords.bottom + 6,
-              url,
-            });
+          setLinkEditor({
+            left: coords.left,
+            needsText: empty && url === "",
+            top: coords.bottom + 6,
+            url,
+          });
 
-            return true;
-          },
-        };
-      },
+          return true;
+        },
+      }),
       name: "linkShortcut",
     });
   });
@@ -127,7 +120,7 @@ export function Editor({
         const fallback = slice.content.textBetween(
           0,
           slice.content.size,
-          "\n\n",
+          "\n\n"
         );
 
         try {
@@ -146,9 +139,7 @@ export function Editor({
           const link = view.state.doc
             .resolve(pos)
             .marks()
-            .find((mark) => {
-              return mark.type.name === "link";
-            });
+            .find((mark) => mark.type.name === "link");
           const href =
             typeof link?.attrs.href === "string" ? link.attrs.href : "";
 
@@ -186,9 +177,9 @@ export function Editor({
 
         // Images: save into attachments/, keep the RELATIVE src in the doc
         // so the file stays portable.
-        const imageItem = [...clipboard.items].find((item) => {
-          return item.type.startsWith("image/");
-        });
+        const imageItem = [...clipboard.items].find((item) =>
+          item.type.startsWith("image/")
+        );
 
         if (imageItem) {
           const blob = imageItem.getAsFile();
@@ -217,14 +208,12 @@ export function Editor({
                     .focus()
                     .setImage({ src: relativePath })
                     .run();
-
-                  return undefined;
                 })
                 .catch((error: unknown) => {
                   toast.error(
                     error instanceof Error
                       ? error.message
-                      : "could not paste image",
+                      : "could not paste image"
                   );
                 });
             });
@@ -256,7 +245,6 @@ export function Editor({
         }
       },
     },
-    immediatelyRender: false,
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
@@ -265,6 +253,7 @@ export function Editor({
       }),
       linkShortcut,
     ],
+    immediatelyRender: false,
     onBlur: () => {
       config.onBlur?.();
     },
@@ -284,7 +273,7 @@ export function Editor({
           try {
             const marked = instance.state.tr.insertText(
               SENTINEL,
-              instance.state.selection.head,
+              instance.state.selection.head
             );
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
             const md: string = manager.serialize(marked.doc.toJSON());
@@ -294,9 +283,7 @@ export function Editor({
             return -1;
           }
         },
-        getContent: () => {
-          return serializeMarkdown(instance);
-        },
+        getContent: () => serializeMarkdown(instance),
         insertText: (text) => {
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
@@ -345,7 +332,7 @@ export function Editor({
       // the buffer must end up byte-identical to the file.
       suppressChangeRef.current = true;
       editor.view.dispatch(
-        editor.state.tr.delete(pos, pos + 1).setMeta("addToHistory", false),
+        editor.state.tr.delete(pos, pos + 1).setMeta("addToHistory", false)
       );
 
       // Corruption guard: if the sentinel split a syntax token, the parse
@@ -396,7 +383,7 @@ export function Editor({
     <div
       className={cn(
         "allow-select min-h-0 flex-1 overflow-y-auto",
-        focusModeEnabled && "focus-mode-on",
+        focusModeEnabled && "focus-mode-on"
       )}
       ref={scrollerRef}
     >

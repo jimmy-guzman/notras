@@ -34,7 +34,7 @@ runs:
           **/.next/cache
           **/node_modules/.cache
           **/node_modules/.vite
-        key: ${{ runner.os }}-tools-${{ hashFiles('**/pnpm-lock.yaml', '**/eslint.config.*', '**/prettier.config.*', '**/vite.config.*', '**/next.config.*', '**/vitest.config.*') }}
+        key: ${{ runner.os }}-tools-${{ hashFiles('**/pnpm-lock.yaml', '**/biome.jsonc', '**/vite.config.*', '**/vitest.config.*') }}
         restore-keys: |
           ${{ runner.os }}-tools-
 

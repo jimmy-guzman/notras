@@ -39,8 +39,6 @@ export function SettingsDialog({
         .then((enabled) => {
           setAutostart(enabled);
           setAutostartReadable(true);
-
-          return undefined;
         })
         .catch(() => {
           setAutostartReadable(false);
@@ -65,7 +63,7 @@ export function SettingsDialog({
       toast.success("notes folder updated");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "could not change folder",
+        error instanceof Error ? error.message : "could not change folder"
       );
     }
   };
@@ -112,7 +110,7 @@ export function SettingsDialog({
               onCheckedChange={toggleAutostart}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             quick capture from anywhere with <Kbd>⌘⇧n</Kbd>
           </p>
         </div>

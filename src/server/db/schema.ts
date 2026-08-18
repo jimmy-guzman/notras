@@ -25,9 +25,7 @@ export const noteTag = sqliteTable(
     path: text("path").notNull(),
     tag: text("tag").notNull(),
   },
-  (table) => {
-    return [primaryKey({ columns: [table.path, table.tag] })];
-  },
+  (table) => [primaryKey({ columns: [table.path, table.tag] })]
 );
 
 export type SelectNote = typeof note.$inferSelect;

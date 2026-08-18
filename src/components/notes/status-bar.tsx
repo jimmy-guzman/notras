@@ -68,7 +68,7 @@ export function StatusBar({
   ];
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-1 border-t px-3 text-xs text-muted-foreground">
+    <footer className="flex h-7 shrink-0 items-center gap-1 border-t px-3 text-muted-foreground text-xs">
       <NoteTags
         allTags={allTags}
         onFilter={onFilterTag}
@@ -82,41 +82,33 @@ export function StatusBar({
         multiple
         onValueChange={(next) => {
           toggles
-            .find((toggle) => {
-              return next.includes(toggle.value) !== toggle.pressed;
-            })
+            .find((toggle) => next.includes(toggle.value) !== toggle.pressed)
             ?.onToggle();
         }}
         size="icon-xs"
         spacing={0.5}
         value={toggles
-          .filter((toggle) => {
-            return toggle.pressed;
-          })
-          .map((toggle) => {
-            return toggle.value;
-          })}
+          .filter((toggle) => toggle.pressed)
+          .map((toggle) => toggle.value)}
       >
-        {toggles.map(({ hint, icon: Icon, label, value }) => {
-          return (
-            <Tooltip key={value}>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem
-                    aria-label={label}
-                    className={PRESSED}
-                    value={value}
-                  />
-                }
-              >
-                <Icon className="size-3.5" />
-              </TooltipTrigger>
-              <TooltipContent>
-                {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
+        {toggles.map(({ hint, icon: Icon, label, value }) => (
+          <Tooltip key={value}>
+            <TooltipTrigger
+              render={
+                <ToggleGroupItem
+                  aria-label={label}
+                  className={PRESSED}
+                  value={value}
+                />
+              }
+            >
+              <Icon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent>
+              {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}
+            </TooltipContent>
+          </Tooltip>
+        ))}
       </ToggleGroup>
     </footer>
   );

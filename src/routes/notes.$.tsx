@@ -10,10 +10,9 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import type { EditorHandle } from "@/components/editor/editor";
-import type { SourceEditorHandle } from "@/components/editor/source-editor";
-
 import { Editor } from "@/components/editor/editor";
 import { insertSentinel } from "@/components/editor/sentinel";
+import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
@@ -32,9 +31,7 @@ import { countWords } from "@/lib/utils/word-count";
 
 export const Route = createFileRoute("/notes/$")({
   component: NotePage,
-  loader: ({ params }) => {
-    return getNote(params._splat ?? "");
-  },
+  loader: ({ params }) => getNote(params._splat ?? ""),
 });
 
 const rootApi = getRouteApi("__root__");
@@ -89,9 +86,9 @@ function NoteEditor({ note }: NoteEditorProps) {
   // loader snapshot so pin/tag toggles are never clobbered by a body save.
   // State drives renders (source mode); the ref feeds the mount-frozen
   // editor callbacks.
-  const [frontmatterLines, setFrontmatterLines] = useState(() => {
-    return parseNote(note.content).rawLines;
-  });
+  const [frontmatterLines, setFrontmatterLines] = useState(
+    () => parseNote(note.content).rawLines
+  );
   const frontmatterRef = useRef(frontmatterLines);
 
   useEffect(() => {
@@ -113,9 +110,7 @@ function NoteEditor({ note }: NoteEditorProps) {
     }
   }
 
-  const [body, setBody] = useState(() => {
-    return parseNote(note.content).body;
-  });
+  const [body, setBody] = useState(() => parseNote(note.content).body);
   const bodyRef = useRef(body);
 
   // `D32`'s chain, resolved off the live buffer rather than the loader, so the
@@ -124,15 +119,13 @@ function NoteEditor({ note }: NoteEditorProps) {
   const title = resolveTitle(
     note.path,
     body,
-    parseNote(composeNote(frontmatterLines, "")).frontmatter.title,
+    parseNote(composeNote(frontmatterLines, "")).frontmatter.title
   );
 
   useEffect(() => {
     bodyRef.current = body;
   });
-  const [words, setWords] = useState(() => {
-    return countWords(note.content);
-  });
+  const [words, setWords] = useState(() => countWords(note.content));
   const [reloadKey, setReloadKey] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
@@ -171,17 +164,15 @@ function NoteEditor({ note }: NoteEditorProps) {
     notesRef.current = notes;
   });
 
-  const getTitles = useCallback(() => {
-    return notesRef.current.map((meta) => {
-      return meta.title;
-    });
-  }, []);
+  const getTitles = useCallback(
+    () => notesRef.current.map((meta) => meta.title),
+    []
+  );
 
   const resolveImageSrc = useCallback(
-    (src: string) => {
-      return src.includes("://") ? src : convertFileSrc(`${notesDir}/${src}`);
-    },
-    [notesDir],
+    (src: string) =>
+      src.includes("://") ? src : convertFileSrc(`${notesDir}/${src}`),
+    [notesDir]
   );
 
   // Resolution is by title, then by filename stem. `D32` decoupled the two, so
@@ -192,12 +183,11 @@ function NoteEditor({ note }: NoteEditorProps) {
       const wanted = title.trim().toLowerCase();
       const currentFolder = noteFolder(note.path);
       const candidates = notesRef.current
-        .filter((meta) => {
-          return (
+        .filter(
+          (meta) =>
             meta.title.toLowerCase() === wanted ||
             noteTitle(meta.path).toLowerCase() === wanted
-          );
-        })
+        )
         .toSorted((left, right) => {
           const byTitle =
             Number(right.title.toLowerCase() === wanted) -
@@ -218,7 +208,7 @@ function NoteEditor({ note }: NoteEditorProps) {
 
       void navigate({ params: { _splat: target.path }, to: "/notes/$" });
     },
-    [navigate, note.path],
+    [navigate, note.path]
   );
 
   // External edits (AI agents, other editors) flow back in through router
@@ -237,9 +227,7 @@ function NoteEditor({ note }: NoteEditorProps) {
       setBody(parsed.body);
       setWords(countWords(note.content));
       setSentineledBody(null);
-      setReloadKey((key) => {
-        return key + 1;
-      });
+      setReloadKey((key) => key + 1);
     }
   }, [autosave.status, body, note.content, note.updatedAt]);
 
@@ -267,7 +255,7 @@ function NoteEditor({ note }: NoteEditorProps) {
           target.insertText(link);
         } catch (error) {
           toast.error(
-            error instanceof Error ? error.message : "could not attach file",
+            error instanceof Error ? error.message : "could not attach file"
           );
         }
       }
@@ -294,7 +282,7 @@ function NoteEditor({ note }: NoteEditorProps) {
       setWords(countWords(full));
       onChange(full);
     },
-    [onChange],
+    [onChange]
   );
 
   const handleSourceChange = (raw: string) => {
@@ -316,13 +304,11 @@ function NoteEditor({ note }: NoteEditorProps) {
       const offset = sourceRef.current?.getCursorOffset() ?? 0;
       const bodyOffset = Math.max(
         0,
-        Math.min(offset - prefixLength, bodyRef.current.length),
+        Math.min(offset - prefixLength, bodyRef.current.length)
       );
 
       setSentineledBody(insertSentinel(bodyRef.current, bodyOffset));
-      setReloadKey((key) => {
-        return key + 1;
-      });
+      setReloadKey((key) => key + 1);
     } else {
       const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
 

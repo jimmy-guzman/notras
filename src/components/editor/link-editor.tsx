@@ -59,7 +59,7 @@ export function LinkEditor({
     const margin = 8;
     const left = Math.max(
       margin,
-      Math.min(state.left, window.innerWidth - rect.width - margin),
+      Math.min(state.left, window.innerWidth - rect.width - margin)
     );
     const top =
       state.top + rect.height + margin > window.innerHeight

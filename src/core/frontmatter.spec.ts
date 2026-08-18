@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
   composeNote,
   parseNote,
@@ -19,7 +20,7 @@ describe("parseNote", () => {
 
   it("should parse pinned and inline tags", () => {
     const parsed = parseNote(
-      "---\npinned: true\ntags: [Errands, home]\n---\n- eggs\n",
+      "---\npinned: true\ntags: [Errands, home]\n---\n- eggs\n"
     );
 
     expect(parsed.frontmatter.pinned).toBe(true);
@@ -69,13 +70,13 @@ describe("parseNote", () => {
 
   it("should strip carriage returns from raw lines of a crlf file", () => {
     const parsed = parseNote(
-      "---\r\npinned: true\r\ncustom: x\r\n---\r\nbody\r\n",
+      "---\r\npinned: true\r\ncustom: x\r\n---\r\nbody\r\n"
     );
 
     expect(parsed.frontmatter.pinned).toBe(true);
     expect(parsed.rawLines).toStrictEqual(["pinned: true", "custom: x"]);
     expect(composeNote(parsed.rawLines, "body\n")).toBe(
-      "---\npinned: true\ncustom: x\n---\nbody\n",
+      "---\npinned: true\ncustom: x\n---\nbody\n"
     );
   });
 });
@@ -101,7 +102,7 @@ describe("updateFrontmatter", () => {
     const next = updateFrontmatter(content, { tags: ["work"] });
 
     expect(next).toBe(
-      "---\npinned: true\ntags: [work]\ncustom: thing\nauthor: someone\n---\nbody\n",
+      "---\npinned: true\ntags: [work]\ncustom: thing\nauthor: someone\n---\nbody\n"
     );
   });
 
@@ -110,7 +111,7 @@ describe("updateFrontmatter", () => {
     const next = updateFrontmatter(content, { pinned: true });
 
     expect(next).toBe(
-      '---\npinned: true\ntitle: "effect: a primer"\n---\nbody\n',
+      '---\npinned: true\ntitle: "effect: a primer"\n---\nbody\n'
     );
     expect(parseNote(next).frontmatter.title).toBe("effect: a primer");
   });
@@ -152,7 +153,7 @@ describe("composeNote", () => {
 
   it("should wrap raw lines in delimiters", () => {
     expect(composeNote(["pinned: true", "custom: x"], "body\n")).toBe(
-      "---\npinned: true\ncustom: x\n---\nbody\n",
+      "---\npinned: true\ncustom: x\n---\nbody\n"
     );
   });
 
@@ -170,7 +171,7 @@ describe("composeNote", () => {
 describe("retitleFrontmatter", () => {
   it("should rewrite an existing key where it sits", () => {
     expect(
-      retitleFrontmatter(["pinned: true", "title: old", "custom: x"], "new"),
+      retitleFrontmatter(["pinned: true", "title: old", "custom: x"], "new")
     ).toStrictEqual(["pinned: true", "title: new", "custom: x"]);
   });
 
@@ -183,7 +184,7 @@ describe("retitleFrontmatter", () => {
 
   it("should quote a title carrying a colon so real yaml survives", () => {
     expect(
-      retitleFrontmatter(["title: old"], "effect: a primer"),
+      retitleFrontmatter(["title: old"], "effect: a primer")
     ).toStrictEqual(["title: 'effect: a primer'"]);
   });
 
@@ -233,7 +234,7 @@ describe("retitleFrontmatter", () => {
     const lines = retitleFrontmatter(["title: old"], "effect: a primer");
 
     expect(parseNote(composeNote(lines, "body")).frontmatter.title).toBe(
-      "effect: a primer",
+      "effect: a primer"
     );
   });
 });

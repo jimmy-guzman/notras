@@ -12,7 +12,7 @@ type AppServices = ManagedRuntime.ManagedRuntime.Services<typeof AppRuntime>;
  * FiberFailure dump.
  */
 export async function run<A, E>(
-  effect: Effect.Effect<A, E, AppServices>,
+  effect: Effect.Effect<A, E, AppServices>
 ): Promise<A> {
   const exit = await AppRuntime.runPromiseExit(effect);
 

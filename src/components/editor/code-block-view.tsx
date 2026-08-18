@@ -28,11 +28,12 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
     ).toSorted();
   }, [language]);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       clearTimeout(resetRef.current);
-    };
-  }, []);
+    },
+    []
+  );
 
   const copy = () => {
     void navigator.clipboard
@@ -43,8 +44,6 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         resetRef.current = setTimeout(() => {
           setCopied(false);
         }, 1500);
-
-        return undefined;
       })
       .catch(() => {
         toast.error("could not copy the code block");
@@ -72,13 +71,11 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
           value={language}
         >
           <option value="">plain</option>
-          {languages.map((name) => {
-            return (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            );
-          })}
+          {languages.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
         </select>
       </div>
       <pre>

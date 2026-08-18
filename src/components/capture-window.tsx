@@ -48,7 +48,7 @@ export function CaptureWindow() {
       } catch (error) {
         // Keep the jot on screen -- hiding would lose it.
         toast.error(
-          error instanceof Error ? error.message : "could not save the capture",
+          error instanceof Error ? error.message : "could not save the capture"
         );
 
         return;
@@ -57,9 +57,7 @@ export function CaptureWindow() {
       }
     }
 
-    setSession((current) => {
-      return current + 1;
-    });
+    setSession((current) => current + 1);
     await getCurrentWindow().hide();
   };
 
@@ -68,7 +66,7 @@ export function CaptureWindow() {
     () => {
       void saveAndHide();
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
 
   return (
@@ -78,15 +76,13 @@ export function CaptureWindow() {
         focusOnMount
         initialContent=""
         key={session}
-        onChange={() => {
-          return undefined;
-        }}
+        onChange={() => undefined}
         onReady={(handle) => {
           editorRef.current = handle;
         }}
         placeholderText="jot it down..."
       />
-      <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs text-muted-foreground">
+      <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-muted-foreground text-xs">
         <Kbd>esc</Kbd> saves to inbox
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}

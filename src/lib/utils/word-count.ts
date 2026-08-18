@@ -7,9 +7,7 @@ export function countWords(content: string) {
   const words = body
     .trim()
     .split(/\s+/)
-    .filter((word) => {
-      return word.length > 0;
-    });
+    .filter((word) => word.length > 0);
 
   return words.length;
 }

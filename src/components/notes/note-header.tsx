@@ -47,7 +47,7 @@ export function NoteHeader({ path, pinned, status, title }: NoteHeaderProps) {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-3">
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+      <span className="min-w-0 flex-1 truncate font-medium text-sm">
         {title}
       </span>
       <SaveIndicator status={status} />

@@ -91,9 +91,7 @@ function parseInlineTags(value: string) {
     .replace(/\]+$/, "")
     .split(",")
     .map(cleanTag)
-    .filter((tag) => {
-      return tag !== undefined;
-    });
+    .filter((tag) => tag !== undefined);
 }
 
 export function parseNote(content: string): ParsedNote {
@@ -103,14 +101,14 @@ export function parseNote(content: string): ParsedNote {
     rawLines: [],
   };
 
-  if (!content.startsWith("---\n") && !content.startsWith("---\r\n")) {
+  if (!(content.startsWith("---\n") || content.startsWith("---\r\n"))) {
     return fallback;
   }
 
   const lines = content.split("\n");
-  const closeIndex = lines.findIndex((line, index) => {
-    return index > 0 && CLOSING_DELIMITERS.has(line.trimEnd());
-  });
+  const closeIndex = lines.findIndex(
+    (line, index) => index > 0 && CLOSING_DELIMITERS.has(line.trimEnd())
+  );
 
   if (closeIndex === -1) {
     return fallback;
@@ -118,9 +116,9 @@ export function parseNote(content: string): ParsedNote {
 
   // CRLF files leave a trailing \r on every split line; strip it here so
   // `composeNote`'s \n joins cannot emit a block with mixed line endings.
-  const rawLines = lines.slice(1, closeIndex).map((line) => {
-    return line.replace(/\r$/, "");
-  });
+  const rawLines = lines
+    .slice(1, closeIndex)
+    .map((line) => line.replace(/\r$/, ""));
   const body = lines.slice(closeIndex + 1).join("\n");
   const frontmatter: Frontmatter = {
     pinned: false,
@@ -250,7 +248,7 @@ export function retitleFrontmatter(rawLines: string[], title: string) {
   const existing = rawLines[index] ?? "";
   const indent = existing.slice(
     0,
-    existing.length - existing.trimStart().length,
+    existing.length - existing.trimStart().length
   );
 
   return rawLines.with(index, `${indent}title: ${serializeTitle(title)}`);
@@ -275,7 +273,7 @@ export function composeNote(rawLines: string[], body: string) {
  */
 export function updateFrontmatter(
   content: string,
-  patch: FrontmatterPatch,
+  patch: FrontmatterPatch
 ): string {
   const parsed = parseNote(content);
   const next = {
@@ -294,11 +292,7 @@ export function updateFrontmatter(
   // Clean on the way out too, so a tag can never carry a separator into the
   // inline form and come back as two tags.
   const tags = [
-    ...new Set(
-      next.tags.map(cleanTag).filter((tag) => {
-        return tag !== undefined;
-      }),
-    ),
+    ...new Set(next.tags.map(cleanTag).filter((tag) => tag !== undefined)),
   ];
 
   if (tags.length > 0) {

@@ -34,9 +34,7 @@ const NoteImage = Image.extend<
     return {
       HTMLAttributes: {},
       ...this.parent?.(),
-      resolveSrc: (src: string) => {
-        return src;
-      },
+      resolveSrc: (src: string) => src,
     };
   },
   renderHTML({ HTMLAttributes }) {
@@ -77,7 +75,7 @@ const MarkdownLinkInputRule = Extension.create({
             tr.replaceWith(
               range.from,
               range.to,
-              state.schema.text(text, [linkMark.create({ href: url })]),
+              state.schema.text(text, [linkMark.create({ href: url })])
             );
 
             return true;
@@ -202,7 +200,7 @@ export function serializeMarkdown(editor: Editor) {
 
 /** The full extension stack, shared by the component and headless tests. */
 export function createEditorExtensions(
-  options: EditorExtensionOptions,
+  options: EditorExtensionOptions
 ): Extensions {
   return [
     StarterKit.configure({
@@ -226,11 +224,7 @@ export function createEditorExtensions(
     TaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({
-      resolveSrc:
-        options.resolveImageSrc ??
-        ((src: string) => {
-          return src;
-        }),
+      resolveSrc: options.resolveImageSrc ?? ((src: string) => src),
     }),
     Placeholder.configure({
       placeholder: options.placeholderText ?? "just write...",
@@ -239,11 +233,7 @@ export function createEditorExtensions(
     MarkdownLinkInputRule,
     SlashMenu,
     Wikilink.configure({
-      getTitles:
-        options.getTitles ??
-        (() => {
-          return [];
-        }),
+      getTitles: options.getTitles ?? (() => []),
     }),
   ];
 }

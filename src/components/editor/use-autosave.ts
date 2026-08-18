@@ -88,7 +88,7 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
         void flush();
       }, AUTOSAVE_DELAY_MS);
     },
-    [flush],
+    [flush]
   );
 
   // Leaving the note (or the app) flushes any pending write.

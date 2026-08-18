@@ -1,7 +1,6 @@
-import type { SuggestionOptions } from "@tiptap/suggestion";
-
 import { mergeAttributes, Node } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
+import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
@@ -17,14 +16,12 @@ function toItems(props: {
   command: (title: string) => void;
   items: string[];
 }): SuggestionMenuItem[] {
-  return props.items.map((title) => {
-    return {
-      label: title,
-      run: () => {
-        props.command(title);
-      },
-    };
-  });
+  return props.items.map((title) => ({
+    label: title,
+    run: () => {
+      props.command(title);
+    },
+  }));
 }
 
 /**
@@ -37,24 +34,19 @@ export const Wikilink = Node.create<WikilinkOptions>({
     return {
       title: {
         default: "",
-        parseHTML: (element: HTMLElement) => {
-          return element.dataset.wikilink ?? element.textContent;
-        },
-        renderHTML: (attributes: Record<string, unknown>) => {
-          return {
-            "data-wikilink":
-              typeof attributes.title === "string" ? attributes.title : "",
-          };
-        },
+        parseHTML: (element: HTMLElement) =>
+          element.dataset.wikilink ?? element.textContent,
+        renderHTML: (attributes: Record<string, unknown>) => ({
+          "data-wikilink":
+            typeof attributes.title === "string" ? attributes.title : "",
+        }),
       },
     };
   },
 
   addOptions() {
     return {
-      getTitles: () => {
-        return [];
-      },
+      getTitles: () => [],
     };
   },
 
@@ -73,14 +65,11 @@ export const Wikilink = Node.create<WikilinkOptions>({
           ])
           .run();
       },
-      items: ({ query }) => {
-        return this.options
+      items: ({ query }) =>
+        this.options
           .getTitles()
-          .filter((title) => {
-            return title.toLowerCase().includes(query.toLowerCase());
-          })
-          .slice(0, 8);
-      },
+          .filter((title) => title.toLowerCase().includes(query.toLowerCase()))
+          .slice(0, 8),
       pluginKey: new PluginKey("wikilinkSuggestion"),
       render: () => {
         let menu: null | SuggestionMenu = null;
@@ -120,14 +109,10 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
   inline: true,
 
-  markdownTokenName: "wikilink",
-
   markdownTokenizer: {
     level: "inline",
     name: "wikilink",
-    start: (src: string) => {
-      return src.indexOf("[[");
-    },
+    start: (src: string) => src.indexOf("[["),
     tokenize: (src: string) => {
       const match = /^\[\[([^\n[\]]+)\]\]/.exec(src);
 
@@ -138,10 +123,10 @@ export const Wikilink = Node.create<WikilinkOptions>({
           type: "wikilink",
         };
       }
-
-      return undefined;
     },
   },
+
+  markdownTokenName: "wikilink",
 
   name: "wikilink",
 
@@ -149,11 +134,10 @@ export const Wikilink = Node.create<WikilinkOptions>({
     return [{ tag: "span[data-wikilink]" }];
   },
 
-  parseMarkdown: (token, helpers) => {
-    return helpers.createNode("wikilink", {
+  parseMarkdown: (token, helpers) =>
+    helpers.createNode("wikilink", {
       title: typeof token.title === "string" ? token.title : "",
-    });
-  },
+    }),
 
   renderHTML({ HTMLAttributes, node }) {
     // `data-wikilink` comes from the attribute's own renderHTML, so the
@@ -165,7 +149,5 @@ export const Wikilink = Node.create<WikilinkOptions>({
     ];
   },
 
-  renderMarkdown: (node) => {
-    return `[[${String(node.attrs?.title ?? "")}]]`;
-  },
+  renderMarkdown: (node) => `[[${String(node.attrs?.title ?? "")}]]`,
 });

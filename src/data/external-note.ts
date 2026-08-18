@@ -4,17 +4,9 @@ import { run } from "./run";
 
 /** Read a markdown file outside the notes dir (Open With / drag-in). */
 export async function readExternalNote(path: string) {
-  return run(
-    FileStore.use((store) => {
-      return store.readExternal(path);
-    }),
-  );
+  return run(FileStore.use((store) => store.readExternal(path)));
 }
 
 export async function writeExternalNote(path: string, content: string) {
-  return run(
-    FileStore.use((store) => {
-      return store.writeExternal(path, content);
-    }),
-  );
+  return run(FileStore.use((store) => store.writeExternal(path, content)));
 }

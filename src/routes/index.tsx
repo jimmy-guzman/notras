@@ -20,8 +20,6 @@ export const Route = createFileRoute("/")({
         to: "/notes/$",
       });
     }
-
-    return undefined;
   },
 });
 
@@ -30,12 +28,10 @@ function EmptyState() {
 
   const newNote = () => {
     void createNote()
-      .then((path) => {
-        return navigate({ params: { _splat: path }, to: "/notes/$" });
-      })
+      .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
       .catch((error: unknown) => {
         toast.error(
-          error instanceof Error ? error.message : "could not create note",
+          error instanceof Error ? error.message : "could not create note"
         );
       });
   };
@@ -45,12 +41,12 @@ function EmptyState() {
       <Titlebar />
       <div className="flex flex-1 flex-col items-center justify-center gap-6">
         <div className="flex flex-col items-center gap-1">
-          <h1 className="font-mono text-5xl font-bold tracking-tight">
+          <h1 className="font-bold font-mono text-5xl tracking-tight">
             notras
           </h1>
           <p className="text-muted-foreground">just write, otra vez.</p>
         </div>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-4 text-muted-foreground text-sm">
           <Button onClick={newNote} variant="secondary">
             new note <Kbd>⌘n</Kbd>
           </Button>

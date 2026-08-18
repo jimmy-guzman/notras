@@ -28,9 +28,8 @@ interface RootSearch {
 
 export const Route = createRootRoute({
   component: RootLayout,
-  validateSearch: (search: Record<string, unknown>): RootSearch => {
-    return typeof search.tag === "string" ? { tag: search.tag } : {};
-  },
+  validateSearch: (search: Record<string, unknown>): RootSearch =>
+    typeof search.tag === "string" ? { tag: search.tag } : {},
   loader: async () => {
     const [notes, folders, notesDir, tags] = await Promise.all([
       getNotes(),
@@ -66,9 +65,7 @@ function RootLayout() {
     if (tag !== undefined) {
       void navigate({
         replace: true,
-        search: (previous: RootSearch) => {
-          return { ...previous, tag: undefined };
-        },
+        search: (previous: RootSearch) => ({ ...previous, tag: undefined }),
         to: ".",
       });
     }
@@ -105,22 +102,18 @@ function RootLayout() {
       // file in, so say what was left behind rather than dropping it silently.
       if (rest.length > 0) {
         toast.warning(
-          `opened 1 file; ${rest.length} more were not opened -- notras shows one at a time`,
+          `opened 1 file; ${rest.length} more were not opened -- notras shows one at a time`
         );
       }
     };
 
-    const reportFailure = (fallback: string) => {
-      return (error: unknown) => {
-        toast.error(error instanceof Error ? error.message : fallback);
-      };
+    const reportFailure = (fallback: string) => (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : fallback);
     };
 
     const unlistenNew = listen("menu-new-note", () => {
       void createNote()
-        .then((path) => {
-          return navigate({ params: { _splat: path }, to: "/notes/$" });
-        })
+        .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
         .catch(reportFailure("could not create note"));
     });
     const unlistenOpen = listen("open-file", () => {
@@ -170,33 +163,29 @@ function RootLayout() {
   useHotkeys(
     "mod+k",
     () => {
-      setPaletteOpen((current) => {
-        return !current;
-      });
+      setPaletteOpen((current) => !current);
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
   useHotkeys(
     "mod+n",
     () => {
       void createNote()
-        .then((path) => {
-          return navigate({ params: { _splat: path }, to: "/notes/$" });
-        })
+        .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
         .catch((error: unknown) => {
           toast.error(
-            error instanceof Error ? error.message : "could not create note",
+            error instanceof Error ? error.message : "could not create note"
           );
         });
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
   useHotkeys(
     "mod+comma",
     () => {
       setSettingsOpen(true);
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
 
   return (

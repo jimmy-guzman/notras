@@ -5,7 +5,7 @@ function escapeRegExp(str: string) {
 }
 
 const SNIPPET_SPLIT_RE = new RegExp(
-  `(${escapeRegExp(SNIPPET_START)}|${escapeRegExp(SNIPPET_END)})`,
+  `(${escapeRegExp(SNIPPET_START)}|${escapeRegExp(SNIPPET_END)})`
 );
 
 interface SnippetPart {
@@ -15,15 +15,13 @@ interface SnippetPart {
 }
 
 function getPartsLength(parts: SnippetPart[]) {
-  return parts.reduce((sum, part) => {
-    return sum + part.text.length;
-  }, 0);
+  return parts.reduce((sum, part) => sum + part.text.length, 0);
 }
 
 function slicePartsByCharRange(
   parts: SnippetPart[],
   startOffset: number,
-  endOffset: number,
+  endOffset: number
 ) {
   const sliced: Omit<SnippetPart, "id">[] = [];
 
@@ -82,19 +80,13 @@ export function getCenteredSnippetParts(snippet: string, maxChars = 80) {
   const totalLength = getPartsLength(parts);
 
   if (totalLength <= maxChars) {
-    return parts.map((part, id) => {
-      return { ...part, id };
-    });
+    return parts.map((part, id) => ({ ...part, id }));
   }
 
-  const firstMatchIndex = parts.findIndex((part) => {
-    return part.match;
-  });
+  const firstMatchIndex = parts.findIndex((part) => part.match);
   const cursorAtMatchStart = parts
     .slice(0, Math.max(0, firstMatchIndex))
-    .reduce((sum, part) => {
-      return sum + part.text.length;
-    }, 0);
+    .reduce((sum, part) => sum + part.text.length, 0);
   const firstMatchLength =
     firstMatchIndex === -1 ? 0 : (parts[firstMatchIndex]?.text.length ?? 0);
   const focusOffset =
@@ -115,7 +107,5 @@ export function getCenteredSnippetParts(snippet: string, maxChars = 80) {
     ...(endOffset < totalLength ? [{ match: false, text: "..." }] : []),
   ];
 
-  return withEllipses.map((part, id) => {
-    return { ...part, id };
-  });
+  return withEllipses.map((part, id) => ({ ...part, id }));
 }

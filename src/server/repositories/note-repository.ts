@@ -44,9 +44,7 @@ type NoteRow = typeof note.$inferSelect & { snippet: null | string };
 /** Every read crosses the IPC bridge as a promise; one place turns it typed. */
 function dbQuery<T>(query: () => Promise<T>) {
   return Effect.tryPromise({
-    catch: (cause) => {
-      return new DatabaseError({ cause });
-    },
+    catch: (cause) => new DatabaseError({ cause }),
     try: query,
   });
 }
@@ -55,7 +53,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
   const db = yield* Database;
 
   const attachTags = Effect.fn("NoteRepository.attachTags")(function* (
-    rows: NoteRow[],
+    rows: NoteRow[]
   ) {
     if (rows.length === 0) {
       return [];
@@ -63,13 +61,11 @@ const makeDbNoteRepository = Effect.gen(function* () {
 
     // Scoped to the rows in hand: a single-note read has no business
     // pulling the whole tag table across the IPC bridge.
-    const paths = rows.map((row) => {
-      return row.path;
-    });
+    const paths = rows.map((row) => row.path);
 
-    const tagRows = yield* dbQuery(() => {
-      return db.select().from(noteTag).where(inArray(noteTag.path, paths));
-    });
+    const tagRows = yield* dbQuery(() =>
+      db.select().from(noteTag).where(inArray(noteTag.path, paths))
+    );
 
     const tagsByPath = new Map<string, string[]>();
 
@@ -80,8 +76,8 @@ const makeDbNoteRepository = Effect.gen(function* () {
       tagsByPath.set(row.path, list);
     }
 
-    return rows.map((row): NoteMeta => {
-      return {
+    return rows.map(
+      (row): NoteMeta => ({
         createdAt: row.createdAt,
         folder: row.folder,
         path: row.path,
@@ -90,15 +86,15 @@ const makeDbNoteRepository = Effect.gen(function* () {
         tags: tagsByPath.get(row.path) ?? [],
         title: row.title,
         updatedAt: row.updatedAt,
-      };
-    });
+      })
+    );
   });
 
   const findByPath = Effect.fn("NoteRepository.findByPath")(function* (
-    path: string,
+    path: string
   ) {
-    const rows = yield* dbQuery(() => {
-      return db
+    const rows = yield* dbQuery(() =>
+      db
         .select({
           createdAt: note.createdAt,
           folder: note.folder,
@@ -110,8 +106,8 @@ const makeDbNoteRepository = Effect.gen(function* () {
         })
         .from(note)
         .where(eq(note.path, path))
-        .limit(1);
-    });
+        .limit(1)
+    );
 
     const metas = yield* attachTags(rows);
 
@@ -119,7 +115,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
   });
 
   const findMany = Effect.fn("NoteRepository.findMany")(function* (
-    filters: NoteFilters,
+    filters: NoteFilters
   ) {
     const matchQuery = buildFtsMatchQuery(filters.query);
 
@@ -130,9 +126,7 @@ const makeDbNoteRepository = Effect.gen(function* () {
       filters.pinnedOnly === true ? eq(note.pinned, true) : undefined,
       filters.tag === undefined ? undefined : getTagFilter(filters.tag),
       matchQuery === undefined ? undefined : getFtsMatchFilter(matchQuery),
-    ].filter((condition) => {
-      return condition !== undefined;
-    });
+    ].filter((condition) => condition !== undefined);
 
     const orderBy = (() => {
       if (matchQuery !== undefined) {
@@ -168,20 +162,19 @@ const makeDbNoteRepository = Effect.gen(function* () {
   });
 
   return NoteRepository.of({
-    count: () => {
-      return dbQuery(async () => {
+    count: () =>
+      dbQuery(async () => {
         const [row] = await db.select({ value: drizzleCount() }).from(note);
 
         return row?.value ?? 0;
-      });
-    },
+      }),
 
     findByPath,
 
     findMany,
 
-    listFolders: () => {
-      return dbQuery(async () => {
+    listFolders: () =>
+      dbQuery(async () => {
         const rows = await db
           .select({
             count: drizzleCount(),
@@ -191,24 +184,20 @@ const makeDbNoteRepository = Effect.gen(function* () {
           .groupBy(note.folder)
           .orderBy(note.folder);
 
-        return rows.filter((row) => {
-          return row.folder !== "";
-        });
-      });
-    },
+        return rows.filter((row) => row.folder !== "");
+      }),
 
-    listTags: () => {
-      return dbQuery(() => {
-        return db
+    listTags: () =>
+      dbQuery(() =>
+        db
           .select({
             count: drizzleCount(),
             tag: noteTag.tag,
           })
           .from(noteTag)
           .groupBy(noteTag.tag)
-          .orderBy(noteTag.tag);
-      });
-    },
+          .orderBy(noteTag.tag)
+      ),
   });
 });
 

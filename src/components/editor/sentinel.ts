@@ -16,10 +16,7 @@ export function insertSentinel(text: string, offset: number) {
 
 interface DocLike {
   descendants(
-    callback: (
-      node: { isText: boolean; text?: string },
-      pos: number,
-    ) => boolean,
+    callback: (node: { isText: boolean; text?: string }, pos: number) => boolean
   ): void;
 }
 
