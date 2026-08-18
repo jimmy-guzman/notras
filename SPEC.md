@@ -15,10 +15,10 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 
 - [x] 1. First launch creates `~/notras/` + `.notras/index.db`; empty state shows
 - [x] 2. ⌘N → type → autosave badge; the `.md` file exists on disk with the content
-- [ ] 3. Type `# a real title` at the top → titlebar follows it; the file does not move
-- [ ] 3b. ⌘K → "rename note..." → the file, the heading and the titlebar all move
+- [x] 3. Type `# a real title` at the top → titlebar follows it; the file does not move
+- [x] 3b. ⌘K → "rename note..." → the file, the heading and the titlebar all move
       together; a note with no heading gains none and only its file moves
-- [ ] 4. **The money shot:** `echo "# from claude" > ~/notras/agent-note.md` from a
+- [x] 4. **The money shot:** `echo "# from claude" > ~/notras/agent-note.md` from a
       terminal (or have Claude Code write one) → note appears in the palette within ~1s,
       titled `from claude` rather than `agent-note`
 - [x] 5. ⌘K search a word → FTS hit with highlighted snippet
