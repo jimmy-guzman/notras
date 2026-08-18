@@ -264,12 +264,11 @@ became a second name for one thing.
 **Constraint:** the RC line is pinned exactly (`4.0.0-rc.x`), since a release
 candidate can move under a range.
 
-### D14 Layer boundaries enforced by lint
+### D14 Layer boundaries
 
 `src/core/**` may not import `@tauri-apps/*`, React, or `node:*`, and may not
 import upward. `src/server/{db,repositories,schemas,services}/**` may not import
-`@tauri-apps/*` or React. Two `no-restricted-imports` blocks at the bottom of
-`eslint.config.ts` hold both.
+`@tauri-apps/*` or React. `D43` records why nothing enforces this today.
 
 The property being protected is that the core and service layers run outside the
 Tauri webview, in tests today and in anything else later. Behavior crosses the
@@ -277,20 +276,20 @@ boundary through ports: `FileStore` in `src/core`, `Database` in
 `src/server/db`.
 
 **Rejected: separate workspace packages.** The compiler would enforce what lint
-enforces here. Rejected as too much structure for one app with one consumer of
-each layer.
+enforced here. Rejected as too much structure for one app with one consumer of
+each layer. `D43` retired the lint half of that comparison, so the boundaries
+now rest on review alone and this rejection is worth revisiting if one slips.
 
-**Constraint:** the blocks stay last in the config, because flat config replaces
-rule options rather than merging them. The fix for a violation is never to widen
-the glob.
+**Constraint:** the fix for a violation is never to move the import.
 
 ### D15 TipTap's serializer is the canonical form
 
-What lands on disk is whatever `@tiptap/markdown` serializes. oxfmt formats the
-repo's own source and never runs on note content.
+What lands on disk is whatever `@tiptap/markdown` serializes. The repo's
+formatter runs on its own source and never on note content (`D41`).
 
 An earlier design ran a remark-based format pass on blur, which carried a
-question about whether remark-stringify and oxfmt would agree. Making the
+question about whether remark-stringify and the repo formatter would agree.
+Making the
 editor's own serializer canonical removes both the question and the pass, and
 took `remark-parse`, `remark-stringify`, `react-markdown`, the preview stack,
 and a syntax-highlighting preference with it.
@@ -300,7 +299,7 @@ externally authored files. Rejected because it rewrites files the user did not
 change in that session, and because moving the caret after a blur is a visible
 defect.
 
-**Rejected: Prettier anywhere in the repo.** oxfmt is the formatter.
+**Rejected: Prettier anywhere in the repo.** Biome is the formatter (`D41`).
 
 ### D16 A debounced notify watcher reconciles external writes
 
@@ -360,8 +359,9 @@ the stone base color, with tokens as oklch CSS variables and dark as the `:root`
 default.
 
 **Constraint:** files in `src/components/ui/**` are generated and not
-hand-edited. Non-autofixable lint is handled through the
-`**/components/ui/**` override block.
+hand-edited. Lint with no autofix is turned off for them in `biome.jsonc`'s
+`src/components/ui/**` override rather than patched at the call site, because
+`scripts/update-shadcn.sh` overwrites the files.
 
 **Constraint:** three deviations are documented, and each is re-applied whenever
 the components are regenerated.
@@ -922,9 +922,9 @@ files would have made the icon visibly change shade between 64px and 128px insid
 one icns, so the vector files match the render instead.
 
 **Rejected: a Node script with a rasterizer dependency.** `tsconfig.json` covers
-`**/*.ts` and `eslint.config.ts` ignores only `src-tauri/**`, so it would be
-typechecked and linted, and knip's `project` glob does not reach `scripts/`, so
-the dependency would read as unused. Bash sidesteps all four gates and matches
+`**/*.ts` and the linter reaches everything outside its ignore list, so it would
+be typechecked and linted, and knip's `project` glob does not reach `scripts/`,
+so the dependency would read as unused. Bash sidesteps all four gates and matches
 `scripts/update-shadcn.sh`.
 
 **Constraint:** generation is macOS-only and needs ImageMagick on the PATH.
@@ -1126,8 +1126,9 @@ and stays dead, since `src/components/ui/**` is not hand-edited beyond `D19`'s
 listed deviations. `aria-pressed` is the working hook.
 
 **Constraint:** `toggle-group.tsx` added four rules to the
-`**/components/ui/**` override block in `eslint.config.ts`, which `D19` names as
-where non-autofixable lint in generated files goes.
+`src/components/ui/**` override block, which `D19` names as where lint with no
+autofix in generated files goes. `D41` moved the block to `biome.jsonc` and
+re-derived its contents from the rules Biome reports.
 
 ### D38 The save glyph sits in the titlebar and can say it failed
 
@@ -1257,7 +1258,7 @@ probe rather than to reason about it.
 **Constraint:** the checkbox selectors reach the input as `> li > label > input`
 and drop the `[type="checkbox"]` filter. The label is the node view's own
 wrapper and holds one input, so the path names the element more narrowly than
-the attribute did, and it holds the selector inside oxfmt's 80 columns.
+the attribute did, and it holds the selector inside the formatter's 80 columns.
 
 **Constraint:** `src/styles.spec.ts` reads rule preludes by tracking brace depth
 over `src/styles.css`. It drops comments and `url()` values first, because either
@@ -1300,9 +1301,9 @@ Rejected because the heading margins derive from `--typeset-flow` either way, so
 the override would buy only the sizes, and a preset that restates half the
 stylesheet it sits on stops being a preset.
 
-**Rejected: vendoring the file reformatted to house style.** oxfmt formats CSS and
-would reflow it, and it carries about twenty section comments `AGENTS.md` bans in
-first-party code. Rejected because a file with no registry entry has no upgrade
+**Rejected: vendoring the file reformatted to house style.** The repo formatter
+handles CSS and would reflow it, and the file carries about twenty section
+comments `AGENTS.md` bans in first-party code. Rejected because a file with no registry entry has no upgrade
 path except a re-fetch and a diff, and reformatting turns every re-fetch into a
 whole-file diff merged by hand.
 
@@ -1351,3 +1352,108 @@ reports a column the app never paints.
 **Constraint:** a task list still sets `margin-block: 0.5em` where every other
 block takes `--typeset-flow`, so it sits tighter to what precedes it than a bullet
 list does. The plugin had the same split and this change did not widen it.
+
+### D41 Ultracite replaces the ESLint and oxfmt pair
+
+Lint and formatting come from `ultracite`, a Biome preset, extended in
+`biome.jsonc` as `core`, `react`, `tanstack`, and `vitest`. `pnpm check` and
+`pnpm fix` are the two commands. `eslint.config.ts`, `.oxfmtrc.json`,
+`.lefthook.json`, and `@jimmy.codes/eslint-config` are gone, and CI runs one
+check step where it ran a format step and a lint step.
+
+The whole config is thirty lines: four extends, a two-entry `files.includes`,
+and one override. Writing more than that was the first attempt and it went
+backwards, which is the constraint below.
+
+**Rejected: porting every ESLint rule to Biome.** The first pass ported the two
+layer-boundary blocks and the lucide import guard, and the config reached about
+a hundred and twenty lines. Rejected because a preset that needs that much
+configuration is not doing the job the preset was adopted for, and because two
+of the three ported guards had never caught anything the repo still contained.
+`D43` covers what that dropped.
+
+**Rejected: keeping oxfmt for markdown and YAML.** Biome handles neither, so
+those files now have no formatter. Rejected because the binary was already
+uninstalled, `pnpm format` was already broken, and the markdown here is
+hand-wrapped at 80 columns anyway. Reinstating a second formatter to cover two
+file types costs more than it returns.
+
+**Constraint:** a consumer `files.includes` must not contain `"**"`. Biome's own
+`noBiomeFirstException` rule reports it, because a catch-all in the consumer
+replaces the preset's ignore list rather than extending it. Adding `"**"` put
+`src/routeTree.gen.ts` back in scope and raised the error count from 210 to 218.
+The two exclusions are written bare: `!!src/typeset.css` and `!!assets`.
+
+**Constraint:** `@biomejs/biome` is a direct devDependency and sits in knip's
+`ignoreDependencies`. Ultracite's peer dependencies are `oxfmt` and `oxlint`, so
+nothing pulls Biome in transitively, and knip's Biome plugin reads `biome.jsonc`
+without marking its own enabler as used.
+
+**Constraint:** the `AGENTS.md` comment rule lost its enforcement. ESLint's
+`no-inline-comments`, with a `TODO|FIXME` escape hatch, was checking it, and
+Biome has no equivalent.
+
+### D42 Fire-and-forget promises carry no marker
+
+A promise the code deliberately does not await is called plainly. The `void`
+prefix that used to mark thirty-three such calls is gone.
+
+`@typescript-eslint/no-floating-promises` ran with its default `ignoreVoid`, so
+`void` was how a call opted out of that rule, and the prefix accumulated at
+every hotkey handler, `listen` cleanup, and debounce timer. `D41` removed the
+rule, and Ultracite bans the `void` operator through `complexity/noVoid`, so the
+marker had gone from required to forbidden in one step.
+
+**Rejected: turning `noVoid` off and enabling `nursery/noFloatingPromises`.**
+This reproduces the old semantics exactly, verified: `void` stays the sanctioned
+discard and an unhandled promise errors. Rejected because it is two rule
+overrides in a config `D41` deliberately keeps small.
+
+**Rejected: giving all thirty-three a `.catch`.** Every fire-and-forget would
+report its own failure. Rejected because it changes runtime behavior across
+eleven files, which is a separate change from a lint migration.
+
+**Constraint:** nothing now distinguishes a deliberate fire-and-forget from a
+forgotten `await`. An un-awaited `saveNote(...)` with no `.catch` passes every
+gate, and the failure surfaces as a rejection nobody reports.
+
+### D43 Layer boundaries and the icon import rule are conventions
+
+`D14`'s two layer boundaries and the rule that `lucide-react` imports use the
+`Icon`-suffixed export are written in `ARCHITECTURE.md` and `AGENTS.md` and
+checked by nobody.
+
+Biome expresses both: `style/noRestrictedImports` takes gitignore-style groups,
+and its `invertImportNamePattern` covers the icon rule despite the Rust regex
+engine supporting no lookahead. Porting them cost about seventy lines of the
+hundred and twenty `D41` rejected.
+
+**Rejected: a spec that reads the source and asserts on imports.**
+`src/styles.spec.ts` already guards `D6`, `D39`, and `D40` that way, so the
+pattern exists and would have cost about fifty lines of test instead of seventy
+lines of config. Rejected together with the config, on the same ground: neither
+had caught anything, since all thirteen `lucide-react` imports already comply
+and no boundary is currently crossed.
+
+**Constraint:** a violation of either now reaches `main` unless a reviewer
+catches it. `D14` rejected workspace packages because lint was doing the work,
+and that comparison no longer holds, so a boundary that actually slips is a
+reason to revisit it rather than to re-add the rule.
+
+### D44 `src/core` has no barrel
+
+Consumers import `@/core/notes`, `@/core/frontmatter`, `@/core/errors`,
+`@/core/file-store`, and `@/core/fts-markers` directly. `src/core/index.ts`,
+which re-exported all five, is deleted, and its twenty-one importing statements
+became twenty-eight.
+
+Ultracite reports `performance/noBarrelFile`. The layer is still the layer:
+`ARCHITECTURE.md` names what belongs in `src/core` and what may not import it.
+
+**Rejected: turning `noBarrelFile` off for the one file.** The barrel named the
+layer's public surface in one place. Rejected because it is a rule override in a
+config `D41` keeps small, and because `src/core`'s own files already imported
+their siblings directly, so the barrel only ever served consumers.
+
+**Constraint:** an import from `@/core` no longer resolves. There is no
+deprecation window, and the compiler reports every stale one.
