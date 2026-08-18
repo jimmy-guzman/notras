@@ -41,6 +41,7 @@ export function LinkEditor({
     setText("");
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: state is the only signal a second invocation arrived; dropping it stops the refocus
   useEffect(() => {
     firstFieldRef.current?.focus();
     firstFieldRef.current?.select();
@@ -105,7 +106,8 @@ export function LinkEditor({
 
   return (
     // Keys are handled on the container so Escape works from the buttons too.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- popover-level key handling; focus always sits on a real control inside
+    // biome-ignore lint/a11y/noStaticElementInteractions: popover-level key handling; focus always sits on a real control inside
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: popover-level key handling; focus always sits on a real control inside
     <div className="link-editor" onKeyDown={handleKeyDown} ref={containerRef}>
       {state.needsText ? (
         <input

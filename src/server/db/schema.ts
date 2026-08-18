@@ -27,5 +27,3 @@ export const noteTag = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.path, table.tag] })]
 );
-
-export type SelectNote = typeof note.$inferSelect;

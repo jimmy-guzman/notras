@@ -35,7 +35,9 @@ function caretAfter(editor: Editor, needle: string) {
     return true;
   });
 
-  expect(found).not.toBe(-1);
+  if (found === -1) {
+    throw new Error(`could not find ${needle} in the doc`);
+  }
 
   return found;
 }

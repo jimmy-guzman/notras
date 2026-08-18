@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { NOTE_SEGMENT_PATTERN } from "@/core";
+import { NOTE_SEGMENT_PATTERN } from "@/core/notes";
 
 const LINE_BREAK = /[\n\r]/;
 

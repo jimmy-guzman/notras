@@ -1,6 +1,6 @@
 import { asc, desc, sql } from "drizzle-orm";
 
-import { SNIPPET_END, SNIPPET_START } from "@/core";
+import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { note } from "@/server/db/schema";
 
 const WHITESPACE_RUN = /\s+/;

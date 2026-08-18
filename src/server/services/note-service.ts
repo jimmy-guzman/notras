@@ -1,22 +1,23 @@
 import { Context, Effect, Layer } from "effect";
-
-import type { NoteFileContent, NoteFilters, NoteMeta } from "@/core";
-
+import { FileError } from "@/core/errors";
+import type { NoteFileContent } from "@/core/file-store";
+import { FileStore } from "@/core/file-store";
 import {
   composeNote,
-  FileError,
-  FileStore,
+  parseNote,
+  retitleFrontmatter,
+  updateFrontmatter,
+} from "@/core/frontmatter";
+import type { NoteFilters, NoteMeta } from "@/core/notes";
+import {
   filenameFromTitle,
   NOTE_SEGMENT_PATTERN,
   noteFolder,
   notePath,
   noteTitle,
-  parseNote,
   resolveTitle,
-  retitleFrontmatter,
   retitleLeadingHeading,
-  updateFrontmatter,
-} from "@/core";
+} from "@/core/notes";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 interface Note {

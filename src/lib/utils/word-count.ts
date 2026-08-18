@@ -1,4 +1,4 @@
-import { parseNote } from "@/core";
+import { parseNote } from "@/core/frontmatter";
 
 const WORDS_PER_MINUTE = 200;
 

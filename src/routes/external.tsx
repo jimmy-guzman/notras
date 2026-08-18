@@ -6,7 +6,7 @@ import { Editor } from "@/components/editor/editor";
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import { SaveIndicator } from "@/components/notes/save-indicator";
 import { Titlebar } from "@/components/titlebar";
-import { composeNote, parseNote } from "@/core";
+import { composeNote, parseNote } from "@/core/frontmatter";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
 import { registerPendingFlush } from "@/lib/pending-flush";
 

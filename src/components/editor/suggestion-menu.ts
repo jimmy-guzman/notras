@@ -13,8 +13,8 @@ export interface SuggestionMenuItem {
 export class SuggestionMenu {
   private static instances = 0;
 
-  private element: HTMLDivElement;
-  private id: string;
+  private readonly element: HTMLDivElement;
+  private readonly id: string;
   private items: SuggestionMenuItem[] = [];
   private selected = 0;
 

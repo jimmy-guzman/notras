@@ -1,4 +1,4 @@
-import { FileStore } from "@/core";
+import { FileStore } from "@/core/file-store";
 
 import { run } from "./run";
 

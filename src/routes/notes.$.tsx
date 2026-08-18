@@ -18,13 +18,8 @@ import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
 import { StatusBar } from "@/components/notes/status-bar";
 import { Titlebar } from "@/components/titlebar";
-import {
-  composeNote,
-  noteFolder,
-  noteTitle,
-  parseNote,
-  resolveTitle,
-} from "@/core";
+import { composeNote, parseNote } from "@/core/frontmatter";
+import { noteFolder, noteTitle, resolveTitle } from "@/core/notes";
 import { attachFile } from "@/data/attach-file";
 import { getNote } from "@/data/get-note";
 import { countWords } from "@/lib/utils/word-count";
@@ -65,6 +60,14 @@ const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/i;
 
 function isImagePath(path: string) {
   return IMAGE_EXTENSION.test(path);
+}
+
+function attachmentLink(relativePath: string) {
+  const name = relativePath.split("/").at(-1) ?? relativePath;
+
+  return isImagePath(relativePath)
+    ? `![${name}](${relativePath})`
+    : `[${name}](${relativePath})`;
 }
 
 function NotePage() {
@@ -181,8 +184,8 @@ function NoteEditor({ note }: NoteEditorProps) {
   // a title is no longer unique and links written against a filename have to
   // keep working. Ties break by nearest folder, then by path.
   const openWikilink = useCallback(
-    (title: string) => {
-      const wanted = title.trim().toLowerCase();
+    (linkTitle: string) => {
+      const wanted = linkTitle.trim().toLowerCase();
       const currentFolder = noteFolder(note.path);
       const candidates = notesRef.current
         .filter(
@@ -236,26 +239,29 @@ function NoteEditor({ note }: NoteEditorProps) {
   // Drag a file in -> copy to attachments/, insert a markdown link.
   useEffect(() => {
     const attachDropped = async (paths: string[]) => {
-      for (const sourcePath of paths) {
-        try {
-          // Whichever surface is live owns the caret; the other one's handle
-          // is stale (it was torn down by the mode toggle).
-          const target = sourceModeRef.current
-            ? sourceRef.current
-            : editorRef.current;
+      // Whichever surface is live owns the caret; the other one's handle is
+      // stale (it was torn down by the mode toggle).
+      const target = sourceModeRef.current
+        ? sourceRef.current
+        : editorRef.current;
 
-          if (target === null) {
-            throw new Error("no editor to insert the attachment into");
-          }
+      if (target === null) {
+        toast.error("no editor to insert the attachment into");
 
-          const relativePath = await attachFile(sourcePath);
-          const name = relativePath.split("/").at(-1) ?? relativePath;
-          const link = isImagePath(relativePath)
-            ? `![${name}](${relativePath})`
-            : `[${name}](${relativePath})`;
+        return;
+      }
 
-          target.insertText(link);
-        } catch (error) {
+      // Copies run together; the links still land in the order they dropped.
+      const copies = await Promise.allSettled(
+        paths.map((sourcePath) => attachFile(sourcePath))
+      );
+
+      for (const copy of copies) {
+        if (copy.status === "fulfilled") {
+          target.insertText(attachmentLink(copy.value));
+        } else {
+          const error: unknown = copy.reason;
+
           toast.error(
             error instanceof Error ? error.message : "could not attach file"
           );

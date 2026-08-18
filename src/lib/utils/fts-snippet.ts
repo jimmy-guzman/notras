@@ -1,4 +1,4 @@
-import { SNIPPET_END, SNIPPET_START } from "@/core";
+import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 
 function escapeRegExp(str: string) {
   return str.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);

@@ -1,4 +1,4 @@
-import type { NoteFilters } from "@/core";
+import type { NoteFilters } from "@/core/notes";
 
 import { NoteService } from "@/server/services/note-service";
 

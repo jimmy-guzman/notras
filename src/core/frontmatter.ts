@@ -56,19 +56,20 @@ function cleanTag(raw: string) {
  * `D6` keeps deliberately small. Kept in parity with `clean_title` in
  * `src-tauri/src/frontmatter.rs`.
  */
-function cleanTitle(raw: string) {
-  const value = raw.trim();
+function unquoteTitle(value: string) {
   const quote = value.length > 1 ? value.at(0) : undefined;
-  const quoted =
-    (quote === "'" || quote === '"') && value.endsWith(quote)
-      ? value.slice(1, -1)
-      : undefined;
-  const title =
-    quoted === undefined
-      ? value
-      : quote === "'"
-        ? quoted.replaceAll("''", "'")
-        : quoted;
+
+  if ((quote !== "'" && quote !== '"') || !value.endsWith(quote)) {
+    return value;
+  }
+
+  const inner = value.slice(1, -1);
+
+  return quote === "'" ? inner.replaceAll("''", "'") : inner;
+}
+
+function cleanTitle(raw: string) {
+  const title = unquoteTitle(raw.trim());
 
   return title.length > 0 ? title : undefined;
 }
@@ -100,6 +101,60 @@ function parseInlineTags(value: string) {
     .split(",")
     .map(cleanTag)
     .filter((tag) => tag !== undefined);
+}
+
+/** True when the line was a `- tag` item, meaning the list continues. */
+function readTagListItem(frontmatter: Frontmatter, line: string) {
+  const item = line.trimStart();
+
+  if (!item.startsWith("- ")) {
+    return false;
+  }
+
+  const tag = cleanTag(item.slice(2));
+
+  if (tag !== undefined) {
+    frontmatter.tags.push(tag);
+  }
+
+  return true;
+}
+
+/** True when the line opened a block tag list, so the next lines are items. */
+function readKeyLine(frontmatter: Frontmatter, line: string) {
+  const separator = line.indexOf(":");
+
+  if (separator === -1) {
+    return false;
+  }
+
+  const key = line.slice(0, separator).trim();
+  const value = line.slice(separator + 1).trim();
+
+  switch (key) {
+    case "pinned": {
+      frontmatter.pinned = value.toLowerCase() === "true";
+
+      return false;
+    }
+    case "tags": {
+      if (value === "") {
+        return true;
+      }
+
+      frontmatter.tags = parseInlineTags(value);
+
+      return false;
+    }
+    case "title": {
+      frontmatter.title = cleanTitle(value);
+
+      return false;
+    }
+    default: {
+      return false;
+    }
+  }
 }
 
 export function parseNote(content: string): ParsedNote {
@@ -140,52 +195,14 @@ export function parseNote(content: string): ParsedNote {
     const trimmed = line.trimEnd();
 
     if (inTagsList) {
-      const item = trimmed.trimStart();
-
-      if (item.startsWith("- ")) {
-        const tag = cleanTag(item.slice(2));
-
-        if (tag !== undefined) {
-          frontmatter.tags.push(tag);
-        }
-
+      if (readTagListItem(frontmatter, trimmed)) {
         continue;
       }
 
       inTagsList = false;
     }
 
-    const separator = trimmed.indexOf(":");
-
-    if (separator === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
-
-    switch (key) {
-      case "pinned": {
-        frontmatter.pinned = value.toLowerCase() === "true";
-
-        break;
-      }
-      case "tags": {
-        if (value === "") {
-          inTagsList = true;
-        } else {
-          frontmatter.tags = parseInlineTags(value);
-        }
-
-        break;
-      }
-      case "title": {
-        frontmatter.title = cleanTitle(value);
-
-        break;
-      }
-      // No default
-    }
+    inTagsList = readKeyLine(frontmatter, trimmed);
   }
 
   frontmatter.tags = [...new Set(frontmatter.tags)];

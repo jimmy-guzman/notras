@@ -23,6 +23,13 @@
             "noNoninteractiveElementInteractions": "off",
             "useKeyWithClickEvents": "off",
             "useSemanticElements": "off"
+          },
+          "performance": {
+            "noJsxPropsBind": "off",
+            "noNamespaceImport": "off"
+          },
+          "suspicious": {
+            "noLeakedRender": "off"
           }
         }
       }

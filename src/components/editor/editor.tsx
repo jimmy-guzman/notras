@@ -127,7 +127,6 @@ export function Editor({
           const doc = view.state.schema.topNodeType.create(null, slice.content);
           const manager = editorRef.current?.markdown;
 
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
           return manager ? manager.serialize(doc.toJSON()) : fallback;
         } catch {
           return fallback;
@@ -275,7 +274,6 @@ export function Editor({
               SENTINEL,
               instance.state.selection.head
             );
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
             const md: string = manager.serialize(marked.doc.toJSON());
 
             return normalizeMarkdown(md).indexOf(SENTINEL);
@@ -308,6 +306,7 @@ export function Editor({
       scroller.scrollTop += coords.top - (rect.top + rect.height / 2);
     },
     onUpdate: ({ editor: instance }) => {
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; line 333 assigns true
       if (suppressChangeRef.current) {
         return;
       }

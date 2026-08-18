@@ -2,9 +2,9 @@ import type { SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 
 import { Context } from "effect";
 
-import * as tables from "./schema";
+import { note, noteTag } from "./schema";
 
-export const schema = tables;
+export const schema = { note, noteTag };
 
 export type DrizzleDb = SqliteRemoteDatabase<typeof schema>;
 

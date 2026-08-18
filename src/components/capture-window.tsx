@@ -32,6 +32,7 @@ export function CaptureWindow() {
   const saveAndHide = async () => {
     // Esc and ⌘⏎ both land here, and a fast double press would otherwise
     // write the jot twice (the timestamp title collides and dedupes to -2).
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; line 42 assigns true
     if (savingRef.current) {
       return;
     }

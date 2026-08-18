@@ -58,7 +58,11 @@ const contrast = (foreground: string, background: string) => {
   return (upper + 0.05) / (lower + 0.05);
 };
 
-const valueOf = (scheme: string, tokens: Map<string, string>, name: string) => {
+const tokenValue = (
+  scheme: string,
+  tokens: Map<string, string>,
+  name: string
+) => {
   const value = tokens.get(name);
 
   if (value === undefined) {
@@ -70,6 +74,7 @@ const valueOf = (scheme: string, tokens: Map<string, string>, name: string) => {
 
 const firstMatch = (pattern: RegExp, text: string, what: string) => {
   const found = pattern.exec(text);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: RegExp.exec returns RegExpExecArray | null
   const value = found?.[1];
 
   if (value === undefined) {
@@ -137,8 +142,8 @@ describe.each([
 ])("%s palette", (scheme, tokens, other) => {
   it.each(PAIRS)("should clear WCAG AA for %s on %s", (text, surface) => {
     const ratio = contrast(
-      valueOf(scheme, tokens, text),
-      valueOf(scheme, tokens, surface)
+      tokenValue(scheme, tokens, text),
+      tokenValue(scheme, tokens, surface)
     );
 
     expect(ratio).toBeGreaterThanOrEqual(AA);
@@ -146,8 +151,8 @@ describe.each([
 
   it("should keep the placeholder readable without competing with the caret", () => {
     const ratio = contrast(
-      valueOf(scheme, tokens, "faint"),
-      valueOf(scheme, tokens, "background")
+      tokenValue(scheme, tokens, "faint"),
+      tokenValue(scheme, tokens, "background")
     );
 
     expect(ratio).toBeGreaterThanOrEqual(PLACEHOLDER_FLOOR);
@@ -240,6 +245,7 @@ const typesetRole = (role: string) => {
   const found = new RegExp(
     String.raw`--typeset-${role}:\s*var\(\s*--color-([\w-]+)`
   ).exec(typeset);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: RegExp.exec returns RegExpExecArray | null
   const token = found?.[1];
 
   if (token === undefined) {
@@ -355,12 +361,13 @@ describe("task list ladder", () => {
   });
 });
 
-const rustBackground = (rust: string, name: string) => {
+const rustBackground = (rustSource: string, name: string) => {
   const pattern = new RegExp(
     String.raw`${name}: Color = Color\(\s*0x([\da-f]{2}),\s*0x([\da-f]{2}),\s*0x([\da-f]{2})`
   );
-  const found = pattern.exec(rust);
+  const found = pattern.exec(rustSource);
 
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: RegExp.exec returns RegExpExecArray | null
   if (found === null) {
     throw new Error(`could not read ${name} from src-tauri/src/lib.rs`);
   }
@@ -394,7 +401,7 @@ describe("launch background", () => {
         html.slice(0, htmlMarkerAt),
         "the dark background in index.html"
       )
-    ).toBe(valueOf("dark", darkTokens, "background"));
+    ).toBe(tokenValue("dark", darkTokens, "background"));
   });
 
   it("should paint the light canvas from index.html before styles.css loads", () => {
@@ -404,7 +411,7 @@ describe("launch background", () => {
         html.slice(htmlMarkerAt),
         "the light background in index.html"
       )
-    ).toBe(valueOf("light", lightTokens, "background"));
+    ).toBe(tokenValue("light", lightTokens, "background"));
   });
 
   it("should declare a color-scheme so the canvas is never painted white", () => {
@@ -421,15 +428,15 @@ describe("launch background", () => {
         tauriConfig,
         "backgroundColor in tauri.conf.json"
       )
-    ).toBe(valueOf("dark", darkTokens, "background"));
+    ).toBe(tokenValue("dark", darkTokens, "background"));
   });
 
   it("should carry both scheme backgrounds into the rust window layer", () => {
     expect(rustBackground(rust, "BG_DARK")).toBe(
-      valueOf("dark", darkTokens, "background")
+      tokenValue("dark", darkTokens, "background")
     );
     expect(rustBackground(rust, "BG_LIGHT")).toBe(
-      valueOf("light", lightTokens, "background")
+      tokenValue("light", lightTokens, "background")
     );
   });
 });

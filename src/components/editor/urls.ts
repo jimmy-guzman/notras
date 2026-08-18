@@ -13,6 +13,14 @@ const SAFE_SCHEMES = new Set([
   "tel",
 ]);
 
+function parseUrl(url: string) {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The scheme of a URL, or null when it carries none.
  *
@@ -21,15 +29,13 @@ const SAFE_SCHEMES = new Set([
  * sneak past as schemeless the way a hand-rolled regex lets it.
  */
 function schemeOf(url: string) {
-  let protocol: string;
+  const parsed = parseUrl(url);
 
-  try {
-    protocol = new URL(url).protocol;
-  } catch {
+  if (parsed === null) {
     return null;
   }
 
-  const scheme = protocol.slice(0, -1).toLowerCase();
+  const scheme = parsed.protocol.slice(0, -1).toLowerCase();
 
   // A dotted "scheme" is really a host with a port -- `example.com:8080/path`
   // parses as protocol `example.com:`, and still wants an https:// prefix.

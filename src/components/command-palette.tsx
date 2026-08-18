@@ -29,8 +29,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import type { NoteMeta } from "@/core";
-import { filenameFromTitle } from "@/core";
+import type { NoteMeta } from "@/core/notes";
+import { filenameFromTitle } from "@/core/notes";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { getNotes } from "@/data/get-notes";
@@ -182,6 +182,151 @@ function TagFilterItem({ count, name, onPick }: TagFilterItemProps) {
   );
 }
 
+interface DeleteViewProps {
+  onCancel: () => void;
+  onConfirm: () => void;
+  title: string;
+}
+
+function DeleteView({ onCancel, onConfirm, title }: DeleteViewProps) {
+  return (
+    <CommandGroup heading={`delete "${title}"?`}>
+      <CommandItem onSelect={onConfirm} value="confirm-delete">
+        <Trash2Icon className="text-destructive" />
+        delete forever
+      </CommandItem>
+      <CommandItem onSelect={onCancel} value="cancel-delete">
+        cancel
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
+interface MoveViewProps {
+  folders: { count: number; folder: string }[];
+  onCancel: () => void;
+  onMove: (folder: string) => void;
+  onMoveToNewFolder: () => void;
+  onMoveToRoot: () => void;
+  query: string;
+}
+
+function MoveView({
+  folders,
+  onCancel,
+  onMove,
+  onMoveToNewFolder,
+  onMoveToRoot,
+  query,
+}: MoveViewProps) {
+  const draftFolder = query.trim().toLowerCase();
+
+  return (
+    <CommandGroup heading="move to">
+      <CommandItem onSelect={onMoveToRoot} value="move-root">
+        <FolderIcon />
+        notes root
+      </CommandItem>
+      {folders
+        .filter(({ folder }) => folder.includes(draftFolder))
+        .map(({ count, folder }) => (
+          <FolderItem
+            count={count}
+            folder={folder}
+            key={folder}
+            onMove={onMove}
+          />
+        ))}
+      {draftFolder === "" ? null : (
+        <CommandItem onSelect={onMoveToNewFolder} value="move-new">
+          <FolderInputIcon />
+          new folder "{draftFolder}"
+        </CommandItem>
+      )}
+      <CommandItem onSelect={onCancel} value="cancel-move">
+        cancel
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
+interface RenameViewProps {
+  onCancel: () => void;
+  onConfirm: () => void;
+  query: string;
+  title: string;
+}
+
+function RenameView({ onCancel, onConfirm, query, title }: RenameViewProps) {
+  const draftTitle = query.trim();
+
+  return (
+    <CommandGroup heading={`rename "${title}"`}>
+      {draftTitle === "" ? null : (
+        <CommandItem onSelect={onConfirm} value="confirm-rename">
+          <PencilIcon />
+          <span className="truncate">
+            rename to "{draftTitle}"
+            {/* The filename is derived, so it is shown, not hidden. */}
+            <span className="text-muted-foreground">
+              {" · "}
+              {filenameFromTitle(draftTitle)}.md
+            </span>
+          </span>
+        </CommandItem>
+      )}
+      <CommandItem onSelect={onCancel} value="cancel-rename">
+        cancel
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
+interface TagsViewProps {
+  attached: string[];
+  choices: string[];
+  counts: Map<string, number>;
+  draftTag: string;
+  onCreate: () => void;
+  onDone: () => void;
+  onToggle: (name: string, attached: boolean) => void;
+  title: string;
+}
+
+function TagsView({
+  attached,
+  choices,
+  counts,
+  draftTag,
+  onCreate,
+  onDone,
+  onToggle,
+  title,
+}: TagsViewProps) {
+  return (
+    <CommandGroup heading={`tags for "${title}"`}>
+      {choices.map((name) => (
+        <TagChoiceItem
+          attached={attached.includes(name)}
+          count={counts.get(name) ?? 0}
+          key={name}
+          name={name}
+          onToggle={onToggle}
+        />
+      ))}
+      {draftTag === "" || choices.includes(draftTag) ? null : (
+        <CommandItem onSelect={onCreate} value="tag-new">
+          <TagPlusIcon />
+          create "{draftTag}"
+        </CommandItem>
+      )}
+      <CommandItem onSelect={onDone} value="cancel-tags">
+        done
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
 type PaletteView = "delete" | "move" | "rename" | "root" | "tags";
 
 interface CommandPaletteProps {
@@ -247,6 +392,7 @@ export function CommandPalette({
 
       if (
         filters.query === "" &&
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: filters is a union and its tag key is absent on the untagged branch
         (filters.tag === undefined || !knownTags.has(filters.tag))
       ) {
         setResults(null);
@@ -477,6 +623,83 @@ export function CommandPalette({
     });
   }, [runAction]);
 
+  // Ten near-identical items were most of this component's branching, so they
+  // are data. Array order is display order.
+  const actions = [
+    {
+      Icon: FilePlusIcon,
+      label: "new note",
+      needsNote: false,
+      onSelect: newNote,
+      text: "new note",
+      value: "new-note",
+    },
+    {
+      Icon: PinIcon,
+      label: "pin",
+      needsNote: true,
+      onSelect: togglePin,
+      text: currentNote?.pinned ? "unpin note" : "pin note",
+      value: "toggle-pin",
+    },
+    {
+      Icon: TagPlusIcon,
+      label: "edit tags",
+      needsNote: true,
+      onSelect: startEditTags,
+      text: "edit tags...",
+      value: "edit-tags",
+    },
+    {
+      Icon: PencilIcon,
+      label: "rename note",
+      needsNote: true,
+      onSelect: startRename,
+      text: "rename note...",
+      value: "rename-note",
+    },
+    {
+      Icon: FolderInputIcon,
+      label: "move to folder",
+      needsNote: true,
+      onSelect: startMove,
+      text: "move to folder...",
+      value: "move-note",
+    },
+    {
+      Icon: Trash2Icon,
+      label: "delete note",
+      needsNote: true,
+      onSelect: startDelete,
+      text: "delete note...",
+      value: "delete-note",
+    },
+    {
+      Icon: FolderSearchIcon,
+      label: "reveal in finder",
+      needsNote: true,
+      onSelect: revealInFinder,
+      text: "reveal in finder",
+      value: "reveal-in-finder",
+    },
+    {
+      Icon: SettingsIcon,
+      label: "settings",
+      needsNote: false,
+      onSelect: openSettings,
+      text: "settings",
+      value: "settings",
+    },
+    {
+      Icon: RefreshCwIcon,
+      label: "reindex library",
+      needsNote: false,
+      onSelect: reindex,
+      text: "reindex library",
+      value: "reindex",
+    },
+  ];
+
   return (
     <CommandDialog
       description="search notes and run actions"
@@ -499,91 +722,47 @@ export function CommandPalette({
           value={query}
         />
         <CommandList>
-          {view === "delete" && currentNote !== undefined ? (
-            <CommandGroup heading={`delete "${currentNote.title}"?`}>
-              <CommandItem onSelect={confirmDelete} value="confirm-delete">
-                <Trash2Icon className="text-destructive" />
-                delete forever
-              </CommandItem>
-              <CommandItem onSelect={backToRoot} value="cancel-delete">
-                cancel
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-
-          {view === "move" && currentNote !== undefined ? (
-            <CommandGroup heading="move to">
-              <CommandItem onSelect={moveToNotesRoot} value="move-root">
-                <FolderIcon />
-                notes root
-              </CommandItem>
-              {folders
-                .filter(({ folder }) =>
-                  folder.includes(query.trim().toLowerCase())
-                )
-                .map(({ count, folder }) => (
-                  <FolderItem
-                    count={count}
-                    folder={folder}
-                    key={folder}
-                    onMove={moveToFolder}
-                  />
-                ))}
-              {query.trim() === "" ? null : (
-                <CommandItem onSelect={moveToNewFolder} value="move-new">
-                  <FolderInputIcon />
-                  new folder "{query.trim().toLowerCase()}"
-                </CommandItem>
-              )}
-              <CommandItem onSelect={backToRoot} value="cancel-move">
-                cancel
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-
-          {view === "rename" && currentNote !== undefined ? (
-            <CommandGroup heading={`rename "${currentNote.title}"`}>
-              {query.trim() === "" ? null : (
-                <CommandItem onSelect={confirmRename} value="confirm-rename">
-                  <PencilIcon />
-                  <span className="truncate">
-                    rename to "{query.trim()}"
-                    {/* The filename is derived, so it is shown, not hidden. */}
-                    <span className="text-muted-foreground">
-                      {" · "}
-                      {filenameFromTitle(query.trim())}.md
-                    </span>
-                  </span>
-                </CommandItem>
-              )}
-              <CommandItem onSelect={backToRoot} value="cancel-rename">
-                cancel
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-
-          {view === "tags" && currentNote !== undefined ? (
-            <CommandGroup heading={`tags for "${currentNote.title}"`}>
-              {tagChoices.map((name) => (
-                <TagChoiceItem
-                  attached={noteTags.tags.includes(name)}
-                  count={tagCounts.get(name) ?? 0}
-                  key={name}
-                  name={name}
-                  onToggle={toggleTag}
+          {currentNote === undefined ? null : (
+            <>
+              {view === "delete" ? (
+                <DeleteView
+                  onCancel={backToRoot}
+                  onConfirm={confirmDelete}
+                  title={currentNote.title}
                 />
-              ))}
-              {draftTag === "" || tagChoices.includes(draftTag) ? null : (
-                <CommandItem onSelect={createTag} value="tag-new">
-                  <TagPlusIcon />
-                  create "{draftTag}"
-                </CommandItem>
-              )}
-              <CommandItem onSelect={backToRoot} value="cancel-tags">
-                done
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
+              ) : null}
+              {view === "move" ? (
+                <MoveView
+                  folders={folders}
+                  onCancel={backToRoot}
+                  onMove={moveToFolder}
+                  onMoveToNewFolder={moveToNewFolder}
+                  onMoveToRoot={moveToNotesRoot}
+                  query={query}
+                />
+              ) : null}
+              {view === "rename" ? (
+                <RenameView
+                  onCancel={backToRoot}
+                  onConfirm={confirmRename}
+                  query={query}
+                  title={currentNote.title}
+                />
+              ) : null}
+              {view === "tags" ? (
+                <TagsView
+                  attached={noteTags.tags}
+                  choices={tagChoices}
+                  counts={tagCounts}
+                  draftTag={draftTag}
+                  onCreate={createTag}
+                  onDone={backToRoot}
+                  onToggle={toggleTag}
+                  title={currentNote.title}
+                />
+              ) : null}
+            </>
+          )}
 
           {view === "root" ? (
             <>
@@ -612,64 +791,18 @@ export function CommandPalette({
               </CommandGroup>
               <CommandSeparator />
               <CommandGroup heading="actions">
-                {matchesQuery("new note") ? (
-                  <CommandItem onSelect={newNote} value="new-note">
-                    <FilePlusIcon />
-                    new note
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("pin") ? (
-                  <CommandItem onSelect={togglePin} value="toggle-pin">
-                    <PinIcon />
-                    {currentNote.pinned ? "unpin note" : "pin note"}
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("edit tags") ? (
-                  <CommandItem onSelect={startEditTags} value="edit-tags">
-                    <TagPlusIcon />
-                    edit tags...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("rename note") ? (
-                  <CommandItem onSelect={startRename} value="rename-note">
-                    <PencilIcon />
-                    rename note...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("move to folder") ? (
-                  <CommandItem onSelect={startMove} value="move-note">
-                    <FolderInputIcon />
-                    move to folder...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("delete note") ? (
-                  <CommandItem onSelect={startDelete} value="delete-note">
-                    <Trash2Icon />
-                    delete note...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined &&
-                matchesQuery("reveal in finder") ? (
-                  <CommandItem
-                    onSelect={revealInFinder}
-                    value="reveal-in-finder"
-                  >
-                    <FolderSearchIcon />
-                    reveal in finder
-                  </CommandItem>
-                ) : null}
-                {matchesQuery("settings") ? (
-                  <CommandItem onSelect={openSettings} value="settings">
-                    <SettingsIcon />
-                    settings
-                  </CommandItem>
-                ) : null}
-                {matchesQuery("reindex library") ? (
-                  <CommandItem onSelect={reindex} value="reindex">
-                    <RefreshCwIcon />
-                    reindex library
-                  </CommandItem>
-                ) : null}
+                {actions
+                  .filter(
+                    (action) =>
+                      (!action.needsNote || currentNote !== undefined) &&
+                      matchesQuery(action.label)
+                  )
+                  .map(({ Icon, onSelect, text, value }) => (
+                    <CommandItem key={value} onSelect={onSelect} value={value}>
+                      <Icon />
+                      {text}
+                    </CommandItem>
+                  ))}
                 {matchesQuery("search") && query.trim() === "" ? (
                   <CommandItem disabled value="search-hint">
                     <SearchIcon />

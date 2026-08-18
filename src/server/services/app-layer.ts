@@ -1,6 +1,6 @@
 import { Layer, Logger } from "effect";
 
-import type { FileStore } from "@/core";
+import type { FileStore } from "@/core/file-store";
 import type { DrizzleDb } from "@/server/db";
 
 import { Database } from "@/server/db";

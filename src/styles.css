@@ -210,6 +210,11 @@
   transition: opacity 0.3s ease;
 }
 
+/* Regular lists get the same paragraph-margin taming. */
+.ProseMirror li > p {
+  margin-block: 0;
+}
+
 /* Task lists: flex rows with hand-drawn checkboxes locked to the first text
    line. Every selector reaches a row as a child of its own list, because a task
    item holds `paragraph block*`, so a list nested inside one is an ordinary
@@ -280,11 +285,6 @@
 }
 .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
   margin-block: 0.2em 0;
-}
-
-/* Regular lists get the same paragraph-margin taming. */
-.ProseMirror li > p {
-  margin-block: 0;
 }
 
 /* Tables. `not-typeset` keeps the recipe below from being double-styled, and
@@ -369,6 +369,13 @@
   color: var(--muted-foreground);
 }
 
+/* Code blocks (lowlight tokens on the app palette). */
+.ProseMirror pre {
+  font-family: var(--font-mono);
+  background: var(--card);
+  border-radius: var(--radius-md);
+}
+
 /* Source mode: the whole file as one bare, highlighted code block. */
 .source-editor .ProseMirror pre {
   padding: 0;
@@ -382,12 +389,6 @@
   border-radius: 0;
 }
 
-/* Code blocks (lowlight tokens on the app palette). */
-.ProseMirror pre {
-  font-family: var(--font-mono);
-  background: var(--card);
-  border-radius: var(--radius-md);
-}
 .code-block-wrapper {
   position: relative;
 }

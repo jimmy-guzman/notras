@@ -1,9 +1,8 @@
 import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it } from "vitest";
-
-import type { IFileStore, NoteFileContent } from "@/core";
-
-import { FileError, FileStore } from "@/core";
+import { FileError } from "@/core/errors";
+import type { IFileStore, NoteFileContent } from "@/core/file-store";
+import { FileStore } from "@/core/file-store";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 import { NoteService } from "./note-service";

@@ -7,10 +7,8 @@ import {
   sql,
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
-
-import type { NoteFilters, NoteMeta } from "@/core";
-
-import { DatabaseError } from "@/core";
+import { DatabaseError } from "@/core/errors";
+import type { NoteFilters, NoteMeta } from "@/core/notes";
 import { Database } from "@/server/db";
 import {
   buildFtsMatchQuery,

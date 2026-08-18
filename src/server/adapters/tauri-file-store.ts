@@ -1,9 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Effect, Layer } from "effect";
-
-import type { IFileStore, NoteFileContent } from "@/core";
-
-import { FileError, FileStore } from "@/core";
+import { FileError } from "@/core/errors";
+import type { IFileStore, NoteFileContent } from "@/core/file-store";
+import { FileStore } from "@/core/file-store";
 
 function command<T>(name: string, args?: Record<string, unknown>) {
   return Effect.tryPromise({
