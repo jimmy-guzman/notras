@@ -172,8 +172,11 @@ export const SlashMenu = Extension.create({
               return true;
             }
 
-            // biome-ignore lint/suspicious/noUnnecessaryConditions: menu is declared null | SuggestionMenu and onStart assigns an instance
-            return menu?.handleKey(props.event) ?? false;
+            if (menu === null) {
+              return false;
+            }
+
+            return menu.handleKey(props.event);
           },
           onStart: (props) => {
             menu = new SuggestionMenu();

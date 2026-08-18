@@ -306,7 +306,7 @@ export function Editor({
       scroller.scrollTop += coords.top - (rect.top + rect.height / 2);
     },
     onUpdate: ({ editor: instance }) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; line 333 assigns true
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; the replace path assigns true
       if (suppressChangeRef.current) {
         return;
       }

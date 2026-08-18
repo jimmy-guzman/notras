@@ -251,7 +251,6 @@ function NoteEditor({ note }: NoteEditorProps) {
         return;
       }
 
-      // Copies run together; the links still land in the order they dropped.
       const copies = await Promise.allSettled(
         paths.map((sourcePath) => attachFile(sourcePath))
       );

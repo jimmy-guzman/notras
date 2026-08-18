@@ -60,6 +60,10 @@ function Snippet({ snippet }: { snippet: string }) {
   );
 }
 
+function reportActionFailure(error: unknown) {
+  toast.error(error instanceof Error ? error.message : "something went wrong");
+}
+
 const VISIBLE_TAGS = 3;
 
 // `CommandItem` appends its own `ml-auto` checkmark, so a second `ml-auto`
@@ -385,14 +389,13 @@ export function CommandPalette({
   const search = useDebouncedCallback(
     async (value: string, request: number) => {
       const parsed = parseTagQuery(value);
-      const filters =
+      const filters: { query: string; tag?: string } =
         parsed === undefined
           ? { query: value.trim() }
           : { query: parsed.query, tag: parsed.tag };
 
       if (
         filters.query === "" &&
-        // biome-ignore lint/suspicious/noUnnecessaryConditions: filters is a union and its tag key is absent on the untagged branch
         (filters.tag === undefined || !knownTags.has(filters.tag))
       ) {
         setResults(null);
@@ -472,11 +475,12 @@ export function CommandPalette({
   const runAction = useCallback(
     (action: () => Promise<void>) => {
       close();
-      action().catch((error: unknown) => {
-        toast.error(
-          error instanceof Error ? error.message : "something went wrong"
-        );
-      });
+
+      try {
+        action().catch(reportActionFailure);
+      } catch (error) {
+        reportActionFailure(error);
+      }
     },
     [close]
   );
@@ -496,8 +500,6 @@ export function CommandPalette({
     return label.toLowerCase().includes(text.toLowerCase());
   };
 
-  // Hooks cannot sit under the `currentNote !== undefined` guard the JSX uses,
-  // so the handlers that need a note re-state it.
   const confirmDelete = useCallback(() => {
     if (currentNote === undefined) {
       return;
@@ -623,8 +625,6 @@ export function CommandPalette({
     });
   }, [runAction]);
 
-  // Ten near-identical items were most of this component's branching, so they
-  // are data. Array order is display order.
   const actions = [
     {
       Icon: FilePlusIcon,
