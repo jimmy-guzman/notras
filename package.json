@@ -8,7 +8,7 @@
     "build": "tauri build",
     "build:web": "vite build",
     "check": "ultracite check",
-    "clean": "rm -rf dist .next",
+    "clean": "rm -rf dist src-tauri/target",
     "coverage": "vitest run --coverage",
     "deps:up": "pnpm dlx npm-check-updates -ui",
     "dev": "tauri dev",
