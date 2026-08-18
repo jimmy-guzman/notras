@@ -63,9 +63,8 @@ property `D2` is buying.
 The SQLite FTS5 index at `.notras/index.db` holds a mirror of the files for
 search and listing. It is rebuilt from the files whenever it is missing.
 
-`ensure_schema` runs CREATE IF NOT EXISTS plus FTS5 on startup, so deleting the
-file is a supported recovery path rather than data loss. Step 12 of the manual
-walkthrough in `SPEC.md` exercises exactly that.
+Deleting the file is therefore a supported recovery path rather than data loss.
+Step 12 of the manual walkthrough in `SPEC.md` exercises exactly that.
 
 **Rejected: drizzle-kit migrations.** Standard, and already configured before
 the rewrite. Rejected because a derived cache does not need schema history: the
@@ -74,18 +73,17 @@ recovery for any drift is to delete the file. Dropping it removed drizzle-kit,
 
 ### D4 Rust is the single writer
 
-Every mutation goes through a Rust command that writes the `.md` file and
-updates the index in the same call, then emits `notes-changed`. TypeScript reads
-the index through Drizzle's `sqlite-proxy` over a `db_select` command and writes
-nothing.
+Rust writes the index and TypeScript only reads it. `ARCHITECTURE.md` carries
+how the two halves connect.
 
 One writer removes the transaction-serialization problem the SQLite-first design
 had. It also means the index cannot disagree with the file it describes, because
 the same call produced both.
 
-`db_select` is gated on SQLite's own `sqlite3_stmt_readonly`. The first
-implementation tested the statement prefix for SELECT or WITH, and a code review
-found that a writable `WITH ... DELETE` CTE passes that test.
+**Constraint:** the read gate asks SQLite whether a statement is read-only
+rather than reading the statement. The first implementation tested the prefix
+for SELECT or WITH, and a code review found a writable `WITH ... DELETE` CTE
+passes that test.
 
 **Rejected: writes from TypeScript through Drizzle.** Fewer hops and no IPC
 round trip. Rejected because two writers to one SQLite file need coordination
@@ -115,18 +113,16 @@ problem a single user hits rarely.
 
 ### D6 Two hand-rolled frontmatter parsers
 
-`src/core/frontmatter.ts` and `src-tauri/src/frontmatter.rs` implement the same
-dialect independently: `pinned: bool`, `tags` as an inline or block list,
-`title` as a read-only string since `D32`, and nothing else.
+One dialect, implemented twice, once per language. `ARCHITECTURE.md` names the
+fields and carries the parity invariant.
 
 The Rust side needs it for indexing, the TypeScript side needs it for editing
 pins and tags. The dialect is two fields, so two parsers cost less than a shared
 serialization boundary would.
 
-**Constraint:** the two must stay in parity, and a change to one is a change to
-both, with tests on both sides. The risk is drift, and the mitigation is that
-the format is small enough to enumerate. `D32` extends the same obligation to
-the two title resolvers that read this dialect.
+**Constraint:** the risk this accepts is drift, and the mitigation is that the
+format is small enough to enumerate. `D32` extends the same obligation to the
+two title resolvers that read this dialect.
 
 **Constraint:** `title` is parsed and never serialized. It is not one of
 `withoutOwnKeys`'s own keys, so it survives a pin or tag toggle as a foreign
@@ -173,11 +169,12 @@ authored files silently.
 
 ### D8 The editor holds the body, not the file
 
-Frontmatter is parsed off at load and reattached at save, always from the latest
-loader snapshot rather than from the copy the editor started with.
+The editor buffer holds the note body. Frontmatter is parsed off at load and
+reattached at save, which `ARCHITECTURE.md` describes under "Body-only editing".
 
-A body save and a pin toggle can race. Composing from the latest snapshot means
-the body save cannot clobber a tag or pin the user changed while typing.
+A body save and a pin toggle can race. Composing from the latest loader snapshot
+rather than the copy the editor started with means the body save cannot clobber
+a tag or pin the user changed while typing.
 
 **Rejected: frontmatter as an editor node,** which scratch does. Shows the user
 everything in the file, in one buffer. Rejected because it puts the racing
@@ -185,10 +182,9 @@ values back into the buffer that the race is about.
 
 ### D9 Autosave on idle
 
-Saves fire 800ms after the last keystroke, serialize on one chain so overlapping
-flushes cannot land out of order, and flush on blur, note switch, unmount, and
-quit. Rust holds `ExitRequested` until the webview reports back, and a failed
-flush cancels the quit through `cancel_quit`.
+Nothing asks the user to save. An idle pause writes the file, and the quit path
+waits for the last write, both of which `ARCHITECTURE.md` describes under
+"Editing session per note".
 
 `D2` makes a save cheap: writing a file the user owns, not a transaction against
 a server.
@@ -212,8 +208,8 @@ an action taken a few times an hour, which `D11` covers with a keystroke.
 
 ### D11 The palette is the action surface
 
-⌘K holds full-text search, `#tag` filtering, recent notes, and every note-level
-action: create, pin, move to folder, delete, reveal, settings, reindex.
+Every note-level action reaches the user through ⌘K, and `ARCHITECTURE.md`
+lists what that is today.
 
 Concentrating actions in one surface is what lets `D10` remove the chrome. It
 also gives every new action a home, so the question "where does this button go"
@@ -245,10 +241,8 @@ was ruled out.
 
 ### D13 Effect 4 service classes
 
-Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying
-`static readonly layer`. Errors are `Schema.TaggedError`. A service is reached
-through `Service.use((svc) => svc.method(...))`. `src/server/runtime.ts` makes
-the `ManagedRuntime` and `src/data/run.ts` is the only place that executes it.
+A service is a class carrying its own layer, which `ARCHITECTURE.md` spells out
+under "Effect style".
 
 The Effect 3 to 4 migration turned 117 type errors into zero, cascading from
 nine files. `Tag.pipe(Effect.flatMap(...))` became `Service.use(...)` across all
@@ -264,9 +258,9 @@ candidate can move under a range.
 
 ### D14 Layer boundaries
 
-`src/core/**` may not import `@tauri-apps/*`, React, or `node:*`, and may not
-import upward. `src/server/{db,repositories,schemas,services}/**` may not import
-`@tauri-apps/*` or React. `D43` records why nothing enforces this today.
+The core and service layers may not reach for a platform, and
+`ARCHITECTURE.md` states which import each may not make. `D43` records why
+nothing enforces it today.
 
 The property being protected is that the core and service layers run outside the
 Tauri webview, in tests today and in anything else later. Behavior crosses the
@@ -784,9 +778,8 @@ a shortcut slot hides the check that says whether the tag is attached.
 ### D32 The title resolves from frontmatter, then a heading, then the filename
 
 A note's displayed title is its frontmatter `title:`, else its leading `#`
-heading, else its filename stem. `resolve_title` in `src-tauri/src/index.rs`
-fills the index column, `resolveTitle` in `src/core/notes.ts` serves the open
-note, and both read the same three sources in the same order.
+heading, else its filename stem. `ARCHITECTURE.md` names the two resolvers that
+read that chain.
 
 **Supersedes the filename-is-title half of `D5`.** Relative-path identity carries
 over unchanged: the path is still the primary key, and nothing here introduces a
@@ -800,29 +793,27 @@ disagree, where the app read the one nobody wrote. Stating a title as a heading
 is the convention every other markdown tool follows, so honouring it is `D2`
 applied to titles.
 
-`D5` argued the opposite from need rather than portability: the file already has
-a name and the user sees it in Finder. Finder is one tool. `D2`'s promise is that
-any tool can write into the folder and be understood, and the old rule met that
-promise for the one reader that browses filenames.
+`D5` argued from need rather than portability, and Finder is one tool. `D2`
+promises that any tool writing into the folder is understood, which the old rule
+kept only for the reader that browses filenames.
 
 **notras never introduces a title, and never renames a file on its own.** It
 reads all three conventions and imposes none on a file that did not already
 carry one. This is what keeps the entry small, and it is the part most likely to
 erode.
 
-Resolving a title is not enough on its own, because nothing puts the sources back
-in step and so no single act means "retitle this note." A file named `foo.md`
-holding `# bar` shows `foo` in Finder and `bar` in the app, renaming it looks
-inert, and editing the heading moves nothing on disk. **The ⌘K action closes that
-gap:** it takes a title, rewrites an existing leading heading, updates an
-existing `title:` key, and renames the file to `filenameFromTitle` of the title.
+Resolving a title is not enough on its own, because nothing puts the sources
+back in step and so no single act means "retitle this note." A file named
+`foo.md` holding `# bar` shows `foo` in Finder and `bar` in the app, renaming it
+looks inert, and editing the heading moves nothing on disk. **The ⌘K action
+closes that gap,** and `ARCHITECTURE.md` describes what it rewrites.
 
-That sync is deliberately narrow, which is the whole trick. An existing heading
-is rewritten and one is never invented, so a note opening with prose, a list, a
-quote, or a deeper heading is left byte-identical, and deleting the heading opts a
-note out for good. Because it fires only on an explicit rename, it avoids what
-made continuous syncing untenable in the rejection below. Updating a key someone
-already put in the file is different from adding one, so nothing above changes.
+That sync is deliberately narrow, which is the whole trick. Nothing is ever
+invented, so a note opening with prose, a list, a quote, or a deeper heading is
+left byte-identical, and deleting the heading opts a note out for good. Because
+it fires only on an explicit rename, it avoids what made continuous syncing
+untenable in the rejection below. Updating a key someone already put in the file
+is different from adding one, so nothing above changes.
 
 **Rejected: deriving the title from the heading and syncing the filename to it,**
 which is what scratch does in `save_note`. Finder and a GitHub file listing would
@@ -872,9 +863,8 @@ markdown-escaped, so `my *title*` renders as emphasis and reads back
 byte-identical. Escaping would break the round trip unless the read path
 unescaped too.
 
-**Constraint:** the two resolvers stay in parity, the same way `D6` binds the two
-frontmatter parsers. `src-tauri/src/index.rs` and `src/core/notes.spec.ts` assert
-one shared table of cases in the same order so it can be diffed by eye.
+**Constraint:** the two resolvers stay in parity, the same way `D6` binds the
+two frontmatter parsers. `ARCHITECTURE.md` carries it as an invariant.
 
 **Constraint:** the titlebar title is display-only, so renaming a file is a ⌘K
 action. `D28`'s note about an editable input in the drag region no longer applies
@@ -1189,6 +1179,13 @@ Every selector styling a task row in `src/styles.css` reaches it as
 row pulled back by the checkbox column, and `--tw-prose-bullets` moves from
 `--border` to `--muted-foreground`.
 
+**Superseded in part by `D40`.** The scoping and the shared ladder stand, and so
+does the method for measuring a marker column, which was re-run. Every number
+below moved: the ladder is Typeset's `1.5em` plus `0.4em`, the checkbox and the
+gap are `em` rather than `rem`, and `--tw-prose-bullets` no longer exists, with
+Typeset painting every `::marker` from `--typeset-muted`. The pull-back staying
+in step with the checkbox and the gap is no longer unenforced.
+
 The recipe arrived from scratch as descendant selectors. A task item's content
 is `paragraph block*`, so a bullet list nested under a task renders as a plain
 `ul` of plain `li` inside the item's content div, and
@@ -1216,11 +1213,9 @@ The gap inside the row was then measured rather than chosen. `::marker` is not
 in the DOM and has no box to query, and where WebKit paints one inside the
 gutter does not follow from the box model, so the number came off a rendered
 frame: the built stylesheet through `qlmanage`, which draws with WebKit, scaled
-against a 320px calibration bar. A disc paints `0.55em` to `0.90em` and a `1.`
-paints `0.30em` to `1.00em`, both right-aligned boxes whose ink edges differ by
-the glyphs' own widths. A gap of `1.05rem` puts the box at `0.00em` to `0.90em`,
-landing its right edge on the disc's, and text stays at `2em` at depth zero and
-`4em` one level in for all three kinds.
+against a 320px calibration bar. A disc and a `1.` paint as right-aligned boxes
+whose ink edges differ by the glyphs' own widths, and the gap is whatever lands
+the checkbox's right edge on the disc's.
 
 **Rejected: a class on the task item, handed down from `extensions.ts`.**
 `TaskItem.configure({ HTMLAttributes: { class: ... } })` reaches the node view,
@@ -1245,14 +1240,10 @@ extension attributes. The `li` in the editor carries `data-checked` and never th
 `data-type="taskItem"` that `renderHTML` writes, so a selector on that attribute
 matches nothing. `src/components/editor/extensions.spec.ts` pins the shape.
 
-**Constraint:** the row's `calc(-1rem - 1.05rem)` pull-back has to stay in step
-with the checkbox width and the flex gap, which sit in a different rule. Nothing
-enforces it, and a mismatch moves the ladder without failing anything.
-
-**Constraint:** `0.9em` is where WebKit paints a disc, so it is an observation
-about one engine rather than a value the specification pins. An engine update
-that moves the marker moves the alignment, and the check is to re-render the
-probe rather than to reason about it.
+**Constraint:** where a disc paints is an observation about one engine rather
+than a value the specification pins. An engine update that moves the marker
+moves the alignment, and the check is to re-render the probe rather than to
+reason about it.
 
 **Constraint:** the checkbox selectors reach the input as `> li > label > input`
 and drop the `[type="checkbox"]` filter. The label is the node view's own
@@ -1263,13 +1254,6 @@ the attribute did, and it holds the selector inside the formatter's 80 columns.
 over `src/styles.css`. It drops comments and `url()` values first, because either
 can carry a brace, and a declaration value that grows one would read as a
 selector.
-
-**Superseded in part by `D40`.** The scoping and the shared-ladder rule stand, and
-the method for measuring a marker column stands and was re-run. Every number
-above moved: the ladder is Typeset's `1.5em` plus `0.4em`, the checkbox and the
-gap are `em` rather than `rem`, and `--tw-prose-bullets` no longer exists, with
-Typeset painting every `::marker` from `--typeset-muted`. The pull-back staying in
-step with the checkbox and the gap is no longer unenforced.
 
 ### D40 shadcn/typeset renders the note surface
 
