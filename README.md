@@ -96,21 +96,21 @@ folder any time in settings (⌘,).
 
 ## Scripts
 
-| Script            | Description                       |
-| ----------------- | --------------------------------- |
-| `pnpm dev`        | run the desktop app (`tauri dev`) |
-| `pnpm build`      | build the desktop bundle          |
-| `pnpm dev:web`    | run only the web shell (Vite)     |
-| `pnpm build:web`  | build only the web shell          |
-| `pnpm check`      | lint and format check (Ultracite) |
-| `pnpm fix`        | lint and format, auto-fixing      |
-| `pnpm typecheck`  | type check (tsc)                  |
-| `pnpm test`       | run tests (Vitest)                |
-| `pnpm coverage`   | tests with coverage               |
-| `pnpm knip`       | detect unused code/deps           |
-| `pnpm icons`      | regenerate app icons from `assets/` |
-| `pnpm deps:up`    | interactive dependency upgrade    |
-| `pnpm clean`      | remove build output               |
+| Script           | Description                         |
+| ---------------- | ----------------------------------- |
+| `pnpm dev`       | run the desktop app (`tauri dev`)   |
+| `pnpm build`     | build the desktop bundle            |
+| `pnpm dev:web`   | run only the web shell (Vite)       |
+| `pnpm build:web` | build only the web shell            |
+| `pnpm check`     | lint and format check (Ultracite)   |
+| `pnpm fix`       | lint and format, auto-fixing        |
+| `pnpm typecheck` | type check (tsc)                    |
+| `pnpm test`      | run tests (Vitest)                  |
+| `pnpm coverage`  | tests with coverage                 |
+| `pnpm knip`      | detect unused code/deps             |
+| `pnpm icons`     | regenerate app icons from `assets/` |
+| `pnpm deps:up`   | interactive dependency upgrade      |
+| `pnpm clean`     | remove build output                 |
 
 Rust tests live in `src-tauri`: `cargo test`.
 
