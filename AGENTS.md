@@ -13,16 +13,16 @@ touches before changing anything.
 | `ARCHITECTURE.md` | How the system is built: stack, structure, the files-first invariants, layer boundaries, key patterns, the index schema.  |
 | `DESIGN.md`       | The interface conventions the app is built to: typography, color, space, motion, interaction, copy, accessibility.        |
 | `DECISIONS.md`    | Numbered decisions, each with its rationale, what it rejected, and the constraints it imposes.                            |
-| `SPEC.md`         | The working document for the rewrite: phase checklists, the manual verification walkthrough, deferred work, progress log. |
+| `SPEC.md`         | The manual verification walkthrough, and the work that is deferred rather than done.                                     |
 | `README.md`       | The front door. What notras is, how to run it, what the shortcuts are.                                                    |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files
 above, so a stack detail, a pattern, or a color token added here is in the wrong
 place.
 
-- **Keep `SPEC.md` current as you work.** Check a phase item when passing tests
-  or a completed walkthrough step cover it, and add a progress log row for what
-  landed.
+- **Keep `SPEC.md` current as you work.** Propose a walkthrough box when a
+  completed step covers it, and add a Deferred entry for work you ruled out of
+  the current change. What landed belongs in the commit, not in a second log.
 
 - **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out
   an option for a reason worth recording makes the choice a decision. Add a
@@ -316,8 +316,8 @@ automated end-to-end coverage, and `D21` records why.
   checked. A summary of what changed repeats the diff at lower resolution.
   Evidence gives the reviewer something to check the change against.
 
-- **Propose a checked box. A human sets it.** A passing gate makes a `SPEC.md`
-  phase item ready for the move. Applying it weighs whether that evidence is
+- **Propose a checked box. A human sets it.** Walking a `SPEC.md` step makes it
+  ready for the move. Applying it weighs whether that evidence is
   enough, and the person answerable for the result makes that call. Report the
   proposal with its evidence and wait.
 
@@ -337,7 +337,7 @@ automated end-to-end coverage, and `D21` records why.
   inside it.
 
 - **A finding you are not fixing gets written down.** An out-of-scope defect
-  goes in the `SPEC.md` progress log or an issue, and an out-of-scope question
+  goes in `SPEC.md`'s Deferred list or an issue, and an out-of-scope question
   goes to the person reviewing. Neither one widens the current change, and
   neither one reaches the end of the phase unwritten.
 

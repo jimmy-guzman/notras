@@ -1,7 +1,7 @@
 # DECISIONS
 
-Decisions and their rationale, backfilled from the rewrite recorded in
-`SPEC.md`.
+Decisions and their rationale. The early entries were backfilled from the
+rewrite, which `git log` records.
 
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
@@ -155,7 +155,7 @@ tables. `@tiptap/markdown` shipping an official bidirectional serializer is what
 made a real WYSIWYG document viable, which is the thing the CM6 work was
 approximating.
 
-This supersedes the risk `SPEC.md` carried about CM6 live styling being the
+This supersedes the risk the spec carried about CM6 live styling being the
 largest new UI effort. The effort was real and the answer was to stop paying it.
 
 **Rejected: CodeMirror 6 live preview.** Built, working, and it kept the file
@@ -395,7 +395,7 @@ The Playwright smoke tests were deleted rather than ported.
 Playwright cannot drive a Tauri window. The replacement, wdio plus
 tauri-driver, is recorded as deferred in `SPEC.md`.
 
-**Constraint:** the 14-step manual walkthrough in `SPEC.md` is the only coverage
+**Constraint:** the manual walkthrough in `SPEC.md` is the only coverage
 for window behavior, the asset protocol, and the quit handshake. It is run
 before anything touching Rust or window behavior merges.
 

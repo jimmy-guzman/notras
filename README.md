@@ -77,8 +77,8 @@ key patterns, and the invariants.
 - [DESIGN.md](DESIGN.md) is the interface conventions the app is built to.
 - [DECISIONS.md](DECISIONS.md) is every decision with its rationale and what it
   rejected.
-- [SPEC.md](SPEC.md) is the working document for the rewrite: phase checklists,
-  the manual verification walkthrough, deferred work, and the progress log.
+- [SPEC.md](SPEC.md) is the manual verification walkthrough and the deferred
+  work.
 - [AGENTS.md](AGENTS.md) is the conventions for anyone, human or agent, changing
   this repo.
 
