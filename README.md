@@ -47,40 +47,32 @@ rebuilds it from your files on the next launch.
 
 ## Technologies
 
-- [Tauri](https://tauri.app) 2 (Rust shell: file watcher, FTS5 index, tray,
-  global shortcuts)
-- [rusqlite](https://github.com/rusqlite/rusqlite) (bundled SQLite + FTS5) +
-  [notify](https://github.com/notify-rs/notify)
-- [Vite](https://vite.dev) + [React](https://react.dev) 19 +
-  [TanStack Router](https://tanstack.com/router)
-- [TipTap 3](https://tiptap.dev) + official bidirectional
-  [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown) (editor)
-- [Effect](https://effect.website) 4 (typed errors, Layer/DI, services)
-- [Drizzle ORM](https://orm.drizzle.team) (`sqlite-proxy`, read-only queries
-  against the index)
-- [Shadcn UI](https://ui.shadcn.com) + [Tailwind CSS](https://tailwindcss.com) 4
+[Tauri](https://tauri.app) 2 over
+[rusqlite](https://github.com/rusqlite/rusqlite) and
+[notify](https://github.com/notify-rs/notify),
+[Vite](https://vite.dev) with [React](https://react.dev) 19 and
+[TanStack Router](https://tanstack.com/router),
+[TipTap 3](https://tiptap.dev) with
+[`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown),
+[Effect](https://effect.website) 4,
+[Drizzle ORM](https://orm.drizzle.team),
+[Shadcn UI](https://ui.shadcn.com) and
+[Tailwind CSS](https://tailwindcss.com) 4.
 
 ## Architecture
 
-Files are the source of truth. TypeScript never writes SQL. Every mutation is a
-Rust command that writes the file and updates the index in the same call, and
-external writes are reconciled by a watcher that pushes `notes-changed` events
-to the UI.
+Files are the source of truth. TypeScript never writes SQL.
 
-[ARCHITECTURE.md](ARCHITECTURE.md) holds the diagram, the layer boundaries, the
-key patterns, and the invariants.
+[ARCHITECTURE.md](ARCHITECTURE.md) holds the stack table with what each piece
+does, the diagram, the layer boundaries, the key patterns, and the invariants.
 
 ## Docs
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) is how the system is built: stack,
-  structure, boundaries, patterns, index schema, invariants.
-- [DESIGN.md](DESIGN.md) is the interface conventions the app is built to.
-- [DECISIONS.md](DECISIONS.md) is every decision with its rationale and what it
-  rejected.
-- [SPEC.md](SPEC.md) is the manual verification walkthrough and the deferred
-  work.
-- [AGENTS.md](AGENTS.md) is the conventions for anyone, human or agent, changing
-  this repo.
+[ARCHITECTURE.md](ARCHITECTURE.md) for how it is built,
+[DESIGN.md](DESIGN.md) for the interface, [DECISIONS.md](DECISIONS.md) for why,
+[SPEC.md](SPEC.md) for what is unverified or unbuilt, and
+[AGENTS.md](AGENTS.md) for the rules on changing any of it, where the table at
+the top says which one a given fact belongs in.
 
 ## Getting started
 
@@ -116,6 +108,9 @@ folder any time in settings (⌘,).
 | `pnpm test`       | run tests (Vitest)                |
 | `pnpm coverage`   | tests with coverage               |
 | `pnpm knip`       | detect unused code/deps           |
+| `pnpm icons`      | regenerate app icons from `assets/` |
+| `pnpm deps:up`    | interactive dependency upgrade    |
+| `pnpm clean`      | remove build output               |
 
 Rust tests live in `src-tauri`: `cargo test`.
 

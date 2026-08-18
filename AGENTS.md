@@ -257,24 +257,10 @@ guide does not cover, search through the source code in
   they are correct and whether they can be built, including real impossibilities
   and real capability tradeoffs. ROI is not one of the frames.
 
-## Commands
-
-```txt
-pnpm dev          # run the desktop app (tauri dev)
-pnpm build        # desktop bundle (tauri build)
-pnpm dev:web      # web shell only (vite, port 1420)
-pnpm build:web    # web shell build
-pnpm check        # ultracite (biome)   | pnpm fix
-pnpm typecheck    # tsc
-pnpm test         # vitest              | pnpm coverage
-pnpm knip         # unused code/deps
-cargo test        # (in src-tauri/) Rust unit tests
-```
-
 ## Verification
 
-After **every** set of changes, run all of these before considering the task
-done:
+`README.md` lists every script. This is the gate, and it is a different list.
+After **every** set of changes, run all of it before considering the task done:
 
 ```txt
 pnpm knip         # 0. unused code/deps (fix before proceeding)

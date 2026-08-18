@@ -248,9 +248,8 @@ a real non-motion end state, so removing the transition costs nothing.
 - **Two bands frame the note.** The titlebar above and the status strip below,
   each with a hairline border. A band that reads as chrome needs an edge, and
   without one the title floats as stray text over the document.
-- **The palette is the action surface.** Search, `#tag` filtering, pin, move,
-  delete, reveal, settings, and reindex all live in ⌘K. A new note-level action
-  goes there.
+- **The palette is the action surface.** A new note-level action goes in ⌘K
+  rather than into new chrome. `ARCHITECTURE.md` lists what it holds.
 - **`·` joins related metadata.** The status strip reads
   `214 words · 1 min`, a palette row reads `title · folder`. Use the middot
   rather than a pipe, a dash, or a second line.
@@ -258,23 +257,9 @@ a real non-motion end state, so removing the transition costs nothing.
   are `position: fixed`, `z-index: 50`, bordered, on `--popover`, with
   `0 8px 24px rgb(0 0 0 / 0.18)`. Menus clamp to the viewport rather than
   overflowing it.
-- **Shortcuts:**
-
-  | Shortcut | Action                          |
-  | -------- | ------------------------------- |
-  | `⌘K`     | command palette (search + acts) |
-  | `⌘N`     | new note                        |
-  | `⌘P`     | toggle raw markdown source      |
-  | `⌘D`     | toggle focus mode               |
-  | `⌘⇧K`    | add / edit link                 |
-  | `⌘⇧T`    | edit tags                       |
-  | `⌘,`     | settings                        |
-  | `⌘⇧N`    | global quick capture            |
-  | `esc`    | (capture window) save + hide    |
-  | `⌘⏎`     | (capture window) save + hide    |
-
-  `⌘P`, `⌘D`, and `⌘⇧T` act on the open note, so they do nothing on the empty
-  state or in the capture window.
+- **Shortcuts live in `README.md`.** That table is the one a person looks up, so
+  it is the one that gets extended. Adding a shortcut here as well is how the
+  two drift.
 
 ## The editor surface
 
