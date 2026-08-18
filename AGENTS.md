@@ -18,11 +18,12 @@ touches before changing anything.
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files
 above, so a stack detail, a pattern, or a color token added here is in the wrong
-place.
+place. `D47` records why a fact lives in one of them and not two.
 
 - **Keep `SPEC.md` current as you work.** Propose a walkthrough box when a
   completed step covers it, and add a Deferred entry for work you ruled out of
-  the current change. What landed belongs in the commit, not in a second log.
+  the current change. What landed belongs in the commit, not in a second log
+  (`D45`).
 
 - **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out
   an option for a reason worth recording makes the choice a decision. Add a
@@ -32,8 +33,8 @@ place.
   removed.** A citation in a commit or a comment outlives the line it points at.
   Reusing an ID repoints every reference to it without any of them changing.
 
-- **Cite IDs, never restate.** Write `D7` in code, commit messages, PR bodies,
-  and the other docs. A copied constraint drifts away from its original as the
+- **Cite IDs, never restate** (`D47`). Write `D7` in code, commit messages, PR
+  bodies, and the other docs. A copied constraint drifts away from its original as the
   original changes, while a citation keeps pointing at whatever the entry says
   now.
 

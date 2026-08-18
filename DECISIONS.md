@@ -1440,3 +1440,71 @@ their siblings directly, so the barrel only ever served consumers.
 
 **Constraint:** an import from `@/core` no longer resolves. There is no
 deprecation window, and the compiler reports every stale one.
+
+### D45 `SPEC.md` is a verification list, not a log
+
+`SPEC.md` holds the manual walkthrough and the deferred work. The rewrite
+context, the feature set, the survives-and-dies table, phases 0 through 7, the
+risks pointer, and the 38-row progress log are deleted. `AGENTS.md` no longer
+asks for a progress-log row.
+
+The file had reached 167KB, of which 150KB was the log and 94,633 bytes of that
+was space padding inside its table cells. A markdown formatter aligns a table to
+its widest cell, and the widest cell was a five-paragraph essay, so each row cost
+about four times what it said. Of the 38 rows, 22 re-narrated a `DECISIONS.md`
+entry they already cited, 12 described SQLite-first and CodeMirror 6 designs that
+never shipped, and 2 restated `git log`.
+
+**Rejected: a one-line-per-PR log.** Bounds the cell, so the formatter has
+nothing to pad against, and keeps a running record in one place. Rejected because
+what a line that short can hold is a date and a subject, which is what
+`git log --oneline` already prints.
+
+**Rejected: deleting the file.** Two sections are live, and both would have to
+move. Rejected because the walkthrough is the only coverage `D21` leaves for
+window behaviour and the quit handshake, and `AGENTS.md` sends a reader to it by
+name.
+
+**Constraint:** what landed now lives only in the commit and, where it was a
+choice, here. A reader wanting the shape of a past change reads `git log`, which
+holds it at full length and cannot drift from it.
+
+### D46 `.claude/CLAUDE.md` is deleted
+
+The Ultracite preset's boilerplate file is removed. `AGENTS.md`, reached through
+the root `CLAUDE.md`, is the only standards document.
+
+Two files loaded together disagreed. One banned every comment that is not a doc
+comment or a `TODO` and the other asked for comments on complex logic; one gave
+the format command as `pnpm fix` and the other as `pnpm dlx ultracite fix`. An
+agent reading both picks one, and which one is not something either file decides.
+
+**Rejected: trimming it to the parts that do not conflict.** Keeps whatever the
+preset knows that `AGENTS.md` does not. Rejected because nothing was left after
+the Next.js, Solid, Svelte, Vue and Qwik sections went: the rest restated
+`AGENTS.md` at lower resolution, and a file kept for its residue regrows on the
+next preset update.
+
+### D47 Each fact has one home
+
+A statement lives in one document and the others cite it. `README.md` owns the
+scripts and shortcuts tables, `ARCHITECTURE.md` the mechanics, `DESIGN.md` what
+an interface rule is, `DECISIONS.md` why one option beat another, and
+`AGENTS.md` the map itself.
+
+`AGENTS.md` already carried the rule as "Cite IDs, never restate," and the docs
+broke it. The shortcuts table was byte-identical in two files and both had
+drifted the same way. Ten `DECISIONS.md` entries restated `ARCHITECTURE.md`
+paragraphs word for word, and the four whose mechanics were duplicated whole were
+four of the five entries nothing cites. The icon shadow figure was copied from
+`D34` into `DESIGN.md` and both were wrong against `scripts/icons.sh`, which is
+the drift the rule predicts.
+
+**Rejected: letting `ARCHITECTURE.md` and `DECISIONS.md` both carry the
+mechanics.** Each doc reads whole, and a reader following a citation loses their
+place. Rejected because a copy has no mechanism that updates it, so the second
+one is wrong from the first change onward and nothing says which is current.
+
+**Constraint:** a citation is only as good as the anchor. `D` IDs are stable by
+the rule above this list, but a section heading is not, so a cross-doc pointer
+names the document and the concept rather than a heading or a line.
