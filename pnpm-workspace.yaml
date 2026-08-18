@@ -2,8 +2,6 @@ allowBuilds:
   esbuild: true
   lefthook: true
   msgpackr-extract: true
-  sharp: true
-  unrs-resolver: true
 autoInstallPeers: false
 color: always
 engineStrict: true

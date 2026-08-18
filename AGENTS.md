@@ -5,28 +5,32 @@ They override your defaults where they conflict.
 
 ## Project docs
 
-The context for this repo lives in five documents. Read the ones your change
-touches before changing anything.
+The context for this repo lives in the five documents below. Read the ones your
+change touches before changing anything.
 
 | Doc               | What it holds                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `ARCHITECTURE.md` | How the system is built: stack, structure, the files-first invariants, layer boundaries, key patterns, the index schema.  |
-| `DESIGN.md`       | The interface conventions the app is built to: typography, color, space, motion, interaction, copy, accessibility.        |
+| `ARCHITECTURE.md` | How the system is built: stack, files as the source of truth, the index schema, structure, layer boundaries, key patterns, invariants. |
+| `DESIGN.md`       | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
 | `DECISIONS.md`    | Numbered decisions, each with its rationale, what it rejected, and the constraints it imposes.                            |
-| `SPEC.md`         | The working document for the rewrite: phase checklists, the manual verification walkthrough, deferred work, progress log. |
-| `README.md`       | The front door. What notras is, how to run it, what the shortcuts are.                                                    |
+| `SPEC.md`         | The manual verification walkthrough, and the work that is deferred rather than done.                                     |
+| `README.md`       | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns.                             |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files
 above, so a stack detail, a pattern, or a color token added here is in the wrong
 place.
 
-- **Keep `SPEC.md` current as you work.** Check a phase item when passing tests
-  or a completed walkthrough step cover it, and add a progress log row for what
-  landed.
+- **Keep `SPEC.md` current as you work.** Propose a walkthrough box when a
+  completed step covers it, and add a Deferred entry for work you ruled out of
+  the current change. What landed belongs in the commit, not in a second log.
 
 - **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out
   an option for a reason worth recording makes the choice a decision. Add a
   numbered entry with the rationale and what was rejected.
+
+- **Breaking an invariant in `ARCHITECTURE.md` is a design change.** Each one
+  holds a property the architecture depends on, so changing one is never a
+  refactor and gets a `DECISIONS.md` entry of its own.
 
 - **Numbering is monotonic and IDs are never reused, even after the entry is
   removed.** A citation in a commit or a comment outlives the line it points at.
@@ -41,8 +45,8 @@ place.
 
 This repository uses the Effect TypeScript library.
 
-Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
-**completely**, and follow the links in the file when required.
+Before writing any Effect code, read `node_modules/effect/AGENTS.md` in full and
+follow the links in the file when required.
 
 If you need to learn more about particular Effect APIs and concepts that the
 guide does not cover, search through the source code in
@@ -72,11 +76,13 @@ guide does not cover, search through the source code in
   function that decides whether work should happen from the one that does it,
   and name the deciding part.
 
-- **No comments other than doc comments and `TODO`/`FIXME`.** Doc comments means
-  JSDoc and rustdoc. Naming and structure carry the rest. Comments drift away
-  from the code they describe, and the two kinds worth that risk are an API
-  contract and a known gap. `src/styles.css` is the standing exception, where a
-  comment carries the reasoning behind a measured value.
+- **A comment carries a why, never a what.** Doc comments, meaning JSDoc and
+  rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line
+  comment earns its place when it holds reasoning the code cannot: a platform
+  quirk, a race, a measured value, or the rejected alternative sitting one line
+  away. Delete the ones that restate what the line below already says, since
+  those are the ones that drift into lies. Naming and structure carry everything
+  else.
 
 - **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file
   byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and
@@ -86,8 +92,17 @@ guide does not cover, search through the source code in
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **Sort object keys and imports alphabetically.** Biome's `useSortedKeys` and
-  `organizeImports` assists do it on save, with one exception the preset already
+- **Ultracite, a Biome preset, is the only formatter and linter** (`D15`,
+  `D41`), and it is dev tooling only. No Prettier and no ESLint. Do not silence
+  a lint error with a config override: suppress a false positive at the call
+  site with `biome-ignore` and a reason. One override exists and is documented,
+  the Shadcn `src/components/ui/**` block in `biome.jsonc`, which turns off the
+  rules with no autofix because `scripts/update-shadcn.sh` regenerates those
+  files (`D19`, `D37`).
+
+- **Sort object keys and imports alphabetically.** Biome's `organizeImports`
+  assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit
+  hook, since neither editor config wires it. One exception the preset already
   encodes: route option objects, which `ultracite/biome/tanstack` leaves
   unsorted because their types infer in declaration order.
 
@@ -99,7 +114,8 @@ guide does not cover, search through the source code in
 - **Build the smallest thing that answers the request.** Solve what was asked.
   Skip config objects, options bags, plugin hooks, and abstraction layers for
   needs nobody stated. Delete flexibility you are adding "for later". Reach for
-  a function before a class, and a class before a framework.
+  a function before a class, and a class before a framework, and a dependency
+  last of all. `pnpm knip` has to stay clean.
 
 - **One reason to change per unit.** A function or module should do one job.
   Needing "and" to describe it means splitting it. Group code that changes
@@ -124,7 +140,8 @@ guide does not cover, search through the source code in
 - **Depend on abstractions you pass in, not concretions you reach for.** This
   repo already names its ports: `FileStore` in `src/core`, `Database` in
   `src/server/db`. A service that reaches for a Tauri command directly cannot be
-  tested, and `ARCHITECTURE.md` records the lint rules that stop it.
+  tested. Nothing enforces this since `D43`, so `ARCHITECTURE.md` records the
+  boundaries and a reviewer holds them.
 
 - **Hide what varies behind a stable surface.** Keep implementation details,
   data shapes, and library choices private to their module. Expose the narrowest
@@ -148,14 +165,11 @@ guide does not cover, search through the source code in
 - **Duplicate before you abstract, and even then, ask.** Do not extract shared
   code on the second occurrence. Wait for the third, and only when the copies
   change together for the same reason. Even then, surface the duplication and
-  propose the extraction instead of doing it unprompted. Whether two similar
-  pieces are one concept takes context that the person reading the diff has and
-  you may not.
-
-- **Prefer duplication to an abstraction that might be wrong.** Deduping two
-  unrelated pieces couples their futures. Once one needs to change and the other
-  does not, the abstraction grows conditionals or splits back apart, and both
-  cost more than the copies would have.
+  propose the extraction rather than doing it unprompted: whether two similar
+  pieces are one concept takes context the person reading the diff has and you
+  may not. A wrong abstraction couples two futures, and once one has to change
+  and the other does not it grows conditionals or splits back apart, costing
+  more than the copies would have.
 
 - **Inline by default, and extract only when the helper earns a name.** Leave
   single-use helpers at the call site. Pull one out when it is reused, when it
@@ -181,9 +195,9 @@ guide does not cover, search through the source code in
   first line of the stack trace. Validation is Effect Schema in
   `src/server/schemas/`, not zod.
 
-- **A typed failure's message is user-facing text.** `run()` unwraps typed
-  failures into plain `Error`s and callers write `toast.error(error.message)`.
-  Write those messages to the copy rules in `DESIGN.md`.
+- **A typed failure's message is user-facing text.** `ARCHITECTURE.md` covers
+  how `run()` gets it to a toast. Write those messages to the copy rules in
+  `DESIGN.md`.
 
 - **Resolve warnings and errors your changes introduce before finishing. Fix the
   root cause.** A warning fires because something is off. Silencing it converts
@@ -222,9 +236,10 @@ guide does not cover, search through the source code in
 
 ## Fixing bugs
 
-- **Diagnose the root cause before fixing.** Assume a correct architecture has
-  no bugs. Every bug is then evidence that the architecture permits it, beyond
-  the one code path where it showed up. Before fixing, ask why the architecture
+- **Diagnose the root cause before fixing, on every fix.** The analysis is
+  mandatory; refactoring on it is not. Assume a correct architecture has no
+  bugs. Every bug is then evidence that the architecture permits it, beyond the
+  one code path where it showed up. Before fixing, ask why the architecture
   allowed the bug to exist and whether the same structure keeps producing others
   like it.
 
@@ -235,54 +250,38 @@ guide does not cover, search through the source code in
   because it is larger or harder. When you do patch at the symptom layer, say so
   and name the root cause you are deferring.
 
-- **Root-cause analysis is required. Refactoring on the analysis is not.** Think
-  first, and treat the analysis as mandatory on every fix.
-
 ## Deciding what to do
 
-- **Judge work by correctness, not by ROI.** Decide each piece of work on
-  whether it should be done. Ask whether it is correct, whether the current
-  state is wrong or inconsistent, and whether it serves the goal. Cost, effort,
-  and "is it worth it" decide nothing. Do not label a known-wrong thing
-  low-value, marginal, an edge case, or not worth it to justify leaving it
-  unfixed.
+- **Judge work by correctness and feasibility, and frame choices the same
+  way.** Ask whether a piece of work is correct, whether the current state is
+  wrong or inconsistent, and whether it serves the goal. Cost, effort, and "is
+  it worth it" decide nothing, and ROI is not one of the frames to present.
+  Do not label a known-wrong thing low-value, marginal, an edge case, or not
+  worth it to justify leaving it unfixed.
 
 - **The only reason to stop is provable impossibility.** Hard, heavy, expensive,
   and a lot of work are not reasons to stop. Proven impossible or blocked is.
   Unsure which one you are looking at means finding out by trying it, measuring
   it, or proving it, before deciding.
 
-- **Present choices by correctness and feasibility.** Frame options by whether
-  they are correct and whether they can be built, including real impossibilities
-  and real capability tradeoffs. ROI is not one of the frames.
-
-## Commands
-
-```txt
-pnpm dev          # run the desktop app (tauri dev)
-pnpm build        # desktop bundle (tauri build)
-pnpm dev:web      # web shell only (vite, port 1420)
-pnpm build:web    # web shell build
-pnpm check        # ultracite (biome)   | pnpm fix
-pnpm typecheck    # tsc
-pnpm test         # vitest              | pnpm coverage
-pnpm knip         # unused code/deps
-cargo test        # (in src-tauri/) Rust unit tests
-```
-
 ## Verification
 
-After **every** set of changes, run all of these before considering the task
-done:
+`README.md` lists the scripts. This is the gate: a subset, in the order that
+fails cheapest first. After every set of changes, run all of it before
+considering the task done:
 
 ```txt
 pnpm knip         # 0. unused code/deps (fix before proceeding)
 pnpm typecheck    # 1. types
 pnpm check        # 2. lint + format
-pnpm test         # 3. unit tests
+pnpm coverage     # 3. unit tests (pnpm test watches, so it will not exit)
 pnpm build:web    # 4. web bundle build
 cargo test        # 5. (when src-tauri changed) in src-tauri/
 ```
+
+CI runs the same commands in a different order and runs `cargo test` on every
+pull request, so a Rust change that passes here can still be the one that fails
+there.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev`
 and walk the relevant steps of the `SPEC.md` verification list. There is no
@@ -310,13 +309,15 @@ automated end-to-end coverage, and `D21` records why.
 
 ## Evidence and verdicts
 
-- **Attach evidence to every summary.** List the commands run and their results,
-  the tests that now cover the change, and the observable behavior nothing
-  checked. A summary of what changed repeats the diff at lower resolution.
-  Evidence gives the reviewer something to check the change against.
+- **Attach evidence to every summary, and name the weakest part of it.** List
+  the commands run and their results, the tests that now cover the change, and
+  the observable behavior nothing checked. Then point at a file and a line and
+  say what to run or read to test it, since a hedge covering the whole change
+  gives a reviewer nowhere to start and you are the only one holding that
+  information. A summary of what changed repeats the diff at lower resolution.
 
-- **Propose a checked box. A human sets it.** A passing gate makes a `SPEC.md`
-  phase item ready for the move. Applying it weighs whether that evidence is
+- **Propose a checked box. A human sets it.** Walking a `SPEC.md` step makes it
+  ready for the move. Applying it weighs whether that evidence is
   enough, and the person answerable for the result makes that call. Report the
   proposal with its evidence and wait.
 
@@ -324,19 +325,14 @@ automated end-to-end coverage, and `D21` records why.
   error shapes, ordering, what a partial state means. The implementation settles
   them. List what it settled, so the verdict covers those choices.
 
-- **Name the weakest part of the change and how someone would catch it.** A
-  hedge covering the whole change gives a reviewer nowhere to start. Point at a
-  file and a line, then say what to run or read to test it. At the moment a
-  change is proposed you are the only one holding that information.
-
-- **Split a task you cannot produce complete evidence for.** A task whose weakest
-  part lands in several places at once, or whose decision list runs past what a
-  reviewer can hold, has bundled work that then takes one verdict. Diff size
-  measures how much code arrived and says nothing about how many choices sit
-  inside it.
+- **Split a task you cannot produce complete evidence for.** A task whose
+  weakest part lands in several places at once, or whose decision list runs past
+  what a reviewer can hold, has bundled work that then takes one verdict. Diff
+  size measures how much code arrived and says nothing about how many choices
+  sit inside it.
 
 - **A finding you are not fixing gets written down.** An out-of-scope defect
-  goes in the `SPEC.md` progress log or an issue, and an out-of-scope question
+  goes in `SPEC.md`'s Deferred list or an issue, and an out-of-scope question
   goes to the person reviewing. Neither one widens the current change, and
   neither one reaches the end of the phase unwritten.
 
@@ -510,19 +506,3 @@ They cover every markdown file here, plus commit messages and PR bodies.
   `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs
   rot as soon as the code moves without them. Catching the update at the point
   of change is when it reliably happens at all.
-
-## Do NOT
-
-- Use Prettier or ESLint. This project uses Ultracite, a Biome preset, for
-  dev tooling only (`D15`, `D41`).
-- Add unnecessary dependencies. Run `pnpm knip` and leave it clean.
-- Silence lint errors with config overrides. One exception exists and is
-  documented: the Shadcn `src/components/ui/**` block in `biome.jsonc`, which
-  turns off the rules with no autofix because `scripts/update-shadcn.sh`
-  regenerates those files (`D19`, `D37`). Suppress a false positive at the call
-  site with `biome-ignore` and a reason instead.
-- Leave tests, lint, typecheck, knip, or the build red.
-- Hand-edit `src/typeset.css`. It is vendored (`D40`); tune `.typeset-note`.
-- Break an invariant in `ARCHITECTURE.md`. Each one holds a property the
-  architecture depends on, so changing it is a design change and gets a
-  `DECISIONS.md` entry.

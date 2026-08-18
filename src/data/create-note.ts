@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Schema } from "effect";
 
 import {
   folderNameSchema,
@@ -25,10 +25,8 @@ export async function createNote(options?: CreateNoteOptions) {
       : await Schema.decodePromise(noteFilenameSchema)(options.filename);
 
   return run(
-    NoteService.pipe(
-      Effect.flatMap((svc) =>
-        svc.create({ content: options?.content, filename, folder })
-      )
+    NoteService.use((svc) =>
+      svc.create({ content: options?.content, filename, folder })
     )
   );
 }

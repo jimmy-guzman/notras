@@ -440,3 +440,53 @@ describe("launch background", () => {
     );
   });
 });
+
+/** The selector list that opts elements out of the titlebar's drag region. */
+const DRAG_REGION_OPT_OUT =
+  /((?:\.titlebar-drag-region[^,{]*,\s*)+\.titlebar-drag-region[^,{]*)\{\s*-webkit-app-region:\s*no-drag/;
+
+/**
+ * The class list on `TooltipTrigger`'s rendered element. Anchored on the trigger
+ * rather than on the first `cn()` in the file, so adding a call above it cannot
+ * silently point this at a different element.
+ */
+const TRIGGER_CLASS_LIST =
+  /<TooltipTrigger[\s\S]*?render=\{[\s\S]*?className=\{cn\(\s*"([^"]+)"/;
+
+const WHITESPACE = /\s+/;
+
+const saveIndicator = projectFile(
+  "src",
+  "components",
+  "notes",
+  "save-indicator.tsx"
+);
+
+/**
+ * The titlebar is a drag region, so macOS swallows the pointer inside it unless
+ * an element opts out. `D38` moved the save glyph in there and the tooltip stops
+ * opening the moment the opt-out is dropped, which nothing else catches.
+ */
+describe("titlebar drag region", () => {
+  it("should exempt the no-drag class alongside buttons and inputs", () => {
+    const selectors = firstMatch(
+      DRAG_REGION_OPT_OUT,
+      source,
+      "the drag-region opt-out rule in styles.css"
+    );
+
+    expect(selectors).toContain("button");
+    expect(selectors).toContain("input");
+    expect(selectors).toContain(".no-drag");
+  });
+
+  it("should give the save indicator's span trigger the opt-out", () => {
+    const classes = firstMatch(
+      TRIGGER_CLASS_LIST,
+      saveIndicator,
+      "the tooltip trigger's class list in save-indicator.tsx"
+    );
+
+    expect(classes.split(WHITESPACE)).toContain("no-drag");
+  });
+});

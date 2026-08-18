@@ -1,17 +1,18 @@
 # DESIGN
 
 Interface conventions for notras. Every rule here is either implemented in
-`src/styles.css` or observable in the running app. `ARCHITECTURE.md` covers how
-the system is built, and `DECISIONS.md` covers why.
+`src/styles.css` or observable in the running app. `AGENTS.md` maps the rest of
+the docs.
 
 ## Operating principles
 
 - **The window is the editor.** There is no persistent sidebar and no navigation
   chrome. Anything that is not the note reaches the screen through ⌘K, a
-  dialog, or the status strip. The two bands that remain, the titlebar and the
-  status strip, carry the note's own state and nothing else.
+  dialog, or the status strip. The two bands that remain carry the note's state
+  and the editor's view state, and nothing else.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
-  reachable only by mouse is unfinished.
+  reachable only by mouse is unfinished. Typewriter scrolling is the one that
+  still is: it toggles from the status strip and nowhere else.
 - **Lowercase everywhere.** Labels, buttons, toasts, tooltips, placeholders, and
   empty states are lowercase, app-wide and deliberate. The wordmark is
   lowercase too.
@@ -52,8 +53,9 @@ matches whatever the user is running (`D25`).
   size, list indent and block gap derives from them. Tuning the reading surface
   means moving `--typeset-size`, `--typeset-leading`, or `--typeset-flow`, not
   writing a rule per element.
-- **The note reads a size larger below 768px.** Typeset sizes against its
-  container, so a window narrower than that renders at `1.125rem` and wider at
+- **The note reads a size larger below 768px.** Typeset's base is
+  `calc(var(--typeset-size) * 1.125)` and a `min-width: 48rem` viewport query
+  resets it, so a window narrower than that renders at `1.125rem` and wider at
   `1rem`. The minimum window is 480px, so both are reachable.
 - Headings scale from the body size, not from absolute values: `1.75em`,
   `1.25em`, `1.125em`, `1em`, then `0.875em` and `0.8125em`. h5 and h6 drop to
@@ -61,16 +63,18 @@ matches whatever the user is running (`D25`).
   tracking, so the two deepest levels read as labels rather than headings.
 - UI text sits at `text-xs` for secondary information (status strip, palette
   metadata, tag chips) and inherits the base size otherwise. Do not invent a
-  per-component size.
-- **The wordmark is the only chrome in the mono.** Everything else in the
-  interface is sans, and the note is the serif.
+  per-component size. The six that predate the rule all sit in hand-written CSS,
+  for floating surfaces, code-block chrome, and source mode, and none of them is
+  a precedent.
+- **In chrome the mono is for identity and machine text.** The wordmark, the
+  external file's path in its titlebar, and a suggestion's shorthand hint.
+  Everything else in the interface is sans. Inside the note it does the job the
+  table above gives it, which is code.
 
 ## Color
 
-The palette is stet's, whose source of truth is
-`packages/tui/src/theme/{dark,light}.ts` (`D23`). Seven values are playa.dev's
-lifted variants, because stet treats contrast as a comfortable target while
-`src/styles.spec.ts` makes WCAG AA a floor.
+The palette is stet's, with seven values lifted from playa.dev so the gate below
+passes (`D23`).
 
 - **Every colour is a hex CSS variable in `src/styles.css`.** No component
   hardcodes a colour value.
@@ -111,7 +115,9 @@ lifted variants, because stet treats contrast as a comfortable target while
 
 `src/styles.spec.ts` fails the build when a text-on-surface pair drops below
 4.5:1 in either scheme, or when the two schemes stop declaring the same token
-names. Adding a token means adding it to both.
+names. Adding a token means adding it to both. `--faint` is the one exemption,
+held to 2:1: it paints a placeholder and a next-step hint, which are the two
+kinds of text that read as absent until wanted.
 
 ## The icon
 
@@ -121,16 +127,17 @@ carries two dot eyes flanked by two accent dots, and the back blob carries two
 eyes only.
 
 - **The icon's palette follows the render, not the tokens** (`D33`). This is the
-  one place the no-hardcoded-colour rule above does not reach. The render is a lit
-  scene, so its tile is `#1c1e21` where the token is `#2a2e33`, and the vector
-  files match the render so the icon does not change shade between sizes.
+  one place the no-hardcoded-colour rule above does not reach. The vector files
+  match the render so the icon does not change shade between sizes, and `D33`
+  carries the swatches and why they sit off the palette.
 - **The accent appears here and nowhere else in chrome.** The rule above keeps
   `--primary` on the focus ring and the checked box. An app icon is identity
   rather than chrome, so the two accent dots are the exception, and they are two
   dots at 2.5% of the tile rather than a field of colour.
-- **Detail is keyed to size, not scaled** (`D33`). The accent drops out below
-  64px and every dot drops out at 16px, because a 2.5%-of-tile dot is sub-pixel
-  there. Three vector files cover the three ranges.
+- **Detail is keyed to size, not scaled** (`D33`). The accent drops at 40px and
+  every dot at 16px, because a 2.5%-of-tile dot is sub-pixel there. Three vector
+  files cover the three ranges, and `source_for` in `scripts/icons.sh` sets the
+  boundaries.
 - **The tile is a superellipse at exponent 5.0 on Apple's 824-on-1024 grid,** so
   the art fills 80.5% of the canvas and the corners match what macOS draws around
   it. The figure is measured, not chosen: seven macOS 26 system icons all fit 5.00
@@ -139,7 +146,7 @@ eyes only.
 - **The edge carries a lit rim and a baked drop shadow** (`D34`). macOS puts both
   into every icon it ships, and the 9.8% margin exists to hold the shadow. The rim
   is ~20px at 1024, brightest at the top, decaying to the tile colour; the shadow
-  sits 10px down at 13% opacity. Without them the icon reads flat beside its Dock
+  sits 10px down, blurred 13px, at 17% opacity. Without them the icon reads flat beside its Dock
   neighbours, which is the one thing a dark tile cannot hide.
 - **The tray glyph is a silhouette with a gap, and carries no dots.** At the 18pt
   the menu bar gives it, an eye would be 0.7pt. The two shapes read only because a
@@ -180,9 +187,12 @@ animation, no entrance choreography beyond the platform's own, and no spring.
 - Focus mode fades non-active blocks to `0.28` opacity over `0.3s`.
 - Hover affordances (code block toolbar, code block buttons, wikilinks) resolve
   over `0.15s`.
-- Dialogs and tooltips fade and scale on open and close. This is macOS
-  behaviour for a sheet, and it is the reason the backdrop blurs too.
-- Nothing else animates.
+- Dialogs, tooltips, and the tag combobox fade, scale, and slide on open and
+  close. This is macOS behaviour for a sheet, and it is the reason the backdrop
+  blurs too.
+- Shadcn primitives carry their own hover and press transitions, and the toast
+  spinner spins. Beyond those, `src/styles.css` animates only focus mode,
+  wikilinks, and the code-block toolbar and its buttons.
 
 `prefers-reduced-motion: reduce` collapses all of it. Every animation above has
 a real non-motion end state, so removing the transition costs nothing.
@@ -206,16 +216,17 @@ a real non-motion end state, so removing the transition costs nothing.
   `SaveIndicator` renders between the title and the pin, a floppy carrying a pen
   for `dirty`, no badge for `saving`, a check for `saved`, and a slash for
   `failed`, at `size-3.5` in the same 24px box the pin and the view toggles use.
-  `saved` drops to `--faint`, `failed` takes `--destructive`, and the other two
-  stay on `--muted-foreground`, so tone separates the states the badge alone
-  would not at that size. The word reaches a hover tooltip and `sr-only` text,
+  `saved` drops to `--faint` and `failed` takes `--destructive`; `dirty` and
+  `saving` set no tone and inherit the bar's, so tone separates the states the
+  badge alone would not at that size. The word reaches a hover tooltip and `sr-only` text,
   never the bar. The external-file route renders the same component in its own
   titlebar, which is why it carries `no-drag`.
 - **Anything in chrome that turns on and off is a `Toggle`** (`D37`), at
-  `size="icon-xs"`, showing its on-state as `--foreground` against the idle
-  `--muted-foreground`. That covers the three view toggles, which are one
-  `ToggleGroup` and so one tab stop with arrow keys inside it, and the pin in the
-  titlebar. Hover is a surface and pressed is a tone, which is what keeps the two
+  `size="icon-xs"`, showing its on-state as `--foreground`. That covers the
+  three view toggles, which are one `ToggleGroup` and so one tab stop with arrow
+  keys inside it, and the pin in the titlebar. Idle is whatever the band gives
+  it: `--muted-foreground` in the status strip, and `--foreground` at
+  `opacity-60` for the pin, since the titlebar carries no muted tone. Hover is a surface and pressed is a tone, which is what keeps the two
   states apart.
 - **Tags are picked from the status strip** (`D30`). A chip reads `#groceries`
   and filters to that tag; the `TagPlus` button beside it reads `add tag` and
@@ -238,9 +249,8 @@ a real non-motion end state, so removing the transition costs nothing.
 - **Two bands frame the note.** The titlebar above and the status strip below,
   each with a hairline border. A band that reads as chrome needs an edge, and
   without one the title floats as stray text over the document.
-- **The palette is the action surface.** Search, `#tag` filtering, pin, move,
-  delete, reveal, settings, and reindex all live in ⌘K. A new note-level action
-  goes there.
+- **The palette is the action surface.** A new note-level action goes in ⌘K
+  rather than into new chrome. `ARCHITECTURE.md` lists what it holds.
 - **`·` joins related metadata.** The status strip reads
   `214 words · 1 min`, a palette row reads `title · folder`. Use the middot
   rather than a pipe, a dash, or a second line.
@@ -248,30 +258,18 @@ a real non-motion end state, so removing the transition costs nothing.
   are `position: fixed`, `z-index: 50`, bordered, on `--popover`, with
   `0 8px 24px rgb(0 0 0 / 0.18)`. Menus clamp to the viewport rather than
   overflowing it.
-- **Shortcuts:**
-
-  | Shortcut | Action                          |
-  | -------- | ------------------------------- |
-  | `⌘K`     | command palette (search + acts) |
-  | `⌘N`     | new note                        |
-  | `⌘P`     | toggle raw markdown source      |
-  | `⌘D`     | toggle focus mode               |
-  | `⌘⇧K`    | add / edit link                 |
-  | `⌘⇧T`    | edit tags                       |
-  | `⌘,`     | settings                        |
-  | `⌘⇧N`    | global quick capture            |
-  | `esc`    | (capture window) save + hide    |
+- **Shortcuts live in `README.md`.** That table is the one a person looks up, so
+  it is the one that gets extended. Adding a shortcut here as well is how the
+  two drift.
 
 ## The editor surface
 
 - The caret takes `--foreground`, and selection takes `--selection`.
 - The empty-document placeholder renders through
   `p.is-editor-empty:first-child::before` on `--faint`, and never as a real node.
-- **The reading surface takes no colour of its own** (`D40`). Typeset reads
-  `--color-foreground`, `--color-muted-foreground`, `--color-border`,
-  `--color-muted`, `--color-primary`, and `--color-ring`, all of which the
-  `@theme inline` block already emits, so the note is on the palette with nothing
-  repointed. `src/styles.spec.ts` asserts the two roles it derives resolve to a
+- **The reading surface takes no colour of its own** (`D40`). Typeset reads the
+  `--color-*` tokens the `@theme inline` block already emits, so the note is on
+  the palette with nothing repointed. `src/styles.spec.ts` asserts the two roles it derives resolve to a
   token, and that every `::marker` paints from the muted one.
 - **Bullet and ordered lists come from Typeset.** Markers, indentation, and the
   space between items are its at every depth, and a marker steps disc, circle,
@@ -289,7 +287,7 @@ a real non-motion end state, so removing the transition costs nothing.
   Every selector reaches a row as `ul[data-type="taskList"] > li` (`D39`). The
   list is padded like any other list and the row is pulled back by the checkbox
   column, so text lands at `1.9em` whatever the list kind and at `3.8em` one
-  level in. The gap puts the box's right edge on `0.747em`, the column a disc
+  level in. The gap puts the box's right edge on `0.75em`, the column a disc
   paints in, and the pull-back cancels box plus gap so the text does not follow.
   All three are `em`, so the ladder holds at both note sizes, and
   `src/styles.spec.ts` asserts the pull-back cancels exactly the box and the gap.
@@ -333,7 +331,9 @@ a real non-motion end state, so removing the transition costs nothing.
   Re-apply it whenever the component is regenerated.
 - Focus is visible on every interactive element. Inputs that drop the default
   outline replace it with a `focus-visible:ring` rather than removing the
-  affordance.
+  affordance. Two hand-written controls still break this and are the standing
+  gap: `.link-editor-input` and `.code-block-language`, which set `outline: none`
+  and replace nothing.
 - Contrast is a build gate, not a judgement call. `src/styles.spec.ts` measures
   every text token against the surface it is actually painted on.
 - `prefers-reduced-motion: reduce` is honoured globally.
@@ -344,9 +344,9 @@ a real non-motion end state, so removing the transition costs nothing.
 
 - Do not hand-edit `src/components/ui/**`. Those files are generated by
   `pnpm dlx shadcn@latest add`. Fix non-autofixable lint through the
-  `**/components/ui/**` override block, and keep the two documented exceptions
-  in `D19`: the `command.tsx` header placement, and the lowercased strings in
-  `dialog.tsx` and `command.tsx`.
+  `src/components/ui/**` override block, and re-apply the three deviations
+  `D19` documents. Missing the third silently drops the `xs` and `icon-xs` sizes
+  every toggle in the chrome depends on (`D37`).
 - Do not add a color, radius, or font size outside the tokens.
 - Do not use `--accent` as the accent, and do not put the accent in chrome.
 - Do not add a token to one scheme only.
