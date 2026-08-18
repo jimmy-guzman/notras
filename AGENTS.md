@@ -124,7 +124,8 @@ guide does not cover, search through the source code in
 - **Depend on abstractions you pass in, not concretions you reach for.** This
   repo already names its ports: `FileStore` in `src/core`, `Database` in
   `src/server/db`. A service that reaches for a Tauri command directly cannot be
-  tested, and `ARCHITECTURE.md` records the lint rules that stop it.
+  tested. Nothing enforces this since `D43`, so `ARCHITECTURE.md` records the
+  boundaries and a reviewer holds them.
 
 - **Hide what varies behind a stable surface.** Keep implementation details,
   data shapes, and library choices private to their module. Expose the narrowest

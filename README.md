@@ -58,7 +58,7 @@ rebuilds it from your files on the next launch.
 - [Effect](https://effect.website) 4 (typed errors, Layer/DI, services)
 - [Drizzle ORM](https://orm.drizzle.team) (`sqlite-proxy`, read-only queries
   against the index)
-- [Shadcn UI](https://ui.shadcn.dev) + [Tailwind CSS](https://tailwindcss.com) 4
+- [Shadcn UI](https://ui.shadcn.com) + [Tailwind CSS](https://tailwindcss.com) 4
 
 ## Architecture
 
@@ -84,12 +84,12 @@ key patterns, and the invariants.
 
 ## Getting started
 
-You need [pnpm](https://pnpm.io) and a
-[Rust toolchain](https://www.rust-lang.org/tools/install):
+You need Node (`.nvmrc` pins v24.19.0), [pnpm](https://pnpm.io), and a
+[Rust toolchain](https://www.rust-lang.org/tools/install). Corepack reads the
+pinned pnpm version out of `package.json`:
 
 ```bash
 corepack enable
-corepack prepare pnpm@latest --activate
 pnpm install
 ```
 
@@ -132,3 +132,7 @@ Rust tests live in `src-tauri`: `cargo test`.
 | `⌘,`     | settings                        |
 | `⌘⇧N`    | global quick capture            |
 | `esc`    | (capture window) save + hide    |
+| `⌘⏎`     | (capture window) save + hide    |
+
+`⌘P`, `⌘D`, and `⌘⇧T` act on the open note, so they do nothing on the empty
+state or in the capture window.

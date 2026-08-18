@@ -93,16 +93,14 @@ the single-writer rule gets for free.
 
 ### D5 Note identity is the relative path
 
-The filename is the title. There is no title field in note content, and no
-stable ID beside the path. Renaming a note renames the file, which the index
-records as a delete plus a create.
+A note is identified by its path relative to the notes dir. There is no stable
+ID beside it. Renaming a note renames the file, which the index records as a
+delete plus a create.
 
-**Superseded in part by `D32`,** which resolves the title from frontmatter, then
-a leading heading, then the filename. Relative-path identity carries over: the
-path is still the primary key, and there is still no stable ID beside it.
-
-Deriving a title from the first heading is a web-era pattern that `D2` removes
-the need for: the file already has a name, and the user sees it in Finder.
+**Superseded in part by `D32`.** This entry also ruled that the filename is the
+title, on the grounds that deriving one from the first heading is a web-era
+pattern `D2` removes the need for: the file already has a name and the user sees
+it in Finder. `D32` overturned that half. Identity carries over untouched.
 
 **Constraint:** creating a note whose title collides dedupes on write, producing
 `untitled-2.md`.
@@ -249,8 +247,8 @@ was ruled out.
 
 Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying
 `static readonly layer`. Errors are `Schema.TaggedError`. A service is reached
-through `Service.use((svc) => svc.method(...))`, and `ManagedRuntime` is
-executed in exactly one place, `src/data/run.ts`.
+through `Service.use((svc) => svc.method(...))`. `src/server/runtime.ts` makes
+the `ManagedRuntime` and `src/data/run.ts` is the only place that executes it.
 
 The Effect 3 to 4 migration turned 117 type errors into zero, cascading from
 nine files. `Tag.pipe(Effect.flatMap(...))` became `Service.use(...)` across all
@@ -946,14 +944,15 @@ glyph fills 92% of its frame to sit right in the menu bar.
 ### D34 The icon's edge follows measured macOS geometry
 
 The tile is a superellipse at exponent 5.0 on Apple's 824-on-1024 grid, carrying a lit
-edge ~20px wide and a soft drop shadow offset ~10px down at 13% opacity. Every figure
-comes from measuring the platform rather than from a spec: this machine runs macOS 26,
+edge ~20px wide and a soft drop shadow offset ~10px down, blurred 13px, at 17%
+opacity. Every figure comes from measuring the platform rather than from a spec: this machine runs macOS 26,
 so the ICNS containers of seven system apps were parsed and probed directly.
 
 Those apps agree exactly. All seven put the art at 80.5% of the canvas with a 9.8%
 margin and fit an exponent of 5.00. Five of five bake a drop shadow into that margin,
 which is what the margin is for, reading 13% alpha two pixels below the shape and 3 to
-4% above. The lit edge is not universal, since Notes reads 238 at its boundary and Maps
+4% above. `scripts/icons.sh` paints at 17%, because a blurred shadow loses alpha
+at the point the probe reads and 13% measured there needs more than 13% laid down. The lit edge is not universal, since Notes reads 238 at its boundary and Maps
 251, both being light icons; it is shared by the dark-tiled ones, TV and Terminal, which
 run 144 at the boundary down to their base over five pixels. Those two are the
 precedent a `#1c1e21` tile follows.
@@ -1432,8 +1431,8 @@ hundred and twenty `D41` rejected.
 `src/styles.spec.ts` already guards `D6`, `D39`, and `D40` that way, so the
 pattern exists and would have cost about fifty lines of test instead of seventy
 lines of config. Rejected together with the config, on the same ground: neither
-had caught anything, since all thirteen `lucide-react` imports already comply
-and no boundary is currently crossed.
+had caught anything, since all eleven files importing `lucide-react` already
+comply and no boundary is currently crossed.
 
 **Constraint:** a violation of either now reaches `main` unless a reviewer
 catches it. `D14` rejected workspace packages because lint was doing the work,

@@ -11,7 +11,8 @@ the system is built, and `DECISIONS.md` covers why.
   dialog, or the status strip. The two bands that remain, the titlebar and the
   status strip, carry the note's own state and nothing else.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
-  reachable only by mouse is unfinished.
+  reachable only by mouse is unfinished. Typewriter scrolling is the one that
+  still is: it toggles from the status strip and nowhere else.
 - **Lowercase everywhere.** Labels, buttons, toasts, tooltips, placeholders, and
   empty states are lowercase, app-wide and deliberate. The wordmark is
   lowercase too.
@@ -52,8 +53,9 @@ matches whatever the user is running (`D25`).
   size, list indent and block gap derives from them. Tuning the reading surface
   means moving `--typeset-size`, `--typeset-leading`, or `--typeset-flow`, not
   writing a rule per element.
-- **The note reads a size larger below 768px.** Typeset sizes against its
-  container, so a window narrower than that renders at `1.125rem` and wider at
+- **The note reads a size larger below 768px.** Typeset's base is
+  `calc(var(--typeset-size) * 1.125)` and a `min-width: 48rem` viewport query
+  resets it, so a window narrower than that renders at `1.125rem` and wider at
   `1rem`. The minimum window is 480px, so both are reachable.
 - Headings scale from the body size, not from absolute values: `1.75em`,
   `1.25em`, `1.125em`, `1em`, then `0.875em` and `0.8125em`. h5 and h6 drop to
@@ -61,9 +63,11 @@ matches whatever the user is running (`D25`).
   tracking, so the two deepest levels read as labels rather than headings.
 - UI text sits at `text-xs` for secondary information (status strip, palette
   metadata, tag chips) and inherits the base size otherwise. Do not invent a
-  per-component size.
-- **The wordmark is the only chrome in the mono.** Everything else in the
-  interface is sans, and the note is the serif.
+  per-component size. The five that predate the rule all sit in hand-written CSS
+  for floating surfaces and code-block chrome, and none of them is a precedent.
+- **The mono is for the wordmark and for paths.** The wordmark, the external
+  file's path in its titlebar, and a suggestion's shorthand hint. Everything
+  else in the interface is sans, and the note is the serif.
 
 ## Color
 
@@ -111,7 +115,9 @@ lifted variants, because stet treats contrast as a comfortable target while
 
 `src/styles.spec.ts` fails the build when a text-on-surface pair drops below
 4.5:1 in either scheme, or when the two schemes stop declaring the same token
-names. Adding a token means adding it to both.
+names. Adding a token means adding it to both. `--faint` is the one exemption,
+held to 2:1: it paints a placeholder and a next-step hint, which are the two
+kinds of text that read as absent until wanted.
 
 ## The icon
 
@@ -139,7 +145,7 @@ eyes only.
 - **The edge carries a lit rim and a baked drop shadow** (`D34`). macOS puts both
   into every icon it ships, and the 9.8% margin exists to hold the shadow. The rim
   is ~20px at 1024, brightest at the top, decaying to the tile colour; the shadow
-  sits 10px down at 13% opacity. Without them the icon reads flat beside its Dock
+  sits 10px down, blurred 13px, at 17% opacity. Without them the icon reads flat beside its Dock
   neighbours, which is the one thing a dark tile cannot hide.
 - **The tray glyph is a silhouette with a gap, and carries no dots.** At the 18pt
   the menu bar gives it, an eye would be 0.7pt. The two shapes read only because a
@@ -180,9 +186,12 @@ animation, no entrance choreography beyond the platform's own, and no spring.
 - Focus mode fades non-active blocks to `0.28` opacity over `0.3s`.
 - Hover affordances (code block toolbar, code block buttons, wikilinks) resolve
   over `0.15s`.
-- Dialogs and tooltips fade and scale on open and close. This is macOS
-  behaviour for a sheet, and it is the reason the backdrop blurs too.
-- Nothing else animates.
+- Dialogs, tooltips, and the tag combobox fade and scale on open and close.
+  This is macOS behaviour for a sheet, and it is the reason the backdrop blurs
+  too.
+- Shadcn primitives carry their own `transition-colors` on hover and press, and
+  the toast spinner spins. Nothing in first-party CSS animates beyond the three
+  cases above.
 
 `prefers-reduced-motion: reduce` collapses all of it. Every animation above has
 a real non-motion end state, so removing the transition costs nothing.
@@ -206,16 +215,17 @@ a real non-motion end state, so removing the transition costs nothing.
   `SaveIndicator` renders between the title and the pin, a floppy carrying a pen
   for `dirty`, no badge for `saving`, a check for `saved`, and a slash for
   `failed`, at `size-3.5` in the same 24px box the pin and the view toggles use.
-  `saved` drops to `--faint`, `failed` takes `--destructive`, and the other two
-  stay on `--muted-foreground`, so tone separates the states the badge alone
-  would not at that size. The word reaches a hover tooltip and `sr-only` text,
+  `saved` drops to `--faint` and `failed` takes `--destructive`; `dirty` and
+  `saving` set no tone and inherit the bar's, so tone separates the states the
+  badge alone would not at that size. The word reaches a hover tooltip and `sr-only` text,
   never the bar. The external-file route renders the same component in its own
   titlebar, which is why it carries `no-drag`.
 - **Anything in chrome that turns on and off is a `Toggle`** (`D37`), at
-  `size="icon-xs"`, showing its on-state as `--foreground` against the idle
-  `--muted-foreground`. That covers the three view toggles, which are one
-  `ToggleGroup` and so one tab stop with arrow keys inside it, and the pin in the
-  titlebar. Hover is a surface and pressed is a tone, which is what keeps the two
+  `size="icon-xs"`, showing its on-state as `--foreground`. That covers the
+  three view toggles, which are one `ToggleGroup` and so one tab stop with arrow
+  keys inside it, and the pin in the titlebar. Idle is whatever the band gives
+  it: `--muted-foreground` in the status strip, and `--foreground` at
+  `opacity-60` for the pin, since the titlebar carries no muted tone. Hover is a surface and pressed is a tone, which is what keeps the two
   states apart.
 - **Tags are picked from the status strip** (`D30`). A chip reads `#groceries`
   and filters to that tag; the `TagPlus` button beside it reads `add tag` and
@@ -261,6 +271,10 @@ a real non-motion end state, so removing the transition costs nothing.
   | `⌘,`     | settings                        |
   | `⌘⇧N`    | global quick capture            |
   | `esc`    | (capture window) save + hide    |
+  | `⌘⏎`     | (capture window) save + hide    |
+
+  `⌘P`, `⌘D`, and `⌘⇧T` act on the open note, so they do nothing on the empty
+  state or in the capture window.
 
 ## The editor surface
 
@@ -289,7 +303,7 @@ a real non-motion end state, so removing the transition costs nothing.
   Every selector reaches a row as `ul[data-type="taskList"] > li` (`D39`). The
   list is padded like any other list and the row is pulled back by the checkbox
   column, so text lands at `1.9em` whatever the list kind and at `3.8em` one
-  level in. The gap puts the box's right edge on `0.747em`, the column a disc
+  level in. The gap puts the box's right edge on `0.75em`, the column a disc
   paints in, and the pull-back cancels box plus gap so the text does not follow.
   All three are `em`, so the ladder holds at both note sizes, and
   `src/styles.spec.ts` asserts the pull-back cancels exactly the box and the gap.
@@ -333,7 +347,8 @@ a real non-motion end state, so removing the transition costs nothing.
   Re-apply it whenever the component is regenerated.
 - Focus is visible on every interactive element. Inputs that drop the default
   outline replace it with a `focus-visible:ring` rather than removing the
-  affordance.
+  affordance. Three hand-written controls still break this and are the standing
+  gap: `.link-editor-input`, `.code-block-language`, and `.code-block-button`.
 - Contrast is a build gate, not a judgement call. `src/styles.spec.ts` measures
   every text token against the surface it is actually painted on.
 - `prefers-reduced-motion: reduce` is honoured globally.
@@ -344,7 +359,7 @@ a real non-motion end state, so removing the transition costs nothing.
 
 - Do not hand-edit `src/components/ui/**`. Those files are generated by
   `pnpm dlx shadcn@latest add`. Fix non-autofixable lint through the
-  `**/components/ui/**` override block, and keep the two documented exceptions
+  `src/components/ui/**` override block, and keep the two documented exceptions
   in `D19`: the `command.tsx` header placement, and the lowercased strings in
   `dialog.tsx` and `command.tsx`.
 - Do not add a color, radius, or font size outside the tokens.
