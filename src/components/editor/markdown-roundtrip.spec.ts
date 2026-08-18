@@ -1,4 +1,5 @@
 import { Editor } from "@tiptap/core";
+import { describe, expect, it } from "vitest";
 
 import {
   createEditorExtensions,
@@ -92,10 +93,10 @@ describe("markdown round-trip", () => {
 
   it("should keep nbsp entities that are the author's code, not ours", () => {
     expect(roundtrip("use `&nbsp;` for a hard space")).toBe(
-      "use `&nbsp;` for a hard space",
+      "use `&nbsp;` for a hard space"
     );
     expect(roundtrip("```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```")).toBe(
-      "```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```",
+      "```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```"
     );
   });
 });
@@ -135,10 +136,10 @@ describe("normalizeMarkdown", () => {
 
   it("should close on a bare run and scrub the prose after it", () => {
     expect(normalizeMarkdown("```\n&nbsp;\n```\n&nbsp;")).toBe(
-      "```\n&nbsp;\n```\n ",
+      "```\n&nbsp;\n```\n "
     );
     expect(normalizeMarkdown("```\n&nbsp;\n   ```  \n&nbsp;")).toBe(
-      "```\n&nbsp;\n   ```  \n ",
+      "```\n&nbsp;\n   ```  \n "
     );
   });
 

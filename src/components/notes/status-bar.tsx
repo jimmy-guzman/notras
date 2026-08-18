@@ -1,4 +1,5 @@
 import { CodeIcon, CrosshairIcon, KeyboardIcon } from "lucide-react";
+import { useCallback, useMemo } from "react";
 
 import { NoteTags } from "@/components/notes/note-tags";
 import { Kbd } from "@/components/ui/kbd";
@@ -40,35 +41,54 @@ export function StatusBar({
   typewriterEnabled,
   words,
 }: StatusBarProps) {
-  const toggles = [
-    {
-      hint: "⌘d",
-      icon: CrosshairIcon,
-      label: "focus mode",
-      onToggle: onToggleFocusMode,
-      pressed: focusModeEnabled,
-      value: "focus",
+  const toggles = useMemo(
+    () => [
+      {
+        hint: "⌘d",
+        icon: CrosshairIcon,
+        label: "focus mode",
+        onToggle: onToggleFocusMode,
+        pressed: focusModeEnabled,
+        value: "focus",
+      },
+      {
+        hint: "",
+        icon: KeyboardIcon,
+        label: "typewriter scrolling",
+        onToggle: onToggleTypewriter,
+        pressed: typewriterEnabled,
+        value: "typewriter",
+      },
+      {
+        hint: "⌘p",
+        icon: CodeIcon,
+        label: "markdown source",
+        onToggle: onToggleSource,
+        pressed: sourceEnabled,
+        value: "source",
+      },
+    ],
+    [
+      focusModeEnabled,
+      onToggleFocusMode,
+      onToggleSource,
+      onToggleTypewriter,
+      sourceEnabled,
+      typewriterEnabled,
+    ]
+  );
+
+  const handleToggleChange = useCallback(
+    (next: string[]) => {
+      toggles
+        .find((toggle) => next.includes(toggle.value) !== toggle.pressed)
+        ?.onToggle();
     },
-    {
-      hint: "",
-      icon: KeyboardIcon,
-      label: "typewriter scrolling",
-      onToggle: onToggleTypewriter,
-      pressed: typewriterEnabled,
-      value: "typewriter",
-    },
-    {
-      hint: "⌘p",
-      icon: CodeIcon,
-      label: "markdown source",
-      onToggle: onToggleSource,
-      pressed: sourceEnabled,
-      value: "source",
-    },
-  ];
+    [toggles]
+  );
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-1 border-t px-3 text-xs text-muted-foreground">
+    <footer className="flex h-7 shrink-0 items-center gap-1 border-t px-3 text-muted-foreground text-xs">
       <NoteTags
         allTags={allTags}
         onFilter={onFilterTag}
@@ -80,43 +100,31 @@ export function StatusBar({
       </span>
       <ToggleGroup
         multiple
-        onValueChange={(next) => {
-          toggles
-            .find((toggle) => {
-              return next.includes(toggle.value) !== toggle.pressed;
-            })
-            ?.onToggle();
-        }}
+        onValueChange={handleToggleChange}
         size="icon-xs"
         spacing={0.5}
         value={toggles
-          .filter((toggle) => {
-            return toggle.pressed;
-          })
-          .map((toggle) => {
-            return toggle.value;
-          })}
+          .filter((toggle) => toggle.pressed)
+          .map((toggle) => toggle.value)}
       >
-        {toggles.map(({ hint, icon: Icon, label, value }) => {
-          return (
-            <Tooltip key={value}>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem
-                    aria-label={label}
-                    className={PRESSED}
-                    value={value}
-                  />
-                }
-              >
-                <Icon className="size-3.5" />
-              </TooltipTrigger>
-              <TooltipContent>
-                {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
+        {toggles.map(({ hint, icon: Icon, label, value }) => (
+          <Tooltip key={value}>
+            <TooltipTrigger
+              render={
+                <ToggleGroupItem
+                  aria-label={label}
+                  className={PRESSED}
+                  value={value}
+                />
+              }
+            >
+              <Icon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent>
+              {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}
+            </TooltipContent>
+          </Tooltip>
+        ))}
       </ToggleGroup>
     </footer>
   );

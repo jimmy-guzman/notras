@@ -1,15 +1,15 @@
-import { parseNote } from "@/core";
+import { parseNote } from "@/core/frontmatter";
 
 const WORDS_PER_MINUTE = 200;
+
+const WHITESPACE_RUN = /\s+/;
 
 export function countWords(content: string) {
   const { body } = parseNote(content);
   const words = body
     .trim()
-    .split(/\s+/)
-    .filter((word) => {
-      return word.length > 0;
-    });
+    .split(WHITESPACE_RUN)
+    .filter((word) => word.length > 0);
 
   return words.length;
 }

@@ -1,35 +1,27 @@
 import { asc, desc, sql } from "drizzle-orm";
 
-import { SNIPPET_END, SNIPPET_START } from "@/core";
+import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { note } from "@/server/db/schema";
+
+const WHITESPACE_RUN = /\s+/;
 
 export function buildFtsMatchQuery(query: string | undefined) {
   if (query === undefined) {
-    return undefined;
+    return;
   }
 
   const terms = query
     .trim()
-    .split(/\s+/)
-    .map((term) => {
-      return term.trim();
-    })
-    .map((term) => {
-      return term.replaceAll(/[^\p{L}\p{N}_]+/gu, "");
-    })
-    .filter((term) => {
-      return term.length > 0;
-    });
+    .split(WHITESPACE_RUN)
+    .map((term) => term.trim())
+    .map((term) => term.replaceAll(/[^\p{L}\p{N}_]+/gu, ""))
+    .filter((term) => term.length > 0);
 
   if (terms.length === 0) {
-    return undefined;
+    return;
   }
 
-  return terms
-    .map((term) => {
-      return `${term}*`;
-    })
-    .join(" AND ");
+  return terms.map((term) => `${term}*`).join(" AND ");
 }
 
 function getSearchRankExpression(matchQuery: string) {

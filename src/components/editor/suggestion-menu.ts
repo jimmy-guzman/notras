@@ -13,8 +13,8 @@ export interface SuggestionMenuItem {
 export class SuggestionMenu {
   private static instances = 0;
 
-  private element: HTMLDivElement;
-  private id: string;
+  private readonly element: HTMLDivElement;
+  private readonly id: string;
   private items: SuggestionMenuItem[] = [];
   private selected = 0;
 
@@ -85,7 +85,7 @@ export class SuggestionMenu {
       fitsBelow || !fitsAbove ? rect.bottom + 4 : rect.top - 4 - menu.height;
     const left = Math.max(
       margin,
-      Math.min(rect.left, window.innerWidth - menu.width - margin),
+      Math.min(rect.left, window.innerWidth - menu.width - margin)
     );
 
     this.element.style.left = `${left}px`;

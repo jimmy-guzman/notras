@@ -15,12 +15,9 @@ import {
   TagPlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
-
-import type { NoteMeta } from "@/core";
-
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
@@ -32,7 +29,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { filenameFromTitle } from "@/core";
+import type { NoteMeta } from "@/core/notes";
+import { filenameFromTitle } from "@/core/notes";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { getNotes } from "@/data/get-notes";
@@ -45,9 +43,9 @@ import { parseTagQuery } from "@/lib/utils/tag-query";
 
 function Snippet({ snippet }: { snippet: string }) {
   return (
-    <span className="truncate text-xs text-muted-foreground">
-      {getSnippetParts(snippet).map((part) => {
-        return part.match ? (
+    <span className="truncate text-muted-foreground text-xs">
+      {getSnippetParts(snippet).map((part) =>
+        part.match ? (
           <mark
             className="rounded-xs bg-primary/20 text-foreground"
             key={part.id}
@@ -56,10 +54,14 @@ function Snippet({ snippet }: { snippet: string }) {
           </mark>
         ) : (
           <span key={part.id}>{part.text}</span>
-        );
-      })}
+        )
+      )}
     </span>
   );
+}
+
+function reportActionFailure(error: unknown) {
+  toast.error(error instanceof Error ? error.message : "something went wrong");
 }
 
 const VISIBLE_TAGS = 3;
@@ -73,9 +75,7 @@ const COUNT_CLASS =
 function tagLabel(tags: string[]) {
   const shown = tags
     .slice(0, VISIBLE_TAGS)
-    .map((tag) => {
-      return `#${tag}`;
-    })
+    .map((tag) => `#${tag}`)
     .join(" ");
   const hidden = tags.length - VISIBLE_TAGS;
 
@@ -88,26 +88,24 @@ interface NoteItemProps {
 }
 
 function NoteItem({ note, onSelect }: NoteItemProps) {
+  const select = useCallback(() => {
+    onSelect(note.path);
+  }, [note.path, onSelect]);
+
   return (
-    <CommandItem
-      key={note.path}
-      onSelect={() => {
-        onSelect(note.path);
-      }}
-      value={note.path}
-    >
+    <CommandItem onSelect={select} value={note.path}>
       <FileTextIcon />
       <div className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5 truncate">
           {note.title}
           {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
           {note.folder === "" ? null : (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               · {note.folder}
             </span>
           )}
           {note.tags.length === 0 ? null : (
-            <span className="truncate text-xs text-muted-foreground">
+            <span className="truncate text-muted-foreground text-xs">
               · {tagLabel(note.tags)}
             </span>
           )}
@@ -115,6 +113,221 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
         {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
       </div>
     </CommandItem>
+  );
+}
+
+interface FolderItemProps {
+  count: number;
+  folder: string;
+  onMove: (folder: string) => void;
+}
+
+function FolderItem({ count, folder, onMove }: FolderItemProps) {
+  const move = useCallback(() => {
+    onMove(folder);
+  }, [folder, onMove]);
+
+  return (
+    <CommandItem onSelect={move} value={`move-${folder}`}>
+      <FolderIcon />
+      <span className="flex-1 truncate">{folder}</span>
+      <span className={COUNT_CLASS}>{count}</span>
+    </CommandItem>
+  );
+}
+
+interface TagChoiceItemProps {
+  attached: boolean;
+  count: number;
+  name: string;
+  onToggle: (name: string, attached: boolean) => void;
+}
+
+function TagChoiceItem({
+  attached,
+  count,
+  name,
+  onToggle,
+}: TagChoiceItemProps) {
+  const toggle = useCallback(() => {
+    onToggle(name, attached);
+  }, [attached, name, onToggle]);
+
+  return (
+    <CommandItem
+      data-checked={attached}
+      onSelect={toggle}
+      value={`tag-${name}`}
+    >
+      <HashIcon />
+      <span className="flex-1 truncate">{name}</span>
+      <span className={COUNT_CLASS}>{count}</span>
+    </CommandItem>
+  );
+}
+
+interface TagFilterItemProps {
+  count: number;
+  name: string;
+  onPick: (name: string) => void;
+}
+
+function TagFilterItem({ count, name, onPick }: TagFilterItemProps) {
+  const pick = useCallback(() => {
+    onPick(name);
+  }, [name, onPick]);
+
+  return (
+    <CommandItem onSelect={pick} value={`tag-${name}`}>
+      <HashIcon />
+      <span className="flex-1 truncate">{name}</span>
+      <span className={COUNT_CLASS}>{count}</span>
+    </CommandItem>
+  );
+}
+
+interface DeleteViewProps {
+  onCancel: () => void;
+  onConfirm: () => void;
+  title: string;
+}
+
+function DeleteView({ onCancel, onConfirm, title }: DeleteViewProps) {
+  return (
+    <CommandGroup heading={`delete "${title}"?`}>
+      <CommandItem onSelect={onConfirm} value="confirm-delete">
+        <Trash2Icon className="text-destructive" />
+        delete forever
+      </CommandItem>
+      <CommandItem onSelect={onCancel} value="cancel-delete">
+        cancel
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
+interface MoveViewProps {
+  folders: { count: number; folder: string }[];
+  onCancel: () => void;
+  onMove: (folder: string) => void;
+  onMoveToNewFolder: () => void;
+  onMoveToRoot: () => void;
+  query: string;
+}
+
+function MoveView({
+  folders,
+  onCancel,
+  onMove,
+  onMoveToNewFolder,
+  onMoveToRoot,
+  query,
+}: MoveViewProps) {
+  const draftFolder = query.trim().toLowerCase();
+
+  return (
+    <CommandGroup heading="move to">
+      <CommandItem onSelect={onMoveToRoot} value="move-root">
+        <FolderIcon />
+        notes root
+      </CommandItem>
+      {folders
+        .filter(({ folder }) => folder.includes(draftFolder))
+        .map(({ count, folder }) => (
+          <FolderItem
+            count={count}
+            folder={folder}
+            key={folder}
+            onMove={onMove}
+          />
+        ))}
+      {draftFolder === "" ? null : (
+        <CommandItem onSelect={onMoveToNewFolder} value="move-new">
+          <FolderInputIcon />
+          new folder "{draftFolder}"
+        </CommandItem>
+      )}
+      <CommandItem onSelect={onCancel} value="cancel-move">
+        cancel
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
+interface RenameViewProps {
+  onCancel: () => void;
+  onConfirm: () => void;
+  query: string;
+  title: string;
+}
+
+function RenameView({ onCancel, onConfirm, query, title }: RenameViewProps) {
+  const draftTitle = query.trim();
+
+  return (
+    <CommandGroup heading={`rename "${title}"`}>
+      {draftTitle === "" ? null : (
+        <CommandItem onSelect={onConfirm} value="confirm-rename">
+          <PencilIcon />
+          <span className="truncate">
+            rename to "{draftTitle}"
+            {/* The filename is derived, so it is shown, not hidden. */}
+            <span className="text-muted-foreground">
+              {" · "}
+              {filenameFromTitle(draftTitle)}.md
+            </span>
+          </span>
+        </CommandItem>
+      )}
+      <CommandItem onSelect={onCancel} value="cancel-rename">
+        cancel
+      </CommandItem>
+    </CommandGroup>
+  );
+}
+
+interface TagsViewProps {
+  attached: string[];
+  choices: string[];
+  counts: Map<string, number>;
+  draftTag: string;
+  onCreate: () => void;
+  onDone: () => void;
+  onToggle: (name: string, attached: boolean) => void;
+  title: string;
+}
+
+function TagsView({
+  attached,
+  choices,
+  counts,
+  draftTag,
+  onCreate,
+  onDone,
+  onToggle,
+  title,
+}: TagsViewProps) {
+  return (
+    <CommandGroup heading={`tags for "${title}"`}>
+      {choices.map((name) => (
+        <TagChoiceItem
+          attached={attached.includes(name)}
+          count={counts.get(name) ?? 0}
+          key={name}
+          name={name}
+          onToggle={onToggle}
+        />
+      ))}
+      {draftTag === "" || choices.includes(draftTag) ? null : (
+        <CommandItem onSelect={onCreate} value="tag-new">
+          <TagPlusIcon />
+          create "{draftTag}"
+        </CommandItem>
+      )}
+      <CommandItem onSelect={onDone} value="cancel-tags">
+        done
+      </CommandItem>
+    </CommandGroup>
   );
 }
 
@@ -144,14 +357,12 @@ export function CommandPalette({
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const currentPath = params._splat;
-  const currentNote = notes.find((note) => {
-    return note.path === currentPath;
-  });
+  const currentNote = notes.find((note) => note.path === currentPath);
 
   // Empty path is unreachable: the tags view is gated on a current note.
   const noteTags = useNoteTags(
     currentNote?.path ?? "",
-    currentNote?.tags ?? [],
+    currentNote?.tags ?? []
   );
 
   // A tag chip navigates with `?tag=`, which is what opens the palette. The
@@ -169,9 +380,7 @@ export function CommandPalette({
   const latestSearchRef = useRef(0);
 
   const tagCounts = new Map(
-    allTags.map(({ count, tag: name }) => {
-      return [name, count];
-    }),
+    allTags.map(({ count, tag: name }) => [name, count])
   );
   const knownTags = new Set(tagCounts.keys());
 
@@ -180,7 +389,7 @@ export function CommandPalette({
   const search = useDebouncedCallback(
     async (value: string, request: number) => {
       const parsed = parseTagQuery(value);
-      const filters =
+      const filters: { query: string; tag?: string } =
         parsed === undefined
           ? { query: value.trim() }
           : { query: parsed.query, tag: parsed.tag };
@@ -206,29 +415,35 @@ export function CommandPalette({
         }
       }
     },
-    150,
+    150
   );
 
-  const updateQuery = (value: string) => {
-    latestSearchRef.current += 1;
-    setQuery(value);
-    void search(value, latestSearchRef.current);
-  };
+  const updateQuery = useCallback(
+    (value: string) => {
+      latestSearchRef.current += 1;
+      setQuery(value);
+      search(value, latestSearchRef.current);
+    },
+    [search]
+  );
 
-  const handleOpenChange = (next: boolean) => {
-    if (!next) {
-      setQuery("");
-      setView("root");
-      setResults(null);
-    }
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) {
+        setQuery("");
+        setView("root");
+        setResults(null);
+      }
 
-    onOpenChange(next);
-  };
+      onOpenChange(next);
+    },
+    [onOpenChange]
+  );
 
   useEffect(() => {
     if (tag !== undefined) {
       latestSearchRef.current += 1;
-      void search(`#${tag} `, latestSearchRef.current);
+      search(`#${tag} `, latestSearchRef.current);
     }
   }, [search, tag]);
 
@@ -241,32 +456,41 @@ export function CommandPalette({
     return results ?? notes.slice(0, 20);
   })();
 
-  const close = () => {
+  const close = useCallback(() => {
     handleOpenChange(false);
-  };
+  }, [handleOpenChange]);
 
-  const openNote = (path: string) => {
-    close();
-    void navigate({ params: { _splat: path }, to: "/notes/$" });
-  };
+  const backToRoot = useCallback(() => {
+    setView("root");
+  }, []);
 
-  const runAction = (action: () => Promise<void>) => {
-    close();
-    void action().catch((error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "something went wrong",
-      );
-    });
-  };
+  const openNote = useCallback(
+    (path: string) => {
+      close();
+      navigate({ params: { _splat: path }, to: "/notes/$" });
+    },
+    [close, navigate]
+  );
+
+  const runAction = useCallback(
+    (action: () => Promise<void>) => {
+      close();
+
+      try {
+        action().catch(reportActionFailure);
+      } catch (error) {
+        reportActionFailure(error);
+      }
+    },
+    [close]
+  );
 
   // A tag the note carries may not be in the index yet, so the choices are the
   // union rather than the index alone.
   const draftTag = query.trim().toLowerCase();
   const tagChoices = [...new Set([...knownTags, ...noteTags.tags])]
     .toSorted()
-    .filter((name) => {
-      return name.includes(draftTag);
-    });
+    .filter((name) => name.includes(draftTag));
 
   // Actions match on the free text, so they stay reachable inside a tag
   // filter rather than disappearing the moment a `#` is typed.
@@ -275,6 +499,206 @@ export function CommandPalette({
 
     return label.toLowerCase().includes(text.toLowerCase());
   };
+
+  const confirmDelete = useCallback(() => {
+    if (currentNote === undefined) {
+      return;
+    }
+
+    runAction(async () => {
+      await deleteNote(currentNote.path);
+      await navigate({ to: "/" });
+      toast.success("note deleted");
+    });
+  }, [currentNote, navigate, runAction]);
+
+  const moveToFolder = useCallback(
+    (folder: string) => {
+      if (currentNote === undefined) {
+        return;
+      }
+
+      runAction(async () => {
+        const next = await moveNote(currentNote.path, folder);
+
+        openNote(next);
+      });
+    },
+    [currentNote, openNote, runAction]
+  );
+
+  const moveToNotesRoot = useCallback(() => {
+    moveToFolder("");
+  }, [moveToFolder]);
+
+  const moveToNewFolder = useCallback(() => {
+    moveToFolder(query.trim().toLowerCase());
+  }, [moveToFolder, query]);
+
+  const confirmRename = useCallback(() => {
+    if (currentNote === undefined) {
+      return;
+    }
+
+    runAction(async () => {
+      const next = await retitleNote(currentNote.path, query.trim());
+
+      openNote(next);
+    });
+  }, [currentNote, openNote, query, runAction]);
+
+  const toggleTag = useCallback(
+    (name: string, attached: boolean) => {
+      noteTags.changeTags(
+        attached
+          ? noteTags.tags.filter((existing) => existing !== name)
+          : [...noteTags.tags, name]
+      );
+    },
+    [noteTags]
+  );
+
+  const createTag = useCallback(() => {
+    setQuery("");
+    noteTags.changeTags([...noteTags.tags, draftTag]);
+  }, [draftTag, noteTags]);
+
+  const filterByTag = useCallback(
+    (name: string) => {
+      updateQuery(`#${name} `);
+    },
+    [updateQuery]
+  );
+
+  const newNote = useCallback(() => {
+    runAction(async () => {
+      const path = await createNote();
+
+      openNote(path);
+    });
+  }, [openNote, runAction]);
+
+  const togglePin = useCallback(() => {
+    if (currentNote === undefined) {
+      return;
+    }
+
+    runAction(() => setNotePinned(currentNote.path, !currentNote.pinned));
+  }, [currentNote, runAction]);
+
+  const startEditTags = useCallback(() => {
+    setQuery("");
+    setView("tags");
+  }, []);
+
+  const startRename = useCallback(() => {
+    setQuery(currentNote?.title ?? "");
+    setView("rename");
+  }, [currentNote]);
+
+  const startMove = useCallback(() => {
+    setQuery("");
+    setView("move");
+  }, []);
+
+  const startDelete = useCallback(() => {
+    setView("delete");
+  }, []);
+
+  const revealInFinder = useCallback(() => {
+    if (currentNote === undefined) {
+      return;
+    }
+
+    runAction(() => revealItemInDir(`${notesDir}/${currentNote.path}`));
+  }, [currentNote, notesDir, runAction]);
+
+  const openSettings = useCallback(() => {
+    close();
+    onOpenSettings();
+  }, [close, onOpenSettings]);
+
+  const reindex = useCallback(() => {
+    runAction(async () => {
+      await reindexAll();
+      toast.success("library reindexed");
+    });
+  }, [runAction]);
+
+  const actions = [
+    {
+      Icon: FilePlusIcon,
+      label: "new note",
+      needsNote: false,
+      onSelect: newNote,
+      text: "new note",
+      value: "new-note",
+    },
+    {
+      Icon: PinIcon,
+      label: "pin",
+      needsNote: true,
+      onSelect: togglePin,
+      text: currentNote?.pinned ? "unpin note" : "pin note",
+      value: "toggle-pin",
+    },
+    {
+      Icon: TagPlusIcon,
+      label: "edit tags",
+      needsNote: true,
+      onSelect: startEditTags,
+      text: "edit tags...",
+      value: "edit-tags",
+    },
+    {
+      Icon: PencilIcon,
+      label: "rename note",
+      needsNote: true,
+      onSelect: startRename,
+      text: "rename note...",
+      value: "rename-note",
+    },
+    {
+      Icon: FolderInputIcon,
+      label: "move to folder",
+      needsNote: true,
+      onSelect: startMove,
+      text: "move to folder...",
+      value: "move-note",
+    },
+    {
+      Icon: Trash2Icon,
+      label: "delete note",
+      needsNote: true,
+      onSelect: startDelete,
+      text: "delete note...",
+      value: "delete-note",
+    },
+    {
+      Icon: FolderSearchIcon,
+      label: "reveal in finder",
+      needsNote: true,
+      onSelect: revealInFinder,
+      text: "reveal in finder",
+      value: "reveal-in-finder",
+    },
+    {
+      Icon: SettingsIcon,
+      label: "settings",
+      needsNote: false,
+      onSelect: openSettings,
+      text: "settings",
+      value: "settings",
+    },
+    {
+      Icon: RefreshCwIcon,
+      label: "reindex library",
+      needsNote: false,
+      onSelect: reindex,
+      text: "reindex library",
+      value: "reindex",
+    },
+  ];
 
   return (
     <CommandDialog
@@ -298,187 +722,47 @@ export function CommandPalette({
           value={query}
         />
         <CommandList>
-          {view === "delete" && currentNote !== undefined ? (
-            <CommandGroup heading={`delete "${currentNote.title}"?`}>
-              <CommandItem
-                onSelect={() => {
-                  runAction(async () => {
-                    await deleteNote(currentNote.path);
-                    await navigate({ to: "/" });
-                    toast.success("note deleted");
-                  });
-                }}
-                value="confirm-delete"
-              >
-                <Trash2Icon className="text-destructive" />
-                delete forever
-              </CommandItem>
-              <CommandItem
-                onSelect={() => {
-                  setView("root");
-                }}
-                value="cancel-delete"
-              >
-                cancel
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-
-          {view === "move" && currentNote !== undefined ? (
-            <CommandGroup heading="move to">
-              <CommandItem
-                onSelect={() => {
-                  runAction(async () => {
-                    const next = await moveNote(currentNote.path, "");
-
-                    openNote(next);
-                  });
-                }}
-                value="move-root"
-              >
-                <FolderIcon />
-                notes root
-              </CommandItem>
-              {folders
-                .filter(({ folder }) => {
-                  return folder.includes(query.trim().toLowerCase());
-                })
-                .map(({ count, folder }) => {
-                  return (
-                    <CommandItem
-                      key={folder}
-                      onSelect={() => {
-                        runAction(async () => {
-                          const next = await moveNote(currentNote.path, folder);
-
-                          openNote(next);
-                        });
-                      }}
-                      value={`move-${folder}`}
-                    >
-                      <FolderIcon />
-                      <span className="flex-1 truncate">{folder}</span>
-                      <span className={COUNT_CLASS}>{count}</span>
-                    </CommandItem>
-                  );
-                })}
-              {query.trim() === "" ? null : (
-                <CommandItem
-                  onSelect={() => {
-                    runAction(async () => {
-                      const next = await moveNote(
-                        currentNote.path,
-                        query.trim().toLowerCase(),
-                      );
-
-                      openNote(next);
-                    });
-                  }}
-                  value="move-new"
-                >
-                  <FolderInputIcon />
-                  new folder "{query.trim().toLowerCase()}"
-                </CommandItem>
-              )}
-              <CommandItem
-                onSelect={() => {
-                  setView("root");
-                }}
-                value="cancel-move"
-              >
-                cancel
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-
-          {view === "rename" && currentNote !== undefined ? (
-            <CommandGroup heading={`rename "${currentNote.title}"`}>
-              {query.trim() === "" ? null : (
-                <CommandItem
-                  onSelect={() => {
-                    runAction(async () => {
-                      const next = await retitleNote(
-                        currentNote.path,
-                        query.trim(),
-                      );
-
-                      openNote(next);
-                    });
-                  }}
-                  value="confirm-rename"
-                >
-                  <PencilIcon />
-                  <span className="truncate">
-                    rename to "{query.trim()}"
-                    {/* The filename is derived, so it is shown, not hidden. */}
-                    <span className="text-muted-foreground">
-                      {" · "}
-                      {filenameFromTitle(query.trim())}.md
-                    </span>
-                  </span>
-                </CommandItem>
-              )}
-              <CommandItem
-                onSelect={() => {
-                  setView("root");
-                }}
-                value="cancel-rename"
-              >
-                cancel
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-
-          {view === "tags" && currentNote !== undefined ? (
-            <CommandGroup heading={`tags for "${currentNote.title}"`}>
-              {tagChoices.map((name) => {
-                const attached = noteTags.tags.includes(name);
-
-                return (
-                  <CommandItem
-                    data-checked={attached}
-                    key={name}
-                    onSelect={() => {
-                      void noteTags.changeTags(
-                        attached
-                          ? noteTags.tags.filter((existing) => {
-                              return existing !== name;
-                            })
-                          : [...noteTags.tags, name],
-                      );
-                    }}
-                    value={`tag-${name}`}
-                  >
-                    <HashIcon />
-                    <span className="flex-1 truncate">{name}</span>
-                    <span className={COUNT_CLASS}>
-                      {tagCounts.get(name) ?? 0}
-                    </span>
-                  </CommandItem>
-                );
-              })}
-              {draftTag === "" || tagChoices.includes(draftTag) ? null : (
-                <CommandItem
-                  onSelect={() => {
-                    setQuery("");
-                    void noteTags.changeTags([...noteTags.tags, draftTag]);
-                  }}
-                  value="tag-new"
-                >
-                  <TagPlusIcon />
-                  create "{draftTag}"
-                </CommandItem>
-              )}
-              <CommandItem
-                onSelect={() => {
-                  setView("root");
-                }}
-                value="cancel-tags"
-              >
-                done
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
+          {currentNote === undefined ? null : (
+            <>
+              {view === "delete" ? (
+                <DeleteView
+                  onCancel={backToRoot}
+                  onConfirm={confirmDelete}
+                  title={currentNote.title}
+                />
+              ) : null}
+              {view === "move" ? (
+                <MoveView
+                  folders={folders}
+                  onCancel={backToRoot}
+                  onMove={moveToFolder}
+                  onMoveToNewFolder={moveToNewFolder}
+                  onMoveToRoot={moveToNotesRoot}
+                  query={query}
+                />
+              ) : null}
+              {view === "rename" ? (
+                <RenameView
+                  onCancel={backToRoot}
+                  onConfirm={confirmRename}
+                  query={query}
+                  title={currentNote.title}
+                />
+              ) : null}
+              {view === "tags" ? (
+                <TagsView
+                  attached={noteTags.tags}
+                  choices={tagChoices}
+                  counts={tagCounts}
+                  draftTag={draftTag}
+                  onCreate={createTag}
+                  onDone={backToRoot}
+                  onToggle={toggleTag}
+                  title={currentNote.title}
+                />
+              ) : null}
+            </>
+          )}
 
           {view === "root" ? (
             <>
@@ -489,155 +773,36 @@ export function CommandPalette({
               {tagQuery?.query === "" ? (
                 <CommandGroup heading="tags">
                   {allTags
-                    .filter(({ tag: name }) => {
-                      return name.includes(tagQuery.tag);
-                    })
-                    .map(({ count, tag: name }) => {
-                      return (
-                        <CommandItem
-                          key={name}
-                          onSelect={() => {
-                            updateQuery(`#${name} `);
-                          }}
-                          value={`tag-${name}`}
-                        >
-                          <HashIcon />
-                          <span className="flex-1 truncate">{name}</span>
-                          <span className={COUNT_CLASS}>{count}</span>
-                        </CommandItem>
-                      );
-                    })}
+                    .filter(({ tag: name }) => name.includes(tagQuery.tag))
+                    .map(({ count, tag: name }) => (
+                      <TagFilterItem
+                        count={count}
+                        key={name}
+                        name={name}
+                        onPick={filterByTag}
+                      />
+                    ))}
                 </CommandGroup>
               ) : null}
               <CommandGroup heading="notes">
-                {visibleNotes.map((note) => {
-                  return (
-                    <NoteItem key={note.path} note={note} onSelect={openNote} />
-                  );
-                })}
+                {visibleNotes.map((note) => (
+                  <NoteItem key={note.path} note={note} onSelect={openNote} />
+                ))}
               </CommandGroup>
               <CommandSeparator />
               <CommandGroup heading="actions">
-                {matchesQuery("new note") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      runAction(async () => {
-                        const path = await createNote();
-
-                        openNote(path);
-                      });
-                    }}
-                    value="new-note"
-                  >
-                    <FilePlusIcon />
-                    new note
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("pin") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      runAction(() => {
-                        return setNotePinned(
-                          currentNote.path,
-                          !currentNote.pinned,
-                        );
-                      });
-                    }}
-                    value="toggle-pin"
-                  >
-                    <PinIcon />
-                    {currentNote.pinned ? "unpin note" : "pin note"}
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("edit tags") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      setQuery("");
-                      setView("tags");
-                    }}
-                    value="edit-tags"
-                  >
-                    <TagPlusIcon />
-                    edit tags...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("rename note") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      setQuery(currentNote.title);
-                      setView("rename");
-                    }}
-                    value="rename-note"
-                  >
-                    <PencilIcon />
-                    rename note...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("move to folder") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      setQuery("");
-                      setView("move");
-                    }}
-                    value="move-note"
-                  >
-                    <FolderInputIcon />
-                    move to folder...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined && matchesQuery("delete note") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      setView("delete");
-                    }}
-                    value="delete-note"
-                  >
-                    <Trash2Icon />
-                    delete note...
-                  </CommandItem>
-                ) : null}
-                {currentNote !== undefined &&
-                matchesQuery("reveal in finder") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      runAction(() => {
-                        return revealItemInDir(
-                          `${notesDir}/${currentNote.path}`,
-                        );
-                      });
-                    }}
-                    value="reveal-in-finder"
-                  >
-                    <FolderSearchIcon />
-                    reveal in finder
-                  </CommandItem>
-                ) : null}
-                {matchesQuery("settings") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      close();
-                      onOpenSettings();
-                    }}
-                    value="settings"
-                  >
-                    <SettingsIcon />
-                    settings
-                  </CommandItem>
-                ) : null}
-                {matchesQuery("reindex library") ? (
-                  <CommandItem
-                    onSelect={() => {
-                      runAction(async () => {
-                        await reindexAll();
-                        toast.success("library reindexed");
-                      });
-                    }}
-                    value="reindex"
-                  >
-                    <RefreshCwIcon />
-                    reindex library
-                  </CommandItem>
-                ) : null}
+                {actions
+                  .filter(
+                    (action) =>
+                      (!action.needsNote || currentNote !== undefined) &&
+                      matchesQuery(action.label)
+                  )
+                  .map(({ Icon, onSelect, text, value }) => (
+                    <CommandItem key={value} onSelect={onSelect} value={value}>
+                      <Icon />
+                      {text}
+                    </CommandItem>
+                  ))}
                 {matchesQuery("search") && query.trim() === "" ? (
                   <CommandItem disabled value="search-hint">
                     <SearchIcon />

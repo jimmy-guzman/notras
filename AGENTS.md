@@ -80,17 +80,16 @@ guide does not cover, search through the source code in
 
 - **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file
   byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and
-  diff cleanly, so it is exempt from the comment rule above and listed in
-  `.oxfmtrc.json`'s `ignorePatterns` (`D40`). Change the note surface through the
+  diff cleanly, so it is exempt from the comment rule above and excluded in
+  `biome.jsonc`'s `files.includes` (`D40`). Change the note surface through the
   `.typeset-note` preset in `src/styles.css`, never in the vendored file.
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **Sort object keys and imports alphabetically** (perfectionist), with two
-  exceptions the config already encodes: route option objects, which
-  `@tanstack/eslint-plugin-router` owns through `create-route-property-order`,
-  and the boundary blocks in `eslint.config.ts`, which stay last. Do not fight
-  either rule.
+- **Sort object keys and imports alphabetically.** Biome's `useSortedKeys` and
+  `organizeImports` assists do it on save, with one exception the preset already
+  encodes: route option objects, which `ultracite/biome/tanstack` leaves
+  unsorted because their types infer in declaration order.
 
 - **Icons come from `lucide-react`, always the `Icon`-suffixed export.** Use
   `cn()` from `@/lib/ui/utils` for conditional Tailwind classes.
@@ -264,8 +263,7 @@ pnpm dev          # run the desktop app (tauri dev)
 pnpm build        # desktop bundle (tauri build)
 pnpm dev:web      # web shell only (vite, port 1420)
 pnpm build:web    # web shell build
-pnpm lint         # ESLint (cached)     | pnpm lint:fix
-pnpm format       # oxfmt check         | pnpm format:fix
+pnpm check        # ultracite (biome)   | pnpm fix
 pnpm typecheck    # tsc
 pnpm test         # vitest              | pnpm coverage
 pnpm knip         # unused code/deps
@@ -280,7 +278,7 @@ done:
 ```txt
 pnpm knip         # 0. unused code/deps (fix before proceeding)
 pnpm typecheck    # 1. types
-pnpm lint         # 2. lint
+pnpm check        # 2. lint + format
 pnpm test         # 3. unit tests
 pnpm build:web    # 4. web bundle build
 cargo test        # 5. (when src-tauri changed) in src-tauri/
@@ -515,13 +513,14 @@ They cover every markdown file here, plus commit messages and PR bodies.
 
 ## Do NOT
 
-- Use Prettier. This project uses oxfmt, for dev tooling only (`D15`).
+- Use Prettier or ESLint. This project uses Ultracite, a Biome preset, for
+  dev tooling only (`D15`, `D41`).
 - Add unnecessary dependencies. Run `pnpm knip` and leave it clean.
-- Silence lint errors with config overrides. Three exceptions exist and are
-  documented: the Shadcn `**/components/ui/**` block, the TanStack Router
-  accommodations, and `unicorn/throw-new-error` off for `src/core/errors.ts`,
-  where the rule takes no options and its Effect exemption never reached
-  `Schema.TaggedError`.
+- Silence lint errors with config overrides. One exception exists and is
+  documented: the Shadcn `src/components/ui/**` block in `biome.jsonc`, which
+  turns off the rules with no autofix because `scripts/update-shadcn.sh`
+  regenerates those files (`D19`, `D37`). Suppress a false positive at the call
+  site with `biome-ignore` and a reason instead.
 - Leave tests, lint, typecheck, knip, or the build red.
 - Hand-edit `src/typeset.css`. It is vendored (`D40`); tune `.typeset-note`.
 - Break an invariant in `ARCHITECTURE.md`. Each one holds a property the

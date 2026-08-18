@@ -71,7 +71,7 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
    * and the unmount cleanup can all fire while a write is in flight, and two
    * overlapping writes could land out of order -- an older buffer last.
    */
-  const flush = useCallback(async () => {
+  const flush = useCallback(() => {
     const next = inFlightRef.current.then(writeOnce, writeOnce);
 
     inFlightRef.current = next;
@@ -85,17 +85,17 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
       setStatus("dirty");
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        void flush();
+        flush();
       }, AUTOSAVE_DELAY_MS);
     },
-    [flush],
+    [flush]
   );
 
   // Leaving the note (or the app) flushes any pending write.
   useEffect(() => {
     const handleWindowBlur = () => {
       if (pendingRef.current !== null) {
-        void flush();
+        flush();
       }
     };
 
@@ -106,7 +106,7 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
       window.removeEventListener("blur", handleWindowBlur);
       unregister();
       if (pendingRef.current !== null) {
-        void flush();
+        flush();
       }
     };
   }, [flush]);

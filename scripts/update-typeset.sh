@@ -3,7 +3,7 @@ set -euo pipefail
 
 # shadcn/typeset ships outside the registry, so `shadcn add` cannot reach it and
 # this script is the upgrade path (D40). The vendored copy is byte-identical to
-# upstream and oxfmt skips it, so a re-fetch diffs cleanly.
+# upstream and Biome skips it, so a re-fetch diffs cleanly.
 source_url="https://ui.shadcn.com/typeset.css"
 target="src/typeset.css"
 

@@ -18,7 +18,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
-    "types": ["vite/client", "vitest/globals"]
+    "types": ["vite/client"]
   },
   "exclude": ["node_modules", "dist", "src-tauri"],
   "include": ["reset.d.ts", "**/*.ts", "**/*.tsx"]

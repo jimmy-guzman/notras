@@ -1,9 +1,8 @@
 import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it } from "vitest";
-
-import type { IFileStore, NoteFileContent } from "@/core";
-
-import { FileError, FileStore } from "@/core";
+import { FileError } from "@/core/errors";
+import type { IFileStore, NoteFileContent } from "@/core/file-store";
+import { FileStore } from "@/core/file-store";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 import { NoteService } from "./note-service";
@@ -20,41 +19,30 @@ function notFound(path: string) {
 /** In-memory notes dir; `writes` records the order of every write. */
 function makeFakeFileStore(seed: Record<string, string> = {}) {
   const files = new Map<string, NoteFileContent>(
-    Object.entries(seed).map(([path, content]) => {
-      return [path, { content, updatedAt: 1000 }];
-    }),
+    Object.entries(seed).map(([path, content]) => [
+      path,
+      { content, updatedAt: 1000 },
+    ])
   );
   const writes: Written[] = [];
 
   const fileStore: IFileStore = {
-    attach: () => {
-      return Effect.succeed("attachments/file.png");
-    },
-    attachImage: () => {
-      return Effect.succeed("attachments/pasted.png");
-    },
+    attach: () => Effect.succeed("attachments/file.png"),
+    attachImage: () => Effect.succeed("attachments/pasted.png"),
     delete: (path) => {
       files.delete(path);
 
       return Effect.void;
     },
-    exists: (path) => {
-      return Effect.succeed(files.has(path));
-    },
-    getNotesDir: () => {
-      return Effect.succeed("/notes");
-    },
+    exists: (path) => Effect.succeed(files.has(path)),
+    getNotesDir: () => Effect.succeed("/notes"),
     read: (path) => {
       const file = files.get(path);
 
       return file === undefined ? notFound(path) : Effect.succeed(file);
     },
-    readExternal: (path) => {
-      return notFound(path);
-    },
-    reindexAll: () => {
-      return Effect.succeed([]);
-    },
+    readExternal: (path) => notFound(path),
+    reindexAll: () => Effect.succeed([]),
     rename: (from, to) => {
       const file = files.get(from);
 
@@ -67,18 +55,14 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
 
       return Effect.void;
     },
-    setNotesDir: () => {
-      return Effect.void;
-    },
+    setNotesDir: () => Effect.void,
     write: (path, content) => {
       writes.push({ content, path });
       files.set(path, { content, updatedAt: 2000 });
 
       return Effect.succeed(2000);
     },
-    writeExternal: () => {
-      return Effect.succeed(2000);
-    },
+    writeExternal: () => Effect.succeed(2000),
   };
 
   return { fileStore, files, writes };
@@ -88,40 +72,28 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
 const stubRepository = Layer.succeed(
   NoteRepository,
   NoteRepository.of({
-    count: () => {
-      return Effect.succeed(0);
-    },
-    findByPath: () => {
-      return Effect.succeed(undefined);
-    },
-    findMany: () => {
-      return Effect.succeed([]);
-    },
-    listFolders: () => {
-      return Effect.succeed([]);
-    },
-    listTags: () => {
-      return Effect.succeed([]);
-    },
-  }),
+    count: () => Effect.succeed(0),
+    findByPath: () => Effect.succeed(undefined),
+    findMany: () => Effect.succeed([]),
+    listFolders: () => Effect.succeed([]),
+    listTags: () => Effect.succeed([]),
+  })
 );
 
 function makeHarness(seed?: Record<string, string>) {
   const fake = makeFakeFileStore(seed);
   const layer = NoteService.layerNoDeps.pipe(
     Layer.provide(
-      Layer.merge(Layer.succeed(FileStore, fake.fileStore), stubRepository),
-    ),
+      Layer.merge(Layer.succeed(FileStore, fake.fileStore), stubRepository)
+    )
   );
 
   return {
     ...fake,
-    run: <A, E>(effect: Effect.Effect<A, E, NoteService>) => {
-      return Effect.runPromise(Effect.provide(effect, layer));
-    },
-    runFailure: <A, E>(effect: Effect.Effect<A, E, NoteService>) => {
-      return Effect.runPromise(Effect.provide(Effect.flip(effect), layer));
-    },
+    run: <A, E>(effect: Effect.Effect<A, E, NoteService>) =>
+      Effect.runPromise(Effect.provide(effect, layer)),
+    runFailure: <A, E>(effect: Effect.Effect<A, E, NoteService>) =>
+      Effect.runPromise(Effect.provide(Effect.flip(effect), layer)),
   };
 }
 
@@ -130,9 +102,9 @@ describe("noteService.create", () => {
     const harness = makeHarness();
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.create({ content: "hi", filename: "notes", folder: "work" });
-      }),
+      NoteService.use((svc) =>
+        svc.create({ content: "hi", filename: "notes", folder: "work" })
+      )
     );
 
     expect(path).toBe("work/notes.md");
@@ -147,11 +119,7 @@ describe("noteService.create", () => {
       "untitled.md": "taken",
     });
 
-    const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.create();
-      }),
-    );
+    const path = await harness.run(NoteService.use((svc) => svc.create()));
 
     expect(path).toBe("untitled-3.md");
   });
@@ -162,30 +130,26 @@ describe("noteService.create", () => {
       const harness = makeHarness();
 
       const error = await harness.runFailure(
-        NoteService.use((svc) => {
-          return svc.create({ filename });
-        }),
+        NoteService.use((svc) => svc.create({ filename }))
       );
 
       expect(error).toBeInstanceOf(FileError);
       expect(error.message).toBe(
-        String.raw`filename cannot contain / \ : or start with a dot`,
+        String.raw`filename cannot contain / \ : or start with a dot`
       );
       expect(harness.writes).toStrictEqual([]);
-    },
+    }
   );
 
   it("should reject a bad folder segment", async () => {
     const harness = makeHarness();
 
     const error = await harness.runFailure(
-      NoteService.use((svc) => {
-        return svc.create({ folder: "work/.hidden" });
-      }),
+      NoteService.use((svc) => svc.create({ folder: "work/.hidden" }))
     );
 
     expect(error.message).toBe(
-      String.raw`folder cannot contain / \ : or start with a dot`,
+      String.raw`folder cannot contain / \ : or start with a dot`
     );
   });
 });
@@ -195,9 +159,7 @@ describe("noteService.move", () => {
     const harness = makeHarness({ "work/notes.md": "body" });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.move("work/notes.md", "work");
-      }),
+      NoteService.use((svc) => svc.move("work/notes.md", "work"))
     );
 
     expect(path).toBe("work/notes.md");
@@ -211,9 +173,7 @@ describe("noteService.move", () => {
     });
 
     const error = await harness.runFailure(
-      NoteService.use((svc) => {
-        return svc.move("notes.md", "work");
-      }),
+      NoteService.use((svc) => svc.move("notes.md", "work"))
     );
 
     expect(error.message).toBe("a note named notes already exists in work");
@@ -227,13 +187,11 @@ describe("noteService.move", () => {
     });
 
     const error = await harness.runFailure(
-      NoteService.use((svc) => {
-        return svc.move("work/notes.md", "");
-      }),
+      NoteService.use((svc) => svc.move("work/notes.md", ""))
     );
 
     expect(error.message).toBe(
-      "a note named notes already exists in the notes root",
+      "a note named notes already exists in the notes root"
     );
   });
 });
@@ -243,9 +201,7 @@ describe("noteService.retitle", () => {
     const harness = makeHarness({ "work/old.md": "body" });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("work/old.md", "new");
-      }),
+      NoteService.use((svc) => svc.retitle("work/old.md", "new"))
     );
 
     expect(path).toBe("work/new.md");
@@ -257,14 +213,12 @@ describe("noteService.retitle", () => {
     const harness = makeHarness({ "old.md": "# old" });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("old.md", "Effect: A Primer");
-      }),
+      NoteService.use((svc) => svc.retitle("old.md", "Effect: A Primer"))
     );
 
     expect(path).toBe("effect-a-primer.md");
     expect(harness.files.get("effect-a-primer.md")?.content).toBe(
-      "# Effect: A Primer",
+      "# Effect: A Primer"
     );
   });
 
@@ -278,15 +232,11 @@ describe("noteService.retitle", () => {
     const harness = makeHarness({ "note.md": content });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("note.md", "effect: a primer");
-      }),
+      NoteService.use((svc) => svc.retitle("note.md", "effect: a primer"))
     );
 
     const note = await harness.run(
-      NoteService.use((svc) => {
-        return svc.getByPath(path);
-      }),
+      NoteService.use((svc) => svc.getByPath(path))
     );
 
     expect(note.title).toBe("effect: a primer");
@@ -301,15 +251,11 @@ describe("noteService.retitle", () => {
     const harness = makeHarness({ "old.md": "just prose\n" });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("old.md", "Effect: A Primer");
-      }),
+      NoteService.use((svc) => svc.retitle("old.md", "Effect: A Primer"))
     );
 
     const note = await harness.run(
-      NoteService.use((svc) => {
-        return svc.getByPath(path);
-      }),
+      NoteService.use((svc) => svc.getByPath(path))
     );
 
     expect(path).toBe("effect-a-primer.md");
@@ -320,11 +266,7 @@ describe("noteService.retitle", () => {
   it("should leave a deeper heading alone", async () => {
     const harness = makeHarness({ "old.md": "## section\n\nbody\n" });
 
-    await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("old.md", "new");
-      }),
-    );
+    await harness.run(NoteService.use((svc) => svc.retitle("old.md", "new")));
 
     expect(harness.files.get("new.md")?.content).toBe("## section\n\nbody\n");
   });
@@ -336,14 +278,12 @@ describe("noteService.retitle", () => {
     });
 
     const error = await harness.runFailure(
-      NoteService.use((svc) => {
-        return svc.retitle("work.md", "taken");
-      }),
+      NoteService.use((svc) => svc.retitle("work.md", "taken"))
     );
 
     expect(error).toBeInstanceOf(FileError);
     expect(error.message).toBe(
-      "a note named taken already exists in the notes root",
+      "a note named taken already exists in the notes root"
     );
     // The heading must not be left pointing at a name the note never got.
     expect(harness.files.get("work.md")?.content).toBe("# work");
@@ -359,9 +299,7 @@ describe("noteService.retitle", () => {
     const harness = makeHarness({ "Foo.md": "# old" });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("Foo.md", "Foo");
-      }),
+      NoteService.use((svc) => svc.retitle("Foo.md", "Foo"))
     );
 
     expect(path).toBe("Foo.md");
@@ -373,9 +311,7 @@ describe("noteService.retitle", () => {
     const harness = makeHarness({ "same.md": "# same" });
 
     const path = await harness.run(
-      NoteService.use((svc) => {
-        return svc.retitle("same.md", "same");
-      }),
+      NoteService.use((svc) => svc.retitle("same.md", "same"))
     );
 
     expect(path).toBe("same.md");
@@ -392,9 +328,7 @@ describe("noteService frontmatter", () => {
 
   it("should not write when the frontmatter is unchanged", async () => {
     await harness.run(
-      NoteService.use((svc) => {
-        return svc.setPinned("notes.md", true);
-      }),
+      NoteService.use((svc) => svc.setPinned("notes.md", true))
     );
 
     expect(harness.writes).toStrictEqual([]);
@@ -402,9 +336,7 @@ describe("noteService frontmatter", () => {
 
   it("should drop the block when the last own key is removed", async () => {
     await harness.run(
-      NoteService.use((svc) => {
-        return svc.setPinned("notes.md", false);
-      }),
+      NoteService.use((svc) => svc.setPinned("notes.md", false))
     );
 
     expect(harness.writes).toStrictEqual([
@@ -415,11 +347,7 @@ describe("noteService frontmatter", () => {
   it("should preserve unknown keys when setting tags", async () => {
     const own = makeHarness({ "notes.md": "---\nauthor: jimmy\n---\nbody" });
 
-    await own.run(
-      NoteService.use((svc) => {
-        return svc.setTags("notes.md", ["idea"]);
-      }),
-    );
+    await own.run(NoteService.use((svc) => svc.setTags("notes.md", ["idea"])));
 
     expect(own.writes[0]?.content).toContain("author: jimmy");
     expect(own.writes[0]?.content).toContain("idea");
@@ -439,34 +367,22 @@ describe("noteService.listTags", () => {
           Layer.succeed(
             NoteRepository,
             NoteRepository.of({
-              count: () => {
-                return Effect.succeed(0);
-              },
-              findByPath: () => {
-                return Effect.succeed(undefined);
-              },
-              findMany: () => {
-                return Effect.succeed([]);
-              },
-              listFolders: () => {
-                return Effect.succeed([]);
-              },
-              listTags: () => {
-                return Effect.succeed(indexed);
-              },
-            }),
-          ),
-        ),
-      ),
+              count: () => Effect.succeed(0),
+              findByPath: () => Effect.succeed(undefined),
+              findMany: () => Effect.succeed([]),
+              listFolders: () => Effect.succeed([]),
+              listTags: () => Effect.succeed(indexed),
+            })
+          )
+        )
+      )
     );
 
     const tags = await Effect.runPromise(
       Effect.provide(
-        NoteService.use((svc) => {
-          return svc.listTags();
-        }),
-        layer,
-      ),
+        NoteService.use((svc) => svc.listTags()),
+        layer
+      )
     );
 
     expect(tags).toStrictEqual(indexed);
@@ -480,9 +396,7 @@ describe("noteService.getByPath", () => {
     });
 
     const note = await harness.run(
-      NoteService.use((svc) => {
-        return svc.getByPath("work/notes.md");
-      }),
+      NoteService.use((svc) => svc.getByPath("work/notes.md"))
     );
 
     expect(note.title).toBe("notes");
@@ -496,9 +410,7 @@ describe("noteService.getByPath", () => {
     const harness = makeHarness({ "agent-note.md": "# from claude\n" });
 
     const note = await harness.run(
-      NoteService.use((svc) => {
-        return svc.getByPath("agent-note.md");
-      }),
+      NoteService.use((svc) => svc.getByPath("agent-note.md"))
     );
 
     expect(note.title).toBe("from claude");
@@ -510,9 +422,7 @@ describe("noteService.getByPath", () => {
     });
 
     const note = await harness.run(
-      NoteService.use((svc) => {
-        return svc.getByPath("agent-note.md");
-      }),
+      NoteService.use((svc) => svc.getByPath("agent-note.md"))
     );
 
     expect(note.title).toBe("effect: a primer");

@@ -8,9 +8,5 @@ import { run } from "./run";
 export async function moveNote(path: string, folder: string) {
   const validFolder = await Schema.decodePromise(folderNameSchema)(folder);
 
-  return run(
-    NoteService.use((svc) => {
-      return svc.move(path, validFolder);
-    }),
-  );
+  return run(NoteService.use((svc) => svc.move(path, validFolder)));
 }

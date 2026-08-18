@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
-
-import type { SaveStatus } from "@/components/editor/use-autosave";
-
 import { Editor } from "@/components/editor/editor";
+import type { SaveStatus } from "@/components/editor/use-autosave";
 import { SaveIndicator } from "@/components/notes/save-indicator";
 import { Titlebar } from "@/components/titlebar";
-import { composeNote, parseNote } from "@/core";
+import { composeNote, parseNote } from "@/core/frontmatter";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
 import { registerPendingFlush } from "@/lib/pending-flush";
 
@@ -18,15 +16,11 @@ interface ExternalSearch {
 
 export const Route = createFileRoute("/external")({
   component: ExternalPage,
-  validateSearch: (search: Record<string, unknown>): ExternalSearch => {
-    return { path: typeof search.path === "string" ? search.path : "" };
-  },
-  loaderDeps: ({ search }) => {
-    return { path: search.path };
-  },
-  loader: ({ deps }) => {
-    return readExternalNote(deps.path);
-  },
+  validateSearch: (search: Record<string, unknown>): ExternalSearch => ({
+    path: typeof search.path === "string" ? search.path : "",
+  }),
+  loaderDeps: ({ search }) => ({ path: search.path }),
+  loader: ({ deps }) => readExternalNote(deps.path),
 });
 
 function ExternalPage() {
@@ -86,12 +80,8 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
   const save = useDebouncedCallback(
     (body: string) => {
       const next = inFlightRef.current.then(
-        () => {
-          return writeOnce(body);
-        },
-        () => {
-          return writeOnce(body);
-        },
+        () => writeOnce(body),
+        () => writeOnce(body)
       );
 
       inFlightRef.current = next;
@@ -99,24 +89,35 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
       return next;
     },
     800,
-    { flushOnExit: true },
+    { flushOnExit: true }
   );
 
   // Quit waits for this the same way it waits for note autosave. Awaiting the
   // chain rather than the flush covers a write that was already running.
-  useEffect(() => {
-    return registerPendingFlush(async () => {
-      void save.flush();
-      await inFlightRef.current;
+  useEffect(
+    () =>
+      registerPendingFlush(async () => {
+        save.flush();
+        await inFlightRef.current;
 
-      return !saveFailedRef.current;
-    });
-  }, [save]);
+        return !saveFailedRef.current;
+      }),
+    [save]
+  );
+
+  const handleChange = useCallback(
+    (body: string) => {
+      latestBodyRef.current = body;
+      setStatus("dirty");
+      save(body);
+    },
+    [save]
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground text-xs">
           <span className="truncate font-mono">{path}</span>
           <span className="no-drag ml-auto flex shrink-0 items-center gap-3">
             external file
@@ -127,11 +128,7 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
       <Editor
         focusOnMount
         initialContent={parsed.body}
-        onChange={(body) => {
-          latestBodyRef.current = body;
-          setStatus("dirty");
-          void save(body);
-        }}
+        onChange={handleChange}
       />
     </div>
   );

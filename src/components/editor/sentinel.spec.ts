@@ -1,4 +1,5 @@
 import { Editor } from "@tiptap/core";
+import { describe, expect, it } from "vitest";
 
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
 import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
@@ -34,7 +35,9 @@ function caretAfter(editor: Editor, needle: string) {
     return true;
   });
 
-  expect(found).not.toBe(-1);
+  if (found === -1) {
+    throw new Error(`could not find ${needle} in the doc`);
+  }
 
   return found;
 }
@@ -111,7 +114,7 @@ describe("source -> rich caret mapping", () => {
     expect(
       editor.state.doc
         .textBetween(Math.max(0, pos - before.length), pos, "", " ")
-        .endsWith(before.slice(-3)),
+        .endsWith(before.slice(-3))
     ).toBe(true);
 
     // The stripped buffer serializes to the canonical clean form -- the
@@ -120,7 +123,7 @@ describe("source -> rich caret mapping", () => {
     const canonical: string = manager.serialize(manager.parse(markdown));
 
     expect(serializeMarkdown(editor).trimEnd()).toBe(
-      canonical.replaceAll(/&nbsp;|&#160;/g, " ").trimEnd(),
+      canonical.replaceAll(/&nbsp;|&#160;/g, " ").trimEnd()
     );
 
     editor.destroy();

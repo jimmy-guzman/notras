@@ -1,21 +1,18 @@
-import type { Editor as TiptapEditor } from "@tiptap/core";
-
 import { openUrl } from "@tauri-apps/plugin-opener";
+import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { attachImage } from "@/data/attach-file";
 import { cn } from "@/lib/ui/utils";
-
-import type { LinkEditorState } from "./link-editor";
-
 import {
   createEditorExtensions,
   normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
+import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import { findSentinel, SENTINEL } from "./sentinel";
 import { isSafeUrl, normalizeUrl } from "./urls";
@@ -26,15 +23,15 @@ const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
 
 export interface EditorHandle {
-  focus(): void;
+  focus: () => void;
   /**
    * The caret's exact offset in this buffer's markdown serialization,
    * found by serializing a throwaway clone with a sentinel at the caret.
    * -1 when it cannot be determined.
    */
-  getCaretSourceOffset(): number;
-  getContent(): string;
-  insertText(text: string): void;
+  getCaretSourceOffset: () => number;
+  getContent: () => string;
+  insertText: (text: string) => void;
 }
 
 interface EditorProps {
@@ -81,32 +78,28 @@ export function Editor({
     typewriterRef.current = typewriterEnabled;
   });
 
-  const [config] = useState(() => {
-    return mountProps;
-  });
+  const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkShortcut] = useState(() => {
     // ⌘⇧K: open the link popover at the caret (⌘K belongs to the palette).
     return Extension.create({
-      addKeyboardShortcuts: () => {
-        return {
-          "Mod-Shift-k": ({ editor: instance }) => {
-            const { empty, head } = instance.state.selection;
-            const attrs = instance.getAttributes("link");
-            const url = typeof attrs.href === "string" ? attrs.href : "";
-            const coords = instance.view.coordsAtPos(head);
+      addKeyboardShortcuts: () => ({
+        "Mod-Shift-k": ({ editor: instance }) => {
+          const { empty, head } = instance.state.selection;
+          const attrs = instance.getAttributes("link");
+          const url = typeof attrs.href === "string" ? attrs.href : "";
+          const coords = instance.view.coordsAtPos(head);
 
-            setLinkEditor({
-              left: coords.left,
-              needsText: empty && url === "",
-              top: coords.bottom + 6,
-              url,
-            });
+          setLinkEditor({
+            left: coords.left,
+            needsText: empty && url === "",
+            top: coords.bottom + 6,
+            url,
+          });
 
-            return true;
-          },
-        };
-      },
+          return true;
+        },
+      }),
       name: "linkShortcut",
     });
   });
@@ -127,14 +120,13 @@ export function Editor({
         const fallback = slice.content.textBetween(
           0,
           slice.content.size,
-          "\n\n",
+          "\n\n"
         );
 
         try {
           const doc = view.state.schema.topNodeType.create(null, slice.content);
           const manager = editorRef.current?.markdown;
 
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
           return manager ? manager.serialize(doc.toJSON()) : fallback;
         } catch {
           return fallback;
@@ -146,9 +138,7 @@ export function Editor({
           const link = view.state.doc
             .resolve(pos)
             .marks()
-            .find((mark) => {
-              return mark.type.name === "link";
-            });
+            .find((mark) => mark.type.name === "link");
           const href =
             typeof link?.attrs.href === "string" ? link.attrs.href : "";
 
@@ -161,7 +151,7 @@ export function Editor({
               return true;
             }
 
-            void openUrl(href).catch(() => {
+            openUrl(href).catch(() => {
               toast.error("could not open link");
             });
 
@@ -186,9 +176,9 @@ export function Editor({
 
         // Images: save into attachments/, keep the RELATIVE src in the doc
         // so the file stays portable.
-        const imageItem = [...clipboard.items].find((item) => {
-          return item.type.startsWith("image/");
-        });
+        const imageItem = [...clipboard.items].find((item) =>
+          item.type.startsWith("image/")
+        );
 
         if (imageItem) {
           const blob = imageItem.getAsFile();
@@ -210,21 +200,19 @@ export function Editor({
                 return;
               }
 
-              void attachImage(base64)
+              attachImage(base64)
                 .then((relativePath) => {
                   editorRef.current
                     ?.chain()
                     .focus()
                     .setImage({ src: relativePath })
                     .run();
-
-                  return undefined;
                 })
                 .catch((error: unknown) => {
                   toast.error(
                     error instanceof Error
                       ? error.message
-                      : "could not paste image",
+                      : "could not paste image"
                   );
                 });
             });
@@ -256,7 +244,6 @@ export function Editor({
         }
       },
     },
-    immediatelyRender: false,
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
@@ -265,6 +252,7 @@ export function Editor({
       }),
       linkShortcut,
     ],
+    immediatelyRender: false,
     onBlur: () => {
       config.onBlur?.();
     },
@@ -284,9 +272,8 @@ export function Editor({
           try {
             const marked = instance.state.tr.insertText(
               SENTINEL,
-              instance.state.selection.head,
+              instance.state.selection.head
             );
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- ProseMirror types Node.toJSON() as any at the library boundary
             const md: string = manager.serialize(marked.doc.toJSON());
 
             return normalizeMarkdown(md).indexOf(SENTINEL);
@@ -294,9 +281,7 @@ export function Editor({
             return -1;
           }
         },
-        getContent: () => {
-          return serializeMarkdown(instance);
-        },
+        getContent: () => serializeMarkdown(instance),
         insertText: (text) => {
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
@@ -321,6 +306,7 @@ export function Editor({
       scroller.scrollTop += coords.top - (rect.top + rect.height / 2);
     },
     onUpdate: ({ editor: instance }) => {
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; the replace path assigns true
       if (suppressChangeRef.current) {
         return;
       }
@@ -345,7 +331,7 @@ export function Editor({
       // the buffer must end up byte-identical to the file.
       suppressChangeRef.current = true;
       editor.view.dispatch(
-        editor.state.tr.delete(pos, pos + 1).setMeta("addToHistory", false),
+        editor.state.tr.delete(pos, pos + 1).setMeta("addToHistory", false)
       );
 
       // Corruption guard: if the sentinel split a syntax token, the parse
@@ -392,60 +378,68 @@ export function Editor({
     }
   }, [config, editor]);
 
+  const cancelLink = useCallback(() => {
+    setLinkEditor(null);
+    editor?.commands.focus();
+  }, [editor]);
+
+  const removeLink = useCallback(() => {
+    setLinkEditor(null);
+    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+  }, [editor]);
+
+  const submitLink = useCallback(
+    (rawUrl: string, text?: string) => {
+      if (editor === null) {
+        return;
+      }
+
+      const href = normalizeUrl(rawUrl);
+
+      setLinkEditor(null);
+      if (href === null) {
+        if (rawUrl.trim() !== "") {
+          toast.error(UNSAFE_LINK_MESSAGE);
+        }
+
+        editor.commands.focus();
+
+        return;
+      }
+
+      if (text === undefined) {
+        editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+      } else if (text.trim() === "") {
+        editor.commands.focus();
+      } else {
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            marks: [{ attrs: { href }, type: "link" }],
+            text: text.trim(),
+            type: "text",
+          })
+          .run();
+      }
+    },
+    [editor]
+  );
+
   return (
     <div
       className={cn(
         "allow-select min-h-0 flex-1 overflow-y-auto",
-        focusModeEnabled && "focus-mode-on",
+        focusModeEnabled && "focus-mode-on"
       )}
       ref={scrollerRef}
     >
       <EditorContent className="min-h-full" editor={editor} />
       {linkEditor === null || editor === null ? null : (
         <LinkEditor
-          onCancel={() => {
-            setLinkEditor(null);
-            editor.commands.focus();
-          }}
-          onRemove={() => {
-            setLinkEditor(null);
-            editor.chain().focus().extendMarkRange("link").unsetLink().run();
-          }}
-          onSubmit={(rawUrl, text) => {
-            const href = normalizeUrl(rawUrl);
-
-            setLinkEditor(null);
-            if (href === null) {
-              if (rawUrl.trim() !== "") {
-                toast.error(UNSAFE_LINK_MESSAGE);
-              }
-
-              editor.commands.focus();
-
-              return;
-            }
-
-            if (text === undefined) {
-              editor
-                .chain()
-                .focus()
-                .extendMarkRange("link")
-                .setLink({ href })
-                .run();
-            } else if (text.trim() === "") {
-              editor.commands.focus();
-            } else {
-              editor
-                .chain()
-                .focus()
-                .insertContent({
-                  marks: [{ attrs: { href }, type: "link" }],
-                  text: text.trim(),
-                  type: "text",
-                })
-                .run();
-            }
-          }}
+          onCancel={cancelLink}
+          onRemove={removeLink}
+          onSubmit={submitLink}
           state={linkEditor}
         />
       )}

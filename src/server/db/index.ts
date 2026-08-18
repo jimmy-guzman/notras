@@ -2,9 +2,9 @@ import type { SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 
 import { Context } from "effect";
 
-import * as tables from "./schema";
+import { note, noteTag } from "./schema";
 
-export const schema = tables;
+export const schema = { note, noteTag };
 
 export type DrizzleDb = SqliteRemoteDatabase<typeof schema>;
 
@@ -14,5 +14,5 @@ export type DrizzleDb = SqliteRemoteDatabase<typeof schema>;
  * this module stays free of any platform APIs.
  */
 export class Database extends Context.Service<Database, DrizzleDb>()(
-  "notras/server/db/Database",
+  "notras/server/db/Database"
 ) {}

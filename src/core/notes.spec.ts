@@ -58,7 +58,7 @@ describe("resolveTitle", () => {
     const parsed = parseNote(content);
 
     expect(resolveTitle(path, parsed.body, parsed.frontmatter.title)).toBe(
-      expected,
+      expected
     );
   });
 
@@ -77,19 +77,19 @@ describe("resolveTitle", () => {
 describe("retitleLeadingHeading", () => {
   it("should rewrite an existing leading heading", () => {
     expect(retitleLeadingHeading("# old\n\nbody\n", "new")).toBe(
-      "# new\n\nbody\n",
+      "# new\n\nbody\n"
     );
   });
 
   it("should skip blank lines and frontmatter is already stripped", () => {
     expect(retitleLeadingHeading("\n\n# old\nbody", "new")).toBe(
-      "\n\n# new\nbody",
+      "\n\n# new\nbody"
     );
   });
 
   it("should preserve indentation and a crlf ending", () => {
     expect(retitleLeadingHeading("  # old\r\nbody\r\n", "new")).toBe(
-      "  # new\r\nbody\r\n",
+      "  # new\r\nbody\r\n"
     );
   });
 

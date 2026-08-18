@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -11,6 +11,8 @@ import { Titlebar } from "@/components/titlebar";
 import { Kbd } from "@/components/ui/kbd";
 import { Toaster } from "@/components/ui/sonner";
 import { createNote } from "@/data/create-note";
+
+const NOOP = () => undefined;
 
 const HOTKEY_OPTIONS = {
   enableOnContentEditable: true,
@@ -30,6 +32,7 @@ export function CaptureWindow() {
   const saveAndHide = async () => {
     // Esc and ⌘⏎ both land here, and a fast double press would otherwise
     // write the jot twice (the timestamp title collides and dedupes to -2).
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; saveAndHide assigns true
     if (savingRef.current) {
       return;
     }
@@ -48,7 +51,7 @@ export function CaptureWindow() {
       } catch (error) {
         // Keep the jot on screen -- hiding would lose it.
         toast.error(
-          error instanceof Error ? error.message : "could not save the capture",
+          error instanceof Error ? error.message : "could not save the capture"
         );
 
         return;
@@ -57,18 +60,20 @@ export function CaptureWindow() {
       }
     }
 
-    setSession((current) => {
-      return current + 1;
-    });
+    setSession((current) => current + 1);
     await getCurrentWindow().hide();
   };
+
+  const attachEditor = useCallback((handle: EditorHandle) => {
+    editorRef.current = handle;
+  }, []);
 
   useHotkeys(
     "esc, mod+enter",
     () => {
-      void saveAndHide();
+      saveAndHide();
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
 
   return (
@@ -78,15 +83,11 @@ export function CaptureWindow() {
         focusOnMount
         initialContent=""
         key={session}
-        onChange={() => {
-          return undefined;
-        }}
-        onReady={(handle) => {
-          editorRef.current = handle;
-        }}
+        onChange={NOOP}
+        onReady={attachEditor}
         placeholderText="jot it down..."
       />
-      <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs text-muted-foreground">
+      <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-muted-foreground text-xs">
         <Kbd>esc</Kbd> saves to inbox
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}

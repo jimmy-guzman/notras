@@ -14,7 +14,7 @@ each choice was made, and `AGENTS.md` covers the rules for changing any of it.
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, on the stet palette (`D23`)                         |
 | Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
-| Formatting      | oxfmt for dev tooling; TipTap's markdown serializer is the runtime canonical form                            |
+| Lint + format   | Ultracite (Biome preset) for dev tooling; TipTap's markdown serializer is the runtime canonical form         |
 | Testing         | Vitest + happy-dom (TS), `cargo test` (Rust)                                                                 |
 | Package manager | pnpm                                                                                                         |
 
@@ -180,9 +180,9 @@ scripts/
 
 ## Layer boundaries
 
-Two `no-restricted-imports` blocks at the bottom of `eslint.config.ts` enforce
-these. They must stay last, because flat config replaces rule options rather
-than merging them, and the fix for a violation is never to widen the glob.
+Nothing enforces these. Lint held them until `D41` retired the ESLint config,
+and `D43` records why they were not ported to Biome. Review is the check now,
+and the fix for a violation is never to move the import.
 
 - **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or
   `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or
@@ -213,8 +213,7 @@ unwraps typed failures into plain `Error`s, so a caller can write
 Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying
 their own `static readonly layer`. There are no `XxxLive` consts. Reach a
 service with `Service.use((svc) => svc.method(...))` rather than
-`Effect.flatMap(Tag, fn)`, which trips `unicorn/no-array-method-this-argument`.
-Methods with a generator body are `Effect.fn("Service.method")`; plain
+`Effect.flatMap(Tag, fn)`. Methods with a generator body are `Effect.fn("Service.method")`; plain
 delegations stay one-liners. Errors are `Schema.TaggedError`. Services convert
 `DatabaseError` to defects with `.pipe(Effect.orDie)`; `FileError` stays typed
 because its message reaches the user.
@@ -229,9 +228,9 @@ with an in-memory `FileStore` and a stub `NoteRepository`.
 
 TanStack Router file routes. `export const Route` sits at the top of the file
 and components are function declarations below, which hoisting makes lint-clean.
-`@tanstack/eslint-plugin-router` owns route-option ordering through
-`create-route-property-order`, and `perfectionist/sort-objects` is configured to
-leave `Route` option objects unsorted. Do not fight either rule.
+Route option objects are left unsorted: `ultracite/biome/tanstack` turns the
+`useSortedKeys` assist off under `src/routes/**` because the option types infer
+in declaration order. Nothing checks the order itself.
 
 ### The editor owns its buffer
 
@@ -317,8 +316,8 @@ design change, not a refactor.
   no SQL writes from a repository. Rust is the only writer, which is what
   removes the transaction-serialization problem entirely.
 - **`@tauri-apps/*` imports stay inside `src/server/adapters/**`,
-  `src/server/runtime.ts`, and UI-concern code.** The boundary globs in
-  `eslint.config.ts` are never widened to accommodate a new import.
+  `src/server/runtime.ts`, and UI-concern code.** No tool checks this since
+  `D43`, so a reviewer holds it.
 - **The two frontmatter parsers change together.** A change to one without the
   other, with tests on both sides, lets an external note lose data on a
   round-trip.

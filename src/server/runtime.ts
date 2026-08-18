@@ -8,5 +8,5 @@ export const AppRuntime = ManagedRuntime.make(
   makeAppLayer({
     database: makeTauriDatabase(),
     fileStore: TauriFileStoreLive,
-  }),
+  })
 );

@@ -31,6 +31,8 @@ export interface ParsedNote {
 
 const CLOSING_DELIMITERS = new Set(["---", "..."]);
 
+const TRAILING_CR = /\r$/;
+
 function cleanTag(raw: string) {
   const tag = raw
     .trim()
@@ -54,19 +56,20 @@ function cleanTag(raw: string) {
  * `D6` keeps deliberately small. Kept in parity with `clean_title` in
  * `src-tauri/src/frontmatter.rs`.
  */
-function cleanTitle(raw: string) {
-  const value = raw.trim();
+function unquoteTitle(value: string) {
   const quote = value.length > 1 ? value.at(0) : undefined;
-  const quoted =
-    (quote === "'" || quote === '"') && value.endsWith(quote)
-      ? value.slice(1, -1)
-      : undefined;
-  const title =
-    quoted === undefined
-      ? value
-      : quote === "'"
-        ? quoted.replaceAll("''", "'")
-        : quoted;
+
+  if ((quote !== "'" && quote !== '"') || !value.endsWith(quote)) {
+    return value;
+  }
+
+  const inner = value.slice(1, -1);
+
+  return quote === "'" ? inner.replaceAll("''", "'") : inner;
+}
+
+function cleanTitle(raw: string) {
+  const title = unquoteTitle(raw.trim());
 
   return title.length > 0 ? title : undefined;
 }
@@ -78,22 +81,80 @@ function cleanTitle(raw: string) {
  * so a title carrying a backslash or a double quote needs no further handling,
  * where the double-quoted form would treat `\` as an escape introducer.
  */
+const BARE_YAML_TITLE = /^[\p{L}\p{N}][\p{L}\p{N} \-._]*$/u;
+
 function serializeTitle(title: string) {
-  return /^[\p{L}\p{N}][\p{L}\p{N} \-._]*$/u.test(title)
+  return BARE_YAML_TITLE.test(title)
     ? title
     : `'${title.replaceAll("'", "''")}'`;
 }
 
+const LEADING_BRACKETS = /^\[+/;
+
+const TRAILING_BRACKETS = /\]+$/;
+
 function parseInlineTags(value: string) {
   return value
     .trim()
-    .replace(/^\[+/, "")
-    .replace(/\]+$/, "")
+    .replace(LEADING_BRACKETS, "")
+    .replace(TRAILING_BRACKETS, "")
     .split(",")
     .map(cleanTag)
-    .filter((tag) => {
-      return tag !== undefined;
-    });
+    .filter((tag) => tag !== undefined);
+}
+
+/** True when the line was a `- tag` item, meaning the list continues. */
+function readTagListItem(frontmatter: Frontmatter, line: string) {
+  const item = line.trimStart();
+
+  if (!item.startsWith("- ")) {
+    return false;
+  }
+
+  const tag = cleanTag(item.slice(2));
+
+  if (tag !== undefined) {
+    frontmatter.tags.push(tag);
+  }
+
+  return true;
+}
+
+/** True when the line opened a block tag list, so the next lines are items. */
+function readKeyLine(frontmatter: Frontmatter, line: string) {
+  const separator = line.indexOf(":");
+
+  if (separator === -1) {
+    return false;
+  }
+
+  const key = line.slice(0, separator).trim();
+  const value = line.slice(separator + 1).trim();
+
+  switch (key) {
+    case "pinned": {
+      frontmatter.pinned = value.toLowerCase() === "true";
+
+      return false;
+    }
+    case "tags": {
+      if (value === "") {
+        return true;
+      }
+
+      frontmatter.tags = parseInlineTags(value);
+
+      return false;
+    }
+    case "title": {
+      frontmatter.title = cleanTitle(value);
+
+      return false;
+    }
+    default: {
+      return false;
+    }
+  }
 }
 
 export function parseNote(content: string): ParsedNote {
@@ -103,14 +164,14 @@ export function parseNote(content: string): ParsedNote {
     rawLines: [],
   };
 
-  if (!content.startsWith("---\n") && !content.startsWith("---\r\n")) {
+  if (!(content.startsWith("---\n") || content.startsWith("---\r\n"))) {
     return fallback;
   }
 
   const lines = content.split("\n");
-  const closeIndex = lines.findIndex((line, index) => {
-    return index > 0 && CLOSING_DELIMITERS.has(line.trimEnd());
-  });
+  const closeIndex = lines.findIndex(
+    (line, index) => index > 0 && CLOSING_DELIMITERS.has(line.trimEnd())
+  );
 
   if (closeIndex === -1) {
     return fallback;
@@ -118,9 +179,9 @@ export function parseNote(content: string): ParsedNote {
 
   // CRLF files leave a trailing \r on every split line; strip it here so
   // `composeNote`'s \n joins cannot emit a block with mixed line endings.
-  const rawLines = lines.slice(1, closeIndex).map((line) => {
-    return line.replace(/\r$/, "");
-  });
+  const rawLines = lines
+    .slice(1, closeIndex)
+    .map((line) => line.replace(TRAILING_CR, ""));
   const body = lines.slice(closeIndex + 1).join("\n");
   const frontmatter: Frontmatter = {
     pinned: false,
@@ -134,52 +195,14 @@ export function parseNote(content: string): ParsedNote {
     const trimmed = line.trimEnd();
 
     if (inTagsList) {
-      const item = trimmed.trimStart();
-
-      if (item.startsWith("- ")) {
-        const tag = cleanTag(item.slice(2));
-
-        if (tag !== undefined) {
-          frontmatter.tags.push(tag);
-        }
-
+      if (readTagListItem(frontmatter, trimmed)) {
         continue;
       }
 
       inTagsList = false;
     }
 
-    const separator = trimmed.indexOf(":");
-
-    if (separator === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
-
-    switch (key) {
-      case "pinned": {
-        frontmatter.pinned = value.toLowerCase() === "true";
-
-        break;
-      }
-      case "tags": {
-        if (value === "") {
-          inTagsList = true;
-        } else {
-          frontmatter.tags = parseInlineTags(value);
-        }
-
-        break;
-      }
-      case "title": {
-        frontmatter.title = cleanTitle(value);
-
-        break;
-      }
-      // No default
-    }
+    inTagsList = readKeyLine(frontmatter, trimmed);
   }
 
   frontmatter.tags = [...new Set(frontmatter.tags)];
@@ -250,7 +273,7 @@ export function retitleFrontmatter(rawLines: string[], title: string) {
   const existing = rawLines[index] ?? "";
   const indent = existing.slice(
     0,
-    existing.length - existing.trimStart().length,
+    existing.length - existing.trimStart().length
   );
 
   return rawLines.with(index, `${indent}title: ${serializeTitle(title)}`);
@@ -275,7 +298,7 @@ export function composeNote(rawLines: string[], body: string) {
  */
 export function updateFrontmatter(
   content: string,
-  patch: FrontmatterPatch,
+  patch: FrontmatterPatch
 ): string {
   const parsed = parseNote(content);
   const next = {
@@ -294,11 +317,7 @@ export function updateFrontmatter(
   // Clean on the way out too, so a tag can never carry a separator into the
   // inline form and come back as two tags.
   const tags = [
-    ...new Set(
-      next.tags.map(cleanTag).filter((tag) => {
-        return tag !== undefined;
-      }),
-    ),
+    ...new Set(next.tags.map(cleanTag).filter((tag) => tag !== undefined)),
   ];
 
   if (tags.length > 0) {

@@ -23,12 +23,10 @@ export function registerPendingFlush(flush: Flush) {
  */
 export async function flushPendingWrites() {
   const results = await Promise.allSettled(
-    [...flushes].map((flush) => {
-      return flush();
-    }),
+    [...flushes].map((flush) => flush())
   );
 
-  return results.every((result) => {
-    return result.status === "fulfilled" && result.value;
-  });
+  return results.every(
+    (result) => result.status === "fulfilled" && result.value
+  );
 }

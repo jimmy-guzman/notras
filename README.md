@@ -110,10 +110,8 @@ folder any time in settings (⌘,).
 | `pnpm build`      | build the desktop bundle          |
 | `pnpm dev:web`    | run only the web shell (Vite)     |
 | `pnpm build:web`  | build only the web shell          |
-| `pnpm lint`       | lint (ESLint, cached)             |
-| `pnpm lint:fix`   | lint and auto-fix                 |
-| `pnpm format`     | check formatting (oxfmt)          |
-| `pnpm format:fix` | fix formatting                    |
+| `pnpm check`      | lint and format check (Ultracite) |
+| `pnpm fix`        | lint and format, auto-fixing      |
 | `pnpm typecheck`  | type check (tsc)                  |
 | `pnpm test`       | run tests (Vitest)                |
 | `pnpm coverage`   | tests with coverage               |

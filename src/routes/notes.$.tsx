@@ -10,31 +10,23 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
 import type { EditorHandle } from "@/components/editor/editor";
-import type { SourceEditorHandle } from "@/components/editor/source-editor";
-
 import { Editor } from "@/components/editor/editor";
 import { insertSentinel } from "@/components/editor/sentinel";
+import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { NoteHeader } from "@/components/notes/note-header";
 import { StatusBar } from "@/components/notes/status-bar";
 import { Titlebar } from "@/components/titlebar";
-import {
-  composeNote,
-  noteFolder,
-  noteTitle,
-  parseNote,
-  resolveTitle,
-} from "@/core";
+import { composeNote, parseNote } from "@/core/frontmatter";
+import { noteFolder, noteTitle, resolveTitle } from "@/core/notes";
 import { attachFile } from "@/data/attach-file";
 import { getNote } from "@/data/get-note";
 import { countWords } from "@/lib/utils/word-count";
 
 export const Route = createFileRoute("/notes/$")({
   component: NotePage,
-  loader: ({ params }) => {
-    return getNote(params._splat ?? "");
-  },
+  loader: ({ params }) => getNote(params._splat ?? ""),
 });
 
 const rootApi = getRouteApi("__root__");
@@ -64,8 +56,18 @@ function usePersistentToggle(key: string, initial = false) {
   return [value, toggle] as const;
 }
 
+const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/i;
+
 function isImagePath(path: string) {
-  return /\.(?:gif|jpe?g|png|svg|webp)$/i.test(path);
+  return IMAGE_EXTENSION.test(path);
+}
+
+function attachmentLink(relativePath: string) {
+  const name = relativePath.split("/").at(-1) ?? relativePath;
+
+  return isImagePath(relativePath)
+    ? `![${name}](${relativePath})`
+    : `[${name}](${relativePath})`;
 }
 
 function NotePage() {
@@ -89,9 +91,9 @@ function NoteEditor({ note }: NoteEditorProps) {
   // loader snapshot so pin/tag toggles are never clobbered by a body save.
   // State drives renders (source mode); the ref feeds the mount-frozen
   // editor callbacks.
-  const [frontmatterLines, setFrontmatterLines] = useState(() => {
-    return parseNote(note.content).rawLines;
-  });
+  const [frontmatterLines, setFrontmatterLines] = useState(
+    () => parseNote(note.content).rawLines
+  );
   const frontmatterRef = useRef(frontmatterLines);
 
   useEffect(() => {
@@ -113,9 +115,7 @@ function NoteEditor({ note }: NoteEditorProps) {
     }
   }
 
-  const [body, setBody] = useState(() => {
-    return parseNote(note.content).body;
-  });
+  const [body, setBody] = useState(() => parseNote(note.content).body);
   const bodyRef = useRef(body);
 
   // `D32`'s chain, resolved off the live buffer rather than the loader, so the
@@ -124,15 +124,13 @@ function NoteEditor({ note }: NoteEditorProps) {
   const title = resolveTitle(
     note.path,
     body,
-    parseNote(composeNote(frontmatterLines, "")).frontmatter.title,
+    parseNote(composeNote(frontmatterLines, "")).frontmatter.title
   );
 
   useEffect(() => {
     bodyRef.current = body;
   });
-  const [words, setWords] = useState(() => {
-    return countWords(note.content);
-  });
+  const [words, setWords] = useState(() => countWords(note.content));
   const [reloadKey, setReloadKey] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
@@ -171,33 +169,30 @@ function NoteEditor({ note }: NoteEditorProps) {
     notesRef.current = notes;
   });
 
-  const getTitles = useCallback(() => {
-    return notesRef.current.map((meta) => {
-      return meta.title;
-    });
-  }, []);
+  const getTitles = useCallback(
+    () => notesRef.current.map((meta) => meta.title),
+    []
+  );
 
   const resolveImageSrc = useCallback(
-    (src: string) => {
-      return src.includes("://") ? src : convertFileSrc(`${notesDir}/${src}`);
-    },
-    [notesDir],
+    (src: string) =>
+      src.includes("://") ? src : convertFileSrc(`${notesDir}/${src}`),
+    [notesDir]
   );
 
   // Resolution is by title, then by filename stem. `D32` decoupled the two, so
   // a title is no longer unique and links written against a filename have to
   // keep working. Ties break by nearest folder, then by path.
   const openWikilink = useCallback(
-    (title: string) => {
-      const wanted = title.trim().toLowerCase();
+    (linkTitle: string) => {
+      const wanted = linkTitle.trim().toLowerCase();
       const currentFolder = noteFolder(note.path);
       const candidates = notesRef.current
-        .filter((meta) => {
-          return (
+        .filter(
+          (meta) =>
             meta.title.toLowerCase() === wanted ||
             noteTitle(meta.path).toLowerCase() === wanted
-          );
-        })
+        )
         .toSorted((left, right) => {
           const byTitle =
             Number(right.title.toLowerCase() === wanted) -
@@ -216,9 +211,9 @@ function NoteEditor({ note }: NoteEditorProps) {
         return;
       }
 
-      void navigate({ params: { _splat: target.path }, to: "/notes/$" });
+      navigate({ params: { _splat: target.path }, to: "/notes/$" });
     },
-    [navigate, note.path],
+    [navigate, note.path]
   );
 
   // External edits (AI agents, other editors) flow back in through router
@@ -237,37 +232,37 @@ function NoteEditor({ note }: NoteEditorProps) {
       setBody(parsed.body);
       setWords(countWords(note.content));
       setSentineledBody(null);
-      setReloadKey((key) => {
-        return key + 1;
-      });
+      setReloadKey((key) => key + 1);
     }
   }, [autosave.status, body, note.content, note.updatedAt]);
 
   // Drag a file in -> copy to attachments/, insert a markdown link.
   useEffect(() => {
     const attachDropped = async (paths: string[]) => {
-      for (const sourcePath of paths) {
-        try {
-          // Whichever surface is live owns the caret; the other one's handle
-          // is stale (it was torn down by the mode toggle).
-          const target = sourceModeRef.current
-            ? sourceRef.current
-            : editorRef.current;
+      // Whichever surface is live owns the caret; the other one's handle is
+      // stale (it was torn down by the mode toggle).
+      const target = sourceModeRef.current
+        ? sourceRef.current
+        : editorRef.current;
 
-          if (target === null) {
-            throw new Error("no editor to insert the attachment into");
-          }
+      if (target === null) {
+        toast.error("no editor to insert the attachment into");
 
-          const relativePath = await attachFile(sourcePath);
-          const name = relativePath.split("/").at(-1) ?? relativePath;
-          const link = isImagePath(relativePath)
-            ? `![${name}](${relativePath})`
-            : `[${name}](${relativePath})`;
+        return;
+      }
 
-          target.insertText(link);
-        } catch (error) {
+      const copies = await Promise.allSettled(
+        paths.map((sourcePath) => attachFile(sourcePath))
+      );
+
+      for (const copy of copies) {
+        if (copy.status === "fulfilled") {
+          target.insertText(attachmentLink(copy.value));
+        } else {
+          const error: unknown = copy.reason;
+
           toast.error(
-            error instanceof Error ? error.message : "could not attach file",
+            error instanceof Error ? error.message : "could not attach file"
           );
         }
       }
@@ -275,12 +270,12 @@ function NoteEditor({ note }: NoteEditorProps) {
 
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === "drop") {
-        void attachDropped(event.payload.paths);
+        attachDropped(event.payload.paths);
       }
     });
 
     return () => {
-      void unlisten.then((dispose) => {
+      unlisten.then((dispose) => {
         dispose();
       });
     };
@@ -294,21 +289,39 @@ function NoteEditor({ note }: NoteEditorProps) {
       setWords(countWords(full));
       onChange(full);
     },
-    [onChange],
+    [onChange]
   );
 
-  const handleSourceChange = (raw: string) => {
-    const parsed = parseNote(raw);
+  const handleSourceChange = useCallback(
+    (raw: string) => {
+      const parsed = parseNote(raw);
 
-    setFrontmatterLines(parsed.rawLines);
-    setBody(parsed.body);
-    setWords(countWords(raw));
-    autosave.onChange(raw);
-  };
+      setFrontmatterLines(parsed.rawLines);
+      setBody(parsed.body);
+      setWords(countWords(raw));
+      autosave.onChange(raw);
+    },
+    [autosave]
+  );
+
+  const attachSourceEditor = useCallback((handle: SourceEditorHandle) => {
+    sourceRef.current = handle;
+  }, []);
+
+  const attachEditor = useCallback((handle: EditorHandle) => {
+    editorRef.current = handle;
+  }, []);
+
+  const filterByTag = useCallback(
+    (tag: string) => {
+      navigate({ search: { tag }, to: "." });
+    },
+    [navigate]
+  );
 
   // The caret rides through the markdown converters as a sentinel, so the
   // mapping between the two surfaces is exact (see sentinel.ts).
-  const toggleSourceMode = () => {
+  const toggleSourceMode = useCallback(() => {
     const raw = composeNote(frontmatterRef.current, bodyRef.current);
     const prefixLength = raw.length - bodyRef.current.length;
 
@@ -316,13 +329,11 @@ function NoteEditor({ note }: NoteEditorProps) {
       const offset = sourceRef.current?.getCursorOffset() ?? 0;
       const bodyOffset = Math.max(
         0,
-        Math.min(offset - prefixLength, bodyRef.current.length),
+        Math.min(offset - prefixLength, bodyRef.current.length)
       );
 
       setSentineledBody(insertSentinel(bodyRef.current, bodyOffset));
-      setReloadKey((key) => {
-        return key + 1;
-      });
+      setReloadKey((key) => key + 1);
     } else {
       const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
 
@@ -330,7 +341,7 @@ function NoteEditor({ note }: NoteEditorProps) {
     }
 
     setSourceMode(!sourceMode);
-  };
+  }, [sourceMode]);
 
   useHotkeys("mod+p", toggleSourceMode, HOTKEY_OPTIONS);
   useHotkeys("mod+d", toggleFocusMode, HOTKEY_OPTIONS);
@@ -351,9 +362,7 @@ function NoteEditor({ note }: NoteEditorProps) {
           initialValue={composeNote(frontmatterLines, body)}
           key={`${note.path}:${reloadKey}:source`}
           onChange={handleSourceChange}
-          onReady={(handle) => {
-            sourceRef.current = handle;
-          }}
+          onReady={attachSourceEditor}
         />
       ) : (
         <Editor
@@ -362,9 +371,7 @@ function NoteEditor({ note }: NoteEditorProps) {
           initialContent={sentineledBody ?? body}
           key={`${note.path}:${reloadKey}`}
           onChange={handleBodyChange}
-          onReady={(handle) => {
-            editorRef.current = handle;
-          }}
+          onReady={attachEditor}
           onWikilinkClick={openWikilink}
           resolveImageSrc={resolveImageSrc}
           stripSentinel={sentineledBody !== null}
@@ -375,9 +382,7 @@ function NoteEditor({ note }: NoteEditorProps) {
       <StatusBar
         allTags={tags}
         focusModeEnabled={focusModeEnabled}
-        onFilterTag={(tag) => {
-          void navigate({ search: { tag }, to: "." });
-        }}
+        onFilterTag={filterByTag}
         onToggleFocusMode={toggleFocusMode}
         onToggleSource={toggleSourceMode}
         onToggleTypewriter={toggleTypewriter}

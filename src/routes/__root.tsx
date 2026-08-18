@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -28,9 +28,8 @@ interface RootSearch {
 
 export const Route = createRootRoute({
   component: RootLayout,
-  validateSearch: (search: Record<string, unknown>): RootSearch => {
-    return typeof search.tag === "string" ? { tag: search.tag } : {};
-  },
+  validateSearch: (search: Record<string, unknown>): RootSearch =>
+    typeof search.tag === "string" ? { tag: search.tag } : {},
   loader: async () => {
     const [notes, folders, notesDir, tags] = await Promise.all([
       getNotes(),
@@ -60,28 +59,43 @@ function RootLayout() {
   // A tag chip navigates rather than calling up here, so the search param is
   // what opens the palette; clearing it on close keeps the URL from reopening
   // it on the next render.
-  const closePalette = () => {
+  const closePalette = useCallback(() => {
     setPaletteOpen(false);
 
     if (tag !== undefined) {
-      void navigate({
+      navigate({
         replace: true,
-        search: (previous: RootSearch) => {
-          return { ...previous, tag: undefined };
-        },
+        search: (previous: RootSearch) => ({ ...previous, tag: undefined }),
         to: ".",
       });
     }
-  };
+  }, [navigate, tag]);
+
+  const handlePaletteOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        setPaletteOpen(true);
+
+        return;
+      }
+
+      closePalette();
+    },
+    [closePalette]
+  );
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+  }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   useEffect(() => {
     const unlisten = listen("notes-changed", () => {
-      void router.invalidate();
+      router.invalidate();
     });
 
     return () => {
-      void unlisten.then((dispose) => {
+      unlisten.then((dispose) => {
         dispose();
       });
     };
@@ -105,35 +119,31 @@ function RootLayout() {
       // file in, so say what was left behind rather than dropping it silently.
       if (rest.length > 0) {
         toast.warning(
-          `opened 1 file; ${rest.length} more were not opened -- notras shows one at a time`,
+          `opened 1 file; ${rest.length} more were not opened -- notras shows one at a time`
         );
       }
     };
 
-    const reportFailure = (fallback: string) => {
-      return (error: unknown) => {
-        toast.error(error instanceof Error ? error.message : fallback);
-      };
+    const reportFailure = (fallback: string) => (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : fallback);
     };
 
     const unlistenNew = listen("menu-new-note", () => {
-      void createNote()
-        .then((path) => {
-          return navigate({ params: { _splat: path }, to: "/notes/$" });
-        })
+      createNote()
+        .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
         .catch(reportFailure("could not create note"));
     });
     const unlistenOpen = listen("open-file", () => {
-      void drainPendingOpens().catch(reportFailure("could not open file"));
+      drainPendingOpens().catch(reportFailure("could not open file"));
     });
 
-    void drainPendingOpens().catch(reportFailure("could not open file"));
+    drainPendingOpens().catch(reportFailure("could not open file"));
 
     return () => {
-      void unlistenNew.then((dispose) => {
+      unlistenNew.then((dispose) => {
         dispose();
       });
-      void unlistenOpen.then((dispose) => {
+      unlistenOpen.then((dispose) => {
         dispose();
       });
     };
@@ -143,7 +153,7 @@ function RootLayout() {
   // entirely if one of them could not be written.
   useEffect(() => {
     const unlisten = listen("app-quit", () => {
-      void flushPendingWrites()
+      flushPendingWrites()
         .then((saved) => {
           if (saved) {
             return invoke("quit_app");
@@ -161,7 +171,7 @@ function RootLayout() {
     });
 
     return () => {
-      void unlisten.then((dispose) => {
+      unlisten.then((dispose) => {
         dispose();
       });
     };
@@ -170,33 +180,29 @@ function RootLayout() {
   useHotkeys(
     "mod+k",
     () => {
-      setPaletteOpen((current) => {
-        return !current;
-      });
+      setPaletteOpen((current) => !current);
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
   useHotkeys(
     "mod+n",
     () => {
-      void createNote()
-        .then((path) => {
-          return navigate({ params: { _splat: path }, to: "/notes/$" });
-        })
+      createNote()
+        .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
         .catch((error: unknown) => {
           toast.error(
-            error instanceof Error ? error.message : "could not create note",
+            error instanceof Error ? error.message : "could not create note"
           );
         });
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
   useHotkeys(
     "mod+comma",
     () => {
       setSettingsOpen(true);
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
 
   return (
@@ -210,18 +216,8 @@ function RootLayout() {
         key={tag ?? "palette"}
         notes={notes}
         notesDir={notesDir}
-        onOpenChange={(next) => {
-          if (next) {
-            setPaletteOpen(true);
-
-            return;
-          }
-
-          closePalette();
-        }}
-        onOpenSettings={() => {
-          setSettingsOpen(true);
-        }}
+        onOpenChange={handlePaletteOpenChange}
+        onOpenSettings={openSettings}
         open={paletteOpen || tag !== undefined}
         tag={tag}
       />

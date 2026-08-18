@@ -1,4 +1,5 @@
 import { Editor } from "@tiptap/core";
+import { describe, expect, it } from "vitest";
 
 import { createEditorExtensions } from "./extensions";
 
@@ -30,7 +31,7 @@ const TASK_LIST = 'ul[data-type="taskList"]';
 describe("task item DOM", () => {
   it("should render a bullet list nested under a task as an ordinary list", () => {
     const nested = render("- [ ] parent\n  - child").querySelectorAll(
-      `${TASK_LIST} > li > div > ul`,
+      `${TASK_LIST} > li > div > ul`
     );
 
     expect(nested).toHaveLength(1);
@@ -41,7 +42,7 @@ describe("task item DOM", () => {
 
   it("should render a nested task list inside the parent item's content", () => {
     const nested = render("- [ ] parent\n  - [x] child").querySelectorAll(
-      `${TASK_LIST} > li > div > ${TASK_LIST}`,
+      `${TASK_LIST} > li > div > ${TASK_LIST}`
     );
 
     expect(nested).toHaveLength(1);

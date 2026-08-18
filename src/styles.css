@@ -155,12 +155,12 @@
   /* The whole window is chrome-less; text selection outside the editor
      reads as web-page, not app. */
   body {
-    user-select: none;
     -webkit-user-select: none;
+    user-select: none;
   }
   .allow-select {
-    user-select: text;
     -webkit-user-select: text;
+    user-select: text;
   }
   /* Motion carries a state change, so removing it costs nothing but the
      transition. Every animation here has a real non-motion end state. */
@@ -168,9 +168,9 @@
     *,
     *::before,
     *::after {
+      transition-duration: 0.01ms !important;
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
     }
   }
 }
@@ -197,17 +197,22 @@
   background: var(--selection);
 }
 .ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
   float: left;
   height: 0;
   color: var(--faint);
   pointer-events: none;
+  content: attr(data-placeholder);
 }
 
 /* Focus mode: dim every top-level block except the active one. */
 .focus-mode-on .ProseMirror > :not(.has-focus) {
   opacity: 0.28;
   transition: opacity 0.3s ease;
+}
+
+/* Regular lists get the same paragraph-margin taming. */
+.ProseMirror li > p {
+  margin-block: 0;
 }
 
 /* Task lists: flex rows with hand-drawn checkboxes locked to the first text
@@ -220,49 +225,50 @@
    edge on the column a disc paints in, and the pull-back cancels box plus gap
    so the text stays put. Moving either alone moves the ladder. */
 .ProseMirror ul[data-type="taskList"] {
-  list-style: none;
   padding-inline-start: 1.5em;
   margin-block: 0.5em;
+  list-style: none;
 }
 .ProseMirror ul[data-type="taskList"] > li {
   display: flex;
-  align-items: flex-start;
   gap: 1.15em;
+  align-items: flex-start;
+  padding-block: 0.125em;
+  padding-inline-start: 0.4em;
   margin-block: 0;
   /* cancels the checkbox and the gap above, which have to stay in step */
   margin-inline-start: calc(-1em - 1.15em);
-  padding-block: 0.125em;
-  padding-inline-start: 0.4em;
 }
 .ProseMirror ul[data-type="taskList"] > li > label {
   display: flex;
-  align-items: center;
   flex-shrink: 0;
+  align-items: center;
   height: 1.75em;
   user-select: none;
 }
 .ProseMirror ul[data-type="taskList"] > li > label > input {
-  appearance: none;
-  -webkit-appearance: none;
+  position: relative;
   width: 1em;
   height: 1em;
   margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  background: transparent;
   border: 1.5px solid color-mix(in oklch, var(--foreground) 25%, transparent);
   border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
 }
 .ProseMirror ul[data-type="taskList"] > li > label > input:checked {
   background: var(--primary);
   border-color: var(--primary);
 }
 .ProseMirror ul[data-type="taskList"] > li > label > input:checked::after {
-  content: "";
   position: absolute;
   inset: 0;
+  content: "";
   background: var(--primary-foreground);
-  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
+  mask:
+    url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
     center / 70% no-repeat;
 }
 .ProseMirror ul[data-type="taskList"] > li > div {
@@ -281,26 +287,21 @@
   margin-block: 0.2em 0;
 }
 
-/* Regular lists get the same paragraph-margin taming. */
-.ProseMirror li > p {
-  margin-block: 0;
-}
-
 /* Tables. `not-typeset` keeps the recipe below from being double-styled, and
    that opts the table out of the block rhythm too. Typeset spaces blocks with
    margin-block-start alone, so nothing above a table supplies the gap and it
    sits flush against whatever precedes it. The flow control is the same one
    every other block reads (`D40`). */
 .ProseMirror table {
-  border-collapse: collapse;
   width: 100%;
   margin-block-start: var(--typeset-flow);
+  border-collapse: collapse;
 }
 .ProseMirror th,
 .ProseMirror td {
-  border: 1px solid var(--border);
   padding: 0.3rem 0.75rem;
   text-align: left;
+  border: 1px solid var(--border);
 }
 .ProseMirror th {
   background: var(--card);
@@ -322,8 +323,8 @@
 /* Wikilinks: subtle dashed underline, distinct from external links. */
 .wikilink {
   font-weight: 500;
-  border-bottom: 1px dashed currentcolor;
   cursor: pointer;
+  border-bottom: 1px dashed currentcolor;
   transition: color 0.15s;
 }
 .wikilink:hover {
@@ -338,55 +339,56 @@
   flex-direction: column;
   min-width: 11rem;
   max-height: 18rem;
+  padding: 0.25rem;
   overflow-y: auto;
+  color: var(--popover-foreground);
+  background: var(--popover);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--popover);
-  color: var(--popover-foreground);
-  padding: 0.25rem;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
 /* Concentric with the menu: the parent radius less the parent padding, so the
    two curves stay parallel if --radius moves. */
 .suggestion-item {
   display: flex;
+  gap: 1rem;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  border-radius: calc(var(--radius-md) - 0.25rem);
   padding: 0.3rem 0.6rem;
-  text-align: left;
   font-size: 0.85rem;
+  text-align: left;
+  border-radius: calc(var(--radius-md) - 0.25rem);
 }
 .suggestion-item-selected {
-  background: var(--accent);
   color: var(--accent-foreground);
+  background: var(--accent);
 }
 .suggestion-hint {
-  color: var(--muted-foreground);
   font-family: var(--font-mono);
   font-size: 0.75em;
-}
-
-/* Source mode: the whole file as one bare, highlighted code block. */
-.source-editor .ProseMirror pre {
-  background: transparent;
-  border-radius: 0;
-  margin: 0;
-  padding: 0;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
 }
 
 /* Code blocks (lowlight tokens on the app palette). */
 .ProseMirror pre {
+  font-family: var(--font-mono);
   background: var(--card);
   border-radius: var(--radius-md);
-  font-family: var(--font-mono);
 }
+
+/* Source mode: the whole file as one bare, highlighted code block. */
+.source-editor .ProseMirror pre {
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  background: transparent;
+  border-radius: 0;
+}
+
 .code-block-wrapper {
   position: relative;
 }
@@ -396,8 +398,8 @@
   right: 0.5rem;
   z-index: 5;
   display: flex;
-  align-items: center;
   gap: 0.25rem;
+  align-items: center;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -407,15 +409,15 @@
 }
 .code-block-button {
   display: inline-flex;
-  align-items: center;
   gap: 0.3rem;
+  align-items: center;
   height: 1.5rem;
   padding-inline: 0.4rem;
-  border-radius: var(--radius-sm);
-  color: var(--muted-foreground);
   font-family: var(--font-sans);
   font-size: 0.72rem;
+  color: var(--muted-foreground);
   cursor: pointer;
+  border-radius: var(--radius-sm);
   transition:
     color 0.15s ease,
     background 0.15s ease;
@@ -425,16 +427,16 @@
   background: var(--accent);
 }
 .code-block-language {
-  appearance: none;
   height: 1.5rem;
   padding-inline: 0.4rem;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
   font-family: var(--font-sans);
   font-size: 0.72rem;
+  color: var(--muted-foreground);
+  appearance: none;
   cursor: pointer;
   outline: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
 }
 .code-block-language:hover {
   color: var(--foreground);
@@ -446,46 +448,46 @@
   position: fixed;
   z-index: 50;
   display: flex;
-  align-items: center;
   gap: 0.35rem;
+  align-items: center;
   padding: 0.35rem;
+  color: var(--popover-foreground);
+  background: var(--popover);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--popover);
-  color: var(--popover-foreground);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
 .link-editor-input {
   width: 14rem;
   height: 1.75rem;
   padding-inline: 0.5rem;
-  border-radius: calc(var(--radius-md) - 0.35rem);
-  background: var(--input);
   font-size: 0.8rem;
   outline: none;
+  background: var(--input);
+  border-radius: calc(var(--radius-md) - 0.35rem);
 }
 .link-editor-actions {
   display: flex;
-  align-items: center;
   gap: 0.15rem;
+  align-items: center;
 }
 /* Syntax highlighting: lowlight classes onto stet's twelve roles. Emphasis is
    weight and slant rather than colour, so the theme survives a palette swap. */
 .hljs-comment,
 .hljs-quote {
-  color: var(--syntax-comment);
   font-style: italic;
+  color: var(--syntax-comment);
 }
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-literal {
-  color: var(--syntax-keyword);
   font-weight: 700;
+  color: var(--syntax-keyword);
 }
 .hljs-section,
 .hljs-doctag {
-  color: var(--syntax-keyword);
   font-weight: 700;
+  color: var(--syntax-keyword);
 }
 .hljs-meta,
 .hljs-meta-keyword {

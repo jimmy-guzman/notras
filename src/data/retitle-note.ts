@@ -12,9 +12,5 @@ import { run } from "./run";
 export async function retitleNote(path: string, title: string) {
   const validTitle = await Schema.decodePromise(noteTitleSchema)(title);
 
-  return run(
-    NoteService.use((svc) => {
-      return svc.retitle(path, validTitle);
-    }),
-  );
+  return run(NoteService.use((svc) => svc.retitle(path, validTitle)));
 }

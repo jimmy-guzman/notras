@@ -1,8 +1,7 @@
 import type { Editor, Range } from "@tiptap/core";
-import type { SuggestionOptions } from "@tiptap/suggestion";
-
 import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
+import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
@@ -125,15 +124,13 @@ function toItems(props: {
   command: (item: SlashCommand) => void;
   items: SlashCommand[];
 }): SuggestionMenuItem[] {
-  return props.items.map((item) => {
-    return {
-      hint: item.hint,
-      label: item.label,
-      run: () => {
-        props.command(item);
-      },
-    };
-  });
+  return props.items.map((item) => ({
+    hint: item.hint,
+    label: item.label,
+    run: () => {
+      props.command(item);
+    },
+  }));
 }
 
 /** `/` at the start of a line (or after a space) opens the insert menu. */
@@ -152,12 +149,11 @@ export const SlashMenu = Extension.create({
         const needle = query.toLowerCase();
 
         // Hints are matchable too, so `/h1` finds "heading 1".
-        return SLASH_COMMANDS.filter((item) => {
-          return (
+        return SLASH_COMMANDS.filter(
+          (item) =>
             item.label.toLowerCase().includes(needle) ||
             (item.hint?.toLowerCase().includes(needle) ?? false)
-          );
-        });
+        );
       },
       pluginKey: new PluginKey("slashMenuSuggestion"),
       render: () => {
@@ -176,7 +172,11 @@ export const SlashMenu = Extension.create({
               return true;
             }
 
-            return menu?.handleKey(props.event) ?? false;
+            if (menu === null) {
+              return false;
+            }
+
+            return menu.handleKey(props.event);
           },
           onStart: (props) => {
             menu = new SuggestionMenu();

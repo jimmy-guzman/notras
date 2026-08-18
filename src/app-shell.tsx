@@ -15,7 +15,7 @@ declare module "@tanstack/react-router" {
 }
 
 const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
-  "window",
+  "window"
 );
 
 export function App() {

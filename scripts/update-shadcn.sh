@@ -24,14 +24,8 @@ echo ""
 
 pnpm dlx shadcn@latest add "${components[@]}" -y -o
 
-echo "Running formatter..."
-pnpm format:fix
-
-echo "Running linter..."
-pnpm lint:fix
-
-echo "Running formatter..."
-pnpm format:fix
+echo "Running formatter and linter..."
+pnpm fix
 
 echo "Running tailwind upgrade..."
 pnpx @tailwindcss/upgrade --force

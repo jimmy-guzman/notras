@@ -2,7 +2,7 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { lowlight } from "./extensions";
@@ -28,14 +28,15 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
     ).toSorted();
   }, [language]);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       clearTimeout(resetRef.current);
-    };
-  }, []);
+    },
+    []
+  );
 
-  const copy = () => {
-    void navigator.clipboard
+  const copy = useCallback(() => {
+    navigator.clipboard
       .writeText(node.textContent)
       .then(() => {
         setCopied(true);
@@ -43,13 +44,18 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         resetRef.current = setTimeout(() => {
           setCopied(false);
         }, 1500);
-
-        return undefined;
       })
       .catch(() => {
         toast.error("could not copy the code block");
       });
-  };
+  }, [node.textContent]);
+
+  const changeLanguage = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      updateAttributes({ language: event.target.value });
+    },
+    [updateAttributes]
+  );
 
   return (
     <NodeViewWrapper as="div" className="code-block-wrapper">
@@ -66,19 +72,15 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         <select
           aria-label="code language"
           className="code-block-language"
-          onChange={(event) => {
-            updateAttributes({ language: event.target.value });
-          }}
+          onChange={changeLanguage}
           value={language}
         >
           <option value="">plain</option>
-          {languages.map((name) => {
-            return (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            );
-          })}
+          {languages.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
         </select>
       </div>
       <pre>

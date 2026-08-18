@@ -1,5 +1,5 @@
 import { HashIcon, TagPlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { useNoteTags } from "@/components/notes/use-note-tags";
@@ -21,6 +21,27 @@ const HOTKEY_OPTIONS = {
   preventDefault: true,
 } as const;
 
+interface TagBadgeProps {
+  onFilter: (tag: string) => void;
+  tag: string;
+}
+
+function TagBadge({ onFilter, tag }: TagBadgeProps) {
+  const filter = useCallback(() => {
+    onFilter(tag);
+  }, [onFilter, tag]);
+
+  return (
+    <Badge
+      className="text-muted-foreground hover:text-foreground"
+      render={<button onClick={filter} type="button" />}
+      variant="ghost"
+    >
+      {`#${tag}`}
+    </Badge>
+  );
+}
+
 interface NoteTagsProps {
   allTags: { count: number; tag: string }[];
   onFilter: (tag: string) => void;
@@ -38,14 +59,10 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
     () => {
       setOpen(true);
     },
-    HOTKEY_OPTIONS,
+    HOTKEY_OPTIONS
   );
 
-  const counts = new Map(
-    allTags.map(({ count, tag }) => {
-      return [tag, count];
-    }),
-  );
+  const counts = new Map(allTags.map(({ count, tag }) => [tag, count]));
 
   // A tag the note carries may not be in the index yet, and the typed draft is
   // the "create" row. Both are the same kind of string an existing tag is, so
@@ -61,10 +78,13 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
 
   // Clearing the input belongs to this surface rather than to the write, so it
   // wraps the shared writer instead of living inside it.
-  const commitTags = (nextTags: string[]) => {
-    setQuery("");
-    void changeTags(nextTags);
-  };
+  const commitTags = useCallback(
+    (nextTags: string[]) => {
+      setQuery("");
+      changeTags(nextTags);
+    },
+    [changeTags]
+  );
 
   const hasTags = optimisticTags.length > 0;
 
@@ -72,25 +92,9 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
     <div className="flex min-w-0 items-center gap-0.5">
       {hasTags ? (
         <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
-          {optimisticTags.map((tag) => {
-            return (
-              <Badge
-                className="text-muted-foreground hover:text-foreground"
-                key={tag}
-                render={
-                  <button
-                    onClick={() => {
-                      onFilter(tag);
-                    }}
-                    type="button"
-                  />
-                }
-                variant="ghost"
-              >
-                {`#${tag}`}
-              </Badge>
-            );
-          })}
+          {optimisticTags.map((tag) => (
+            <TagBadge key={tag} onFilter={onFilter} tag={tag} />
+          ))}
         </div>
       ) : null}
       <Combobox
@@ -121,17 +125,15 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
             <p className="text-faint">type to create one</p>
           </ComboboxEmpty>
           <ComboboxList>
-            {(tag: string) => {
-              return (
-                <ComboboxItem key={tag} value={tag}>
-                  <HashIcon className="text-muted-foreground" />
-                  <span className="truncate">{tag}</span>
-                  <span className="ml-auto text-faint">
-                    {counts.get(tag) ?? "new"}
-                  </span>
-                </ComboboxItem>
-              );
-            }}
+            {(tag: string) => (
+              <ComboboxItem key={tag} value={tag}>
+                <HashIcon className="text-muted-foreground" />
+                <span className="truncate">{tag}</span>
+                <span className="ml-auto text-faint">
+                  {counts.get(tag) ?? "new"}
+                </span>
+              </ComboboxItem>
+            )}
           </ComboboxList>
         </ComboboxContent>
       </Combobox>

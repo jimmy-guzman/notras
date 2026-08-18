@@ -1,19 +1,11 @@
-import { FileStore } from "@/core";
+import { FileStore } from "@/core/file-store";
 
 import { run } from "./run";
 
-export async function getNotesDir() {
-  return run(
-    FileStore.use((store) => {
-      return store.getNotesDir();
-    }),
-  );
+export function getNotesDir() {
+  return run(FileStore.use((store) => store.getNotesDir()));
 }
 
-export async function setNotesDir(path: string) {
-  return run(
-    FileStore.use((store) => {
-      return store.setNotesDir(path);
-    }),
-  );
+export function setNotesDir(path: string) {
+  return run(FileStore.use((store) => store.setNotesDir(path)));
 }

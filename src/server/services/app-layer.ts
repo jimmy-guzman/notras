@@ -1,6 +1,6 @@
 import { Layer, Logger } from "effect";
 
-import type { FileStore } from "@/core";
+import type { FileStore } from "@/core/file-store";
 import type { DrizzleDb } from "@/server/db";
 
 import { Database } from "@/server/db";
@@ -24,10 +24,10 @@ export function makeAppLayer(config: AppLayerConfig) {
   return Layer.mergeAll(
     NoteService.layer,
     config.fileStore,
-    Logger.layer([Logger.consolePretty()]),
+    Logger.layer([Logger.consolePretty()])
   ).pipe(
     Layer.provide(
-      Layer.merge(Layer.succeed(Database, config.database), config.fileStore),
-    ),
+      Layer.merge(Layer.succeed(Database, config.database), config.fileStore)
+    )
   );
 }

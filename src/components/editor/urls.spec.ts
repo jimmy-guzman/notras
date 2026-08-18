@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 describe("isSafeUrl", () => {
@@ -37,7 +38,7 @@ describe("normalizeUrl", () => {
 
   it("should prepend https to a host with a port", () => {
     expect(normalizeUrl("example.com:8080/path")).toBe(
-      "https://example.com:8080/path",
+      "https://example.com:8080/path"
     );
   });
 

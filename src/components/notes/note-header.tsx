@@ -1,5 +1,5 @@
 import { PinIcon, PinOffIcon } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
@@ -34,7 +34,7 @@ export function NoteHeader({ path, pinned, status, title }: NoteHeaderProps) {
     setOptimisticPinned(pinned);
   }
 
-  const togglePinned = async () => {
+  const togglePinned = useCallback(async () => {
     setOptimisticPinned(!optimisticPinned);
 
     try {
@@ -43,11 +43,11 @@ export function NoteHeader({ path, pinned, status, title }: NoteHeaderProps) {
       setOptimisticPinned(optimisticPinned);
       toast.error("could not update pin");
     }
-  };
+  }, [optimisticPinned, path]);
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-3">
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+      <span className="min-w-0 flex-1 truncate font-medium text-sm">
         {title}
       </span>
       <SaveIndicator status={status} />

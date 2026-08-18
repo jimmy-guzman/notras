@@ -1,22 +1,23 @@
 import { Context, Effect, Layer } from "effect";
-
-import type { NoteFileContent, NoteFilters, NoteMeta } from "@/core";
-
+import { FileError } from "@/core/errors";
+import type { NoteFileContent } from "@/core/file-store";
+import { FileStore } from "@/core/file-store";
 import {
   composeNote,
-  FileError,
+  parseNote,
+  retitleFrontmatter,
+  updateFrontmatter,
+} from "@/core/frontmatter";
+import type { NoteFilters, NoteMeta } from "@/core/notes";
+import {
   filenameFromTitle,
-  FileStore,
   NOTE_SEGMENT_PATTERN,
   noteFolder,
   notePath,
   noteTitle,
-  parseNote,
   resolveTitle,
-  retitleFrontmatter,
   retitleLeadingHeading,
-  updateFrontmatter,
-} from "@/core";
+} from "@/core/notes";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 interface Note {
@@ -29,25 +30,25 @@ interface Note {
 }
 
 interface INoteService {
-  attach(sourcePath: string): Effect.Effect<string, FileError>;
-  attachImage(base64Data: string): Effect.Effect<string, FileError>;
-  count(): Effect.Effect<number>;
-  create(options?: {
+  attach: (sourcePath: string) => Effect.Effect<string, FileError>;
+  attachImage: (base64Data: string) => Effect.Effect<string, FileError>;
+  count: () => Effect.Effect<number>;
+  create: (options?: {
     content?: string;
     filename?: string;
     folder?: string;
-  }): Effect.Effect<string, FileError>;
-  delete(path: string): Effect.Effect<void, FileError>;
-  getByPath(path: string): Effect.Effect<Note, FileError>;
-  list(filters?: NoteFilters): Effect.Effect<NoteMeta[]>;
-  listFolders(): Effect.Effect<{ count: number; folder: string }[]>;
-  listTags(): Effect.Effect<{ count: number; tag: string }[]>;
-  move(path: string, folder: string): Effect.Effect<string, FileError>;
+  }) => Effect.Effect<string, FileError>;
+  delete: (path: string) => Effect.Effect<void, FileError>;
+  getByPath: (path: string) => Effect.Effect<Note, FileError>;
+  list: (filters?: NoteFilters) => Effect.Effect<NoteMeta[]>;
+  listFolders: () => Effect.Effect<{ count: number; folder: string }[]>;
+  listTags: () => Effect.Effect<{ count: number; tag: string }[]>;
+  move: (path: string, folder: string) => Effect.Effect<string, FileError>;
   /** Renames the file and syncs a heading or `title:` key the note already has. */
-  retitle(path: string, title: string): Effect.Effect<string, FileError>;
-  setPinned(path: string, pinned: boolean): Effect.Effect<void, FileError>;
-  setTags(path: string, tags: string[]): Effect.Effect<void, FileError>;
-  write(path: string, content: string): Effect.Effect<Date, FileError>;
+  retitle: (path: string, title: string) => Effect.Effect<string, FileError>;
+  setPinned: (path: string, pinned: boolean) => Effect.Effect<void, FileError>;
+  setTags: (path: string, tags: string[]) => Effect.Effect<void, FileError>;
+  write: (path: string, content: string) => Effect.Effect<Date, FileError>;
 }
 
 function toNote(path: string, file: NoteFileContent): Note {
@@ -88,7 +89,7 @@ const makeNoteService = Effect.gen(function* () {
       if (next !== file.content) {
         yield* fileStore.write(path, next);
       }
-    },
+    }
   );
 
   const create = Effect.fn("NoteService.create")(function* (options?: {
@@ -129,7 +130,7 @@ const makeNoteService = Effect.gen(function* () {
   });
 
   const getByPath = Effect.fn("NoteService.getByPath")(function* (
-    path: string,
+    path: string
   ) {
     const file = yield* fileStore.read(path);
 
@@ -138,7 +139,7 @@ const makeNoteService = Effect.gen(function* () {
 
   const move = Effect.fn("NoteService.move")(function* (
     path: string,
-    folder: string,
+    folder: string
   ) {
     const target = notePath(folder, noteTitle(path));
 
@@ -170,7 +171,7 @@ const makeNoteService = Effect.gen(function* () {
    */
   const retitle = Effect.fn("NoteService.retitle")(function* (
     path: string,
-    title: string,
+    title: string
   ) {
     const filename = filenameFromTitle(title);
     const badFilename = invalidSegment(filename, "filename");
@@ -198,7 +199,7 @@ const makeNoteService = Effect.gen(function* () {
     const parsed = parseNote(file.content);
     const next = composeNote(
       retitleFrontmatter(parsed.rawLines, title),
-      retitleLeadingHeading(parsed.body, title),
+      retitleLeadingHeading(parsed.body, title)
     );
 
     if (next !== file.content) {
@@ -216,7 +217,7 @@ const makeNoteService = Effect.gen(function* () {
 
   const write = Effect.fn("NoteService.write")(function* (
     path: string,
-    content: string,
+    content: string
   ) {
     const updatedAt = yield* fileStore.write(path, content);
 
@@ -224,60 +225,42 @@ const makeNoteService = Effect.gen(function* () {
   });
 
   return NoteService.of({
-    attach: (sourcePath) => {
-      return fileStore.attach(sourcePath);
-    },
+    attach: (sourcePath) => fileStore.attach(sourcePath),
 
-    attachImage: (base64Data) => {
-      return fileStore.attachImage(base64Data);
-    },
+    attachImage: (base64Data) => fileStore.attachImage(base64Data),
 
-    count: () => {
-      return noteRepo.count().pipe(Effect.orDie);
-    },
+    count: () => noteRepo.count().pipe(Effect.orDie),
 
     create,
 
-    delete: (path) => {
-      return fileStore.delete(path);
-    },
+    delete: (path) => fileStore.delete(path),
 
     getByPath,
 
-    list: (filters) => {
-      return noteRepo.findMany(filters ?? {}).pipe(Effect.orDie);
-    },
+    list: (filters) => noteRepo.findMany(filters ?? {}).pipe(Effect.orDie),
 
-    listFolders: () => {
-      return noteRepo.listFolders().pipe(Effect.orDie);
-    },
+    listFolders: () => noteRepo.listFolders().pipe(Effect.orDie),
 
-    listTags: () => {
-      return noteRepo.listTags().pipe(Effect.orDie);
-    },
+    listTags: () => noteRepo.listTags().pipe(Effect.orDie),
 
     move,
 
     retitle,
 
-    setPinned: (path, pinned) => {
-      return rewriteFrontmatter(path, { pinned });
-    },
+    setPinned: (path, pinned) => rewriteFrontmatter(path, { pinned }),
 
-    setTags: (path, tags) => {
-      return rewriteFrontmatter(path, { tags });
-    },
+    setTags: (path, tags) => rewriteFrontmatter(path, { tags }),
 
     write,
   });
 });
 
 export class NoteService extends Context.Service<NoteService, INoteService>()(
-  "notras/server/NoteService",
+  "notras/server/NoteService"
 ) {
   /** Split out so tests can swap in stub deps; `layer` is what the app uses. */
   static readonly layerNoDeps = Layer.effect(NoteService, makeNoteService);
   static readonly layer = NoteService.layerNoDeps.pipe(
-    Layer.provide(NoteRepository.layer),
+    Layer.provide(NoteRepository.layer)
   );
 }

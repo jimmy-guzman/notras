@@ -46,7 +46,7 @@ export function SaveIndicator({ status }: SaveIndicatorProps) {
           <span
             className={cn(
               "inline-flex size-6 shrink-0 items-center justify-center",
-              tone,
+              tone
             )}
           />
         }
