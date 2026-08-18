@@ -73,14 +73,13 @@ guide does not cover, search through the source code in
   function that decides whether work should happen from the one that does it,
   and name the deciding part.
 
-- **No comments other than doc comments and `TODO`/`FIXME`.** Doc comments means
-  JSDoc and rustdoc. Naming and structure carry the rest. Comments drift away
-  from the code they describe, and the two kinds worth that risk are an API
-  contract and a known gap. `src/styles.css` is an exception, where a comment
-  carries the reasoning behind a measured value, and `src/typeset.css` is another
-  for the reason below. The rule is aspirational rather than met: 211 line
-  comments sit under `src/` today, nothing checks for them (`D41`), and
-  `SPEC.md` carries the enforcement as deferred.
+- **A comment carries a why, never a what** (`D48`). Doc comments, meaning JSDoc
+  and rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line
+  comment earns its place when it holds reasoning the code cannot: a platform
+  quirk, a race, a measured value, or the rejected alternative sitting one line
+  away. Delete the ones that restate what the line below already says, since
+  those are the ones that drift into lies. Naming and structure carry everything
+  else.
 
 - **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file
   byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and

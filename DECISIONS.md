@@ -1381,7 +1381,8 @@ without marking its own enabler as used.
 
 **Constraint:** the `AGENTS.md` comment rule lost its enforcement. ESLint's
 `no-inline-comments`, with a `TODO|FIXME` escape hatch, was checking it, and
-Biome has no equivalent.
+Biome has no equivalent. `D48` later replaced the rule with one no linter could
+check anyway.
 
 ### D42 Fire-and-forget promises carry no marker
 
@@ -1515,3 +1516,35 @@ one is wrong from the first change onward and nothing says which is current.
 **Constraint:** a citation is only as good as the anchor. `D` IDs are stable by
 the rule above this list, but a section heading is not, so a cross-doc pointer
 names the document and the concept rather than a heading or a line.
+
+### D48 A comment carries a why, never a what
+
+A line comment is allowed where it holds reasoning the code cannot: a platform
+quirk, a race, a measured value, or a rejected alternative worth naming at the
+call site. A comment restating what the line below already says is not, and is
+the kind that drifts into a lie.
+
+The previous rule banned every comment outside JSDoc, rustdoc, `TODO` and
+`FIXME`, and named `src/styles.css` as the one exception. The tree carries 211
+line comments across 32 files, and they are the kind this entry keeps: "External
+writers (AI agents, other editors, the watcher) drive refreshes", "Claiming
+'saved' here would be a lie until the write lands". A rule that the codebase
+ignores 211 times is not a rule, and the two options were to delete the
+reasoning or to write down what was already being practised.
+
+**Rejected: keeping the ban and stripping the 211.** Consistent, and the
+original rule's argument holds: a comment drifts away from the code it describes
+while naming and structure do not. Rejected because the reasoning in those
+comments has no other home. `DECISIONS.md` takes what ruled out an alternative,
+`ARCHITECTURE.md` takes what holds across the system, and neither takes "WebKit
+paints this two pixels off" at the line where it matters.
+
+**Rejected: keeping the ban as an aspiration and recording the gap.** Costs
+nothing and leaves the target standing. Rejected because a rule nobody meets
+teaches a reader to discount the file, and `AGENTS.md` is read by agents that
+cannot tell an aspiration from a constraint.
+
+**Constraint:** nothing checks this and nothing can. `D41` records that Biome has
+no comment rule, but the distinction here is a judgement about content rather
+than a shape a linter could match, so the deferred enforcement entry that
+outlived the old rule is removed rather than reassigned.
