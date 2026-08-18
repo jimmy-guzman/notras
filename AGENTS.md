@@ -14,16 +14,15 @@ change touches before changing anything.
 | `DESIGN.md`       | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
 | `DECISIONS.md`    | Numbered decisions, each with its rationale, what it rejected, and the constraints it imposes.                            |
 | `SPEC.md`         | The manual verification walkthrough, and the work that is deferred rather than done.                                     |
-| `README.md`       | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns (`D47`).                     |
+| `README.md`       | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns.                             |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files
 above, so a stack detail, a pattern, or a color token added here is in the wrong
-place. `D47` records why a fact lives in one of them and not two.
+place.
 
 - **Keep `SPEC.md` current as you work.** Propose a walkthrough box when a
   completed step covers it, and add a Deferred entry for work you ruled out of
-  the current change. What landed belongs in the commit, not in a second log
-  (`D45`).
+  the current change. What landed belongs in the commit, not in a second log.
 
 - **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out
   an option for a reason worth recording makes the choice a decision. Add a
@@ -37,8 +36,8 @@ place. `D47` records why a fact lives in one of them and not two.
   removed.** A citation in a commit or a comment outlives the line it points at.
   Reusing an ID repoints every reference to it without any of them changing.
 
-- **Cite IDs, never restate** (`D47`). Write `D7` in code, commit messages, PR
-  bodies, and the other docs. A copied constraint drifts away from its original as the
+- **Cite IDs, never restate.** Write `D7` in code, commit messages, PR bodies,
+  and the other docs. A copied constraint drifts away from its original as the
   original changes, while a citation keeps pointing at whatever the entry says
   now.
 
@@ -46,8 +45,8 @@ place. `D47` records why a fact lives in one of them and not two.
 
 This repository uses the Effect TypeScript library.
 
-Before writing any Effect code, read `node_modules/effect/AGENTS.md` in full first, and follow the links in the
-file when required.
+Before writing any Effect code, read `node_modules/effect/AGENTS.md` in full and
+follow the links in the file when required.
 
 If you need to learn more about particular Effect APIs and concepts that the
 guide does not cover, search through the source code in
@@ -77,8 +76,8 @@ guide does not cover, search through the source code in
   function that decides whether work should happen from the one that does it,
   and name the deciding part.
 
-- **A comment carries a why, never a what** (`D48`). Doc comments, meaning JSDoc
-  and rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line
+- **A comment carries a why, never a what.** Doc comments, meaning JSDoc and
+  rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line
   comment earns its place when it holds reasoning the code cannot: a platform
   quirk, a race, a measured value, or the rejected alternative sitting one line
   away. Delete the ones that restate what the line below already says, since
@@ -196,8 +195,8 @@ guide does not cover, search through the source code in
   first line of the stack trace. Validation is Effect Schema in
   `src/server/schemas/`, not zod.
 
-- **A typed failure's message is user-facing text.** `ARCHITECTURE.md` covers how
-  `run()` gets it to a toast. Write those messages to the copy rules in
+- **A typed failure's message is user-facing text.** `ARCHITECTURE.md` covers
+  how `run()` gets it to a toast. Write those messages to the copy rules in
   `DESIGN.md`.
 
 - **Resolve warnings and errors your changes introduce before finishing. Fix the

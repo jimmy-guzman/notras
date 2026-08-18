@@ -5,7 +5,9 @@ rewrite, which `git log` records.
 
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
-an ID repoints every reference to it without any of them changing.
+an ID repoints every reference to it without any of them changing. The highest
+number issued so far is 48, and some entries below it were removed, so the next
+entry takes 49.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -316,23 +318,6 @@ notes. Rejected because `D2` already gives agents a write path, and an MCP
 server is a process to build, run, and keep in sync with the file format.
 Recorded as deferred in `SPEC.md`, in case agents ever need richer operations
 than file writes.
-
-### D17 Seven features cut
-
-Each of these removed machinery rather than only a screen.
-
-| Cut                          | What went with it                                                             |
-| ---------------------------- | ----------------------------------------------------------------------------- |
-| Link extraction, OG previews | og/link services, the `links` table, the only network dependency              |
-| Reminders                    | an SSE route, a 30s polling fiber, the notification plugin, reminder presets  |
-| Export and import zip        | fflate, export and import services. The folder is the export.                 |
-| Image optimization           | sharp and a Rust image pipeline. Attachments are copied as-is.                |
-| Profile and greeting         | the user table, user-service, device-user seeding, the profile form           |
-| Asset BLOBs                  | blob IPC, `/api/assets`, uploader and preview components                      |
-| Cache invalidation           | the `CacheInvalidator` port and `forkBackground`, which had no consumers left |
-
-Mutations now await and then call `router.invalidate()`, which is what made the
-last row possible.
 
 ### D18 Lowercase user-facing text
 
@@ -1374,8 +1359,7 @@ without marking its own enabler as used.
 
 **Constraint:** the `AGENTS.md` comment rule lost its enforcement. ESLint's
 `no-inline-comments`, with a `TODO|FIXME` escape hatch, was checking it, and
-Biome has no equivalent. `D48` later replaced the rule with one no linter could
-check anyway.
+Biome has no equivalent.
 
 ### D42 Fire-and-forget promises carry no marker
 
@@ -1441,102 +1425,3 @@ their siblings directly, so the barrel only ever served consumers.
 
 **Constraint:** an import from `@/core` no longer resolves. There is no
 deprecation window, and the compiler reports every stale one.
-
-### D45 `SPEC.md` is a verification list, not a log
-
-`SPEC.md` holds the manual walkthrough and the deferred work. The rewrite
-context, the feature set, the survives-and-dies table, phases 0 through 7, the
-risks pointer, and the 38-row progress log are deleted. `AGENTS.md` no longer
-asks for a progress-log row.
-
-The file had reached 167KB, of which 150KB was the log and 94,633 bytes of that
-was space padding inside its table cells. A markdown formatter aligns a table to
-its widest cell, and the widest cell was a five-paragraph essay, so each row cost
-about four times what it said. Of the 38 rows, 22 re-narrated a `DECISIONS.md`
-entry they already cited, 12 described SQLite-first and CodeMirror 6 designs that
-never shipped, and 2 restated `git log`.
-
-**Rejected: a one-line-per-PR log.** Bounds the cell, so the formatter has
-nothing to pad against, and keeps a running record in one place. Rejected because
-what a line that short can hold is a date and a subject, which is what
-`git log --oneline` already prints.
-
-**Rejected: deleting the file.** Two sections are live, and both would have to
-move. Rejected because the walkthrough is the only coverage `D21` leaves for
-window behaviour and the quit handshake, and `AGENTS.md` sends a reader to it by
-name.
-
-**Constraint:** what landed now lives only in the commit and, where it was a
-choice, here. A reader wanting the shape of a past change reads `git log`, which
-holds it at full length and cannot drift from it.
-
-### D46 `.claude/CLAUDE.md` is deleted
-
-The Ultracite preset's boilerplate file is removed. `AGENTS.md`, reached through
-the root `CLAUDE.md`, is the only standards document.
-
-Two files loaded together disagreed. One banned every comment that is not a doc
-comment or a `TODO` and the other asked for comments on complex logic; one gave
-the format command as `pnpm fix` and the other as `pnpm dlx ultracite fix`. An
-agent reading both picks one, and which one is not something either file decides.
-
-**Rejected: trimming it to the parts that do not conflict.** Keeps whatever the
-preset knows that `AGENTS.md` does not. Rejected because nothing was left after
-the Next.js, Solid, Svelte, Vue and Qwik sections went: the rest restated
-`AGENTS.md` at lower resolution, and a file kept for its residue regrows on the
-next preset update.
-
-### D47 Each fact has one home
-
-A statement lives in one document and the others cite it. `README.md` owns the
-scripts and shortcuts tables, `ARCHITECTURE.md` the mechanics, `DESIGN.md` what
-an interface rule is, `DECISIONS.md` why one option beat another, and
-`AGENTS.md` the map itself.
-
-`AGENTS.md` already carried the rule as "Cite IDs, never restate," and the docs
-broke it. The shortcuts table was byte-identical in two files and both had
-drifted the same way. Ten `DECISIONS.md` entries restated `ARCHITECTURE.md`
-paragraphs word for word, and the four whose mechanics were duplicated whole were
-four of the five entries nothing cites. The icon shadow figure was copied from
-`D34` into `DESIGN.md` and both were wrong against `scripts/icons.sh`, which is
-the drift the rule predicts.
-
-**Rejected: letting `ARCHITECTURE.md` and `DECISIONS.md` both carry the
-mechanics.** Each doc reads whole, and a reader following a citation loses their
-place. Rejected because a copy has no mechanism that updates it, so the second
-one is wrong from the first change onward and nothing says which is current.
-
-**Constraint:** a citation is only as good as the anchor. `D` IDs are stable by
-the rule above this list, but a section heading is not, so a cross-doc pointer
-names the document and the concept rather than a heading or a line.
-
-### D48 A comment carries a why, never a what
-
-A line comment is allowed where it holds reasoning the code cannot, and banned
-where it restates the line below it. `AGENTS.md` carries the rule and the kinds
-it covers.
-
-The previous rule banned every comment outside JSDoc, rustdoc, `TODO` and
-`FIXME`, and named `src/styles.css` as the one exception. The tree carries 211
-line comments across 32 files, and they are the kind this entry keeps: "External
-writers (AI agents, other editors, the watcher) drive refreshes", "Claiming
-'saved' here would be a lie until the write lands". A rule that the codebase
-ignores 211 times is not a rule, and the two options were to delete the
-reasoning or to write down what was already being practised.
-
-**Rejected: keeping the ban and stripping the 211.** Consistent, and the
-original rule's argument holds: a comment drifts away from the code it describes
-while naming and structure do not. Rejected because the reasoning in those
-comments has no other home. `DECISIONS.md` takes what ruled out an alternative,
-`ARCHITECTURE.md` takes what holds across the system, and neither takes "WebKit
-paints this two pixels off" at the line where it matters.
-
-**Rejected: keeping the ban as an aspiration and recording the gap.** Costs
-nothing and leaves the target standing. Rejected because a rule nobody meets
-teaches a reader to discount the file, and `AGENTS.md` is read by agents that
-cannot tell an aspiration from a constraint.
-
-**Constraint:** nothing checks this and nothing can. `D41` records that Biome has
-no comment rule, but the distinction here is a judgement about content rather
-than a shape a linter could match, so the deferred enforcement entry that
-outlived the old rule is removed rather than reassigned.
