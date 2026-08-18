@@ -1,7 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ export function SettingsDialog({
     }
   }, [open]);
 
-  const changeNotesDir = async () => {
+  const changeNotesDir = useCallback(async () => {
     try {
       const selected = await openDialog({
         directory: true,
@@ -66,9 +66,9 @@ export function SettingsDialog({
         error instanceof Error ? error.message : "could not change folder"
       );
     }
-  };
+  }, [router]);
 
-  const toggleAutostart = async (value: boolean) => {
+  const toggleAutostart = useCallback(async (value: boolean) => {
     setAutostart(value);
 
     try {
@@ -77,7 +77,7 @@ export function SettingsDialog({
       setAutostart(!value);
       toast.error("could not update launch at login");
     }
-  };
+  }, []);
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>

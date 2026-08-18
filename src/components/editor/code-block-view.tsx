@@ -2,7 +2,7 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { lowlight } from "./extensions";
@@ -35,7 +35,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
     []
   );
 
-  const copy = () => {
+  const copy = useCallback(() => {
     navigator.clipboard
       .writeText(node.textContent)
       .then(() => {
@@ -48,7 +48,14 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
       .catch(() => {
         toast.error("could not copy the code block");
       });
-  };
+  }, [node.textContent]);
+
+  const changeLanguage = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      updateAttributes({ language: event.target.value });
+    },
+    [updateAttributes]
+  );
 
   return (
     <NodeViewWrapper as="div" className="code-block-wrapper">
@@ -65,9 +72,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         <select
           aria-label="code language"
           className="code-block-language"
-          onChange={(event) => {
-            updateAttributes({ language: event.target.value });
-          }}
+          onChange={changeLanguage}
           value={language}
         >
           <option value="">plain</option>

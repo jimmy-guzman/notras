@@ -287,18 +287,36 @@ function NoteEditor({ note }: NoteEditorProps) {
     [onChange]
   );
 
-  const handleSourceChange = (raw: string) => {
-    const parsed = parseNote(raw);
+  const handleSourceChange = useCallback(
+    (raw: string) => {
+      const parsed = parseNote(raw);
 
-    setFrontmatterLines(parsed.rawLines);
-    setBody(parsed.body);
-    setWords(countWords(raw));
-    autosave.onChange(raw);
-  };
+      setFrontmatterLines(parsed.rawLines);
+      setBody(parsed.body);
+      setWords(countWords(raw));
+      autosave.onChange(raw);
+    },
+    [autosave]
+  );
+
+  const attachSourceEditor = useCallback((handle: SourceEditorHandle) => {
+    sourceRef.current = handle;
+  }, []);
+
+  const attachEditor = useCallback((handle: EditorHandle) => {
+    editorRef.current = handle;
+  }, []);
+
+  const filterByTag = useCallback(
+    (tag: string) => {
+      navigate({ search: { tag }, to: "." });
+    },
+    [navigate]
+  );
 
   // The caret rides through the markdown converters as a sentinel, so the
   // mapping between the two surfaces is exact (see sentinel.ts).
-  const toggleSourceMode = () => {
+  const toggleSourceMode = useCallback(() => {
     const raw = composeNote(frontmatterRef.current, bodyRef.current);
     const prefixLength = raw.length - bodyRef.current.length;
 
@@ -318,7 +336,7 @@ function NoteEditor({ note }: NoteEditorProps) {
     }
 
     setSourceMode(!sourceMode);
-  };
+  }, [sourceMode]);
 
   useHotkeys("mod+p", toggleSourceMode, HOTKEY_OPTIONS);
   useHotkeys("mod+d", toggleFocusMode, HOTKEY_OPTIONS);
@@ -339,9 +357,7 @@ function NoteEditor({ note }: NoteEditorProps) {
           initialValue={composeNote(frontmatterLines, body)}
           key={`${note.path}:${reloadKey}:source`}
           onChange={handleSourceChange}
-          onReady={(handle) => {
-            sourceRef.current = handle;
-          }}
+          onReady={attachSourceEditor}
         />
       ) : (
         <Editor
@@ -350,9 +366,7 @@ function NoteEditor({ note }: NoteEditorProps) {
           initialContent={sentineledBody ?? body}
           key={`${note.path}:${reloadKey}`}
           onChange={handleBodyChange}
-          onReady={(handle) => {
-            editorRef.current = handle;
-          }}
+          onReady={attachEditor}
           onWikilinkClick={openWikilink}
           resolveImageSrc={resolveImageSrc}
           stripSentinel={sentineledBody !== null}
@@ -363,9 +377,7 @@ function NoteEditor({ note }: NoteEditorProps) {
       <StatusBar
         allTags={tags}
         focusModeEnabled={focusModeEnabled}
-        onFilterTag={(tag) => {
-          navigate({ search: { tag }, to: "." });
-        }}
+        onFilterTag={filterByTag}
         onToggleFocusMode={toggleFocusMode}
         onToggleSource={toggleSourceMode}
         onToggleTypewriter={toggleTypewriter}

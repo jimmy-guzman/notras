@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 import { Editor } from "@/components/editor/editor";
@@ -105,6 +105,15 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
     [save]
   );
 
+  const handleChange = useCallback(
+    (body: string) => {
+      latestBodyRef.current = body;
+      setStatus("dirty");
+      save(body);
+    },
+    [save]
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
@@ -119,11 +128,7 @@ function ExternalNote({ content, path }: ExternalNoteProps) {
       <Editor
         focusOnMount
         initialContent={parsed.body}
-        onChange={(body) => {
-          latestBodyRef.current = body;
-          setStatus("dirty");
-          save(body);
-        }}
+        onChange={handleChange}
       />
     </div>
   );

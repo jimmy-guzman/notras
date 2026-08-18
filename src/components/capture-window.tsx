@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -11,6 +11,8 @@ import { Titlebar } from "@/components/titlebar";
 import { Kbd } from "@/components/ui/kbd";
 import { Toaster } from "@/components/ui/sonner";
 import { createNote } from "@/data/create-note";
+
+const NOOP = () => undefined;
 
 const HOTKEY_OPTIONS = {
   enableOnContentEditable: true,
@@ -61,6 +63,10 @@ export function CaptureWindow() {
     await getCurrentWindow().hide();
   };
 
+  const attachEditor = useCallback((handle: EditorHandle) => {
+    editorRef.current = handle;
+  }, []);
+
   useHotkeys(
     "esc, mod+enter",
     () => {
@@ -76,10 +82,8 @@ export function CaptureWindow() {
         focusOnMount
         initialContent=""
         key={session}
-        onChange={() => undefined}
-        onReady={(handle) => {
-          editorRef.current = handle;
-        }}
+        onChange={NOOP}
+        onReady={attachEditor}
         placeholderText="jot it down..."
       />
       <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-muted-foreground text-xs">

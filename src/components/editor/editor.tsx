@@ -2,7 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { attachImage } from "@/data/attach-file";
@@ -379,6 +379,54 @@ export function Editor({
     }
   }, [config, editor]);
 
+  const cancelLink = useCallback(() => {
+    setLinkEditor(null);
+    editor?.commands.focus();
+  }, [editor]);
+
+  const removeLink = useCallback(() => {
+    setLinkEditor(null);
+    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+  }, [editor]);
+
+  const submitLink = useCallback(
+    (rawUrl: string, text?: string) => {
+      if (editor === null) {
+        return;
+      }
+
+      const href = normalizeUrl(rawUrl);
+
+      setLinkEditor(null);
+      if (href === null) {
+        if (rawUrl.trim() !== "") {
+          toast.error(UNSAFE_LINK_MESSAGE);
+        }
+
+        editor.commands.focus();
+
+        return;
+      }
+
+      if (text === undefined) {
+        editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+      } else if (text.trim() === "") {
+        editor.commands.focus();
+      } else {
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            marks: [{ attrs: { href }, type: "link" }],
+            text: text.trim(),
+            type: "text",
+          })
+          .run();
+      }
+    },
+    [editor]
+  );
+
   return (
     <div
       className={cn(
@@ -390,49 +438,9 @@ export function Editor({
       <EditorContent className="min-h-full" editor={editor} />
       {linkEditor === null || editor === null ? null : (
         <LinkEditor
-          onCancel={() => {
-            setLinkEditor(null);
-            editor.commands.focus();
-          }}
-          onRemove={() => {
-            setLinkEditor(null);
-            editor.chain().focus().extendMarkRange("link").unsetLink().run();
-          }}
-          onSubmit={(rawUrl, text) => {
-            const href = normalizeUrl(rawUrl);
-
-            setLinkEditor(null);
-            if (href === null) {
-              if (rawUrl.trim() !== "") {
-                toast.error(UNSAFE_LINK_MESSAGE);
-              }
-
-              editor.commands.focus();
-
-              return;
-            }
-
-            if (text === undefined) {
-              editor
-                .chain()
-                .focus()
-                .extendMarkRange("link")
-                .setLink({ href })
-                .run();
-            } else if (text.trim() === "") {
-              editor.commands.focus();
-            } else {
-              editor
-                .chain()
-                .focus()
-                .insertContent({
-                  marks: [{ attrs: { href }, type: "link" }],
-                  text: text.trim(),
-                  type: "text",
-                })
-                .run();
-            }
-          }}
+          onCancel={cancelLink}
+          onRemove={removeLink}
+          onSubmit={submitLink}
           state={linkEditor}
         />
       )}

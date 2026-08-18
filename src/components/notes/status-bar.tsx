@@ -1,4 +1,5 @@
 import { CodeIcon, CrosshairIcon, KeyboardIcon } from "lucide-react";
+import { useCallback, useMemo } from "react";
 
 import { NoteTags } from "@/components/notes/note-tags";
 import { Kbd } from "@/components/ui/kbd";
@@ -40,32 +41,51 @@ export function StatusBar({
   typewriterEnabled,
   words,
 }: StatusBarProps) {
-  const toggles = [
-    {
-      hint: "⌘d",
-      icon: CrosshairIcon,
-      label: "focus mode",
-      onToggle: onToggleFocusMode,
-      pressed: focusModeEnabled,
-      value: "focus",
+  const toggles = useMemo(
+    () => [
+      {
+        hint: "⌘d",
+        icon: CrosshairIcon,
+        label: "focus mode",
+        onToggle: onToggleFocusMode,
+        pressed: focusModeEnabled,
+        value: "focus",
+      },
+      {
+        hint: "",
+        icon: KeyboardIcon,
+        label: "typewriter scrolling",
+        onToggle: onToggleTypewriter,
+        pressed: typewriterEnabled,
+        value: "typewriter",
+      },
+      {
+        hint: "⌘p",
+        icon: CodeIcon,
+        label: "markdown source",
+        onToggle: onToggleSource,
+        pressed: sourceEnabled,
+        value: "source",
+      },
+    ],
+    [
+      focusModeEnabled,
+      onToggleFocusMode,
+      onToggleSource,
+      onToggleTypewriter,
+      sourceEnabled,
+      typewriterEnabled,
+    ]
+  );
+
+  const handleToggleChange = useCallback(
+    (next: string[]) => {
+      toggles
+        .find((toggle) => next.includes(toggle.value) !== toggle.pressed)
+        ?.onToggle();
     },
-    {
-      hint: "",
-      icon: KeyboardIcon,
-      label: "typewriter scrolling",
-      onToggle: onToggleTypewriter,
-      pressed: typewriterEnabled,
-      value: "typewriter",
-    },
-    {
-      hint: "⌘p",
-      icon: CodeIcon,
-      label: "markdown source",
-      onToggle: onToggleSource,
-      pressed: sourceEnabled,
-      value: "source",
-    },
-  ];
+    [toggles]
+  );
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-1 border-t px-3 text-muted-foreground text-xs">
@@ -80,11 +100,7 @@ export function StatusBar({
       </span>
       <ToggleGroup
         multiple
-        onValueChange={(next) => {
-          toggles
-            .find((toggle) => next.includes(toggle.value) !== toggle.pressed)
-            ?.onToggle();
-        }}
+        onValueChange={handleToggleChange}
         size="icon-xs"
         spacing={0.5}
         value={toggles

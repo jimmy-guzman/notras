@@ -1,5 +1,5 @@
 import { HashIcon, TagPlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { useNoteTags } from "@/components/notes/use-note-tags";
@@ -20,6 +20,27 @@ const HOTKEY_OPTIONS = {
   enableOnFormTags: true,
   preventDefault: true,
 } as const;
+
+interface TagBadgeProps {
+  onFilter: (tag: string) => void;
+  tag: string;
+}
+
+function TagBadge({ onFilter, tag }: TagBadgeProps) {
+  const filter = useCallback(() => {
+    onFilter(tag);
+  }, [onFilter, tag]);
+
+  return (
+    <Badge
+      className="text-muted-foreground hover:text-foreground"
+      render={<button onClick={filter} type="button" />}
+      variant="ghost"
+    >
+      {`#${tag}`}
+    </Badge>
+  );
+}
 
 interface NoteTagsProps {
   allTags: { count: number; tag: string }[];
@@ -57,10 +78,13 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
 
   // Clearing the input belongs to this surface rather than to the write, so it
   // wraps the shared writer instead of living inside it.
-  const commitTags = (nextTags: string[]) => {
-    setQuery("");
-    changeTags(nextTags);
-  };
+  const commitTags = useCallback(
+    (nextTags: string[]) => {
+      setQuery("");
+      changeTags(nextTags);
+    },
+    [changeTags]
+  );
 
   const hasTags = optimisticTags.length > 0;
 
@@ -69,21 +93,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
       {hasTags ? (
         <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
           {optimisticTags.map((tag) => (
-            <Badge
-              className="text-muted-foreground hover:text-foreground"
-              key={tag}
-              render={
-                <button
-                  onClick={() => {
-                    onFilter(tag);
-                  }}
-                  type="button"
-                />
-              }
-              variant="ghost"
-            >
-              {`#${tag}`}
-            </Badge>
+            <TagBadge key={tag} onFilter={onFilter} tag={tag} />
           ))}
         </div>
       ) : null}

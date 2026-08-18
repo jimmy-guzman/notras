@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { toast } from "sonner";
 
 import { Titlebar } from "@/components/titlebar";
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/")({
 function EmptyState() {
   const navigate = useNavigate();
 
-  const newNote = () => {
+  const newNote = useCallback(() => {
     createNote()
       .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
       .catch((error: unknown) => {
@@ -34,7 +35,7 @@ function EmptyState() {
           error instanceof Error ? error.message : "could not create note"
         );
       });
-  };
+  }, [navigate]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

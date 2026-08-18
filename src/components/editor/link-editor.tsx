@@ -1,5 +1,5 @@
 import { CheckIcon, UnlinkIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface LinkEditorState {
   /** Caret rect for positioning the popover. */
@@ -70,21 +70,38 @@ export function LinkEditor({
     element.style.top = `${top}px`;
   }, [state.left, state.top]);
 
-  const submit = () => {
+  const submit = useCallback(() => {
     onSubmit(url, state.needsText ? text : undefined);
-  };
+  }, [onSubmit, state.needsText, text, url]);
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      submit();
-    }
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submit();
+      }
 
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onCancel();
-    }
-  };
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCancel();
+      }
+    },
+    [onCancel, submit]
+  );
+
+  const changeText = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setText(event.target.value);
+    },
+    []
+  );
+
+  const changeUrl = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setUrl(event.target.value);
+    },
+    []
+  );
 
   return (
     // Keys are handled on the container so Escape works from the buttons too.
@@ -94,9 +111,7 @@ export function LinkEditor({
         <input
           aria-label="link text"
           className="link-editor-input"
-          onChange={(event) => {
-            setText(event.target.value);
-          }}
+          onChange={changeText}
           placeholder="link text..."
           ref={firstFieldRef}
           value={text}
@@ -105,9 +120,7 @@ export function LinkEditor({
       <input
         aria-label="link url"
         className="link-editor-input"
-        onChange={(event) => {
-          setUrl(event.target.value);
-        }}
+        onChange={changeUrl}
         placeholder="enter url..."
         ref={state.needsText ? undefined : firstFieldRef}
         type="url"

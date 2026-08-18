@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 
@@ -59,7 +59,7 @@ function RootLayout() {
   // A tag chip navigates rather than calling up here, so the search param is
   // what opens the palette; clearing it on close keeps the URL from reopening
   // it on the next render.
-  const closePalette = () => {
+  const closePalette = useCallback(() => {
     setPaletteOpen(false);
 
     if (tag !== undefined) {
@@ -69,7 +69,24 @@ function RootLayout() {
         to: ".",
       });
     }
-  };
+  }, [navigate, tag]);
+
+  const handlePaletteOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        setPaletteOpen(true);
+
+        return;
+      }
+
+      closePalette();
+    },
+    [closePalette]
+  );
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+  }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   useEffect(() => {
@@ -199,18 +216,8 @@ function RootLayout() {
         key={tag ?? "palette"}
         notes={notes}
         notesDir={notesDir}
-        onOpenChange={(next) => {
-          if (next) {
-            setPaletteOpen(true);
-
-            return;
-          }
-
-          closePalette();
-        }}
-        onOpenSettings={() => {
-          setSettingsOpen(true);
-        }}
+        onOpenChange={handlePaletteOpenChange}
+        onOpenSettings={openSettings}
         open={paletteOpen || tag !== undefined}
         tag={tag}
       />
