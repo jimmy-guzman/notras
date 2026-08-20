@@ -81,6 +81,9 @@ the top says which one a given fact belongs in.
 brew install --cask jimmy-guzman/tap/notras
 ```
 
+The cask is published by the release pipeline, so it appears with the first
+release.
+
 Upgrade with `brew upgrade --cask notras`. Or download a `.dmg`, `.AppImage`,
 `.deb` or `.msi` from
 [releases](https://github.com/jimmy-guzman/notras/releases), alongside that

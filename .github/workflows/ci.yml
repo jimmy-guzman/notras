@@ -46,6 +46,9 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # --locked is the `D49` guard, and it belongs on the pull request: a bare
+      # `cargo test` repairs a stale Cargo.lock in place and passes, so the
+      # mistake would only surface in release.yml after main is tagged.
       - name: 🧪 Rust Tests
         working-directory: src-tauri
-        run: cargo test
+        run: cargo test --locked
