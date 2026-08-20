@@ -68,6 +68,17 @@ jobs:
           ref: ${{ env.TAG }}
           persist-credentials: false
 
+      # The tauri crate links webkit2gtk through pkg-config, so cargo cannot
+      # build here without these. ci.yml dodges it by running cargo on macOS.
+      - name: 🐧 Setup Linux Deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
       - name: 📦 Install
         uses: ./.github/actions/install
 

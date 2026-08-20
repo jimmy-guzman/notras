@@ -40,7 +40,8 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - Git integration UI (the folder is git-init-able by hand today)
 - wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
 - In-app auto-update (`tauri-plugin-updater`; the release pipeline ships without
-  it, and turning it on needs a signing key and two releases to verify)
+  it, and turning it on needs a signing key, two releases to verify, and
+  `auto_updates true` restored to the cask so brew stops upgrading it)
 - macOS code signing and notarization (the release workflow already wires the
   `APPLE_*` variables, so it needs a Developer ID; until then the cask and
   `README.md` carry the quarantine workaround)
