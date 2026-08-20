@@ -6,8 +6,8 @@ rewrite, which `git log` records.
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
 an ID repoints every reference to it without any of them changing. The highest
-number issued so far is 48, and some entries below it were removed, so the next
-entry takes 49.
+number issued so far is 49, and some entries below it were removed, so the next
+entry takes 50.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -1230,3 +1230,44 @@ comply and no boundary is currently crossed.
 catches it. `D14` rejected workspace packages because lint was doing the work,
 and that comparison no longer holds, so a boundary that actually slips is a
 reason to revisit it rather than to re-add the rule.
+
+### D49 release-please owns the version, and the crate version is frozen
+
+`package.json` carries the only version in the repo. release-please bumps it,
+`src-tauri/tauri.conf.json` reads it through `"version": "../package.json"`, and
+`src-tauri/Cargo.toml` is pinned at `0.0.0` behind a comment saying so. Nothing
+reads `CARGO_PKG_VERSION`, and the crate is never published, so the frozen value
+names nothing.
+
+The freeze is not separable from the tool. No release-please configuration
+updates `Cargo.toml` and `Cargo.lock` together: the supported `extra-files`
+types are `generic`, `json`, `yaml`, `toml`, `xml` and `pom`, and while a
+`CargoLock` updater exists, only the `rust` release strategy reaches it and that
+strategy expects the crate at the repository root, which a Tauri app does not
+have. The `generic` updater needs an `x-release-please-version` annotation
+comment, and cargo rewrites `Cargo.lock` without preserving comments.
+
+**Rejected: tag-driven versioning that commits nothing.** Yaak stamps the
+version from `github.ref_name`, GitButler writes a computed one into a temporary
+config, and `tauri build --config` merges an inline `{"version": "..."}`, so
+injection costs one line and no file can drift. Rejected because a grouped
+conventional-commit `CHANGELOG.md` is wanted and is the one thing hard to get
+without release-please, and because stet already runs release-please, which
+keeps both repositories on one system.
+
+**Rejected: bumping `Cargo.toml` through `extra-files`.** Two projects run that
+configuration and bracket what it costs. `zmkfirmware/zmk-studio` ignores the
+lockfile, so its `Cargo.toml` reads `0.3.1` while the `app` entry in its
+`Cargo.lock` still reads `0.1.0`. `bminier/claude-scope` keeps the lockfile
+correct by adding a second workflow job, a Python script, and a bot commit
+pushed back into the release pull request, and its own comment records the
+remaining hole: the bot pushes as `GITHUB_TOKEN`, which does not re-trigger CI,
+so a maintainer has to re-run CI by hand before merging.
+
+**Constraint:** `cargo build --locked` joins the verification gate and runs in
+the release workflow's `check` job. Restoring a real version to `Cargo.toml`
+without also solving the lockfile fails there instead of shipping.
+
+**Constraint:** Tauri resolves a `version` path relative to the config file's
+own directory, not the project root, so `"../package.json"` depends on
+`tauri.conf.json` staying in `src-tauri/`.

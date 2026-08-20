@@ -501,6 +501,15 @@ They cover every markdown file here, plus commit messages and PR bodies.
   sentences make it answerable: the risk someone accepted, and the signal that
   fires when the risk lands.
 
+- **Releases are cut by release-please, and `package.json` holds the only
+  version.** A conventional commit on `main` opens or updates a release PR;
+  merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build,
+  checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never
+  hand-edit a version: `src-tauri/tauri.conf.json` derives it and
+  `src-tauri/Cargo.toml` is frozen, which `D49` explains. A stranded or partial
+  release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`,
+  because the push path cannot redo it.
+
 - **After introducing a new pattern, feature, convention, or structural change,
   ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`,
   `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs

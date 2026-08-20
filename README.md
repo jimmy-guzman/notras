@@ -75,6 +75,23 @@ does, the diagram, the layer boundaries, the key patterns, and the invariants.
 [AGENTS.md](AGENTS.md) for the rules on changing any of it, where the table at
 the top says which one a given fact belongs in.
 
+## Install
+
+```bash
+brew install --cask jimmy-guzman/tap/notras
+```
+
+Or download a `.dmg`, `.AppImage`, `.deb` or `.msi` from
+[releases](https://github.com/jimmy-guzman/notras/releases). notras updates
+itself; `SHA256SUMS.txt` on each release covers the manual downloads.
+
+Builds are not yet signed with an Apple Developer ID, so macOS quarantines the
+app on first launch. Clear it with:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/notras.app
+```
+
 ## Getting started
 
 You need Node (`.nvmrc` pins v24.19.0), [pnpm](https://pnpm.io), and a

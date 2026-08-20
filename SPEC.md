@@ -39,7 +39,15 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - Backlinks panel (wikilinks are one-directional today)
 - Git integration UI (the folder is git-init-able by hand today)
 - wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
-- Auto-update / code signing
+- In-app auto-update (`tauri-plugin-updater`; the release pipeline ships without
+  it, and turning it on needs a signing key and two releases to verify)
+- macOS code signing and notarization (the release workflow already wires the
+  `APPLE_*` variables, so it needs a Developer ID; until then the cask and
+  `README.md` carry the quarantine workaround)
+- Enforcing the commit format (release-please derives the version and changelog
+  from commit messages, so a hand-typed one silently produces neither; gitzy has
+  no validate subcommand, so this means commitlint, and stet left it as
+  convention too)
 - A `.icon` package for system-drawn Liquid Glass (`D34` deferred it rather than
   closing it)
 - MCP server (only if agents ever need richer ops than file writes, such as search-as-a-tool)
