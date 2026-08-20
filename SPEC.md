@@ -42,6 +42,9 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - In-app auto-update (`tauri-plugin-updater`; the release pipeline ships without
   it, and turning it on needs a signing key, two releases to verify, and
   `auto_updates true` restored to the cask so brew stops upgrading it)
+- A verified minimum macOS version for the cask (`tauri.conf.json` sets none, so
+  the bundle carries Tauri's 10.13 default; nothing has tested the real floor,
+  so the cask declares no `depends_on macos:`)
 - macOS code signing and notarization (the release workflow already wires the
   `APPLE_*` variables, so it needs a Developer ID; until then the cask and
   `README.md` carry the quarantine workaround)
