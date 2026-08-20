@@ -98,11 +98,13 @@ jobs:
         run: pnpm build:web
 
       # Catches the `D49` freeze being undone: a bumped Cargo.toml with a stale
-      # Cargo.lock fails here rather than shipping.
+      # Cargo.lock fails here rather than shipping. --locked on BOTH is what
+      # makes that work; a bare `cargo test` repairs the lockfile in place, so
+      # the build below would then pass and the guard would never fire.
       - name: 🦀 Rust Tests
         working-directory: src-tauri
         run: |
-          cargo test
+          cargo test --locked
           cargo build --locked
 
   build:

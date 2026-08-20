@@ -271,12 +271,13 @@ fails cheapest first. After every set of changes, run all of it before
 considering the task done:
 
 ```txt
-pnpm knip         # 0. unused code/deps (fix before proceeding)
-pnpm typecheck    # 1. types
-pnpm check        # 2. lint + format
-pnpm coverage     # 3. unit tests (pnpm test watches, so it will not exit)
-pnpm build:web    # 4. web bundle build
-cargo test        # 5. (when src-tauri changed) in src-tauri/
+pnpm knip             # 0. unused code/deps (fix before proceeding)
+pnpm typecheck        # 1. types
+pnpm check            # 2. lint + format
+pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
+pnpm build:web        # 4. web bundle build
+cargo test --locked   # 5. (when src-tauri changed) in src-tauri/
+cargo build --locked  # 6. the `D49` freeze still holds
 ```
 
 CI runs the same commands in a different order and runs `cargo test` on every

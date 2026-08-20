@@ -83,8 +83,18 @@ brew install --cask jimmy-guzman/tap/notras
 
 Upgrade with `brew upgrade --cask notras`. Or download a `.dmg`, `.AppImage`,
 `.deb` or `.msi` from
-[releases](https://github.com/jimmy-guzman/notras/releases), where
-`SHA256SUMS.txt` covers a manual download.
+[releases](https://github.com/jimmy-guzman/notras/releases), alongside that
+release's `SHA256SUMS.txt`, and check what you got:
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing   # macOS
+sha256sum -c SHA256SUMS.txt --ignore-missing       # Linux
+```
+
+`--ignore-missing` matters: the file lists every platform's artifact, so without
+it the check fails on the ones you did not download. This catches a truncated or
+corrupted transfer. It is not a signature, since the sums sit on the same
+release as the files.
 
 Builds are not yet signed with an Apple Developer ID, so macOS quarantines the
 app on first launch. Clear it with:
