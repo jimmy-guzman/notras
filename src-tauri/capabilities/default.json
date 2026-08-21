@@ -19,6 +19,8 @@
     "global-shortcut:allow-is-registered",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+    "process:allow-restart",
+    "updater:default"
   ]
 }

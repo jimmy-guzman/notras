@@ -13,6 +13,10 @@
 .DS_Store
 *.pem
 
+# tauri updater signing keys
+*.key
+*.key.pub
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -31,6 +31,12 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - [x] 13. `pnpm tauri build` → built artifact launches; "Open With" on a random `.md` works
 - [x] 14. Type, then quit from the tray and again with ⌘Q → relaunch and the last
       keystrokes are on disk
+- [ ] 15. Install the first release carrying the updater, cut a second, relaunch
+      the installed copy → "version x.y.z is available" toast → type, leave the
+      keystrokes unsaved, then install → relaunches into the new version with
+      those keystrokes on disk. ⌘K → "check for updates..." reports either way.
+      Only the development message is reachable under `pnpm dev`: the check is
+      `PROD`-guarded, so the install path needs two real releases.
 
 ## Deferred
 
@@ -39,9 +45,6 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - Backlinks panel (wikilinks are one-directional today)
 - Git integration UI (the folder is git-init-able by hand today)
 - wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
-- In-app auto-update (`tauri-plugin-updater`; the release pipeline ships without
-  it, and turning it on needs a signing key, two releases to verify, and
-  `auto_updates true` restored to the cask so brew stops upgrading it)
 - SHA-pinning the three actions in `.github/actions/install` (`release.yml`
   pins everything it names, but the composite action both privileged jobs call
   resolves `setup-node`, `action-setup` and `cache` by mutable major tag, and

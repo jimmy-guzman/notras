@@ -155,6 +155,7 @@ src/
     runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
     pending-flush.ts  # autosave flush registry read by the quit handshake
+    updater.ts        # release check, offer toast, install + relaunch
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -265,6 +266,14 @@ one chain so overlapping flushes cannot land out of order, and flushes on blur,
 unmount, and quit. Rust holds `ExitRequested` until the webview reports back,
 and a failed flush cancels the quit through `cancel_quit`.
 
+An update restart is the exception. It reaches `ExitRequested` carrying
+`RESTART_EXIT_CODE`, which Tauri refuses to prevent, so `lib.rs` returns before
+the handshake rather than opening one it cannot honour. `installUpdate` in
+`src/lib/updater.ts` awaits `flushPendingWrites` itself between
+`downloadAndInstall` and `relaunch`. A failed flush leaves the app running the
+old version rather than restarting, and the bundle already downloaded applies
+the next time someone launches it.
+
 ### External-change reload guard
 
 A loader refresh replaces the buffer only when the buffer is clean and the
@@ -284,8 +293,8 @@ into `attachments/`, and `write_external` writes outside the notes dir.
 ### The palette is the action surface
 
 `command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag
-editing, rename, move, delete, reveal, settings, and reindex. New note-level
-actions belong there rather than in new chrome.
+editing, rename, move, delete, reveal, settings, reindex, and the update check.
+New note-level actions belong there rather than in new chrome.
 
 `move`, `delete`, `rename`, and `tags` are sub-views of `PaletteView`. The tags view is
 the one place an action row does not dismiss the palette: toggling calls

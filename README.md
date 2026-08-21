@@ -84,7 +84,7 @@ brew install --cask jimmy-guzman/tap/notras
 The cask is published by the release pipeline, so it appears with the first
 release.
 
-Upgrade with `brew upgrade --cask notras`. Or download a `.dmg`, `.AppImage`,
+notras updates itself. Or download a `.dmg`, `.AppImage`,
 `.deb` or `.msi` from
 [releases](https://github.com/jimmy-guzman/notras/releases), alongside that
 release's `SHA256SUMS.txt`, and check what you got:

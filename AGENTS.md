@@ -494,7 +494,9 @@ They cover every markdown file here, plus commit messages and PR bodies.
   ```
 
   Two sections force the description to answer the two questions a reviewer
-  opens with, and a third section pads.
+  opens with, and a third section pads. Do not wrap the paragraphs: GitHub
+  renders every single newline in a PR body as a line break, so wrapped text
+  arrives as a ragged column. One line per paragraph.
 
 - **`## Why` also says what happens when the change is wrong and how someone
   finds out.** The section carries the problem the change addresses. Two more
