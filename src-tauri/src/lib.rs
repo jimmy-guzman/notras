@@ -307,7 +307,15 @@ pub fn run() {
         // is held back so the webview can flush unsaved buffers; the frontend
         // answers by calling `quit_app`, and a timer covers the case where it
         // never does.
-        RunEvent::ExitRequested { api, .. } => {
+        RunEvent::ExitRequested { api, code, .. } => {
+            // An update restart arrives here too, and Tauri ignores
+            // `prevent_exit` for it, so the handshake below would be a promise
+            // this process cannot keep. `installUpdate` flushes before it calls
+            // `relaunch` instead.
+            if code == Some(tauri::RESTART_EXIT_CODE) {
+                return;
+            }
+
             if app.state::<AppState>().quitting.swap(true, Ordering::SeqCst) {
                 return;
             }

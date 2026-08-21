@@ -39,7 +39,7 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
-import { findUpdate, installUpdate } from "@/lib/updater";
+import { findUpdate, installUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
 
@@ -627,9 +627,16 @@ export function CommandPalette({
     });
   }, [runAction]);
 
-  // Unlike the launch check, this one was asked for, so it reports either way.
+  // Unlike the launch check, this one was asked for, so it reports either way,
+  // including the way a development build cannot report on: it never ran.
   const checkForUpdates = useCallback(() => {
     runAction(async () => {
+      if (!updatesSupported()) {
+        toast("update checks are off in development");
+
+        return;
+      }
+
       const update = await findUpdate();
 
       if (update === null) {
@@ -642,8 +649,12 @@ export function CommandPalette({
         action: {
           label: "install",
           onClick: () => {
-            installUpdate(update).catch(() => {
-              toast.error("could not install the update");
+            installUpdate(update).catch((error: unknown) => {
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : "could not install the update"
+              );
             });
           },
         },

@@ -32,9 +32,11 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - [x] 14. Type, then quit from the tray and again with ⌘Q → relaunch and the last
       keystrokes are on disk
 - [ ] 15. Install the first release carrying the updater, cut a second, relaunch
-      the installed copy → "version x.y.z is available" toast → install →
-      relaunches into the new version. ⌘K → "check for updates..." reports
-      either way. `pnpm dev` cannot cover this: the check is `PROD`-guarded.
+      the installed copy → "version x.y.z is available" toast → type, leave the
+      keystrokes unsaved, then install → relaunches into the new version with
+      those keystrokes on disk. ⌘K → "check for updates..." reports either way.
+      Only the development message is reachable under `pnpm dev`: the check is
+      `PROD`-guarded, so the install path needs two real releases.
 
 ## Deferred
 

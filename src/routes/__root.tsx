@@ -20,7 +20,7 @@ import { getNotes } from "@/data/get-notes";
 import { getTags } from "@/data/get-tags";
 import { getNotesDir } from "@/data/notes-dir";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { findUpdate, installUpdate } from "@/lib/updater";
+import { findUpdate, installUpdate, updatesSupported } from "@/lib/updater";
 
 interface RootSearch {
   /** Set by a tag chip to open the palette already filtered to that tag. */
@@ -94,6 +94,10 @@ function RootLayout() {
   // someone over a network blip, and the palette offers a check that reports.
   useEffect(() => {
     const offerUpdate = async () => {
+      if (!updatesSupported()) {
+        return;
+      }
+
       const update = await findUpdate();
 
       if (update === null) {
@@ -104,8 +108,12 @@ function RootLayout() {
         action: {
           label: "install",
           onClick: () => {
-            installUpdate(update).catch(() => {
-              toast.error("could not install the update");
+            installUpdate(update).catch((error: unknown) => {
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : "could not install the update"
+              );
             });
           },
         },
