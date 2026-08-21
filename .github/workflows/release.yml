@@ -123,14 +123,12 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
-      # Guards the updater artifacts, not today's build. tauri-action builds
-      # latest.json by fetching the existing asset off the release, merging its
-      # platforms map and re-uploading; concurrent legs race that
-      # delete-then-upload and 404 (tauri-action#1270), and upstream's fix is a
-      # random 1-10s retry its own src/utils.ts calls provisional.
-      # upload-version-json.ts returns early with no .sig files, so the race
-      # cannot fire until `createUpdaterArtifacts` lands, and no release is cut
-      # before then. Goes if the updater ever does.
+      # tauri-action builds latest.json by fetching the existing asset off the
+      # release, merging its platforms map and re-uploading. Concurrent legs
+      # race that delete-then-upload and 404 (tauri-action#1270), and
+      # upstream's fix is a random 1-10s retry its own src/utils.ts calls
+      # provisional. Now that `createUpdaterArtifacts` emits .sig files the
+      # race is live, so serialize. Goes if the updater ever does.
       max-parallel: 1
       matrix:
         include:
@@ -226,6 +224,11 @@ jobs:
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Signs the updater artifacts. Unrelated to Apple signing, and not
+          # optional: without it `createUpdaterArtifacts` emits no .sig files
+          # and the published latest.json would be unverifiable.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ steps.release.outputs.id }}
           args: ${{ matrix.args }}

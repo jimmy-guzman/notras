@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
+  DownloadIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
@@ -38,6 +39,7 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
+import { findUpdate, installUpdate } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
 
@@ -625,6 +627,30 @@ export function CommandPalette({
     });
   }, [runAction]);
 
+  // Unlike the launch check, this one was asked for, so it reports either way.
+  const checkForUpdates = useCallback(() => {
+    runAction(async () => {
+      const update = await findUpdate();
+
+      if (update === null) {
+        toast.success("notras is up to date");
+
+        return;
+      }
+
+      toast(`version ${update.version} is available`, {
+        action: {
+          label: "install",
+          onClick: () => {
+            installUpdate(update).catch(() => {
+              toast.error("could not install the update");
+            });
+          },
+        },
+      });
+    });
+  }, [runAction]);
+
   const actions = [
     {
       Icon: FilePlusIcon,
@@ -697,6 +723,14 @@ export function CommandPalette({
       onSelect: reindex,
       text: "reindex library",
       value: "reindex",
+    },
+    {
+      Icon: DownloadIcon,
+      label: "check for updates",
+      needsNote: false,
+      onSelect: checkForUpdates,
+      text: "check for updates...",
+      value: "check-for-updates",
     },
   ];
 

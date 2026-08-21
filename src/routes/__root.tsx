@@ -20,6 +20,7 @@ import { getNotes } from "@/data/get-notes";
 import { getTags } from "@/data/get-tags";
 import { getNotesDir } from "@/data/notes-dir";
 import { flushPendingWrites } from "@/lib/pending-flush";
+import { findUpdate, installUpdate } from "@/lib/updater";
 
 interface RootSearch {
   /** Set by a tag chip to open the palette already filtered to that tag. */
@@ -86,6 +87,34 @@ function RootLayout() {
 
   const openSettings = useCallback(() => {
     setSettingsOpen(true);
+  }, []);
+
+  // One check per launch. Silent when there is nothing to install and silent
+  // when the check itself fails: a launch is the wrong moment to interrupt
+  // someone over a network blip, and the palette offers a check that reports.
+  useEffect(() => {
+    const offerUpdate = async () => {
+      const update = await findUpdate();
+
+      if (update === null) {
+        return;
+      }
+
+      toast(`version ${update.version} is available`, {
+        action: {
+          label: "install",
+          onClick: () => {
+            installUpdate(update).catch(() => {
+              toast.error("could not install the update");
+            });
+          },
+        },
+      });
+    };
+
+    offerUpdate().catch(() => {
+      // Deliberately quiet; see above.
+    });
   }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.

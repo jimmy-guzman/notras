@@ -36,6 +36,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "category": "Productivity",
     "icon": [
@@ -55,5 +56,16 @@
         "role": "Editor"
       }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/jimmy-guzman/notras/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM5RThEOEYyODhGQkU3MzgKUldRNDUvdUk4dGpvT1lxTmE2Rlp1Y1FxZ3lqSVVjMHE3MTJacWt3OFhHUlZYRXlxeExxdjBMajMK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
