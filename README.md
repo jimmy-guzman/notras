@@ -75,6 +75,37 @@ does, the diagram, the layer boundaries, the key patterns, and the invariants.
 [AGENTS.md](AGENTS.md) for the rules on changing any of it, where the table at
 the top says which one a given fact belongs in.
 
+## Install
+
+```bash
+brew install --cask jimmy-guzman/tap/notras
+```
+
+The cask is published by the release pipeline, so it appears with the first
+release.
+
+Upgrade with `brew upgrade --cask notras`. Or download a `.dmg`, `.AppImage`,
+`.deb` or `.msi` from
+[releases](https://github.com/jimmy-guzman/notras/releases), alongside that
+release's `SHA256SUMS.txt`, and check what you got:
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing   # macOS
+sha256sum -c SHA256SUMS.txt --ignore-missing       # Linux
+```
+
+`--ignore-missing` matters: the file lists every platform's artifact, so without
+it the check fails on the ones you did not download. This catches a truncated or
+corrupted transfer. It is not a signature, since the sums sit on the same
+release as the files.
+
+Builds are not yet signed with an Apple Developer ID, so macOS quarantines the
+app on first launch. Clear it with:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/notras.app
+```
+
 ## Getting started
 
 You need Node (`.nvmrc` pins v24.19.0), [pnpm](https://pnpm.io), and a

@@ -1,0 +1,332 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  # Redrive lever: republish an existing tag when a release run was lost or
+  # partial. release-please runs as GITHUB_TOKEN, which GitHub blocks from
+  # creating a release that targets a commit whose workflow files differ from
+  # the run's own, so a stranded release cannot be re-driven through the push
+  # path; this can.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing release tag to republish (e.g. v0.2.0)"
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      released: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: 🚀 Release Please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # An empty tag output reads as "no release" downstream and would silently
+      # skip the build on a green run. Fail loudly instead.
+      - name: 🧾 Assert Release Outputs
+        if: steps.release.outputs.releases_created == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          if [ -z "$TAG" ]; then
+            echo "::error::release created but tag_name is empty"
+            exit 1
+          fi
+
+  # The release PR is opened by GITHUB_TOKEN, which never triggers ci.yml's
+  # pull_request event, so the tagged tree has had no gate run against it.
+  check:
+    needs: release-please
+    # `!= 'failure'` rather than `== 'success'` because the dispatch path skips
+    # release-please. Without it, a run that set releases_created but no
+    # tag_name would reach here with TAG empty, and `ref: ''` makes checkout
+    # fall back to the triggering ref, certifying main instead of the tag.
+    if: ${{ !cancelled() && needs.release-please.result != 'failure' && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.released == 'true') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+    steps:
+      - name: 🏗 Setup Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      # The tauri crate links webkit2gtk through pkg-config, so cargo cannot
+      # build here without these. ci.yml dodges it by running cargo on macOS.
+      - name: 🐧 Setup Linux Deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: 📦 Install
+        uses: ./.github/actions/install
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: 🦀 Setup Rust Cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: ✂️ Knip
+        run: pnpm knip
+
+      - name: 🏷️ Typecheck
+        run: pnpm typecheck
+
+      - name: 🚨 Check
+        run: pnpm check
+
+      - name: ✅ Coverage
+        run: pnpm coverage
+
+      - name: 🏗 Build Web
+        run: pnpm build:web
+
+      # --locked is the `D49` guard: it refuses to update Cargo.lock, so a
+      # bumped Cargo.toml with a stale lockfile fails before compiling. A bare
+      # `cargo test` would repair the lockfile in place and pass.
+      - name: 🦀 Rust Tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  build:
+    needs: [release-please, check]
+    # check only succeeds when the release clause held, so gating on it is
+    # enough; repeating the clause gives a future fix three places to be missed.
+    if: ${{ needs.check.result == 'success' }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      # Guards the updater artifacts, not today's build. tauri-action builds
+      # latest.json by fetching the existing asset off the release, merging its
+      # platforms map and re-uploading; concurrent legs race that
+      # delete-then-upload and 404 (tauri-action#1270), and upstream's fix is a
+      # random 1-10s retry its own src/utils.ts calls provisional.
+      # upload-version-json.ts returns early with no .sig files, so the race
+      # cannot fire until `createUpdaterArtifacts` lands, and no release is cut
+      # before then. Goes if the updater ever does.
+      max-parallel: 1
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+    env:
+      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+    steps:
+      - name: 🏗 Setup Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: 🐧 Setup Linux Deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: 📦 Install
+        uses: ./.github/actions/install
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: 🦀 Setup Rust Cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: 🆔 Resolve Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          id=$(gh release view "$TAG" --json databaseId --jq .databaseId)
+          if [ -z "$id" ]; then
+            echo "::error::could not resolve a release id for $TAG"
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      # Tauri reads these with var_os, so a variable set from an unset secret
+      # arrives as Some("") and reads as configured. notarize_auth() matches on
+      # all three notarization vars being Some, so forwarding a partial set
+      # makes it notarize with an empty Apple ID. All six or none.
+      - name: 🔏 Setup Apple Signing
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          names="APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID"
+          missing=""
+          for name in $names; do
+            [ -n "${!name:-}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "building unsigned; not configured:$missing"
+            exit 0
+          fi
+          # Heredoc form, not KEY=VALUE: base64 wraps at 76 columns without
+          # -w0, and a multiline value breaks GITHUB_ENV parsing outright.
+          for name in $names; do
+            {
+              echo "$name<<__EOF_$name"
+              printf '%s\n' "${!name}"
+              echo "__EOF_$name"
+            } >> "$GITHUB_ENV"
+          done
+
+      - name: 🏗 Build Bundles
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          releaseId: ${{ steps.release.outputs.id }}
+          args: ${{ matrix.args }}
+          retryAttempts: 3
+
+  verify:
+    needs: [release-please, build]
+    if: ${{ needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # A green run that shipped nothing is the failure this guards.
+      - name: 🔍 Verify Assets
+        run: |
+          set -euo pipefail
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          echo "$assets"
+          for pattern in '\.dmg$' '\.AppImage$' '\.deb$' '\.exe$|\.msi$'; do
+            if ! printf '%s\n' "$assets" | grep -qE "$pattern"; then
+              echo "::error::no release asset matches $pattern"
+              exit 1
+            fi
+          done
+
+      - name: 🔐 Write Checksums
+        run: |
+          set -euo pipefail
+          mkdir -p dist && cd dist
+          gh release download "$TAG" --clobber
+          # A redrive re-downloads the previous sums file; never hash it.
+          rm -f SHA256SUMS.txt
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --clobber
+
+      # release-please created this as a draft (`draft: true` plus
+      # `force-tag-creation`), so nothing was downloadable until now.
+      - name: 📣 Publish Release
+        run: gh release edit "$TAG" --draft=false
+
+  homebrew:
+    needs: [release-please, verify]
+    if: ${{ needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+    steps:
+      - name: 🏗 Setup Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: 🍺 Render Cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          # The bundler names the DMG, so read it off the release rather than
+          # reconstructing it here.
+          DMG=$(gh release view "$TAG" --json assets --jq '.assets[].name | select(endswith(".dmg"))' | head -n1)
+          # Read the hash verify already published rather than re-downloading
+          # the DMG. Two independent transfers can disagree, and the cask would
+          # then contradict the SHA256SUMS.txt README.md points people at.
+          gh release download "$TAG" --pattern SHA256SUMS.txt --dir .
+          SHA=$(awk -v f="$DMG" '$2 == f { print $1 }' SHA256SUMS.txt)
+          if [ -z "$SHA" ]; then
+            echo "::error::no SHA256SUMS.txt entry for $DMG"
+            exit 1
+          fi
+          sed -e "s/{{VERSION}}/$VERSION/g" \
+              -e "s/{{SHA}}/$SHA/g" \
+              -e "s/{{DMG}}/$DMG/g" \
+              scripts/notras.rb.tmpl > notras.rb
+          cat notras.rb
+
+      - name: 🚰 Push To Tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/jimmy-guzman/homebrew-tap.git" tap
+          mkdir -p tap/Casks
+          cp notras.rb tap/Casks/notras.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/notras.rb
+          if git diff --staged --quiet; then
+            echo "cask unchanged; skipping commit"
+          else
+            git commit -m "notras ${VERSION}"
+            git pull --rebase origin HEAD
+            git push
+          fi

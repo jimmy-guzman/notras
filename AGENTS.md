@@ -271,12 +271,12 @@ fails cheapest first. After every set of changes, run all of it before
 considering the task done:
 
 ```txt
-pnpm knip         # 0. unused code/deps (fix before proceeding)
-pnpm typecheck    # 1. types
-pnpm check        # 2. lint + format
-pnpm coverage     # 3. unit tests (pnpm test watches, so it will not exit)
-pnpm build:web    # 4. web bundle build
-cargo test        # 5. (when src-tauri changed) in src-tauri/
+pnpm knip             # 0. unused code/deps (fix before proceeding)
+pnpm typecheck        # 1. types
+pnpm check            # 2. lint + format
+pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
+pnpm build:web        # 4. web bundle build
+cargo test --locked   # 5. (when src-tauri changed) in src-tauri/, `D49`
 ```
 
 CI runs the same commands in a different order and runs `cargo test` on every
@@ -500,6 +500,15 @@ They cover every markdown file here, plus commit messages and PR bodies.
   finds out.** The section carries the problem the change addresses. Two more
   sentences make it answerable: the risk someone accepted, and the signal that
   fires when the risk lands.
+
+- **Releases are cut by release-please, and `package.json` holds the only
+  version.** A conventional commit on `main` opens or updates a release PR;
+  merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build,
+  checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never
+  hand-edit a version: `src-tauri/tauri.conf.json` derives it and
+  `src-tauri/Cargo.toml` is frozen, which `D49` explains. A stranded or partial
+  release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`,
+  because the push path cannot redo it.
 
 - **After introducing a new pattern, feature, convention, or structural change,
   ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`,

@@ -39,7 +39,27 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - Backlinks panel (wikilinks are one-directional today)
 - Git integration UI (the folder is git-init-able by hand today)
 - wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
-- Auto-update / code signing
+- In-app auto-update (`tauri-plugin-updater`; the release pipeline ships without
+  it, and turning it on needs a signing key, two releases to verify, and
+  `auto_updates true` restored to the cask so brew stops upgrading it)
+- SHA-pinning the three actions in `.github/actions/install` (`release.yml`
+  pins everything it names, but the composite action both privileged jobs call
+  resolves `setup-node`, `action-setup` and `cache` by mutable major tag, and
+  `build` holds a write-scoped token plus the `APPLE_*` secrets; it is shared
+  with `ci.yml`, so it is its own change)
+- Sharing one gate between `ci.yml`'s `code_check` and `release.yml`'s `check`
+  (they duplicate each other and have already diverged; `AGENTS.md` says
+  surface the second occurrence and wait for the third before extracting)
+- A verified minimum macOS version for the cask (`tauri.conf.json` sets none, so
+  the bundle carries Tauri's 10.13 default; nothing has tested the real floor,
+  so the cask declares no `depends_on macos:`)
+- macOS code signing and notarization (the release workflow already wires the
+  `APPLE_*` variables, so it needs a Developer ID; until then the cask and
+  `README.md` carry the quarantine workaround)
+- Enforcing the commit format (release-please derives the version and changelog
+  from commit messages, so a hand-typed one silently produces neither; gitzy has
+  no validate subcommand, so this means commitlint, and stet left it as
+  convention too)
 - A `.icon` package for system-drawn Liquid Glass (`D34` deferred it rather than
   closing it)
 - MCP server (only if agents ever need richer ops than file writes, such as search-as-a-tool)
