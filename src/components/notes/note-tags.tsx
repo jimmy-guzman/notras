@@ -111,7 +111,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
           className="[&>svg:last-child]:hidden"
           render={<Button size="xs" variant="ghost" />}
         >
-          <TagPlusIcon />
+          <TagPlusIcon data-icon="inline-start" />
           add tag
         </ComboboxTrigger>
         <ComboboxContent
