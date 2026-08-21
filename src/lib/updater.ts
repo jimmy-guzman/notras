@@ -1,5 +1,6 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
+import { toast } from "sonner";
 
 import { flushPendingWrites } from "@/lib/pending-flush";
 
@@ -16,9 +17,9 @@ export function updatesSupported() {
  * Ask the release endpoint whether a newer version exists. Resolves to `null`
  * when the app is current. Call it only when `updatesSupported()` holds.
  *
- * The resolved `Update` owns a native handle. Hand it to `installUpdate`, which
- * consumes it, or call its `close()` to let it go. A handle that is neither is
- * released when the app exits, which bounds the leak at one per check.
+ * The resolved `Update` owns a native handle that nothing on the Rust side
+ * releases, `download_and_install` included. Hand it to `offerUpdate`, which
+ * owns it from there.
  */
 export async function findUpdate() {
   return await check();
@@ -28,10 +29,11 @@ export async function findUpdate() {
  * Download the update, install it, and restart into it. Does not resolve on the
  * happy path: `relaunch` replaces the process.
  *
- * Throws when a buffer could not be written, which leaves the app running on
- * the installed bundle: it takes effect the next time someone launches it.
+ * Throws when a buffer could not be written. The app keeps running the old
+ * version rather than restarting, and the bundle already downloaded applies the
+ * next time someone launches it.
  */
-export async function installUpdate(update: Update) {
+async function installUpdate(update: Update) {
   await update.downloadAndInstall();
 
   // Tauri ignores `prevent_exit` for a restart, so Rust cannot hold this one
@@ -44,4 +46,37 @@ export async function installUpdate(update: Update) {
   }
 
   await relaunch();
+}
+
+/**
+ * Offer the update, and own its handle until the offer ends. The toast waits
+ * for an answer rather than expiring: dismissing it is how someone says no, and
+ * the default four seconds is easy to miss.
+ */
+export function offerUpdate(update: Update) {
+  // Nothing on the Rust side releases this one, so the offer has to. A failed
+  // close leaves a resource the process drops on exit, which is not worth
+  // interrupting anyone over.
+  const release = () => {
+    update.close().catch(() => undefined);
+  };
+
+  toast(`version ${update.version} is available`, {
+    action: {
+      label: "install",
+      onClick: () => {
+        installUpdate(update).catch((error: unknown) => {
+          release();
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "could not install the update"
+          );
+        });
+      },
+    },
+    closeButton: true,
+    duration: Number.POSITIVE_INFINITY,
+    onDismiss: release,
+  });
 }

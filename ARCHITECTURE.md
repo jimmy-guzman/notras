@@ -155,7 +155,7 @@ src/
     runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
     pending-flush.ts  # autosave flush registry read by the quit handshake
-    updater.ts        # release check + install, gated by updatesSupported
+    updater.ts        # release check, offer toast, install + relaunch
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -270,8 +270,9 @@ An update restart is the exception. It reaches `ExitRequested` carrying
 `RESTART_EXIT_CODE`, which Tauri refuses to prevent, so `lib.rs` returns before
 the handshake rather than opening one it cannot honour. `installUpdate` in
 `src/lib/updater.ts` awaits `flushPendingWrites` itself between
-`downloadAndInstall` and `relaunch`, and a failed flush leaves the app running
-on the installed bundle instead of restarting into it.
+`downloadAndInstall` and `relaunch`. A failed flush leaves the app running the
+old version rather than restarting, and the bundle already downloaded applies
+the next time someone launches it.
 
 ### External-change reload guard
 

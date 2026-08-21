@@ -39,7 +39,7 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
-import { findUpdate, installUpdate, updatesSupported } from "@/lib/updater";
+import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
 
@@ -645,20 +645,7 @@ export function CommandPalette({
         return;
       }
 
-      toast(`version ${update.version} is available`, {
-        action: {
-          label: "install",
-          onClick: () => {
-            installUpdate(update).catch((error: unknown) => {
-              toast.error(
-                error instanceof Error
-                  ? error.message
-                  : "could not install the update"
-              );
-            });
-          },
-        },
-      });
+      offerUpdate(update);
     });
   }, [runAction]);
 
