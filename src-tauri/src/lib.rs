@@ -302,6 +302,9 @@ pub fn run() {
         .expect("error while building notras");
 
     app.run(|app, event| match event {
+        // macOS only: the variant does not exist on the other targets, and an
+        // ungated arm is a Linux compile error the macOS gate cannot see.
+        #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => show_main(app),
         // Every quit (⌘Q, tray, `quit_app`) funnels through here. The first one
         // is held back so the webview can flush unsaved buffers; the frontend

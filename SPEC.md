@@ -52,7 +52,9 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
   with `ci.yml`, so it is its own change)
 - Sharing one gate between `ci.yml`'s `code_check` and `release.yml`'s `check`
   (they duplicate each other and have already diverged; `AGENTS.md` says
-  surface the second occurrence and wait for the third before extracting)
+  surface the second occurrence and wait for the third before extracting). The
+  Linux dep install is now the third copy, across `ci.yml`'s `rust` job and
+  `release.yml`'s `check` and `build`, so that half has reached the rule
 - A verified minimum macOS version for the cask (`tauri.conf.json` sets none, so
   the bundle carries Tauri's 10.13 default; nothing has tested the real floor,
   so the cask declares no `depends_on macos:`)

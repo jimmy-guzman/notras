@@ -33,13 +33,31 @@ jobs:
         run: pnpm build:web
 
   rust:
-    # macOS runners need no system deps to compile the tauri crate.
-    runs-on: macos-latest
+    # Both targets, because a platform-gated arm compiles on one and not the
+    # other. release.yml's check job runs on Linux, so a macOS-only gate here
+    # lets that class of error reach a tag: `RunEvent::Reopen` did.
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
     needs: code_check
 
     steps:
       - name: 🏗 Setup Repository
         uses: actions/checkout@v4
+
+      # macOS needs none of these; the tauri crate links webkit2gtk through
+      # pkg-config, which is why release.yml installs the same set.
+      - name: 🐧 Setup Linux Deps
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: 🦀 Setup Rust Cache
         uses: Swatinem/rust-cache@v2
