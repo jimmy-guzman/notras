@@ -274,8 +274,12 @@ jobs:
 
   verify:
     needs: [release-please, check, build]
-    # Both, not either: this is the gate that check stopped being.
-    if: ${{ needs.check.result == 'success' && needs.build.result == 'success' }}
+    # Both, not either: this is the gate that check stopped being. `!cancelled()`
+    # for the same reason check carries it, and it is load-bearing: the dispatch
+    # path skips release-please, and with no status check function here the
+    # implicit success() reads that skip as a failure and takes verify with it,
+    # leaving a redrive that builds everything and publishes nothing.
+    if: ${{ !cancelled() && needs.check.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -333,7 +337,9 @@ jobs:
 
   homebrew:
     needs: [release-please, verify]
-    if: ${{ needs.verify.result == 'success' }}
+    # Same skip-vs-implicit-success() problem as verify; without it a redrive
+    # publishes the release and never updates the cask.
+    if: ${{ !cancelled() && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
