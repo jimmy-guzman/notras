@@ -19,24 +19,27 @@ runs:
       shell: bash
       run: echo "store_path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-    - name: 🏗 Setup pnpm Store Cache
-      uses: actions/cache@v4
+    # Split restore from save because actions/cache has no save-if, and only a
+    # run whose ref is main writes a cache other runs can read. A PR branch
+    # saving here just consumes the repo's 10GB budget and evicts the
+    # main-scoped entry every PR actually restores from.
+    - name: 🏗 Restore pnpm Store Cache
+      id: pnpm-store
+      uses: actions/cache/restore@v4
       with:
         path: ${{ steps.pnpm-cache.outputs.store_path }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
 
-    - name: 🧠 Restore Tool & Build Caches
-      uses: actions/cache@v4
-      with:
-        path: |
-          **/node_modules/.cache
-          **/node_modules/.vite
-        key: ${{ runner.os }}-tools-${{ hashFiles('**/pnpm-lock.yaml', '**/biome.jsonc', '**/vite.config.*', '**/vitest.config.*') }}
-        restore-keys: |
-          ${{ runner.os }}-tools-
-
     - name: 📦 Install Deps
       run: pnpm install --frozen-lockfile
       shell: bash
+
+    # Skipped on an exact hit: the store is already what this key names.
+    - name: 💾 Save pnpm Store Cache
+      if: github.ref == 'refs/heads/main' && steps.pnpm-store.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.pnpm-cache.outputs.store_path }}
+        key: ${{ steps.pnpm-store.outputs.cache-primary-key }}

@@ -75,7 +75,7 @@ jobs:
       - name: 🐧 Setup Linux Deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
@@ -84,13 +84,32 @@ jobs:
       - name: 📦 Install
         uses: ./.github/actions/install
 
+      # Pinned into master's history, not to the `stable` branch head: that
+      # commit sits one ahead of master, so it is orphaned and GC-able the next
+      # time the branch moves. Upstream's README requires a master-history SHA,
+      # and pairs that with passing the toolchain as an input.
       - name: 🦀 Setup Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        # Pinned, not `stable`: rust-cache folds the rustc version into its
+        # key, and stable moving 1.97.1 -> 1.98.0 during the last release
+        # killed every cache in the repo with no lockfile or workflow change
+        # to explain it. Three-component form on purpose; the action's parser
+        # treats a two-component `1.98` as a date expression.
+        with:
+          toolchain: "1.98.0"
 
+      # Shares ci.yml's rust job cache: same toolchain, same workspace, same
+      # test profile. Kept separate from build's, which compiles the release
+      # profile under `lto = true` and would share nothing but the registry.
       - name: 🦀 Setup Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: "./src-tauri -> target"
+          shared-key: test
+          # ci.yml's rust job writes this key. Both run on ubuntu with the same
+          # toolchain and workspace on a main push, so leaving this on made one
+          # of the two upload ~770MB only to be told the key already exists.
+          save-if: false
 
       - name: ✂️ Knip
         run: pnpm knip
@@ -115,21 +134,27 @@ jobs:
         run: cargo test --locked
 
   build:
-    needs: [release-please, check]
-    # check only succeeds when the release clause held, so gating on it is
-    # enough; repeating the clause gives a future fix three places to be missed.
-    if: ${{ needs.check.result == 'success' }}
+    # Not `needs: check`. build reads only the tag and the release id, both from
+    # release-please, and check declares no outputs, so the edge was ordering
+    # alone and cost ~204s of a ~740s release. Safety moves to verify, which
+    # needs both: release-please creates the release as a draft, and verify's
+    # 📣 Publish Release is the only thing that flips it, so nothing reaches a
+    # user until check has passed.
+    needs: release-please
+    # Same clause as check, verbatim. Two copies is the floor now that both
+    # hang off release-please directly; verify gating on both results is what
+    # makes a drift between them fail closed instead of publishing.
+    if: ${{ !cancelled() && needs.release-please.result != 'failure' && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.released == 'true') }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      # tauri-action builds latest.json by fetching the existing asset off the
-      # release, merging its platforms map and re-uploading. Concurrent legs
-      # race that delete-then-upload and 404 (tauri-action#1270), and
-      # upstream's fix is a random 1-10s retry its own src/utils.ts calls
-      # provisional. Now that `createUpdaterArtifacts` emits .sig files the
-      # race is live, so serialize. Goes if the updater ever does.
-      max-parallel: 1
+      # Legs run concurrently. tauri-action assembles latest.json by reading
+      # the existing asset, merging its own platforms and re-uploading, which
+      # interleaves across legs; tauri-action#1270 closed in 98b1609, shipped
+      # in the pinned v1.0.0. The retried unit is the whole upload function, so
+      # a leg holding an asset id another leg deleted gets a 404 and re-reads.
+      # Convergence is probabilistic, so verify asserts the result.
       matrix:
         include:
           - platform: macos-latest
@@ -153,7 +178,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
@@ -162,15 +187,26 @@ jobs:
       - name: 📦 Install
         uses: ./.github/actions/install
 
+      # Pinned into master's history, not to the `stable` branch head: that
+      # commit sits one ahead of master, so it is orphaned and GC-able the next
+      # time the branch moves. Upstream's README requires a master-history SHA,
+      # and pairs that with passing the toolchain as an input.
       - name: 🦀 Setup Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        # Pinned, not `stable`: rust-cache folds the rustc version into its
+        # key, and stable moving 1.97.1 -> 1.98.0 during the last release
+        # killed every cache in the repo with no lockfile or workflow change
+        # to explain it. Three-component form on purpose; the action's parser
+        # treats a two-component `1.98` as a date expression.
         with:
+          toolchain: "1.98.0"
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: 🦀 Setup Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: "./src-tauri -> target"
+          shared-key: release
 
       - name: 🆔 Resolve Release
         id: release
@@ -232,11 +268,14 @@ jobs:
         with:
           releaseId: ${{ steps.release.outputs.id }}
           args: ${{ matrix.args }}
-          retryAttempts: 3
+          # Upstream's backoff is a flat 1-10s sleep, not exponential, and its
+          # own comment calls that provisional. Attempts are the cheap half.
+          retryAttempts: 5
 
   verify:
-    needs: [release-please, build]
-    if: ${{ needs.build.result == 'success' }}
+    needs: [release-please, check, build]
+    # Both, not either: this is the gate that check stopped being.
+    if: ${{ needs.check.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -254,6 +293,24 @@ jobs:
           for pattern in '\.dmg$' '\.AppImage$' '\.deb$' '\.exe$|\.msi$'; do
             if ! printf '%s\n' "$assets" | grep -qE "$pattern"; then
               echo "::error::no release asset matches $pattern"
+              exit 1
+            fi
+          done
+
+      # Each of these four keys is contributed by a different build leg, and
+      # they are the ones the updater resolves at runtime, so a merge lost by
+      # concurrent legs shows up here. Runs after every leg and before
+      # 📣 Publish Release, so a manifest missing a platform ships nothing.
+      - name: 🧭 Verify Updater Manifest
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --pattern latest.json --dir manifest
+          cat manifest/latest.json
+          for key in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
+            if ! jq -e --arg k "$key" \
+              '(.platforms[$k].signature // "") != "" and (.platforms[$k].url // "") != ""' \
+              manifest/latest.json > /dev/null; then
+              echo "::error::latest.json has no usable $key entry"
               exit 1
             fi
           done
@@ -283,11 +340,15 @@ jobs:
     env:
       TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
     steps:
+      # Separate from verify on purpose: this job holds TAP_GITHUB_TOKEN, and
+      # keeping it out of the job that publishes the release is a privilege
+      # boundary, not an accident. Only scripts/ is needed for the template.
       - name: 🏗 Setup Repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
+          sparse-checkout: scripts
 
       - name: 🍺 Render Cask
         env:

@@ -45,11 +45,12 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - Backlinks panel (wikilinks are one-directional today)
 - Git integration UI (the folder is git-init-able by hand today)
 - wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
-- SHA-pinning the three actions in `.github/actions/install` (`release.yml`
-  pins everything it names, but the composite action both privileged jobs call
-  resolves `setup-node`, `action-setup` and `cache` by mutable major tag, and
-  `build` holds a write-scoped token plus the `APPLE_*` secrets; it is shared
-  with `ci.yml`, so it is its own change)
+- SHA-pinning the actions still on mutable tags (`release.yml` pins everything
+  it names, but the composite action both privileged jobs call resolves
+  `setup-node`, `action-setup` and `cache` by major tag, and `ci.yml` resolves
+  `actions/checkout@v4` where `release.yml` pins v7. `build` holds a
+  write-scoped token plus the `APPLE_*` secrets; the composite is shared with
+  `ci.yml`, so it is its own change)
 - Sharing one gate between `ci.yml`'s `code_check` and `release.yml`'s `check`
   (they duplicate each other and have already diverged; `AGENTS.md` says
   surface the second occurrence and wait for the third before extracting). The
@@ -65,6 +66,35 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
   from commit messages, so a hand-typed one silently produces neither; gitzy has
   no validate subcommand, so this means commitlint, and stet left it as
   convention too)
+- Caching the Linux webkit dep install (measured at 30s on the old four-package
+  list: `apt-get update` 6s, resolve 1s, download 61.5MB 14s, unpack 179
+  packages 7s, configure 2s. `ci.yml`'s rust job now installs two packages with
+  `--no-install-recommends`, so its share is smaller and unmeasured; both
+  `release.yml` copies still carry the full list because they bundle. The
+  apt-cache actions restore installed files over a base image that updates
+  weekly, so a cached `libwebkit2gtk` can end up built against a different
+  `libsoup` than the image now ships, and the failure reads as a link error in
+  our code. The deterministic alternative is a prebuilt container image, which
+  reshapes checkout, node and cargo in every job that uses it)
+- A `rust-toolchain.toml` pinning local builds the way CI is pinned (the three
+  workflow call sites name `1.98.0`, so cache keys only move when that line is
+  edited, but a contributor's machine still uses whatever rustup defaults to.
+  A toml would close the gap and would replace the input rather than join it:
+  the action installs what it is told, cargo then honours the toml, and rustup
+  fetches a second toolchain if the two disagree. Bumping Rust then means
+  editing the toml and three workflow lines together, or dropping the input)
+- Splitting the macOS universal build into per-arch legs (rejected on
+  measurement, not on principle: the second arch is 166s of the 412s
+  `Build Bundles` step, but macOS finishes at 498s against ubuntu's 495s, so
+  removing it just makes ubuntu the critical path for a ~3s net gain. It would
+  also give `scripts/notras.rb.tmpl` two DMGs to choose between, and its
+  `select(endswith(".dmg")) | head -n1` would silently ship one arch to both)
+- Narrowing `bundle.targets` from `"all"` (the AppImage is 107s of the ubuntu
+  leg, 22% of it, and 84MB of the 130MB release. The rpm costs 4s and nothing
+  reads it: `verify` greps for dmg, AppImage, deb and exe/msi, the cask reads
+  only the DMG, and `README.md` names everything but the rpm. Dropping the
+  AppImage is the user-facing half, since `README.md` points people at it and
+  `latest.json`'s `linux-x86_64` entry is signed against it)
 - A `.icon` package for system-drawn Liquid Glass (`D34` deferred it rather than
   closing it)
 - MCP server (only if agents ever need richer ops than file writes, such as search-as-a-tool)
