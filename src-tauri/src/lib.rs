@@ -26,12 +26,10 @@ use crate::state::{AppState, Core};
 const BG_DARK: Color = Color(0x19, 0x1b, 0x1d, 255);
 const BG_LIGHT: Color = Color(0xf7, 0xf8, 0xfa, 255);
 
-/// Centres the buttons in the 44px band `Titlebar` draws. The pair comes from
-/// erictli/scratch, which ships these values against the same overlay titlebar;
-/// `y` is the button's centre offset from the window top, not a margin above it.
-/// Changing the band height means rechecking this.
+/// Centres the buttons in the 36px band `Titlebar` draws; `D29` derives `y` and
+/// `tauri.conf.json` carries the same pair for the `main` window.
 #[cfg(target_os = "macos")]
-const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 24.0);
+const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 20.0);
 
 fn background_for(theme: Theme) -> Color {
     match theme {

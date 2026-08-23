@@ -9,6 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { readingTime } from "@/lib/utils/word-count";
 
 /** Tone for pressed and surface for hover, which the shipped variant collapses into one. */
@@ -118,7 +119,7 @@ export function StatusBar({
                 />
               }
             >
-              <Icon className="size-3.5" />
+              <Icon className={CHROME_GLYPH} />
             </TooltipTrigger>
             <TooltipContent>
               {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}

@@ -466,8 +466,8 @@ re-examines it for one glyph, which the width argument does not reach.
 
 The app was spending two bands on one band's work: an empty drag strip above a
 header. Folding one into the other returns 32px to the note and puts the title
-where macOS puts a document title. The bar is 44px so the traffic lights `D29`
-centres in it land on the title's line.
+where macOS puts a document title. The traffic lights `D29` centres in the bar
+land on the title's line.
 
 Each route renders its own titlebar rather than the root rendering one, because
 a shared root strip cannot hold per-route content and TanStack Router has no
@@ -514,16 +514,30 @@ notras.
 HTML in a webview, so this cannot resize anything unintended. That stops being
 true if native menus or panels are ever added.
 
-**Constraint:** `trafficLightPosition` is `{ x: 16, y: 24 }`, paired with the
-44px band in `src/components/titlebar.tsx`. Both come from
-[erictli/scratch](https://github.com/erictli/scratch), which ships them against
-the same overlay titlebar, rather than from derivation here.
+**Constraint:** `trafficLightPosition` is `{ x: 16, y: 20 }`, paired with the
+36px band in `src/components/titlebar.tsx`. The band was 44px, from
+erictli/scratch rather than from a reading of what a title bar should be, and
+`D51`'s survey put that above the median of comparable desktop apps. It is
+carried twice, in `tauri.conf.json` for the `main` window and as
+`TRAFFIC_LIGHTS` in `lib.rs` for `capture`, so a band change edits both or the
+two windows disagree.
 
-`y` is not a margin above the buttons. tao's `inset_traffic_lights` resizes the
-titlebar container to `buttonHeight + y`, anchors it to the window top, and
-leaves each button's offset inside it untouched, so in AppKit's bottom-up
-coordinates `y` lands as the button's **centre offset from the window top**.
-Misreading that cost four rounds: 12 in a 36px bar centred the buttons at 12pt
+`y` is neither a margin above the buttons nor their centre. tao's
+`inset_traffic_lights` resizes the titlebar container to `buttonHeight + y`,
+anchors it to the window top, and assigns only `origin.x`, so a button keeps the
+`origin.y` AppKit gave it and rides down as the container grows. Writing that
+resting offset as `b`, the button lands `y - b` below the window top and
+
+```txt
+y = (height - buttonHeight) / 2 + b
+```
+
+`b` is 9 here, which erictli/scratch and Dimillian/CodexMonitor corroborate at
+44 with `y` 24 and athasdev/athas at 36 with `y` 20. readest derives the same
+formula at runtime but measures `b` at 5 to 7, so it is not portable across
+macOS versions or control metrics and a band change is verified by looking.
+
+Misreading this cost four rounds: 12 in a 36px bar put the buttons at 3pt
 against content at 18pt and crowded them into the rounded corner, and removing
 the override entirely traded the misalignment for a bar too tight to breathe.
 
@@ -547,8 +561,8 @@ substring-matched a vocabulary it recomputed on every keystroke, disagreeing
 with the index it stood in for.
 
 Tags moved down because the titlebar could not hold them: `D28` put title, tags,
-and pin in one 44px band, where the chip row was pinned to `w-16` to keep the
-title readable. The status strip is where the note's other metadata already
+and pin in one band, where the chip row was pinned to `w-16` to keep the title
+readable. The status strip is where the note's other metadata already
 sits.
 
 **Rejected: keeping tags in the titlebar with the combobox inline.** Smallest
@@ -855,8 +869,8 @@ count and three toggles, it reads as an indicator of something.
 for an app that autosaves. `D38` re-rejects it on harder grounds once a `failed`
 state exists.
 
-**Constraint:** the glyphs differ by a badge roughly 4px wide at `size-3.5`, so
-tone carries the rest and `DESIGN.md` assigns it. Changing a tone makes the
+**Constraint:** the glyphs differ by a badge roughly 4px wide at `CHROME_GLYPH`,
+so tone carries the rest and `DESIGN.md` assigns it. Changing a tone makes the
 states harder to tell apart rather than only quieter.
 
 **Constraint:** the indicator is a status and not a control, so its tooltip
@@ -1304,3 +1318,34 @@ collides with the caller's own group and cancels it.
 fails. `ci.yml` resolves `./.github/actions/setup-rust` and `release.yml`
 resolves `.github/homebrew/` out of the checked-out tag, and no tag through
 v0.1.2 carries either.
+
+### D51 Chrome glyphs take a role-based rung, stated outside the generated variant
+
+A standalone glyph in a chrome control is `CHROME_GLYPH` in
+`src/lib/ui/chrome.ts`, covering the save indicator, the pin and the three view
+toggles. An icon beside a word takes the 12px its button variant already gives
+it, uncorrected, which is `add tag` and the palette's pin marker. The rung
+follows the role the icon plays, not the band it sits in.
+
+The app had three numbers for one thing, and the pin and the save glyph sat
+adjacent in the titlebar in identical 24px boxes at different sizes, which is
+how it surfaced. A pass at 12px, the `icon-xs` rung's own value, came first and
+was too small for a control.
+
+**Rejected: editing the `icon-xs` variant.** The obvious fix, needing no
+call-site class at all. Rejected because `icon-xs` is defined twice, in
+`toggle.tsx` as this repo's `D19` deviation and in `button.tsx` as upstream's,
+and `scripts/update-shadcn.sh` patches nothing back. Editing one makes a rung
+name mean two sizes; editing both adds a deviation regeneration silently
+reverts. `D37` met the same fork for the pressed state and put the override in a
+named constant, which is what `PRESSED` is.
+
+**Constraint:** `saved` came off `--faint`, which is 2.65:1 in dark and below
+the 3:1 WCAG sets for non-text, and onto the `opacity-60` the pin beside it
+already uses when idle. So the glyph is `--foreground` while a write is
+outstanding and dim once it lands, which is `DESIGN.md`'s muted-when-idle rule
+rather than a tone of its own.
+
+**Constraint:** the glyph carries `[stroke-width:2.25]`. Lucide's stroke is 2
+against a 24-unit `viewBox`, so it scales with the glyph and 14px would render
+1.167px, lighter than the 1.333px an unstyled lucide icon draws at 16px here.
