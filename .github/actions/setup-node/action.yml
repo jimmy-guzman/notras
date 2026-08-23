@@ -1,0 +1,50 @@
+name: Setup Node
+description: Install the pinned Node and pnpm, then the lockfile's dependencies
+
+inputs:
+  save-cache:
+    description: whether this run writes the pnpm store cache
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: 🏗️ Setup Node.js
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: .nvmrc
+
+    - name: 🏗️ Setup pnpm
+      uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      with:
+        run_install: false
+
+    - name: 🗃️ Get pnpm Store Directory
+      id: pnpm-store-path
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "store-path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    # Split because actions/cache has no save-if. A writer whose cache nothing
+    # can read still spends the repo's 10GB budget and evicts the entry every
+    # other run restores from, so the caller decides who writes.
+    - name: ♻️ Restore pnpm Store Cache
+      id: pnpm-store-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.pnpm-store-path.outputs.store-path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: 📦 Install Deps
+      run: pnpm install --frozen-lockfile
+      shell: bash
+
+    - name: 💾 Save pnpm Store Cache
+      if: inputs.save-cache == 'true' && steps.pnpm-store-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.pnpm-store-path.outputs.store-path }}
+        key: ${{ steps.pnpm-store-cache.outputs.cache-primary-key }}

@@ -6,8 +6,8 @@ rewrite, which `git log` records.
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
 an ID repoints every reference to it without any of them changing. The highest
-number issued so far is 49, and some entries below it were removed, so the next
-entry takes 50.
+number issued so far is 50, and some entries below it were removed, so the next
+entry takes 51.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -1264,10 +1264,43 @@ pushed back into the release pull request, and its own comment records the
 remaining hole: the bot pushes as `GITHUB_TOKEN`, which does not re-trigger CI,
 so a maintainer has to re-run CI by hand before merging.
 
-**Constraint:** `cargo build --locked` joins the verification gate and runs in
-the release workflow's `check` job. Restoring a real version to `Cargo.toml`
-without also solving the lockfile fails there instead of shipping.
+**Constraint:** `cargo test --locked` joins the verification gate and runs in
+`ci.yml`'s `rust` job, which the release workflow calls against the tag.
+Restoring a real version to `Cargo.toml` without also solving the lockfile fails
+there instead of shipping.
 
 **Constraint:** Tauri resolves a `version` path relative to the config file's
 own directory, not the project root, so `"../package.json"` depends on
 `tauri.conf.json` staying in `src-tauri/`.
+
+### D50 One workflow is the gate, and the release calls it
+
+`ci.yml` carries `pull_request`, `push` on main, and `workflow_call`. It holds
+every automated check the repo has: knip, typecheck, check, coverage and the web
+build on one job, `cargo test --locked` on a macOS and Linux matrix, and
+actionlint plus zizmor over the workflow YAML. `release.yml`'s `gate` job calls
+it with the tag it is about to publish, because the release pull request is
+opened by GITHUB_TOKEN and never fires `pull_request`, so the tagged tree would
+otherwise reach a publish with nothing run against it.
+
+**Rejected: a separate reusable workflow with a forwarding `ci.yml`.** The gate
+lived in its own `gate.yml` for one pass, with `ci.yml` reduced to a trigger
+block wrapping a single `uses:`. Rejected because the file only forwarded, so
+reading it told you nothing about what CI runs, and because a called job's
+status check is named `<caller job> / <called job>`, which put a prefix on every
+required context to name the forwarder. One file that declares all three
+triggers does the same work.
+
+**Constraint:** the cache flag is inverted. A `workflow_call` input is not
+populated on `push` or `pull_request` and its `default:` does not apply there,
+so a positive `save-cache` would read falsy on every direct run and stop the
+writes the `push` arm exists for. It is `skip-cache`, and absent means write.
+
+**Constraint:** the concurrency group carries the handed ref. A called workflow
+resolves `github.workflow` to its caller, so a group built from that alone
+collides with the caller's own group and cancels it.
+
+**Constraint:** a `workflow_dispatch` redrive of a tag cut before this change
+fails. `ci.yml` resolves `./.github/actions/setup-rust` and `release.yml`
+resolves `.github/homebrew/` out of the checked-out tag, and no tag through
+v0.1.2 carries either.

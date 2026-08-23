@@ -180,6 +180,9 @@ scripts/
   icons.sh            # assets/ -> src-tauri/icons/ + public/ (macOS only)
   update-shadcn.sh    # regenerate every installed Shadcn component
   update-typeset.sh   # re-fetch src/typeset.css from upstream (D40)
+.github/
+  homebrew/
+    notras.rb.tmpl    # cask rendered by release.yml, pushed to the tap
 ```
 
 ## Layer boundaries
