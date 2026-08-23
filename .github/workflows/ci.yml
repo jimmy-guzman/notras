@@ -1,6 +1,13 @@
 name: ci
 
-on: [pull_request]
+# The push arm exists for the cache, not the signal: a run only writes into the
+# refs/heads/main scope when its own ref is main, and a pull request can read
+# only its own ref plus the base. Without it every PR compiles Rust cold and
+# the caches they save are unreadable by any other run.
+on:
+  pull_request:
+  push:
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}
@@ -9,6 +16,7 @@ concurrency:
 jobs:
   code_check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: 🏗 Setup Repository
@@ -32,6 +40,8 @@ jobs:
       - name: 🏗 Build
         run: pnpm build:web
 
+  # No `needs: code_check`. Nothing here reads anything that job produces, and
+  # the edge only put its wall clock in front of the critical path.
   rust:
     # Both targets, because a platform-gated arm compiles on one and not the
     # other. release.yml's check job runs on Linux, so a macOS-only gate here
@@ -41,7 +51,7 @@ jobs:
       matrix:
         platform: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.platform }}
-    needs: code_check
+    timeout-minutes: 20
 
     steps:
       - name: 🏗 Setup Repository
@@ -53,16 +63,42 @@ jobs:
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          # --no-install-recommends drops the gir1.2-* introspection and doc
+          # packages from a 61.5MB, 179-package install. patchelf is already on
+          # the image, and this job only compiles: it bundles nothing, so the
+          # AppImage and tray packages release.yml needs are not needed here.
+          sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+            librsvg2-dev
 
-      - name: 🦀 Setup Rust Cache
-        uses: Swatinem/rust-cache@v2
+      # Pinned to the same toolchain release.yml uses. rust-cache folds the
+      # rustc version into its key, so leaving this to whatever the runner
+      # image ships means this job and release.yml's check can never share a
+      # cache, and an image bump silently invalidates one of them.
+      # Pinned into master's history, not to the `stable` branch head: that
+      # commit sits one ahead of master, so it is orphaned and GC-able the next
+      # time the branch moves. Upstream's README requires a master-history SHA,
+      # and pairs that with passing the toolchain as an input.
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        # Pinned, not `stable`: rust-cache folds the rustc version into its
+        # key, and stable moving 1.97.1 -> 1.98.0 during the last release
+        # killed every cache in the repo with no lockfile or workflow change
+        # to explain it. Three-component form on purpose; the action's parser
+        # treats a two-component `1.98` as a date expression.
         with:
-          workspaces: src-tauri
+          toolchain: "1.98.0"
+
+      # shared-key replaces the job-name component, which is what lets this job
+      # and release.yml's check job share one cache per platform; both build the
+      # test profile. save-if keeps PR branches from writing ~700MB entries no
+      # other run can read, which is what was evicting the main-scoped ones.
+      - name: 🦀 Setup Rust Cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: "./src-tauri -> target"
+          shared-key: test
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # --locked is the `D49` guard, and it belongs on the pull request: a bare
       # `cargo test` repairs a stale Cargo.lock in place and passes, so the
