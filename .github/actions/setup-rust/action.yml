@@ -1,0 +1,49 @@
+name: Setup Rust
+description: Install the pinned toolchain and restore the cargo cache
+
+inputs:
+  save-cache:
+    description: whether this run writes the cargo cache
+    default: "true"
+  shared-key:
+    description: cargo cache key shared by every call site building the same profile
+    required: true
+  targets:
+    description: comma-separated extra target triples
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # The toml is the source of truth, and rustup honours it for every cargo
+    # run under src-tauri. It cannot replace this input: the action reads no
+    # toml and exits on an empty `toolchain`.
+    - name: 🗃️ Read Toolchain
+      id: toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        channel=$(awk -F'"' '/^channel/ { print $2 }' src-tauri/rust-toolchain.toml)
+        if [ -z "$channel" ]; then
+          echo "::error::no channel in src-tauri/rust-toolchain.toml"
+          exit 1
+        fi
+        echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
+    # A SHA from master's history, not the `stable` branch head: that commit
+    # sits one ahead of master, so it is GC-able the next time the branch moves.
+    - name: 🏗️ Setup Rust
+      uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+      with:
+        targets: ${{ inputs.targets }}
+        # rust-cache folds the rustc version into its key, so a moving `stable`
+        # invalidated every cache in the repo at 1.97.1 -> 1.98.0, with no
+        # lockfile or workflow change to explain it.
+        toolchain: ${{ steps.toolchain.outputs.channel }}
+
+    - name: ♻️ Restore Cargo Cache
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        save-if: ${{ inputs.save-cache }}
+        shared-key: ${{ inputs.shared-key }}
+        workspaces: "./src-tauri -> target"

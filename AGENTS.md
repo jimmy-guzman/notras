@@ -279,9 +279,9 @@ pnpm build:web        # 4. web bundle build
 cargo test --locked   # 5. (when src-tauri changed) in src-tauri/, `D49`
 ```
 
-CI runs the same commands in a different order and runs `cargo test` on every
-pull request, so a Rust change that passes here can still be the one that fails
-there.
+CI runs these commands in this order, and runs `cargo test` on macOS and Linux,
+so a Rust change that passes on the platform you are on can still be the one
+that fails on the other.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev`
 and walk the relevant steps of the `SPEC.md` verification list. There is no

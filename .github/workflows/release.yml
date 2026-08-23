@@ -1,13 +1,11 @@
-name: release
+name: Release
 
 on:
   push:
     branches: [main]
-  # Redrive lever: republish an existing tag when a release run was lost or
-  # partial. release-please runs as GITHUB_TOKEN, which GitHub blocks from
-  # creating a release that targets a commit whose workflow files differ from
-  # the run's own, so a stranded release cannot be re-driven through the push
-  # path; this can.
+  # Redrive lever. GitHub blocks GITHUB_TOKEN from creating a release targeting
+  # a commit whose workflow files differ from the run's own, so a stranded
+  # release cannot be re-driven through the push path; this can.
   workflow_dispatch:
     inputs:
       tag:
@@ -16,13 +14,16 @@ on:
         type: string
 
 concurrency:
-  group: release
+  group: ${{ github.workflow }}
   cancel-in-progress: false
+
+permissions: {}
 
 jobs:
   release-please:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
@@ -37,8 +38,7 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # An empty tag output reads as "no release" downstream and would silently
-      # skip the build on a green run. Fail loudly instead.
+      # An empty tag reads as "no release" downstream and would skip the build.
       - name: 🧾 Assert Release Outputs
         if: steps.release.outputs.releases_created == 'true'
         env:
@@ -49,112 +49,36 @@ jobs:
             exit 1
           fi
 
-  # The release PR is opened by GITHUB_TOKEN, which never triggers ci.yml's
-  # pull_request event, so the tagged tree has had no gate run against it.
-  check:
+  # The release pull request is opened by GITHUB_TOKEN, which never fires
+  # pull_request, so the tagged tree has had no gate run against it. Same
+  # workflow a pull request runs, handed the tag.
+  gate:
     needs: release-please
     # `!= 'failure'` rather than `== 'success'` because the dispatch path skips
-    # release-please. Without it, a run that set releases_created but no
-    # tag_name would reach here with TAG empty, and `ref: ''` makes checkout
-    # fall back to the triggering ref, certifying main instead of the tag.
+    # release-please. An empty `ref` makes checkout fall back to the triggering
+    # ref, certifying main instead of the tag.
     if: ${{ !cancelled() && needs.release-please.result != 'failure' && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.released == 'true') }}
-    runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
-    steps:
-      - name: 🏗 Setup Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ env.TAG }}
-          persist-credentials: false
-
-      # The tauri crate links webkit2gtk through pkg-config, so cargo cannot
-      # build here without these. ci.yml dodges it by running cargo on macOS.
-      - name: 🐧 Setup Linux Deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: 📦 Install
-        uses: ./.github/actions/install
-
-      # Pinned into master's history, not to the `stable` branch head: that
-      # commit sits one ahead of master, so it is orphaned and GC-able the next
-      # time the branch moves. Upstream's README requires a master-history SHA,
-      # and pairs that with passing the toolchain as an input.
-      - name: 🦀 Setup Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
-        # Pinned, not `stable`: rust-cache folds the rustc version into its
-        # key, and stable moving 1.97.1 -> 1.98.0 during the last release
-        # killed every cache in the repo with no lockfile or workflow change
-        # to explain it. Three-component form on purpose; the action's parser
-        # treats a two-component `1.98` as a date expression.
-        with:
-          toolchain: "1.98.0"
-
-      # Shares ci.yml's rust job cache: same toolchain, same workspace, same
-      # test profile. Kept separate from build's, which compiles the release
-      # profile under `lto = true` and would share nothing but the registry.
-      - name: 🦀 Setup Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          workspaces: "./src-tauri -> target"
-          shared-key: test
-          # ci.yml's rust job writes this key. Both run on ubuntu with the same
-          # toolchain and workspace on a main push, so leaving this on made one
-          # of the two upload ~770MB only to be told the key already exists.
-          save-if: false
-
-      - name: ✂️ Knip
-        run: pnpm knip
-
-      - name: 🏷️ Typecheck
-        run: pnpm typecheck
-
-      - name: 🚨 Check
-        run: pnpm check
-
-      - name: ✅ Coverage
-        run: pnpm coverage
-
-      - name: 🏗 Build Web
-        run: pnpm build:web
-
-      # --locked is the `D49` guard: it refuses to update Cargo.lock, so a
-      # bumped Cargo.toml with a stale lockfile fails before compiling. A bare
-      # `cargo test` would repair the lockfile in place and pass.
-      - name: 🦀 Rust Tests
-        working-directory: src-tauri
-        run: cargo test --locked
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+      skip-cache: true
 
   build:
-    # Not `needs: check`. build reads only the tag and the release id, both from
-    # release-please, and check declares no outputs, so the edge was ordering
-    # alone and cost ~204s of a ~740s release. Safety moves to verify, which
-    # needs both: release-please creates the release as a draft, and verify's
-    # 📣 Publish Release is the only thing that flips it, so nothing reaches a
-    # user until check has passed.
+    # Not `needs: gate`. gate declares no outputs, so the edge was ordering
+    # alone and cost ~204s of a ~740s release. verify needs both, and it is the
+    # only thing that undrafts the release, so nothing ships ungated.
     needs: release-please
-    # Same clause as check, verbatim. Two copies is the floor now that both
-    # hang off release-please directly; verify gating on both results is what
-    # makes a drift between them fail closed instead of publishing.
     if: ${{ !cancelled() && needs.release-please.result != 'failure' && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.released == 'true') }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      # Legs run concurrently. tauri-action assembles latest.json by reading
-      # the existing asset, merging its own platforms and re-uploading, which
-      # interleaves across legs; tauri-action#1270 closed in 98b1609, shipped
-      # in the pinned v1.0.0. The retried unit is the whole upload function, so
-      # a leg holding an asset id another leg deleted gets a 404 and re-reads.
-      # Convergence is probabilistic, so verify asserts the result.
+      # Legs run concurrently and tauri-action assembles latest.json by reading
+      # the existing asset, merging and re-uploading, which interleaves across
+      # them (tauri-action#1270, fixed in the pinned v1.0.0). Convergence is
+      # probabilistic, so verify asserts the result.
       matrix:
         include:
           - platform: macos-latest
@@ -168,8 +92,8 @@ jobs:
     env:
       TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
     steps:
-      - name: 🏗 Setup Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: 📥 Setup Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
@@ -184,29 +108,18 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: 📦 Install
-        uses: ./.github/actions/install
-
-      # Pinned into master's history, not to the `stable` branch head: that
-      # commit sits one ahead of master, so it is orphaned and GC-able the next
-      # time the branch moves. Upstream's README requires a master-history SHA,
-      # and pairs that with passing the toolchain as an input.
-      - name: 🦀 Setup Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
-        # Pinned, not `stable`: rust-cache folds the rustc version into its
-        # key, and stable moving 1.97.1 -> 1.98.0 during the last release
-        # killed every cache in the repo with no lockfile or workflow change
-        # to explain it. Three-component form on purpose; the action's parser
-        # treats a two-component `1.98` as a date expression.
+      # The ubuntu leg keys the pnpm store on `runner.os`, the same key the
+      # direct run writes on this push. CI owns it.
+      - name: 🏗️ Setup Node
+        uses: ./.github/actions/setup-node
         with:
-          toolchain: "1.98.0"
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          save-cache: false
 
-      - name: 🦀 Setup Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: 🏗️ Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
-          workspaces: "./src-tauri -> target"
           shared-key: release
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: 🆔 Resolve Release
         id: release
@@ -222,10 +135,9 @@ jobs:
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-      # Tauri reads these with var_os, so a variable set from an unset secret
-      # arrives as Some("") and reads as configured. notarize_auth() matches on
-      # all three notarization vars being Some, so forwarding a partial set
-      # makes it notarize with an empty Apple ID. All six or none.
+      # Tauri reads these with var_os, so an unset secret arrives as Some("")
+      # and reads as configured, and notarize_auth() would then notarize with an
+      # empty Apple ID. All six or none.
       - name: 🔏 Setup Apple Signing
         if: runner.os == 'macOS'
         env:
@@ -256,13 +168,12 @@ jobs:
             } >> "$GITHUB_ENV"
           done
 
-      - name: 🏗 Build Bundles
+      - name: 🔨 Build Bundles
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Signs the updater artifacts. Unrelated to Apple signing, and not
-          # optional: without it `createUpdaterArtifacts` emits no .sig files
-          # and the published latest.json would be unverifiable.
+          # Not optional: without it `createUpdaterArtifacts` emits no .sig
+          # files and latest.json is unverifiable.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -273,14 +184,14 @@ jobs:
           retryAttempts: 5
 
   verify:
-    needs: [release-please, check, build]
-    # Both, not either: this is the gate that check stopped being. `!cancelled()`
-    # for the same reason check carries it, and it is load-bearing: the dispatch
-    # path skips release-please, and with no status check function here the
-    # implicit success() reads that skip as a failure and takes verify with it,
-    # leaving a redrive that builds everything and publishes nothing.
-    if: ${{ !cancelled() && needs.check.result == 'success' && needs.build.result == 'success' }}
+    needs: [release-please, gate, build]
+    # Both, not either: build does not wait on gate, so this is where the two
+    # meet. `!cancelled()` is load-bearing, because the implicit success() reads
+    # the dispatch path's skipped release-please as a failure and would leave a
+    # redrive that builds everything and publishes nothing.
+    if: ${{ !cancelled() && needs.gate.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     env:
@@ -288,7 +199,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      # A green run that shipped nothing is the failure this guards.
       - name: 🔍 Verify Assets
         run: |
           set -euo pipefail
@@ -301,11 +211,7 @@ jobs:
             fi
           done
 
-      # Each of these four keys is contributed by a different build leg, and
-      # they are the ones the updater resolves at runtime, so a merge lost by
-      # concurrent legs shows up here. Runs after every leg and before
-      # 📣 Publish Release, so a manifest missing a platform ships nothing.
-      - name: 🧭 Verify Updater Manifest
+      - name: 🔍 Verify Updater Manifest
         run: |
           set -euo pipefail
           gh release download "$TAG" --pattern latest.json --dir manifest
@@ -322,7 +228,7 @@ jobs:
       - name: 🔐 Write Checksums
         run: |
           set -euo pipefail
-          mkdir -p dist && cd dist
+          mkdir -p release-assets && cd release-assets
           gh release download "$TAG" --clobber
           # A redrive re-downloads the previous sums file; never hash it.
           rm -f SHA256SUMS.txt
@@ -330,31 +236,28 @@ jobs:
           cat SHA256SUMS.txt
           gh release upload "$TAG" SHA256SUMS.txt --clobber
 
-      # release-please created this as a draft (`draft: true` plus
-      # `force-tag-creation`), so nothing was downloadable until now.
+      # release-please creates it drafted, so nothing was downloadable yet.
       - name: 📣 Publish Release
         run: gh release edit "$TAG" --draft=false
 
   homebrew:
     needs: [release-please, verify]
-    # Same skip-vs-implicit-success() problem as verify; without it a redrive
-    # publishes the release and never updates the cask.
     if: ${{ !cancelled() && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     env:
       TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
     steps:
       # Separate from verify on purpose: this job holds TAP_GITHUB_TOKEN, and
-      # keeping it out of the job that publishes the release is a privilege
-      # boundary, not an accident. Only scripts/ is needed for the template.
-      - name: 🏗 Setup Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # keeping that out of the job that publishes the release is the boundary.
+      - name: 📥 Setup Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
-          sparse-checkout: scripts
+          sparse-checkout: .github/homebrew
 
       - name: 🍺 Render Cask
         env:
@@ -365,9 +268,8 @@ jobs:
           # The bundler names the DMG, so read it off the release rather than
           # reconstructing it here.
           DMG=$(gh release view "$TAG" --json assets --jq '.assets[].name | select(endswith(".dmg"))' | head -n1)
-          # Read the hash verify already published rather than re-downloading
-          # the DMG. Two independent transfers can disagree, and the cask would
-          # then contradict the SHA256SUMS.txt README.md points people at.
+          # Two transfers can disagree, and the cask would then contradict the
+          # SHA256SUMS.txt README.md points people at.
           gh release download "$TAG" --pattern SHA256SUMS.txt --dir .
           SHA=$(awk -v f="$DMG" '$2 == f { print $1 }' SHA256SUMS.txt)
           if [ -z "$SHA" ]; then
@@ -377,7 +279,7 @@ jobs:
           sed -e "s/{{VERSION}}/$VERSION/g" \
               -e "s/{{SHA}}/$SHA/g" \
               -e "s/{{DMG}}/$DMG/g" \
-              scripts/notras.rb.tmpl > notras.rb
+              .github/homebrew/notras.rb.tmpl > notras.rb
           cat notras.rb
 
       - name: 🚰 Push To Tap
