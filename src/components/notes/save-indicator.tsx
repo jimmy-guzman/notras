@@ -12,20 +12,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { cn } from "@/lib/ui/utils";
 
 const STATUS: Record<
   SaveStatus,
-  { icon: typeof SaveIcon; label: string; tone: string }
+  { icon: typeof SaveIcon; label: string; tone?: string }
 > = {
-  dirty: { icon: SavePenIcon, label: "unsaved", tone: "" },
+  dirty: { icon: SavePenIcon, label: "unsaved" },
   failed: {
     icon: SaveOffIcon,
     label: "could not save",
     tone: "text-destructive",
   },
-  saved: { icon: SaveCheckIcon, label: "saved", tone: "text-faint" },
-  saving: { icon: SaveIcon, label: "saving", tone: "" },
+  saved: { icon: SaveCheckIcon, label: "saved", tone: "opacity-60" },
+  saving: { icon: SaveIcon, label: "saving" },
 };
 
 interface SaveIndicatorProps {
@@ -55,7 +56,7 @@ export function SaveIndicator({ status }: SaveIndicatorProps) {
           />
         }
       >
-        <Icon className="size-3.5" />
+        <Icon className={CHROME_GLYPH} />
         <span className="sr-only">{label}</span>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

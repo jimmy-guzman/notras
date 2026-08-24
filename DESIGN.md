@@ -215,12 +215,12 @@ a real non-motion end state, so removing the transition costs nothing.
 - **The save state is a glyph, and it sits in the titlebar** (`D35`, `D38`).
   `SaveIndicator` renders between the title and the pin, a floppy carrying a pen
   for `dirty`, no badge for `saving`, a check for `saved`, and a slash for
-  `failed`, at `size-3.5` in the same 24px box the pin and the view toggles use.
-  `saved` drops to `--faint` and `failed` takes `--destructive`; `dirty` and
-  `saving` set no tone and inherit the bar's, so tone separates the states the
-  badge alone would not at that size. The word reaches a hover tooltip and `sr-only` text,
-  never the bar. The external-file route renders the same component in its own
-  titlebar, which is why it carries `no-drag`.
+  `failed`, at `CHROME_GLYPH` in the same 24px box the pin and the view toggles
+  use. `saved` takes the pin's idle `opacity-60` and `failed` takes
+  `--destructive`; `dirty` and `saving` inherit the bar's, so the glyph is lit
+  while a write is outstanding and dim once it lands. The word reaches a hover
+  tooltip and `sr-only` text, never the bar. The external-file route renders the
+  same component in its own titlebar, which is why it carries `no-drag`.
 - **Anything in chrome that turns on and off is a `Toggle`** (`D37`), at
   `size="icon-xs"`, showing its on-state as `--foreground`. That covers the
   three view toggles, which are one `ToggleGroup` and so one tab stop with arrow
@@ -228,6 +228,11 @@ a real non-motion end state, so removing the transition costs nothing.
   it: `--muted-foreground` in the status strip, and `--foreground` at
   `opacity-60` for the pin, since the titlebar carries no muted tone. Hover is a surface and pressed is a tone, which is what keeps the two
   states apart.
+- **A glyph's size follows its role, not its band** (`D51`). A standalone glyph
+  in a chrome control takes `CHROME_GLYPH` from `src/lib/ui/chrome.ts`. An icon
+  beside a word takes 12px, which its button variant usually supplies and the
+  palette's pin marker has to state. Those are the only two roles, so a `size-*`
+  class on an icon anywhere else means the wrong component is wrapping it.
 - **Tags are picked from the status strip** (`D30`). A chip reads `#groceries`
   and filters to that tag; the `TagPlus` button beside it reads `add tag` and
   opens the combobox, whose vocabulary is the index's own counted tag list. The
@@ -241,11 +246,12 @@ a real non-motion end state, so removing the transition costs nothing.
   is a platform fact and lives in one place. Windows and Linux put the controls
   on the right, and would need it mirrored.
 - **The titlebar height and the traffic light offset are one decision.** The bar
-  is 44px and `trafficLightPosition` centres the buttons in it, so plain centring
+  is 36px and `trafficLightPosition` centres the buttons in it, so plain centring
   puts the title on their line and the space above and below them is equal by
-  construction. Both values come from scratch, which ships them against the same
-  overlay titlebar. Changing the height means rechecking the offset, and `D29`
-  records what happens when they drift apart.
+  construction. The offset is carried twice, in `tauri.conf.json` for the `main`
+  window and in `lib.rs` for `capture`, so both move together. Changing the
+  height means rechecking them, and `D29` records what happens when they drift
+  apart.
 - **Two bands frame the note.** The titlebar above and the status strip below,
   each with a hairline border. A band that reads as chrome needs an edge, and
   without one the title floats as stray text over the document.

@@ -100,6 +100,7 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
       <div className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5 truncate">
           {note.title}
+          {/* In a text run, not the row's icon slot, so it stays 12px (`D51`). */}
           {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
           {note.folder === "" ? null : (
             <span className="text-muted-foreground text-xs">

@@ -12,6 +12,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { setNotePinned } from "@/data/pin-note";
+import { CHROME_GLYPH } from "@/lib/ui/chrome";
+import { cn } from "@/lib/ui/utils";
 
 interface NoteHeaderProps {
   path: string;
@@ -64,9 +66,9 @@ export function NoteHeader({ path, pinned, status, title }: NoteHeaderProps) {
           }
         >
           {optimisticPinned ? (
-            <PinIcon className="size-4" />
+            <PinIcon className={CHROME_GLYPH} />
           ) : (
-            <PinOffIcon className="size-4 opacity-60" />
+            <PinOffIcon className={cn(CHROME_GLYPH, "opacity-60")} />
           )}
         </TooltipTrigger>
         <TooltipContent>{optimisticPinned ? "unpin" : "pin"}</TooltipContent>
