@@ -18,13 +18,13 @@ const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
 interface StatusBarProps {
   allTags: { count: number; tag: string }[];
   focusModeEnabled: boolean;
+  /** Absent for an external file, which carries no frontmatter to tag. */
+  note?: { path: string; tags: string[] };
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
   onToggleSource: () => void;
   onToggleTypewriter: () => void;
-  path: string;
   sourceEnabled: boolean;
-  tags: string[];
   typewriterEnabled: boolean;
   words: number;
 }
@@ -32,13 +32,12 @@ interface StatusBarProps {
 export function StatusBar({
   allTags,
   focusModeEnabled,
+  note,
   onFilterTag,
   onToggleFocusMode,
   onToggleSource,
   onToggleTypewriter,
-  path,
   sourceEnabled,
-  tags,
   typewriterEnabled,
   words,
 }: StatusBarProps) {
@@ -89,13 +88,15 @@ export function StatusBar({
   );
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-1 border-t px-3 text-muted-foreground text-xs">
-      <NoteTags
-        allTags={allTags}
-        onFilter={onFilterTag}
-        path={path}
-        tags={tags}
-      />
+    <footer className="flex h-7 shrink-0 items-center gap-1 border-t bg-card px-3 text-muted-foreground text-xs">
+      {note === undefined ? null : (
+        <NoteTags
+          allTags={allTags}
+          onFilter={onFilterTag}
+          path={note.path}
+          tags={note.tags}
+        />
+      )}
       <span className="ml-auto shrink-0 px-2 tabular-nums">
         {words} {words === 1 ? "word" : "words"} · {readingTime(words)}
       </span>

@@ -22,6 +22,11 @@ const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
 
+/**
+ * Every method no-ops on a destroyed editor. ⌘P swaps the rich surface for the
+ * source one, and the session's ref keeps pointing at the handle it was given,
+ * so a handle outliving its instance is a state the design permits.
+ */
 export interface EditorHandle {
   focus: () => void;
   /**
@@ -260,10 +265,12 @@ export function Editor({
       editorRef.current = instance;
       config.onReady?.({
         focus: () => {
-          instance.commands.focus();
+          if (!instance.isDestroyed) {
+            instance.commands.focus();
+          }
         },
         getCaretSourceOffset: () => {
-          const manager = instance.markdown;
+          const manager = instance.isDestroyed ? null : instance.markdown;
 
           if (!manager) {
             return -1;
@@ -283,6 +290,10 @@ export function Editor({
         },
         getContent: () => serializeMarkdown(instance),
         insertText: (text) => {
+          if (instance.isDestroyed) {
+            return;
+          }
+
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
         },
@@ -366,13 +377,15 @@ export function Editor({
       suppressChangeRef.current = false;
 
       const max = editor.state.doc.content.size;
+      const chain = editor.chain();
 
-      editor
-        .chain()
-        .focus()
-        .setTextSelection(Math.min(pos, max))
-        .scrollIntoView()
-        .run();
+      // A tab restored in the background places its caret without taking
+      // focus: several editors mount at launch and only one is showing.
+      if (config.focusOnMount === true) {
+        chain.focus();
+      }
+
+      chain.setTextSelection(Math.min(pos, max)).scrollIntoView().run();
     } else if (config.focusOnMount === true) {
       editor.commands.focus("end");
     }

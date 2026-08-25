@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { saveNote } from "@/data/save-note";
 import { registerPendingFlush } from "@/lib/pending-flush";
 
 export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
@@ -9,24 +8,27 @@ const AUTOSAVE_DELAY_MS = 800;
 
 interface AutosaveOptions {
   /** Called with the file's new mtime after every successful save. */
-  onSaved?: (updatedAt: Date) => void;
+  onSaved: (updatedAt: Date) => void;
+  /** How this buffer reaches disk: a note and an external file differ here and nowhere else (`D54`). */
+  write: (path: string, content: string) => Promise<Date>;
 }
 
 /**
- * Debounced autosave for one note buffer, flushed on window blur and
- * unmount so nothing is ever left unsaved.
+ * Debounced autosave for one buffer, flushed on window blur and unmount so
+ * nothing is ever left unsaved.
  */
-export function useAutosave(path: string, options?: AutosaveOptions) {
+export function useAutosave(path: string, options: AutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const pendingRef = useRef<null | string>(null);
   const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pathRef = useRef(path);
-  const onSavedRef = useRef(options?.onSaved);
+  const stoppedRef = useRef<boolean>(false);
+  const optionsRef = useRef(options);
 
   useEffect(() => {
     pathRef.current = path;
-    onSavedRef.current = options?.onSaved;
+    optionsRef.current = options;
   });
 
   // Resolves to whether the buffer is safely on disk: true when there was
@@ -43,9 +45,12 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     setStatus("saving");
 
     try {
-      const updatedAt = await saveNote(pathRef.current, content);
+      const updatedAt = await optionsRef.current.write(
+        pathRef.current,
+        content
+      );
 
-      onSavedRef.current?.(updatedAt);
+      optionsRef.current.onSaved(updatedAt);
       // A keystroke may have landed while the write was in flight.
       refreshStatus();
 
@@ -79,8 +84,29 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     return next;
   }, [writeOnce]);
 
+  /**
+   * Stop writing this buffer to disk, for good.
+   *
+   * Used when the file has gone. The buffer stays on screen to be copied out,
+   * but flushing it would recreate the file someone deleted, and the unmount
+   * flush would do it silently. Latched rather than a one-shot discard, so
+   * typing afterwards does not start the timer again. `status` is left alone:
+   * the caller reads it to decide whether the tab still holds anything worth
+   * keeping.
+   */
+  const stopSaving = useCallback(() => {
+    stoppedRef.current = true;
+    clearTimeout(timerRef.current);
+    pendingRef.current = null;
+  }, []);
+
   const onChange = useCallback(
     (content: string) => {
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: `stopSaving` sets this, which biome cannot see across the callback boundary
+      if (stoppedRef.current) {
+        return;
+      }
+
       pendingRef.current = content;
       setStatus("dirty");
       clearTimeout(timerRef.current);
@@ -111,5 +137,5 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
     };
   }, [flush]);
 
-  return { flush, onChange, status };
+  return { flush, onChange, status, stopSaving };
 }

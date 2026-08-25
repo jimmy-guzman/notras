@@ -1,4 +1,3 @@
-import { useNavigate, useParams } from "@tanstack/react-router";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   DownloadIcon,
@@ -39,6 +38,13 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
+import {
+  closeTab,
+  openNote as openInTab,
+  renameTab,
+  useTabState,
+} from "@/lib/tabs/store";
+import { tabId } from "@/lib/tabs/tab";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
@@ -357,10 +363,15 @@ export function CommandPalette({
   open,
   tag,
 }: CommandPaletteProps) {
-  const navigate = useNavigate();
-  const params = useParams({ strict: false });
-  const currentPath = params._splat;
+  const { activeId, tabs } = useTabState();
+  // Note actions act on the tab that is showing, and only when it holds a note:
+  // an external file carries no frontmatter to pin, tag, rename or move.
+  const activeTab = tabs.find((tab) => tabId(tab) === activeId);
+  const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
   const currentNote = notes.find((note) => note.path === currentPath);
+  // cmdk's `onSelect` carries no event, so the modifier is read off the
+  // gesture that triggered it, in the capture phase to beat cmdk's own handler.
+  const newTabRef = useRef(false);
 
   // Empty path is unreachable: the tags view is gated on a current note.
   const noteTags = useNoteTags(
@@ -467,12 +478,22 @@ export function CommandPalette({
     setView("root");
   }, []);
 
+  const trackNewTab = useCallback(
+    (event: React.KeyboardEvent | React.MouseEvent) => {
+      newTabRef.current = event.metaKey || event.ctrlKey;
+    },
+    []
+  );
+
   const openNote = useCallback(
     (path: string) => {
+      const newTab = newTabRef.current;
+
+      newTabRef.current = false;
       close();
-      navigate({ params: { _splat: path }, to: "/notes/$" });
+      openInTab(path, newTab);
     },
-    [close, navigate]
+    [close]
   );
 
   const runAction = useCallback(
@@ -510,10 +531,10 @@ export function CommandPalette({
 
     runAction(async () => {
       await deleteNote(currentNote.path);
-      await navigate({ to: "/" });
+      closeTab(tabId({ kind: "note", path: currentNote.path }));
       toast.success("note deleted");
     });
-  }, [currentNote, navigate, runAction]);
+  }, [currentNote, runAction]);
 
   const moveToFolder = useCallback(
     (folder: string) => {
@@ -524,10 +545,10 @@ export function CommandPalette({
       runAction(async () => {
         const next = await moveNote(currentNote.path, folder);
 
-        openNote(next);
+        renameTab(currentNote.path, next);
       });
     },
-    [currentNote, openNote, runAction]
+    [currentNote, runAction]
   );
 
   const moveToNotesRoot = useCallback(() => {
@@ -546,9 +567,9 @@ export function CommandPalette({
     runAction(async () => {
       const next = await retitleNote(currentNote.path, query.trim());
 
-      openNote(next);
+      renameTab(currentNote.path, next);
     });
-  }, [currentNote, openNote, query, runAction]);
+  }, [currentNote, query, runAction]);
 
   const toggleTag = useCallback(
     (name: string, attached: boolean) => {
@@ -577,9 +598,9 @@ export function CommandPalette({
     runAction(async () => {
       const path = await createNote();
 
-      openNote(path);
+      openInTab(path, true);
     });
-  }, [openNote, runAction]);
+  }, [runAction]);
 
   const togglePin = useCallback(() => {
     if (currentNote === undefined) {
@@ -740,7 +761,11 @@ export function CommandPalette({
       open={open}
       title="command palette"
     >
-      <Command shouldFilter={false}>
+      <Command
+        onKeyDownCapture={trackNewTab}
+        onMouseDownCapture={trackNewTab}
+        shouldFilter={false}
+      >
         <CommandInput
           onValueChange={updateQuery}
           placeholder={

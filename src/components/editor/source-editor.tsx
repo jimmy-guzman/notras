@@ -10,6 +10,7 @@ import { common, createLowlight } from "lowlight";
 import { useEffect, useState } from "react";
 
 export interface SourceEditorHandle {
+  focus: () => void;
   /** Caret position as a character offset into the raw text. */
   getCursorOffset: () => number;
   insertText: (text: string) => void;
@@ -134,9 +135,19 @@ export function SourceEditor({
         .run();
 
       config.onReady?.({
-        getCursorOffset: () => Math.max(0, instance.state.selection.from - 1),
+        focus: () => {
+          if (!instance.isDestroyed) {
+            instance.commands.focus();
+          }
+        },
+        getCursorOffset: () =>
+          instance.isDestroyed
+            ? -1
+            : Math.max(0, instance.state.selection.from - 1),
         insertText: (text) => {
-          instance.chain().focus().insertContent(text).run();
+          if (!instance.isDestroyed) {
+            instance.chain().focus().insertContent(text).run();
+          }
         },
       });
     },

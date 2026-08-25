@@ -1,5 +1,6 @@
 import {
   createRootRoute,
+  Navigate,
   Outlet,
   useNavigate,
   useRouter,
@@ -20,6 +21,7 @@ import { getNotes } from "@/data/get-notes";
 import { getTags } from "@/data/get-tags";
 import { getNotesDir } from "@/data/notes-dir";
 import { flushPendingWrites } from "@/lib/pending-flush";
+import { bumpRevision, openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 
 interface RootSearch {
@@ -29,6 +31,9 @@ interface RootSearch {
 
 export const Route = createRootRoute({
   component: RootLayout,
+  // The workspace is the only screen (`D53`), so any other path is a stale URL
+  // -- a dev reload holding the retired `/notes/$`, or a malformed deep link.
+  notFoundComponent: () => <Navigate replace to="/" />,
   validateSearch: (search: Record<string, unknown>): RootSearch =>
     typeof search.tag === "string" ? { tag: search.tag } : {},
   loader: async () => {
@@ -114,6 +119,7 @@ function RootLayout() {
   useEffect(() => {
     const unlisten = listen("notes-changed", () => {
       router.invalidate();
+      bumpRevision();
     });
 
     return () => {
@@ -126,23 +132,13 @@ function RootLayout() {
   // Tray menu + "Open With" plumbing from Rust.
   useEffect(() => {
     // Rust queues every "Open With" path and only signals that the queue has
-    // something in it, so draining is the single delivery mechanism.
+    // something in it, so draining is the single delivery mechanism. Each one
+    // lands in its own tab rather than replacing what is open (`D54`).
     const drainPendingOpens = async () => {
       const paths = await invoke<string[]>("pending_open_files");
-      const [first, ...rest] = paths;
 
-      if (first === undefined) {
-        return;
-      }
-
-      await navigate({ search: { path: first }, to: "/external" });
-
-      // The queue is drained destructively and there is one window to show a
-      // file in, so say what was left behind rather than dropping it silently.
-      if (rest.length > 0) {
-        toast.warning(
-          `opened 1 file; ${rest.length} more were not opened -- notras shows one at a time`
-        );
+      for (const path of paths) {
+        openTab({ kind: "external", path }, true);
       }
     };
 
@@ -152,7 +148,9 @@ function RootLayout() {
 
     const unlistenNew = listen("menu-new-note", () => {
       createNote()
-        .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
+        .then((path) => {
+          openNote(path, true);
+        })
         .catch(reportFailure("could not create note"));
     });
     const unlistenOpen = listen("open-file", () => {
@@ -169,12 +167,15 @@ function RootLayout() {
         dispose();
       });
     };
-  }, [navigate]);
+  }, []);
 
   // Quit is held open by Rust until the buffers are on disk -- and called off
   // entirely if one of them could not be written.
   useEffect(() => {
     const unlisten = listen("app-quit", () => {
+      // Carets are read off the live sessions, so the set has to be written
+      // here rather than only when it last changed.
+      persistTabs();
       flushPendingWrites()
         .then((saved) => {
           if (saved) {
@@ -210,7 +211,9 @@ function RootLayout() {
     "mod+n",
     () => {
       createNote()
-        .then((path) => navigate({ params: { _splat: path }, to: "/notes/$" }))
+        .then((path) => {
+          openNote(path, true);
+        })
         .catch((error: unknown) => {
           toast.error(
             error instanceof Error ? error.message : "could not create note"

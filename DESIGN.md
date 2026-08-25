@@ -6,10 +6,11 @@ the docs.
 
 ## Operating principles
 
-- **The window is the editor.** There is no persistent sidebar and no navigation
-  chrome. Anything that is not the note reaches the screen through ⌘K, a
-  dialog, or the status strip. The two bands that remain carry the note's state
-  and the editor's view state, and nothing else.
+- **The window is the editor.** There is no sidebar and no note list on screen.
+  Anything that is not the note reaches it through ⌘K, a dialog, or the status
+  strip. The one exception is the tab strip, which says which notes are open
+  and nothing else (`D52`); finding a note is still the palette's job. The two
+  bands carry the note's state and the editor's view state.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
   reachable only by mouse is unfinished. Typewriter scrolling is the one that
   still is: it toggles from the status strip and nowhere else.
@@ -17,7 +18,9 @@ the docs.
   empty states are lowercase, app-wide and deliberate. The wordmark is
   lowercase too.
 - **Default to less.** Add nothing that does not earn its place, then remove one
-  more thing. New chrome is the last resort; the palette is the first.
+  more thing. New chrome is the last resort; the palette is the first, and
+  chrome that arrives displaces something rather than joining it: the tab strip
+  took the title's place in the band rather than adding a band (`D52`).
 - **The last five percent is the work.** A feature that renders but reflows the
   caret, dims the wrong block, or teleports the text on toggle is not shipped.
 - **The same problem gets the same solution everywhere.** A second
@@ -255,6 +258,15 @@ a real non-motion end state, so removing the transition costs nothing.
 - **Two bands frame the note.** The titlebar above and the status strip below,
   each with a hairline border. A band that reads as chrome needs an edge, and
   without one the title floats as stray text over the document.
+- **The titlebar holds the open tabs, then the note's controls** (`D52`). Both
+  bands are `--card`, so the note's `--background` reads as its own surface. A
+  tab fills the band height, is square, and is divided from its neighbour by a
+  hairline rather than a gap. The active one is `--background` and paints over
+  the band's bottom hairline, so it reads as continuous with the note below.
+  Tabs divide the strip evenly over a `min-w-24` floor and scroll past it, so a
+  lone tab spans the window. An external file's tab is mono, the way its path
+  was. The save glyph and the pin
+  sit after the strip and follow the active tab.
 - **The palette is the action surface.** A new note-level action goes in ⌘K
   rather than into new chrome. `ARCHITECTURE.md` lists what it holds.
 - **`·` joins related metadata.** The status strip reads
@@ -362,8 +374,12 @@ a real non-motion end state, so removing the transition costs nothing.
 - Do not add a color, radius, or font size outside the tokens.
 - Do not use `--accent` as the accent, and do not put the accent in chrome.
 - Do not add a token to one scheme only.
-- Do not add persistent chrome. If it does not fit the palette, a dialog, or the
-  status strip, question the feature.
+- Do not add a third band. The titlebar and the status strip are the two, and
+  anything new competes for room inside one of them (`D52`).
+- Do not add persistent chrome for an action. If it does not fit the palette, a
+  dialog, or the status strip, question the feature. The tab strip is not an
+  action surface: it shows which notes are open, and every action on one is
+  still a shortcut or a palette entry.
 - Do not capitalize user-facing text.
 - Do not animate anything that is not a state change.
 - Do not write an action twice. A second entry point is fine when both route

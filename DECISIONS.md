@@ -6,8 +6,8 @@ rewrite, which `git log` records.
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
 an ID repoints every reference to it without any of them changing. The highest
-number issued so far is 50, and some entries below it were removed, so the next
-entry takes 51.
+number issued so far is 54, and some entries below it were removed, so the next
+entry takes 55.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -1349,3 +1349,112 @@ rather than a tone of its own.
 **Constraint:** the glyph carries `[stroke-width:2.25]`. Lucide's stroke is 2
 against a 24-unit `viewBox`, so it scales with the glyph and 14px would render
 1.167px, lighter than the 1.333px an unstyled lucide icon draws at 16px here.
+
+### D52 Tabs, in the title bar, where the note's title used to sit
+
+Open notes are a strip of tabs in the 36px title bar, from
+`src/components/tabs/tab-strip.tsx`. The save glyph and the pin stay at the
+right in `NoteControls`, and the note's title is now the active tab's label.
+`DESIGN.md` carries the shape.
+
+**Amends `D10`,** which rejected navigation chrome because ⌘K finds a note in a
+keystroke. That reasoning holds and this does not contest it. Tabs answer a
+different question: which notes are open at once, and how to return to one
+without losing your place in it. Finding a note and keeping it open are not the
+same act, and the palette stays the way notes are found.
+
+**Amends `D30` and `D38`,** which recorded that the title bar has no horizontal
+room: tags moved out because a variable-width chip row would not fit, and the
+save glyph already cost the title 36px. The measurement stands. At the 480px
+minimum, the traffic-light inset, the trailing padding, the save glyph and the
+pin leave 312px. The strip fits because a tab is not a chip: tabs shrink to a
+floor and then scroll, so the count grows without the width doing so.
+
+**Rejected: a third band below the title bar.** Full window width, no
+competition for the 312px, and `DESIGN.md`'s "two bands frame the note" left
+intact. Rejected because it spends about 30px of vertical room permanently on
+navigation, in an app whose window is the editor, to solve a horizontal problem
+that scrolling already solves.
+
+**Rejected: Base UI's `Tabs`, which shadcn would supply.** It wires the
+`tablist`/`tab`/`tabpanel` roles with `aria-controls` and `aria-labelledby`
+from a panel registry, and adds roving focus and `inert`, all of which this
+hand-rolls. Rejected on the panel half: `TabsPanel` puts the `hidden` attribute
+on a kept-mounted inactive panel, and `hidden` is `display:none`, which
+destroys the scroll box `D53`'s live editors depend on. Taking it means
+shipping a CSS rule whose only job is to defeat the component's own hiding, and
+`Tabs.Tab` reads `aria-controls` off that same registry, so the list cannot be
+adopted without the panels either.
+
+**Constraint:** the two chrome tones say which tab is active, not the fill. The
+fill only says it in dark; in light `--card` is `#ffffff` against a `#f7f8fa`
+page, so the active tab is the darker of the two. Darkening the band instead
+drops `--muted-foreground` on it to 4.23:1, under the 4.5 `src/styles.spec.ts`
+enforces.
+
+**Constraint:** ⌘⇧T is reopen-closed-tab, so editing tags moved to ⌘⇧Y in
+`note-tags.tsx`. ⌘⇧T is the reopen shortcut on every platform and nothing else
+in the app has a claim that strong; tags keep the status strip and the palette,
+which is what `D31` allows.
+
+### D53 One workspace route, and a live editor per open tab
+
+`src/routes/index.tsx` is the only screen. It renders the strip, every open
+tab's session, and the two bands. `src/lib/tabs/store.ts` owns the open set and
+which tab is active; `src/lib/tabs/tab.ts` holds the list algebra and its spec.
+Every open tab keeps its editor mounted and hidden rather than unmounted, so
+undo, selection, caret and scroll survive a switch and nothing re-parses.
+Content is read by the session, not by a route loader.
+
+`/notes/$` and `/external` are gone. A splat holding one note path stopped
+describing what is on screen the moment two notes could be open, and with
+external files as tabs (`D54`) there was no path shape covering both.
+
+**Rejected: remounting on every switch and restoring the caret.** The smaller
+change, keeping `<NoteEditor key={path}>` and the single live buffer, with the
+caret carried through the sentinel machinery `toggleSource` already uses.
+Rejected because undo history cannot be carried that way: type in one note,
+check another, come back, and ⌘Z does nothing. Re-parsing a long note on every
+switch also puts a hitch in the one interaction tabs exist to make cheap.
+
+**Rejected: holding the tab set in the URL.** One source of truth, loaders and
+invalidation for free, and no store to write. Rejected because the window has
+no URL bar, so nothing is gained in exchange for encoding a list of absolute
+host paths into a search param and rewriting it on every open, close and
+rename.
+
+**Rejected: keeping the open set in `settings.json`.** The documented
+preference channel, written by Rust through `tauri-plugin-store`. Rejected
+because the open set is window state rather than a preference: it belongs to
+one machine's session, it changes on every tab someone opens, and
+`settings.json` is a file a person may read. It lives in `localStorage` beside
+the writing-mode toggles in `src/lib/prefs.ts`.
+
+**Constraint:** nothing inside a session may register a window listener or a
+hotkey. Several are alive at once, so a per-session listener fires N times: the
+drag-drop handler would copy one dropped file into every open note. The
+drag-drop listener, ⌘P and ⌘D live in the workspace and act on the active tab,
+and the writing-mode toggles moved out of the session for the same reason.
+
+### D54 An external file is a tab, over one session and one autosave chain
+
+"Open With" opens every queued path as its own tab. A `Tab` is
+`{kind: "external" | "note", path}`, and the kind picks the read and the write
+and whether the note actions apply. `useAutosave` takes the write as an
+argument instead of reaching for `saveNote`.
+
+`external.tsx` was a second hand-rolled copy of the 800ms serialized write
+chain, kept in step with `use-autosave.ts` by hand, which `D31` forbids. It
+existed because an external file had nowhere to live beside a note. Rust
+already queued every path `pending_open_files` returns, and the UI dropped all
+but the first and apologised with a toast. Both were the same missing thing.
+
+**Rejected: a second window per external file.** Real separation, and `D20`
+already runs quick capture that way. Rejected because a second window means a
+second router, a second palette and a second quit handshake, which `D20`
+accepted for a capture box holding no library state and would not be worth for
+a file someone is editing.
+
+**Constraint:** an external tab carries no frontmatter state, so it reports no
+pin and no tags rather than a second shape, and the pin and the tag row are
+absent from the chrome while it is active.

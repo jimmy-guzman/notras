@@ -37,6 +37,33 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
       those keystrokes on disk. ⌘K → "check for updates..." reports either way.
       Only the development message is reachable under `pnpm dev`: the check is
       `PROD`-guarded, so the install path needs two real releases.
+- [ ] 16. ⌘K a note and press ⌘⏎ → it opens beside the current one; plain ⏎ on
+      a third replaces the tab that was showing rather than adding to the strip
+- [ ] 17. Type in tab A, ⌘2 to B, ⌘1 back → the keystrokes are on disk, ⌘Z
+      undoes them, and the caret and scroll are where they were left
+- [ ] 18. Type `# a real title` in the showing tab → its label follows the
+      heading; the tab left of it does not move
+- [ ] 19. Click each tab in turn, including one that is not next to the active
+      one → each shows its note; click a tab's × → the neighbour takes over
+      rather than the tab merely being selected
+- [ ] 19b. Drag a tab past its neighbour → the strip reorders under the pointer
+      and stays put on release; ⌘⌥⇧← moves it back; press a tab and jiggle
+      inside its own bounds → it selects and does not reorder
+- [ ] 20. ⌘W → the tab to the right takes over; ⌘⇧T → it comes back where it
+      was; ⌘W on the last remaining tab leaves the empty state, and the tab
+      context menu's close agrees with both
+- [ ] 21. "Open With" three `.md` files at once → three tabs, no toast, each
+      label mono; edit one → it saves to its own path outside the notes dir
+- [ ] 22. Open enough tabs to overflow the strip at 480px → a count appears
+      beside `+` and picking from it shows that tab
+- [ ] 23. `echo` a change into a background tab's file → that tab reloads
+      without being switched to; `rm` a clean background tab's file → its tab
+      closes on its own; `rm` one holding unsaved edits → it keeps the buffer
+      and says the file is gone
+- [ ] 24. Quit with four tabs, relaunch → the same four, the same active one,
+      each caret restored
+- [ ] 25. ⌘K → "rename note..." → the tab moves with the file rather than
+      duplicating; right-click a tab → close others leaves one
 
 ## Deferred
 
@@ -101,3 +128,16 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
   `cause`, so a database failure reaches `toast.error` as Effect's own text
 - A shortcut or palette entry for typewriter scrolling, the one action reachable
   from the status strip alone
+- Splitting the window into two tab groups side by side (`D53` keeps one active
+  tab, so a split is a second workspace rather than a second pane)
+- A tab's tooltip carrying the full path, which an external tab's truncated
+  basename most wants (`D51`'s glyph rules cover the chrome, not a text label)
+- Relative image paths inside an external tab, which `note-session.tsx` leaves
+  unresolved by gating `resolveImageSrc` to a note. The retired `/external`
+  view did the same. Fixing it means asset-protocol scope over whatever
+  directory the file came from, and `tauri.conf.json` ships `"scope": []` with
+  `lib.rs` granting `allow_directory` for the notes dir alone, so it is a
+  security decision rather than a wiring one
+- ⌘⇧[ and ⌘⇧] for previous and next tab. Holding shift makes `event.key` for
+  `[` into `{` on a US layout, so the binding would follow the keyboard rather
+  than the chord; ⌘⌥←/→ carries it instead and is in `README.md`'s table

@@ -123,12 +123,13 @@ src/
   routes/             # TanStack Router file routes
     __root.tsx        # loader (notes/folders/tags/notesDir), palette, settings
                       # dialog, hotkeys, notes-changed listener
-    index.tsx         # redirect to last-edited note, else empty state
-    notes.$.tsx       # THE page: editor session keyed by note path
-    external.tsx      # edit a markdown file outside the notes dir
+    index.tsx         # THE page: the workspace -- tab strip, every open
+                      # tab's session, and the two bands (D53)
   components/
     editor/           # TipTap wrapper, extensions, suggestions, autosave
-    notes/            # note-header (title/pin), note-tags, use-note-tags,
+    tabs/             # the title bar's tab strip
+    workspace/        # note-session: one open tab, note or external (D54)
+    notes/            # note-controls (save/pin), note-tags, use-note-tags,
                       # save-indicator, status-bar
     command-palette.tsx
     settings-dialog.tsx
@@ -155,7 +156,11 @@ src/
     runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
     pending-flush.ts  # autosave flush registry read by the quit handshake
+    prefs.ts          # focus mode and typewriter, app-wide (D53)
+    tabs/             # the open set: tab.ts is the list algebra, store.ts
+                      # the module store the chrome and sessions read
     updater.ts        # release check, offer toast, install + relaunch
+    ui/chrome.ts      # CHROME_GLYPH (D51)
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -251,7 +256,7 @@ values through refs or stable getters, never through closures over render state.
 
 The editor holds the note body as markdown. Frontmatter is parsed off at load
 with `parseNote` and reattached at save with `composeNote`, always from the
-latest loader snapshot, so a body save never clobbers a pin or tag toggle. ⌘P is
+session's latest read, so a body save never clobbers a pin or tag toggle. ⌘P is
 a raw-source view over the whole file.
 
 ### Markdown round-trip contract
@@ -261,13 +266,17 @@ to editor to file. Extend it when adding nodes. Custom syntax uses the
 extension-config trio `markdownTokenName`/`markdownTokenizer` plus
 `parseMarkdown` and `renderMarkdown`; `wikilink.ts` is the worked example.
 
-### Editing session per note
+### Editing session per tab
 
-`notes.$.tsx` renders `<NoteEditor key={note.path}>` so autosave state cannot
-leak across notes. Autosave in `use-autosave.ts` debounces 800ms, serializes on
-one chain so overlapping flushes cannot land out of order, and flushes on blur,
-unmount, and quit. Rust holds `ExitRequested` until the webview reports back,
-and a failed flush cancels the quit through `cancel_quit`.
+The workspace renders one `NoteSession` per open tab, keyed by tab id, so
+autosave state cannot leak across notes. Several are alive at once and only the
+active one is shown, which is what makes a switch lossless (`D53`). Autosave in
+`use-autosave.ts` debounces 800ms, serializes on one chain so overlapping
+flushes cannot land out of order, and flushes on blur, unmount, and quit. It
+takes the write as an argument, so a note and an external file share it
+(`D54`), and `pending-flush.ts` aggregates every live buffer. Rust holds
+`ExitRequested` until the webview reports back, and a failed flush cancels the
+quit through `cancel_quit`.
 
 An update restart is the exception. It reaches `ExitRequested` carrying
 `RESTART_EXIT_CODE`, which Tauri refuses to prevent, so `lib.rs` returns before
@@ -279,10 +288,10 @@ the next time someone launches it.
 
 ### External-change reload guard
 
-A loader refresh replaces the buffer only when the buffer is clean and the
-file's mtime is newer than our own last write, tracked in `lastSavedAtRef`. A
-stale loader snapshot of a just-saved note must never clobber the buffer. Do not
-simplify this check away.
+A re-read replaces the buffer only when the buffer is clean and the file's
+mtime is newer than our own last write, tracked in `lastSavedAtRef`. A stale
+read of a just-saved note must never clobber the buffer. Do not simplify this
+check away.
 
 ### Adding a Rust command
 
@@ -312,6 +321,8 @@ the FTS query, which `findMany` ANDs with it. So `#work budget` searches
 
 ### Preferences
 
+Window state lives in `localStorage`: the writing-mode toggles in
+`src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`).
 `notesDir` lives in `settings.json`, written by Rust through
 `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port:
 `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the
