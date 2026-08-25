@@ -26,7 +26,7 @@
     "@base-ui/react": "1.7.0",
     "@fontsource-variable/literata": "5.3.0",
     "@fontsource/ia-writer-mono": "5.3.0",
-    "@tanstack/react-router": "1.170.31",
+    "@tanstack/react-router": "1.170.32",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-autostart": "2.5.1",
     "@tauri-apps/plugin-dialog": "2.7.2",
@@ -52,7 +52,7 @@
     "cmdk": "1.1.1",
     "date-fns": "4.4.0",
     "drizzle-orm": "0.45.2",
-    "effect": "4.0.0-rc.109",
+    "effect": "4.0.0-rc.111",
     "lowlight": "3.3.0",
     "lucide-react": "1.33.0",
     "react": "19.2.8",
@@ -65,12 +65,12 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
     "@tailwindcss/vite": "4.3.3",
-    "@tanstack/router-plugin": "1.168.34",
+    "@tanstack/router-plugin": "1.168.35",
     "@tauri-apps/cli": "2.11.4",
     "@total-typescript/ts-reset": "0.6.1",
     "@types/node": "26.2.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
+    "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
     "@vitest/coverage-v8": "4.1.11",
     "gitzy": "7.2.2",
@@ -86,5 +86,5 @@
     "vite": "8.2.2",
     "vitest": "4.1.11"
   },
-  "packageManager": "pnpm@11.22.0"
+  "packageManager": "pnpm@11.23.0"
 }
