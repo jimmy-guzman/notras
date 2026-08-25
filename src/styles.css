@@ -283,6 +283,21 @@
   text-decoration: line-through;
   opacity: 0.7;
 }
+/* A task item's content sits in the node view's `div`, so Typeset's
+   `li > ul, li > ol, li > blockquote` step never reaches a block nested under a
+   task row and the block keeps `--typeset-flow`, the gap that separates
+   top-level blocks. Restate the step at the shape the div leaves behind. The
+   `:not()` holds a nested task list on the tighter rule below rather than on a
+   specificity race between two unlayered selectors (`D39`, `D40`). A table sets
+   its own gap below and a fence is wrapped by its node view, so neither reaches
+   Typeset's step under a bullet either and both stay out of this. */
+.ProseMirror
+  ul[data-type="taskList"]
+  > li
+  > div
+  > :where(blockquote, ol, ul:not([data-type="taskList"])) {
+  margin-block-start: 0.5em;
+}
 .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
   margin-block: 0.2em 0;
 }
@@ -387,6 +402,29 @@
   white-space: pre-wrap;
   background: transparent;
   border-radius: 0;
+}
+
+/* A fence's node view stacks two divs over it, TipTap's own `.react-renderer`
+   and the `NodeViewWrapper` this app names `.code-block-wrapper`, so Typeset's
+   `li > pre` step matches nothing and a fence in any list item takes the gap
+   that separates top-level blocks. This one selector is a descendant on
+   purpose: how many elements a node view stacks is TipTap's to change, and it
+   already differs between a plain item and a task item, whose content div adds
+   a third. `.code-block-wrapper > pre` is this repo's own shape and holds
+   still. The reach costs a fence sitting deeper inside an item, inside a
+   blockquote say, the same tightening, which is the direction the list wants
+   anyway. Unlike the row recipe `D39` scoped, nothing here sets `display` or
+   claims a child, so a descendant cannot delete a marker.
+
+   The `/ 0.875` is Typeset's own: `pre` renders at `0.875em`, so an `em`
+   margin there resolves against the smaller size and has to be divided back
+   up. Neither wrapper sets padding, a border, or a block formatting context,
+   so the margin collapses out through both and paints where the fence sits. A
+   fence can never be a list item's first child, since a list item's content is
+   `paragraph block*`, so nothing here has to restate Typeset's first-child
+   reset as well. */
+.ProseMirror li .code-block-wrapper > pre {
+  margin-block-start: calc(0.5em / 0.875);
 }
 
 .code-block-wrapper {
