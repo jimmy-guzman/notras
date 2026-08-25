@@ -31,6 +31,12 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
   const fileStore: IFileStore = {
     attach: () => Effect.succeed("attachments/file.png"),
     attachImage: () => Effect.succeed("attachments/pasted.png"),
+    create: (path, content) => {
+      writes.push({ content, path });
+      files.set(path, { content, updatedAt: 2000 });
+
+      return Effect.succeed(2000);
+    },
     delete: (path) => {
       files.delete(path);
 
@@ -58,7 +64,13 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
       return Effect.void;
     },
     setNotesDir: () => Effect.void,
+    // Refuses a file that is not there, the way `write_note` does, so
+    // a service reaching for `write` where it means `create` fails here too.
     write: (path, content) => {
+      if (!files.has(path)) {
+        return notFound(path);
+      }
+
       writes.push({ content, path });
       files.set(path, { content, updatedAt: 2000 });
 

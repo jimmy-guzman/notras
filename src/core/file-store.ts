@@ -20,6 +20,8 @@ export interface IFileStore {
   attach: (sourcePath: string) => Effect.Effect<string, FileError>;
   /** Save base64 image bytes into `attachments/`, returns the relative path. */
   attachImage: (base64Data: string) => Effect.Effect<string, FileError>;
+  /** Write a note file that is not there yet, creating its folder. */
+  create: (path: string, content: string) => Effect.Effect<number, FileError>;
   delete: (path: string) => Effect.Effect<void, FileError>;
   exists: (path: string) => Effect.Effect<boolean, FileError>;
   getNotesDir: () => Effect.Effect<string, FileError>;
@@ -29,7 +31,11 @@ export interface IFileStore {
   reindexAll: () => Effect.Effect<string[], FileError>;
   rename: (from: string, to: string) => Effect.Effect<void, FileError>;
   setNotesDir: (path: string) => Effect.Effect<void, FileError>;
-  /** Write a note file; resolves to the new mtime in epoch milliseconds. */
+  /**
+   * Overwrite a note file that exists; resolves to the new mtime in epoch
+   * milliseconds. Fails `not-found` rather than recreating a deleted file,
+   * which is what stops a save still in flight from undoing a delete.
+   */
   write: (path: string, content: string) => Effect.Effect<number, FileError>;
   writeExternal: (
     path: string,

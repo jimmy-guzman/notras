@@ -67,6 +67,9 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
       restore the file → the banner clears and the next keystroke reaches disk,
       carrying what was typed while the file was gone rather than the buffer
       from before it went
+- [ ] 23d. Type into a note and `rm` its file inside the 800ms debounce, so the
+      save is already in flight → the file stays gone rather than reappearing,
+      and the tab keeps the buffer behind the gone banner
 - [ ] 24. Quit with four tabs, relaunch → the same four, the same active one,
       each caret restored
 - [ ] 24b. Relaunch onto a `localStorage` "tabs" entry written before tabs had

@@ -29,6 +29,8 @@ const fileStore: IFileStore = {
   attach: (sourcePath) =>
     command<string>("attach_file", { source: sourcePath }),
   attachImage: (base64Data) => command<string>("attach_image", { base64Data }),
+  create: (path, content) =>
+    command<number>("write_note", { content, create: true, path }),
   delete: (path) => command<null>("delete_note", { path }).pipe(Effect.asVoid),
   exists: (path) => command<boolean>("note_exists", { path }),
   getNotesDir: () => command<string>("get_notes_dir"),
@@ -39,7 +41,8 @@ const fileStore: IFileStore = {
     command<null>("rename_note", { from, to }).pipe(Effect.asVoid),
   setNotesDir: (path) =>
     command<null>("set_notes_dir", { path }).pipe(Effect.asVoid),
-  write: (path, content) => command<number>("write_note", { content, path }),
+  write: (path, content) =>
+    command<number>("write_note", { content, create: false, path }),
   writeExternal: (path, content) =>
     command<number>("write_external", { content, path }),
 };

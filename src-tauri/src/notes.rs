@@ -96,6 +96,24 @@ fn is_markdown(path: &Path) -> bool {
     index::is_note_file(path)
 }
 
+/// Overwrite a file that is already there, never creating one.
+///
+/// Opening without `create` is what makes the check atomic: a save still in
+/// flight when the note is deleted fails here rather than putting the file
+/// back, which `fs::write` and a prior `exists()` both allow.
+fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
+    use std::io::Write as _;
+
+    let mut file = fs::OpenOptions::new()
+        .truncate(true)
+        .write(true)
+        .open(path)
+        .map_err(CommandError::from_read)?;
+
+    file.write_all(content.as_bytes())
+        .map_err(|e| e.to_string().into())
+}
+
 fn emit_changed(app: &AppHandle, paths: Vec<String>) {
     let _ = app.emit("notes-changed", NotesChanged { paths });
 }
@@ -133,16 +151,21 @@ pub fn write_note(
     state: State<'_, AppState>,
     path: String,
     content: String,
+    create: bool,
 ) -> Result<i64, CommandError> {
     let core = state.core.lock().unwrap();
     let abs = resolve(&core, &path)?;
     if !is_markdown(&abs) {
         return Err("notes must be markdown files".into());
     }
-    if let Some(parent) = abs.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    if create {
+        if let Some(parent) = abs.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::write(&abs, content).map_err(|e| e.to_string())?;
+    } else {
+        replace(&abs, &content)?;
     }
-    fs::write(&abs, content).map_err(|e| e.to_string())?;
     index::index_file(&core.conn, &core.notes_dir, &path).map_err(|e| e.to_string())?;
     drop(core);
     emit_changed(&app, vec![path]);
@@ -272,7 +295,8 @@ pub fn write_external(path: String, content: String) -> Result<i64, CommandError
     if !is_markdown(&abs) {
         return Err("only markdown files can be written".into());
     }
-    fs::write(&abs, content).map_err(|e| e.to_string())?;
+    // Nothing creates an external file: it arrives from "Open With" (`D54`).
+    replace(&abs, &content)?;
     Ok(mtime_millis(&abs))
 }
 
@@ -379,6 +403,28 @@ mod tests {
         let error = fs::read_to_string(std::env::temp_dir()).unwrap_err();
 
         assert_eq!(CommandError::from_read(error).kind, ErrorKind::Failed);
+    }
+
+    #[test]
+    fn replace_refuses_a_file_that_is_not_there() {
+        let missing = std::env::temp_dir().join("notras-replace-missing.md");
+        let _ = fs::remove_file(&missing);
+
+        let error = replace(&missing, "recreated").unwrap_err();
+
+        assert_eq!(error.kind, ErrorKind::NotFound);
+        assert!(!missing.exists());
+    }
+
+    #[test]
+    fn replace_overwrites_a_file_that_is_there() {
+        let existing = std::env::temp_dir().join("notras-replace-existing.md");
+        fs::write(&existing, "before").unwrap();
+
+        replace(&existing, "after").unwrap();
+
+        assert_eq!(fs::read_to_string(&existing).unwrap(), "after");
+        let _ = fs::remove_file(&existing);
     }
 
     #[test]

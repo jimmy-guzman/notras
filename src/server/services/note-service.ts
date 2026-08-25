@@ -125,7 +125,7 @@ const makeNoteService = Effect.gen(function* () {
 
     const path = notePath(folder, filename);
 
-    yield* fileStore.write(path, options?.content ?? "");
+    yield* fileStore.create(path, options?.content ?? "");
 
     return path;
   });
