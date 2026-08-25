@@ -71,6 +71,16 @@ function mountAutosave(
       enabled = next;
       render();
     },
+    /**
+     * Re-render without letting passive effects flush, which is the window a
+     * debounce timer can fire in: React commits, then schedules its passive
+     * work as a separate task.
+     */
+    async setEnabledMidCommit(next: boolean) {
+      enabled = next;
+      root.render(createElement(Probe));
+      await Promise.resolve();
+    },
     /** Let the 800ms debounce elapse and any write it starts settle. */
     async settle() {
       await act(async () => {
@@ -150,6 +160,23 @@ describe("useAutosave", () => {
     // A false here cancels the quit, which would leave the app unquittable
     // while the tab is open, so the buffer is abandoned rather than blocking.
     await expect(harness.flush()).resolves.toBe(true);
+    expect(written).toStrictEqual([]);
+
+    harness.unmount();
+  });
+
+  it("should not write through a timer that fires before effects flush", async () => {
+    const written: string[] = [];
+    const harness = mountAutosave((_path, content) => {
+      written.push(content);
+
+      return Promise.resolve(new Date(1));
+    });
+
+    harness.type("about to be deleted");
+    await harness.setEnabledMidCommit(false);
+    await harness.settle();
+
     expect(written).toStrictEqual([]);
 
     harness.unmount();

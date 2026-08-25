@@ -336,6 +336,58 @@ describe("openTabAt", () => {
 });
 
 describe("parseTabs", () => {
+  it("should reject a set holding one id twice", () => {
+    const raw = JSON.stringify({
+      activeId: "same",
+      carets: {},
+      tabs: [
+        { id: "same", kind: "note", path: "a.md" },
+        { id: "same", kind: "note", path: "b.md" },
+      ],
+    });
+
+    expect(parseTabs(raw)).toBeUndefined();
+  });
+
+  it("should reject a set holding one file twice", () => {
+    const raw = JSON.stringify({
+      activeId: "first",
+      carets: {},
+      tabs: [
+        { id: "first", kind: "note", path: "a.md" },
+        { id: "second", kind: "note", path: "a.md" },
+      ],
+    });
+
+    expect(parseTabs(raw)).toBeUndefined();
+  });
+
+  it("should reject a set written without ids holding one file twice", () => {
+    const raw = JSON.stringify({
+      activeId: "note:a.md",
+      carets: {},
+      tabs: [
+        { kind: "note", path: "a.md" },
+        { kind: "note", path: "a.md" },
+      ],
+    });
+
+    expect(parseTabs(raw)).toBeUndefined();
+  });
+
+  it("should keep a note and an external file at the same path apart", () => {
+    const raw = JSON.stringify({
+      activeId: "n",
+      carets: {},
+      tabs: [
+        { id: "n", kind: "note", path: "a.md" },
+        { id: "x", kind: "external", path: "a.md" },
+      ],
+    });
+
+    expect(parseTabs(raw)?.tabs).toHaveLength(2);
+  });
+
   it("should round-trip what serializeTabs wrote", () => {
     const value = {
       activeId: "id-b.md",

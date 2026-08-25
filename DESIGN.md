@@ -14,8 +14,10 @@ the docs.
   tab, so they stay in the palette, and finding a note is still the palette's
   job. The two bands carry the note's state and the editor's view state.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
-  reachable only by mouse is unfinished. Typewriter scrolling is the one that
-  still is: it toggles from the status strip and nowhere else.
+  reachable only by mouse is unfinished. Four still are, and `SPEC.md` carries
+  them as deferred rather than accepted: typewriter scrolling toggles from the
+  status strip, and close others, close to the right and copy path sit in the
+  tab context menu alone.
 - **Lowercase everywhere.** Labels, buttons, toasts, tooltips, placeholders, and
   empty states are lowercase, app-wide and deliberate. The wordmark is
   lowercase too.
@@ -381,8 +383,10 @@ a real non-motion end state, so removing the transition costs nothing.
 - Do not add persistent chrome for an action. If it does not fit the palette, a
   dialog, or the status strip, question the feature. The tab strip acts on the
   open set, which is what earns it the close button and the `+`; its other tab
-  actions sit behind a right-click rather than taking room in the band. An
-  action on the note inside a tab belongs in the palette.
+  actions sit behind a right-click rather than taking room in the band. Three of
+  those have no shortcut or palette entry yet, which the keyboard-first rule
+  above counts as unfinished. An action on the note inside a tab belongs in the
+  palette.
 - Do not capitalize user-facing text.
 - Do not animate anything that is not a state change.
 - Do not write an action twice. A second entry point is fine when both route

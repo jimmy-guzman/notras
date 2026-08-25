@@ -464,18 +464,27 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
 
   useEffect(() => {
     let cancelled = false;
+    // A burst of watcher events starts several reads, and nothing makes them
+    // resolve in order. Only the newest may write state: an older rejection
+    // landing after a newer success would put the gone banner back up over a
+    // file that is there.
+    let latest = 0;
 
     const read = () => {
+      latest += 1;
+      const attempt = latest;
+      const stale = () => cancelled || attempt !== latest;
+
       readTab(kind, path)
         .then((next) => {
-          if (!cancelled) {
+          if (!stale()) {
             setFile(next);
             setGone(false);
             setUnreadable(null);
           }
         })
         .catch((error: unknown) => {
-          if (cancelled) {
+          if (stale()) {
             return;
           }
 

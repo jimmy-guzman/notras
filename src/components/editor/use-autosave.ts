@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { registerPendingFlush } from "@/lib/pending-flush";
 
@@ -35,7 +41,12 @@ export function useAutosave(path: string, options: AutosaveOptions) {
   const pathRef = useRef(path);
   const optionsRef = useRef(options);
 
-  useEffect(() => {
+  // Layout, not passive: a debounce timer is a macrotask that can fire between
+  // the commit turning `enabled` off and a passive effect running, and a write
+  // that escapes through that gap recreates the file someone deleted. Running
+  // before paint closes most of the gap; the rest would need the gate at the
+  // write itself.
+  useLayoutEffect(() => {
     pathRef.current = path;
     optionsRef.current = options;
   });

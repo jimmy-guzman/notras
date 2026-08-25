@@ -279,6 +279,33 @@ function readJson(raw: string): unknown {
   }
 }
 
+/**
+ * Whether the set holds a tab twice, by id or by the file it points at.
+ *
+ * One file cannot hold two editing sessions, and two tabs under one id collide
+ * in every map the store keys by it, including the snapshot the chrome reads.
+ * A store carrying either was not written by this app, so it is rejected whole
+ * like any other malformed one. Id-less tabs are compared on the key they were
+ * persisted under, since that is the identity they had.
+ */
+function hasDuplicateTab(tabs: PersistedTab[]) {
+  const ids = new Set<string>();
+  const files = new Set<string>();
+
+  for (const tab of tabs) {
+    const file = legacyTabId(tab);
+
+    if (ids.has(tab.id ?? file) || files.has(file)) {
+      return true;
+    }
+
+    ids.add(tab.id ?? file);
+    files.add(file);
+  }
+
+  return false;
+}
+
 export function parseTabs(raw: string): PersistedTabs | undefined {
   const parsed = readJson(raw);
 
@@ -298,6 +325,12 @@ export function parseTabs(raw: string): PersistedTabs | undefined {
     return;
   }
 
+  const open = read.filter((tab) => tab !== undefined);
+
+  if (hasDuplicateTab(open)) {
+    return;
+  }
+
   const offsets: Record<string, number> = {};
 
   if (typeof carets === "object" && carets !== null) {
@@ -308,9 +341,5 @@ export function parseTabs(raw: string): PersistedTabs | undefined {
     }
   }
 
-  return {
-    activeId,
-    carets: offsets,
-    tabs: read.filter((tab) => tab !== undefined),
-  };
+  return { activeId, carets: offsets, tabs: open };
 }
