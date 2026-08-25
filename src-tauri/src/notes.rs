@@ -416,6 +416,17 @@ pub fn cancel_quit(state: State<'_, AppState>) {
 mod tests {
     use super::*;
 
+    /// A directory of this test's own, so a shared `/tmp` cannot hand two runs
+    /// the same path and nothing here follows a symlink someone else planted.
+    /// Wiped on the way in rather than out, so a panicking test still leaves
+    /// the next run clean. `index.rs` carries the same helper for its own dirs.
+    fn scratch_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("notras-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     #[test]
     fn missing_file_reads_as_not_found() {
         let error = fs::read_to_string("/notras-does-not-exist/missing.md").unwrap_err();
@@ -427,15 +438,14 @@ mod tests {
     fn unreadable_file_reads_as_failed() {
         // A directory opens and then refuses the read on both macOS and Linux,
         // which is the cheapest non-NotFound io error to raise on either.
-        let error = fs::read_to_string(std::env::temp_dir()).unwrap_err();
+        let error = fs::read_to_string(scratch_dir("unreadable")).unwrap_err();
 
         assert_eq!(CommandError::from_read(error).kind, ErrorKind::Failed);
     }
 
     #[test]
     fn replace_refuses_a_file_that_is_not_there() {
-        let missing = std::env::temp_dir().join("notras-replace-missing.md");
-        let _ = fs::remove_file(&missing);
+        let missing = scratch_dir("replace-missing").join("gone.md");
 
         let error = replace(&missing, "recreated").unwrap_err();
 
@@ -445,25 +455,23 @@ mod tests {
 
     #[test]
     fn create_refuses_a_path_that_is_taken() {
-        let taken = std::env::temp_dir().join("notras-create-taken.md");
+        let taken = scratch_dir("create-taken").join("taken.md");
         fs::write(&taken, "someone else's note").unwrap();
 
         let error = create_file(&taken, "taken.md", "clobbered").unwrap_err();
 
         assert_eq!(error.message, "a note already exists at taken.md");
         assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
-        let _ = fs::remove_file(&taken);
     }
 
     #[test]
     fn replace_overwrites_a_file_that_is_there() {
-        let existing = std::env::temp_dir().join("notras-replace-existing.md");
+        let existing = scratch_dir("replace-existing").join("note.md");
         fs::write(&existing, "before").unwrap();
 
         replace(&existing, "after").unwrap();
 
         assert_eq!(fs::read_to_string(&existing).unwrap(), "after");
-        let _ = fs::remove_file(&existing);
     }
 
     #[test]
