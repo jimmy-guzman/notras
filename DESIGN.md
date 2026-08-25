@@ -279,12 +279,14 @@ a real non-motion end state, so removing the transition costs nothing.
   token, and that every `::marker` paints from the muted one.
 - **Bullet and ordered lists come from Typeset.** Markers, indentation, and the
   space between items are its at every depth, and a marker steps disc, circle,
-  then square with depth. `src/styles.css` adds two rules. `li > p` loses its
-  block margins so a one-line item stays on one line. A list or blockquote
-  nested under a task row restates Typeset's `0.5em` nested step, because the
-  task item's content div hides `li > ul` from it and the block would otherwise
-  take the gap that separates top-level blocks. `src/styles.spec.ts` reads the
-  step out of the vendored file, so a re-fetch cannot leave the two apart.
+  then square with depth. `src/styles.css` adds two things. `li > p` loses its
+  block margins so a one-line item stays on one line. And where a node view puts
+  a wrapper between a list item and its content, Typeset's nested step is
+  restated at the shape that wrapper leaves behind, since the block would
+  otherwise take the gap that separates top-level blocks: a task item's content
+  div for a list or a blockquote, and `.code-block-wrapper` for a fence.
+  `src/styles.spec.ts` reads both steps out of the vendored file, so a re-fetch
+  cannot leave them apart.
 - **Inline code is a chip, code blocks are a card.** A code span sits on `--muted`
   in the mono at `0.85em` with a derived radius. Its colour is pinned to
   `--foreground` rather than inherited, because h5, h6, a strikethrough and a

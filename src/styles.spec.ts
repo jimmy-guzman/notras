@@ -343,19 +343,6 @@ const TASK_ROW_GAP = /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/;
 const TASK_LIST_PADDING =
   /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/;
 
-/**
- * A task item's content sits in the node view's `div`, so Typeset's
- * `li > ul` step misses and `src/styles.css` restates the value. A re-fetch
- * through `scripts/update-typeset.sh` that moves the step would leave the
- * restatement behind at the old number, and a nested list would drift back off
- * the rhythm its own items keep, with nothing else reading both files.
- */
-const TYPESET_NESTED_STEP =
-  /li > ol\) \{[^}]*?margin-block-start:\s*([\d.]+em)/;
-
-const TASK_NESTED_STEP =
-  /> div\s+> :where\([^{]+\{\s*margin-block-start:\s*([\d.]+em)/;
-
 describe("task list ladder", () => {
   it("should cancel exactly the checkbox and the gap beside it", () => {
     const box = firstMatch(CHECKBOX_WIDTH, source, "the checkbox width");
@@ -372,11 +359,37 @@ describe("task list ladder", () => {
       "1.5"
     );
   });
+});
 
+/**
+ * Two node views put a wrapper between a list item and its content: a task
+ * item's own content div, and `.code-block-wrapper` around a fence. Either one
+ * hides Typeset's `li > ul` and `li > pre` steps, so a block that should sit on
+ * the list's tighter rhythm takes the gap that separates top-level blocks
+ * instead. `src/styles.css` restates both values. A re-fetch through
+ * `scripts/update-typeset.sh` that moves either step would leave the
+ * restatement behind at the old number, with nothing else reading both files.
+ */
+const TYPESET_NESTED_STEP =
+  /li > ol\) \{[^}]*?margin-block-start:\s*([\d.]+em)/;
+
+const TASK_NESTED_STEP =
+  /> div\s+> :where\([^{]+\{\s*margin-block-start:\s*([\d.]+em)/;
+
+const TYPESET_NESTED_FENCE =
+  /li > pre\) \{[^}]*?margin-block-start:\s*(calc\([^)]*\))/;
+
+describe("nested block rhythm", () => {
   it("should restate typeset's nested step under a task row", () => {
     expect(
       firstMatch(TASK_NESTED_STEP, source, "the task row's nested step")
     ).toBe(firstMatch(TYPESET_NESTED_STEP, typeset, "typeset's nested step"));
+  });
+
+  it("should restate typeset's nested step for a fence in a list item", () => {
+    expect(source).toContain(
+      `margin-block-start: ${firstMatch(TYPESET_NESTED_FENCE, typeset, "typeset's nested fence step")};`
+    );
   });
 });
 
