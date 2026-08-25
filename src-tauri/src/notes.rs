@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
@@ -123,22 +123,61 @@ fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError
         .map_err(|e| e.to_string().into())
 }
 
-/// Overwrite a file that is already there, never creating one.
-///
-/// Opening without `create` is what makes the check atomic: a save still in
-/// flight when the note is deleted fails here rather than putting the file
-/// back, which `fs::write` and a prior `exists()` both allow.
-fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
+static TEMP_WRITES: AtomicU64 = AtomicU64::new(0);
+
+fn write_temp(temp: &Path, content: &str) -> io::Result<()> {
     use std::io::Write as _;
 
-    let mut file = fs::OpenOptions::new()
-        .truncate(true)
+    let mut file = fs::File::create(temp)?;
+    file.write_all(content.as_bytes())?;
+    // Without this the rename can reach disk before the bytes do, which turns
+    // a power cut into the empty file this whole dance exists to prevent.
+    file.sync_all()
+}
+
+/// Put `content` at `path` by filling a sibling and renaming over it, so a
+/// write that fails or is interrupted leaves the note's old bytes rather than a
+/// truncated file.
+///
+/// The sibling shares the directory because `rename` is only atomic inside one
+/// filesystem, and ends in `.tmp` so neither the watcher nor a scan takes it
+/// for a note (`is_note_file`).
+fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
+    let temp = path.with_extension(format!(
+        "{}.tmp",
+        TEMP_WRITES.fetch_add(1, Ordering::Relaxed)
+    ));
+
+    // A fresh file takes the umask default, so the note's own mode is carried
+    // over rather than reset by the rename.
+    let commit = write_temp(&temp, content)
+        .and_then(|()| fs::metadata(path))
+        .and_then(|meta| fs::set_permissions(&temp, meta.permissions()))
+        .and_then(|()| fs::rename(&temp, path));
+
+    if let Err(error) = commit {
+        let _ = fs::remove_file(&temp);
+
+        return Err(error.to_string().into());
+    }
+
+    Ok(())
+}
+
+/// Overwrite a file that is already there, never creating one.
+///
+/// Opening without `create` is what refuses a note that has been deleted, so a
+/// save still in flight when it goes cannot put the file back. The check is one
+/// syscall ahead of the rename rather than fused with it: no portable rename
+/// refuses a destination that is absent, and `commit` buys crash safety for
+/// every save in exchange for that window.
+fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
+    fs::OpenOptions::new()
         .write(true)
         .open(path)
         .map_err(CommandError::from_read)?;
 
-    file.write_all(content.as_bytes())
-        .map_err(|e| e.to_string().into())
+    commit(path, content)
 }
 
 fn emit_changed(app: &AppHandle, paths: Vec<String>) {
@@ -451,6 +490,59 @@ mod tests {
 
         assert_eq!(error.kind, ErrorKind::NotFound);
         assert!(!missing.exists());
+    }
+
+    /// A read-only directory blocks the sibling `commit` writes, which is the
+    /// cheapest way to fail a write after the destination has been proven to
+    /// exist. Root ignores the mode, so the assertions only run where it bites.
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_replace_leaves_the_original_bytes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch_dir("replace-failure");
+        let note = dir.join("note.md");
+        fs::write(&note, "the original bytes").unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
+
+        if fs::File::create(dir.join("probe")).is_err() {
+            assert!(replace(&note, "replacement").is_err());
+            assert_eq!(fs::read_to_string(&note).unwrap(), "the original bytes");
+        }
+
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_keeps_the_note_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let note = scratch_dir("replace-mode").join("note.md");
+        fs::write(&note, "before").unwrap();
+        fs::set_permissions(&note, fs::Permissions::from_mode(0o600)).unwrap();
+
+        replace(&note, "after").unwrap();
+
+        let mode = fs::metadata(&note).unwrap().permissions().mode();
+
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    fn replace_leaves_no_temporary_behind() {
+        let dir = scratch_dir("replace-temp");
+        let note = dir.join("note.md");
+        fs::write(&note, "before").unwrap();
+
+        replace(&note, "after").unwrap();
+
+        let left: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+
+        assert_eq!(left, vec![std::ffi::OsString::from("note.md")]);
     }
 
     #[test]
