@@ -96,6 +96,33 @@ fn is_markdown(path: &Path) -> bool {
     index::is_note_file(path)
 }
 
+/// Write a file that is not there yet, never truncating one that is.
+///
+/// `create_new` is atomic where a prior `exists()` is not: `NoteService.create`
+/// picks a free filename by asking, and anything landing on that path in the
+/// gap would be destroyed by `fs::write`.
+fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError> {
+    use std::io::Write as _;
+
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .map_err(|error| {
+            if error.kind() == io::ErrorKind::AlreadyExists {
+                CommandError {
+                    kind: ErrorKind::Failed,
+                    message: format!("a note already exists at {rel}"),
+                }
+            } else {
+                error.to_string().into()
+            }
+        })?;
+
+    file.write_all(content.as_bytes())
+        .map_err(|e| e.to_string().into())
+}
+
 /// Overwrite a file that is already there, never creating one.
 ///
 /// Opening without `create` is what makes the check atomic: a save still in
@@ -162,7 +189,7 @@ pub fn write_note(
         if let Some(parent) = abs.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        fs::write(&abs, content).map_err(|e| e.to_string())?;
+        create_file(&abs, &path, &content)?;
     } else {
         replace(&abs, &content)?;
     }
@@ -414,6 +441,18 @@ mod tests {
 
         assert_eq!(error.kind, ErrorKind::NotFound);
         assert!(!missing.exists());
+    }
+
+    #[test]
+    fn create_refuses_a_path_that_is_taken() {
+        let taken = std::env::temp_dir().join("notras-create-taken.md");
+        fs::write(&taken, "someone else's note").unwrap();
+
+        let error = create_file(&taken, "taken.md", "clobbered").unwrap_err();
+
+        assert_eq!(error.message, "a note already exists at taken.md");
+        assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
+        let _ = fs::remove_file(&taken);
     }
 
     #[test]
