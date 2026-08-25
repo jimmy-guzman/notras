@@ -283,6 +283,21 @@
   text-decoration: line-through;
   opacity: 0.7;
 }
+/* A task item's content sits in the node view's `div`, so Typeset's
+   `li > ul, li > ol, li > blockquote` step never reaches a block nested under a
+   task row and the block keeps `--typeset-flow`, the gap that separates
+   top-level blocks. Restate the step at the shape the div leaves behind. The
+   `:not()` holds a nested task list on the tighter rule below rather than on a
+   specificity race between two unlayered selectors (`D39`, `D40`). A table sets
+   its own gap below and a fence is wrapped by its node view, so neither reaches
+   Typeset's step under a bullet either and both stay out of this. */
+.ProseMirror
+  ul[data-type="taskList"]
+  > li
+  > div
+  > :where(blockquote, ol, ul:not([data-type="taskList"])) {
+  margin-block-start: 0.5em;
+}
 .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
   margin-block: 0.2em 0;
 }

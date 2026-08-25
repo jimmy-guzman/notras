@@ -40,6 +40,11 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 
 ## Deferred
 
+- Typeset's nested step misses a code block in any list item. The React node
+  view wraps a fence in `.code-block-wrapper`, so `li > pre` matches nothing and
+  a fence takes the top-level gap under a bullet and under a task alike. It
+  reads the same under both, which is why closing the gap for lists and
+  blockquotes left it
 - iA parts-of-speech syntax highlighting + style check (needs real NLP, the wrong weight for this app)
 - Content-block transclusion (`/file.md` embeds)
 - Backlinks panel (wikilinks are one-directional today)

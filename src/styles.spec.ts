@@ -343,6 +343,19 @@ const TASK_ROW_GAP = /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/;
 const TASK_LIST_PADDING =
   /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/;
 
+/**
+ * A task item's content sits in the node view's `div`, so Typeset's
+ * `li > ul` step misses and `src/styles.css` restates the value. A re-fetch
+ * through `scripts/update-typeset.sh` that moves the step would leave the
+ * restatement behind at the old number, and a nested list would drift back off
+ * the rhythm its own items keep, with nothing else reading both files.
+ */
+const TYPESET_NESTED_STEP =
+  /li > ol\) \{[^}]*?margin-block-start:\s*([\d.]+em)/;
+
+const TASK_NESTED_STEP =
+  /> div\s+> :where\([^{]+\{\s*margin-block-start:\s*([\d.]+em)/;
+
 describe("task list ladder", () => {
   it("should cancel exactly the checkbox and the gap beside it", () => {
     const box = firstMatch(CHECKBOX_WIDTH, source, "the checkbox width");
@@ -358,6 +371,12 @@ describe("task list ladder", () => {
     expect(firstMatch(TASK_LIST_PADDING, source, "the task list padding")).toBe(
       "1.5"
     );
+  });
+
+  it("should restate typeset's nested step under a task row", () => {
+    expect(
+      firstMatch(TASK_NESTED_STEP, source, "the task row's nested step")
+    ).toBe(firstMatch(TYPESET_NESTED_STEP, typeset, "typeset's nested step"));
   });
 });
 
