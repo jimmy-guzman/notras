@@ -269,8 +269,12 @@ extension-config trio `markdownTokenName`/`markdownTokenizer` plus
 ### Editing session per tab
 
 The workspace renders one `NoteSession` per open tab, keyed by tab id, so
-autosave state cannot leak across notes. Several are alive at once and only the
-active one is shown, which is what makes a switch lossless (`D53`). Autosave in
+autosave state cannot leak across notes. That id is minted when the tab opens
+and is opaque: a rename gives the tab a new `path` and the same id, so the
+session lives through one instead of remounting (`D56`). Finding the tab that
+holds a path is a lookup in `store.ts`, never a key someone rebuilds. Several
+are alive at once and only the active one is shown, which is what makes a
+switch lossless (`D53`). Autosave in
 `use-autosave.ts` debounces 800ms, serializes on one chain so overlapping
 flushes cannot land out of order, and flushes on blur, unmount, and quit. It
 takes the write as an argument, so a note and an external file share it

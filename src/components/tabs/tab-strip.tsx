@@ -1,6 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -79,7 +80,9 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
   }, [id]);
 
   const copyPath = useCallback(() => {
-    navigator.clipboard.writeText(tab.path);
+    navigator.clipboard.writeText(tab.path).catch(() => {
+      toast.error("could not copy the path");
+    });
   }, [tab.path]);
 
   return (

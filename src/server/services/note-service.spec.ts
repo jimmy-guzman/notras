@@ -13,7 +13,9 @@ interface Written {
 }
 
 function notFound(path: string) {
-  return Effect.fail(new FileError({ message: `no such note: ${path}` }));
+  return Effect.fail(
+    new FileError({ kind: "not-found", message: `no such note: ${path}` })
+  );
 }
 
 /** In-memory notes dir; `writes` records the order of every write. */

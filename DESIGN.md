@@ -8,9 +8,11 @@ the docs.
 
 - **The window is the editor.** There is no sidebar and no note list on screen.
   Anything that is not the note reaches it through ⌘K, a dialog, or the status
-  strip. The one exception is the tab strip, which says which notes are open
-  and nothing else (`D52`); finding a note is still the palette's job. The two
-  bands carry the note's state and the editor's view state.
+  strip. The one exception is the tab strip, which carries the open set and the
+  controls acting on it: opening, selecting, closing and reordering a tab
+  (`D52`). Renaming, moving, pinning and tagging act on the note rather than the
+  tab, so they stay in the palette, and finding a note is still the palette's
+  job. The two bands carry the note's state and the editor's view state.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature
   reachable only by mouse is unfinished. Typewriter scrolling is the one that
   still is: it toggles from the status strip and nowhere else.
@@ -377,9 +379,10 @@ a real non-motion end state, so removing the transition costs nothing.
 - Do not add a third band. The titlebar and the status strip are the two, and
   anything new competes for room inside one of them (`D52`).
 - Do not add persistent chrome for an action. If it does not fit the palette, a
-  dialog, or the status strip, question the feature. The tab strip is not an
-  action surface: it shows which notes are open, and every action on one is
-  still a shortcut or a palette entry.
+  dialog, or the status strip, question the feature. The tab strip acts on the
+  open set, which is what earns it the close button and the `+`; its other tab
+  actions sit behind a right-click rather than taking room in the band. An
+  action on the note inside a tab belongs in the palette.
 - Do not capitalize user-facing text.
 - Do not animate anything that is not a state change.
 - Do not write an action twice. A second entry point is fine when both route

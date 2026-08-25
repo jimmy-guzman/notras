@@ -4,6 +4,12 @@
  * actions apply (`D54`).
  */
 export interface Tab {
+  /**
+   * Stable for as long as the tab is open, and opaque: it survives the rename
+   * that gives the tab a new `path`, which is what keeps the editing session
+   * alive across one (`D56`). Minted in `store.ts`, so this module stays pure.
+   */
+  id: string;
   kind: "external" | "note";
   path: string;
 }
@@ -14,13 +20,23 @@ export interface TabState {
   tabs: Tab[];
 }
 
-/** A tab's identity, kind included so a session can read it back off the id. */
 export function tabId(tab: Tab) {
-  return `${tab.kind}:${tab.path}`;
+  return tab.id;
 }
 
 function indexOfId(tabs: Tab[], id: string) {
-  return tabs.findIndex((tab) => tabId(tab) === id);
+  return tabs.findIndex((tab) => tab.id === id);
+}
+
+/**
+ * Where the file is open, whatever id the tab carrying it has.
+ *
+ * Opening, reopening and renaming all ask this rather than comparing ids: one
+ * file cannot hold two editing sessions, so they collapse onto the tab that
+ * already has it.
+ */
+function indexOfFile(tabs: Tab[], kind: Tab["kind"], path: string) {
+  return tabs.findIndex((tab) => tab.kind === kind && tab.path === path);
 }
 
 /**
@@ -69,16 +85,16 @@ export function stepTab(state: TabState, step: TabStep): Tab | undefined {
  * keeps the strip from growing every time a wikilink points back at something.
  */
 export function openTab(state: TabState, tab: Tab, newTab = false): TabState {
-  const id = tabId(tab);
+  const open = state.tabs[indexOfFile(state.tabs, tab.kind, tab.path)];
 
-  if (indexOfId(state.tabs, id) !== -1) {
-    return { activeId: id, tabs: state.tabs };
+  if (open !== undefined) {
+    return { activeId: open.id, tabs: state.tabs };
   }
 
   const active = indexOfId(state.tabs, state.activeId);
 
   return {
-    activeId: id,
+    activeId: tab.id,
     tabs:
       newTab || active === -1
         ? state.tabs.toSpliced(active + 1, 0, tab)
@@ -105,7 +121,7 @@ export function closeTab(state: TabState, id: string): TabState {
 
   const next = tabs[index] ?? tabs.at(-1);
 
-  return { activeId: next === undefined ? "" : tabId(next), tabs };
+  return { activeId: next?.id ?? "", tabs };
 }
 
 /**
@@ -120,27 +136,26 @@ export function replaceNotePath(
   from: string,
   to: string
 ): TabState {
-  const index = indexOfId(state.tabs, tabId({ kind: "note", path: from }));
+  const index = indexOfFile(state.tabs, "note", from);
+  const moved = state.tabs[index];
 
-  if (index === -1) {
+  if (moved === undefined || from === to) {
     return state;
   }
 
-  const target: Tab = { kind: "note", path: to };
-  const id = tabId(target);
-  const wasActive = state.activeId === tabId({ kind: "note", path: from });
-  const existing = indexOfId(state.tabs, id);
+  const existing = state.tabs[indexOfFile(state.tabs, "note", to)];
 
-  if (existing !== -1) {
+  if (existing !== undefined) {
     return {
-      activeId: wasActive ? id : state.activeId,
+      activeId: state.activeId === moved.id ? existing.id : state.activeId,
       tabs: state.tabs.toSpliced(index, 1),
     };
   }
 
+  // `activeId` is untouched: the id outlives the path, which is the point.
   return {
-    activeId: wasActive ? id : state.activeId,
-    tabs: state.tabs.with(index, target),
+    activeId: state.activeId,
+    tabs: state.tabs.with(index, { ...moved, path: to }),
   };
 }
 
@@ -186,25 +201,36 @@ export function pushClosed(
   tab: Tab,
   index: number
 ): ClosedTab[] {
-  const id = tabId(tab);
-
   return [
     { index, tab },
-    ...closed.filter((entry) => tabId(entry.tab) !== id),
+    ...closed.filter(
+      (entry) => entry.tab.kind !== tab.kind || entry.tab.path !== tab.path
+    ),
   ].slice(0, CLOSED_LIMIT);
 }
 
 /** Put `tab` back at `index`, clamped to the strip as it stands now. */
 export function openTabAt(state: TabState, tab: Tab, index: number): TabState {
-  const id = tabId(tab);
+  const open = state.tabs[indexOfFile(state.tabs, tab.kind, tab.path)];
 
-  if (indexOfId(state.tabs, id) !== -1) {
-    return { activeId: id, tabs: state.tabs };
+  if (open !== undefined) {
+    return { activeId: open.id, tabs: state.tabs };
   }
 
   const at = Math.max(0, Math.min(index, state.tabs.length));
 
-  return { activeId: id, tabs: state.tabs.toSpliced(at, 0, tab) };
+  return { activeId: tab.id, tabs: state.tabs.toSpliced(at, 0, tab) };
+}
+
+/**
+ * A tab as it was read back off disk. A store written before `D56` carries no
+ * `id`, and keys its carets and active tab by `kind:path` instead. Minting one
+ * is `store.ts`'s job, so nothing here has to be impure to read an old store.
+ */
+export interface PersistedTab {
+  id?: string;
+  kind: Tab["kind"];
+  path: string;
 }
 
 /** The open set as it survives a quit: the tabs, the active one, and carets. */
@@ -212,25 +238,30 @@ export interface PersistedTabs {
   activeId: string;
   /** Caret offset into each tab's markdown body, by tab id. */
   carets: Record<string, number>;
-  tabs: Tab[];
+  tabs: PersistedTab[];
+}
+
+/** The key an id-less tab was persisted under, before `D56`. */
+export function legacyTabId(tab: PersistedTab) {
+  return `${tab.kind}:${tab.path}`;
 }
 
 export function serializeTabs(value: PersistedTabs) {
   return JSON.stringify(value);
 }
 
-function toTab(value: unknown): Tab | undefined {
+function toTab(value: unknown): PersistedTab | undefined {
   if (typeof value !== "object" || value === null) {
     return;
   }
 
-  const { kind, path } = value as Record<string, unknown>;
+  const { id, kind, path } = value as Record<string, unknown>;
 
   if ((kind !== "external" && kind !== "note") || typeof path !== "string") {
     return;
   }
 
-  return { kind, path };
+  return typeof id === "string" ? { id, kind, path } : { kind, path };
 }
 
 /**

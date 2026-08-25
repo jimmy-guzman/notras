@@ -6,8 +6,8 @@ rewrite, which `git log` records.
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
 an ID repoints every reference to it without any of them changing. The highest
-number issued so far is 54, and some entries below it were removed, so the next
-entry takes 55.
+number issued so far is 56, and some entries below it were removed, so the next
+entry takes 57.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -1458,3 +1458,55 @@ a file someone is editing.
 **Constraint:** an external tab carries no frontmatter state, so it reports no
 pin and no tags rather than a second shape, and the pin and the tag row are
 absent from the chrome while it is active.
+
+### D55 A kind on `FileError`, and a Rust error that carries it
+
+`read_note` and `read_external` classify `io::ErrorKind::NotFound` as
+`not-found` and everything else as `failed`, on a `CommandError` struct that
+replaces `Result<T, String>` across the commands behind the `FileStore` port.
+`FileError` grows a matching `kind`, and `NoteSession` treats only `not-found`
+as a deletion.
+
+Every failure used to flatten to one string, so a tab could not tell a note
+someone deleted from a read that failed for a second. It called both a
+deletion: it showed "this file is gone", stopped writing to disk for good, and
+closed itself if the buffer happened to be clean. A permission change or an
+unmounted folder lost the tab.
+
+**Rejected: a second tagged error beside `FileError`.** The idiomatic Effect
+shape, and the one `ARCHITECTURE.md` implies by saying errors are
+`Schema.TaggedError`. Rejected because `FileError` is the failure type of all
+13 members of the `FileStore` port and all 9 of `NoteService`, so a second tag
+turns 22 signatures into unions to carry one bit that every caller but one
+ignores.
+
+**Constraint:** `db_select` keeps `Result<T, String>`. It belongs to the
+`Database` port and fails as `DatabaseError`, which services turn into defects,
+so a kind on it would never be read.
+
+### D56 A tab's identity is a minted id, not its path
+
+`Tab` carries an opaque `id`, minted in `store.ts` when the tab opens, and
+`tabId` returns it. A rename rewrites `path` in place and leaves the id alone,
+so the `NoteSession` the workspace keys on it is not remounted. Opening,
+reopening and renaming find a tab by kind and path rather than by rebuilding
+its id.
+
+The id used to be `${kind}:${path}`, so a retitle or a folder move changed it.
+React saw a new key and threw the session away: undo history, the caret, the
+scroll position and the autosave chain, on a note the user was editing. The
+same change dropped the tab's snapshot, orphaned its restored caret, and left
+the reopen stack holding a path that no longer existed.
+
+**Rejected: keeping path identity and migrating the store's side-tables on
+rename.** A smaller diff, no persistence change, and no migration to get wrong.
+Rejected because it cannot fix the remount, which is the part that loses the
+user's work: React keys off the id, and the id is what the rename changes.
+Moving the snapshot and caret across would leave the editor rebuilt underneath
+them.
+
+**Constraint:** an id can no longer be derived from a path, so "the tab holding
+this file" is a lookup. A store written before this carries no ids and keys its
+carets by `kind:path`, which `restoreTabs` migrates on the one launch that
+reads it, minting there rather than in `parseTabs` so a path-shaped id never
+reaches the DOM.

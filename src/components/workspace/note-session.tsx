@@ -9,6 +9,7 @@ import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
+import { FileError } from "@/core/errors";
 import { composeNote, parseNote } from "@/core/frontmatter";
 import { noteFolder, noteTitle, resolveTitle } from "@/core/notes";
 import { readExternalNote, writeExternalNote } from "@/data/external-note";
@@ -38,9 +39,9 @@ interface SessionFile {
   updatedAt: Date;
 }
 
-async function readTab(tab: Tab): Promise<SessionFile> {
-  if (tab.kind === "external") {
-    const file = await readExternalNote(tab.path);
+async function readTab(kind: Tab["kind"], path: string): Promise<SessionFile> {
+  if (kind === "external") {
+    const file = await readExternalNote(path);
 
     return {
       content: file.content,
@@ -50,7 +51,7 @@ async function readTab(tab: Tab): Promise<SessionFile> {
     };
   }
 
-  const note = await getNote(tab.path);
+  const note = await getNote(path);
 
   return {
     content: note.content,
@@ -147,7 +148,12 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // from a stale snapshot of something we just saved.
   const lastSavedAtRef = useRef(file.updatedAt);
 
+  // Nothing flushes on the way back: a file can be recreated with different
+  // content, and the reconcile below will not adopt it while the buffer is
+  // dirty, so a write fired the moment a watcher event lands would clobber it.
+  // The next keystroke or blur carries the buffer instead.
   const autosave = useAutosave(tab.path, {
+    enabled: !missing,
     onSaved: (updatedAt) => {
       lastSavedAtRef.current = updatedAt;
     },
@@ -155,7 +161,14 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   });
   // Stable across renders, unlike `autosave` itself (a fresh object every
   // render, since `status` changes on every keystroke).
-  const { onChange, stopSaving } = autosave;
+  const { onChange } = autosave;
+  // Read by the effect below, which decides once and must not re-decide when a
+  // write that was already in flight resolves.
+  const statusRef = useRef(autosave.status);
+
+  useEffect(() => {
+    statusRef.current = autosave.status;
+  });
 
   // `D32`'s chain, resolved off the live buffer rather than the last read, so
   // the tab label follows a heading as it is typed. An external file has no
@@ -357,19 +370,18 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   });
 
   // A file that has gone takes its tab with it when the buffer holds nothing
-  // worth keeping. When it does, the buffer stays and stops writing, so the
-  // text can be copied out without the save recreating the file.
+  // worth keeping. Writing stops through `enabled` above, so the text can be
+  // copied out without the save recreating the file.
+  //
+  // Decided once, against the status at the moment the file went. Re-deciding
+  // on every status change closed the tab when a write already in flight
+  // resolved and reported `saved`, throwing away the buffer this exists to
+  // keep.
   useEffect(() => {
-    if (!missing) {
-      return;
-    }
-
-    if (autosave.status === "saved") {
+    if (missing && statusRef.current === "saved") {
       closeTab(id);
-    } else {
-      stopSaving();
     }
-  }, [missing, autosave.status, id, stopSaving]);
+  }, [missing, id]);
 
   // A tab mounted in the background never took focus, so it takes it on the
   // way in. ⌘P decides which surface owns the caret; the other one's handle
@@ -443,23 +455,42 @@ interface NoteSessionProps {
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
   const [file, setFile] = useState<null | SessionFile>(null);
-  const [failed, setFailed] = useState(false);
+  const [gone, setGone] = useState(false);
+  // A watcher bump re-reads every tab, so a file that keeps refusing would
+  // toast once per revision. Holding the message rather than a flag lets
+  // React's bail-out collapse a repeat into one toast, which is the stacking
+  // `D38` rejected.
+  const [unreadable, setUnreadable] = useState<null | string>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const read = () => {
-      readTab({ kind, path })
+      readTab(kind, path)
         .then((next) => {
           if (!cancelled) {
             setFile(next);
-            setFailed(false);
+            setGone(false);
+            setUnreadable(null);
           }
         })
-        .catch(() => {
-          if (!cancelled) {
-            setFailed(true);
+        .catch((error: unknown) => {
+          if (cancelled) {
+            return;
           }
+
+          // Only a missing file is a deletion. A permission or IO failure
+          // leaves the note where it was, so the tab keeps what it last read
+          // (`D55`).
+          if (error instanceof FileError && error.kind === "not-found") {
+            setGone(true);
+
+            return;
+          }
+
+          setUnreadable(
+            error instanceof Error ? error.message : "could not read this note"
+          );
         });
     };
 
@@ -473,20 +504,24 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
     };
   }, [kind, path]);
 
+  useEffect(() => {
+    if (unreadable !== null) {
+      toast.error(unreadable);
+    }
+  }, [unreadable]);
+
   // Nothing was ever read, so there is no buffer to protect and nothing to
   // show. A failed re-read of a tab that does have one is the buffer's own
   // decision, made in `SessionBuffer`.
   useEffect(() => {
-    if (failed && file === null) {
-      closeTab(tabId({ kind, path }));
+    if (gone && file === null) {
+      closeTab(tab.id);
     }
-  }, [failed, file, kind, path]);
+  }, [gone, file, tab.id]);
 
   if (file === null) {
     return null;
   }
 
-  return (
-    <SessionBuffer active={active} file={file} missing={failed} tab={tab} />
-  );
+  return <SessionBuffer active={active} file={file} missing={gone} tab={tab} />;
 }

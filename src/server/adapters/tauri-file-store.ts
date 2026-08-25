@@ -1,15 +1,26 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Effect, Layer } from "effect";
-import { FileError } from "@/core/errors";
+import { Effect, Layer, Option, Schema } from "effect";
+import { FileError, FileErrorKind } from "@/core/errors";
 import type { IFileStore, NoteFileContent } from "@/core/file-store";
 import { FileStore } from "@/core/file-store";
 
+/** What a rejecting command sends back (`src-tauri/src/notes.rs`, `D55`). */
+const decodeFailure = Schema.decodeUnknownOption(
+  Schema.Struct({ kind: FileErrorKind, message: Schema.String })
+);
+
+function toFileError(cause: unknown) {
+  return Option.match(decodeFailure(cause), {
+    // Tauri rejects with a bare string when it fails before reaching the
+    // command, and that carries no kind to read.
+    onNone: () => new FileError({ kind: "failed", message: String(cause) }),
+    onSome: (failure) => new FileError(failure),
+  });
+}
+
 function command<T>(name: string, args?: Record<string, unknown>) {
   return Effect.tryPromise({
-    catch: (cause) =>
-      new FileError({
-        message: typeof cause === "string" ? cause : String(cause),
-      }),
+    catch: toFileError,
     try: () => invoke<T>(name, args),
   });
 }

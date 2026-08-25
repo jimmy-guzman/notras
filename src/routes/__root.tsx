@@ -138,7 +138,7 @@ function RootLayout() {
       const paths = await invoke<string[]>("pending_open_files");
 
       for (const path of paths) {
-        openTab({ kind: "external", path }, true);
+        openTab("external", path, true);
       }
     };
 

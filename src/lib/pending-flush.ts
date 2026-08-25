@@ -1,4 +1,4 @@
-/** Resolves to whether the buffer is safely on disk. */
+/** Resolves to whether quitting would lose anything from this buffer. */
 type Flush = () => Promise<boolean>;
 
 const flushes = new Set<Flush>();
@@ -20,6 +20,10 @@ export function registerPendingFlush(flush: Flush) {
  * quit: the Rust side holds the exit until this resolves, so a debounced
  * buffer is never lost to a ⌘Q -- and a `false` here means quitting would
  * throw the buffer away, so the caller must call it off.
+ *
+ * A buffer whose file has gone reports true while holding text, because it has
+ * stopped writing on purpose and blocking on it would leave the app
+ * unquittable. Its banner is what tells the user to copy the text out.
  */
 export async function flushPendingWrites() {
   const results = await Promise.allSettled(

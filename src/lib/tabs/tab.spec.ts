@@ -12,22 +12,35 @@ import {
   replaceNotePath,
   serializeTabs,
   stepTab,
-  tabId,
+  tabButtonId,
+  tabPanelId,
 } from "./tab";
 
-const note = (path: string) => ({ kind: "note", path }) as const;
+const WHITESPACE = /\s/;
+
+/** Ids are opaque (`D56`), so the specs use a readable one per path. */
+const note = (path: string) =>
+  ({ id: `id-${path}`, kind: "note", path }) as const;
+
+const external = (path: string) =>
+  ({ id: `id-external-${path}`, kind: "external", path }) as const;
 
 /** a.md, b.md, c.md open with b.md showing. */
 const three: TabState = {
-  activeId: "note:b.md",
+  activeId: "id-b.md",
   tabs: [note("a.md"), note("b.md"), note("c.md")],
 };
 
-describe("tabId", () => {
-  it("should separate a note from an external file at the same path", () => {
-    expect(tabId({ kind: "note", path: "a.md" })).not.toBe(
-      tabId({ kind: "external", path: "a.md" })
-    );
+describe("tabButtonId and tabPanelId", () => {
+  it("should give a tab and its panel ids an aria reference can resolve", () => {
+    // Both are read from `aria-controls` and `aria-labelledby`, which are
+    // space-separated ID lists: whitespace in an id splits the reference and
+    // the pairing breaks. Ids are minted in `store.ts` (`D56`).
+    const id = crypto.randomUUID();
+
+    expect(tabButtonId(id)).not.toMatch(WHITESPACE);
+    expect(tabPanelId(id)).not.toMatch(WHITESPACE);
+    expect(tabButtonId(id)).not.toBe(tabPanelId(id));
   });
 });
 
@@ -40,7 +53,7 @@ describe("openTab", () => {
       "d.md",
       "c.md",
     ]);
-    expect(next.activeId).toBe("note:d.md");
+    expect(next.activeId).toBe("id-d.md");
   });
 
   it("should insert after the active tab when opening in a new tab", () => {
@@ -52,62 +65,59 @@ describe("openTab", () => {
       "d.md",
       "c.md",
     ]);
-    expect(next.activeId).toBe("note:d.md");
+    expect(next.activeId).toBe("id-d.md");
   });
 
   it("should focus an already-open tab instead of duplicating it", () => {
     const next = openTab(three, note("c.md"), true);
 
     expect(next.tabs).toStrictEqual(three.tabs);
-    expect(next.activeId).toBe("note:c.md");
+    expect(next.activeId).toBe("id-c.md");
   });
 
   it("should open into an empty set", () => {
     const next = openTab({ activeId: "", tabs: [] }, note("a.md"));
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md"]);
-    expect(next.activeId).toBe("note:a.md");
+    expect(next.activeId).toBe("id-a.md");
   });
 
   it("should open an external file alongside a note", () => {
     const next = openTab(
-      { activeId: "note:a.md", tabs: [note("a.md")] },
-      { kind: "external", path: "/tmp/notes.md" },
+      { activeId: "id-a.md", tabs: [note("a.md")] },
+      external("/tmp/notes.md"),
       true
     );
 
     expect(next.tabs).toHaveLength(2);
-    expect(next.activeId).toBe("external:/tmp/notes.md");
+    expect(next.activeId).toBe(external("/tmp/notes.md").id);
   });
 });
 
 describe("closeTab", () => {
   it("should hand focus to the tab on the right", () => {
-    const next = closeTab(three, "note:b.md");
+    const next = closeTab(three, "id-b.md");
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md", "c.md"]);
-    expect(next.activeId).toBe("note:c.md");
+    expect(next.activeId).toBe("id-c.md");
   });
 
   it("should hand focus leftwards when closing the last tab", () => {
-    const next = closeTab(
-      { activeId: "note:c.md", tabs: three.tabs },
-      "note:c.md"
-    );
+    const next = closeTab({ activeId: "id-c.md", tabs: three.tabs }, "id-c.md");
 
-    expect(next.activeId).toBe("note:b.md");
+    expect(next.activeId).toBe("id-b.md");
   });
 
   it("should leave the active tab alone when closing another", () => {
-    const next = closeTab(three, "note:a.md");
+    const next = closeTab(three, "id-a.md");
 
-    expect(next.activeId).toBe("note:b.md");
+    expect(next.activeId).toBe("id-b.md");
   });
 
   it("should leave no active tab when the set empties", () => {
     const next = closeTab(
-      { activeId: "note:a.md", tabs: [note("a.md")] },
-      "note:a.md"
+      { activeId: "id-a.md", tabs: [note("a.md")] },
+      "id-a.md"
     );
 
     expect(next.tabs).toStrictEqual([]);
@@ -115,7 +125,7 @@ describe("closeTab", () => {
   });
 
   it("should ignore a tab that is not open", () => {
-    expect(closeTab(three, "note:z.md")).toStrictEqual(three);
+    expect(closeTab(three, "id-z.md")).toStrictEqual(three);
   });
 });
 
@@ -128,20 +138,33 @@ describe("replaceNotePath", () => {
       "work/b.md",
       "c.md",
     ]);
-    expect(next.activeId).toBe("note:work/b.md");
+  });
+
+  it("should keep the moved tab's id, so its editing session survives", () => {
+    // The workspace keys each `NoteSession` by this id. Deriving it from the
+    // path remounted the editor on every rename, losing undo history, the
+    // caret and the scroll position (`D56`).
+    const next = replaceNotePath(three, "b.md", "work/b.md");
+
+    expect(next.tabs[1]?.id).toBe(note("b.md").id);
+    expect(next.activeId).toBe(note("b.md").id);
+  });
+
+  it("should leave the set alone when the path did not change", () => {
+    expect(replaceNotePath(three, "b.md", "b.md")).toStrictEqual(three);
   });
 
   it("should keep the active tab when a background tab moves", () => {
     const next = replaceNotePath(three, "a.md", "work/a.md");
 
-    expect(next.activeId).toBe("note:b.md");
+    expect(next.activeId).toBe("id-b.md");
   });
 
   it("should collapse onto a path that is already open", () => {
     const next = replaceNotePath(three, "b.md", "c.md");
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md", "c.md"]);
-    expect(next.activeId).toBe("note:c.md");
+    expect(next.activeId).toBe("id-c.md");
   });
 
   it("should ignore a path that is not open", () => {
@@ -160,13 +183,13 @@ describe("stepTab", () => {
 
   it("should wrap past the last tab to the first", () => {
     expect(
-      stepTab({ activeId: "note:c.md", tabs: three.tabs }, "next")?.path
+      stepTab({ activeId: "id-c.md", tabs: three.tabs }, "next")?.path
     ).toBe("a.md");
   });
 
   it("should wrap before the first tab to the last", () => {
     expect(
-      stepTab({ activeId: "note:a.md", tabs: three.tabs }, "previous")?.path
+      stepTab({ activeId: "id-a.md", tabs: three.tabs }, "previous")?.path
     ).toBe("c.md");
   });
 
@@ -183,31 +206,31 @@ describe("stepTab", () => {
 describe("moveTabTo", () => {
   it("should move a tab later in the strip", () => {
     expect(
-      moveTabTo(three, "note:a.md", 2).tabs.map((tab) => tab.path)
+      moveTabTo(three, "id-a.md", 2).tabs.map((tab) => tab.path)
     ).toStrictEqual(["b.md", "c.md", "a.md"]);
   });
 
   it("should move a tab earlier in the strip", () => {
     expect(
-      moveTabTo(three, "note:c.md", 0).tabs.map((tab) => tab.path)
+      moveTabTo(three, "id-c.md", 0).tabs.map((tab) => tab.path)
     ).toStrictEqual(["c.md", "a.md", "b.md"]);
   });
 
   it("should clamp past either end", () => {
     expect(
-      moveTabTo(three, "note:b.md", 99).tabs.map((tab) => tab.path)
+      moveTabTo(three, "id-b.md", 99).tabs.map((tab) => tab.path)
     ).toStrictEqual(["a.md", "c.md", "b.md"]);
     expect(
-      moveTabTo(three, "note:b.md", -5).tabs.map((tab) => tab.path)
+      moveTabTo(three, "id-b.md", -5).tabs.map((tab) => tab.path)
     ).toStrictEqual(["b.md", "a.md", "c.md"]);
   });
 
   it("should keep the active tab through a reorder", () => {
-    expect(moveTabTo(three, "note:a.md", 2).activeId).toBe("note:b.md");
+    expect(moveTabTo(three, "id-a.md", 2).activeId).toBe("id-b.md");
   });
 
   it("should ignore a tab that is not open", () => {
-    expect(moveTabTo(three, "note:z.md", 0)).toStrictEqual(three);
+    expect(moveTabTo(three, "id-z.md", 0)).toStrictEqual(three);
   });
 });
 
@@ -268,7 +291,7 @@ describe("reopening a batch", () => {
 
     const rebuilt = closedRightmostFirst.reduce<TabState>(
       (state, entry) => openTabAt(state, entry.tab, entry.index),
-      { activeId: "note:a.md", tabs: [note("a.md")] }
+      { activeId: "id-a.md", tabs: [note("a.md")] }
     );
 
     expect(rebuilt.tabs.map((tab) => tab.path)).toStrictEqual([
@@ -283,7 +306,7 @@ describe("reopening a batch", () => {
 describe("openTabAt", () => {
   it("should put a tab back in the slot it came out of", () => {
     const closedAt = 1;
-    const without = closeTab(three, "note:b.md");
+    const without = closeTab(three, "id-b.md");
     const next = openTabAt(without, note("b.md"), closedAt);
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual([
@@ -291,12 +314,12 @@ describe("openTabAt", () => {
       "b.md",
       "c.md",
     ]);
-    expect(next.activeId).toBe("note:b.md");
+    expect(next.activeId).toBe("id-b.md");
   });
 
   it("should clamp to the end when the strip has since shrunk", () => {
     const next = openTabAt(
-      { activeId: "note:a.md", tabs: [note("a.md")] },
+      { activeId: "id-a.md", tabs: [note("a.md")] },
       note("z.md"),
       7
     );
@@ -308,16 +331,16 @@ describe("openTabAt", () => {
     const next = openTabAt(three, note("c.md"), 0);
 
     expect(next.tabs).toStrictEqual(three.tabs);
-    expect(next.activeId).toBe("note:c.md");
+    expect(next.activeId).toBe("id-c.md");
   });
 });
 
 describe("parseTabs", () => {
   it("should round-trip what serializeTabs wrote", () => {
     const value = {
-      activeId: "note:b.md",
-      carets: { "note:b.md": 42 },
-      tabs: [note("a.md"), { kind: "external", path: "/tmp/x.md" } as const],
+      activeId: "id-b.md",
+      carets: { "id-b.md": 42 },
+      tabs: [note("a.md"), external("/tmp/x.md")],
     };
 
     expect(parseTabs(serializeTabs(value))).toStrictEqual(value);
@@ -329,14 +352,12 @@ describe("parseTabs", () => {
 
   it("should reject a set with a malformed tab", () => {
     expect(
-      parseTabs(
-        '{"activeId":"note:a.md","tabs":[{"kind":"folder","path":"a"}]}'
-      )
+      parseTabs('{"activeId":"id-a.md","tabs":[{"kind":"folder","path":"a"}]}')
     ).toBeUndefined();
   });
 
   it("should reject a missing tab list", () => {
-    expect(parseTabs('{"activeId":"note:a.md"}')).toBeUndefined();
+    expect(parseTabs('{"activeId":"id-a.md"}')).toBeUndefined();
   });
 
   it("should drop caret offsets that are not numbers", () => {

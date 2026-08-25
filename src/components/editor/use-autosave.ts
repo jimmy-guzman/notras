@@ -7,6 +7,16 @@ export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
 const AUTOSAVE_DELAY_MS = 800;
 
 interface AutosaveOptions {
+  /**
+   * Whether this buffer may reach disk. False while the file is gone, so a
+   * write cannot recreate what someone deleted.
+   *
+   * Derived by the caller rather than latched here, because the old latch
+   * could not be undone: one failed read stopped a tab writing for the rest of
+   * the session, and the banner explaining it cleared on the next read that
+   * worked.
+   */
+  enabled: boolean;
   /** Called with the file's new mtime after every successful save. */
   onSaved: (updatedAt: Date) => void;
   /** How this buffer reaches disk: a note and an external file differ here and nowhere else (`D54`). */
@@ -23,7 +33,6 @@ export function useAutosave(path: string, options: AutosaveOptions) {
   const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pathRef = useRef(path);
-  const stoppedRef = useRef<boolean>(false);
   const optionsRef = useRef(options);
 
   useEffect(() => {
@@ -31,13 +40,22 @@ export function useAutosave(path: string, options: AutosaveOptions) {
     optionsRef.current = options;
   });
 
-  // Resolves to whether the buffer is safely on disk: true when there was
-  // nothing to write or the write landed, false only on a failed write.
+  // Resolves to whether quitting would lose anything: true when there was
+  // nothing to write, the write landed, or writing is off because the file has
+  // gone. False only on a failed write.
   const writeOnce = useCallback(async () => {
     clearTimeout(timerRef.current);
     const content = pendingRef.current;
 
     if (content === null) {
+      return true;
+    }
+
+    // The one gate on reaching disk, deliberately not also in `onChange`:
+    // recording has to continue, or a later flush would send the snapshot from
+    // before the file went, over the top of everything typed since. Reported
+    // as safe because a quit that reported otherwise could never complete.
+    if (!optionsRef.current.enabled) {
       return true;
     }
 
@@ -84,29 +102,8 @@ export function useAutosave(path: string, options: AutosaveOptions) {
     return next;
   }, [writeOnce]);
 
-  /**
-   * Stop writing this buffer to disk, for good.
-   *
-   * Used when the file has gone. The buffer stays on screen to be copied out,
-   * but flushing it would recreate the file someone deleted, and the unmount
-   * flush would do it silently. Latched rather than a one-shot discard, so
-   * typing afterwards does not start the timer again. `status` is left alone:
-   * the caller reads it to decide whether the tab still holds anything worth
-   * keeping.
-   */
-  const stopSaving = useCallback(() => {
-    stoppedRef.current = true;
-    clearTimeout(timerRef.current);
-    pendingRef.current = null;
-  }, []);
-
   const onChange = useCallback(
     (content: string) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: `stopSaving` sets this, which biome cannot see across the callback boundary
-      if (stoppedRef.current) {
-        return;
-      }
-
       pendingRef.current = content;
       setStatus("dirty");
       clearTimeout(timerRef.current);
@@ -137,5 +134,5 @@ export function useAutosave(path: string, options: AutosaveOptions) {
     };
   }, [flush]);
 
-  return { flush, onChange, status, stopSaving };
+  return { flush, onChange, status };
 }

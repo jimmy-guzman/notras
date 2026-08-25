@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::UNIX_EPOCH;
@@ -11,6 +12,55 @@ use tauri_plugin_store::StoreExt;
 use crate::index;
 use crate::state::{AppState, Core};
 use crate::{watcher, NotesChanged};
+
+/// Why a command failed. A webview tab has to tell a file that is gone from a
+/// read it should retry or report, and a message string cannot carry that
+/// (`D55`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ErrorKind {
+    Failed,
+    NotFound,
+}
+
+/// A command failure: the kind the caller branches on, and the message it shows.
+#[derive(Debug, Serialize)]
+pub struct CommandError {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+impl CommandError {
+    /// Classify a failed read, so a deleted file is distinguishable from a
+    /// permission or IO failure that leaves the note where it was.
+    fn from_read(error: io::Error) -> Self {
+        Self {
+            kind: if error.kind() == io::ErrorKind::NotFound {
+                ErrorKind::NotFound
+            } else {
+                ErrorKind::Failed
+            },
+            message: error.to_string(),
+        }
+    }
+}
+
+/// Every `?` on a `Result<_, String>` lands here, so a command that has nothing
+/// to say about the kind keeps its body unchanged.
+impl From<String> for CommandError {
+    fn from(message: String) -> Self {
+        Self {
+            kind: ErrorKind::Failed,
+            message,
+        }
+    }
+}
+
+impl From<&str> for CommandError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,16 +111,16 @@ pub fn db_select(
 }
 
 #[tauri::command]
-pub fn note_exists(state: State<'_, AppState>, path: String) -> Result<bool, String> {
+pub fn note_exists(state: State<'_, AppState>, path: String) -> Result<bool, CommandError> {
     let core = state.core.lock().unwrap();
     Ok(resolve(&core, &path)?.exists())
 }
 
 #[tauri::command]
-pub fn read_note(state: State<'_, AppState>, path: String) -> Result<NoteFile, String> {
+pub fn read_note(state: State<'_, AppState>, path: String) -> Result<NoteFile, CommandError> {
     let core = state.core.lock().unwrap();
     let abs = resolve(&core, &path)?;
-    let content = fs::read_to_string(&abs).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&abs).map_err(CommandError::from_read)?;
     Ok(NoteFile {
         content,
         updated_at: mtime_millis(&abs),
@@ -83,7 +133,7 @@ pub fn write_note(
     state: State<'_, AppState>,
     path: String,
     content: String,
-) -> Result<i64, String> {
+) -> Result<i64, CommandError> {
     let core = state.core.lock().unwrap();
     let abs = resolve(&core, &path)?;
     if !is_markdown(&abs) {
@@ -105,7 +155,7 @@ pub fn rename_note(
     state: State<'_, AppState>,
     from: String,
     to: String,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let core = state.core.lock().unwrap();
     let source = resolve(&core, &from)?;
     let target = resolve(&core, &to)?;
@@ -113,7 +163,7 @@ pub fn rename_note(
         return Err("notes must be markdown files".into());
     }
     if target.exists() {
-        return Err(format!("a note named {to} already exists"));
+        return Err(format!("a note named {to} already exists").into());
     }
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -131,7 +181,7 @@ pub fn delete_note(
     app: AppHandle,
     state: State<'_, AppState>,
     path: String,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let core = state.core.lock().unwrap();
     let abs = resolve(&core, &path)?;
     fs::remove_file(&abs).map_err(|e| e.to_string())?;
@@ -144,7 +194,7 @@ pub fn delete_note(
 /// Copy a dragged-in file into `attachments/`, deduping the name. Returns the
 /// path relative to the notes dir for building the markdown link.
 #[tauri::command]
-pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String, String> {
+pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String, CommandError> {
     let core = state.core.lock().unwrap();
     let source = PathBuf::from(source);
     let name = source
@@ -174,7 +224,10 @@ pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String,
 /// Save a pasted clipboard image into `attachments/`, returning the
 /// relative path for the markdown link.
 #[tauri::command]
-pub fn attach_image(state: State<'_, AppState>, base64_data: String) -> Result<String, String> {
+pub fn attach_image(
+    state: State<'_, AppState>,
+    base64_data: String,
+) -> Result<String, CommandError> {
     use base64::Engine as _;
 
     let bytes = base64::engine::general_purpose::STANDARD
@@ -201,12 +254,12 @@ pub fn attach_image(state: State<'_, AppState>, base64_data: String) -> Result<S
 }
 
 #[tauri::command]
-pub fn read_external(path: String) -> Result<NoteFile, String> {
+pub fn read_external(path: String) -> Result<NoteFile, CommandError> {
     let abs = PathBuf::from(&path);
     if !is_markdown(&abs) {
         return Err("only markdown files can be opened".into());
     }
-    let content = fs::read_to_string(&abs).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&abs).map_err(CommandError::from_read)?;
     Ok(NoteFile {
         content,
         updated_at: mtime_millis(&abs),
@@ -214,7 +267,7 @@ pub fn read_external(path: String) -> Result<NoteFile, String> {
 }
 
 #[tauri::command]
-pub fn write_external(path: String, content: String) -> Result<i64, String> {
+pub fn write_external(path: String, content: String) -> Result<i64, CommandError> {
     let abs = PathBuf::from(&path);
     if !is_markdown(&abs) {
         return Err("only markdown files can be written".into());
@@ -239,7 +292,7 @@ pub fn set_notes_dir(
     app: AppHandle,
     state: State<'_, AppState>,
     path: String,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let notes_dir = PathBuf::from(&path);
     fs::create_dir_all(notes_dir.join(".notras")).map_err(|e| e.to_string())?;
     crate::allow_assets(&app, &notes_dir);
@@ -274,7 +327,10 @@ pub fn set_notes_dir(
 /// mtime matches its stored row and a plain re-scan would leave every untouched
 /// note holding whatever the old derivation produced.
 #[tauri::command]
-pub fn reindex_all(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<String>, String> {
+pub fn reindex_all(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, CommandError> {
     let core = state.core.lock().unwrap();
     index::clear(&core.conn).map_err(|e| e.to_string())?;
     let changed = index::scan_all(&core.conn, &core.notes_dir).map_err(|e| e.to_string())?;
@@ -303,4 +359,33 @@ pub fn quit_app(app: AppHandle) {
 #[tauri::command]
 pub fn cancel_quit(state: State<'_, AppState>) {
     state.quitting.store(false, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_file_reads_as_not_found() {
+        let error = fs::read_to_string("/notras-does-not-exist/missing.md").unwrap_err();
+
+        assert_eq!(CommandError::from_read(error).kind, ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn unreadable_file_reads_as_failed() {
+        // A directory opens and then refuses the read on both macOS and Linux,
+        // which is the cheapest non-NotFound io error to raise on either.
+        let error = fs::read_to_string(std::env::temp_dir()).unwrap_err();
+
+        assert_eq!(CommandError::from_read(error).kind, ErrorKind::Failed);
+    }
+
+    #[test]
+    fn a_message_without_a_kind_is_a_failure() {
+        let error: CommandError = "invalid note path: ../escape".into();
+
+        assert_eq!(error.kind, ErrorKind::Failed);
+        assert_eq!(error.message, "invalid note path: ../escape");
+    }
 }

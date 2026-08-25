@@ -39,7 +39,7 @@ import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
 import {
-  closeTab,
+  closeNoteTab,
   openNote as openInTab,
   renameTab,
   useTabState,
@@ -531,7 +531,7 @@ export function CommandPalette({
 
     runAction(async () => {
       await deleteNote(currentNote.path);
-      closeTab(tabId({ kind: "note", path: currentNote.path }));
+      closeNoteTab(currentNote.path);
       toast.success("note deleted");
     });
   }, [currentNote, runAction]);

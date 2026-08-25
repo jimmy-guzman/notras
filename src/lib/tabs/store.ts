@@ -6,6 +6,7 @@ import type { ClosedTab, Tab, TabState } from "./tab";
 
 import {
   closeTab as closeInList,
+  legacyTabId,
   moveTabTo,
   openTab as openInList,
   openTabAt,
@@ -115,21 +116,36 @@ export function persistTabs() {
 export function restoreTabs() {
   const raw = localStorage.getItem(STORAGE_KEY);
   const parsed = raw === null ? undefined : parseTabs(raw);
-  const first = parsed?.tabs[0];
 
-  if (parsed === undefined || first === undefined) {
+  if (parsed === undefined || parsed.tabs.length === 0) {
     return false;
   }
 
-  for (const [id, caret] of Object.entries(parsed.carets)) {
-    restored.set(id, caret);
+  // A store written before `D56` has no ids and keys its carets and active tab
+  // by `kind:path`. Minting here, the one place holding both the old key and
+  // the new id, keeps a path-shaped id out of the live set and off the DOM.
+  const ids = new Map<string, string>();
+  const tabs = parsed.tabs.map((tab) => {
+    const fresh = tab.id ?? crypto.randomUUID();
+
+    ids.set(tab.id ?? legacyTabId(tab), fresh);
+
+    return { id: fresh, kind: tab.kind, path: tab.path };
+  });
+
+  for (const [key, caret] of Object.entries(parsed.carets)) {
+    const id = ids.get(key);
+
+    if (id !== undefined) {
+      restored.set(id, caret);
+    }
   }
 
-  const known = parsed.tabs.some((tab) => tabId(tab) === parsed.activeId);
+  const [first] = tabs;
 
   state = {
-    activeId: known ? parsed.activeId : tabId(first),
-    tabs: parsed.tabs,
+    activeId: ids.get(parsed.activeId) ?? first?.id ?? "",
+    tabs,
   };
   emit();
 
@@ -211,12 +227,31 @@ export function publishTabSnapshot(id: string, snapshot: TabSnapshot) {
   emit();
 }
 
-export function openTab(tab: Tab, newTab = false) {
-  setState(openInList(state, tab, newTab));
+/**
+ * A tab's id, minted here rather than in `tab.ts` so the list algebra stays
+ * pure and its spec can assert against literal ids (`D56`).
+ */
+function newTab(kind: Tab["kind"], path: string): Tab {
+  return { id: crypto.randomUUID(), kind, path };
 }
 
-export function openNote(path: string, newTab = false) {
-  openTab({ kind: "note", path }, newTab);
+export function openTab(kind: Tab["kind"], path: string, inNewTab = false) {
+  setState(openInList(state, newTab(kind, path), inNewTab));
+}
+
+export function openNote(path: string, inNewTab = false) {
+  openTab("note", path, inNewTab);
+}
+
+/** Close the tab holding a note path, if one is open. */
+export function closeNoteTab(path: string) {
+  const open = state.tabs.find(
+    (tab) => tab.kind === "note" && tab.path === path
+  );
+
+  if (open !== undefined) {
+    closeTab(open.id);
+  }
 }
 
 export function closeTab(id: string) {
