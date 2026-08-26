@@ -1,6 +1,7 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
+import { attachmentLink } from "@/lib/utils/attachments";
 import {
   createEditorExtensions,
   normalizeMarkdown,
@@ -13,13 +14,24 @@ import {
  * app supports. Files are the source of truth, so this IS the data-safety
  * test for the editor.
  */
-function roundtrip(markdown: string) {
+function load(markdown: string) {
   const editor = new Editor({
     content: markdown,
     contentType: "markdown",
     element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
+
+  // The markdown parser builds JSON and `Node.fromJSON` takes it on trust, so
+  // an illegal doc reaches the view and throws on the first `contentMatchAt`.
+  // Checking here is what makes every case below a schema test as well.
+  editor.state.doc.check();
+
+  return editor;
+}
+
+function roundtrip(markdown: string) {
+  const editor = load(markdown);
   const output = serializeMarkdown(editor);
 
   editor.destroy();
@@ -27,11 +39,34 @@ function roundtrip(markdown: string) {
   return output;
 }
 
+/** The src of every image a markdown string parses into, wherever it sits. */
+function imageSources(markdown: string) {
+  const editor = load(markdown);
+  const sources: string[] = [];
+
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "image") {
+      sources.push(String(node.attrs.src));
+    }
+
+    return true;
+  });
+
+  editor.destroy();
+
+  return sources;
+}
+
 describe("markdown round-trip", () => {
   it.each([
     ["heading", "# hello"],
     ["emphasis", "some **bold** and *italic* and ~~struck~~ text"],
     ["inline code", "run `pnpm dev` locally"],
+    ["bold code", "**`--typeset-size`** sets the size"],
+    ["italic code", "*`x`* leans"],
+    ["struck code", "~~`x`~~ is gone"],
+    ["linked code", "[`x`](https://example.com)"],
+    ["code inside bold", "**bold `code` text**"],
     ["bullet list", "- one\n- two"],
     ["ordered list", "1. first\n2. second"],
     ["nested bullet list", "- one\n  - nested"],
@@ -39,10 +74,56 @@ describe("markdown round-trip", () => {
     ["blockquote", "> quoted"],
     ["link", "[notes](https://example.com)"],
     ["image with relative src", "![shot](attachments/x.png)"],
+    ["image with an encoded src", "![shot](attachments/my%20shot.png)"],
+    ["attachment link", "[my notes.pdf](attachments/my%20notes.pdf)"],
     ["horizontal rule", "---"],
     ["wikilink", "see [[grocery list]] for details"],
   ])("should round-trip %s", (_name, markdown) => {
     expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should parse a dropped attachment whose name has spaces as an image", () => {
+    const markdown = attachmentLink(
+      "attachments/Screenshot 2026-08-26 at 6.25.40 AM.png"
+    );
+
+    expect(imageSources(markdown)).toEqual([
+      "attachments/Screenshot%202026-08-26%20at%206.25.40%20AM.png",
+    ]);
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should keep an angle-bracket image destination loadable after a save", () => {
+    const saved = roundtrip("![a](<attachments/my shot.png>)");
+
+    expect(saved).toBe("![a](attachments/my%20shot.png)");
+    expect(imageSources(saved)).toEqual(["attachments/my%20shot.png"]);
+  });
+
+  it.each([
+    ["alone in its block", "![a](attachments/x.png)"],
+    ["after text on the same line", "text ![a](attachments/x.png)"],
+    ["before text on the same line", "![a](attachments/x.png) text"],
+    ["after a hard break", 'text  \n![a](attachments/x.png "Title")'],
+    ["inside a list item", "- item ![a](attachments/x.png)"],
+    ["inside a task item", "- [ ] item ![a](attachments/x.png)"],
+    ["inside a table cell", "| a |\n| --- |\n| ![a](attachments/x.png) |"],
+    ["inside a blockquote", "> ![a](attachments/x.png)"],
+  ])("should parse an image %s", (_name, markdown) => {
+    expect(imageSources(markdown)).toContain("attachments/x.png");
+  });
+
+  it("should keep an angle-bracket link destination loadable after a save", () => {
+    const saved = roundtrip("[my notes.pdf](<attachments/my notes.pdf>)");
+
+    expect(saved).toBe("[my notes.pdf](attachments/my%20notes.pdf)");
+    expect(roundtrip(saved)).toBe(saved);
+  });
+
+  it("should normalize a non-ascii destination on save", () => {
+    expect(roundtrip("[a](https://ex.com/café)")).toBe(
+      "[a](https://ex.com/caf%C3%A9)"
+    );
   });
 
   it("should round-trip task lists with checked state", () => {

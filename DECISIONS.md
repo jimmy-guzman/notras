@@ -6,8 +6,8 @@ rewrite, which `git log` records.
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
 an ID repoints every reference to it without any of them changing. The highest
-number issued so far is 56, and some entries below it were removed, so the next
-entry takes 57.
+number issued so far is 59, and some entries below it were removed, so the next
+entry takes 60.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -1511,3 +1511,80 @@ this file" is a lookup. A store written before this carries no ids and keys its
 carets by `kind:path`, which `restoreTabs` migrates on the one launch that
 reads it, minting there rather than in `parseTabs` so a path-shaped id never
 reaches the DOM.
+
+### D57 Attachment destinations are encoded with mdurl
+
+`src/lib/utils/attachments.ts` and `bareDestination` in `extensions.ts` call
+`encode` and `decode` from `mdurl`, markdown-it's URL helper, rather than the
+platform's `encodeURIComponent`. The write side excludes `/` plus
+`encode.componentChars`, the unreserved set, so an encoded path still reads like
+the file name. The read side passes `decode.componentChars`, which is empty, so
+nothing stays escaped. The serializer takes the default set, which is the URL
+syntax itself, so a scheme, a query and a fragment survive.
+
+`decodeURIComponent` throws on a stray `%`, and a `try`/`catch` around a whole
+segment then hands back that segment with its valid escapes intact, naming a
+file that does not exist: `attachments/100% a%20b.png` resolved to a path still
+carrying `%20`. mdurl decodes escape runs byte by byte and leaves the stray
+alone. Its `keepEscaped` also makes encoding idempotent.
+
+**Rejected: decoding per escape run with `/(?:%[0-9A-Fa-f]{2})+/g` and no
+dependency.** Three lines, and it closes the same gap. Rejected because it
+closes only that gap. The space-only escape in the serializer stays hand-rolled
+beside it, and every character class either one covers is then a reading of the
+CommonMark spec someone has to re-derive instead of one markdown-it already
+maintains.
+
+**Constraint:** `encode.defaultChars` cannot exclude non-ASCII, so a destination
+carrying it is rewritten percent-encoded the first time the note is edited after
+this lands. `[a](https://ex.com/café)` saves as `[a](https://ex.com/caf%C3%A9)`.
+
+### D58 An image is inline, and notras owns the paragraph token
+
+`NoteImage` is configured `inline: true`, and `NoteParagraph` extends
+`@tiptap/extension-paragraph` to keep the paragraph around an image that is
+alone in one. Every position a markdown image can take then produces a doc the
+schema accepts.
+
+TipTap ships the image as a block node while a markdown image is inline, so the
+parser puts one that shares a line with any other content inside a paragraph,
+`Node.fromJSON` takes that JSON on trust, and the first `contentMatchAt` on the
+result throws into the route error boundary. A note carrying
+`text ![a](x.png)` took the whole route down. Upstream's paragraph handler
+unwraps a lone image so its own block image can sit at doc level, which is why
+`inline: true` on its own moves the invalid case rather than closing it.
+
+**Rejected: repairing the parsed JSON at the entry points.** It leaves the image
+a block, which is what markdown says it is not, and the editor is mounted with
+`content` that TipTap parses internally, so the repair cannot reach the path
+that matters most.
+
+**Constraint:** notras owns the `paragraph` token, carrying upstream's
+empty-paragraph marker by delegation and tracking that extension for the day the
+unwrap goes. Owning the token for parsing means owning it for rendering, since
+the render path resolves a node through the parse registry first. A lone image
+is now a paragraph in the doc rather than a top-level node.
+
+### D59 The code mark excludes nothing
+
+`NoteCode` extends `@tiptap/extension-code` with `excludes: ""`, replacing the
+`"_"` TipTap ships, so a text node may carry `code` alongside `bold`, `italic`,
+`strike` or `link`.
+
+Markdown writes all four, and the parser builds the marks the source asks for.
+The schema then rejected the result, `Node.fromJSON` took the JSON on trust, and
+the invalid doc threw into the route error boundary the first time it was read.
+A note carrying ``**`--typeset-size`**`` took the route down. Two of the forms
+were worse than the crash: `` *`x`* `` and `` ~~`x`~~ `` serialized their
+markers inside the backticks, where markdown reads them as literal characters,
+so a file was edited by a failure nobody saw. `code` is the only mark in the
+stack that declares `excludes`, so this is the whole class.
+
+**Rejected: dropping the conflicting mark while parsing.** It keeps TipTap's
+spec and needs no schema change. Rejected because it loses what the file says:
+``**`x`**`` would load as `` `x` `` and save back that way, editing a note on
+open, which is the failure this was meant to stop.
+
+**Constraint:** bold, italic, strike and a link can now be applied to a code
+span from the keyboard. Markdown cannot express a partial one, so bold over half
+a span saves as `` `**hello** world` ``, literal markers inside it.

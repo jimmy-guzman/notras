@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/toast";
 import { attachImage } from "@/data/attach-file";
 import { errorMessage } from "@/lib/ui/failure";
 import { cn } from "@/lib/ui/utils";
+import { encodeAttachmentPath } from "@/lib/utils/attachments";
 import {
   createEditorExtensions,
   normalizeMarkdown,
@@ -216,7 +217,7 @@ export function Editor({
                   editorRef.current
                     ?.chain()
                     .focus()
-                    .setImage({ src: relativePath })
+                    .setImage({ src: encodeAttachmentPath(relativePath) })
                     .run();
                 })
                 .catch((error: unknown) => {

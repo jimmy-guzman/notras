@@ -266,6 +266,21 @@ a raw-source view over the whole file.
 to editor to file. Extend it when adding nodes. Custom syntax uses the
 extension-config trio `markdownTokenName`/`markdownTokenizer` plus
 `parseMarkdown` and `renderMarkdown`; `wikilink.ts` is the worked example.
+Overriding an upstream parse decision means owning the token, which
+`NoteParagraph` does for `paragraph` (`D58`), and owning a token for parsing
+means owning it for rendering: the render path resolves a node through the parse
+registry first, so a handler with no `renderMarkdown` renders nothing.
+
+### An attachment destination is a URL
+
+The doc holds a markdown destination and `attachments/` holds a path, and a bare
+CommonMark destination ends at the first space, so the two are not the same
+string. Three places convert, all of them through `mdurl`, markdown-it's URL
+helper (`D57`). `attachmentLink` and the paste handler encode a path on the way
+in, `resolveImageSrc` decodes one before `convertFileSrc`, which encodes the
+whole path again, and `NoteImage` and `NoteLink` escape what cannot appear bare
+on the way out, so a destination that loaded survives the save.
+`src/lib/utils/attachments.ts` owns the pair.
 
 ### Editing session per tab
 
