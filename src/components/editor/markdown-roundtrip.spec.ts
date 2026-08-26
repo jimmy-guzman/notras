@@ -72,6 +72,10 @@ describe("markdown round-trip", () => {
       "![notes \\].png](attachments/notes%20%5D.png)",
     ],
     ["image label with a backslash", "![back\\slash.png](attachments/x.png)"],
+    [
+      "image label with two backslashes",
+      "![back\\\\slash.png](attachments/x.png)",
+    ],
     ["image title with a quote", '![a](attachments/x.png "say \\"hi\\"")'],
     [
       "link label with a bracket",
