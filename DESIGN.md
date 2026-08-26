@@ -222,13 +222,12 @@ tab still follows the pointer, which is manipulation rather than a transition.
   region rather than in a band of their own, so the window title is the note
   title, resolved by `D32` from frontmatter, a leading `#`, then the
   filename. It is display-only text: renaming a file is a ⌘K action. `Titlebar`
-  in
-  `src/components/titlebar.tsx` is the only place the drag region is declared,
-  and every window and route renders it. Buttons and inputs inside it set
-  `no-drag` so they stay clickable, and `.no-drag` is the opt-in for anything
-  else that has to receive the pointer there. A tab with no neighbours opts back
-  out: it carries `data-tauri-drag-region`, so pressing and moving it moves the
-  window rather than the tab (`D57`).
+  in `src/components/titlebar.tsx` declares the region every window and route
+  renders. Buttons and inputs inside it set `no-drag` so they stay clickable,
+  and `.no-drag` is the opt-in for anything else that has to receive the pointer
+  there. `src/components/tabs/tab-strip.tsx` is the one other declaration: a tab
+  with no neighbours carries `data-tauri-drag-region` of its own, so pressing
+  and moving it moves the window rather than the tab (`D57`).
 - **The save state is a glyph, and it sits in the titlebar** (`D35`, `D38`).
   `SaveIndicator` renders between the title and the pin, a floppy carrying a pen
   for `dirty`, no badge for `saving`, a check for `saved`, and a slash for
