@@ -8,12 +8,10 @@ if (markdown === undefined) {
   throw new Error("lowlight's common set no longer carries markdown");
 }
 
-/**
- * Both fences of the block. highlight.js compiles a mode's `begin` and `end`
- * from `source`, so one literal serves both without carrying a `lastIndex`
- * between them.
- */
-const DELIMITER = /^---$/;
+const OPEN = /^---$/;
+
+/** Both closes `parseNote` accepts (`frontmatter.ts`), so the two agree. */
+const CLOSE = /^(?:---|\.{3})$/;
 
 /**
  * highlight.js ships no frontmatter rule, so its setext-heading mode reads a
@@ -28,8 +26,8 @@ export const markdownWithFrontmatter: LanguageFn = (hljs) => {
     ...base,
     contains: [
       {
-        begin: DELIMITER,
-        end: DELIMITER,
+        begin: OPEN,
+        end: CLOSE,
         // Frontmatter is the block at offset 0 and nothing else: further down
         // a `---` pair is two thematic breaks with markdown between them.
         "on:begin": (match, response) => {
