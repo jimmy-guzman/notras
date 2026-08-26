@@ -83,6 +83,11 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - [ ] 25b. Type into a note, ⌘K → "rename note...", then ⌘Z → the undo reaches
       the text typed before the rename, and the caret and scroll are where they
       were left; ⌘K → "move to folder..." on the same tab does the same
+- [ ] 26. Scroll hard past the bottom and then the top of a note longer than the
+      window, and flick the tab strip sideways past the last tab → the note
+      settles at its bounds and the titlebar, the tab strip and the status strip
+      do not move. ⌘P and the capture window are separate scrollers and get the
+      same two passes
 
 ## Deferred
 
