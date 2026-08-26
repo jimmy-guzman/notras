@@ -67,6 +67,18 @@ describe("markdown round-trip", () => {
     ["struck code", "~~`x`~~ is gone"],
     ["linked code", "[`x`](https://example.com)"],
     ["code inside bold", "**bold `code` text**"],
+    [
+      "image label with a bracket",
+      "![notes \\].png](attachments/notes%20%5D.png)",
+    ],
+    ["image label with a backslash", "![back\\slash.png](attachments/x.png)"],
+    ["image title with a quote", '![a](attachments/x.png "say \\"hi\\"")'],
+    [
+      "link label with a bracket",
+      "[report \\].pdf](attachments/report%20%5D.pdf)",
+    ],
+    ["link title with a quote", '[a](https://example.com "say \\"hi\\"")'],
+    ["title with a backslash", '![a](attachments/x.png "back\\\\slash")'],
     ["bullet list", "- one\n- two"],
     ["ordered list", "1. first\n2. second"],
     ["nested bullet list", "- one\n  - nested"],

@@ -16,6 +16,11 @@ import { StarterKit } from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { encode } from "mdurl";
 
+import {
+  escapeMarkdownLabel,
+  escapeMarkdownTitle,
+} from "@/lib/utils/attachments";
+
 import { CodeBlockView } from "./code-block-view";
 import { SlashMenu } from "./slash-menu";
 import { Wikilink } from "./wikilink";
@@ -98,10 +103,11 @@ const NoteImage = Image.extend<
     const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
     const title = typeof node.attrs?.title === "string" ? node.attrs.title : "";
     const destination = bareDestination(src);
+    const label = escapeMarkdownLabel(alt);
 
     return title
-      ? `![${alt}](${destination} "${title}")`
-      : `![${alt}](${destination})`;
+      ? `![${label}](${destination} "${escapeMarkdownTitle(title)}")`
+      : `![${label}](${destination})`;
   },
 });
 
@@ -113,7 +119,7 @@ const NoteLink = Link.extend({
     const destination = bareDestination(href);
 
     return title
-      ? `[${text}](${destination} "${title}")`
+      ? `[${text}](${destination} "${escapeMarkdownTitle(title)}")`
       : `[${text}](${destination})`;
   },
 });

@@ -21,6 +21,18 @@ describe("attachmentLink", () => {
     );
   });
 
+  it("should escape a bracket that would end the label early", () => {
+    expect(attachmentLink("attachments/notes ].png")).toBe(
+      "![notes \\].png](attachments/notes%20%5D.png)"
+    );
+  });
+
+  it("should leave a backslash in the label alone", () => {
+    expect(attachmentLink("attachments/back\\slash.png")).toBe(
+      "![back\\slash.png](attachments/back%5Cslash.png)"
+    );
+  });
+
   it("should encode a name carrying markdown punctuation", () => {
     expect(attachmentLink("attachments/draft (1) #2.png")).toBe(
       "![draft (1) #2.png](attachments/draft%20(1)%20%232.png)"
