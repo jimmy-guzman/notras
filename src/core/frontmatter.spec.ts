@@ -96,6 +96,18 @@ describe("updateFrontmatter", () => {
     expect(next).toBe("body\n");
   });
 
+  it("should keep a block that was already empty", () => {
+    expect(updateFrontmatter("---\n---\nbody\n", { pinned: false })).toBe(
+      "---\n---\nbody\n"
+    );
+  });
+
+  it("should keep an already-empty block's ... delimiter", () => {
+    expect(updateFrontmatter("---\n...\nbody\n", { pinned: false })).toBe(
+      "---\n...\nbody\n"
+    );
+  });
+
   it("should preserve unknown keys verbatim", () => {
     const content =
       "---\ncustom: thing\npinned: true\nauthor: someone\n---\nbody\n";

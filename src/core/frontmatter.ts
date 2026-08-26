@@ -342,15 +342,17 @@ export function updateFrontmatter(
   }
 
   const blockLines = [...ownLines, ...foreignLines];
+  const arrivedEmpty =
+    parsed.raw !== undefined && parsed.raw.lines.length === 0;
 
-  if (blockLines.length === 0) {
-    return parsed.body;
-  }
+  // Removing the block is for one this update emptied. A block that arrived
+  // empty had no owned keys to remove, so `---\n---` survives a no-op patch.
+  // A block this rewrites keeps the delimiter the file used; one it creates
+  // gets the `---` notras authors.
+  const raw =
+    blockLines.length === 0 && !arrivedEmpty
+      ? undefined
+      : { close: parsed.raw?.close ?? "---", lines: blockLines };
 
-  return composeNote(
-    // A block this rewrites keeps the delimiter the file used; one it creates
-    // gets the `---` notras authors.
-    { close: parsed.raw?.close ?? "---", lines: blockLines },
-    parsed.body
-  );
+  return composeNote(raw, parsed.body);
 }

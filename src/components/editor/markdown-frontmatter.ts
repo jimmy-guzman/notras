@@ -10,8 +10,12 @@ if (markdown === undefined) {
 
 const OPEN = /^---$/;
 
-/** Both closes `parseNote` accepts (`frontmatter.ts`), so the two agree. */
-const CLOSE = /^(?:---|\.{3})$/;
+/**
+ * Both closes `parseNote` accepts, trailing spaces and all, so the two agree.
+ * `[^\S\n]` and not `\s`: highlight.js compiles these multiline, and matching
+ * the newline would run the block on past its delimiter.
+ */
+const CLOSE = /^(?:---|\.{3})[^\S\n]*$/;
 
 /**
  * highlight.js ships no frontmatter rule, so its setext-heading mode reads a

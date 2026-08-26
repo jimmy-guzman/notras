@@ -68,6 +68,13 @@ describe("markdown with frontmatter", () => {
     });
   });
 
+  it("should close a frontmatter block on a delimiter with trailing spaces", () => {
+    expect(tokens("---\npinned: true\n---  \n# a title")).toContainEqual({
+      text: "# a title",
+      token: "hljs-section",
+    });
+  });
+
   it("should still highlight a heading after the frontmatter block", () => {
     expect(tokens("---\npinned: true\n---\n# a title")).toContainEqual({
       text: "# a title",
