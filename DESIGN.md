@@ -226,7 +226,9 @@ tab still follows the pointer, which is manipulation rather than a transition.
   `src/components/titlebar.tsx` is the only place the drag region is declared,
   and every window and route renders it. Buttons and inputs inside it set
   `no-drag` so they stay clickable, and `.no-drag` is the opt-in for anything
-  else that has to receive the pointer there.
+  else that has to receive the pointer there. A tab with no neighbours opts back
+  out: it carries `data-tauri-drag-region`, so pressing and moving it moves the
+  window rather than the tab (`D57`).
 - **The save state is a glyph, and it sits in the titlebar** (`D35`, `D38`).
   `SaveIndicator` renders between the title and the pin, a floppy carrying a pen
   for `dirty`, no badge for `saving`, a check for `saved`, and a slash for
