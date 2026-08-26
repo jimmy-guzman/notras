@@ -29,34 +29,18 @@ export interface EditorExtensionOptions {
 export const lowlight = createLowlight(common);
 
 /**
- * Let a code span carry the marks around it. TipTap gives the mark
- * `excludes: "_"`, so the schema refuses a text node holding `code` beside any
- * other, while markdown wraps a code span in bold, italic, strike or a link
- * freely. The parser builds the marks the source asks for, `Node.fromJSON`
- * takes that JSON on trust, and the invalid doc throws into the route error
- * boundary the moment it is read. Under the old spec the italic and strike
- * forms also serialized their markers inside the backticks, where markdown
- * reads them as literal characters (`D59`).
- *
- * What it gives up: bold over part of a span, which markdown cannot express,
- * saves with the markers inside the backticks.
+ * TipTap's `excludes: "_"` refuses a text node holding `code` beside any other
+ * mark, which markdown writes freely and the parser builds (`D59`).
  */
 const NoteCode = Code.extend({ excludes: "" });
 
 /**
- * Keep the paragraph around an image that is alone in one, and delegate every
- * other paragraph to upstream, the `&nbsp;` empty-paragraph marker that
- * `normalizeMarkdown` depends on included. Owning the token means owning it
- * for rendering too: the render path resolves a node through the parse
- * registry first (`MarkdownManager`'s `getHandlerForToken`), so a second
- * extension claiming the token but carrying no `renderMarkdown` renders every
- * paragraph as an empty string.
+ * Keep the paragraph around an image alone in one, and hand every other
+ * paragraph to upstream (`D58`).
  *
- * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping, or
- * starts asking the schema first. Through 3.30.2 its `parseMarkdown` returns
- * the bare image node for a paragraph holding only one, which suits the block
- * image TipTap ships and leaves an inline one where `doc` cannot hold it
- * (`D58`).
+ * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
+ * 3.30.2 its `parseMarkdown` returns the bare image for a paragraph holding
+ * only one, which suits the block image TipTap ships.
  */
 const NoteParagraph = Paragraph.extend({
   parseMarkdown(token, helpers) {
@@ -75,15 +59,8 @@ const NoteParagraph = Paragraph.extend({
 });
 
 /**
- * A bare markdown destination ends at the first space, so a `src` holding one
- * -- what an angle-bracket destination parses to -- gets written back
- * unparseable and reads as text on the next load.
- *
- * mdurl's default exclude set is the URL syntax itself, so a scheme, a query
- * and a fragment survive while a space does not. Non-ASCII does not survive
- * either: a destination carrying it is rewritten percent-encoded on the save
- * after this runs (`D57`). Already-escaped sequences are kept, so the pass is
- * idempotent.
+ * Escape what cannot sit in a bare destination. mdurl's default set keeps the
+ * URL syntax and rewrites non-ASCII (`D57`).
  */
 function bareDestination(url: string) {
   return encode(url);
@@ -115,9 +92,7 @@ const NoteImage = Image.extend<
       }),
     ];
   },
-  // Upstream's own shape, with the destination escaped. `this.parent` is bound
-  // at runtime but absent from the field's type, and the round-trip spec is
-  // what holds this to upstream's output.
+  // Upstream's shape with the destination escaped; `this.parent` is untyped here.
   renderMarkdown(node) {
     const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
     const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
@@ -324,9 +299,7 @@ export function createEditorExtensions(
     TaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({
-      // A markdown image is inline. As TipTap's block default it cannot sit in
-      // a paragraph, which is where the parser puts one that shares a line
-      // with anything else, and the invalid doc reaches the view (`D58`).
+      // Markdown images are inline; the block default breaks a paragraph (`D58`).
       inline: true,
       resolveSrc: options.resolveImageSrc ?? ((src: string) => src),
     }),
