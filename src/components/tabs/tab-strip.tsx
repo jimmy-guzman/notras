@@ -95,10 +95,12 @@ interface TabItemProps {
   active: boolean;
   /** Shown until the session publishes a title off its live buffer. */
   fallback: string;
+  /** The only tab has nowhere to go, so its press moves the window instead. */
+  sole: boolean;
   tab: Tab;
 }
 
-function TabItem({ active, fallback, tab }: TabItemProps) {
+function TabItem({ active, fallback, sole, tab }: TabItemProps) {
   const id = tabId(tab);
   const snapshot = useTabSnapshot(id);
   const ref = useRef<HTMLSpanElement | null>(null);
@@ -113,6 +115,7 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
   } = useSortable({
     animateLayoutChanges,
     data: { label },
+    disabled: sole,
     id,
     transition: TAB_TRANSITION,
   });
@@ -179,6 +182,7 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
                 "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
             )}
             data-tab-id={id}
+            data-tauri-drag-region={sole || undefined}
             ref={setRefs}
             role="presentation"
             style={{
@@ -205,6 +209,7 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
             "min-w-0 flex-1 truncate text-start text-sm",
             tab.kind === "external" && "font-mono text-xs"
           )}
+          data-tauri-drag-region={sole || undefined}
           id={tabButtonId(id)}
           onClick={select}
           // The handle, so the close button beside it never starts a drag.
@@ -300,7 +305,8 @@ interface TabStripProps {
  * The open tabs, in the title bar where the note's title used to sit (`D52`).
  *
  * One tab stop with arrow keys inside it, the `ToggleGroup` pattern `D37` set.
- * Dragging one is dnd-kit's, and `D57` carries why.
+ * Dragging one is dnd-kit's, and `D57` carries why. A lone tab has nowhere to
+ * go, so it hands the press to the window instead.
  */
 export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   const { notes } = rootApi.useLoaderData();
@@ -438,6 +444,7 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
                 active={tabId(tab) === activeId}
                 fallback={labelFor(tab)}
                 key={tabId(tab)}
+                sole={tabs.length === 1}
                 tab={tab}
               />
             ))}

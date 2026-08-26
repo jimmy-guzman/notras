@@ -1600,3 +1600,13 @@ measure would count it as scrolled out of view for the length of a slide.
 **Constraint:** `@dnd-kit/core` 6.3.1 and `@dnd-kit/sortable` 10.0.0 were last
 published in December 2024 and the successor is the beta above, so this is a
 dependency that will not move.
+
+**Constraint:** one tab has nowhere to go, so `useSortable` takes
+`disabled: sole` and the tab carries `data-tauri-drag-region` instead. dnd-kit
+drops its listeners when disabled, and Tauri's injected handler treats a
+`button` that carries the attribute as a drag region, so the press moves the
+window the way the rest of the titlebar does. That reverses `D28`'s no-drag
+exemption for one element under one condition. It also means the sole tab
+inherits macOS titlebar behaviour whole: a double-click on it zooms the window,
+and Tauri's `preventDefault` on the mousedown leaves the button unfocused after
+a click.

@@ -51,6 +51,9 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
       shadow, the neighbour slides aside, and it settles on release; ⌘⌥⇧←
       slides it back; Escape mid-drag returns every tab; press a tab and jiggle
       inside its own bounds → it selects and does not reorder
+- [ ] 19c. Close down to one tab and drag it → the window moves and the tab
+      stays put, taking no shadow; double-click it → the window zooms; its ×,
+      its context menu, and a second tab's drag all still behave
 - [ ] 20. ⌘W → the tab to the right takes over; ⌘⇧T → it comes back where it
       was; ⌘W on the last remaining tab leaves the empty state, and the tab
       context menu's close agrees with both
