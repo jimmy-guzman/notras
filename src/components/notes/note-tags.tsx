@@ -55,7 +55,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   const { changeTags, tags: optimisticTags } = useNoteTags(path, tags);
 
   useHotkeys(
-    "mod+shift+t",
+    "mod+shift+y",
     () => {
       setOpen(true);
     },

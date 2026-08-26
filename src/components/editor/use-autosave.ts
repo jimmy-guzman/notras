@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
-import { saveNote } from "@/data/save-note";
 import { registerPendingFlush } from "@/lib/pending-flush";
 
 export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
@@ -8,29 +13,47 @@ export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
 const AUTOSAVE_DELAY_MS = 800;
 
 interface AutosaveOptions {
+  /**
+   * Whether this buffer may reach disk. False while the file is gone, so a
+   * write cannot recreate what someone deleted.
+   *
+   * Derived by the caller rather than latched here, because the old latch
+   * could not be undone: one failed read stopped a tab writing for the rest of
+   * the session, and the banner explaining it cleared on the next read that
+   * worked.
+   */
+  enabled: boolean;
   /** Called with the file's new mtime after every successful save. */
-  onSaved?: (updatedAt: Date) => void;
+  onSaved: (updatedAt: Date) => void;
+  /** How this buffer reaches disk: a note and an external file differ here and nowhere else (`D54`). */
+  write: (path: string, content: string) => Promise<Date>;
 }
 
 /**
- * Debounced autosave for one note buffer, flushed on window blur and
- * unmount so nothing is ever left unsaved.
+ * Debounced autosave for one buffer, flushed on window blur and unmount so
+ * nothing is ever left unsaved.
  */
-export function useAutosave(path: string, options?: AutosaveOptions) {
+export function useAutosave(path: string, options: AutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const pendingRef = useRef<null | string>(null);
   const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pathRef = useRef(path);
-  const onSavedRef = useRef(options?.onSaved);
+  const optionsRef = useRef(options);
 
-  useEffect(() => {
+  // Layout, not passive: a debounce timer is a macrotask that can fire between
+  // the commit turning `enabled` off and a passive effect running, and a write
+  // that escapes through that gap recreates the file someone deleted. Running
+  // before paint closes most of the gap; the rest would need the gate at the
+  // write itself.
+  useLayoutEffect(() => {
     pathRef.current = path;
-    onSavedRef.current = options?.onSaved;
+    optionsRef.current = options;
   });
 
-  // Resolves to whether the buffer is safely on disk: true when there was
-  // nothing to write or the write landed, false only on a failed write.
+  // Resolves to whether quitting would lose anything: true when there was
+  // nothing to write, the write landed, or writing is off because the file has
+  // gone. False only on a failed write.
   const writeOnce = useCallback(async () => {
     clearTimeout(timerRef.current);
     const content = pendingRef.current;
@@ -39,13 +62,24 @@ export function useAutosave(path: string, options?: AutosaveOptions) {
       return true;
     }
 
+    // The one gate on reaching disk, deliberately not also in `onChange`:
+    // recording has to continue, or a later flush would send the snapshot from
+    // before the file went, over the top of everything typed since. Reported
+    // as safe because a quit that reported otherwise could never complete.
+    if (!optionsRef.current.enabled) {
+      return true;
+    }
+
     pendingRef.current = null;
     setStatus("saving");
 
     try {
-      const updatedAt = await saveNote(pathRef.current, content);
+      const updatedAt = await optionsRef.current.write(
+        pathRef.current,
+        content
+      );
 
-      onSavedRef.current?.(updatedAt);
+      optionsRef.current.onSaved(updatedAt);
       // A keystroke may have landed while the write was in flight.
       refreshStatus();
 

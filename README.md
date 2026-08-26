@@ -28,6 +28,8 @@ rebuilds it from your files on the next launch.
 
 - editor-first window: true WYSIWYG markdown (TipTap 3) that reads and
   writes plain `.md`, set in Literata
+- tabs: several notes open at once, each keeping its own undo history, caret
+  and scroll, and the set comes back when you relaunch
 - autosave on idle; what lands on disk is clean, canonical markdown
 - ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
   `#tag` filters that narrow the search (`#work budget`), and every note action
@@ -43,7 +45,7 @@ rebuilds it from your files on the next launch.
 - drag any file in -> copied to `attachments/`, markdown link inserted
 - global quick capture: ⌘⇧N from anywhere -> jot -> esc saves to `inbox/`
 - menu-bar tray, launch at login, macOS overlay title bar
-- "Open With" any external markdown file
+- "Open With" any external markdown file, as many at once as you pick
 - word count + reading time; lowercase everything; dark/light via system
 
 ## Technologies
@@ -151,19 +153,28 @@ Rust tests live in `src-tauri`: `cargo test`.
 
 ## Keyboard shortcuts
 
-| Shortcut | Action                          |
-| -------- | ------------------------------- |
-| `⌘K`     | command palette (search + acts) |
-| `⌘N`     | new note                        |
-| `⌘P`     | toggle raw markdown source      |
-| `⌘D`     | toggle focus mode               |
-| `⌘⇧K`    | add / edit link                 |
-| `⌘⇧T`    | edit tags                       |
-| `⌘,`     | settings                        |
-| `⌘⇧N`    | global quick capture            |
-| `esc`    | (capture window) save + hide    |
-| `⌘⏎`     | (capture window) save + hide    |
+| Shortcut  | Action                            |
+| --------- | --------------------------------- |
+| `⌘K`      | command palette (search + acts)   |
+| `⌘N`/`⌘T` | new note, in a new tab            |
+| `⌘⏎`      | (palette) open in a new tab       |
+| `⌘W`      | close tab                         |
+| `⌘⇧T`     | reopen the last closed tab        |
+| `⌘1`-`⌘9` | nth tab; `⌘9` is the last one     |
+| `⌃⇥`      | next tab (`⌃⇧⇥` for previous)     |
+| `⌘⌥→`     | next tab (`⌘⌥←` for previous)     |
+| `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left)  |
+| `⌘P`      | toggle raw markdown source        |
+| `⌘D`      | toggle focus mode                 |
+| `⌘⇧K`     | add / edit link                   |
+| `⌘⇧Y`     | edit tags                         |
+| `⌘,`      | settings                          |
+| `⌘⇧N`     | global quick capture              |
+| `esc`     | (capture window) save + hide      |
+| `⌘⏎`      | (capture window) save + hide      |
 
-`⌘P`, `⌘D`, and `⌘⇧T` act on the open note, so they do nothing on the empty
-state or the external-file view. The capture window runs outside the router, so
-only `⌘⇧K`, `esc`, and `⌘⏎` reach it.
+`⌘P` and `⌘D` act on the tab that is showing, and `⌘⇧Y` also needs that tab to
+hold a note, since a file opened from outside your library has no frontmatter
+to tag. All of them do nothing on the empty state, which is where closing the
+last tab lands you. The capture window runs outside the router, so only `⌘⇧K`,
+`esc`, and `⌘⏎` reach it.

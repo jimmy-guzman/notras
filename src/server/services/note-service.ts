@@ -73,6 +73,7 @@ function invalidSegment(segment: string, label: string) {
   return NOTE_SEGMENT_PATTERN.test(segment)
     ? undefined
     : new FileError({
+        kind: "failed",
         message: String.raw`${label} cannot contain / \ : or start with a dot`,
       });
 }
@@ -124,7 +125,7 @@ const makeNoteService = Effect.gen(function* () {
 
     const path = notePath(folder, filename);
 
-    yield* fileStore.write(path, options?.content ?? "");
+    yield* fileStore.create(path, options?.content ?? "");
 
     return path;
   });
@@ -149,6 +150,7 @@ const makeNoteService = Effect.gen(function* () {
 
     if (yield* fileStore.exists(target)) {
       return yield* new FileError({
+        kind: "failed",
         message: `a note named ${noteTitle(path)} already exists in ${
           folder === "" ? "the notes root" : folder
         }`,
@@ -189,6 +191,7 @@ const makeNoteService = Effect.gen(function* () {
 
     if (!samePath && (yield* fileStore.exists(target))) {
       return yield* new FileError({
+        kind: "failed",
         message: `a note named ${filename} already exists in ${
           noteFolder(path) === "" ? "the notes root" : noteFolder(path)
         }`,
