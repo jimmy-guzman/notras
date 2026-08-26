@@ -16,12 +16,21 @@ export function decodeAttachmentPath(src: string) {
 }
 
 /**
- * A label ends at its first `]`, so brackets going inside one are escaped. A
- * backslash is not: the parser hands back `\\` from a label unchanged, so
- * escaping one would double it on every save.
+ * A label ends at its first unescaped bracket. marked's matcher eats every
+ * `\\X` as a pair while its unescaper undoes brackets alone, so the run of
+ * backslashes before one has to be even for the escape to survive the match,
+ * and escaping the backslashes themselves would double them on every save.
+ *
+ * An odd run therefore gains one, and its alt reads one backslash long: the
+ * grammar cannot hold a lone backslash before a bracket, and an image that
+ * renders beats a line that does not parse.
  */
 export function escapeMarkdownLabel(text: string) {
-  return text.replaceAll(/[[\]]/g, "\\$&");
+  return text.replaceAll(
+    /(\\*)([[\]])/g,
+    (_match, run: string, bracket: string) =>
+      `${run.length % 2 === 0 ? run : `${run}\\`}\\${bracket}`
+  );
 }
 
 /** A title ends at its quote, and unlike a label it does unescape `\\`. */

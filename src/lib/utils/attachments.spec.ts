@@ -27,6 +27,18 @@ describe("attachmentLink", () => {
     );
   });
 
+  it("should pad a backslash run that would eat the escaped bracket", () => {
+    expect(attachmentLink("attachments/back\\].png")).toBe(
+      "![back\\\\\\].png](attachments/back%5C%5D.png)"
+    );
+  });
+
+  it("should leave an even backslash run before a bracket as it is", () => {
+    expect(attachmentLink("attachments/back\\\\].png")).toBe(
+      "![back\\\\\\].png](attachments/back%5C%5C%5D.png)"
+    );
+  });
+
   it("should leave a backslash in the label alone", () => {
     expect(attachmentLink("attachments/back\\slash.png")).toBe(
       "![back\\slash.png](attachments/back%5Cslash.png)"

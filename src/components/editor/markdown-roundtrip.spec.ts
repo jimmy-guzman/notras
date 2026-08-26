@@ -79,6 +79,10 @@ describe("markdown round-trip", () => {
     ],
     ["link title with a quote", '[a](https://example.com "say \\"hi\\"")'],
     ["title with a backslash", '![a](attachments/x.png "back\\\\slash")'],
+    [
+      "image label with a backslash before a bracket",
+      "![back\\\\\\].png](attachments/back%5C%5D.png)",
+    ],
     ["bullet list", "- one\n- two"],
     ["ordered list", "1. first\n2. second"],
     ["nested bullet list", "- one\n  - nested"],
@@ -121,6 +125,10 @@ describe("markdown round-trip", () => {
     ["inside a task item", "- [ ] item ![a](attachments/x.png)"],
     ["inside a table cell", "| a |\n| --- |\n| ![a](attachments/x.png) |"],
     ["inside a blockquote", "> ![a](attachments/x.png)"],
+    [
+      "whose label holds a backslash before a bracket",
+      "![back\\\\\\].png](attachments/x.png)",
+    ],
   ])("should parse an image %s", (_name, markdown) => {
     expect(imageSources(markdown)).toContain("attachments/x.png");
   });
