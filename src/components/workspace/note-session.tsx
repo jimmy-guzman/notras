@@ -421,6 +421,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       ) : null}
       {sourceMode ? (
         <SourceEditor
+          focusOnMount={active}
           initialCursor={sourceCursor}
           initialValue={composeNote(frontmatterLines, body)}
           key={`${reloadKey}:source`}

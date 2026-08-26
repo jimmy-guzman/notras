@@ -153,11 +153,6 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
   `resolveImageSrc`. Opening one needs `opener:allow-open-path`, which
   `opener:default` does not carry, plus a scope naming which paths the app may
   hand to the system. Deferred on that scope, not on the wiring
-- The focus guard `SourceEditor` never got. `Editor` places a restored caret
-  without taking focus (`editor.tsx:390`), while the source surface calls
-  `.focus()` unconditionally on create and on mount. Its key carries `reloadKey`
-  (`note-session.tsx:426`), which an external edit bumps for any tab, so a
-  background tab left in source mode steals the caret from the one being typed in
 - A focus-visible affordance for `.link-editor-input` and `.code-block-language`,
   which set `outline: none` and replace nothing
 - A message on `DatabaseError` (`src/core/errors.ts`), which carries only
