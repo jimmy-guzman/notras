@@ -22,6 +22,7 @@ import {
 } from "@/lib/utils/attachments";
 
 import { CodeBlockView } from "./code-block-view";
+import { markdownWithFrontmatter } from "./markdown-frontmatter";
 import { SlashMenu } from "./slash-menu";
 import { Wikilink } from "./wikilink";
 
@@ -31,7 +32,10 @@ export interface EditorExtensionOptions {
   resolveImageSrc?: (src: string) => string;
 }
 
-export const lowlight = createLowlight(common);
+export const lowlight = createLowlight({
+  ...common,
+  markdown: markdownWithFrontmatter,
+});
 
 /**
  * TipTap's `excludes: "_"` refuses a text node holding `code` beside any other

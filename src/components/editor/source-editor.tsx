@@ -9,6 +9,8 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useState } from "react";
 
+import { markdownWithFrontmatter } from "./markdown-frontmatter";
+
 export interface SourceEditorHandle {
   focus: () => void;
   /** Caret position as a character offset into the raw text. */
@@ -25,7 +27,10 @@ interface SourceEditorProps {
   onReady?: (handle: SourceEditorHandle) => void;
 }
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight({
+  ...common,
+  markdown: markdownWithFrontmatter,
+});
 
 const SourceDocument = Document.extend({
   content: "codeBlock",
