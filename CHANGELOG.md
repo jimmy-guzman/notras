@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.0](https://github.com/jimmy-guzman/notras/compare/v0.1.2...v0.2.0) (2026-08-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* 💥 tags key is now "cmd+shift+y" instead of "cmd+shift+t"
+
+### Features
+
+* ✨ add syntax highlighting for Markdown frontmatter ([#110](https://github.com/jimmy-guzman/notras/issues/110)) ([2ae897d](https://github.com/jimmy-guzman/notras/commit/2ae897d26429115f86c63be9058a326f6745c64b))
+* ✨ compact title bar ([#103](https://github.com/jimmy-guzman/notras/issues/103)) ([a2b1656](https://github.com/jimmy-guzman/notras/commit/a2b16561e6755fdac8630873bcccb4405038f131))
+* ✨ make draggable tabs feel alive ([#111](https://github.com/jimmy-guzman/notras/issues/111)) ([c55baa4](https://github.com/jimmy-guzman/notras/commit/c55baa4d075e3dd607ef0fb810517868aed9ee72))
+* ✨ tabs are live ([#106](https://github.com/jimmy-guzman/notras/issues/106)) ([efc3bc4](https://github.com/jimmy-guzman/notras/commit/efc3bc4d44ee4033e3439a713867aa6fadd72b6a))
+
+
+### Bug Fixes
+
+* 🐛 close nested list and code block gaps ([#105](https://github.com/jimmy-guzman/notras/issues/105)) ([1c276bb](https://github.com/jimmy-guzman/notras/commit/1c276bb2f07bba025457c5d45827dcb223dbea8c))
+* 🐛 let the editor hold what markdown expresses ([#109](https://github.com/jimmy-guzman/notras/issues/109)) ([880b444](https://github.com/jimmy-guzman/notras/commit/880b4446ffe89f72daf1c8954382aa3756d413c5))
+* 🐛 prevent elastic scrolling on window ([#108](https://github.com/jimmy-guzman/notras/issues/108)) ([45733ce](https://github.com/jimmy-guzman/notras/commit/45733ce03a18c1718fc8145ee5aff5a5a176c271))
+
+
+### Refactoring
+
+* 🔄 migrate to baseui's toast ([#107](https://github.com/jimmy-guzman/notras/issues/107)) ([ec543ea](https://github.com/jimmy-guzman/notras/commit/ec543ea093f458037e0e5d46849cc61f5b02223b))
+
 ## [0.1.2](https://github.com/jimmy-guzman/notras/compare/v0.1.1...v0.1.2) (2026-08-22)
 
 
