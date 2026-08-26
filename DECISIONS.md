@@ -1566,3 +1566,37 @@ editing a note on open.
 
 **Constraint:** markdown cannot express bold over part of a span, so that saves
 as `` `**hello** world` ``, literal markers inside it.
+
+### D57 A tab drag is dnd-kit's, and reorders on release
+
+`TabStrip` wraps the tablist in dnd-kit's `DndContext` and `SortableContext`,
+each `TabItem` calls `useSortable`, and `moveTab` runs once from `onDragEnd`.
+The strip used to hand-roll the drag on pointer events and call `moveTab` on
+every crossing, so the tab teleported into its new slot and each crossing
+re-rendered the workspace and rewrote `localStorage` mid-press.
+
+**Rejected: keeping the hand-rolled drag and adding a FLIP pass to it.** About
+300 lines against 45, and its one advantage was a pure index-math function with
+a spec, where dnd-kit's equivalent needs a layout engine `happy-dom` does not
+have.
+
+**Rejected: every library built on the HTML5 drag-and-drop API,**
+`@atlaskit/pragmatic-drag-and-drop` foremost. `tauri.conf.json` sets
+`dragDropEnabled`, which turns DOM drag-drop off and is what lets
+`onDragDropEvent` take a file dropped into a note. dnd-kit's `PointerSensor`
+needs neither. Also rejected: `@dnd-kit/react` 0.5.0 (beta), `motion`'s
+`Reorder` (spring-first), `sortablejs` (moves nodes itself, against `D56`'s
+keys).
+
+**Constraint:** `useSortable`'s `attributes` are not spread and no keyboard
+sensor is installed, because they carry a `role` and `tabIndex` that would
+overwrite what `D37` set. The drag handle is the label button, so the close
+button beside it does not start a drag.
+
+**Constraint:** the tablist is `relative` and the overflow measure reads
+`offsetLeft` against it. A transformed tab has a rect outside its slot, and the
+measure would count it as scrolled out of view for the length of a slide.
+
+**Constraint:** `@dnd-kit/core` 6.3.1 and `@dnd-kit/sortable` 10.0.0 were last
+published in December 2024 and the successor is the beta above, so this is a
+dependency that will not move.

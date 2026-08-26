@@ -1,6 +1,26 @@
+import type {
+  Announcements,
+  DragEndEvent,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  closestCenter,
+  DndContext,
+  MeasuringStrategy,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
+import {
+  defaultAnimateLayoutChanges,
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from "@dnd-kit/sortable";
 import { getRouteApi } from "@tanstack/react-router";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -43,6 +63,34 @@ const STEPS: Record<string, TabStep> = {
   Home: "start",
 };
 
+const ACTIVATION_DISTANCE_PX = 4;
+
+/** dnd-kit defaults to 250ms; `DESIGN.md` names 0.15s for chrome. */
+const TAB_TRANSITION = { duration: 150, easing: "ease" };
+
+function draggedLabel(data: Record<string, unknown> | undefined) {
+  return typeof data?.label === "string" ? data.label : "";
+}
+
+/** dnd-kit's defaults announce the minted id (`D56`). */
+const ANNOUNCEMENTS: Announcements = {
+  onDragCancel: ({ active }) =>
+    `left ${draggedLabel(active.data.current)} where it was`,
+  onDragEnd: ({ active, over }) =>
+    over === null
+      ? `left ${draggedLabel(active.data.current)} where it was`
+      : `dropped ${draggedLabel(active.data.current)} on ${draggedLabel(over.data.current)}`,
+  onDragOver: ({ active, over }) =>
+    over === null
+      ? undefined
+      : `${draggedLabel(active.data.current)} is over ${draggedLabel(over.data.current)}`,
+  onDragStart: ({ active }) => `picked up ${draggedLabel(active.data.current)}`,
+};
+
+/** Also animate an order change no drag made, which is what `⌘⌥⇧←/→` does. */
+const animateLayoutChanges: AnimateLayoutChanges = (args) =>
+  args.isSorting || args.wasDragging ? defaultAnimateLayoutChanges(args) : true;
+
 interface TabItemProps {
   active: boolean;
   /** Shown until the session publishes a title off its live buffer. */
@@ -53,8 +101,21 @@ interface TabItemProps {
 function TabItem({ active, fallback, tab }: TabItemProps) {
   const id = tabId(tab);
   const snapshot = useTabSnapshot(id);
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLSpanElement | null>(null);
   const label = snapshot?.title ?? fallback;
+  const {
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    animateLayoutChanges,
+    data: { label },
+    id,
+    transition: TAB_TRANSITION,
+  });
 
   // Keyboard switching can land on a tab that is scrolled out of the strip.
   useEffect(() => {
@@ -63,9 +124,26 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
     }
   }, [active]);
 
+  const setRefs = useCallback(
+    (node: HTMLSpanElement | null) => {
+      ref.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef]
+  );
+
   const select = useCallback(() => {
     activateTab(id);
   }, [id]);
+
+  /** A press selects, the way a native tab does, before any drag begins. */
+  const startPress = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      select();
+      listeners?.onPointerDown?.(event);
+    },
+    [listeners, select]
+  );
 
   const close = useCallback(() => {
     closeTab(id);
@@ -96,11 +174,22 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
               "no-drag group flex h-full min-w-24 flex-1 basis-0 items-center border-border border-r ps-2.5 pe-1",
               active
                 ? "bg-background text-foreground"
-                : "text-muted-foreground hover:bg-muted/40"
+                : "text-muted-foreground hover:bg-muted/40",
+              isDragging &&
+                "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
             )}
             data-tab-id={id}
-            ref={ref}
+            ref={setRefs}
             role="presentation"
+            style={{
+              // By hand rather than dnd-kit's `CSS` helper, whose export would
+              // shadow the global `CSS.escape` the strip uses below.
+              transform:
+                transform === null
+                  ? undefined
+                  : `translate3d(${transform.x}px, 0, 0)`,
+              transition,
+            }}
           />
         }
       >
@@ -118,6 +207,9 @@ function TabItem({ active, fallback, tab }: TabItemProps) {
           )}
           id={tabButtonId(id)}
           onClick={select}
+          // The handle, so the close button beside it never starts a drag.
+          onPointerDown={startPress}
+          ref={setActivatorNodeRef}
           role="tab"
           tabIndex={active ? 0 : -1}
           type="button"
@@ -208,16 +300,20 @@ interface TabStripProps {
  * The open tabs, in the title bar where the note's title used to sit (`D52`).
  *
  * One tab stop with arrow keys inside it, the `ToggleGroup` pattern `D37` set.
+ * Dragging one is dnd-kit's, and `D57` carries why.
  */
 export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   const { notes } = rootApi.useLoaderData();
   const listRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<null | {
-    captured: boolean;
-    id: string;
-    pointerId: number;
-  }>(null);
   const [hidden, setHidden] = useState<string[]>([]);
+  const ids = useMemo(() => tabs.map(tabId), [tabs]);
+  // No keyboard sensor: it wants the `attributes` spread, which would overwrite
+  // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D57`).
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: ACTIVATION_DISTANCE_PX },
+    })
+  );
 
   const labelFor = useCallback(
     (tab: Tab) =>
@@ -236,15 +332,16 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
     }
 
     const measure = () => {
-      const bounds = list.getBoundingClientRect();
-      const open = new Set(tabs.map(tabId));
+      const open = new Set(ids);
 
       const next = [...list.querySelectorAll<HTMLElement>("[data-tab-id]")]
-        .filter((item) => {
-          const rect = item.getBoundingClientRect();
-
-          return rect.right <= bounds.left + 1 || rect.left >= bounds.right - 1;
-        })
+        .filter(
+          (item) =>
+            // Not a rect: a drag transforms a tab out of its slot, and a rect
+            // would call it hidden for being mid-slide.
+            item.offsetLeft + item.offsetWidth <= list.scrollLeft + 1 ||
+            item.offsetLeft >= list.scrollLeft + list.clientWidth - 1
+        )
         .map((item) => item.dataset.tabId ?? "")
         // A tab closed between the measurement and this frame still has a
         // node until React commits.
@@ -270,7 +367,7 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
       observer.disconnect();
       list.removeEventListener("scroll", measure);
     };
-  }, [tabs]);
+  }, [ids]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
@@ -299,104 +396,54 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
     [activeId, tabs]
   );
 
-  /**
-   * A press selects, which also keeps selection off the click path: a pointer
-   * capture retargets the `click` it derives to the capturing element, so an
-   * `onClick` inside would not fire once a drag had claimed the pointer.
-   */
-  const handlePointerDown = useCallback((event: React.PointerEvent) => {
-    const element = event.target as HTMLElement;
-    const id = element.closest<HTMLElement>("[data-tab-id]")?.dataset.tabId;
-
-    // The close button owns its own press.
-    if (
-      event.button !== 0 ||
-      id === undefined ||
-      element.closest("[data-tab-close]") !== null
-    ) {
-      return;
-    }
-
-    dragRef.current = { captured: false, id, pointerId: event.pointerId };
-    activateTab(id);
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    activateTab(String(event.active.id));
   }, []);
 
-  /**
-   * Pointer events rather than HTML5 drag, which the titlebar's
-   * `-webkit-app-region: drag` intercepts. Capture waits until the press has
-   * crossed into another tab: claiming it on the way down takes the close
-   * button's click with it.
-   */
-  const handlePointerMove = useCallback((event: React.PointerEvent) => {
-    const drag = dragRef.current;
-    const list = listRef.current;
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
 
-    if (drag === null || drag.pointerId !== event.pointerId || list === null) {
-      return;
-    }
+      if (over === null || active.id === over.id) {
+        return;
+      }
 
-    // A press released outside the strip sends its `pointerup` elsewhere, so
-    // the drag would still be armed when the same pointer next hovers through.
-    if (event.buttons === 0) {
-      dragRef.current = null;
-
-      return;
-    }
-
-    const bounds = list.getBoundingClientRect();
-
-    if (event.clientY < bounds.top || event.clientY > bounds.bottom) {
-      return;
-    }
-
-    const items = [...list.querySelectorAll<HTMLElement>("[data-tab-id]")];
-    const over = items.findIndex((item) => {
-      const rect = item.getBoundingClientRect();
-
-      return event.clientX >= rect.left && event.clientX <= rect.right;
-    });
-
-    if (over === -1 || items[over]?.dataset.tabId === drag.id) {
-      return;
-    }
-
-    if (!drag.captured) {
-      drag.captured = true;
-      list.setPointerCapture(event.pointerId);
-    }
-
-    moveTab(drag.id, over);
-  }, []);
-
-  const endDrag = useCallback((event: React.PointerEvent) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    dragRef.current = null;
-  }, []);
+      moveTab(String(active.id), ids.indexOf(String(over.id)));
+    },
+    [ids]
+  );
 
   return (
     <div className="flex min-w-0 flex-1 items-stretch self-stretch">
-      <div
-        className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
-        onKeyDown={handleKeyDown}
-        onPointerCancel={endDrag}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={endDrag}
-        ref={listRef}
-        role="tablist"
+      <DndContext
+        accessibility={{ announcements: ANNOUNCEMENTS }}
+        collisionDetection={closestCenter}
+        // What lets `animateLayoutChanges` see a change no drag made.
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragEnd={handleDragEnd}
+        onDragStart={handleDragStart}
+        sensors={sensors}
       >
-        {tabs.map((tab) => (
-          <TabItem
-            active={tabId(tab) === activeId}
-            fallback={labelFor(tab)}
-            key={tabId(tab)}
-            tab={tab}
-          />
-        ))}
-      </div>
+        <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
+          <div
+            // `relative` so a tab's `offsetParent` is the strip, which the
+            // measure above reads against.
+            className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto"
+            onKeyDown={handleKeyDown}
+            ref={listRef}
+            role="tablist"
+          >
+            {tabs.map((tab) => (
+              <TabItem
+                active={tabId(tab) === activeId}
+                fallback={labelFor(tab)}
+                key={tabId(tab)}
+                tab={tab}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
       <OverflowMenu
         hidden={tabs.filter((tab) => hidden.includes(tabId(tab)))}
         labelFor={labelFor}

@@ -47,8 +47,9 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - [ ] 19. Click each tab in turn, including one that is not next to the active
       one → each shows its note; click a tab's × → the neighbour takes over
       rather than the tab merely being selected
-- [ ] 19b. Drag a tab past its neighbour → the strip reorders under the pointer
-      and stays put on release; ⌘⌥⇧← moves it back; press a tab and jiggle
+- [ ] 19b. Drag a tab past its neighbour → it follows the pointer under a
+      shadow, the neighbour slides aside, and it settles on release; ⌘⌥⇧←
+      slides it back; Escape mid-drag returns every tab; press a tab and jiggle
       inside its own bounds → it selects and does not reorder
 - [ ] 20. ⌘W → the tab to the right takes over; ⌘⇧T → it comes back where it
       was; ⌘W on the last remaining tab leaves the empty state, and the tab
