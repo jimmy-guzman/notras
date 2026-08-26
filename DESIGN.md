@@ -194,12 +194,14 @@ animation, no entrance choreography beyond the platform's own, and no spring.
 - Focus mode fades non-active blocks to `0.28` opacity over `0.3s`.
 - Hover affordances (code block toolbar, code block buttons, wikilinks) resolve
   over `0.15s`.
+- A dragged tab follows the pointer, and the tabs it crosses slide one place
+  over `0.15s`, as does the released tab and one that ⌘⌥⇧←/→ moves (`D57`).
 - Dialogs, tooltips, and the tag combobox fade, scale, and slide on open and
   close. This is macOS behaviour for a sheet, and it is the reason the backdrop
   blurs too.
 - Shadcn primitives carry their own hover and press transitions, and the toast
-  spinner spins. Beyond those, `src/styles.css` animates only focus mode,
-  wikilinks, and the code-block toolbar and its buttons.
+  spinner spins. Beyond those and the tab strip, `src/styles.css` animates only
+  focus mode, wikilinks, and the code-block toolbar and its buttons.
 - The window does not bounce. `html` sets `overscroll-behavior: none`, so a
   flick past the end of a note stays in the note rather than chaining into the
   document and dragging the titlebar, the tab strip and the status strip with
@@ -207,7 +209,8 @@ animation, no entrance choreography beyond the platform's own, and no spring.
   does.
 
 `prefers-reduced-motion: reduce` collapses all of it. Every animation above has
-a real non-motion end state, so removing the transition costs nothing.
+a real non-motion end state, so removing the transition costs nothing. A dragged
+tab still follows the pointer, which is manipulation rather than a transition.
 
 ## Interaction and state
 
@@ -274,7 +277,8 @@ a real non-motion end state, so removing the transition costs nothing.
   the band's bottom hairline, so it reads as continuous with the note below.
   Tabs divide the strip evenly over a `min-w-24` floor and scroll past it, so a
   lone tab spans the window. An external file's tab is mono, the way its path
-  was. The save glyph and the pin
+  was. A dragged tab takes a shadow and paints over the tabs it crosses (`D57`).
+  The save glyph and the pin
   sit after the strip and follow the active tab.
 - **The palette is the action surface.** A new note-level action goes in ⌘K
   rather than into new chrome. `ARCHITECTURE.md` lists what it holds.
