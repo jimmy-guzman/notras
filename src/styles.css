@@ -162,6 +162,16 @@
     -webkit-user-select: text;
     user-select: text;
   }
+  /* Elastic scrolling belongs to the note, not the window. WebKit bounces the
+     document even with nothing to scroll, and an inner scroller chains what is
+     left of a flick into it, so scrolling past the end of a note dragged the
+     titlebar, the tab strip and the status strip along with it. `none` on the
+     viewport ends both, and each scroller keeps the bounce of its own, which is
+     what an NSScrollView does. `overflow: hidden` would also stop it, by
+     clipping a real overflow rather than showing it. */
+  html {
+    overscroll-behavior: none;
+  }
   /* Motion carries a state change, so removing it costs nothing but the
      transition. Every animation here has a real non-motion end state. */
   @media (prefers-reduced-motion: reduce) {

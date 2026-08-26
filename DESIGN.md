@@ -200,6 +200,11 @@ animation, no entrance choreography beyond the platform's own, and no spring.
 - Shadcn primitives carry their own hover and press transitions, and the toast
   spinner spins. Beyond those, `src/styles.css` animates only focus mode,
   wikilinks, and the code-block toolbar and its buttons.
+- The window does not bounce. `html` sets `overscroll-behavior: none`, so a
+  flick past the end of a note stays in the note rather than chaining into the
+  document and dragging the titlebar, the tab strip and the status strip with
+  it. A scroller keeps the bounce of its own, which is what an NSScrollView
+  does.
 
 `prefers-reduced-motion: reduce` collapses all of it. Every animation above has
 a real non-motion end state, so removing the transition costs nothing.
