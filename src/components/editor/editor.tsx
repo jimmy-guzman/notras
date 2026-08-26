@@ -3,9 +3,9 @@ import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-
+import { toast } from "@/components/ui/toast";
 import { attachImage } from "@/data/attach-file";
+import { errorMessage } from "@/lib/ui/failure";
 import { cn } from "@/lib/ui/utils";
 import {
   createEditorExtensions,
@@ -151,13 +151,13 @@ export function Editor({
             // Hrefs arrive from the file on disk (parse, paste, input rule),
             // never only from the link editor -- so gate the scheme here too.
             if (!isSafeUrl(href)) {
-              toast.error(UNSAFE_LINK_MESSAGE);
+              toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
 
               return true;
             }
 
             openUrl(href).catch(() => {
-              toast.error("could not open link");
+              toast.add({ title: "could not open link", type: "error" });
             });
 
             return true;
@@ -192,7 +192,10 @@ export function Editor({
             const reader = new FileReader();
 
             reader.addEventListener("error", () => {
-              toast.error("could not read the pasted image");
+              toast.add({
+                title: "could not read the pasted image",
+                type: "error",
+              });
             });
             reader.addEventListener("load", () => {
               const result =
@@ -200,7 +203,10 @@ export function Editor({
               const base64 = result.split(",")[1] ?? "";
 
               if (base64 === "") {
-                toast.error("could not read the pasted image");
+                toast.add({
+                  title: "could not read the pasted image",
+                  type: "error",
+                });
 
                 return;
               }
@@ -214,11 +220,10 @@ export function Editor({
                     .run();
                 })
                 .catch((error: unknown) => {
-                  toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "could not paste image"
-                  );
+                  toast.add({
+                    title: errorMessage(error, "could not paste image"),
+                    type: "error",
+                  });
                 });
             });
             reader.readAsDataURL(blob);
@@ -412,7 +417,7 @@ export function Editor({
       setLinkEditor(null);
       if (href === null) {
         if (rawUrl.trim() !== "") {
-          toast.error(UNSAFE_LINK_MESSAGE);
+          toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
         }
 
         editor.commands.focus();

@@ -31,7 +31,7 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - [x] 13. `pnpm tauri build` → built artifact launches; "Open With" on a random `.md` works
 - [x] 14. Type, then quit from the tray and again with ⌘Q → relaunch and the last
       keystrokes are on disk
-- [ ] 15. Install the first release carrying the updater, cut a second, relaunch
+- [x] 15. Install the first release carrying the updater, cut a second, relaunch
       the installed copy → "version x.y.z is available" toast → type, leave the
       keystrokes unsaved, then install → relaunches into the new version with
       those keystrokes on disk. ⌘K → "check for updates..." reports either way.
@@ -144,7 +144,7 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - A focus-visible affordance for `.link-editor-input` and `.code-block-language`,
   which set `outline: none` and replace nothing
 - A message on `DatabaseError` (`src/core/errors.ts`), which carries only
-  `cause`, so a database failure reaches `toast.error` as Effect's own text
+  `cause`, so a database failure reaches the toast as Effect's own text
 - A shortcut or palette entry for typewriter scrolling, the one action reachable
   from the status strip alone
 - A shortcut or palette entry for close others, close to the right, and copy

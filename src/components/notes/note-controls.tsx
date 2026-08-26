@@ -1,10 +1,8 @@
 import { PinIcon, PinOffIcon } from "lucide-react";
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
-
 import type { SaveStatus } from "@/components/editor/use-autosave";
-
 import { SaveIndicator } from "@/components/notes/save-indicator";
+import { toast } from "@/components/ui/toast";
 import { Toggle } from "@/components/ui/toggle";
 import {
   Tooltip,
@@ -40,7 +38,7 @@ function PinToggle({ path, pinned }: PinToggleProps) {
       await setNotePinned(path, !optimisticPinned);
     } catch {
       setOptimisticPinned(optimisticPinned);
-      toast.error("could not update pin");
+      toast.add({ title: "could not update pin", type: "error" });
     }
   }, [optimisticPinned, path]);
 

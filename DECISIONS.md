@@ -275,8 +275,9 @@ the components are regenerated.
    `DESIGN.md` states as an accessibility rule and this entry accepts as a
    deviation from generated output.
 2. Generated user-facing strings are lowercased to satisfy `D18`: the sr-only
-   and footer "close" labels in `dialog.tsx`, and the default `title` and
-   `description` in `command.tsx`.
+   and footer "close" labels in `dialog.tsx`, the default `title` and
+   `description` in `command.tsx`, and the close button's `aria-label` in
+   `toast.tsx`.
 3. `toggle.tsx` gains the `xs` and `icon-xs` sizes `button.tsx` already ships,
    copied from it. `D37` records why the app needs a 24px toggle that upstream's
    `h-9` / `h-8` / `h-10` ladder does not reach.

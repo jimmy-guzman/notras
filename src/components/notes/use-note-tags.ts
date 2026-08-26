@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { setNoteTags } from "@/data/set-note-tags";
 
@@ -54,7 +54,7 @@ export function useNoteTags(path: string, tags: string[]) {
         // report a failure they have already superseded.
         if (latestRef.current === request) {
           setOptimisticTags(savedRef.current);
-          toast.error("could not update tags");
+          toast.add({ title: "could not update tags", type: "error" });
         }
       }
     });

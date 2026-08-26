@@ -3,7 +3,7 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { lowlight } from "./extensions";
 
@@ -46,7 +46,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         }, 1500);
       })
       .catch(() => {
-        toast.error("could not copy the code block");
+        toast.add({ title: "could not copy the code block", type: "error" });
       });
   }, [node.textContent]);
 

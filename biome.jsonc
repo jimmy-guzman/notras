@@ -28,6 +28,9 @@
             "noJsxPropsBind": "off",
             "noNamespaceImport": "off"
           },
+          "style": {
+            "useDestructuring": "off"
+          },
           "suspicious": {
             "noLeakedRender": "off"
           }
