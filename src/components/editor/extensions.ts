@@ -1,8 +1,11 @@
 import type { Editor, Extensions } from "@tiptap/core";
 
 import { Extension, InputRule, mergeAttributes } from "@tiptap/core";
+import { Code } from "@tiptap/extension-code";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Image } from "@tiptap/extension-image";
+import { Link } from "@tiptap/extension-link";
+import { Paragraph } from "@tiptap/extension-paragraph";
 import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
@@ -11,6 +14,12 @@ import { Markdown } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
+import { encode } from "mdurl";
+
+import {
+  escapeMarkdownLabel,
+  escapeMarkdownTitle,
+} from "@/lib/utils/attachments";
 
 import { CodeBlockView } from "./code-block-view";
 import { SlashMenu } from "./slash-menu";
@@ -23,6 +32,44 @@ export interface EditorExtensionOptions {
 }
 
 export const lowlight = createLowlight(common);
+
+/**
+ * TipTap's `excludes: "_"` refuses a text node holding `code` beside any other
+ * mark, which markdown writes freely and the parser builds (`D59`).
+ */
+const NoteCode = Code.extend({ excludes: "" });
+
+/**
+ * Keep the paragraph around an image alone in one, and hand every other
+ * paragraph to upstream (`D58`).
+ *
+ * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
+ * 3.30.2 its `parseMarkdown` returns the bare image for a paragraph holding
+ * only one, which suits the block image TipTap ships.
+ */
+const NoteParagraph = Paragraph.extend({
+  parseMarkdown(token, helpers) {
+    const tokens = token.tokens ?? [];
+
+    if (tokens.length === 1 && tokens[0]?.type === "image") {
+      return helpers.createNode(
+        "paragraph",
+        undefined,
+        helpers.parseInline(tokens)
+      );
+    }
+
+    return Paragraph.config.parseMarkdown?.(token, helpers) ?? [];
+  },
+});
+
+/**
+ * Escape what cannot sit in a bare destination. mdurl's default set keeps the
+ * URL syntax and rewrites non-ASCII (`D57`).
+ */
+function bareDestination(url: string) {
+  return encode(url);
+}
 
 const NoteImage = Image.extend<
   Record<string, unknown> & {
@@ -49,6 +96,31 @@ const NoteImage = Image.extend<
         src: this.options.resolveSrc(src),
       }),
     ];
+  },
+  // Upstream's shape with the destination escaped; `this.parent` is untyped here.
+  renderMarkdown(node) {
+    const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
+    const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
+    const title = typeof node.attrs?.title === "string" ? node.attrs.title : "";
+    const destination = bareDestination(src);
+    const label = escapeMarkdownLabel(alt);
+
+    return title
+      ? `![${label}](${destination} "${escapeMarkdownTitle(title)}")`
+      : `![${label}](${destination})`;
+  },
+});
+
+const NoteLink = Link.extend({
+  renderMarkdown(node, helpers) {
+    const href = typeof node.attrs?.href === "string" ? node.attrs.href : "";
+    const title = typeof node.attrs?.title === "string" ? node.attrs.title : "";
+    const text = helpers.renderChildren(node);
+    const destination = bareDestination(href);
+
+    return title
+      ? `[${text}](${destination} "${escapeMarkdownTitle(title)}")`
+      : `[${text}](${destination})`;
   },
 });
 
@@ -208,9 +280,14 @@ export function createEditorExtensions(
 ): Extensions {
   return [
     StarterKit.configure({
+      code: false,
       codeBlock: false,
-      link: { openOnClick: false },
+      link: false,
+      paragraph: false,
     }),
+    NoteCode,
+    NoteLink.configure({ openOnClick: false }),
+    NoteParagraph,
     Markdown.configure({
       markedOptions: { gfm: true },
     }),
@@ -228,6 +305,8 @@ export function createEditorExtensions(
     TaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({
+      // Markdown images are inline; the block default breaks a paragraph (`D58`).
+      inline: true,
       resolveSrc: options.resolveImageSrc ?? ((src: string) => src),
     }),
     Placeholder.configure({

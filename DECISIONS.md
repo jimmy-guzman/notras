@@ -6,8 +6,8 @@ rewrite, which `git log` records.
 Numbering is monotonic and IDs are never reused, even after an entry is removed.
 A citation in a commit or a comment outlives the line it points at, so reusing
 an ID repoints every reference to it without any of them changing. The highest
-number issued so far is 56, and some entries below it were removed, so the next
-entry takes 57.
+number issued so far is 59, and some entries below it were removed, so the next
+entry takes 60.
 
 An entry belongs here when picking one option ruled out another for a reason
 worth recording. A rule that must hold, with no competing option anyone would
@@ -1511,3 +1511,58 @@ this file" is a lookup. A store written before this carries no ids and keys its
 carets by `kind:path`, which `restoreTabs` migrates on the one launch that
 reads it, minting there rather than in `parseTabs` so a path-shaped id never
 reaches the DOM.
+
+### D57 Attachment destinations are encoded with mdurl
+
+`src/lib/utils/attachments.ts` and `bareDestination` call `encode` and `decode`
+from `mdurl`, markdown-it's URL helper, rather than `encodeURIComponent`. The
+write side excludes `/` plus the unreserved set, the read side excludes nothing,
+and the serializer takes the URL syntax as its default.
+
+`decodeURIComponent` throws on a stray `%`, so a `try`/`catch` around a segment
+hands back one still carrying `%20`, naming a file that does not exist. mdurl
+decodes escape runs byte by byte, and `keepEscaped` makes encoding idempotent.
+
+**Rejected: decoding per escape run with no dependency.** Three lines, and it
+closes the same gap and no other, leaving the serializer's escape hand-rolled
+beside it and every character class a re-reading of the CommonMark spec.
+
+**Constraint:** `encode.defaultChars` cannot exclude non-ASCII, so
+`[a](https://ex.com/café)` is rewritten to `caf%C3%A9` on the next save.
+
+### D58 An image is inline, and notras owns the paragraph token
+
+`NoteImage` is configured `inline: true`, and `NoteParagraph` keeps the
+paragraph around an image alone in one, so every position a markdown image can
+take produces a doc the schema accepts.
+
+TipTap ships the image as a block while markdown makes it inline, so one sharing
+a line with anything else landed in a paragraph that could not hold it and the
+first `contentMatchAt` threw into the route error boundary. Upstream's paragraph
+handler unwraps a lone image to keep its own block at doc level, which is why
+`inline: true` alone moves the invalid case rather than closing it.
+
+**Rejected: repairing the parsed JSON at the entry points.** It leaves the image
+a block, and cannot reach the `content` TipTap parses when the editor mounts.
+
+**Constraint:** owning the token for parsing means owning it for rendering,
+since the render path resolves a node through the parse registry first. A lone
+image is a paragraph in the doc rather than a top-level node.
+
+### D59 The code mark excludes nothing
+
+`NoteCode` replaces TipTap's `excludes: "_"` with `""`, so a text node may carry
+`code` alongside `bold`, `italic`, `strike` or `link`.
+
+Markdown writes all four and the parser builds them, the schema rejected the
+result, and the invalid doc threw into the route error boundary on the first
+read. Two forms were worse than the crash: `` *`x`* `` and `` ~~`x`~~ ``
+serialized their markers inside the backticks, editing the file. `code` is the
+only mark in the stack that declares `excludes`, so this is the whole class.
+
+**Rejected: dropping the conflicting mark while parsing.** It needs no schema
+change, and loses what the file says: ``**`x`**`` would save back as `` `x` ``,
+editing a note on open.
+
+**Constraint:** markdown cannot express bold over part of a span, so that saves
+as `` `**hello** world` ``, literal markers inside it.

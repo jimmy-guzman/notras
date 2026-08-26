@@ -24,7 +24,8 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
       filter by tag in palette
 - [x] 7. `[[` autocompletes another note; the pill navigates from the editor
 - [x] 8. `/` shows the slash menu; inserts a task list
-- [x] 9. Drag an image in → lands in `attachments/`, renders inline in the editor
+- [x] 9. Drag an image in → lands in `attachments/`, renders inline in the editor.
+      Drag one whose name carries spaces, which every macOS screenshot has
 - [x] 10. Edit a note in another editor while it's open (clean) → buffer reloads
 - [x] 11. Quick-capture hotkey from another app → jot → esc → file in `inbox/`
 - [x] 12. Delete `.notras/index.db`, relaunch → search still works (index rebuilt)
@@ -146,6 +147,12 @@ walkthrough is their only coverage. Run it under `pnpm dev`.
 - MCP server (only if agents ever need richer ops than file writes, such as search-as-a-tool)
 - A floating-promise check (`D42` left fire-and-forget calls unmarked and unchecked)
 - Enforcement for the `D14` layer boundaries and the lucide icon rule (`D43`)
+- Opening an attachment link. A ⌘-click hands `openUrl` a destination relative
+  to the notes dir (`editor.tsx:159`), which the system opener cannot resolve,
+  so a linked PDF goes nowhere while an image beside it renders through
+  `resolveImageSrc`. Opening one needs `opener:allow-open-path`, which
+  `opener:default` does not carry, plus a scope naming which paths the app may
+  hand to the system. Deferred on that scope, not on the wiring
 - A focus-visible affordance for `.link-editor-input` and `.code-block-language`,
   which set `outline: none` and replace nothing
 - A message on `DatabaseError` (`src/core/errors.ts`), which carries only

@@ -33,6 +33,7 @@ import {
 import type { Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
 import { errorMessage } from "@/lib/ui/failure";
+import { attachmentLink } from "@/lib/utils/attachments";
 
 const rootApi = getRouteApi("__root__");
 
@@ -71,16 +72,6 @@ const HOTKEY_OPTIONS = {
   enableOnFormTags: true,
   preventDefault: true,
 } as const;
-
-const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/i;
-
-function attachmentLink(relativePath: string) {
-  const name = relativePath.split("/").at(-1) ?? relativePath;
-
-  return IMAGE_EXTENSION.test(relativePath)
-    ? `![${name}](${relativePath})`
-    : `[${name}](${relativePath})`;
-}
 
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (

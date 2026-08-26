@@ -27,6 +27,7 @@ import type { Tab } from "@/lib/tabs/tab";
 import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
 import { errorMessage } from "@/lib/ui/failure";
 import { cn } from "@/lib/ui/utils";
+import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import { countWords } from "@/lib/utils/word-count";
 
 const rootApi = getRouteApi("__root__");
@@ -197,7 +198,9 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   const resolveImageSrc = useCallback(
     (src: string) =>
-      src.includes("://") ? src : convertFileSrc(`${notesDir}/${src}`),
+      src.includes("://")
+        ? src
+        : convertFileSrc(`${notesDir}/${decodeAttachmentPath(src)}`),
     [notesDir]
   );
 
