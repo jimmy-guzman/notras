@@ -337,8 +337,8 @@ a real non-motion end state, so removing the transition costs nothing.
 
 - Lowercase, always. Labels, buttons, toasts, tooltips, placeholders, menu
   items, empty states.
-- Errors reach the user as `toast.error(error.message)`, so the message on a
-  typed failure is user-facing text. Write it as a lowercase sentence naming
+- Errors reach the user as `toast.add({ title: error.message, type: "error" })`,
+  so the message on a typed failure is user-facing text. Write it as a lowercase sentence naming
   what failed, and keep it in `src/core/errors.ts` or the schema that raises it.
 - **An empty state is two lines: what is not here, then what to do about it.**
   The first sits on `--muted-foreground`, the second on `--faint`. The palette

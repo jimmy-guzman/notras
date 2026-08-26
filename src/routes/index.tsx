@@ -6,14 +6,13 @@ import {
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { toast } from "sonner";
-
 import { NoteControls } from "@/components/notes/note-controls";
 import { StatusBar } from "@/components/notes/status-bar";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
@@ -33,6 +32,7 @@ import {
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
+import { errorMessage } from "@/lib/ui/failure";
 
 const rootApi = getRouteApi("__root__");
 
@@ -190,9 +190,10 @@ function Workspace() {
         openNote(path, true);
       })
       .catch((error: unknown) => {
-        toast.error(
-          error instanceof Error ? error.message : "could not create note"
-        );
+        toast.add({
+          title: errorMessage(error, "could not create note"),
+          type: "error",
+        });
       });
   }, []);
 
@@ -226,7 +227,10 @@ function Workspace() {
       const target = getTabSnapshot(getTabState().activeId);
 
       if (target === undefined) {
-        toast.error("no editor to insert the attachment into");
+        toast.add({
+          title: "no editor to insert the attachment into",
+          type: "error",
+        });
 
         return;
       }
@@ -241,9 +245,10 @@ function Workspace() {
         } else {
           const error: unknown = copy.reason;
 
-          toast.error(
-            error instanceof Error ? error.message : "could not attach file"
-          );
+          toast.add({
+            title: errorMessage(error, "could not attach file"),
+            type: "error",
+          });
         }
       }
     };

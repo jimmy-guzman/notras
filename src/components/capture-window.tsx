@@ -2,15 +2,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
 import { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { toast } from "sonner";
-
 import type { EditorHandle } from "@/components/editor/editor";
-
 import { Editor } from "@/components/editor/editor";
 import { Titlebar } from "@/components/titlebar";
 import { Kbd } from "@/components/ui/kbd";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster, toast } from "@/components/ui/toast";
 import { createNote } from "@/data/create-note";
+import { errorMessage } from "@/lib/ui/failure";
 
 const NOOP = () => undefined;
 
@@ -50,9 +48,10 @@ export function CaptureWindow() {
         });
       } catch (error) {
         // Keep the jot on screen -- hiding would lose it.
-        toast.error(
-          error instanceof Error ? error.message : "could not save the capture"
-        );
+        toast.add({
+          title: errorMessage(error, "could not save the capture"),
+          type: "error",
+        });
 
         return;
       } finally {

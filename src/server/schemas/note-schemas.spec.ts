@@ -12,8 +12,8 @@ const decodeFolder = Schema.decodePromise(folderNameSchema);
 const decodeTitle = Schema.decodePromise(noteTitleSchema);
 
 /**
- * These messages reach the user verbatim through `toast.error(error.message)`,
- * so they are pinned rather than smoke-tested.
+ * These messages reach the user verbatim through the toast a caller raises on
+ * `error.message`, so they are pinned rather than smoke-tested.
  */
 describe("noteFilenameSchema", () => {
   it("should trim surrounding whitespace", async () => {

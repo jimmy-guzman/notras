@@ -16,7 +16,6 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
@@ -29,6 +28,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import { filenameFromTitle } from "@/core/notes";
 import { createNote } from "@/data/create-note";
@@ -45,6 +45,7 @@ import {
   useTabState,
 } from "@/lib/tabs/store";
 import { tabId } from "@/lib/tabs/tab";
+import { errorMessage } from "@/lib/ui/failure";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
@@ -69,7 +70,10 @@ function Snippet({ snippet }: { snippet: string }) {
 }
 
 function reportActionFailure(error: unknown) {
-  toast.error(error instanceof Error ? error.message : "something went wrong");
+  toast.add({
+    title: errorMessage(error, "something went wrong"),
+    type: "error",
+  });
 }
 
 const VISIBLE_TAGS = 3;
@@ -532,7 +536,7 @@ export function CommandPalette({
     runAction(async () => {
       await deleteNote(currentNote.path);
       closeNoteTab(currentNote.path);
-      toast.success("note deleted");
+      toast.add({ title: "note deleted", type: "success" });
     });
   }, [currentNote, runAction]);
 
@@ -645,7 +649,7 @@ export function CommandPalette({
   const reindex = useCallback(() => {
     runAction(async () => {
       await reindexAll();
-      toast.success("library reindexed");
+      toast.add({ title: "library reindexed", type: "success" });
     });
   }, [runAction]);
 
@@ -654,7 +658,7 @@ export function CommandPalette({
   const checkForUpdates = useCallback(() => {
     runAction(async () => {
       if (!updatesSupported()) {
-        toast("update checks are off in development");
+        toast.add({ title: "update checks are off in development" });
 
         return;
       }
@@ -662,7 +666,7 @@ export function CommandPalette({
       const update = await findUpdate();
 
       if (update === null) {
-        toast.success("notras is up to date");
+        toast.add({ title: "notras is up to date", type: "success" });
 
         return;
       }

@@ -1,14 +1,13 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
+import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { composeNote, parseNote } from "@/core/frontmatter";
 import { noteFolder, noteTitle, resolveTitle } from "@/core/notes";
@@ -26,6 +25,7 @@ import {
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
+import { errorMessage } from "@/lib/ui/failure";
 import { cn } from "@/lib/ui/utils";
 import { countWords } from "@/lib/utils/word-count";
 
@@ -227,7 +227,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
         .at(0);
 
       if (target === undefined) {
-        toast.error(`no note named "${wanted}"`);
+        toast.add({ title: `no note named "${wanted}"`, type: "error" });
 
         return;
       }
@@ -318,7 +318,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       : editorRef.current;
 
     if (target === null) {
-      toast.error("no editor to insert into");
+      toast.add({ title: "no editor to insert into", type: "error" });
 
       return;
     }
@@ -497,9 +497,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
             return;
           }
 
-          setUnreadable(
-            error instanceof Error ? error.message : "could not read this note"
-          );
+          setUnreadable(errorMessage(error, "could not read this note"));
         });
     };
 
@@ -515,7 +513,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
 
   useEffect(() => {
     if (unreadable !== null) {
-      toast.error(unreadable);
+      toast.add({ title: unreadable, type: "error" });
     }
   }, [unreadable]);
 

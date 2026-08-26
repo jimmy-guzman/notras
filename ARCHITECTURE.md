@@ -161,6 +161,7 @@ src/
                       # the module store the chrome and sessions read
     updater.ts        # release check, offer toast, install + relaunch
     ui/chrome.ts      # CHROME_GLYPH (D51)
+    ui/failure.ts     # errorMessage(): narrows a rejection to user-facing text
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -218,7 +219,7 @@ The UI calls plain async functions in `src/data/`, one concern per file. They
 validate with Effect Schema where the input is user-shaped, and run effects via
 `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()`
 unwraps typed failures into plain `Error`s, so a caller can write
-`toast.error(error.message)`.
+`toast.add({ title: error.message, type: "error" })`.
 
 ### Effect style
 

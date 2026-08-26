@@ -2,8 +2,6 @@ import { useRouter } from "@tanstack/react-router";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +13,9 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/toast";
 import { setNotesDir } from "@/data/notes-dir";
+import { errorMessage } from "@/lib/ui/failure";
 
 interface SettingsDialogProps {
   notesDir: string;
@@ -42,7 +42,10 @@ export function SettingsDialog({
         })
         .catch(() => {
           setAutostartReadable(false);
-          toast.error("could not read the launch at login setting");
+          toast.add({
+            title: "could not read the launch at login setting",
+            type: "error",
+          });
         });
     }
   }, [open]);
@@ -60,11 +63,12 @@ export function SettingsDialog({
 
       await setNotesDir(selected);
       await router.invalidate();
-      toast.success("notes folder updated");
+      toast.add({ title: "notes folder updated", type: "success" });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "could not change folder"
-      );
+      toast.add({
+        title: errorMessage(error, "could not change folder"),
+        type: "error",
+      });
     }
   }, [router]);
 
@@ -75,7 +79,7 @@ export function SettingsDialog({
       await (value ? enable() : disable());
     } catch {
       setAutostart(!value);
-      toast.error("could not update launch at login");
+      toast.add({ title: "could not update launch at login", type: "error" });
     }
   }, []);
 

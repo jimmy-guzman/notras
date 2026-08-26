@@ -1,8 +1,8 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { toast } from "sonner";
-
+import { toast } from "@/components/ui/toast";
 import { flushPendingWrites } from "@/lib/pending-flush";
+import { errorMessage } from "@/lib/ui/failure";
 
 /**
  * Whether this build can reach the updater at all. The endpoint that
@@ -51,7 +51,7 @@ async function installUpdate(update: Update) {
 /**
  * Offer the update, and own its handle until the offer ends. The toast waits
  * for an answer rather than expiring: dismissing it is how someone says no, and
- * the default four seconds is easy to miss.
+ * the default five seconds is easy to miss.
  */
 export function offerUpdate(update: Update) {
   // Nothing on the Rust side releases this one, so the offer has to. A failed
@@ -61,22 +61,24 @@ export function offerUpdate(update: Update) {
     update.close().catch(() => undefined);
   };
 
-  toast(`version ${update.version} is available`, {
-    action: {
-      label: "install",
+  const id = toast.add({
+    actionProps: {
+      children: "install",
       onClick: () => {
         installUpdate(update).catch((error: unknown) => {
-          release();
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "could not install the update"
-          );
+          // Closing the offer runs `release` through `onClose`, so the failure
+          // path must not free the handle itself, and must not close before
+          // `installUpdate` is done with it.
+          toast.close(id);
+          toast.add({
+            title: errorMessage(error, "could not install the update"),
+            type: "error",
+          });
         });
       },
     },
-    closeButton: true,
-    duration: Number.POSITIVE_INFINITY,
-    onDismiss: release,
+    onClose: release,
+    timeout: 0,
+    title: `version ${update.version} is available`,
   });
 }

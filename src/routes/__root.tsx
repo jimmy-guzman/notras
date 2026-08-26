@@ -9,11 +9,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { toast } from "sonner";
-
 import { CommandPalette } from "@/components/command-palette";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster, toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createNote } from "@/data/create-note";
 import { getFolders } from "@/data/get-folders";
@@ -22,6 +20,7 @@ import { getTags } from "@/data/get-tags";
 import { getNotesDir } from "@/data/notes-dir";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { bumpRevision, openNote, openTab, persistTabs } from "@/lib/tabs/store";
+import { errorMessage } from "@/lib/ui/failure";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 
 interface RootSearch {
@@ -143,7 +142,10 @@ function RootLayout() {
     };
 
     const reportFailure = (fallback: string) => (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : fallback);
+      toast.add({
+        title: errorMessage(error, fallback),
+        type: "error",
+      });
     };
 
     const unlistenNew = listen("menu-new-note", () => {
@@ -182,12 +184,18 @@ function RootLayout() {
             return invoke("quit_app");
           }
 
-          toast.error("could not save your changes -- quit cancelled");
+          toast.add({
+            title: "could not save your changes -- quit cancelled",
+            type: "error",
+          });
 
           return invoke("cancel_quit");
         })
         .catch(() => {
-          toast.error("could not save your changes -- quit cancelled");
+          toast.add({
+            title: "could not save your changes -- quit cancelled",
+            type: "error",
+          });
 
           return invoke("cancel_quit");
         });
@@ -215,9 +223,10 @@ function RootLayout() {
           openNote(path, true);
         })
         .catch((error: unknown) => {
-          toast.error(
-            error instanceof Error ? error.message : "could not create note"
-          );
+          toast.add({
+            title: errorMessage(error, "could not create note"),
+            type: "error",
+          });
         });
     },
     HOTKEY_OPTIONS
