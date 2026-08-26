@@ -5,8 +5,14 @@
  * `run()` always throws an `Error`, while the Tauri commands the UI calls
  * directly reject with whatever Rust returns.
  *
+ * An `Error` left with nothing after trimming takes the fallback too. Both
+ * sides type the message as a plain string and neither rejects an empty one,
+ * so returning it would put an empty title in a toast.
+ *
  * Write `fallback` to the copy rules in `DESIGN.md`, since it reaches the user.
  */
 export function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  const message = error instanceof Error ? error.message.trim() : "";
+
+  return message === "" ? fallback : message;
 }
