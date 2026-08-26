@@ -508,9 +508,12 @@ They cover every markdown file here, plus commit messages and PR bodies.
   merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build,
   checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never
   hand-edit a version: `src-tauri/tauri.conf.json` derives it and
-  `src-tauri/Cargo.toml` is frozen, which `D49` explains. A stranded or partial
-  release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`,
-  because the push path cannot redo it.
+  `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The
+  freeze covers that line and nothing else: a dependency added to the same file
+  lands with the regenerated `Cargo.lock` beside it, which is what
+  `cargo test --locked` checks. A stranded or partial release is republished
+  with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path
+  cannot redo it.
 
 - **After introducing a new pattern, feature, convention, or structural change,
   ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`,
