@@ -1,13 +1,14 @@
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_store::StoreExt;
+use tempfile::{Builder, NamedTempFile};
 
 use crate::index;
 use crate::state::{AppState, Core};
@@ -119,51 +120,26 @@ fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError
             }
         })?;
 
-    file.write_all(content.as_bytes())
-        .map_err(|e| e.to_string().into())
-}
+    // `create_new` succeeding is the proof this call made the file, so a half
+    // written note is this call's to remove and cannot be someone else's.
+    if let Err(error) = file.write_all(content.as_bytes()) {
+        drop(file);
+        let _ = fs::remove_file(path);
 
-static TEMP_WRITES: AtomicU64 = AtomicU64::new(0);
-const TEMP_ATTEMPTS: u8 = 8;
-
-/// Take a sibling path nothing else holds, and return it open for writing.
-///
-/// Exclusive rather than `File::create`, which truncates: the counter is per
-/// process and starts at zero, so a second instance or a temp left behind by a
-/// crashed run can land on a name already in use, and truncating it would let
-/// two writes fill one file. A taken name costs another counter value, not a
-/// failed save.
-fn open_temp(path: &Path) -> io::Result<(fs::File, PathBuf)> {
-    for _ in 0..TEMP_ATTEMPTS {
-        let temp = path.with_extension(format!(
-            "{}.tmp",
-            TEMP_WRITES.fetch_add(1, Ordering::Relaxed)
-        ));
-
-        match fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temp)
-        {
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
-            Ok(file) => return Ok((file, temp)),
-        }
+        return Err(error.to_string().into());
     }
 
-    Err(io::Error::new(
-        io::ErrorKind::AlreadyExists,
-        "could not find a free temporary name",
-    ))
+    Ok(())
 }
 
-fn write_temp(mut file: fs::File, content: &str) -> io::Result<()> {
+fn write_temp(temp: &mut NamedTempFile, content: &str) -> io::Result<()> {
     use std::io::Write as _;
 
-    file.write_all(content.as_bytes())?;
-    // Without this the rename can reach disk before the bytes do, which turns
-    // a power cut into the empty file this whole dance exists to prevent.
-    file.sync_all()
+    temp.write_all(content.as_bytes())?;
+    // `persist` synchronizes neither the bytes nor the directory, so without
+    // this the rename can reach disk first and a power cut leaves the empty
+    // file this whole dance exists to prevent.
+    temp.as_file().sync_all()
 }
 
 /// Put `content` at `path` by filling a sibling and renaming over it, so a
@@ -172,22 +148,26 @@ fn write_temp(mut file: fs::File, content: &str) -> io::Result<()> {
 ///
 /// The sibling shares the directory because `rename` is only atomic inside one
 /// filesystem, and ends in `.tmp` so neither the watcher nor a scan takes it
-/// for a note (`is_note_file`).
+/// for a note (`is_note_file`). `tempfile` names it randomly and drops it on
+/// every failure path, so a name left by a crash cannot collide with a later
+/// save and nothing here has to remove one by hand.
 fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
-    let (file, temp) = open_temp(path).map_err(|e| CommandError::from(e.to_string()))?;
+    let folder = path.parent().ok_or("a note outside any folder")?;
 
-    // A fresh file takes the umask default, so the note's own mode is carried
-    // over rather than reset by the rename.
-    let commit = write_temp(file, content)
+    let mut temp = Builder::new()
+        .suffix(".tmp")
+        .tempfile_in(folder)
+        .map_err(|error| CommandError::from(error.to_string()))?;
+
+    // A temp is private by default, so the note's own mode is carried over
+    // rather than narrowed to owner-only by the rename.
+    write_temp(&mut temp, content)
         .and_then(|()| fs::metadata(path))
-        .and_then(|meta| fs::set_permissions(&temp, meta.permissions()))
-        .and_then(|()| fs::rename(&temp, path));
+        .and_then(|meta| fs::set_permissions(temp.path(), meta.permissions()))
+        .map_err(|error| CommandError::from(error.to_string()))?;
 
-    if let Err(error) = commit {
-        let _ = fs::remove_file(&temp);
-
-        return Err(error.to_string().into());
-    }
+    temp.persist(path)
+        .map_err(|error| CommandError::from(error.error.to_string()))?;
 
     Ok(())
 }
@@ -483,16 +463,6 @@ pub fn cancel_quit(state: State<'_, AppState>) {
 mod tests {
     use super::*;
 
-    /// `TEMP_WRITES` is process-wide, so tests that draw from it run one at a
-    /// time. Without this, a test that claims the next name races the others
-    /// past it and asserts nothing. Poisoning is ignored: a panic elsewhere
-    /// should fail that test, not every test after it.
-    static COUNTER: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    fn counter_guard() -> std::sync::MutexGuard<'static, ()> {
-        COUNTER.lock().unwrap_or_else(|error| error.into_inner())
-    }
-
     /// A directory of this test's own, so a shared `/tmp` cannot hand two runs
     /// the same path and nothing here follows a symlink someone else planted.
     /// Wiped on the way in rather than out, so a panicking test still leaves
@@ -538,7 +508,6 @@ mod tests {
     fn a_failed_replace_leaves_the_original_bytes() {
         use std::os::unix::fs::PermissionsExt;
 
-        let _guard = counter_guard();
         let dir = scratch_dir("replace-failure");
         let note = dir.join("note.md");
         fs::write(&note, "the original bytes").unwrap();
@@ -557,39 +526,21 @@ mod tests {
     fn replace_keeps_the_note_mode() {
         use std::os::unix::fs::PermissionsExt;
 
-        let _guard = counter_guard();
+        // Neither `tempfile`'s owner-only default nor the usual umask result,
+        // so a mode that survives can only have been carried over.
         let note = scratch_dir("replace-mode").join("note.md");
         fs::write(&note, "before").unwrap();
-        fs::set_permissions(&note, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::set_permissions(&note, fs::Permissions::from_mode(0o640)).unwrap();
 
         replace(&note, "after").unwrap();
 
         let mode = fs::metadata(&note).unwrap().permissions().mode();
 
-        assert_eq!(mode & 0o777, 0o600);
-    }
-
-    #[test]
-    fn replace_steps_over_temporary_names_already_taken() {
-        let _guard = counter_guard();
-        let dir = scratch_dir("temp-taken");
-        let note = dir.join("note.md");
-        fs::write(&note, "before").unwrap();
-
-        // Stand in for a temp a crashed run or a second instance left behind,
-        // sitting on the exact name this save is about to draw.
-        let taken = note.with_extension(format!("{}.tmp", TEMP_WRITES.load(Ordering::Relaxed)));
-        fs::write(&taken, "left behind").unwrap();
-
-        replace(&note, "after").unwrap();
-
-        assert_eq!(fs::read_to_string(&note).unwrap(), "after");
-        assert_eq!(fs::read_to_string(&taken).unwrap(), "left behind");
+        assert_eq!(mode & 0o777, 0o640);
     }
 
     #[test]
     fn replace_leaves_no_temporary_behind() {
-        let _guard = counter_guard();
         let dir = scratch_dir("replace-temp");
         let note = dir.join("note.md");
         fs::write(&note, "before").unwrap();
@@ -617,7 +568,6 @@ mod tests {
 
     #[test]
     fn replace_overwrites_a_file_that_is_there() {
-        let _guard = counter_guard();
         let existing = scratch_dir("replace-existing").join("note.md");
         fs::write(&existing, "before").unwrap();
 
