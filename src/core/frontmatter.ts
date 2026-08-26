@@ -22,11 +22,23 @@ interface FrontmatterPatch {
   tags?: string[];
 }
 
+/** A frontmatter block as it was read, so `composeNote` can put it back. */
+export interface RawBlock {
+  /**
+   * The closing delimiter verbatim. `parseNote` accepts `---` and `...`, and
+   * an externally authored note keeps whichever one it used.
+   */
+  close: string;
+  /** The lines between the delimiters. Empty for a `---\n---` block. */
+  lines: string[];
+}
+
 export interface ParsedNote {
   body: string;
   frontmatter: Frontmatter;
-  /** Raw lines of the frontmatter block, without the `---` delimiters. */
-  rawLines: string[];
+  /** Undefined when the file carries no block at all, which is not the same
+   * thing as carrying an empty one. */
+  raw: RawBlock | undefined;
 }
 
 const CLOSING_DELIMITERS = new Set(["---", "..."]);
@@ -161,7 +173,7 @@ export function parseNote(content: string): ParsedNote {
   const fallback: ParsedNote = {
     body: content,
     frontmatter: { pinned: false, tags: [], title: undefined },
-    rawLines: [],
+    raw: undefined,
   };
 
   if (!(content.startsWith("---\n") || content.startsWith("---\r\n"))) {
@@ -179,9 +191,9 @@ export function parseNote(content: string): ParsedNote {
 
   // CRLF files leave a trailing \r on every split line; strip it here so
   // `composeNote`'s \n joins cannot emit a block with mixed line endings.
-  const rawLines = lines
-    .slice(1, closeIndex)
-    .map((line) => line.replace(TRAILING_CR, ""));
+  const strip = (line: string) => line.replace(TRAILING_CR, "");
+  const rawLines = lines.slice(1, closeIndex).map(strip);
+  const close = strip(lines[closeIndex] ?? "---");
   const body = lines.slice(closeIndex + 1).join("\n");
   const frontmatter: Frontmatter = {
     pinned: false,
@@ -207,7 +219,7 @@ export function parseNote(content: string): ParsedNote {
 
   frontmatter.tags = [...new Set(frontmatter.tags)];
 
-  return { body, frontmatter, rawLines };
+  return { body, frontmatter, raw: { close, lines: rawLines } };
 }
 
 /** Drops the `pinned`/`tags` lines (and tag list items) from a raw block. */
@@ -279,13 +291,18 @@ export function retitleFrontmatter(rawLines: string[], title: string) {
   return rawLines.with(index, `${indent}title: ${serializeTitle(title)}`);
 }
 
-/** Reassemble a full note file from raw frontmatter lines and a body. */
-export function composeNote(rawLines: string[], body: string) {
-  if (rawLines.length === 0) {
+/**
+ * Reassemble a full note file: the inverse of `parseNote`. A file with no block
+ * is body alone, and an empty block is still a block.
+ */
+export function composeNote(raw: RawBlock | undefined, body: string) {
+  if (raw === undefined) {
     return body;
   }
 
-  return `---\n${rawLines.join("\n")}\n---\n${body}`;
+  const block = raw.lines.map((line) => `${line}\n`).join("");
+
+  return `---\n${block}${raw.close}\n${body}`;
 }
 
 /**
@@ -306,7 +323,7 @@ export function updateFrontmatter(
     tags: patch.tags ?? parsed.frontmatter.tags,
   };
 
-  const foreignLines = withoutOwnKeys(parsed.rawLines);
+  const foreignLines = withoutOwnKeys(parsed.raw?.lines ?? []);
 
   const ownLines: string[] = [];
 
@@ -330,5 +347,10 @@ export function updateFrontmatter(
     return parsed.body;
   }
 
-  return `---\n${blockLines.join("\n")}\n---\n${parsed.body}`;
+  return composeNote(
+    // A block this rewrites keeps the delimiter the file used; one it creates
+    // gets the `---` notras authors.
+    { close: parsed.raw?.close ?? "---", lines: blockLines },
+    parsed.body
+  );
 }

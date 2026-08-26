@@ -74,8 +74,8 @@ describe("parseNote", () => {
     );
 
     expect(parsed.frontmatter.pinned).toBe(true);
-    expect(parsed.rawLines).toStrictEqual(["pinned: true", "custom: x"]);
-    expect(composeNote(parsed.rawLines, "body\n")).toBe(
+    expect(parsed.raw?.lines).toStrictEqual(["pinned: true", "custom: x"]);
+    expect(composeNote(parsed.raw, "body\n")).toBe(
       "---\npinned: true\ncustom: x\n---\nbody\n"
     );
   });
@@ -148,23 +148,46 @@ describe("updateFrontmatter", () => {
 
 describe("composeNote", () => {
   it("should return the body alone when there is no frontmatter", () => {
-    expect(composeNote([], "# hi\n")).toBe("# hi\n");
+    expect(composeNote(undefined, "# hi\n")).toBe("# hi\n");
   });
 
   it("should wrap raw lines in delimiters", () => {
-    expect(composeNote(["pinned: true", "custom: x"], "body\n")).toBe(
-      "---\npinned: true\ncustom: x\n---\nbody\n"
+    expect(
+      composeNote(
+        { close: "---", lines: ["pinned: true", "custom: x"] },
+        "body\n"
+      )
+    ).toBe("---\npinned: true\ncustom: x\n---\nbody\n");
+  });
+
+  it("should keep an empty block rather than dropping its delimiters", () => {
+    expect(composeNote({ close: "---", lines: [] }, "body\n")).toBe(
+      "---\n---\nbody\n"
     );
   });
 
   it("should round-trip through parseNote with the body replaced", () => {
     const original = "---\npinned: true\ntags: [a]\n---\nold body\n";
     const parsed = parseNote(original);
-    const next = composeNote(parsed.rawLines, "new body\n");
+    const next = composeNote(parsed.raw, "new body\n");
     const reparsed = parseNote(next);
 
     expect(reparsed.frontmatter).toStrictEqual(parsed.frontmatter);
     expect(reparsed.body).toBe("new body\n");
+  });
+
+  it.each([
+    "---\n---\nbody\n",
+    "---\n---\n",
+    "---\n...\nbody\n",
+    "---\npinned: true\n...\nbody\n",
+    "---\npinned: true\ntags: [a]\n---\nbody\n",
+    "---\n\n---\nbody\n",
+    "just a body\n",
+  ])("should round-trip %j byte for byte", (original) => {
+    const parsed = parseNote(original);
+
+    expect(composeNote(parsed.raw, parsed.body)).toBe(original);
   });
 });
 
@@ -221,7 +244,9 @@ describe("retitleFrontmatter", () => {
   ])("should round-trip %j through parseNote", (title) => {
     const lines = retitleFrontmatter(["title: old"], title);
 
-    expect(parseNote(composeNote(lines, "body")).frontmatter.title).toBe(title);
+    expect(
+      parseNote(composeNote({ close: "---", lines }, "body")).frontmatter.title
+    ).toBe(title);
   });
 
   it("should preserve indentation", () => {
@@ -233,8 +258,8 @@ describe("retitleFrontmatter", () => {
   it("should round-trip a colon through parseNote", () => {
     const lines = retitleFrontmatter(["title: old"], "effect: a primer");
 
-    expect(parseNote(composeNote(lines, "body")).frontmatter.title).toBe(
-      "effect: a primer"
-    );
+    expect(
+      parseNote(composeNote({ close: "---", lines }, "body")).frontmatter.title
+    ).toBe("effect: a primer");
   });
 });
