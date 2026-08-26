@@ -9,6 +9,8 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useState } from "react";
 
+import { markdownWithFrontmatter } from "./markdown-frontmatter";
+
 export interface SourceEditorHandle {
   focus: () => void;
   /** Caret position as a character offset into the raw text. */
@@ -17,6 +19,7 @@ export interface SourceEditorHandle {
 }
 
 interface SourceEditorProps {
+  focusOnMount?: boolean;
   /** Character offset to place the caret at on mount. */
   initialCursor?: number;
   /** The whole raw file, frontmatter included -- frozen at mount. */
@@ -25,7 +28,10 @@ interface SourceEditorProps {
   onReady?: (handle: SourceEditorHandle) => void;
 }
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight({
+  ...common,
+  markdown: markdownWithFrontmatter,
+});
 
 const SourceDocument = Document.extend({
   content: "codeBlock",
@@ -75,16 +81,18 @@ function caretPosition(editor: Editor, offset: number) {
 /**
  * Raw markdown source mode (⌘P): the whole file in a single code block,
  * syntax-highlighted with lowlight's markdown grammar and backed by real
- * undo. The caret lands on the block you were editing (see
- * source-anchors.ts) and the same autosave drives writes.
+ * undo. The caret lands on the block you were editing (see sentinel.ts) and
+ * the same autosave drives writes.
  */
 export function SourceEditor({
+  focusOnMount,
   initialCursor = 0,
   initialValue,
   onChange,
   onReady,
 }: SourceEditorProps) {
   const [config] = useState(() => ({
+    focusOnMount,
     initialCursor,
     initialValue,
     onChange,
@@ -127,13 +135,6 @@ export function SourceEditor({
     ],
     immediatelyRender: false,
     onCreate: ({ editor: instance }) => {
-      instance
-        .chain()
-        .focus()
-        .setTextSelection(caretPosition(instance, config.initialCursor))
-        .scrollIntoView()
-        .run();
-
       config.onReady?.({
         focus: () => {
           if (!instance.isDestroyed) {
@@ -156,16 +157,22 @@ export function SourceEditor({
     },
   });
 
-  // Focus and caret placement only work once EditorContent has attached
-  // the view to the DOM, which happens before this parent effect runs.
+  // Caret placement only works once EditorContent has attached the view to the
+  // DOM, which happens before this parent effect runs.
   useEffect(() => {
     if (editor === null || editor.isDestroyed) {
       return;
     }
 
-    editor
-      .chain()
-      .focus()
+    const chain = editor.chain();
+
+    // A tab mounted in the background places its caret without taking focus:
+    // every open tab keeps a live editor and only one is showing.
+    if (config.focusOnMount === true) {
+      chain.focus();
+    }
+
+    chain
       .setTextSelection(caretPosition(editor, config.initialCursor))
       .scrollIntoView()
       .run();

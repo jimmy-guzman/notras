@@ -201,7 +201,10 @@ const makeNoteService = Effect.gen(function* () {
     const file = yield* fileStore.read(path);
     const parsed = parseNote(file.content);
     const next = composeNote(
-      retitleFrontmatter(parsed.rawLines, title),
+      parsed.raw && {
+        ...parsed.raw,
+        lines: retitleFrontmatter(parsed.raw.lines, title),
+      },
       retitleLeadingHeading(parsed.body, title)
     );
 

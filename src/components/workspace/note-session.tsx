@@ -85,13 +85,13 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   // The rich editor owns the BODY; frontmatter rides along from the latest
   // read so pin/tag toggles are never clobbered by a body save.
-  const [frontmatterLines, setFrontmatterLines] = useState(
-    () => parseNote(file.content).rawLines
+  const [frontmatterBlock, setFrontmatterLines] = useState(
+    () => parseNote(file.content).raw
   );
-  const frontmatterRef = useRef(frontmatterLines);
+  const frontmatterRef = useRef(frontmatterBlock);
 
   useEffect(() => {
-    frontmatterRef.current = frontmatterLines;
+    frontmatterRef.current = frontmatterBlock;
   });
 
   // Frontmatter follows the file (adjust-during-render pattern): a pin or tag
@@ -102,9 +102,10 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   if (syncedContent !== file.content) {
     setSyncedContent(file.content);
 
-    const fresh = parseNote(file.content).rawLines;
+    const fresh = parseNote(file.content).raw;
 
-    if (fresh.join("\n") !== frontmatterLines.join("\n")) {
+    // Compare what the block serializes to, so a delimiter change counts.
+    if (composeNote(fresh, "") !== composeNote(frontmatterBlock, "")) {
       setFrontmatterLines(fresh);
     }
   }
@@ -180,7 +181,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       : resolveTitle(
           tab.path,
           body,
-          parseNote(composeNote(frontmatterLines, "")).frontmatter.title
+          parseNote(composeNote(frontmatterBlock, "")).frontmatter.title
         );
 
   // Live values behind stable getters, so the mount-frozen editor callbacks
@@ -273,7 +274,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     (raw: string) => {
       const parsed = parseNote(raw);
 
-      setFrontmatterLines(parsed.rawLines);
+      setFrontmatterLines(parsed.raw);
       setBody(parsed.body);
       setWords(countWords(raw));
       onChange(raw);
@@ -421,8 +422,9 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       ) : null}
       {sourceMode ? (
         <SourceEditor
+          focusOnMount={active}
           initialCursor={sourceCursor}
-          initialValue={composeNote(frontmatterLines, body)}
+          initialValue={composeNote(frontmatterBlock, body)}
           key={`${reloadKey}:source`}
           onChange={handleSourceChange}
           onReady={attachSourceEditor}
