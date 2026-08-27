@@ -250,9 +250,11 @@ The note title, its tags, and the pin toggle live in the window's drag region. `
 
 **Superseded in part by `D38`,** which brings the save glyph into the bar. The rejection below says save state belongs near where the eye rests rather than in the window chrome, and it was written about moving the whole strip up. `D38` re-examines it for one glyph, which the width argument does not reach.
 
+**Superseded in part by `D52` and `D53`,** which move the title into the tab strip and leave one route. The pin and the drag region stay, and the identity the bar carries is the active tab's label rather than a line of text.
+
 The app was spending two bands on one band's work: an empty drag strip above a header. Folding one into the other returns 32px to the note and puts the title where macOS puts a document title. The traffic lights `D29` centres in the bar land on the title's line.
 
-Each route renders its own titlebar rather than the root rendering one, because a shared root strip cannot hold per-route content and TanStack Router has no named outlet.
+The workspace and the capture window each render their own titlebar rather than the root rendering one, because a shared root strip cannot hold per-surface content and TanStack Router has no named outlet.
 
 **Rejected: keeping the empty strip and shrinking it.** Simplest possible change, and it touches no layout. Rejected because the strip is unavoidable on macOS, so shrinking it converts wasted space into slightly less wasted space, while the header band goes on costing its full height.
 
@@ -452,11 +454,13 @@ The three view toggles are one `ToggleGroup` but stay three independent settings
 
 ### D38 The save glyph sits in the titlebar and can say it failed
 
-`SaveIndicator` renders between the title and the pin, and `SaveStatus` carries a fourth member, `failed`, drawn as `SaveOffIcon` on `--destructive`.
+`SaveIndicator` renders after the tab strip and before the pin, and `SaveStatus` carries a fourth member, `failed`, drawn as `SaveOffIcon` on `--destructive`.
 
-The app had two answers to where it goes. `notes.$.tsx` put it first in the status strip and `external.tsx` put it in the titlebar, because that route has no strip. Both are routes in the `main` window, so the split showed inside one window. Every route renders a `Titlebar`, including the capture window and the launch screen, which render an empty one; one route renders a `StatusBar`. The bar the app has everywhere is the one that can hold this.
+**Superseded in part by `D52` and `D53`,** which move the note's title into the tab strip and leave one route. The placement and the route counts below have been corrected to the code those two left. The four states and the case for putting save state in the bar are unchanged, and the rejections stand as written.
 
-That leaves the strip carrying the note's own metadata and the view controls, with no app state in it, and the titlebar carrying what the note is: its title, whether it is pinned, whether it is written.
+The app had two answers to where it goes. `notes.$.tsx` put it first in the status strip and `external.tsx` put it in the titlebar, because that route had no strip. Both were routes in the `main` window, so the split showed inside one window. Both windows render a `Titlebar`, the capture window an empty one; only the workspace renders a `StatusBar`, and only with a tab open. The bar the app has everywhere is the one that can hold this.
+
+That leaves the strip carrying the note's own metadata and the view controls, with no app state in it, and the titlebar carrying what the note is: its tab's label, whether it is pinned, whether it is written.
 
 The `failed` member matters more than the placement. `useAutosave` caught a failed write, restored the buffer and set `dirty`, which is the state a keystroke produces and is drawn with the same glyph and the same `unsaved` label. A disk refusing writes and a note typed into half a second ago were identical on screen. Nothing else covered it: pin toggles, tag edits and even copying a code block toast on failure, while the note body did not, and the only save-failure message in the app arrived from the quit handshake when the user pressed ⌘Q.
 
@@ -468,9 +472,11 @@ The `failed` member matters more than the placement. `useAutosave` caught a fail
 
 **Constraint:** `failed` clears on its own rather than being dismissed. A later keystroke sets `dirty`, and the next flush either lands in `saved` or returns to `failed`. There is no acknowledge action and no retry timer.
 
-**Constraint:** the tooltip reads `could not save`, a fixed string, while `run.ts` unwraps a specific message that the `catch` still discards. Carrying the real one means threading it through `useAutosave`, `NoteHeader` and `SaveIndicator`, which is its own change.
+**Constraint:** the tooltip reads `could not save`, a fixed string, while `run.ts` unwraps a specific message that the `catch` still discards. Carrying the real one means threading it through `useAutosave`, the tab snapshot and `SaveIndicator`, which is its own change.
 
-**Constraint:** the glyph costs the title another 36px at the 480px minimum width, on top of what the traffic-light inset and the pin already take.
+**Constraint:** the glyph costs the strip another 36px at the 480px minimum width, on top of what the traffic-light inset and the pin already take. `D52` re-ran the measurement when the tabs arrived.
+
+**Constraint:** the rejection above covers a note that is open. With no tab open there is no save state to report, so the glyph is absent from the empty state and the title bar holds the strip's `+` alone.
 
 ### D39 The task row recipe stops at a task list's own children
 

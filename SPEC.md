@@ -54,7 +54,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘P, ⌘D and ⌘⇧Y do nothing and the status strip is hidden.
+- Closing the last tab leaves the empty state, where ⌘P, ⌘D and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
