@@ -5,10 +5,10 @@ Work ruled out rather than done. `AGENTS.md` maps the rest of the docs.
 An entry needs a reason that survives someone asking for it: blocked on a decision nobody has made, blocked on access nobody has, or scoped into a change that has not started. Cost, effort and size are not reasons, and neither is calling something an edge case, which `AGENTS.md`'s "Deciding what to do" already covers. A bug you have diagnosed gets fixed instead of an entry, and a defect nobody has scoped gets an issue. An entry leaves this list by being done.
 
 - iA parts-of-speech syntax highlighting and style check (blocked on a dependency nobody has picked: tagging parts of speech needs a real NLP model, and choosing one that ships offline inside the bundle is a decision nobody has made)
-- Content-block transclusion (`/file.md` embeds). Blocked on a decision `D15` forces: an embed has no markdown form, so either the serializer writes something that is not the file's own text or the round-trip contract loses it
-- Backlinks panel. Blocked on the index: `note_fts` carries title and content, and nothing records which note links to which, so this needs a schema and a writer before it needs a panel
-- Git integration UI. Scoped into a change nobody has started: `D2` makes the folder plain files, so `git init` in it already works, and what the app would add on top has never been specified
-- wdio + tauri-driver e2e. Scoped into a change nobody has started: `D21` deleted the Playwright smoke tests because Playwright cannot drive a Tauri window, and named this as the replacement without anyone picking it up
+- Content-block transclusion (`/file.md` embeds). Blocked on a decision nobody has made: an embed has no form the canonical serializer can write (`D15`)
+- Backlinks panel. Blocked on the index, whose schema `ARCHITECTURE.md` carries: nothing records which note links to which
+- Git integration UI. Scoped into a change nobody has started: `D2` already makes `git init` work in the folder
+- wdio + tauri-driver e2e. Scoped into a change nobody has started, which `D21` names
 - A verified minimum macOS version for the cask (`tauri.conf.json` sets none, so the bundle carries Tauri's 10.13 default; nothing has tested the real floor, so the cask declares no `depends_on macos:`)
 - macOS code signing and notarization (the release workflow already wires the `APPLE_*` variables, so it needs a Developer ID; until then the cask and `README.md` carry the quarantine workaround)
 - Code-scanning merge protection for zizmor (it runs with `advanced-security: false`, so a finding fails the job; the Security tab and incremental triage need a ruleset instead, and in that mode the action never fails)

@@ -17,6 +17,8 @@ Because the folder is plain files:
 - **Any tool works.** Edit a note in vim, sync the folder with git or iCloud, grep it from a terminal.
 - **AI agents write straight into the folder.** Point Claude Code at it. A Rust file watcher picks up what it writes, and the app refreshes within a second.
 
+The folder is trusted input. Anything that can write to it can change what notras shows, and the app grants itself read access to the whole folder so attachments render. Share it only with people and jobs you trust, and set filesystem permissions to match.
+
 Unsaved edits win over an agent's write. A note open in notras keeps your buffer, and the next save overwrites what the agent put there. [SPEC.md](SPEC.md#external-changes) has the rule.
 
 Search runs on a SQLite FTS5 index derived from those files. The index is disposable, and [ARCHITECTURE.md](ARCHITECTURE.md) covers how it is built and rebuilt.
@@ -82,11 +84,15 @@ sha256sum -c SHA256SUMS.txt --ignore-missing       # Linux
 
 This catches a truncated or corrupted transfer. It is not a signature, since the sums sit on the same release as the files.
 
-Builds are not yet signed with an Apple Developer ID, so macOS quarantines the app on first launch. Clear it with:
+Builds are not yet signed with an Apple Developer ID, so macOS quarantines the app on first launch.
+
+Clearing that flag turns off Gatekeeper's check for this app, so run the checksum above first and only clear it if you trust what you downloaded:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/notras.app
 ```
+
+Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 
 ## Keyboard shortcuts
 
