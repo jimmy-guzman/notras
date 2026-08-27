@@ -442,9 +442,9 @@ mod tests {
         assert_eq!(resolve_title(&parsed, ".md"), "");
     }
 
-    /// `SPEC.md` walkthrough step 4, through the real indexing path: a file
-    /// written from a terminal states its own title, and the index reads that
-    /// rather than the filename.
+    /// A file written from a terminal states its own title, and the index reads
+    /// that rather than the filename, through the real indexing path. `D32`
+    /// carries why the heading wins.
     #[test]
     fn indexes_a_heading_as_the_title() {
         let dir = temp_notes_dir("heading-title");

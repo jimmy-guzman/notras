@@ -2,80 +2,64 @@
 
 # notras
 
-A local-first, keyboard-driven notes app for your desktop. Your notes are plain
-markdown files in a folder you own: no accounts, no cloud, no database to
-export from. The window is the editor; everything else is a keystroke away.
+A local-first, keyboard-driven notes app for the desktop. Your notes are plain markdown files in a folder you own, so there is no account to make and no database to export from.
 
 ## Your notes are files
 
-notras stores every note as a `.md` or `.markdown` file (default: `~/notras`).
-Folders are
-real directories, tags and pins are YAML frontmatter, attachments are plain
-files. That one decision buys a lot:
+notras reads `.md` and `.markdown` files under a folder you pick, `~/notras` by default, and writes new ones as `.md`.
 
-- **any tool works.** Edit notes in vim, sync the folder with git or iCloud,
-  grep them from a terminal
-- **AI agents are first-class writers.** Point Claude Code (or any agent) at
-  the folder; when it writes a markdown file, a Rust file watcher picks it up
-  and the app refreshes within a second. The filesystem is the API.
-- **backups are `cp -r`.** There is nothing to export
+- folders are real directories
+- tags and pins are YAML frontmatter
+- attachments are plain files
 
-Search stays fast because a derived SQLite FTS5 index lives at
-`.notras/index.db` inside the folder. It is disposable: delete it and the app
-rebuilds it from your files on the next launch.
+Because the folder is plain files:
+
+- **Any tool works.** Edit a note in vim, sync the folder with git or iCloud, grep it from a terminal.
+- **AI agents write straight into the folder.** Point Claude Code at it. A Rust file watcher picks up what it writes, and the app refreshes within a second.
+
+The folder is trusted input. Anything that can write to it can change what notras shows, and the app grants itself read access to the whole folder so attachments render. Share it only with people and jobs you trust, and set filesystem permissions to match.
+
+Unsaved edits win over an agent's write. A note open in notras keeps your buffer, and the next save overwrites what the agent put there. [SPEC.md](SPEC.md#external-changes) has the rule.
+
+Search runs on a SQLite FTS5 index derived from those files. The index is disposable, and [ARCHITECTURE.md](ARCHITECTURE.md) covers how it is built and rebuilt.
 
 ## Features
 
-- editor-first window: true WYSIWYG markdown (TipTap 3) that reads and
-  writes plain `.md`, set in Literata
-- tabs: several notes open at once, each keeping its own undo history, caret
-  and scroll, and the set comes back when you relaunch
-- autosave on idle; what lands on disk is clean, canonical markdown
-- ⌘K command palette: full-text search (FTS5, bm25, highlighted snippets),
-  `#tag` filters that narrow the search (`#work budget`), and every note action
-- ⌘P raw markdown source mode (the escape hatch for anything exotic)
-- wikilinks `[[note title]]` as clickable pills with autocomplete
-- slash commands: `/` inserts headings, lists, task lists, code blocks,
-  tables, quotes, dividers, today's date
-- focus mode (⌘D, dims all but the active paragraph) and typewriter scrolling
-- editable tables, clickable task checkboxes, inline images, code blocks
-  with copy + language picker, all round-tripping through GFM markdown
-- links: ⌘⇧K to add/edit, ⌘-click to open in your browser
-- tags, pins, and folders; move notes between folders from the palette
-- drag any file in -> copied to `attachments/`, markdown link inserted
-- global quick capture: ⌘⇧N from anywhere -> jot -> esc saves to `inbox/`
-- menu-bar tray, launch at login, macOS overlay title bar
-- "Open With" any external markdown file, as many at once as you pick
-- word count + reading time; lowercase everything; dark/light via system
+### Writing
 
-## Technologies
+- WYSIWYG markdown over plain `.md`, set in Literata
+- autosave on idle, writing clean canonical markdown back to the file
+- the `/` slash menu inserts headings, lists, task lists, quotes, code blocks, tables, dividers, and today's date
+- editable tables, clickable task checkboxes, and inline images
+- code blocks with a copy button and a language picker
+- all of it round-trips through GFM markdown
+- `⌘P` swaps to raw markdown source, the escape hatch for anything exotic
+- `⌘D` focus mode dims every block but the one you are in
+- typewriter scrolling, a separate toggle in the status strip
+- word count and reading time, in the status strip
 
-[Tauri](https://tauri.app) 2 over
-[rusqlite](https://github.com/rusqlite/rusqlite) and
-[notify](https://github.com/notify-rs/notify),
-[Vite](https://vite.dev) with [React](https://react.dev) 19 and
-[TanStack Router](https://tanstack.com/router),
-[TipTap 3](https://tiptap.dev) with
-[`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown),
-[Effect](https://effect.website) 4,
-[Drizzle ORM](https://orm.drizzle.team),
-[Shadcn UI](https://ui.shadcn.com) and
-[Tailwind CSS](https://tailwindcss.com) 4.
+### Finding
 
-## Architecture
+- `⌘K` command palette, over full-text search with highlighted snippets
+- `#tag` filters that narrow the search (`#work budget`)
+- every note action lives in that same palette
+- `[[note title]]` wikilinks as clickable pills, with autocomplete
+- `⌘⇧K` adds or edits a link, and `⌘`-click opens a web link in your browser
+- tags, pins, and folders, with moves between folders run from the palette
 
-Files are the source of truth. TypeScript never writes SQL.
+### Tabs
 
-[ARCHITECTURE.md](ARCHITECTURE.md) holds the stack table with what each piece
-does, the diagram, the layer boundaries, the key patterns, and the invariants.
+- several notes open at once, in the title bar
+- each tab keeps its own undo history and caret
+- the open set comes back when you relaunch
 
-## Docs
+### Files and the system
 
-[ARCHITECTURE.md](ARCHITECTURE.md) for how it is built,
-[DESIGN.md](DESIGN.md) for the interface, [DECISIONS.md](DECISIONS.md) for why,
-[SPEC.md](SPEC.md) for what a person checks by hand and what is unbuilt, and
-[AGENTS.md](AGENTS.md) for the rules on changing any of it, where the table at
-the top says which one a given fact belongs in.
+- drag a file onto a note: it lands in `attachments/`, with a markdown link inserted
+- quick capture: `⌘⇧N` from any app, jot, `esc` saves it to `inbox/`
+- "Open With" opens external markdown files, as many at once as you pick (macOS)
+- menu-bar tray and launch at login
+- lowercase chrome, and light or dark from the system
 
 ## Install
 
@@ -83,52 +67,79 @@ the top says which one a given fact belongs in.
 brew install --cask jimmy-guzman/tap/notras
 ```
 
-The cask is published by the release pipeline, so it appears with the first
-release.
+notras checks for updates on launch. A new version arrives as a toast with an install button, and nothing installs until you press it.
 
-notras updates itself. Or download a `.dmg`, `.AppImage`,
-`.deb` or `.msi` from
-[releases](https://github.com/jimmy-guzman/notras/releases), alongside that
-release's `SHA256SUMS.txt`, and check what you got:
+Or download an installer from [releases](https://github.com/jimmy-guzman/notras/releases):
+
+- `.dmg` on macOS
+- `.AppImage`, `.deb` or `.rpm` on Linux
+- `.msi` or `.exe` on Windows
+
+Every release carries a `SHA256SUMS.txt` alongside them, so check what you got:
 
 ```bash
 shasum -a 256 -c SHA256SUMS.txt --ignore-missing   # macOS
 sha256sum -c SHA256SUMS.txt --ignore-missing       # Linux
 ```
 
-`--ignore-missing` matters: the file lists every platform's artifact, so without
-it the check fails on the ones you did not download. This catches a truncated or
-corrupted transfer. It is not a signature, since the sums sit on the same
-release as the files.
+`--ignore-missing` matters. The file lists every platform's artifact, so without it the check fails on the ones you did not download.
 
-Builds are not yet signed with an Apple Developer ID, so macOS quarantines the
-app on first launch. Clear it with:
+This catches a truncated or corrupted transfer. It is not a signature, since the sums sit on the same release as the files.
+
+Builds are not yet signed with an Apple Developer ID, so macOS quarantines the app on first launch.
+
+Clearing that flag turns off Gatekeeper's check for this app, so run the checksum above first and only clear it if you trust what you downloaded:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/notras.app
 ```
 
-## Getting started
+Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 
-You need Node (`.nvmrc` pins v24.19.0), [pnpm](https://pnpm.io), and a
-[Rust toolchain](https://www.rust-lang.org/tools/install). Corepack reads the
-pinned pnpm version out of `package.json`:
+## Keyboard shortcuts
+
+| Shortcut  | Action                           |
+| --------- | -------------------------------- |
+| `⌘K`      | command palette (search + acts)  |
+| `⌘N`/`⌘T` | new note, in a new tab           |
+| `⌘⏎`      | (palette) open in a new tab      |
+| `⌘W`      | close tab                        |
+| `⌘⇧T`     | reopen the last closed tab       |
+| `⌘1`-`⌘9` | nth tab; `⌘9` is the last one    |
+| `⌃⇥`      | next tab (`⌃⇧⇥` for previous)    |
+| `⌘⌥→`     | next tab (`⌘⌥←` for previous)    |
+| `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left) |
+| `⌘P`      | toggle raw markdown source       |
+| `⌘D`      | toggle focus mode                |
+| `⌘⇧K`     | add / edit link                  |
+| `⌘⇧Y`     | edit tags                        |
+| `⌘,`      | settings                         |
+| `⌘⇧N`     | global quick capture             |
+| `esc`     | (capture window) save + hide     |
+| `⌘⏎`      | (capture window) save + hide     |
+
+- `⌘P` and `⌘D` act on the tab that is showing.
+- `⌘⇧Y` needs that tab to hold a note. A file opened from outside your library has no frontmatter to tag.
+- All three do nothing on the empty state, which is where closing the last tab lands you.
+- The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.
+
+## Development
+
+You need three things:
+
+- Node, which `.nvmrc` pins to v24.19.0
+- [pnpm](https://pnpm.io), whose version corepack reads out of `package.json`
+- a [Rust toolchain](https://www.rust-lang.org/tools/install)
+
+Then:
 
 ```bash
 corepack enable
 pnpm install
-```
-
-Run the app:
-
-```bash
 pnpm dev
 ```
 
-On first launch notras creates `~/notras` and seeds the index. Change the
-folder any time in settings (⌘,).
-
-## Scripts
+On first launch notras creates `~/notras` and seeds the index. Change the folder any time in settings (⌘,).
 
 | Script            | Description                          |
 | ----------------- | ------------------------------------ |
@@ -149,32 +160,36 @@ folder any time in settings (⌘,).
 | `pnpm prepare`    | install the git hooks (lefthook)     |
 | `pnpm tauri`      | run the tauri cli directly           |
 
-Rust tests live in `src-tauri`: `cargo test`.
+Rust tests live in `src-tauri`: `cd src-tauri && cargo test --locked`.
 
-## Keyboard shortcuts
+## Technologies
 
-| Shortcut  | Action                            |
-| --------- | --------------------------------- |
-| `⌘K`      | command palette (search + acts)   |
-| `⌘N`/`⌘T` | new note, in a new tab            |
-| `⌘⏎`      | (palette) open in a new tab       |
-| `⌘W`      | close tab                         |
-| `⌘⇧T`     | reopen the last closed tab        |
-| `⌘1`-`⌘9` | nth tab; `⌘9` is the last one     |
-| `⌃⇥`      | next tab (`⌃⇧⇥` for previous)     |
-| `⌘⌥→`     | next tab (`⌘⌥←` for previous)     |
-| `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left)  |
-| `⌘P`      | toggle raw markdown source        |
-| `⌘D`      | toggle focus mode                 |
-| `⌘⇧K`     | add / edit link                   |
-| `⌘⇧Y`     | edit tags                         |
-| `⌘,`      | settings                          |
-| `⌘⇧N`     | global quick capture              |
-| `esc`     | (capture window) save + hide      |
-| `⌘⏎`      | (capture window) save + hide      |
+- [Tauri](https://tauri.app) 2
+- [rusqlite](https://github.com/rusqlite/rusqlite)
+- [notify](https://github.com/notify-rs/notify)
+- [Vite](https://vite.dev) 8
+- [React](https://react.dev) 19
+- [TanStack Router](https://tanstack.com/router)
+- [TipTap](https://tiptap.dev) 3
+- [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown)
+- [Effect](https://effect.website) 4 (release candidate)
+- [Drizzle ORM](https://orm.drizzle.team)
+- [SQLite](https://sqlite.org) FTS5
+- [Shadcn UI](https://ui.shadcn.com)
+- [Base UI](https://base-ui.com)
+- [Tailwind CSS](https://tailwindcss.com) 4
 
-`⌘P` and `⌘D` act on the tab that is showing, and `⌘⇧Y` also needs that tab to
-hold a note, since a file opened from outside your library has no frontmatter
-to tag. All of them do nothing on the empty state, which is where closing the
-last tab lands you. The capture window runs outside the router, so only `⌘⇧K`,
-`esc`, and `⌘⏎` reach it.
+## Docs
+
+| Doc                                | What it holds                                                                          |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The stack, the index schema, project structure, layer boundaries, patterns, invariants |
+| [DESIGN.md](DESIGN.md)             | Typography, color, space, motion, interaction, the editor surface, copy                |
+| [DECISIONS.md](DECISIONS.md)       | A log of decisions, each with its rationale and what it rejected                       |
+| [SPEC.md](SPEC.md)                 | What the app does, as claims you can check against a running build                     |
+| [DEFERRED.md](DEFERRED.md)         | Work ruled out rather than done, each entry with its reason                            |
+| [AGENTS.md](AGENTS.md)             | The rules for changing any of it, and the map of which doc holds which fact            |
+
+## License
+
+[MIT](LICENSE)

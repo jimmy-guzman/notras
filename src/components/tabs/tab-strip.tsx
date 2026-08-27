@@ -305,7 +305,7 @@ interface TabStripProps {
  * The open tabs, in the title bar where the note's title used to sit (`D52`).
  *
  * One tab stop with arrow keys inside it, the `ToggleGroup` pattern `D37` set.
- * Dragging one is dnd-kit's, and `D57` carries why. A lone tab has nowhere to
+ * Dragging one is dnd-kit's, and `D60` carries why. A lone tab has nowhere to
  * go, so it hands the press to the window instead.
  */
 export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
@@ -314,7 +314,7 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   const [hidden, setHidden] = useState<string[]>([]);
   const ids = useMemo(() => tabs.map(tabId), [tabs]);
   // No keyboard sensor: it wants the `attributes` spread, which would overwrite
-  // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D57`).
+  // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D60`).
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: ACTIVATION_DISTANCE_PX },
