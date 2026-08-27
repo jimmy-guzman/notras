@@ -1,184 +1,138 @@
 # SPEC
 
-What a person still checks by hand, and what is not built. The rewrite this file
-tracked is done, and `git log` holds how it went.
+What notras does. Every claim below is checkable against a running build, so a claim nobody can check does not belong here. `ARCHITECTURE.md` carries how the system is built, `DESIGN.md` the interface conventions, and `DEFERRED.md` the work ruled out rather than done.
 
 `AGENTS.md` maps the rest of the docs.
 
-## Verification
+## Notes and files
 
-`AGENTS.md` carries the static gate. Nothing automated covers window behaviour,
-the asset protocol, or the quit handshake, which `D21` records, so this
-walkthrough is their only coverage. Run it under `pnpm dev`.
+- Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
+- First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
+- A note is a file whose extension is `md` or `markdown`. The match is case-sensitive, so `NOTE.MD` is invisible to the app.
+- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed.
+- A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`.
+- Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
+- A path segment carries no `/`, `\` or `:`, is not blank, and does not start with a dot. A folder name is at most 120 characters.
+- The title resolves from frontmatter `title:`, then the body's leading `#` heading, then the filename with its extension stripped.
+- Only the first non-blank line can be that heading, and it takes CommonMark's ATX shape: up to three spaces of indent, one `#`, then a space, a tab, or the end of the line. `##` never matches, and `# C#` keeps its trailing `#`.
+- "rename note..." derives a filename from the title: lowercased, with whitespace and `" * / : < > ? \ |` collapsed to `-`, truncated to 120 characters. It rewrites a leading heading the note already has and a `title:` key the note already has, then renames the file.
+- Nothing introduces a heading or a `title:` key, so a note carrying neither is only renamed. Nothing else in the app renames a file.
+- A rename onto a taken path is refused before the write, so the file is untouched.
+- Frontmatter reads three keys: `pinned`, `tags` as an inline or block list, and `title` as read-only. Every other key survives a rewrite verbatim, including its position, and so does the closing delimiter the file used.
+- A tag is trimmed, unquoted, stripped of `,`, `[` and `]`, and lowercased. Empty tags are dropped and duplicates collapse.
+- "move to folder..." keeps the filename rather than the title, creates the folder if it is missing, and refuses a target that is taken.
+- "delete note..." asks once, then removes the file. There is no trash.
+- Frontmatter is not searchable. Only the title and the body reach the index.
 
-- [x] 1. First launch creates `~/notras/` + `.notras/index.db`; empty state shows
-- [x] 2. ⌘N → type → autosave badge; the `.md` file exists on disk with the content
-- [x] 3. Type `# a real title` at the top → titlebar follows it; the file does not move
-- [x] 3b. ⌘K → "rename note..." → the file, the heading and the titlebar all move
-      together; a note with no heading gains none and only its file moves
-- [x] 4. **The money shot:** `echo "# from claude" > ~/notras/agent-note.md` from a
-      terminal (or have Claude Code write one) → note appears in the palette within ~1s,
-      titled `from claude` rather than `agent-note`
-- [x] 5. ⌘K search a word → FTS hit with highlighted snippet
-- [x] 6. Add `tags: [x]` + `pinned: true` via UI → frontmatter in the file updates;
-      filter by tag in palette
-- [x] 7. `[[` autocompletes another note; the pill navigates from the editor
-- [x] 8. `/` shows the slash menu; inserts a task list
-- [x] 9. Drag an image in → lands in `attachments/`, renders inline in the editor.
-      Drag one whose name carries spaces, which every macOS screenshot has
-- [x] 10. Edit a note in another editor while it's open (clean) → buffer reloads
-- [x] 11. Quick-capture hotkey from another app → jot → esc → file in `inbox/`
-- [x] 12. Delete `.notras/index.db`, relaunch → search still works (index rebuilt)
-- [x] 13. `pnpm tauri build` → built artifact launches; "Open With" on a random `.md` works
-- [x] 14. Type, then quit from the tray and again with ⌘Q → relaunch and the last
-      keystrokes are on disk
-- [x] 15. Install the first release carrying the updater, cut a second, relaunch
-      the installed copy → "version x.y.z is available" toast → type, leave the
-      keystrokes unsaved, then install → relaunches into the new version with
-      those keystrokes on disk. ⌘K → "check for updates..." reports either way.
-      Only the development message is reachable under `pnpm dev`: the check is
-      `PROD`-guarded, so the install path needs two real releases.
-- [ ] 16. ⌘K a note and press ⌘⏎ → it opens beside the current one; plain ⏎ on
-      a third replaces the tab that was showing rather than adding to the strip
-- [ ] 17. Type in tab A, ⌘2 to B, ⌘1 back → the keystrokes are on disk, ⌘Z
-      undoes them, and the caret and scroll are where they were left
-- [ ] 18. Type `# a real title` in the showing tab → its label follows the
-      heading; the tab left of it does not move
-- [ ] 19. Click each tab in turn, including one that is not next to the active
-      one → each shows its note; click a tab's × → the neighbour takes over
-      rather than the tab merely being selected
-- [ ] 19b. Drag a tab past its neighbour → it follows the pointer under a
-      shadow, the neighbour slides aside, and it settles on release; ⌘⌥⇧←
-      slides it back; Escape mid-drag returns every tab; press a tab and jiggle
-      inside its own bounds → it selects and does not reorder
-- [ ] 19c. Close down to one tab and drag it → the window moves and the tab
-      stays put, taking no shadow; double-click it → the window zooms; its ×,
-      its context menu, and a second tab's drag all still behave
-- [ ] 20. ⌘W → the tab to the right takes over; ⌘⇧T → it comes back where it
-      was; ⌘W on the last remaining tab leaves the empty state, and the tab
-      context menu's close agrees with both
-- [ ] 21. "Open With" three `.md` files at once → three tabs, no toast, each
-      label mono; edit one → it saves to its own path outside the notes dir
-- [ ] 22. Open enough tabs to overflow the strip at 480px → a count appears
-      beside `+` and picking from it shows that tab
-- [ ] 23. `echo` a change into a background tab's file → that tab reloads
-      without being switched to; `rm` a clean background tab's file → its tab
-      closes on its own; `rm` one holding unsaved edits → it keeps the buffer
-      and says the file is gone
-- [ ] 23b. `chmod 000` a background tab's file and touch another note to bump
-      the watcher → that tab keeps its text and toasts once rather than saying
-      the file is gone, and bumping again does not stack a second toast
-- [ ] 23c. `rm` a tab's file while it holds unsaved edits, keep typing, then
-      restore the file → the banner clears and the next keystroke reaches disk,
-      carrying what was typed while the file was gone rather than the buffer
-      from before it went
-- [ ] 23d. Type into a note, let the 800ms debounce elapse so the save starts,
-      and `rm` its file while that write is in flight → the file stays gone
-      rather than reappearing, and the tab keeps the buffer behind the gone
-      banner. The window is a few milliseconds on a local disk, so repeat it
-      against a slow volume or a file the OS is holding if a run does not land
-      inside it
-- [ ] 24. Quit with four tabs, relaunch → the same four, the same active one,
-      each caret restored
-- [ ] 24b. Relaunch onto a `localStorage` "tabs" entry written before tabs had
-      ids (no `id` on any tab, carets keyed `note:path`) → the same tabs come
-      back, the same one active, each caret restored
-- [ ] 25. ⌘K → "rename note..." → the tab moves with the file rather than
-      duplicating; right-click a tab → close others leaves one
-- [ ] 25b. Type into a note, ⌘K → "rename note...", then ⌘Z → the undo reaches
-      the text typed before the rename, and the caret and scroll are where they
-      were left; ⌘K → "move to folder..." on the same tab does the same
-- [ ] 26. Scroll hard past the bottom and then the top of a note longer than the
-      window, and flick the tab strip sideways past the last tab → the note
-      settles at its bounds and the titlebar, the tab strip and the status strip
-      do not move. ⌘P and the capture window are separate scrollers and get the
-      same two passes
+## Saving
 
-## Deferred
+- Typing starts a save 800ms after the last change.
+- Losing window focus, unmounting the session, and quitting each flush too.
+- The rich editor holds the body. Frontmatter from the last read is composed back around it on every write, so a pin or a tag set elsewhere survives a body save.
+- Source mode holds the whole file, frontmatter included, so frontmatter is editable there.
+- A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted.
+- Writes are serialized, so two flushes cannot land out of order. A keystroke during a write returns the state to unsaved.
+- The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
 
-- iA parts-of-speech syntax highlighting + style check (needs real NLP, the wrong weight for this app)
-- Content-block transclusion (`/file.md` embeds)
-- Backlinks panel (wikilinks are one-directional today)
-- Git integration UI (the folder is git-init-able by hand today)
-- wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
-- A verified minimum macOS version for the cask (`tauri.conf.json` sets none, so
-  the bundle carries Tauri's 10.13 default; nothing has tested the real floor,
-  so the cask declares no `depends_on macos:`)
-- macOS code signing and notarization (the release workflow already wires the
-  `APPLE_*` variables, so it needs a Developer ID; until then the cask and
-  `README.md` carry the quarantine workaround)
-- Code-scanning merge protection for zizmor (it runs with
-  `advanced-security: false`, so a finding fails the job; the Security tab and
-  incremental triage need a ruleset instead, and in that mode the action never
-  fails)
-- Whether the release-time gate duplicates a main-push CI run (`ci.yml`'s
-  `push: branches: [main]` arm arrived in #101; at v0.1.2 the file was
-  `on: [pull_request]`, and `gh run list --commit 9a41185` returns only the
-  release workflow, so no CI run has ever covered a tagged commit. If a release
-  merge does fire it, that run and `release.yml`'s `gate` compile the same tree
-  twice, and the in-release copy adds only the dependency edge that stops
-  `verify` publishing. Check after the next release with
-  `gh run list --commit "$(git rev-parse vX.Y.Z^{commit})"`)
-- Enforcing the commit format (release-please derives the version and changelog
-  from commit messages, so a hand-typed one silently produces neither; gitzy has
-  no validate subcommand, so this means commitlint, and stet left it as
-  convention too)
-- Caching the Linux webkit dep install (measured at 30s on the old four-package
-  list: `apt-get update` 6s, resolve 1s, download 61.5MB 14s, unpack 179
-  packages 7s, configure 2s. `ci.yml`'s rust job now installs two packages with
-  `--no-install-recommends`, so its share is smaller and unmeasured;
-  `release.yml`'s build job still carries the full list because it bundles. The
-  apt-cache actions restore installed files over a base image that updates
-  weekly, so a cached `libwebkit2gtk` can end up built against a different
-  `libsoup` than the image now ships, and the failure reads as a link error in
-  our code. The deterministic alternative is a prebuilt container image, which
-  reshapes checkout, node and cargo in every job that uses it)
-- Splitting the macOS universal build into per-arch legs (rejected on
-  measurement, not on principle: the second arch is 166s of the 412s
-  `Build Bundles` step, but macOS finishes at 498s against ubuntu's 495s, so
-  removing it just makes ubuntu the critical path for a ~3s net gain. It would
-  also give `.github/homebrew/notras.rb.tmpl` two DMGs to choose between, and
-  its `select(endswith(".dmg")) | head -n1` would silently ship one arch to
-  both)
-- Narrowing `bundle.targets` from `"all"` (the AppImage is 107s of the ubuntu
-  leg, 22% of it, and 84MB of the 130MB release. The rpm costs 4s and nothing
-  reads it: `verify` greps for dmg, AppImage, deb and exe/msi, the cask reads
-  only the DMG, and `README.md` names everything but the rpm. Dropping the
-  AppImage is the user-facing half, since `README.md` points people at it and
-  `latest.json`'s `linux-x86_64` entry is signed against it)
-- A `.icon` package for system-drawn Liquid Glass (`D34` deferred it rather than
-  closing it)
-- MCP server (only if agents ever need richer ops than file writes, such as search-as-a-tool)
-- A floating-promise check (`D42` left fire-and-forget calls unmarked and unchecked)
-- Enforcement for the `D14` layer boundaries and the lucide icon rule (`D43`)
-- Opening an attachment link. A ⌘-click hands `openUrl` a destination relative
-  to the notes dir (`editor.tsx:159`), which the system opener cannot resolve,
-  so a linked PDF goes nowhere while an image beside it renders through
-  `resolveImageSrc`. Opening one needs `opener:allow-open-path`, which
-  `opener:default` does not carry, plus a scope naming which paths the app may
-  hand to the system. Deferred on that scope, not on the wiring
-- A focus-visible affordance for `.link-editor-input` and `.code-block-language`,
-  which set `outline: none` and replace nothing
-- A message on `DatabaseError` (`src/core/errors.ts`), which carries only
-  `cause`, so a database failure reaches the toast as Effect's own text
-- A shortcut or palette entry for typewriter scrolling, the one action reachable
-  from the status strip alone
-- A shortcut or palette entry for close others, close to the right, and copy
-  path, the tab actions reachable from the context menu alone (`DESIGN.md`'s
-  keyboard-first rule counts a mouse-only feature as unfinished)
-- Something on screen for a tab whose first read failed for a reason other than
-  the file being gone (`D55` keeps the tab rather than closing it, so the panel
-  renders nothing until a later read lands and the toast is the only signal)
-- Splitting the window into two tab groups side by side (`D53` keeps one active
-  tab, so a split is a second workspace rather than a second pane)
-- A tab's tooltip carrying the full path, which an external tab's truncated
-  basename most wants (`D51`'s glyph rules cover the chrome, not a text label)
-- Relative image paths inside an external tab, which `note-session.tsx` leaves
-  unresolved by gating `resolveImageSrc` to a note. The retired `/external`
-  view did the same. Fixing it means asset-protocol scope over whatever
-  directory the file came from, and `tauri.conf.json` ships `"scope": []` with
-  `lib.rs` granting `allow_directory` for the notes dir alone, so it is a
-  security decision rather than a wiring one
-- ⌘⇧[ and ⌘⇧] for previous and next tab. Holding shift makes `event.key` for
-  `[` into `{` on a US layout, so the binding would follow the keyboard rather
-  than the chord; ⌘⌥←/→ carries it instead and is in `README.md`'s table
+## External changes
+
+- The watcher debounces at 300ms, so a file written by anything else reaches the app within about a second. A note appears in the palette under its own title rather than its filename.
+- A change event makes every open tab re-read its file.
+- A buffer reloads only when it is clean, the file is newer than this tab's own last write, and the body differs. The reload remounts the editor, so the caret and the undo history go with it.
+- Frontmatter follows the file whether or not the buffer is clean.
+- A dirty buffer wins. An external edit to a note with unsaved changes is not shown, and the next flush overwrites it.
+- A tab whose file was deleted while its buffer was clean closes itself.
+- A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
+- A read that fails for any other reason leaves the tab's text alone and toasts once. Repeated failures do not stack a second toast.
+- The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
+- Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" drops every row and rescans, which is what reaches notes nobody has edited.
+
+## Tabs
+
+- Tabs sit in the title bar. Each holds its own editing session, undo history, and caret.
+- ⌘N, ⌘T, the strip's `+`, the tray's new note, and the palette's new note all open a new note in a new tab.
+- Opening a path that is already open activates the tab holding it rather than duplicating it.
+- ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
+- ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
+- Closing the last tab leaves the empty state, where ⌘P, ⌘D and ⌘⇧Y do nothing and the status strip is hidden.
+- ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
+- ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
+- ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
+- A pointer drag starts after 4px and reorders on release. Pressing a tab selects it first, and the close button never starts a drag.
+- A lone tab does not reorder. Pressing and moving it moves the window, and double-clicking it zooms.
+- Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
+- The tab context menu offers close, close others, close to the right, and copy path. The last three have no shortcut.
+- A file opened through "Open With" is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render and its wikilinks do not navigate.
+- Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
+- With nothing to restore, the most recently updated note opens.
+
+## Search and the palette
+
+- ⌘K toggles the palette over whatever is showing.
+- Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes pinned first.
+- Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
+- A hit carries a snippet of at most 24 tokens with the matched text highlighted.
+- Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.
+- A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
+- `#` alone lists matching tags with their counts, and picking one rewrites the query.
+- The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, settings, reindex library, and check for updates. Every one but new note, settings, reindex library, and check for updates needs a note showing.
+- Actions match the free text after a tag token, so they stay reachable inside a tag filter.
+
+## The editor
+
+- The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
+- ⌘P swaps to raw source and back. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
+- In source mode, Tab inserts two spaces and Shift-Tab outdents two.
+- `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
+- `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
+- Clicking a pill resolves by title first, then by filename, preferring a note in the same folder, then by path. A link matching nothing says so and creates nothing.
+- ⌘⇧K adds or edits a link, and ⌘-click opens one. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
+- A ⌘-click on an attachment link does not open the attachment.
+- Dragging files onto the window copies each into `attachments/` and inserts a link into the tab that is showing. A name already taken becomes `stem-2.ext`. Spaces survive on disk and are percent-encoded in the link.
+- An image extension inserts an image, anything else a link.
+- Pasting an image saves `attachments/pasted-<epoch-ms>.png`.
+- Pasting text that looks like markdown pastes rich. Anything else pastes plain. Copying out of the editor puts markdown on the clipboard.
+- Tables are editable and start at two columns by three rows with a header. Task checkboxes are clickable and round-trip as `- [x]` and `- [ ]`.
+- A code block carries a copy button and a language picker. The picker keeps a language lowlight does not know rather than rewriting it, and markdown highlights a leading frontmatter block as YAML.
+- ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
+- Typewriter scrolling keeps the caret vertically centred. It toggles from the status strip and has no shortcut.
+- The status strip carries the word count and the reading time at 200 words a minute.
+- Focus mode and typewriter scrolling are app-wide rather than per tab, and both survive a relaunch.
+
+## Quick capture
+
+- ⌘⇧N opens the capture window from any app, whether or not notras is in front. The tray offers the same.
+- The window is 560 by 320, fixed, always on top, and out of the taskbar. Reopening it shows the one that exists.
+- esc and ⌘⏎ save and hide. A double press saves once.
+- The note lands in `inbox/` named `yyyy-MM-dd-HHmmss.md`, and a same-second collision takes the next free name.
+- Capturing nothing writes nothing, and the window hides.
+- A failed save keeps the jot on screen and says so.
+- The capture window runs outside the router, so the palette and the tab shortcuts do not reach it. The editor's own keys do.
+
+## The window and the system
+
+- The main window opens at 960 by 720 and stops at 480 by 360.
+- macOS draws an overlay title bar with the traffic lights inset, and the app draws a 36px drag region holding the tab strip, the save glyph, and the pin.
+- The tray menu offers open notras, new note, quick capture, and quit.
+- Closing either window hides it. Quitting is what exits.
+- A quit is held until every open buffer has flushed. A buffer that could not write cancels the quit and says so. A buffer whose file is gone reports the quit as safe while still holding text, and its banner is the only warning.
+- If the webview never answers, the quit goes through after 5 seconds.
+- "Open With" opens each markdown file in its own tab, however many are picked at once. macOS only.
+- Settings exposes the notes folder and launch at login. Changing the folder creates its `.notras/`, builds an index, restarts the watcher, and stores the choice.
+- The webview cannot write the index. A statement SQLite does not report as read-only is refused.
+
+## Updates
+
+- A production build asks the release endpoint once on launch. It is silent when the app is current and silent when the check itself fails.
+- An available version arrives as a toast naming it, with an install button and no timeout. Dismissing it declines.
+- Install downloads, flushes every buffer, and relaunches into the new version. A buffer that could not write stops the relaunch, and the downloaded bundle applies at the next launch.
+- "check for updates..." reports every outcome, including that update checks are off in development.
+- A development build never reaches the updater.
+
+## What is stored where
+
+- The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
+- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode and typewriter scrolling live beside them.
+- Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
+- The index at `.notras/index.db` is derived and disposable.
+- The reopen stack, source mode, undo history, and scroll position live in memory and do not survive a relaunch.
