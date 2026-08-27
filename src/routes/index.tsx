@@ -93,8 +93,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
 }
 
 interface ActiveProps {
-  /** Absent while no tab is open. */
-  tab: Tab | undefined;
+  tab: Tab;
 }
 
 /**
@@ -106,12 +105,12 @@ interface ActiveProps {
  * number of open tabs.
  */
 function ActiveControls({ tab }: ActiveProps) {
-  const snapshot = useTabSnapshot(tab === undefined ? "" : tabId(tab));
+  const snapshot = useTabSnapshot(tabId(tab));
 
   return (
     <NoteControls
       note={
-        tab?.kind === "note"
+        tab.kind === "note"
           ? { path: tab.path, pinned: snapshot?.pinned ?? false }
           : undefined
       }
@@ -136,7 +135,7 @@ function ActiveStatusBar({
   onToggleTypewriter,
   tab,
 }: ActiveStatusBarProps) {
-  const snapshot = useTabSnapshot(tab === undefined ? "" : tabId(tab));
+  const snapshot = useTabSnapshot(tabId(tab));
   const focusModeEnabled = usePref("focus-mode");
   const typewriterEnabled = usePref("typewriter");
 
@@ -145,7 +144,7 @@ function ActiveStatusBar({
       allTags={allTags}
       focusModeEnabled={focusModeEnabled}
       note={
-        tab?.kind === "note"
+        tab.kind === "note"
           ? { path: tab.path, tags: snapshot?.tags ?? [] }
           : undefined
       }
@@ -311,7 +310,7 @@ function Workspace() {
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
         <TabStrip activeId={activeId} onNew={newNote} tabs={tabs} />
-        <ActiveControls tab={activeTab} />
+        {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
       {tabs.length === 0 ? (
         <EmptyState onNew={newNote} />
@@ -326,7 +325,7 @@ function Workspace() {
           ))}
         </div>
       )}
-      {tabs.length === 0 ? null : (
+      {activeTab === undefined ? null : (
         <ActiveStatusBar
           allTags={tags}
           onFilterTag={filterByTag}
