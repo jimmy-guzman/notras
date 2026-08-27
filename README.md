@@ -9,7 +9,7 @@ A local-first, keyboard-driven notes app for the desktop. Your notes are plain m
 notras reads `.md` and `.markdown` files under a folder you pick (default `~/notras`) and writes new ones as `.md`. Folders are real directories, tags and pins are YAML frontmatter, attachments are plain files.
 
 - **Any tool works.** Edit a note in vim, sync the folder with git or iCloud, grep it from a terminal.
-- **AI agents are first-class writers.** Point Claude Code at the folder, and a Rust file watcher picks up what it writes so the app refreshes within a second.
+- **AI agents are first-class writers.** Point Claude Code at the folder, and a Rust file watcher picks up what it writes so the app refreshes within a second. A note with unsaved edits open in notras is the exception: it keeps your buffer and overwrites the agent's version on the next save, which [SPEC.md](SPEC.md#external-changes) states in full.
 
 Search runs on a SQLite FTS5 index derived from those files. The index is disposable, and [ARCHITECTURE.md](ARCHITECTURE.md) covers how it is built and rebuilt.
 
@@ -25,7 +25,7 @@ Search runs on a SQLite FTS5 index derived from those files. The index is dispos
 - editable tables, clickable task checkboxes, inline images, and code blocks with copy and a language picker, all round-tripping through GFM markdown
 - ⌘⇧K to add or edit a link, and ⌘-click a web link to open it in your browser
 - tags, pins, and folders; move a note between folders from the palette
-- ⌘D focus mode dims every paragraph but the one you are in, and typewriter scrolling is a separate toggle in the status strip
+- ⌘D focus mode dims every block but the one you are in, and typewriter scrolling is a separate toggle in the status strip
 - drag a file onto a note and it lands in `attachments/`, with a markdown link inserted
 - global quick capture: ⌘⇧N from any app, jot, esc saves it to `inbox/`
 - menu-bar tray and launch at login
@@ -108,7 +108,7 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm prepare`    | install the git hooks (lefthook)     |
 | `pnpm tauri`      | run the tauri cli directly           |
 
-Rust tests live in `src-tauri`: `cargo test --locked`.
+Rust tests live in `src-tauri`: `cd src-tauri && cargo test --locked`.
 
 ## Technologies
 

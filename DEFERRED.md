@@ -4,11 +4,11 @@ Work ruled out rather than done. `AGENTS.md` maps the rest of the docs.
 
 An entry needs a reason that survives someone asking for it: blocked on a decision nobody has made, blocked on access nobody has, or scoped into a change that has not started. Cost, effort and size are not reasons, and neither is calling something an edge case, which `AGENTS.md`'s "Deciding what to do" already covers. A bug you have diagnosed gets fixed instead of an entry, and a defect nobody has scoped gets an issue. An entry leaves this list by being done.
 
-- iA parts-of-speech syntax highlighting and style check (needs real NLP, the wrong weight for this app)
-- Content-block transclusion (`/file.md` embeds)
-- Backlinks panel (wikilinks are one-directional today)
-- Git integration UI (the folder is git-init-able by hand today)
-- wdio + tauri-driver e2e (replaces the deleted Playwright smoke tests)
+- iA parts-of-speech syntax highlighting and style check (blocked on a dependency nobody has picked: tagging parts of speech needs a real NLP model, and choosing one that ships offline inside the bundle is a decision nobody has made)
+- Content-block transclusion (`/file.md` embeds). Blocked on a decision `D15` forces: an embed has no markdown form, so either the serializer writes something that is not the file's own text or the round-trip contract loses it
+- Backlinks panel. Blocked on the index: `note_fts` carries title and content, and nothing records which note links to which, so this needs a schema and a writer before it needs a panel
+- Git integration UI. Scoped into a change nobody has started: `D2` makes the folder plain files, so `git init` in it already works, and what the app would add on top has never been specified
+- wdio + tauri-driver e2e. Scoped into a change nobody has started: `D21` deleted the Playwright smoke tests because Playwright cannot drive a Tauri window, and named this as the replacement without anyone picking it up
 - A verified minimum macOS version for the cask (`tauri.conf.json` sets none, so the bundle carries Tauri's 10.13 default; nothing has tested the real floor, so the cask declares no `depends_on macos:`)
 - macOS code signing and notarization (the release workflow already wires the `APPLE_*` variables, so it needs a Developer ID; until then the cask and `README.md` carry the quarantine workaround)
 - Code-scanning merge protection for zizmor (it runs with `advanced-security: false`, so a finding fails the job; the Security tab and incremental triage need a ruleset instead, and in that mode the action never fails)
@@ -22,11 +22,9 @@ An entry needs a reason that survives someone asking for it: blocked on a decisi
 - A floating-promise check (`D42` left fire-and-forget calls unmarked and unchecked)
 - Enforcement for the `D14` layer boundaries and the lucide icon rule (`D43`)
 - Opening an attachment link. A ⌘-click hands `openUrl` a destination relative to the notes dir (`editor.tsx:159`), which the system opener cannot resolve, so a linked PDF goes nowhere while an image beside it renders through `resolveImageSrc`. Opening one needs `opener:allow-open-path`, which `opener:default` does not carry, plus a scope naming which paths the app may hand to the system. Deferred on that scope, not on the wiring
-- A focus-visible affordance for `.link-editor-input` and `.code-block-language`, which set `outline: none` and replace nothing
-- A message on `DatabaseError` (`src/core/errors.ts`), which carries only `cause`, so a database failure reaches the toast as Effect's own text
+- A message on `DatabaseError` (`src/core/errors.ts`), which carries only `cause`, so a database failure reaches the toast as Effect's own text. Blocked on a decision that runs against the current design: every service pipes it through `Effect.orDie` (`note-service.ts:238`) precisely because it is not meant to be user-facing, which `ARCHITECTURE.md` states and `D55`'s constraint repeats, so giving it a message means first deciding a database failure should say anything at all
 - A shortcut or palette entry for typewriter scrolling, the one action reachable from the status strip alone
 - A shortcut or palette entry for close others, close to the right, and copy path, the tab actions reachable from the context menu alone (`DESIGN.md`'s keyboard-first rule counts a mouse-only feature as unfinished)
-- Something on screen for a tab whose first read failed for a reason other than the file being gone (`D55` keeps the tab rather than closing it, so the panel renders nothing until a later read lands and the toast is the only signal)
 - Splitting the window into two tab groups side by side (`D53` keeps one active tab, so a split is a second workspace rather than a second pane)
 - A tab's tooltip carrying the full path, which an external tab's truncated basename most wants (`D51`'s glyph rules cover the chrome, not a text label)
 - Relative image paths inside an external tab, which `note-session.tsx` leaves unresolved by gating `resolveImageSrc` to a note. The retired `/external` view did the same. Fixing it means asset-protocol scope over whatever directory the file came from, and `tauri.conf.json` ships `"scope": []` with `lib.rs` granting `allow_directory` for the notes dir alone, so it is a security decision rather than a wiring one
