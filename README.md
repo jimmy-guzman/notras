@@ -67,7 +67,9 @@ Search runs on a SQLite FTS5 index derived from those files. The index is dispos
 brew install --cask jimmy-guzman/tap/notras
 ```
 
-notras updates itself once installed. Or download an installer from [releases](https://github.com/jimmy-guzman/notras/releases):
+notras checks for updates on launch. A new version arrives as a toast with an install button, and nothing installs until you press it.
+
+Or download an installer from [releases](https://github.com/jimmy-guzman/notras/releases):
 
 - `.dmg` on macOS
 - `.AppImage`, `.deb` or `.rpm` on Linux
