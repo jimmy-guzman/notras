@@ -16,6 +16,11 @@ import {
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import { findSentinel, SENTINEL } from "./sentinel";
+import {
+  createTypewriter,
+  engageTypewriterPadding,
+  TYPEWRITER_SCROLL,
+} from "./typewriter";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
@@ -79,6 +84,7 @@ export function Editor({
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
   const typewriterRef = useRef(typewriterEnabled);
+  const previousTypewriterRef = useRef(typewriterEnabled);
 
   useEffect(() => {
     typewriterRef.current = typewriterEnabled;
@@ -86,6 +92,7 @@ export function Editor({
 
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
+  const [reading, setReading] = useState(false);
   const [linkShortcut] = useState(() => {
     // ⌘⇧K: open the link popover at the caret (⌘K belongs to the palette).
     return Extension.create({
@@ -109,6 +116,12 @@ export function Editor({
       name: "linkShortcut",
     });
   });
+  const [typewriter] = useState(() =>
+    createTypewriter({
+      enabled: () => typewriterRef.current,
+      scroller: () => scrollerRef.current,
+    })
+  );
 
   const editor = useEditor({
     content: config.initialContent,
@@ -262,6 +275,7 @@ export function Editor({
         resolveImageSrc: config.resolveImageSrc,
       }),
       linkShortcut,
+      typewriter,
     ],
     immediatelyRender: false,
     onBlur: () => {
@@ -305,22 +319,8 @@ export function Editor({
         },
       });
     },
-    onSelectionUpdate: ({ editor: instance }) => {
-      // Typewriter scrolling: keep the caret vertically centered.
-      if (!typewriterRef.current) {
-        return;
-      }
-
-      const scroller = scrollerRef.current;
-
-      if (scroller === null) {
-        return;
-      }
-
-      const coords = instance.view.coordsAtPos(instance.state.selection.head);
-      const rect = scroller.getBoundingClientRect();
-
-      scroller.scrollTop += coords.top - (rect.top + rect.height / 2);
+    onSelectionUpdate: () => {
+      setReading(false);
     },
     onUpdate: ({ editor: instance }) => {
       // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; the replace path assigns true
@@ -391,11 +391,79 @@ export function Editor({
         chain.focus();
       }
 
-      chain.setTextSelection(Math.min(pos, max)).scrollIntoView().run();
+      chain
+        .setTextSelection(Math.min(pos, max))
+        .setMeta(TYPEWRITER_SCROLL, "skip")
+        .scrollIntoView()
+        .run();
     } else if (config.focusOnMount === true) {
       editor.commands.focus("end");
     }
   }, [config, editor]);
+
+  // The recenter rides the plugin's own meta so one animator owns every
+  // scroll, and it is gated on a real off-to-on flip so a mount with the
+  // pref already on pads without gliding.
+  useEffect(() => {
+    const wasEnabled = previousTypewriterRef.current;
+
+    previousTypewriterRef.current = typewriterEnabled;
+
+    const scroller = scrollerRef.current;
+    const content = editor?.view.dom.parentElement;
+
+    if (
+      !typewriterEnabled ||
+      editor === null ||
+      scroller === null ||
+      !(content instanceof HTMLElement)
+    ) {
+      return;
+    }
+
+    const recenter = () => {
+      if (editor.isDestroyed) {
+        return;
+      }
+
+      editor
+        .chain()
+        .setMeta(TYPEWRITER_SCROLL, "center")
+        .scrollIntoView()
+        .run();
+    };
+    const disengage = engageTypewriterPadding(scroller, content, recenter);
+
+    if (!wasEnabled) {
+      recenter();
+    }
+
+    return disengage;
+  }, [editor, typewriterEnabled]);
+
+  // Wheel and touchmove, never scroll: scroll also fires for the typewriter
+  // glide and ProseMirror's own scrollIntoView, which move the scroller on
+  // every keystroke (`D64`).
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+
+    if (!focusModeEnabled || scroller === null) {
+      return;
+    }
+
+    const engage = () => {
+      setReading(true);
+    };
+
+    scroller.addEventListener("wheel", engage, { passive: true });
+    scroller.addEventListener("touchmove", engage, { passive: true });
+
+    return () => {
+      scroller.removeEventListener("wheel", engage);
+      scroller.removeEventListener("touchmove", engage);
+      setReading(false);
+    };
+  }, [focusModeEnabled]);
 
   const cancelLink = useCallback(() => {
     setLinkEditor(null);
@@ -449,7 +517,9 @@ export function Editor({
     <div
       className={cn(
         "allow-select min-h-0 flex-1 overflow-y-auto",
-        focusModeEnabled && "focus-mode-on"
+        focusModeEnabled && "focus-mode-on",
+        reading && "focus-reading",
+        typewriterEnabled && "typewriter-on"
       )}
       ref={scrollerRef}
     >

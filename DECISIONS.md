@@ -733,3 +733,27 @@ Every doc here was hard-wrapped at roughly 80 columns. Markdown is rendered rath
 **Rejected: one sentence per line.** Finer diffs, since an edit lands on the sentence rather than the paragraph, and it renders the same. Rejected because GitHub turns each newline in a PR body into a line break, so it cannot be the rule in both places, and one rule covering both is worth more than the finer diff.
 
 **Constraint:** nothing checks this. Ultracite does not format markdown and `D15` and `D41` rule out Prettier, so the rule in `AGENTS.md` and a reader are what hold it.
+
+### D63 Typewriter scrolling replaces the editor's own scroll
+
+The typewriter recentre rides ProseMirror's `handleScrollToSelection`, so while the mode is on it replaces the built-in nearest-edge scroll instead of correcting after it, and one writer owns the scroller. A transaction recentres when it changed the document or moved the selection without the pointer meta: typing, deletion, undo, paste, and keyboard caret travel, but not a click, a drag-selection, or the mount-time caret restore, which opts out through a meta of its own. The note is padded below by half the scroller's height and not above, so the caret types at its natural height until its line reaches centre and locks there, the last lines still reach centre, scrolling up settles at the note start, and a toggle cannot shift the text. A window resize re-measures the padding and recentres through the same path. The replacement covers the note's vertical scroller alone, so horizontal visibility inside an inner scroller, a code block's own overflow, keeps ProseMirror's instant nearest-edge nudge. The recentre glides over 0.15s, collapses to instant under `prefers-reduced-motion`, and yields the moment anything else moves the scroller. The note's scrollbar is hidden while the mode is on: a bar flashing on every recentre is noise against a line that holds still, and the bottom padding skews its geometry anyway.
+
+**Rejected: correcting the scroll after ProseMirror's own,** which is what shipped: a `scrollTop` write in `onSelectionUpdate` landed on top of the nearest-edge scroll on every selection change, clicks and drag-selections included, and clamped at both ends of the note for want of padding.
+
+**Rejected: recentring on mouse clicks and drag-selection.** iA Writer recentres on click. A click here is navigation rather than writing, and a recentre on mousedown moves the text under a drag-selection mid-gesture.
+
+**Rejected: padding the top so the first line can centre,** which is iA Writer's shape and what this change first tried. The padding is reachable scroll range, so scrolling up to read opened half a viewport of blank above the note start instead of settling at its bounds. The maintained Obsidian typewriter plugin names the alternative "only maintain typewriter offset when reached" and pads only the bottom in that mode; the scroll clamp at the top is what implements the reached threshold.
+
+**Rejected: native `scrollTo({behavior: "smooth"})`.** WKWebView fixes the duration, and a call cannot retarget the animation mid-flight, which a fast typist does on every keystroke.
+
+**Rejected: CSS `container-type: size` with `cqh` padding.** Size containment makes the scroller the containing block for `position: fixed` descendants, and the link editor is one, positioned with viewport coordinates from inside the scroller.
+
+### D64 Scrolling lifts focus mode's dim
+
+Focus mode dims every block but the caret's, which makes the rest of the note unreadable the moment the person stops writing to reread it. A wheel or touch scroll now lifts the dim, and the next caret engagement, typing, arrow travel, or a click, restores it. The lift is a second class beside `focus-mode-on` that overrides opacity while the base rule stays matched, which keeps the 0.3s transition on the element so both directions fade. Adopted from the maintained Obsidian typewriter plugin's pause-dim-while-scrolling, which defaults on there and is always on here.
+
+**Rejected: keying off the `scroll` event.** It also fires for the typewriter glide and ProseMirror's own nearest-edge scroll, which move the scroller on every keystroke, so the dim would lift at the one moment it must hold.
+
+**Rejected: a preference for it.** Scrolling is reading and a dimmed note cannot be read; no case for holding the dim mid-scroll was named.
+
+**Constraint:** a scrollbar drag and a paging key fire neither `wheel` nor `touchmove`, so they scroll with the dim held. The upstream plugin accepts the same gap.

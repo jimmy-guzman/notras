@@ -5,7 +5,7 @@ Interface conventions for notras. Every rule here is either implemented in `src/
 ## Operating principles
 
 - **The window is the editor.** There is no sidebar and no note list on screen. Anything that is not the note reaches it through ⌘K, a dialog, or the status strip. The one exception is the tab strip, which carries the open set and the controls acting on it: opening, selecting, closing and reordering a tab (`D52`). Renaming, moving, pinning and tagging act on the note rather than the tab, so they stay in the palette, and finding a note is still the palette's job. The two bands carry the note's state and the editor's view state.
-- **Keyboard first.** Every action has a shortcut or a palette entry. A feature reachable only by mouse is unfinished. Four still are, and `DEFERRED.md` carries them as ruled out rather than accepted: typewriter scrolling toggles from the status strip, and close others, close to the right and copy path sit in the tab context menu alone.
+- **Keyboard first.** Every action has a shortcut or a palette entry. A feature reachable only by mouse is unfinished. Three still are, and `DEFERRED.md` carries them as ruled out rather than accepted: close others, close to the right and copy path sit in the tab context menu alone.
 - **Lowercase everywhere.** Labels, buttons, toasts, tooltips, placeholders, and empty states are lowercase, app-wide and deliberate. The wordmark is lowercase too.
 - **Default to less.** Add nothing that does not earn its place, then remove one more thing. New chrome is the last resort; the palette is the first, and chrome that arrives displaces something rather than joining it: the tab strip took the title's place in the band rather than adding a band (`D52`).
 - **The last five percent is the work.** A feature that renders but reflows the caret, dims the wrong block, or teleports the text on toggle is not shipped.
@@ -75,9 +75,10 @@ Spacing follows Tailwind's scale. Interior padding on small controls stays in th
 
 Motion carries a state change and nothing else. There is no decorative animation, no entrance choreography beyond the platform's own, and no spring.
 
-- Focus mode fades non-active blocks to `0.28` opacity over `0.3s`.
+- Focus mode fades non-active blocks to `0.28` opacity over `0.3s`, and a wheel or touch scroll fades them back up until the caret engages again (`D64`).
 - Hover affordances (code block toolbar, code block buttons, wikilinks) resolve over `0.15s`.
 - A dragged tab follows the pointer, and the tabs it crosses slide one place over `0.15s`, as does the released tab and one that ⌘⌥⇧←/→ moves (`D60`).
+- The typewriter recentre glides the note over `0.15s` and yields the moment anything else moves the scroller (`D63`).
 - Dialogs, tooltips, and the tag combobox fade, scale, and slide on open and close. This is macOS behaviour for a sheet, and it is the reason the backdrop blurs too.
 - Shadcn primitives carry their own hover and press transitions, and the toast spinner spins. Beyond those and the tab strip, `src/styles.css` animates only focus mode, wikilinks, and the code-block toolbar and its buttons.
 - The window does not bounce. `html` sets `overscroll-behavior: none`, so a flick past the end of a note stays in the note rather than chaining into the document and dragging the titlebar, the tab strip and the status strip with it. A scroller keeps the bounce of its own, which is what an NSScrollView does.

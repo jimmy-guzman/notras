@@ -7,6 +7,7 @@ import {
   FolderInputIcon,
   FolderSearchIcon,
   HashIcon,
+  KeyboardIcon,
   PencilIcon,
   PinIcon,
   RefreshCwIcon,
@@ -38,6 +39,7 @@ import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
+import { togglePref, usePref } from "@/lib/prefs";
 import {
   closeNoteTab,
   openNote as openInTab,
@@ -344,6 +346,12 @@ function TagsView({
   );
 }
 
+function typewriterActionText(enabled: boolean) {
+  return enabled
+    ? "turn off typewriter scrolling"
+    : "turn on typewriter scrolling";
+}
+
 type PaletteView = "delete" | "move" | "rename" | "root" | "tags";
 
 interface CommandPaletteProps {
@@ -646,6 +654,13 @@ export function CommandPalette({
     onOpenSettings();
   }, [close, onOpenSettings]);
 
+  const typewriterEnabled = usePref("typewriter");
+
+  const toggleTypewriter = useCallback(() => {
+    close();
+    togglePref("typewriter");
+  }, [close]);
+
   const reindex = useCallback(() => {
     runAction(async () => {
       await reindexAll();
@@ -731,6 +746,14 @@ export function CommandPalette({
       onSelect: revealInFinder,
       text: "reveal in finder",
       value: "reveal-in-finder",
+    },
+    {
+      Icon: KeyboardIcon,
+      label: "typewriter scrolling",
+      needsNote: true,
+      onSelect: toggleTypewriter,
+      text: typewriterActionText(typewriterEnabled),
+      value: "toggle-typewriter",
     },
     {
       Icon: SettingsIcon,

@@ -290,6 +290,7 @@ function Workspace() {
   useHotkeys("mod+shift+t", reopenTab, HOTKEY_OPTIONS);
   useHotkeys("mod+p", toggleSource, HOTKEY_OPTIONS);
   useHotkeys("mod+d", toggleFocusMode, HOTKEY_OPTIONS);
+  useHotkeys("mod+alt+t", toggleTypewriter, HOTKEY_OPTIONS);
   useHotkeys(
     "mod+1,mod+2,mod+3,mod+4,mod+5,mod+6,mod+7,mod+8,mod+9",
     jumpToTab,
