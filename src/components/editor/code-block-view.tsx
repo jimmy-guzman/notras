@@ -2,7 +2,8 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
 import { toast } from "@/components/ui/toast";
 
 import { lowlight } from "./extensions";
@@ -16,7 +17,9 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const language =
     typeof node.attrs.language === "string" ? node.attrs.language : "";
   const [copied, setCopied] = useState(false);
-  const resetRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const clearCopied = useDebouncedCallback(() => {
+    setCopied(false);
+  }, 1500);
 
   // A fence can name a language lowlight does not know (```mermaid). Keep it
   // in the list, or the picker would silently rewrite it to "plain".
@@ -28,27 +31,17 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
     ).toSorted();
   }, [language]);
 
-  useEffect(
-    () => () => {
-      clearTimeout(resetRef.current);
-    },
-    []
-  );
-
   const copy = useCallback(() => {
     navigator.clipboard
       .writeText(node.textContent)
       .then(() => {
         setCopied(true);
-        clearTimeout(resetRef.current);
-        resetRef.current = setTimeout(() => {
-          setCopied(false);
-        }, 1500);
+        clearCopied();
       })
       .catch(() => {
         toast.add({ title: "could not copy the code block", type: "error" });
       });
-  }, [node.textContent]);
+  }, [clearCopied, node.textContent]);
 
   const changeLanguage = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {

@@ -2,6 +2,8 @@ import { CheckIcon, UnlinkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface LinkEditorState {
+  /** Distinguishes one invocation from the next, so the popover remounts. */
+  id: number;
   /** Caret rect for positioning the popover. */
   left: number;
   /** Empty when creating a link with no selection (text field shown). */
@@ -29,23 +31,12 @@ export function LinkEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
-  // The popover stays mounted between invocations, so a second ⌘⇧K on a
-  // different link arrives as a new `state` rather than a remount. Reset the
-  // draft during render (the pattern used in the notes route) and refocus
-  // afterwards.
-  const [syncedState, setSyncedState] = useState(state);
-
-  if (syncedState !== state) {
-    setSyncedState(state);
-    setUrl(state.url);
-    setText("");
-  }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: state is the only signal a second invocation arrived; dropping it stops the refocus
+  // The caller keys this on `state.id`, so a second invocation arrives as a
+  // fresh mount and the draft starts empty without a reset pass.
   useEffect(() => {
     firstFieldRef.current?.focus();
     firstFieldRef.current?.select();
-  }, [state]);
+  }, []);
 
   // Clamp inside the viewport once rendered (same policy as the
   // suggestion menu).

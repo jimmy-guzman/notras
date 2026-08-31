@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 66, and some entries below it were removed, so the next entry takes 67.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 67, and some entries below it were removed, so the next entry takes 68.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
@@ -803,3 +803,21 @@ Every read goes through TanStack Query. `src/data/queries.ts` holds one `noteQue
 **Constraint:** a disabled query still reads its cache entry. A key standing for "nothing to ask" must not collide with one that holds data, which is why the palette returns its own recent slice rather than whatever `enabled: false` handed back.
 
 **Constraint:** an external tab refetches on window focus. Its path lies outside the notes dir, so no payload will ever name it and invalidation cannot reach it.
+
+### D67 A mutation scope serializes a note's tag writes
+
+`useNoteTags` writes through `useMutation` carrying `scope: { id: path }` and `mutationKey: ["note-tags", path]`. The promise queue, the request counter, and the ref holding the last set known to be on disk are gone. `mutationCache.canRun` starts a mutation only when it is the first pending one in its scope, so the scope is what makes the last call the last write. The optimistic list stays in the hook, adjusted during render against the tags coming back from disk.
+
+The queue it replaces belonged to the hook instance, and `D31` puts tag editing on two surfaces. The status strip and the palette therefore held separate queues and did not serialize against each other at all, which the scope fixes by keying on the note instead.
+
+**Rejected: reading the displayed value from `mutation.variables`.** It deletes the optimistic list outright. Rejected because the value stops being pending the moment the write resolves, while the truth arrives a full IPC round trip later through `notes-changed` and the re-read, so the row flashes back to the old set and forward again. That is the failure that ruled out `useOptimistic` in `D66`.
+
+**Rejected: patching the cache in `onMutate`,** which is the canonical optimistic shape and would remove the local list honestly. Rejected on reach: tags render from `noteQueries.file` and from every `noteQueries.list` variant the palette holds, so one toggle would have to find and rewrite the note inside each cached list.
+
+**Rejected: converting `useAutosave` the same way.** Attempted and abandoned. `use-debounce`'s `flushOnExit` fires only when a debounced call is pending, where the hook's unmount flush also has to carry a buffer left behind by a failed write, so the library covers strictly less than the code it would replace and keeping both is two mechanisms for one job. `dirty` also has no `MutationStatus`, because it describes the buffer rather than a request.
+
+**Rejected: a mutation for the launch-at-login switch.** Built and reverted. `onMutate`, `onSettled`, a scope, and a wrapper for the second argument Base UI passes its change handler came to 22 lines against the 11-line `try`/`catch` they replaced. The read moved to a query and stayed there; the write did not.
+
+**Constraint:** a rollback asks `isMutating({ mutationKey })` rather than counting requests itself. `onError` runs before the failure is dispatched, so the failing mutation still counts as pending, and a total above one means a later toggle is queued behind it. `D31` requires that superseded failure to leave the display alone.
+
+**Constraint:** the optimistic list stays in the hook. It is what covers the gap between a write resolving and the re-read landing, which no mutation state spans.

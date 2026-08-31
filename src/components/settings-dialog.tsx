@@ -1,7 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,32 +23,36 @@ interface SettingsDialogProps {
   open: boolean;
 }
 
+/**
+ * Launch at login, owned by the OS rather than the index, so it is keyed here
+ * rather than in `src/data/queries.ts` alongside the reads that go through the
+ * Effect runtime.
+ */
+const autostartQuery = queryOptions({
+  queryFn: isEnabled,
+  queryKey: ["autostart"] as const,
+});
+
 export function SettingsDialog({
   notesDir,
   onOpenChange,
   open,
 }: SettingsDialogProps) {
   const queryClient = useQueryClient();
-  const [autostart, setAutostart] = useState(false);
-  // The switch cannot claim "off" when the real state is unknown.
-  const [autostartReadable, setAutostartReadable] = useState(true);
+  // Read when the dialog opens, never on launch: nothing else shows it.
+  const { data: autostart, isError: autostartUnreadable } = useQuery({
+    ...autostartQuery,
+    enabled: open,
+  });
 
   useEffect(() => {
-    if (open) {
-      isEnabled()
-        .then((enabled) => {
-          setAutostart(enabled);
-          setAutostartReadable(true);
-        })
-        .catch(() => {
-          setAutostartReadable(false);
-          toast.add({
-            title: "could not read the launch at login setting",
-            type: "error",
-          });
-        });
+    if (autostartUnreadable) {
+      toast.add({
+        title: "could not read the launch at login setting",
+        type: "error",
+      });
     }
-  }, [open]);
+  }, [autostartUnreadable]);
 
   const changeNotesDir = useCallback(async () => {
     try {
@@ -73,16 +77,20 @@ export function SettingsDialog({
     }
   }, [queryClient]);
 
-  const toggleAutostart = useCallback(async (value: boolean) => {
-    setAutostart(value);
+  const toggleAutostart = useCallback(
+    async (value: boolean) => {
+      queryClient.setQueryData(autostartQuery.queryKey, value);
 
-    try {
-      await (value ? enable() : disable());
-    } catch {
-      setAutostart(!value);
-      toast.add({ title: "could not update launch at login", type: "error" });
-    }
-  }, []);
+      try {
+        await (value ? enable() : disable());
+      } catch {
+        // The OS holds the truth, so a failure reverts by re-reading it.
+        queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
+        toast.add({ title: "could not update launch at login", type: "error" });
+      }
+    },
+    [queryClient]
+  );
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -109,8 +117,8 @@ export function SettingsDialog({
           <div className="flex items-center justify-between">
             <Label htmlFor="autostart">launch at login</Label>
             <Switch
-              checked={autostart}
-              disabled={!autostartReadable}
+              checked={autostart ?? false}
+              disabled={autostartUnreadable}
               id="autostart"
               onCheckedChange={toggleAutostart}
             />

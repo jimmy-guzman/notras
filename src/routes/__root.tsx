@@ -52,6 +52,17 @@ export const Route = createRootRouteWithContext<{
   },
 });
 
+/** `listen` resolves to its own unsubscribe, which every effect here drops. */
+function disposeLater(...pending: Promise<() => void>[]) {
+  return () => {
+    for (const unlisten of pending) {
+      unlisten.then((dispose) => {
+        dispose();
+      });
+    }
+  };
+}
+
 const HOTKEY_OPTIONS = {
   enableOnContentEditable: true,
   enableOnFormTags: true,
@@ -143,11 +154,7 @@ function RootLayout() {
       }
     });
 
-    return () => {
-      unlisten.then((dispose) => {
-        dispose();
-      });
-    };
+    return disposeLater(unlisten);
   }, [queryClient]);
 
   // Tray menu + "Open With" plumbing from Rust.
@@ -183,14 +190,7 @@ function RootLayout() {
 
     drainPendingOpens().catch(reportFailure("could not open file"));
 
-    return () => {
-      unlistenNew.then((dispose) => {
-        dispose();
-      });
-      unlistenOpen.then((dispose) => {
-        dispose();
-      });
-    };
+    return disposeLater(unlistenNew, unlistenOpen);
   }, []);
 
   // Quit is held open by Rust until the buffers are on disk -- and called off
@@ -223,11 +223,7 @@ function RootLayout() {
         });
     });
 
-    return () => {
-      unlisten.then((dispose) => {
-        dispose();
-      });
-    };
+    return disposeLater(unlisten);
   }, []);
 
   useHotkeys(
