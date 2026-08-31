@@ -1,9 +1,9 @@
+import { useDebouncedCallback } from "@tanstack/react-pacer";
 import type { ReactNodeViewProps } from "@tiptap/react";
 
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { useDebouncedCallback } from "use-debounce";
 import { toast } from "@/components/ui/toast";
 
 import { lowlight } from "./extensions";
@@ -17,9 +17,12 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const language =
     typeof node.attrs.language === "string" ? node.attrs.language : "";
   const [copied, setCopied] = useState(false);
-  const clearCopied = useDebouncedCallback(() => {
-    setCopied(false);
-  }, 1500);
+  const clearCopied = useDebouncedCallback(
+    () => {
+      setCopied(false);
+    },
+    { wait: 1500 }
+  );
 
   // A fence can name a language lowlight does not know (```mermaid). Keep it
   // in the list, or the picker would silently rewrite it to "plain".

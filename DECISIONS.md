@@ -816,10 +816,28 @@ The queue it replaces belonged to the hook instance, and `D31` puts tag editing 
 
 **Rejected: patching the cache in `onMutate`,** which is the canonical optimistic shape and would remove the local list honestly. Rejected on reach: tags render from `noteQueries.file` and from every `noteQueries.list` variant the palette holds, so one toggle would have to find and rewrite the note inside each cached list.
 
-**Rejected: converting `useAutosave` the same way.** Attempted and abandoned. `use-debounce`'s `flushOnExit` fires only when a debounced call is pending, where the hook's unmount flush also has to carry a buffer left behind by a failed write, so the library covers strictly less than the code it would replace and keeping both is two mechanisms for one job. `dirty` also has no `MutationStatus`, because it describes the buffer rather than a request.
+**Rejected: converting `useAutosave` the same way.** Attempted and abandoned. Its unmount flush has to carry a buffer left behind by a failed write, which no library holding the pending arguments itself can hand back. `dirty` also has no `MutationStatus`, because it describes the buffer rather than a request. `D68` later moved the timer alone and left the buffer here.
 
 **Rejected: a mutation for the launch-at-login switch.** Built and reverted. `onMutate`, `onSettled`, a scope, and a wrapper for the second argument Base UI passes its change handler came to 22 lines against the 11-line `try`/`catch` they replaced. The read moved to a query and stayed there; the write did not.
 
 **Constraint:** a rollback asks `isMutating({ mutationKey })` rather than counting requests itself. `onError` runs before the failure is dispatched, so the failing mutation still counts as pending, and a total above one means a later toggle is queued behind it. `D31` requires that superseded failure to leave the display alone.
 
 **Constraint:** the optimistic list stays in the hook. It is what covers the gap between a write resolving and the re-read landing, which no mutation state spans.
+
+### D68 Pacer runs every debounce, and owns the autosave timer alone
+
+`@tanstack/react-pacer` replaces `use-debounce` at the palette's 150ms search and the code block's 1500ms copy label, and replaces the `setTimeout` and `timerRef` that `use-autosave.ts` had rolled by hand. All three read the same defaults: `leading: false`, `trailing: true`.
+
+`useAutosave` gives up the timer and nothing else. `chainWrite` now holds the serialization that `flush` used to, `useDebouncer` sits between the two, and `flush` cancels a scheduled write before consuming the buffer rather than cancelling it once the write starts. The buffer, the disk gate, and the status machine did not move.
+
+**Rejected: keeping `use-debounce`.** Stable at 10.1.1 and 122KB unpacked, against a package at 0.23.0 that brings `@tanstack/pacer`, `@tanstack/react-store`, and `use-sync-external-store` with it. Rejected because it covered two of the three debounces and left the third hand-rolled beside it, in a frontend already standing on TanStack Router and Query. The version is the cost: 0.x means a minor can break the API.
+
+**Rejected: `useAsyncDebouncer` for the whole of `useAutosave`.** It runs overlapping executions in parallel rather than serializing them, and clears `lastArgs` in a `finally` when the written function rejects, so a failed write's content would be gone and `flush()` would have nothing left to retry. Both are properties this hook exists to hold.
+
+**Rejected: Pacer's `enabled` option for the disk gate.** It gates scheduling, where the gate belongs at the write. Recording has to continue while the file is gone, or a later flush sends the snapshot from before it went over everything typed since.
+
+**Constraint:** no `selector` is passed. `useDebouncer` subscribes to its store either way, and the default selector returns a fresh `{}` compared with `shallow`, so nothing re-renders. A selector here would re-render a note on every keystroke.
+
+**Constraint:** the `useLayoutEffect` refreshing `pathRef` and `optionsRef` stays. Pacer's timer is still a `setTimeout` macrotask, so the gap between a commit turning `enabled` off and a passive effect running is the same one it always was.
+
+**Constraint:** the lockfile carries `@tanstack/store` twice, at 0.9.3 for Router and 0.11.1 for Pacer. `pnpm dedupe` does not collapse them. The second copy costs 2.03 kB gzipped, measured against the same build without Pacer, and an override pinning Router to 0.11.1 is untested across a 0.x minor.
