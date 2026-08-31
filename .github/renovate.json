@@ -8,7 +8,7 @@
   "minimumReleaseAge": "3 days",
   "packageRules": [
     {
-      "description": "Tauri ships each package as an npm and crate pair that `tauri build` refuses to build when they differ, so both halves move in one pull request (`D65`)",
+      "description": "`tauri build` fails when a tauri npm package and its crate differ in major or minor",
       "groupName": "tauri",
       "matchSourceUrls": [
         "https://github.com/tauri-apps/plugins-workspace",
