@@ -52,7 +52,7 @@ export function StatusBar({
         value: "focus",
       },
       {
-        hint: "",
+        hint: "⌘⌥t",
         icon: KeyboardIcon,
         label: "typewriter scrolling",
         onToggle: onToggleTypewriter,

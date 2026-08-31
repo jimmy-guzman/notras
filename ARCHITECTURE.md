@@ -88,7 +88,7 @@ src/
     index.tsx         # THE page: the workspace -- tab strip, every open
                       # tab's session, and the two bands (D53)
   components/
-    editor/           # TipTap wrapper, extensions, suggestions, autosave
+    editor/           # TipTap wrapper, extensions, suggestions, autosave, typewriter
     tabs/             # the title bar's tab strip
     workspace/        # note-session: one open tab, note or external (D54)
     notes/            # note-controls (save/pin), note-tags, use-note-tags,

@@ -54,7 +54,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘P, ⌘D and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone.
+- Closing the last tab leaves the empty state, where ⌘P, ⌘D, ⌘⌥T and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -75,7 +75,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.
 - A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
-- The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, settings, reindex library, and check for updates. Every one but new note, settings, reindex library, and check for updates needs a note showing.
+- The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, toggle typewriter scrolling, settings, reindex library, and check for updates. Every one but new note, settings, reindex library, and check for updates needs a note showing.
 - Actions match the free text after a tag token, so they stay reachable inside a tag filter.
 
 ## The editor
@@ -95,7 +95,12 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Tables are editable and start at two columns by three rows with a header. Task checkboxes are clickable and round-trip as `- [x]` and `- [ ]`.
 - A code block carries a copy button and a language picker. The picker keeps a language lowlight does not know rather than rewriting it, and markdown highlights a leading frontmatter block as YAML.
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
-- Typewriter scrolling keeps the caret vertically centred. It toggles from the status strip and has no shortcut.
+- Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it. Dragging the scrollbar does not lift it.
+- ⌘⌥T toggles typewriter scrolling, which holds the caret's line at the editor's vertical centre. The status strip and the palette toggle it too.
+- Typing, deleting, undo, paste, and arrow-key travel recentre with a short glide. A click, a drag-selection, and scrolling by hand do not, and the next keystroke recentres.
+- The caret types at its natural height until its line reaches the centre and locks there, so scrolling up settles at the note start with no blank above. The last lines reach the centre, toggling the mode does not shift the text, resizing the window keeps the caret's line at its anchor, and with reduce motion on the recentre is instant.
+- Inside a code block the caret stays horizontally in view while the mode is on.
+- The note's scrollbar is hidden while the mode is on.
 - The status strip carries the word count and the reading time at 200 words a minute.
 - Focus mode and typewriter scrolling are app-wide rather than per tab, and both survive a relaunch.
 

@@ -220,6 +220,23 @@
   transition: opacity 0.3s ease;
 }
 
+/* Scrolling is reading: a wheel or touch scroll lifts the dim until the caret
+   engages again. Overriding opacity while the rule above still matches keeps
+   its transition on the element, so both directions animate (`D64`). */
+.focus-mode-on.focus-reading .ProseMirror > :not(.has-focus) {
+  opacity: 1;
+}
+
+/* Typewriter holds the line still, and a scrollbar flashing on every
+   recentre is noise against that stillness (`D63`). Wheel and trackpad
+   scrolling are untouched; only the bar goes. */
+.typewriter-on {
+  scrollbar-width: none;
+}
+.typewriter-on::-webkit-scrollbar {
+  display: none;
+}
+
 /* Regular lists get the same paragraph-margin taming. */
 .ProseMirror li > p {
   margin-block: 0;
