@@ -223,17 +223,17 @@ function RootLayout() {
   useHotkey("Mod+K", () => {
     setPaletteOpen((current) => !current);
   });
-  useHotkey("Mod+N", () => {
-    createNote()
-      .then((path) => {
-        openNote(path, true);
-      })
-      .catch((error: unknown) => {
-        toast.add({
-          title: errorMessage(error, "could not create note"),
-          type: "error",
-        });
+  useHotkey("Mod+N", async () => {
+    try {
+      const path = await createNote();
+
+      openNote(path, true);
+    } catch (error) {
+      toast.add({
+        title: errorMessage(error, "could not create note"),
+        type: "error",
       });
+    }
   });
   useHotkey("Mod+,", () => {
     setSettingsOpen(true);
