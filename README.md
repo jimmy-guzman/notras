@@ -142,24 +142,22 @@ pnpm dev
 
 On first launch notras creates `~/notras` and seeds the index. Change the folder any time in settings (⌘,).
 
-| Script            | Description                          |
-| ----------------- | ------------------------------------ |
-| `pnpm dev`        | run the desktop app (`tauri dev`)    |
-| `pnpm build`      | build the desktop bundle             |
-| `pnpm dev:web`    | run only the web shell (Vite)        |
-| `pnpm build:web`  | build only the web shell             |
-| `pnpm check`      | lint and format check (Ultracite)    |
-| `pnpm fix`        | lint and format, auto-fixing         |
-| `pnpm typecheck`  | type check (tsc)                     |
-| `pnpm test`       | run tests (Vitest, watches)          |
-| `pnpm coverage`   | tests with coverage                  |
-| `pnpm knip`       | detect unused code/deps              |
-| `pnpm icons`      | regenerate app icons from `assets/`  |
-| `pnpm actions:up` | update the SHA-pinned GitHub Actions |
-| `pnpm deps:up`    | interactive dependency upgrade       |
-| `pnpm clean`      | remove build output                  |
-| `pnpm prepare`    | install the git hooks (lefthook)     |
-| `pnpm tauri`      | run the tauri cli directly           |
+| Script           | Description                         |
+| ---------------- | ----------------------------------- |
+| `pnpm dev`       | run the desktop app (`tauri dev`)   |
+| `pnpm build`     | build the desktop bundle            |
+| `pnpm dev:web`   | run only the web shell (Vite)       |
+| `pnpm build:web` | build only the web shell            |
+| `pnpm check`     | lint and format check (Ultracite)   |
+| `pnpm fix`       | lint and format, auto-fixing        |
+| `pnpm typecheck` | type check (tsc)                    |
+| `pnpm test`      | run tests (Vitest, watches)         |
+| `pnpm coverage`  | tests with coverage                 |
+| `pnpm knip`      | detect unused code/deps             |
+| `pnpm icons`     | regenerate app icons from `assets/` |
+| `pnpm clean`     | remove build output                 |
+| `pnpm prepare`   | install the git hooks (lefthook)    |
+| `pnpm tauri`     | run the tauri cli directly          |
 
 Rust tests live in `src-tauri`: `cd src-tauri && cargo test --locked`.
 

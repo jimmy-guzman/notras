@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 64, and some entries below it were removed, so the next entry takes 65.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 65, and some entries below it were removed, so the next entry takes 66.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
@@ -757,3 +757,17 @@ Focus mode dims every block but the caret's, which makes the rest of the note un
 **Rejected: a preference for it.** Scrolling is reading and a dimmed note cannot be read; no case for holding the dim mid-scroll was named.
 
 **Constraint:** a scrollbar drag and a paging key fire neither `wheel` nor `touchmove`, so they scroll with the dim held. The upstream plugin accepts the same gap.
+
+### D65 Renovate moves the tauri npm and crate halves together
+
+Tauri ships each package as an npm and crate pair, and `tauri build` errors when the two differ in major or minor, a check reachable nowhere else: `tauri dev` only logs it and `tauri info` prints it and exits 0. `cargo update` moved `tauri-plugin-updater` to 2.11.0 under the `"2"` range in `Cargo.toml` while `package.json` held its exact pin at 2.10.1, which passed every job in `ci.yml`, reached the v0.2.1 tag, and failed all three bundle legs in under two seconds. The condition was that npm deps moved under an interactive `npm-check-updates` and crates moved under a separate `cargo update`, so nothing made a pair move together. Renovate resolves each dependency to its source repository and `matchSourceUrls` matches across managers, so one rule naming `tauri-apps/tauri` and `tauri-apps/plugins-workspace` puts both halves of every pair in one pull request. `deps:up` and `actions:up` are gone with it, since Renovate is what runs them now.
+
+**Rejected: a repo script comparing `package.json` against `Cargo.lock` in `ci.yml`.** It was built and it worked, and it detects the drift while leaving the two-tool bump path that produces it standing. Tauri's own guidance is to keep the versions synced rather than to check them afterward, and every fix here would still have arrived as a pull request that failed rather than one that was correct.
+
+**Rejected: `config:best-practices`.** It extends `:maintainLockFilesWeekly`, and a weekly `cargo update` against a `"2"` range moves a crate minor while an exact npm pin cannot follow, which schedules this bug rather than preventing it.
+
+**Constraint:** `minimumReleaseAge` is 3 days, above pnpm's own 1440-minute default, because the crate and the npm package publish seconds apart and a poll landing between them would open a cargo-only pull request that drifts the pair again.
+
+**Constraint:** Renovate's `lib/data/monorepo.json` carries `tauri` but no `plugins-workspace`, so `group:tauriMonorepo` covers the core pairs and the plugin rule here is a local stand-in for an entry that belongs upstream. It goes stale if Renovate adds one.
+
+**Constraint:** nothing in CI runs the Tauri CLI, so a pair that drifts anyway is caught by `tauri build` on the release tag. `tauri build --ignore-version-mismatches` exists and does not belong in `release.yml`.

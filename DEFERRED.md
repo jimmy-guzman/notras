@@ -31,3 +31,4 @@ An entry needs a reason that survives someone asking for it: blocked on a decisi
 - Sentence focus, iA's third Focus variant, dimming everything but the sentence holding the caret. Scoped into a change that has not started; the owner ruled it out of the typewriter effort
 - Lifting focus mode's dim during a drag-selection, the selecting half of the pause `D64` adopts for scrolling. Scoped into a change that has not started
 - A palette entry for focus mode, the one writing mode ⌘K does not reach now that typewriter scrolling has one. Scoped into a change that has not started
+- A full `tauri build` in `ci.yml`, the only thing that runs the Tauri CLI against a tree and so the only gate covering the bundler, the icons, `tauri.conf.json` and the version-pair check that stranded v0.2.1. `D65` prevents the drift rather than detecting it, which leaves nothing in CI exercising the CLI. Scoped into a change that has not started

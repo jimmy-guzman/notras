@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "commitMessageAction": "bump",
+  "commitMessagePrefix": "chore: 🤖 ",
+  "commitMessageTopic": "`{{depName}}`",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "Tauri ships each package as an npm and crate pair that `tauri build` refuses to build when they differ, so both halves move in one pull request (`D65`)",
+      "groupName": "tauri",
+      "matchSourceUrls": [
+        "https://github.com/tauri-apps/plugins-workspace",
+        "https://github.com/tauri-apps/tauri"
+      ],
+      "separateMajorMinor": false
+    }
+  ],
+  "reviewers": ["@jimmy-guzman"],
+  "schedule": ["every weekend"],
+  "semanticCommits": "enabled"
+}
