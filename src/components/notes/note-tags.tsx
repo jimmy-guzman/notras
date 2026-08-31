@@ -1,6 +1,6 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useCallback, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +14,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
-
-const HOTKEY_OPTIONS = {
-  enableOnContentEditable: true,
-  enableOnFormTags: true,
-  preventDefault: true,
-} as const;
 
 interface TagBadgeProps {
   onFilter: (tag: string) => void;
@@ -54,13 +48,9 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   const [query, setQuery] = useState("");
   const { changeTags, tags: optimisticTags } = useNoteTags(path, tags);
 
-  useHotkeys(
-    "mod+shift+y",
-    () => {
-      setOpen(true);
-    },
-    HOTKEY_OPTIONS
-  );
+  useHotkey("Mod+Shift+Y", () => {
+    setOpen(true);
+  });
 
   const counts = new Map(allTags.map(({ count, tag }) => [tag, count]));
 

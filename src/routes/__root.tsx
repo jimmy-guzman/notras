@@ -1,3 +1,4 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -9,7 +10,6 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 import { CommandPalette } from "@/components/command-palette";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { Toaster, toast } from "@/components/ui/toast";
@@ -62,12 +62,6 @@ function disposeLater(...pending: Promise<() => void>[]) {
     }
   };
 }
-
-const HOTKEY_OPTIONS = {
-  enableOnContentEditable: true,
-  enableOnFormTags: true,
-  preventDefault: true,
-} as const;
 
 function RootLayout() {
   const { data: folders } = useSuspenseQuery(noteQueries.folders());
@@ -226,36 +220,24 @@ function RootLayout() {
     return disposeLater(unlisten);
   }, []);
 
-  useHotkeys(
-    "mod+k",
-    () => {
-      setPaletteOpen((current) => !current);
-    },
-    HOTKEY_OPTIONS
-  );
-  useHotkeys(
-    "mod+n",
-    () => {
-      createNote()
-        .then((path) => {
-          openNote(path, true);
-        })
-        .catch((error: unknown) => {
-          toast.add({
-            title: errorMessage(error, "could not create note"),
-            type: "error",
-          });
+  useHotkey("Mod+K", () => {
+    setPaletteOpen((current) => !current);
+  });
+  useHotkey("Mod+N", () => {
+    createNote()
+      .then((path) => {
+        openNote(path, true);
+      })
+      .catch((error: unknown) => {
+        toast.add({
+          title: errorMessage(error, "could not create note"),
+          type: "error",
         });
-    },
-    HOTKEY_OPTIONS
-  );
-  useHotkeys(
-    "mod+comma",
-    () => {
-      setSettingsOpen(true);
-    },
-    HOTKEY_OPTIONS
-  );
+      });
+  });
+  useHotkey("Mod+,", () => {
+    setSettingsOpen(true);
+  });
 
   return (
     <TooltipProvider>

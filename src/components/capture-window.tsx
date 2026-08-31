@@ -1,7 +1,7 @@
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
 import { useCallback, useRef, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import { Titlebar } from "@/components/titlebar";
@@ -11,12 +11,6 @@ import { createNote } from "@/data/create-note";
 import { errorMessage } from "@/lib/ui/failure";
 
 const NOOP = () => undefined;
-
-const HOTKEY_OPTIONS = {
-  enableOnContentEditable: true,
-  enableOnFormTags: true,
-  preventDefault: true,
-} as const;
 
 /**
  * The quick-capture window: a bare editor. Esc (or ⌘⏎) saves the jot into
@@ -67,13 +61,10 @@ export function CaptureWindow() {
     editorRef.current = handle;
   }, []);
 
-  useHotkeys(
-    "esc, mod+enter",
-    () => {
-      saveAndHide();
-    },
-    HOTKEY_OPTIONS
-  );
+  useHotkeys([
+    { callback: saveAndHide, hotkey: "Escape" },
+    { callback: saveAndHide, hotkey: "Mod+Enter" },
+  ]);
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground">
