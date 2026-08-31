@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 67, and some entries below it were removed, so the next entry takes 68.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 69, and some entries below it were removed, so the next entry takes 70.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
@@ -841,3 +841,21 @@ The queue it replaces belonged to the hook instance, and `D31` puts tag editing 
 **Constraint:** the `useLayoutEffect` refreshing `pathRef` and `optionsRef` stays. Pacer's timer is still a `setTimeout` macrotask, so the gap between a commit turning `enabled` off and a passive effect running is the same one it always was.
 
 **Constraint:** the lockfile carries `@tanstack/store` twice, at 0.9.3 for Router and 0.11.1 for Pacer. `pnpm dedupe` does not collapse them. The second copy costs 2.03 kB gzipped, measured against the same build without Pacer, and an override pinning Router to 0.11.1 is untested across a 0.x minor.
+
+### D69 TanStack Hotkeys types the bindings, and its defaults replace the options object
+
+`@tanstack/react-hotkeys` replaces `react-hotkeys-hook` across the registrations in `__root.tsx`, `index.tsx`, `capture-window.tsx`, and `note-tags.tsx`. Every binding is now a member of the `Hotkey` template-literal type, which fixes modifier order as Control, Alt, Shift, Meta and spells keys as `KeyboardEvent.key`, so `alt+mod+left` is written `Mod+Alt+ArrowLeft` and `esc` is written `Escape`. A mistyped chord fails `pnpm typecheck` instead of silently never firing.
+
+The four copies of `HOTKEY_OPTIONS` are deleted and nothing replaces them. `preventDefault: true` is already the default, and `getDefaultIgnoreInputs` returns false, meaning fire inside inputs and contentEditable, for any hotkey carrying `ctrl` or `meta` and for `Escape`. That covers every binding the app registers, so the smart default reproduces `enableOnContentEditable` and `enableOnFormTags` rather than restating them.
+
+The three comma-separated bindings become `useHotkeys` arrays with one callback per chord, so `jumpToTab` takes an index, `cycleTab` a direction, and `carryTab` an offset. `Number(event.key)`, `event.shiftKey`, and `event.key === "ArrowLeft"` are gone with them, and the ninth-versus-last branch collapses into the `-1` row of `TAB_JUMPS` reaching `tabs.at`.
+
+**Rejected: keeping `react-hotkeys-hook`.** Stable at 5.3.3, published 2026-06-26, with 4.35M weekly downloads and no runtime dependencies, against an alpha at 0.10.0 published 2026-04-25 with 642k. Rejected because its bindings are plain strings, where `mod+comma` and a typo are equally valid to the compiler, and because the options object it needed was copied into four files to restate a default the replacement already holds.
+
+**Rejected: a `HotkeysProvider` carrying those defaults.** One mount above the capture-window branch in `app-shell.tsx` would reach both windows, so it is cheap. It was rejected because it centralizes the four copies rather than deleting them: with `ignoreInputs` and `preventDefault` already right, the provider would carry an empty object.
+
+**Constraint:** alpha at 0.10.0, so a minor can break the API. The same cost `D68` took at 0.23.0.
+
+**Constraint:** `stopPropagation` now defaults to `true`, where `react-hotkeys-hook` never called it. Nothing in the app listens for a stopped keydown: the only `window.addEventListener` is `blur` in `use-autosave.ts`, and React, ProseMirror, and the roving tablist in `tab-strip.tsx` all handle keys below `document` and so run first.
+
+**Constraint:** the swap costs 382 bytes gzipped across the two JS chunks, measured by building the same tree both ways (`index` +421, `routes` -39; the CSS and fonts do not move). `@tanstack/hotkeys` is the only package added, because `@tanstack/react-store` and `@tanstack/store` were already in the lockfile at 0.11.1 for Pacer.

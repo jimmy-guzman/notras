@@ -1,8 +1,8 @@
+import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 import { NoteControls } from "@/components/notes/note-controls";
 import { StatusBar } from "@/components/notes/status-bar";
 import { TabStrip } from "@/components/tabs/tab-strip";
@@ -62,11 +62,18 @@ export const Route = createFileRoute("/")({
   },
 });
 
-const HOTKEY_OPTIONS = {
-  enableOnContentEditable: true,
-  enableOnFormTags: true,
-  preventDefault: true,
-} as const;
+/** ⌘9 is the last tab rather than the ninth, which is the macOS convention. */
+const TAB_JUMPS = [
+  ["Mod+1", 0],
+  ["Mod+2", 1],
+  ["Mod+3", 2],
+  ["Mod+4", 3],
+  ["Mod+5", 4],
+  ["Mod+6", 5],
+  ["Mod+7", 6],
+  ["Mod+8", 7],
+  ["Mod+9", -1],
+] as const;
 
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
@@ -251,56 +258,53 @@ function Workspace() {
     };
   }, []);
 
-  // ⌘9 is the last tab rather than the ninth, which is the macOS convention.
-  const jumpToTab = useCallback((event: KeyboardEvent) => {
-    const state = getTabState();
-    const digit = Number(event.key);
-    const target = digit === 9 ? state.tabs.at(-1) : state.tabs[digit - 1];
+  const jumpToTab = useCallback((index: number) => {
+    const target = getTabState().tabs.at(index);
 
     if (target !== undefined) {
       activateTab(tabId(target));
     }
   }, []);
 
-  const cycleTab = useCallback((event: KeyboardEvent) => {
-    const back = event.shiftKey || event.key === "ArrowLeft";
-    const target = stepTab(getTabState(), back ? "previous" : "next");
+  const cycleTab = useCallback((direction: "next" | "previous") => {
+    const target = stepTab(getTabState(), direction);
 
     if (target !== undefined) {
       activateTab(tabId(target));
     }
   }, []);
 
-  const carryTab = useCallback((event: KeyboardEvent) => {
+  const carryTab = useCallback((offset: number) => {
     const state = getTabState();
     const index = state.tabs.findIndex((tab) => tabId(tab) === state.activeId);
 
     if (index !== -1) {
-      moveTab(state.activeId, index + (event.key === "ArrowLeft" ? -1 : 1));
+      moveTab(state.activeId, index + offset);
     }
   }, []);
 
-  useHotkeys("mod+t", newNote, HOTKEY_OPTIONS);
-  useHotkeys("mod+w", closeActive, HOTKEY_OPTIONS);
-  useHotkeys("mod+shift+t", reopenTab, HOTKEY_OPTIONS);
-  useHotkeys("mod+p", toggleSource, HOTKEY_OPTIONS);
-  useHotkeys("mod+d", toggleFocusMode, HOTKEY_OPTIONS);
-  useHotkeys("mod+alt+t", toggleTypewriter, HOTKEY_OPTIONS);
+  useHotkey("Mod+T", newNote);
+  useHotkey("Mod+W", closeActive);
+  useHotkey("Mod+Shift+T", reopenTab);
+  useHotkey("Mod+P", toggleSource);
+  useHotkey("Mod+D", toggleFocusMode);
+  useHotkey("Mod+Alt+T", toggleTypewriter);
   useHotkeys(
-    "mod+1,mod+2,mod+3,mod+4,mod+5,mod+6,mod+7,mod+8,mod+9",
-    jumpToTab,
-    HOTKEY_OPTIONS
+    TAB_JUMPS.map(([hotkey, index]) => ({
+      callback: () => jumpToTab(index),
+      hotkey,
+    }))
   );
-  useHotkeys(
-    "ctrl+tab,ctrl+shift+tab,alt+mod+left,alt+mod+right",
-    cycleTab,
-    HOTKEY_OPTIONS
-  );
-  useHotkeys(
-    "alt+mod+shift+left,alt+mod+shift+right",
-    carryTab,
-    HOTKEY_OPTIONS
-  );
+  useHotkeys([
+    { callback: () => cycleTab("next"), hotkey: "Control+Tab" },
+    { callback: () => cycleTab("previous"), hotkey: "Control+Shift+Tab" },
+    { callback: () => cycleTab("next"), hotkey: "Mod+Alt+ArrowRight" },
+    { callback: () => cycleTab("previous"), hotkey: "Mod+Alt+ArrowLeft" },
+  ]);
+  useHotkeys([
+    { callback: () => carryTab(-1), hotkey: "Mod+Alt+Shift+ArrowLeft" },
+    { callback: () => carryTab(1), hotkey: "Mod+Alt+Shift+ArrowRight" },
+  ]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
