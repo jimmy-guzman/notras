@@ -295,9 +295,37 @@ function OverflowMenu({ hidden, labelFor }: OverflowMenuProps) {
   );
 }
 
-interface TabStripProps {
-  activeId: string;
+interface NewNoteButtonProps {
+  className: string;
   onNew: () => void;
+}
+
+/** The strip's own control: it makes tabs rather than following one. */
+function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            aria-label="new note"
+            className={cn(
+              "inline-flex size-6 shrink-0 select-none items-center justify-center self-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground",
+              className
+            )}
+            onClick={onNew}
+            type="button"
+          />
+        }
+      >
+        <PlusIcon className={CHROME_GLYPH} />
+      </TooltipTrigger>
+      <TooltipContent>new note</TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface TabListProps {
+  activeId: string;
   tabs: Tab[];
 }
 
@@ -308,7 +336,7 @@ interface TabStripProps {
  * Dragging one is dnd-kit's, and `D60` carries why. A lone tab has nowhere to
  * go, so it hands the press to the window instead.
  */
-export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
+function TabList({ activeId, tabs }: TabListProps) {
   const { notes } = rootApi.useLoaderData();
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
@@ -420,7 +448,7 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   );
 
   return (
-    <div className="flex min-w-0 flex-1 items-stretch self-stretch">
+    <>
       <DndContext
         accessibility={{ announcements: ANNOUNCEMENTS }}
         collisionDetection={closestCenter}
@@ -455,21 +483,31 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
         hidden={tabs.filter((tab) => hidden.includes(tabId(tab)))}
         labelFor={labelFor}
       />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              aria-label="new note"
-              className="ms-1 inline-flex size-6 shrink-0 select-none items-center justify-center self-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
-              onClick={onNew}
-              type="button"
-            />
-          }
-        >
-          <PlusIcon className={CHROME_GLYPH} />
-        </TooltipTrigger>
-        <TooltipContent>new note</TooltipContent>
-      </Tooltip>
+    </>
+  );
+}
+
+interface TabStripProps {
+  activeId: string;
+  onNew: () => void;
+  tabs: Tab[];
+}
+
+/**
+ * The open tabs, then the button that makes one.
+ *
+ * With no tabs the button is the whole strip. Nothing is left to cover the
+ * titlebar's drag region, so pressing the bar moves the window.
+ */
+export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
+  if (tabs.length === 0) {
+    return <NewNoteButton className="ms-auto" onNew={onNew} />;
+  }
+
+  return (
+    <div className="flex min-w-0 flex-1 items-stretch self-stretch">
+      <TabList activeId={activeId} tabs={tabs} />
+      <NewNoteButton className="ms-1" onNew={onNew} />
     </div>
   );
 }
