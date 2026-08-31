@@ -87,6 +87,25 @@ function mountAutosave(
         await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
       });
     },
+    /**
+     * Start a flush and hand its promise back, so a second flush can be
+     * started while the first write is still in flight. Deliberately not
+     * `async`: an async method would adopt the promise it returns and wait for
+     * the write, which is the opposite of what a caller wants here.
+     */
+    startFlush() {
+      let pending: Promise<boolean> | undefined;
+
+      act(() => {
+        pending = live.flush();
+      });
+
+      if (pending === undefined) {
+        throw new Error("the flush never started");
+      }
+
+      return pending;
+    },
     get status() {
       return live.status;
     },
@@ -202,6 +221,110 @@ describe("useAutosave", () => {
       "first",
       "first, plus everything typed while the file was gone",
     ]);
+
+    harness.unmount();
+  });
+
+  it("should land overlapping writes in the order they were flushed", async () => {
+    const written: string[] = [];
+    const landWrite: Array<() => void> = [];
+    const harness = mountAutosave((_path, content) => {
+      written.push(content);
+
+      return new Promise<Date>((resolve) => {
+        landWrite.push(() => {
+          resolve(new Date(1));
+        });
+      });
+    });
+
+    /** Run every chain link that can run, without landing a write. */
+    const advance = async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    };
+
+    /** Let the write the fake is holding at `index` resolve. */
+    const land = async (index: number) => {
+      const resolve = landWrite[index];
+
+      if (resolve === undefined) {
+        throw new Error(`write ${index} never reached the fake`);
+      }
+
+      resolve();
+      await advance();
+    };
+
+    harness.type("first");
+    const firstFlush = harness.startFlush();
+    await advance();
+
+    // The first write is in flight, which is the only window in which a second
+    // flush can overlap it. A keystroke before this one would be coalesced.
+    expect(written).toStrictEqual(["first"]);
+
+    harness.type("second");
+    const secondFlush = harness.startFlush();
+    await advance();
+
+    // The second flush waits on the first rather than racing it, so the fake
+    // is still holding one write.
+    expect(written).toStrictEqual(["first"]);
+
+    await land(0);
+
+    expect(written).toStrictEqual(["first", "second"]);
+
+    await land(1);
+
+    await expect(firstFlush).resolves.toBe(true);
+    await expect(secondFlush).resolves.toBe(true);
+    expect(harness.status).toBe("saved");
+
+    harness.unmount();
+  });
+
+  it("should write again after a write fails", async () => {
+    const written: string[] = [];
+    let failNext = true;
+    const harness = mountAutosave((_path, content) => {
+      written.push(content);
+
+      if (failNext) {
+        failNext = false;
+
+        return Promise.reject(new Error("the disk said no"));
+      }
+
+      return Promise.resolve(new Date(1));
+    });
+
+    harness.type("hello");
+    await harness.settle();
+
+    expect(written).toStrictEqual(["hello"]);
+    expect(harness.status).toBe("failed");
+
+    // The failed write handed its content back, and the chain still runs.
+    await expect(harness.flush()).resolves.toBe(true);
+    expect(written).toStrictEqual(["hello", "hello"]);
+    expect(harness.status).toBe("saved");
+
+    harness.unmount();
+  });
+
+  it("should report the buffer unsafe to quit when its write fails", async () => {
+    const harness = mountAutosave(() =>
+      Promise.reject(new Error("the disk said no"))
+    );
+
+    harness.type("hello");
+
+    // This false is what cancels a quit, unlike the one a gone file reports.
+    await expect(harness.flush()).resolves.toBe(false);
+    expect(harness.status).toBe("failed");
 
     harness.unmount();
   });

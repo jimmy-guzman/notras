@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 69, and some entries below it were removed, so the next entry takes 70.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 70, and some entries below it were removed, so the next entry takes 71.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
