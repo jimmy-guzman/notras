@@ -893,7 +893,13 @@ export function CommandPalette({
                         {chords === undefined ? null : (
                           <CommandShortcut>
                             {chords.map(({ hotkey, id }) => (
-                              <Chord hotkey={hotkey} key={id} />
+                              // A selected row is `bg-muted`, which the chip
+                              // otherwise matches exactly and disappears into.
+                              <Chord
+                                className="tracking-normal group-data-selected/command-item:bg-background"
+                                hotkey={hotkey}
+                                key={id}
+                              />
                             ))}
                           </CommandShortcut>
                         )}
