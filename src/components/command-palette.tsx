@@ -1,3 +1,4 @@
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
@@ -18,7 +19,6 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import { useDebounce } from "use-debounce";
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
@@ -396,7 +396,7 @@ function useVisibleNotes(
   knownTags: Set<string>,
   notes: NoteMeta[]
 ) {
-  const [debouncedQuery] = useDebounce(query, 150);
+  const [debouncedQuery] = useDebouncedValue(query, { wait: 150 });
   // The list only renders under the root view, and the other views repurpose
   // the input, so nothing they hold should reach the index.
   const filters =

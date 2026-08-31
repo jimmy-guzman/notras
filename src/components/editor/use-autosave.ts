@@ -1,3 +1,4 @@
+import { useDebouncer } from "@tanstack/react-pacer";
 import {
   useCallback,
   useEffect,
@@ -37,7 +38,6 @@ export function useAutosave(path: string, options: AutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const pendingRef = useRef<null | string>(null);
   const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pathRef = useRef(path);
   const optionsRef = useRef(options);
 
@@ -55,7 +55,6 @@ export function useAutosave(path: string, options: AutosaveOptions) {
   // nothing to write, the write landed, or writing is off because the file has
   // gone. False only on a failed write.
   const writeOnce = useCallback(async () => {
-    clearTimeout(timerRef.current);
     const content = pendingRef.current;
 
     if (content === null) {
@@ -99,13 +98,11 @@ export function useAutosave(path: string, options: AutosaveOptions) {
   }, []);
 
   /**
-   * Flush the buffer, resolving to whether nothing is left unsaved.
-   *
    * Saves are serialized on one chain. The debounce timer, the blur handler
    * and the unmount cleanup can all fire while a write is in flight, and two
    * overlapping writes could land out of order -- an older buffer last.
    */
-  const flush = useCallback(() => {
+  const chainWrite = useCallback(() => {
     const next = inFlightRef.current.then(writeOnce, writeOnce);
 
     inFlightRef.current = next;
@@ -113,16 +110,24 @@ export function useAutosave(path: string, options: AutosaveOptions) {
     return next;
   }, [writeOnce]);
 
+  // Pacer owns the timer alone (`D68`).
+  const { cancel: cancelScheduledWrite, maybeExecute: scheduleWrite } =
+    useDebouncer(chainWrite, { wait: AUTOSAVE_DELAY_MS });
+
+  /** Flush the buffer, resolving to whether nothing is left unsaved. */
+  const flush = useCallback(() => {
+    cancelScheduledWrite();
+
+    return chainWrite();
+  }, [cancelScheduledWrite, chainWrite]);
+
   const onChange = useCallback(
     (content: string) => {
       pendingRef.current = content;
       setStatus("dirty");
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        flush();
-      }, AUTOSAVE_DELAY_MS);
+      scheduleWrite();
     },
-    [flush]
+    [scheduleWrite]
   );
 
   // Leaving the note (or the app) flushes any pending write.
