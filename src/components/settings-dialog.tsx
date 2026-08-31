@@ -7,6 +7,7 @@ import {
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect } from "react";
+import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
@@ -141,7 +141,7 @@ export function SettingsDialog({
             />
           </div>
           <p className="text-muted-foreground text-xs">
-            quick capture from anywhere with <Kbd>⌘⇧n</Kbd>
+            quick capture from anywhere with <Chord hotkey="Mod+Shift+N" />
           </p>
         </div>
       </DialogContent>

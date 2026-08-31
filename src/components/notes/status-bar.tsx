@@ -1,8 +1,8 @@
 import { CodeIcon, CrosshairIcon, KeyboardIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
+import { Chord } from "@/components/chord";
 import { NoteTags } from "@/components/notes/note-tags";
-import { Kbd } from "@/components/ui/kbd";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
@@ -44,7 +44,7 @@ export function StatusBar({
   const toggles = useMemo(
     () => [
       {
-        hint: "⌘d",
+        hotkey: "Mod+D",
         icon: CrosshairIcon,
         label: "focus mode",
         onToggle: onToggleFocusMode,
@@ -52,7 +52,7 @@ export function StatusBar({
         value: "focus",
       },
       {
-        hint: "⌘⌥t",
+        hotkey: "Mod+Alt+T",
         icon: KeyboardIcon,
         label: "typewriter scrolling",
         onToggle: onToggleTypewriter,
@@ -60,7 +60,7 @@ export function StatusBar({
         value: "typewriter",
       },
       {
-        hint: "⌘p",
+        hotkey: "Mod+P",
         icon: CodeIcon,
         label: "markdown source",
         onToggle: onToggleSource,
@@ -109,7 +109,7 @@ export function StatusBar({
           .filter((toggle) => toggle.pressed)
           .map((toggle) => toggle.value)}
       >
-        {toggles.map(({ hint, icon: Icon, label, value }) => (
+        {toggles.map(({ hotkey, icon: Icon, label, value }) => (
           <Tooltip key={value}>
             <TooltipTrigger
               render={
@@ -123,7 +123,7 @@ export function StatusBar({
               <Icon className={CHROME_GLYPH} />
             </TooltipTrigger>
             <TooltipContent>
-              {label} {hint === "" ? null : <Kbd>{hint}</Kbd>}
+              {label} <Chord hotkey={hotkey} />
             </TooltipContent>
           </Tooltip>
         ))}

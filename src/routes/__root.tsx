@@ -223,21 +223,29 @@ function RootLayout() {
   useHotkey("Mod+K", () => {
     setPaletteOpen((current) => !current);
   });
-  useHotkey("Mod+N", async () => {
-    try {
-      const path = await createNote();
+  useHotkey(
+    "Mod+N",
+    async () => {
+      try {
+        const path = await createNote();
 
-      openNote(path, true);
-    } catch (error) {
-      toast.add({
-        title: errorMessage(error, "could not create note"),
-        type: "error",
-      });
-    }
-  });
-  useHotkey("Mod+,", () => {
-    setSettingsOpen(true);
-  });
+        openNote(path, true);
+      } catch (error) {
+        toast.add({
+          title: errorMessage(error, "could not create note"),
+          type: "error",
+        });
+      }
+    },
+    { meta: { name: "new note" } }
+  );
+  useHotkey(
+    "Mod+,",
+    () => {
+      setSettingsOpen(true);
+    },
+    { meta: { name: "settings" } }
+  );
 
   return (
     <TooltipProvider>
