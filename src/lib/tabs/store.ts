@@ -20,22 +20,25 @@ import {
 const STORAGE_KEY = "tabs";
 
 /**
- * What a session publishes for the chrome to draw (`D53`).
- *
- * `toggleSource` rides along because switching surfaces carries the caret
- * through the editor handle, which only the session holds.
+ * What a session lends the chrome to act on it, read by id at the moment of
+ * use. Never rendered, so registering one notifies nobody.
  */
-export interface TabSnapshot {
+export interface TabHandles {
   /** The caret's offset in this buffer's markdown, or -1. Read only when the set is persisted. */
   getCaret: () => number;
   /** Into whichever surface is live, since ⌘P swaps which one owns the caret. */
   insertText: (text: string) => void;
+  /** Switching surfaces carries the caret through the editor handle, which only the session holds. */
+  toggleSource: () => void;
+}
+
+/** What a session publishes for the chrome to draw (`D53`). */
+export interface TabSnapshot {
   pinned: boolean;
   sourceMode: boolean;
   status: SaveStatus;
   tags: string[];
   title: string;
-  toggleSource: () => void;
   words: number;
 }
 
@@ -44,9 +47,9 @@ let closed: ClosedTab[] = [];
 /** Carets read back at launch, each consumed once by the session that mounts. */
 const restored = new Map<string, number>();
 
+const handles = new Map<string, TabHandles>();
 const snapshots = new Map<string, TabSnapshot>();
 const listeners = new Set<() => void>();
-const readers = new Set<() => void>();
 
 function emit() {
   for (const listener of listeners) {
@@ -67,10 +70,16 @@ function setState(next: TabState) {
     return;
   }
 
-  // A tab that left takes its snapshot with it. Doing this here rather than at
-  // each call site is what covers `openTab` replacing the active tab, where a
-  // surviving snapshot would let the chrome read a destroyed session.
+  // A tab that left takes both with it. Doing this here rather than at each
+  // call site is what covers `openTab` replacing the active tab, where a
+  // survivor would let the chrome read a destroyed session.
   const open = new Set(next.tabs.map(tabId));
+
+  for (const id of handles.keys()) {
+    if (!open.has(id)) {
+      handles.delete(id);
+    }
+  }
 
   for (const id of snapshots.keys()) {
     if (!open.has(id)) {
@@ -95,7 +104,7 @@ export function persistTabs() {
 
   for (const tab of state.tabs) {
     const id = tabId(tab);
-    const caret = snapshots.get(id)?.getCaret() ?? -1;
+    const caret = handles.get(id)?.getCaret() ?? -1;
 
     if (caret >= 0) {
       carets[id] = caret;
@@ -174,7 +183,7 @@ export function useTabState() {
   return useSyncExternalStore(subscribe, getTabState);
 }
 
-export function getTabSnapshot(id: string) {
+function getTabSnapshot(id: string) {
   return snapshots.get(id);
 }
 
@@ -185,44 +194,17 @@ export function useTabSnapshot(id: string) {
   );
 }
 
-/**
- * Re-read this session's file whenever the folder changes. The watcher fires
- * one `notes-changed` for the whole folder, and every live session reconciles
- * off that one signal.
- */
-export function subscribeRevision(reader: () => void) {
-  readers.add(reader);
-
-  return () => {
-    readers.delete(reader);
-  };
+export function getTabHandles(id: string) {
+  return handles.get(id);
 }
 
-export function bumpRevision() {
-  for (const reader of readers) {
-    reader();
-  }
+/** Called once per session. Nothing subscribes, so this does not emit. */
+export function registerTabHandles(id: string, next: TabHandles) {
+  handles.set(id, next);
 }
 
 /** Called by a session on every change it makes to what the chrome shows. */
 export function publishTabSnapshot(id: string, snapshot: TabSnapshot) {
-  const current = snapshots.get(id);
-
-  if (
-    current !== undefined &&
-    current.getCaret === snapshot.getCaret &&
-    current.insertText === snapshot.insertText &&
-    current.pinned === snapshot.pinned &&
-    current.sourceMode === snapshot.sourceMode &&
-    current.status === snapshot.status &&
-    current.tags === snapshot.tags &&
-    current.title === snapshot.title &&
-    current.toggleSource === snapshot.toggleSource &&
-    current.words === snapshot.words
-  ) {
-    return;
-  }
-
   snapshots.set(id, snapshot);
   emit();
 }

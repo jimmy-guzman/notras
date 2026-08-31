@@ -1,8 +1,5 @@
-import {
-  createFileRoute,
-  getRouteApi,
-  useNavigate,
-} from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -17,11 +14,12 @@ import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
 import { getNotes } from "@/data/get-notes";
+import { noteQueries } from "@/data/queries";
 import { togglePref, usePref } from "@/lib/prefs";
 import {
   activateTab,
   closeTab,
-  getTabSnapshot,
+  getTabHandles,
   getTabState,
   moveTab,
   openNote,
@@ -35,12 +33,9 @@ import { stepTab, tabId } from "@/lib/tabs/tab";
 import { errorMessage } from "@/lib/ui/failure";
 import { attachmentLink } from "@/lib/utils/attachments";
 
-const rootApi = getRouteApi("__root__");
-
 /**
- * Restoring is a launch behaviour, not a refresh one. The loader re-runs on
- * every `notes-changed`, and without this a closed last tab would reopen
- * itself the next time an agent touched the folder.
+ * Restoring is a launch behaviour. Anything that re-runs the loader afterwards
+ * must not reopen a tab the user closed.
  */
 let seeded = false;
 
@@ -170,7 +165,7 @@ function ActiveStatusBar({
 function Workspace() {
   const { activeId, tabs } = useTabState();
   const navigate = useNavigate();
-  const { tags } = rootApi.useLoaderData();
+  const { data: tags } = useSuspenseQuery(noteQueries.tags());
 
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
 
@@ -192,7 +187,7 @@ function Workspace() {
   }, []);
 
   const toggleSource = useCallback(() => {
-    getTabSnapshot(getTabState().activeId)?.toggleSource();
+    getTabHandles(getTabState().activeId)?.toggleSource();
   }, []);
 
   const toggleFocusMode = useCallback(() => {
@@ -214,7 +209,7 @@ function Workspace() {
   // whichever tab is showing.
   useEffect(() => {
     const attachDropped = async (paths: string[]) => {
-      const target = getTabSnapshot(getTabState().activeId);
+      const target = getTabHandles(getTabState().activeId);
 
       if (target === undefined) {
         toast.add({

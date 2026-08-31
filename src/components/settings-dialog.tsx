@@ -1,4 +1,4 @@
-import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
@@ -28,7 +28,7 @@ export function SettingsDialog({
   onOpenChange,
   open,
 }: SettingsDialogProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [autostart, setAutostart] = useState(false);
   // The switch cannot claim "off" when the real state is unknown.
   const [autostartReadable, setAutostartReadable] = useState(true);
@@ -62,7 +62,8 @@ export function SettingsDialog({
       }
 
       await setNotesDir(selected);
-      await router.invalidate();
+      // A different folder invalidates every read the old one answered.
+      await queryClient.invalidateQueries();
       toast.add({ title: "notes folder updated", type: "success" });
     } catch (error) {
       toast.add({
@@ -70,7 +71,7 @@ export function SettingsDialog({
         type: "error",
       });
     }
-  }, [router]);
+  }, [queryClient]);
 
   const toggleAutostart = useCallback(async (value: boolean) => {
     setAutostart(value);

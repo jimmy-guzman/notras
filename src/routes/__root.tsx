@@ -1,9 +1,10 @@
+import type { QueryClient } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
-  createRootRoute,
+  createRootRouteWithContext,
   Navigate,
   Outlet,
   useNavigate,
-  useRouter,
 } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -14,36 +15,40 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { Toaster, toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createNote } from "@/data/create-note";
-import { getFolders } from "@/data/get-folders";
-import { getNotes } from "@/data/get-notes";
-import { getTags } from "@/data/get-tags";
-import { getNotesDir } from "@/data/notes-dir";
+import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { bumpRevision, openNote, openTab, persistTabs } from "@/lib/tabs/store";
+import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import { errorMessage } from "@/lib/ui/failure";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
+
+/** Cached data answers the loader; only a cold key fetches. */
+const STATIC = "static" as const;
 
 interface RootSearch {
   /** Set by a tag chip to open the palette already filtered to that tag. */
   tag?: string;
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+}>()({
   component: RootLayout,
   // The workspace is the only screen (`D53`), so any other path is a stale URL
   // -- a dev reload holding the retired `/notes/$`, or a malformed deep link.
   notFoundComponent: () => <Navigate replace to="/" />,
   validateSearch: (search: Record<string, unknown>): RootSearch =>
     typeof search.tag === "string" ? { tag: search.tag } : {},
-  loader: async () => {
-    const [notes, folders, notesDir, tags] = await Promise.all([
-      getNotes(),
-      getFolders(),
-      getNotesDir(),
-      getTags(),
+  // Priming only: an inactive query is one invalidation cannot reach.
+  loader: async ({ context }) => {
+    await Promise.all([
+      context.queryClient.query({
+        ...noteQueries.folders(),
+        staleTime: STATIC,
+      }),
+      context.queryClient.query({ ...noteQueries.list(), staleTime: STATIC }),
+      context.queryClient.query({ ...noteQueries.tags(), staleTime: STATIC }),
+      context.queryClient.query({ ...notesDirQuery, staleTime: STATIC }),
     ]);
-
-    return { folders, notes, notesDir, tags };
   },
 });
 
@@ -54,10 +59,13 @@ const HOTKEY_OPTIONS = {
 } as const;
 
 function RootLayout() {
-  const { folders, notes, notesDir, tags } = Route.useLoaderData();
+  const { data: folders } = useSuspenseQuery(noteQueries.folders());
+  const { data: notes } = useSuspenseQuery(noteQueries.list());
+  const { data: notesDir } = useSuspenseQuery(notesDirQuery);
+  const { data: tags } = useSuspenseQuery(noteQueries.tags());
   const { tag } = Route.useSearch();
-  const router = useRouter();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -115,10 +123,24 @@ function RootLayout() {
   }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
+  // No paths means the whole vault.
   useEffect(() => {
-    const unlisten = listen("notes-changed", () => {
-      router.invalidate();
-      bumpRevision();
+    const unlisten = listen<{ paths: string[] }>("notes-changed", (event) => {
+      const { paths } = event.payload;
+
+      if (paths.length === 0) {
+        queryClient.invalidateQueries({ queryKey: noteQueries.all });
+
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: noteQueries.index });
+
+      for (const path of paths) {
+        queryClient.invalidateQueries({
+          queryKey: noteQueries.fileKey("note", path),
+        });
+      }
     });
 
     return () => {
@@ -126,7 +148,7 @@ function RootLayout() {
         dispose();
       });
     };
-  }, [router]);
+  }, [queryClient]);
 
   // Tray menu + "Open With" plumbing from Rust.
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   DownloadIcon,
@@ -16,8 +17,8 @@ import {
   TagPlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useDebouncedCallback } from "use-debounce";
+import { useCallback, useRef, useState } from "react";
+import { useDebounce } from "use-debounce";
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
@@ -34,9 +35,9 @@ import type { NoteMeta } from "@/core/notes";
 import { filenameFromTitle } from "@/core/notes";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
-import { getNotes } from "@/data/get-notes";
 import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
+import { noteQueries } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
 import { togglePref, usePref } from "@/lib/prefs";
@@ -354,6 +355,29 @@ function typewriterActionText(enabled: boolean) {
 
 type PaletteView = "delete" | "move" | "rename" | "root" | "tags";
 
+/**
+ * What the input asks the index for, or nothing when it asks for everything.
+ *
+ * A tag is an indexed exact match that ANDs with full-text search, so both
+ * paths run one query and differ only in what they pass.
+ */
+function searchFiltersFor(value: string, knownTags: Set<string>) {
+  const parsed = parseTagQuery(value);
+  const filters: { query: string; tag?: string } =
+    parsed === undefined
+      ? { query: value.trim() }
+      : { query: parsed.query, tag: parsed.tag };
+
+  if (
+    filters.query === "" &&
+    (filters.tag === undefined || !knownTags.has(filters.tag))
+  ) {
+    return;
+  }
+
+  return { limit: 30, ...filters };
+}
+
 interface CommandPaletteProps {
   allTags: { count: number; tag: string }[];
   folders: { count: number; folder: string }[];
@@ -363,6 +387,44 @@ interface CommandPaletteProps {
   onOpenSettings: () => void;
   open: boolean;
   tag?: string;
+}
+
+/** The rows under "notes": what the index answered, or the recent ones. */
+function useVisibleNotes(
+  query: string,
+  view: PaletteView,
+  knownTags: Set<string>,
+  notes: NoteMeta[]
+) {
+  const [debouncedQuery] = useDebounce(query, 150);
+  // The list only renders under the root view, and the other views repurpose
+  // the input, so nothing they hold should reach the index.
+  const filters =
+    view === "root" ? searchFiltersFor(debouncedQuery, knownTags) : undefined;
+  // The filters are the key, so a slow "a" resolving after "abc" lands in its
+  // own cache entry and never reaches the screen.
+  const { data: results, isError } = useQuery({
+    ...noteQueries.list(filters),
+    enabled: filters !== undefined,
+    placeholderData: keepPreviousData,
+  });
+  const tagQuery = parseTagQuery(query);
+
+  if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
+    return [];
+  }
+
+  // Asking for nothing builds the key the root loader already primed, and a
+  // disabled query still reads the cache, so its full list would land here.
+  if (filters === undefined) {
+    return notes.slice(0, 20);
+  }
+
+  if (isError) {
+    return [];
+  }
+
+  return results ?? notes.slice(0, 20);
 }
 
 export function CommandPalette({
@@ -396,69 +458,16 @@ export function CommandPalette({
   // and typing afterwards is never overwritten.
   const [query, setQuery] = useState(tag === undefined ? "" : `#${tag} `);
   const [view, setView] = useState<PaletteView>("root");
-  const [results, setResults] = useState<NoteMeta[] | null>(null);
-
-  // Only the newest search may write results: two in-flight queries can
-  // resolve out of order, and a slow "a" must not overwrite "abc". The counter
-  // advances when the input changes rather than when the debounced call fires,
-  // so a request already in flight is stale from the next keystroke on and not
-  // only from the moment its successor starts.
-  const latestSearchRef = useRef(0);
-
   const tagCounts = new Map(
     allTags.map(({ count, tag: name }) => [name, count])
   );
   const knownTags = new Set(tagCounts.keys());
-
-  // Tag filtering is an indexed exact match that ANDs with full-text search,
-  // so both paths run the same query and only differ in what they pass.
-  const search = useDebouncedCallback(
-    async (value: string, request: number) => {
-      const parsed = parseTagQuery(value);
-      const filters: { query: string; tag?: string } =
-        parsed === undefined
-          ? { query: value.trim() }
-          : { query: parsed.query, tag: parsed.tag };
-
-      if (
-        filters.query === "" &&
-        (filters.tag === undefined || !knownTags.has(filters.tag))
-      ) {
-        setResults(null);
-
-        return;
-      }
-
-      try {
-        const found = await getNotes({ limit: 30, ...filters });
-
-        if (latestSearchRef.current === request) {
-          setResults(found);
-        }
-      } catch {
-        if (latestSearchRef.current === request) {
-          setResults([]);
-        }
-      }
-    },
-    150
-  );
-
-  const updateQuery = useCallback(
-    (value: string) => {
-      latestSearchRef.current += 1;
-      setQuery(value);
-      search(value, latestSearchRef.current);
-    },
-    [search]
-  );
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
         setQuery("");
         setView("root");
-        setResults(null);
       }
 
       onOpenChange(next);
@@ -466,21 +475,8 @@ export function CommandPalette({
     [onOpenChange]
   );
 
-  useEffect(() => {
-    if (tag !== undefined) {
-      latestSearchRef.current += 1;
-      search(`#${tag} `, latestSearchRef.current);
-    }
-  }, [search, tag]);
-
   const tagQuery = parseTagQuery(query);
-  const visibleNotes = (() => {
-    if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
-      return [];
-    }
-
-    return results ?? notes.slice(0, 20);
-  })();
+  const visibleNotes = useVisibleNotes(query, view, knownTags, notes);
 
   const close = useCallback(() => {
     handleOpenChange(false);
@@ -599,12 +595,9 @@ export function CommandPalette({
     noteTags.changeTags([...noteTags.tags, draftTag]);
   }, [draftTag, noteTags]);
 
-  const filterByTag = useCallback(
-    (name: string) => {
-      updateQuery(`#${name} `);
-    },
-    [updateQuery]
-  );
+  const filterByTag = useCallback((name: string) => {
+    setQuery(`#${name} `);
+  }, []);
 
   const newNote = useCallback(() => {
     runAction(async () => {
@@ -794,7 +787,7 @@ export function CommandPalette({
         shouldFilter={false}
       >
         <CommandInput
-          onValueChange={updateQuery}
+          onValueChange={setQuery}
           placeholder={
             {
               delete: "search notes, # for tags...",

@@ -1,4 +1,4 @@
-import { getRouteApi } from "@tanstack/react-router";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorHandle } from "@/components/editor/editor";
@@ -11,8 +11,9 @@ import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { composeNote, parseNote } from "@/core/frontmatter";
 import { noteFolder, noteTitle, resolveTitle } from "@/core/notes";
-import { readExternalNote, writeExternalNote } from "@/data/external-note";
-import { getNote } from "@/data/get-note";
+import { writeExternalNote } from "@/data/external-note";
+import type { SessionFile } from "@/data/queries";
+import { noteQueries, notesDirQuery } from "@/data/queries";
 import { saveNote } from "@/data/save-note";
 import { usePref } from "@/lib/prefs";
 import {
@@ -20,8 +21,8 @@ import {
   closeTab,
   openNote,
   publishTabSnapshot,
+  registerTabHandles,
   restoredCaret,
-  subscribeRevision,
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
@@ -29,38 +30,6 @@ import { errorMessage } from "@/lib/ui/failure";
 import { cn } from "@/lib/ui/utils";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import { countWords } from "@/lib/utils/word-count";
-
-const rootApi = getRouteApi("__root__");
-
-/** One tab's file as of the last read. An external file reports no pin and no tags (`D54`). */
-interface SessionFile {
-  content: string;
-  pinned: boolean;
-  tags: string[];
-  updatedAt: Date;
-}
-
-async function readTab(kind: Tab["kind"], path: string): Promise<SessionFile> {
-  if (kind === "external") {
-    const file = await readExternalNote(path);
-
-    return {
-      content: file.content,
-      pinned: false,
-      tags: [],
-      updatedAt: file.updatedAt,
-    };
-  }
-
-  const note = await getNote(path);
-
-  return {
-    content: note.content,
-    pinned: note.pinned,
-    tags: note.tags,
-    updatedAt: note.updatedAt,
-  };
-}
 
 interface SessionBufferProps {
   active: boolean;
@@ -77,7 +46,8 @@ interface SessionBufferProps {
  * a hotkey: those belong to the workspace, and `D53` says why.
  */
 function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
-  const { notes, notesDir } = rootApi.useLoaderData();
+  const { data: notes } = useSuspenseQuery(noteQueries.list());
+  const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const id = tabId(tab);
 
   const editorRef = useRef<EditorHandle | null>(null);
@@ -88,12 +58,6 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   const [frontmatterBlock, setFrontmatterLines] = useState(
     () => parseNote(file.content).raw
   );
-  const frontmatterRef = useRef(frontmatterBlock);
-
-  useEffect(() => {
-    frontmatterRef.current = frontmatterBlock;
-  });
-
   // Frontmatter follows the file (adjust-during-render pattern): a pin or tag
   // toggle rewrites it, and the next body save must compose with that fresh
   // block, not the one captured at mount.
@@ -111,21 +75,9 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   }
 
   const [body, setBody] = useState(() => parseNote(file.content).body);
-  const bodyRef = useRef(body);
-
-  useEffect(() => {
-    bodyRef.current = body;
-  });
-
   const [words, setWords] = useState(() => countWords(file.content));
   const [reloadKey, setReloadKey] = useState(0);
   const [sourceMode, setSourceMode] = useState(false);
-  const sourceModeRef = useRef(sourceMode);
-
-  useEffect(() => {
-    sourceModeRef.current = sourceMode;
-  });
-
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source mode,
@@ -164,14 +116,27 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // Stable across renders, unlike `autosave` itself (a fresh object every
   // render, since `status` changes on every keystroke).
   const { onChange } = autosave;
-  // Read by the effect below, which decides once and must not re-decide when a
-  // write that was already in flight resolves.
-  const statusRef = useRef(autosave.status);
 
-  useEffect(() => {
-    statusRef.current = autosave.status;
+  // The editor freezes its props at mount, so its callbacks read live values
+  // through this rather than through closures over render state. Declared
+  // ahead of every effect that reads it, since effects run in order.
+  const live = useRef({
+    body,
+    frontmatter: frontmatterBlock,
+    notes,
+    sourceMode,
+    status: autosave.status,
   });
 
+  useEffect(() => {
+    live.current = {
+      body,
+      frontmatter: frontmatterBlock,
+      notes,
+      sourceMode,
+      status: autosave.status,
+    };
+  });
   // `D32`'s chain, resolved off the live buffer rather than the last read, so
   // the tab label follows a heading as it is typed. An external file has no
   // frontmatter contract, so it is named by its file.
@@ -186,14 +151,8 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   // Live values behind stable getters, so the mount-frozen editor callbacks
   // never go stale.
-  const notesRef = useRef(notes);
-
-  useEffect(() => {
-    notesRef.current = notes;
-  });
-
   const getTitles = useCallback(
-    () => notesRef.current.map((meta) => meta.title),
+    () => live.current.notes.map((meta) => meta.title),
     []
   );
 
@@ -212,7 +171,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     (linkTitle: string) => {
       const wanted = linkTitle.trim().toLowerCase();
       const currentFolder = noteFolder(tab.path);
-      const target = notesRef.current
+      const target = live.current.notes
         .filter(
           (meta) =>
             meta.title.toLowerCase() === wanted ||
@@ -261,7 +220,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   const handleBodyChange = useCallback(
     (nextBody: string) => {
-      const full = composeNote(frontmatterRef.current, nextBody);
+      const full = composeNote(live.current.frontmatter, nextBody);
 
       setBody(nextBody);
       setWords(countWords(full));
@@ -295,7 +254,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // Body-relative, so source mode has to shed the frontmatter prefix the way
   // `toggleSource` does.
   const getCaret = useCallback(() => {
-    if (!sourceModeRef.current) {
+    if (!live.current.sourceMode) {
       return editorRef.current?.getCaretSourceOffset() ?? -1;
     }
 
@@ -305,19 +264,19 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       return -1;
     }
 
-    const raw = composeNote(frontmatterRef.current, bodyRef.current);
+    const raw = composeNote(live.current.frontmatter, live.current.body);
 
     return Math.max(
       0,
       Math.min(
-        offset - (raw.length - bodyRef.current.length),
-        bodyRef.current.length
+        offset - (raw.length - live.current.body.length),
+        live.current.body.length
       )
     );
   }, []);
 
   const insertText = useCallback((text: string) => {
-    const target = sourceModeRef.current
+    const target = live.current.sourceMode
       ? sourceRef.current
       : editorRef.current;
 
@@ -335,18 +294,18 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // comes off a ref, since the snapshot the chrome calls this through has to
   // stay stable.
   const toggleSource = useCallback(() => {
-    const raw = composeNote(frontmatterRef.current, bodyRef.current);
-    const prefixLength = raw.length - bodyRef.current.length;
-    const wasSource = sourceModeRef.current;
+    const raw = composeNote(live.current.frontmatter, live.current.body);
+    const prefixLength = raw.length - live.current.body.length;
+    const wasSource = live.current.sourceMode;
 
     if (wasSource) {
       const offset = sourceRef.current?.getCursorOffset() ?? 0;
       const bodyOffset = Math.max(
         0,
-        Math.min(offset - prefixLength, bodyRef.current.length)
+        Math.min(offset - prefixLength, live.current.body.length)
       );
 
-      setSentineledBody(insertSentinel(bodyRef.current, bodyOffset));
+      setSentineledBody(insertSentinel(live.current.body, bodyOffset));
       setReloadKey((key) => key + 1);
     } else {
       const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
@@ -357,21 +316,22 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     setSourceMode(!wasSource);
   }, []);
 
+  useEffect(() => {
+    registerTabHandles(id, { getCaret, insertText, toggleSource });
+  }, [getCaret, id, insertText, toggleSource]);
+
   // The chrome renders once above every session, so what it draws travels up
   // through the store rather than down through props.
   useEffect(() => {
     publishTabSnapshot(id, {
-      getCaret,
-      insertText,
       pinned: file.pinned,
       sourceMode,
       status: autosave.status,
       tags: file.tags,
       title,
-      toggleSource,
       words,
     });
-  });
+  }, [autosave.status, file.pinned, file.tags, id, sourceMode, title, words]);
 
   // A file that has gone takes its tab with it when the buffer holds nothing
   // worth keeping. Writing stops through `enabled` above, so the text can be
@@ -382,7 +342,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // resolved and reported `saved`, throwing away the buffer this exists to
   // keep.
   useEffect(() => {
-    if (missing && statusRef.current === "saved") {
+    if (missing && live.current.status === "saved") {
       closeTab(id);
     }
   }, [missing, id]);
@@ -395,7 +355,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       return;
     }
 
-    if (sourceModeRef.current) {
+    if (live.current.sourceMode) {
       sourceRef.current?.focus();
     } else {
       editorRef.current?.focus();
@@ -459,62 +419,28 @@ interface NoteSessionProps {
  */
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
-  const [file, setFile] = useState<null | SessionFile>(null);
-  const [gone, setGone] = useState(false);
-  // A watcher bump re-reads every tab, so a file that keeps refusing would
-  // toast once per revision. Holding the message rather than a flag lets
-  // React's bail-out collapse a repeat into one toast, which is the stacking
-  // `D38` rejected.
-  const [unreadable, setUnreadable] = useState<null | string>(null);
+  const { data, error } = useQuery(noteQueries.file(kind, path));
+  // A rename changes the key (`D56`) and a failed read clears the data, and
+  // neither may take the buffer with it: the tab keeps what it last read
+  // (`D55`). Query's own `keepPreviousData` covers only the pending case.
+  const lastRead = useRef<SessionFile | undefined>(undefined);
 
   useEffect(() => {
-    let cancelled = false;
-    // A burst of watcher events starts several reads, and nothing makes them
-    // resolve in order. Only the newest may write state: an older rejection
-    // landing after a newer success would put the gone banner back up over a
-    // file that is there.
-    let latest = 0;
+    if (data !== undefined) {
+      lastRead.current = data;
+    }
+  }, [data]);
 
-    const read = () => {
-      latest += 1;
-      const attempt = latest;
-      const stale = () => cancelled || attempt !== latest;
+  const file = data ?? lastRead.current;
 
-      readTab(kind, path)
-        .then((next) => {
-          if (!stale()) {
-            setFile(next);
-            setGone(false);
-            setUnreadable(null);
-          }
-        })
-        .catch((error: unknown) => {
-          if (stale()) {
-            return;
-          }
-
-          // Only a missing file is a deletion. A permission or IO failure
-          // leaves the note where it was, so the tab keeps what it last read
-          // (`D55`).
-          if (error instanceof FileError && error.kind === "not-found") {
-            setGone(true);
-
-            return;
-          }
-
-          setUnreadable(errorMessage(error, "could not read this note"));
-        });
-    };
-
-    read();
-
-    const unsubscribe = subscribeRevision(read);
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [kind, path]);
+  // Only a missing file is a deletion. A permission or IO failure leaves the
+  // note where it was, so the tab keeps what it last read (`D55`).
+  const gone = error instanceof FileError && error.kind === "not-found";
+  // A repeat leaves the message unchanged, so the effect skips (`D38`).
+  const unreadable =
+    error === null || gone
+      ? null
+      : errorMessage(error, "could not read this note");
 
   useEffect(() => {
     if (unreadable !== null) {
@@ -526,12 +452,12 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   // show. A failed re-read of a tab that does have one is the buffer's own
   // decision, made in `SessionBuffer`.
   useEffect(() => {
-    if (gone && file === null) {
+    if (gone && file === undefined) {
       closeTab(tab.id);
     }
   }, [gone, file, tab.id]);
 
-  if (file === null) {
+  if (file === undefined) {
     return null;
   }
 
