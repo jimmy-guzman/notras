@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/jimmy-guzman/notras/compare/v0.2.1...v0.2.2) (2026-08-31)
+
+
+### Bug Fixes
+
+* 🐛 align tauri js packages with their crates ([#125](https://github.com/jimmy-guzman/notras/issues/125)) ([41c8dd0](https://github.com/jimmy-guzman/notras/commit/41c8dd0d4e905e248cab0c8d806c6ecaac1c8447))
+
 ## [0.2.1](https://github.com/jimmy-guzman/notras/compare/v0.2.0...v0.2.1) (2026-08-31)
 
 
