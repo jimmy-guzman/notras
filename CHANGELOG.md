@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.1](https://github.com/jimmy-guzman/notras/compare/v0.2.0...v0.2.1) (2026-08-31)
+
+
+### Features
+
+* ✨ single tab now drags window ([#112](https://github.com/jimmy-guzman/notras/issues/112)) ([37265ed](https://github.com/jimmy-guzman/notras/commit/37265ed837848fea88286f16c476a7e43181b548))
+
+
+### Bug Fixes
+
+* 🐛 bump deps ([#123](https://github.com/jimmy-guzman/notras/issues/123)) ([4494f17](https://github.com/jimmy-guzman/notras/commit/4494f17bc8b37eaca2d6e417f44a4c794143e9cf))
+* 🐛 no save icon on no active notes ([#121](https://github.com/jimmy-guzman/notras/issues/121)) ([093c799](https://github.com/jimmy-guzman/notras/commit/093c7998c01b64dd98741bbef20284c14fc5f789))
+* 🐛 no tabs allows for dragging window ([#124](https://github.com/jimmy-guzman/notras/issues/124)) ([5067a07](https://github.com/jimmy-guzman/notras/commit/5067a07a2a9949d364d52ebc44680ccd8ca8c0c9))
+
+
+### Refactoring
+
+* 🔄 smoother typewriter experience ([#122](https://github.com/jimmy-guzman/notras/issues/122)) ([f10c1e9](https://github.com/jimmy-guzman/notras/commit/f10c1e9ec8a9576b2c8d97624f3823d9e7a874a8))
+
 ## [0.2.0](https://github.com/jimmy-guzman/notras/compare/v0.1.2...v0.2.0) (2026-08-26)
 
 
