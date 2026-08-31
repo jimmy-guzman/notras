@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "commitMessageAction": "bump",
+  "commitMessagePrefix": "chore: 🤖 ",
+  "commitMessageTopic": "`{{depName}}`",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "`tauri build` fails when a tauri npm package and its crate differ in major or minor",
+      "groupName": "tauri",
+      "matchSourceUrls": [
+        "https://github.com/tauri-apps/plugins-workspace",
+        "https://github.com/tauri-apps/tauri"
+      ],
+      "separateMajorMinor": false
+    }
+  ],
+  "reviewers": ["@jimmy-guzman"],
+  "schedule": ["every weekend"],
+  "semanticCommits": "enabled"
+}

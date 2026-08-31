@@ -5,4 +5,12 @@ allowBuilds:
 autoInstallPeers: false
 color: always
 engineStrict: true
+# pnpm 11 defaults minimumReleaseAge to 1440 minutes, and all three published
+# hours before v0.2.1 was cut. Their crates were already at these versions in
+# `src-tauri/Cargo.lock`, so the guard held back only the npm half of a pair
+# `tauri build` requires to match (`D65`).
+minimumReleaseAgeExclude:
+  - "@tauri-apps/plugin-dialog@2.7.3"
+  - "@tauri-apps/plugin-opener@2.5.5"
+  - "@tauri-apps/plugin-updater@2.11.0"
 saveExact: true
