@@ -455,12 +455,21 @@ export function Editor({
       setReading(true);
     };
 
+    // The other half of the clear in `onSelectionUpdate`: ProseMirror drops a
+    // pointer selection equal to the current one before it ever becomes a
+    // transaction, so a click on the caret already there reaches no callback.
+    const restore = () => {
+      setReading(false);
+    };
+
     scroller.addEventListener("wheel", engage, { passive: true });
     scroller.addEventListener("touchmove", engage, { passive: true });
+    scroller.addEventListener("click", restore);
 
     return () => {
       scroller.removeEventListener("wheel", engage);
       scroller.removeEventListener("touchmove", engage);
+      scroller.removeEventListener("click", restore);
       setReading(false);
     };
   }, [focusModeEnabled]);

@@ -34,7 +34,7 @@ Search runs on a SQLite FTS5 index derived from those files. The index is dispos
 - code blocks with a copy button and a language picker
 - all of it round-trips through GFM markdown
 - `⌘P` swaps to raw markdown source, the escape hatch for anything exotic
-- `⌘D` focus mode dims every block but the one you are in, and lifts the dim while you scroll
+- `⌘D` focus mode dims every block but the one you are in, and a wheel or touch scroll lifts the dim
 - `⌘⌥T` typewriter scrolling keeps the line you are typing vertically centred
 - word count and reading time, in the status strip
 

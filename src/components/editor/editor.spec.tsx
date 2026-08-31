@@ -97,6 +97,24 @@ describe("focus mode reading state", () => {
     expect(scroller.classList.contains("focus-reading")).toBe(false);
   });
 
+  it("should restore the dim when a click leaves the selection alone", async () => {
+    const { scroller } = await mount({ focusModeEnabled: true });
+    const surface = scroller.querySelector(".ProseMirror");
+
+    if (surface === null) {
+      throw new Error("the editor surface did not render");
+    }
+
+    act(() => {
+      scroller.dispatchEvent(new Event("wheel"));
+    });
+    act(() => {
+      surface.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(scroller.classList.contains("focus-reading")).toBe(false);
+  });
+
   it("should not track reading while focus mode is off", async () => {
     const { scroller } = await mount({ focusModeEnabled: false });
 
