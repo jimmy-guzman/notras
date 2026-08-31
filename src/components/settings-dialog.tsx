@@ -1,4 +1,9 @@
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect } from "react";
@@ -77,19 +82,27 @@ export function SettingsDialog({
     }
   }, [queryClient]);
 
-  const toggleAutostart = useCallback(
-    async (value: boolean) => {
-      queryClient.setQueryData(autostartQuery.queryKey, value);
-
-      try {
-        await (value ? enable() : disable());
-      } catch {
-        // The OS holds the truth, so a failure reverts by re-reading it.
-        queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
-        toast.add({ title: "could not update launch at login", type: "error" });
-      }
+  const { isPending: autostartPending, mutate: writeAutostart } = useMutation({
+    mutationFn: (value: boolean) => (value ? enable() : disable()),
+    onError: () => {
+      // The OS holds the truth, so a failure reverts by re-reading it.
+      queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
+      toast.add({ title: "could not update launch at login", type: "error" });
     },
-    [queryClient]
+    onMutate: (value: boolean) => {
+      queryClient.setQueryData(autostartQuery.queryKey, value);
+    },
+    // Two quick toggles must not reach the OS out of order.
+    scope: { id: "autostart" },
+  });
+
+  // Base UI hands the change handler a second argument, where `mutate` expects
+  // its own options.
+  const toggleAutostart = useCallback(
+    (value: boolean) => {
+      writeAutostart(value);
+    },
+    [writeAutostart]
   );
 
   return (
@@ -118,7 +131,11 @@ export function SettingsDialog({
             <Label htmlFor="autostart">launch at login</Label>
             <Switch
               checked={autostart ?? false}
-              disabled={autostartUnreadable || autostart === undefined}
+              disabled={
+                autostartPending ||
+                autostartUnreadable ||
+                autostart === undefined
+              }
               id="autostart"
               onCheckedChange={toggleAutostart}
             />

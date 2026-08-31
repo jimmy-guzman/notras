@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { setNoteTags } from "@/data/set-note-tags";
@@ -28,18 +28,25 @@ export function useNoteTags(path: string, tags: string[]) {
   }
 
   // A path change resets the observer, and a mutation already in flight keeps
-  // the options it held then. Restoring from the callback's own `tags` would
-  // put the previous note's set onto the one now showing.
-  const savedTags = useRef(tags);
+  // the options it held then, so its callbacks speak for the note it started
+  // on. Layout, not passive: a rejection lands in a microtask and can beat a
+  // passive effect to this.
+  const active = useRef({ path, tags });
 
-  useEffect(() => {
-    savedTags.current = tags;
+  useLayoutEffect(() => {
+    active.current = { path, tags };
   });
 
   const { mutate: changeTags } = useMutation({
     mutationFn: (nextTags: string[]) => setNoteTags(path, nextTags),
     mutationKey,
     onError: () => {
+      // A note the user has left owns neither the row nor the toast, and its
+      // rollback would land on whatever the showing note has pending.
+      if (path !== active.current.path) {
+        return;
+      }
+
       // This one still counts as pending here, so anything above one is a
       // later toggle queued behind it, which will decide the display itself.
       // An older failure must not restore a set the user moved past (`D31`).
@@ -47,7 +54,7 @@ export function useNoteTags(path: string, tags: string[]) {
         return;
       }
 
-      setOptimisticTags(savedTags.current);
+      setOptimisticTags(active.current.tags);
       toast.add({ title: "could not update tags", type: "error" });
     },
     onMutate: (nextTags: string[]) => {
