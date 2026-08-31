@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 65, and some entries below it were removed, so the next entry takes 66.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 67, and some entries below it were removed, so the next entry takes 68.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
@@ -771,3 +771,55 @@ Tauri ships each package as an npm and crate pair, and `tauri build` errors when
 **Constraint:** Renovate's `lib/data/monorepo.json` carries `tauri` but no `plugins-workspace`, so `group:tauriMonorepo` covers the core pairs and the plugin rule here is a local stand-in for an entry that belongs upstream. It goes stale if Renovate adds one.
 
 **Constraint:** nothing in CI runs the Tauri CLI, so a pair that drifts anyway is caught by `tauri build` on the release tag. `tauri build --ignore-version-mismatches` exists and does not belong in `release.yml`.
+
+### D66 TanStack Query caches the reads, and the change event names what to invalidate
+
+Every read goes through TanStack Query. `src/data/queries.ts` holds one `noteQueries` factory whose keys run generic to specific, so each invalidation the app makes is a single prefix: `["notes"]` for an event that named no paths, `["notes", "index"]` for what the note rows derive, and `["notes", "file", kind, path]` for one tab. `notesDirQuery` sits outside that tree, because the notes folder is settings and no write to a note can move it. The root loader primes the cache and returns nothing, components read through `useSuspenseQuery`, and a tab's file is a `useQuery` that replaced `NoteSession`'s own state, its read effect, and its newest-wins counter. `router.invalidate()` is gone, and so are `subscribeRevision` and `bumpRevision` in `src/lib/tabs/store.ts`.
+
+`write_note` emits `notes-changed` on every save and autosave debounces at 800ms, so typing ran four IPC and SQL round trips and made every mounted tab re-read its file from disk, once per 800ms, for a change that named one file. The event has carried its `paths` since it was written and the webview threw them away.
+
+**Rejected: routing the payload through a hand-rolled readers map.** It was designed in full: `subscribeRevision` keyed by path, `bumpRevision` taking the changed set, and an empty set meaning the whole vault. It adds no dependency and it is a partial version of what a keyed cache already does, leaving the newest-wins counters in `note-session.tsx` and `command-palette.tsx` standing because the reads stay unkeyed.
+
+**Rejected: `@effect-atom/atom-react`.** The option that composes with the Effect layer the rest of the app runs on. Version 0.7.0 peer-depends on `effect: ^3.22.1` and this repo pins `effect@4.0.0-rc.112`, so taking it means a peer override on a 0.x library against a release candidate of its own peer.
+
+**Rejected: keeping the whole-folder fan-out.** One signal and no matching rule, and a tab picks up a frontmatter change even when its own path went unreported. Rejected because typing drives the event, so the cost scales with the number of open tabs while someone writes.
+
+**Rejected: suppressing the event for the app's own write.** It would remove the loader invalidation with it. Quick capture is a second webview writing through the same command (`D20`), and the main window learns of that write from this event and nothing else.
+
+**Rejected: the global `QueryCache` error toast.** TanStack's own guidance guards it with `query.state.data !== undefined`, so only a failed background update reports. That guard silences a first read failing for any reason other than a missing file, which `SPEC.md` requires a toast for.
+
+**Constraint:** an empty `paths` means the whole vault changed. `set_notes_dir` emits one, `reindex_all` emits one for a vault that scanned back empty, and the watcher never emits empty at all. An emit site added later that cannot name what changed emits empty rather than nothing.
+
+**Constraint:** `useLoaderData` is not used for query data. A query read that way never becomes active, which makes it eligible for garbage collection and puts it beyond the reach of invalidation.
+
+**Constraint:** the router's own cache is off through `defaultPreloadStaleTime: 0`, so one cache owns staleness.
+
+**Constraint:** `staleTime` is infinite and `retry` is off. The watcher reports an external write within about a second (`D16`), so staleness here is an event rather than a duration, and three retries with backoff would delay the missing-file failure that closes a deleted note's tab.
+
+**Constraint:** a tab holds its last successful read in a ref and falls back to it. A rename changes the key and a failed read clears the data, and either one would otherwise empty the buffer and remount the editor, which is the loss `D56` exists to prevent and the text `D55` promises to keep. Query's own `placeholderData` covers the pending case alone, because it is gated on a status of `pending` and a key that errors reports `error`.
+
+**Constraint:** an external tab's `refetchOnWindowFocus` is `"always"`, not `true`. `shouldFetchOn` reads `value === "always" || (value !== false && isStale(query, options))`, so under an infinite `staleTime` a plain `true` asks a staleness question the query can never answer yes to, and the one refresh path an external tab has would never fire.
+
+**Constraint:** the `/` loader's launch seed is the one read that stays a direct call. It asks for the most recently updated note once per launch to decide which tab opens, and caching a single-row answer nobody reads again would put a key in the cache to serve a decision already made.
+
+**Constraint:** a disabled query still reads its cache entry. A key standing for "nothing to ask" must not collide with one that holds data, which is why the palette returns its own recent slice rather than whatever `enabled: false` handed back.
+
+**Constraint:** an external tab refetches on window focus. Its path lies outside the notes dir, so no payload will ever name it and invalidation cannot reach it.
+
+### D67 A mutation scope serializes a note's tag writes
+
+`useNoteTags` writes through `useMutation` carrying `scope: { id: path }` and `mutationKey: ["note-tags", path]`. The promise queue, the request counter, and the ref holding the last set known to be on disk are gone. `mutationCache.canRun` starts a mutation only when it is the first pending one in its scope, so the scope is what makes the last call the last write. The optimistic list stays in the hook, adjusted during render against the tags coming back from disk.
+
+The queue it replaces belonged to the hook instance, and `D31` puts tag editing on two surfaces. The status strip and the palette therefore held separate queues and did not serialize against each other at all, which the scope fixes by keying on the note instead.
+
+**Rejected: reading the displayed value from `mutation.variables`.** It deletes the optimistic list outright. Rejected because the value stops being pending the moment the write resolves, while the truth arrives a full IPC round trip later through `notes-changed` and the re-read, so the row flashes back to the old set and forward again. That is the failure that ruled out `useOptimistic` in `D66`.
+
+**Rejected: patching the cache in `onMutate`,** which is the canonical optimistic shape and would remove the local list honestly. Rejected on reach: tags render from `noteQueries.file` and from every `noteQueries.list` variant the palette holds, so one toggle would have to find and rewrite the note inside each cached list.
+
+**Rejected: converting `useAutosave` the same way.** Attempted and abandoned. `use-debounce`'s `flushOnExit` fires only when a debounced call is pending, where the hook's unmount flush also has to carry a buffer left behind by a failed write, so the library covers strictly less than the code it would replace and keeping both is two mechanisms for one job. `dirty` also has no `MutationStatus`, because it describes the buffer rather than a request.
+
+**Rejected: a mutation for the launch-at-login switch.** Built and reverted. `onMutate`, `onSettled`, a scope, and a wrapper for the second argument Base UI passes its change handler came to 22 lines against the 11-line `try`/`catch` they replaced. The read moved to a query and stayed there; the write did not.
+
+**Constraint:** a rollback asks `isMutating({ mutationKey })` rather than counting requests itself. `onError` runs before the failure is dispatched, so the failing mutation still counts as pending, and a total above one means a later toggle is queued behind it. `D31` requires that superseded failure to leave the display alone.
+
+**Constraint:** the optimistic list stays in the hook. It is what covers the gap between a write resolving and the re-read landing, which no mutation state spans.

@@ -37,7 +37,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 ## External changes
 
 - The watcher debounces at 300ms, so a file written by anything else reaches the app within about a second. A note appears in the palette under its own title rather than its filename.
-- A change event makes every open tab re-read its file.
+- A change event names the files that changed, and only the tabs holding one of them re-read. An event naming nothing means the whole vault changed, and every tab re-reads.
+- An external file's path is never named by a change event, so an external tab re-reads when the window regains focus.
 - A buffer reloads only when it is clean, the file is newer than this tab's own last write, and the body differs. The reload remounts the editor, so the caret and the undo history go with it.
 - Frontmatter follows the file whether or not the buffer is clean.
 - A dirty buffer wins. An external edit to a note with unsaved changes is not shown, and the next flush overwrites it.

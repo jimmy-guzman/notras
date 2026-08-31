@@ -103,12 +103,13 @@ export function Editor({
           const url = typeof attrs.href === "string" ? attrs.href : "";
           const coords = instance.view.coordsAtPos(head);
 
-          setLinkEditor({
+          setLinkEditor((previous) => ({
+            id: (previous?.id ?? 0) + 1,
             left: coords.left,
             needsText: empty && url === "",
             top: coords.bottom + 6,
             url,
-          });
+          }));
 
           return true;
         },
@@ -535,6 +536,7 @@ export function Editor({
       <EditorContent className="min-h-full" editor={editor} />
       {linkEditor === null || editor === null ? null : (
         <LinkEditor
+          key={linkEditor.id}
           onCancel={cancelLink}
           onRemove={removeLink}
           onSubmit={submitLink}

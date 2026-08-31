@@ -7,7 +7,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Layer           | Choice                                                                                                       |
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | Shell           | Tauri 2 (Rust): file IO commands, FTS5 index, notify watcher, tray, global shortcuts                         |
-| Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR)                                                      |
+| Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR); TanStack Query caches every read (`D66`)            |
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘P raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
@@ -24,7 +24,8 @@ Notes are `.md` or `.markdown` files under the notes dir (default `~/notras`). F
 ```mermaid
 flowchart TD
     subgraph webview [Tauri webview]
-        UI[React + TanStack Router] --> Data[src/data async fns]
+        UI[React + TanStack Router] --> Query[TanStack Query cache]
+        Query --> Data[src/data async fns]
         Data --> Services[Effect services]
         Services --> FileStore[FileStore port]
         Services --> Index[Database port, read-only]
@@ -46,7 +47,7 @@ flowchart TD
 
 **Rust is the single writer of the index.** Every TypeScript mutation goes through a Rust command (`write_note`, `rename_note`, `delete_note`, and the rest) that writes the file and updates the index in the same call, then emits `notes-changed`. The `db_select` command rejects anything that is not SELECT/WITH, gated on SQLite's own `sqlite3_stmt_readonly` so a writable `WITH ... DELETE` CTE cannot pass the prefix test. There is no index write path from TypeScript.
 
-**External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: the root route listens for `notes-changed` and calls `router.invalidate()`.
+**External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: the root route listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
 
 **The index is disposable.** `ensure_schema` runs CREATE IF NOT EXISTS plus FTS5 on startup, so deleting `.notras/index.db` triggers a rebuild. There is no drizzle-kit, no migration directory, and no `db:push`.
 
@@ -83,8 +84,8 @@ src/
   styles.spec.ts      # contrast gate, task-list ladder, note surface,
                       # launch background
   routes/             # TanStack Router file routes
-    __root.tsx        # loader (notes/folders/tags/notesDir), palette, settings
-                      # dialog, hotkeys, notes-changed listener
+    __root.tsx        # loader primes the cache, palette, settings dialog,
+                      # hotkeys, notes-changed listener
     index.tsx         # THE page: the workspace -- tab strip, every open
                       # tab's session, and the two bands (D53)
   components/
@@ -105,6 +106,7 @@ src/
     errors.ts         # DatabaseError, FileError
     fts-markers.ts    # [[hl]] snippet markers shared with SQL
   data/               # Plain async fns the UI calls (ex-server-actions)
+    queries.ts        # THE query keys and options, one factory (D66)
     run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
   server/
     adapters/         # the only note IO and SQL path to @tauri-apps/*;
@@ -166,6 +168,8 @@ Nothing enforces these. Lint held them until `D41` retired the ESLint config, an
 ### Data access
 
 The UI calls plain async functions in `src/data/`, one concern per file. They validate with Effect Schema where the input is user-shaped, and run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps typed failures into plain `Error`s, so a caller can write `toast.add({ title: error.message, type: "error" })`.
+
+Reads reach those functions through TanStack Query. `src/data/queries.ts` is the only place a key over `src/data` is written: `noteQueries` for everything a note write can affect, `notesDirQuery` for the folder that settings owns. A query over something else, such as the launch-at-login switch the OS owns, is keyed beside the component that shows it. Its keys run generic to specific, so every invalidation the app performs is one prefix, and `D66` carries the rest. Writes stay direct calls, with one exception: `useNoteTags` goes through a mutation whose scope is the note's path, which is what serializes the two surfaces `D31` allows (`D67`). `useAutosave` keeps its own chain (`D54`).
 
 ### Effect style
 

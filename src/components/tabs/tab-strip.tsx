@@ -18,7 +18,7 @@ import {
   SortableContext,
   useSortable,
 } from "@dnd-kit/sortable";
-import { getRouteApi } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -41,6 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
+import { noteQueries } from "@/data/queries";
 import {
   activateTab,
   closeOtherTabs,
@@ -53,8 +54,6 @@ import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { cn } from "@/lib/ui/utils";
-
-const rootApi = getRouteApi("__root__");
 
 const STEPS: Record<string, TabStep> = {
   ArrowLeft: "previous",
@@ -337,7 +336,7 @@ interface TabListProps {
  * go, so it hands the press to the window instead.
  */
 function TabList({ activeId, tabs }: TabListProps) {
-  const { notes } = rootApi.useLoaderData();
+  const { data: notes } = useSuspenseQuery(noteQueries.list());
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
   const ids = useMemo(() => tabs.map(tabId), [tabs]);

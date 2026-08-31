@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getTabState, restoredCaret, restoreTabs } from "./store";
+import {
+  closeTab,
+  getTabHandles,
+  getTabState,
+  openNote,
+  registerTabHandles,
+  restoredCaret,
+  restoreTabs,
+} from "./store";
 import { serializeTabs } from "./tab";
 
 const STORAGE_KEY = "tabs";
@@ -81,5 +89,40 @@ describe("restoreTabs", () => {
     expect(getTabState().activeId).toBe(b?.id);
     expect(restoredCaret(a?.id ?? "")).toBe(12);
     expect(restoredCaret(b?.id ?? "")).toBe(34);
+  });
+});
+
+describe("registerTabHandles", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("should hand back the handles a live tab registered", () => {
+    openNote("a.md");
+    const [tab] = getTabState().tabs;
+    const handles = {
+      getCaret: () => 7,
+      insertText: () => undefined,
+      toggleSource: () => undefined,
+    };
+
+    registerTabHandles(tab?.id ?? "", handles);
+
+    expect(getTabHandles(tab?.id ?? "")?.getCaret()).toBe(7);
+  });
+
+  it("should forget a tab's handles once it closes", () => {
+    openNote("b.md");
+    const [tab] = getTabState().tabs;
+    const id = tab?.id ?? "";
+
+    registerTabHandles(id, {
+      getCaret: () => 7,
+      insertText: () => undefined,
+      toggleSource: () => undefined,
+    });
+    closeTab(id);
+
+    expect(getTabHandles(id)).toBeUndefined();
   });
 });
