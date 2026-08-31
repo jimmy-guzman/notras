@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { createStore, useSelector } from "@tanstack/react-store";
 
 /**
  * The writing-mode toggles, which belong to the app rather than to a note.
@@ -7,35 +7,21 @@ import { useCallback, useSyncExternalStore } from "react";
  */
 type Pref = "focus-mode" | "typewriter";
 
-const listeners = new Set<() => void>();
-
-const values: Record<Pref, boolean> = {
+const prefs = createStore<Record<Pref, boolean>>({
   "focus-mode": localStorage.getItem("focus-mode") === "true",
   typewriter: localStorage.getItem("typewriter") === "true",
-};
+});
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-
-  return () => {
-    listeners.delete(listener);
-  };
-}
+prefs.subscribe((values) => {
+  for (const [name, value] of Object.entries(values)) {
+    localStorage.setItem(name, String(value));
+  }
+});
 
 export function usePref(name: Pref) {
-  return useSyncExternalStore(
-    subscribe,
-    useCallback(() => values[name], [name])
-  );
+  return useSelector(prefs, (values) => values[name]);
 }
 
 export function togglePref(name: Pref) {
-  const next = !values[name];
-
-  values[name] = next;
-  localStorage.setItem(name, String(next));
-
-  for (const listener of listeners) {
-    listener();
-  }
+  prefs.setState((prev) => ({ ...prev, [name]: !prev[name] }));
 }

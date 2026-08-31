@@ -859,3 +859,23 @@ The three comma-separated bindings become `useHotkeys` arrays with one callback 
 **Constraint:** `stopPropagation` now defaults to `true`, where `react-hotkeys-hook` never called it. Nothing in the app listens for a stopped keydown: the only `window.addEventListener` is `blur` in `use-autosave.ts`, and React, ProseMirror, and the roving tablist in `tab-strip.tsx` all handle keys below `document` and so run first.
 
 **Constraint:** the swap costs 382 bytes gzipped across the two JS chunks, measured by building the same tree both ways (`index` +421, `routes` -39; the CSS and fonts do not move). `@tanstack/hotkeys` is the only package added, because `@tanstack/react-store` and `@tanstack/store` were already in the lockfile at 0.11.1 for Pacer.
+
+### D70 TanStack Store backs the window stores, and snapshots split off the open set
+
+`@tanstack/react-store` replaces the hand-rolled `useSyncExternalStore` plumbing in `src/lib/prefs.ts` and `src/lib/tabs/store.ts`. Both files held the same shape: a mutable module value, a `Set` of listeners, a `subscribe` closure, and an `emit` loop. `createStore` and `useSelector` stand in their place, and the two listener sets go with their `useCallback`-wrapped getters. Every export keeps its name and signature, so no call site changes and `src/lib/tabs/store.spec.ts` passes untouched.
+
+The tab module splits into two stores. `tabs` holds the open set and the active id, and `snapshots` holds what each session publishes for the chrome to draw. One `emit()` used to wake every listener, so a keystroke republishing a snapshot ran the getter and an `Object.is` for each reader of the open set before all of them bailed. Split, a keystroke reaches only the snapshot readers.
+
+`closed`, `restored`, and `handles` stay plain module state. Nothing subscribes to them, and `registerTabHandles` notifies nobody by design, which moving them into a store would undo.
+
+**Rejected: keeping `useSyncExternalStore`.** A React built-in that cannot break, against a package badged alpha at 0.11.1 that shipped two breaking changes in six months: 0.9 removed `Derived` and `Effect`, and 0.11 deprecated `useStore` in favour of `useSelector`. Rejected because the version is pinned exactly, so a breaking minor arrives when someone bumps it and `pnpm typecheck` fails the build rather than the tab set. The same 0.x cost `D68` and `D69` took.
+
+**Rejected: zustand or jotai.** Both are stable majors where Store is alpha. Rejected because each adds a runtime dependency to a tree that already carries `@tanstack/store` twice, to wrap the same `useSyncExternalStore`.
+
+**Rejected: one store per tab, held in a `Map`.** It narrows a snapshot notification to the tab that changed rather than to every snapshot reader. Rejected because it needs a lazily created registry that `useTabSnapshot` can read during render for a tab that has published nothing yet, and a selector over one record already bails on the same reference check.
+
+**Constraint:** persistence is a subscription in `prefs.ts` and an explicit `persistTabs()` call in `tabs/store.ts`. `restoreTabs` writes the set without persisting, and a subscription would fire there too, reading carets off sessions that have not mounted and writing an empty set over the one just read.
+
+**Constraint:** no `compare` is passed to `useSelector`. The default is `Object.is`, and `publishTabSnapshot` stores the object the session hands it, so a tab nobody touched returns the same reference and bails. `shallow` here would re-render every session on every keystroke, the trap `D68` recorded for Pacer.
+
+**Constraint:** the swap costs 84 bytes gzipped, measured by building the same tree both ways (`index` +84; `routes`, the CSS and the fonts do not move). No package is added to the lockfile: `@tanstack/react-store` was already resolved at 0.11.1 for Pacer and Hotkeys, and the direct dependency pins that copy.

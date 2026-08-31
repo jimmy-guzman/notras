@@ -122,7 +122,7 @@ src/
     pending-flush.ts  # autosave flush registry read by the quit handshake
     prefs.ts          # focus mode and typewriter, app-wide (D53)
     tabs/             # the open set: tab.ts is the list algebra, store.ts
-                      # the module store the chrome and sessions read
+                      # the stores the chrome and sessions read
     updater.ts        # release check, offer toast, install + relaunch
     ui/chrome.ts      # CHROME_GLYPH (D51)
     ui/failure.ts     # errorMessage(): narrows a rejection to user-facing text
@@ -223,7 +223,7 @@ Define it in `src-tauri/src/notes.rs` or a new module, register it in `generate_
 
 ### Preferences
 
-Window state lives in `localStorage`: the writing-mode toggles in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
+Window state lives in `localStorage`: the writing-mode toggles in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
 
 ### Snippet rendering
 

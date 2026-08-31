@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { batch, createStore, useSelector } from "@tanstack/react-store";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
 
@@ -42,31 +42,22 @@ export interface TabSnapshot {
   words: number;
 }
 
-let state: TabState = { activeId: "", tabs: [] };
+const tabs = createStore<TabState>({ activeId: "", tabs: [] });
+
+const snapshots = createStore<Record<string, TabSnapshot>>({});
+
 let closed: ClosedTab[] = [];
 /** Carets read back at launch, each consumed once by the session that mounts. */
 const restored = new Map<string, number>();
 
 const handles = new Map<string, TabHandles>();
-const snapshots = new Map<string, TabSnapshot>();
-const listeners = new Set<() => void>();
 
-function emit() {
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-
-  return () => {
-    listeners.delete(listener);
-  };
+export function getTabState() {
+  return tabs.state;
 }
 
 function setState(next: TabState) {
-  if (next.activeId === state.activeId && next.tabs === state.tabs) {
+  if (next.activeId === tabs.state.activeId && next.tabs === tabs.state.tabs) {
     return;
   }
 
@@ -81,14 +72,18 @@ function setState(next: TabState) {
     }
   }
 
-  for (const id of snapshots.keys()) {
-    if (!open.has(id)) {
-      snapshots.delete(id);
-    }
-  }
+  const dropped = Object.keys(snapshots.state).some((id) => !open.has(id));
 
-  state = next;
-  emit();
+  batch(() => {
+    if (dropped) {
+      snapshots.setState((prev) =>
+        Object.fromEntries(Object.entries(prev).filter(([id]) => open.has(id)))
+      );
+    }
+
+    tabs.setState(() => next);
+  });
+
   persistTabs();
 }
 
@@ -102,7 +97,7 @@ function setState(next: TabState) {
 export function persistTabs() {
   const carets: Record<string, number> = {};
 
-  for (const tab of state.tabs) {
+  for (const tab of getTabState().tabs) {
     const id = tabId(tab);
     const caret = handles.get(id)?.getCaret() ?? -1;
 
@@ -113,7 +108,11 @@ export function persistTabs() {
 
   localStorage.setItem(
     STORAGE_KEY,
-    serializeTabs({ activeId: state.activeId, carets, tabs: state.tabs })
+    serializeTabs({
+      activeId: getTabState().activeId,
+      carets,
+      tabs: getTabState().tabs,
+    })
   );
 }
 
@@ -134,7 +133,7 @@ export function restoreTabs() {
   // by `kind:path`. Minting here, the one place holding both the old key and
   // the new id, keeps a path-shaped id out of the live set and off the DOM.
   const ids = new Map<string, string>();
-  const tabs = parsed.tabs.map((tab) => {
+  const tabList = parsed.tabs.map((tab) => {
     const fresh = tab.id ?? crypto.randomUUID();
 
     ids.set(tab.id ?? legacyTabId(tab), fresh);
@@ -150,13 +149,14 @@ export function restoreTabs() {
     }
   }
 
-  const [first] = tabs;
+  const [first] = tabList;
 
-  state = {
+  // Not through `setState`: it persists, and with no session mounted yet every
+  // caret would read as missing and overwrite the set just read.
+  tabs.setState(() => ({
     activeId: ids.get(parsed.activeId) ?? first?.id ?? "",
-    tabs,
-  };
-  emit();
+    tabs: tabList,
+  }));
 
   return true;
 }
@@ -175,23 +175,12 @@ export function clearRestoredCaret(id: string) {
   restored.delete(id);
 }
 
-export function getTabState() {
-  return state;
-}
-
 export function useTabState() {
-  return useSyncExternalStore(subscribe, getTabState);
-}
-
-function getTabSnapshot(id: string) {
-  return snapshots.get(id);
+  return useSelector(tabs);
 }
 
 export function useTabSnapshot(id: string) {
-  return useSyncExternalStore(
-    subscribe,
-    useCallback(() => getTabSnapshot(id), [id])
-  );
+  return useSelector(snapshots, (all) => all[id]);
 }
 
 export function getTabHandles(id: string) {
@@ -205,8 +194,7 @@ export function registerTabHandles(id: string, next: TabHandles) {
 
 /** Called by a session on every change it makes to what the chrome shows. */
 export function publishTabSnapshot(id: string, snapshot: TabSnapshot) {
-  snapshots.set(id, snapshot);
-  emit();
+  snapshots.setState((prev) => ({ ...prev, [id]: snapshot }));
 }
 
 /**
@@ -218,7 +206,7 @@ function newTab(kind: Tab["kind"], path: string): Tab {
 }
 
 export function openTab(kind: Tab["kind"], path: string, inNewTab = false) {
-  setState(openInList(state, newTab(kind, path), inNewTab));
+  setState(openInList(getTabState(), newTab(kind, path), inNewTab));
 }
 
 export function openNote(path: string, inNewTab = false) {
@@ -227,7 +215,7 @@ export function openNote(path: string, inNewTab = false) {
 
 /** Close the tab holding a note path, if one is open. */
 export function closeNoteTab(path: string) {
-  const open = state.tabs.find(
+  const open = getTabState().tabs.find(
     (tab) => tab.kind === "note" && tab.path === path
   );
 
@@ -237,14 +225,14 @@ export function closeNoteTab(path: string) {
 }
 
 export function closeTab(id: string) {
-  const index = state.tabs.findIndex((entry) => tabId(entry) === id);
-  const tab = state.tabs[index];
+  const index = getTabState().tabs.findIndex((entry) => tabId(entry) === id);
+  const tab = getTabState().tabs[index];
 
   if (tab !== undefined) {
     closed = pushClosed(closed, tab, index);
   }
 
-  setState(closeInList(state, id));
+  setState(closeInList(getTabState(), id));
 }
 
 /** Put back the most recently closed tab, in the slot it came out of. */
@@ -256,12 +244,12 @@ export function reopenTab() {
   }
 
   closed = rest;
-  setState(openTabAt(state, entry.tab, entry.index));
+  setState(openTabAt(getTabState(), entry.tab, entry.index));
 }
 
 /** Close every tab but `id`, which becomes active. */
 export function closeOtherTabs(id: string) {
-  const keep = state.tabs.find((tab) => tabId(tab) === id);
+  const keep = getTabState().tabs.find((tab) => tabId(tab) === id);
 
   if (keep === undefined) {
     return;
@@ -269,7 +257,7 @@ export function closeOtherTabs(id: string) {
 
   // Rightmost first, so the leftmost ends up on top and reopening walks back
   // left to right into a strip that regrows under it.
-  for (const [index, tab] of [...state.tabs.entries()].reverse()) {
+  for (const [index, tab] of [...getTabState().tabs.entries()].reverse()) {
     if (tabId(tab) !== id) {
       closed = pushClosed(closed, tab, index);
     }
@@ -280,19 +268,21 @@ export function closeOtherTabs(id: string) {
 
 /** Close everything to the right of `id`. */
 export function closeTabsAfter(id: string) {
-  const index = state.tabs.findIndex((tab) => tabId(tab) === id);
+  const index = getTabState().tabs.findIndex((tab) => tabId(tab) === id);
 
   if (index === -1) {
     return;
   }
 
-  const kept = state.tabs.slice(0, index + 1);
-  const active = kept.some((tab) => tabId(tab) === state.activeId)
-    ? state.activeId
+  const kept = getTabState().tabs.slice(0, index + 1);
+  const active = kept.some((tab) => tabId(tab) === getTabState().activeId)
+    ? getTabState().activeId
     : id;
 
   for (const [offset, tab] of [
-    ...state.tabs.slice(index + 1).entries(),
+    ...getTabState()
+      .tabs.slice(index + 1)
+      .entries(),
   ].reverse()) {
     closed = pushClosed(closed, tab, index + 1 + offset);
   }
@@ -301,14 +291,14 @@ export function closeTabsAfter(id: string) {
 }
 
 export function moveTab(id: string, index: number) {
-  setState(moveTabTo(state, id, index));
+  setState(moveTabTo(getTabState(), id, index));
 }
 
 export function activateTab(id: string) {
-  setState({ activeId: id, tabs: state.tabs });
+  setState({ activeId: id, tabs: getTabState().tabs });
 }
 
 /** Follow a note that a rename or a folder move gave a new path. */
 export function renameTab(from: string, to: string) {
-  setState(replaceNotePath(state, from, to));
+  setState(replaceNotePath(getTabState(), from, to));
 }
