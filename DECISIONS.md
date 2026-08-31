@@ -800,6 +800,8 @@ Every read goes through TanStack Query. `src/data/queries.ts` holds one `noteQue
 
 **Constraint:** an external tab's `refetchOnWindowFocus` is `"always"`, not `true`. `shouldFetchOn` reads `value === "always" || (value !== false && isStale(query, options))`, so under an infinite `staleTime` a plain `true` asks a staleness question the query can never answer yes to, and the one refresh path an external tab has would never fire.
 
+**Constraint:** the `/` loader's launch seed is the one read that stays a direct call. It asks for the most recently updated note once per launch to decide which tab opens, and caching a single-row answer nobody reads again would put a key in the cache to serve a decision already made.
+
 **Constraint:** a disabled query still reads its cache entry. A key standing for "nothing to ask" must not collide with one that holds data, which is why the palette returns its own recent slice rather than whatever `enabled: false` handed back.
 
 **Constraint:** an external tab refetches on window focus. Its path lies outside the notes dir, so no payload will ever name it and invalidation cannot reach it.

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { setNoteTags } from "@/data/set-note-tags";
@@ -27,6 +27,15 @@ export function useNoteTags(path: string, tags: string[]) {
     setOptimisticTags(tags);
   }
 
+  // A path change resets the observer, and a mutation already in flight keeps
+  // the options it held then. Restoring from the callback's own `tags` would
+  // put the previous note's set onto the one now showing.
+  const savedTags = useRef(tags);
+
+  useEffect(() => {
+    savedTags.current = tags;
+  });
+
   const { mutate: changeTags } = useMutation({
     mutationFn: (nextTags: string[]) => setNoteTags(path, nextTags),
     mutationKey,
@@ -38,7 +47,7 @@ export function useNoteTags(path: string, tags: string[]) {
         return;
       }
 
-      setOptimisticTags(tags);
+      setOptimisticTags(savedTags.current);
       toast.add({ title: "could not update tags", type: "error" });
     },
     onMutate: (nextTags: string[]) => {

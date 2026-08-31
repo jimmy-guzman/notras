@@ -118,7 +118,7 @@ export function SettingsDialog({
             <Label htmlFor="autostart">launch at login</Label>
             <Switch
               checked={autostart ?? false}
-              disabled={autostartUnreadable}
+              disabled={autostartUnreadable || autostart === undefined}
               id="autostart"
               onCheckedChange={toggleAutostart}
             />
