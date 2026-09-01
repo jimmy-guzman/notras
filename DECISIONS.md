@@ -879,3 +879,4 @@ The tab module splits into two stores. `tabs` holds the open set and the active 
 **Constraint:** no `compare` is passed to `useSelector`. The default is `Object.is`, and `publishTabSnapshot` stores the object the session hands it, so a tab nobody touched returns the same reference and bails. `shallow` here would re-render every session on every keystroke, the trap `D68` recorded for Pacer.
 
 **Constraint:** the swap costs 84 bytes gzipped, measured by building the same tree both ways (`index` +84; `routes`, the CSS and the fonts do not move). No package is added to the lockfile: `@tanstack/react-store` was already resolved at 0.11.1 for Pacer and Hotkeys, and the direct dependency pins that copy.
+

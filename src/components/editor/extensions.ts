@@ -1,11 +1,18 @@
 import type { Editor, Extensions } from "@tiptap/core";
 
-import { Extension, InputRule, mergeAttributes } from "@tiptap/core";
+import {
+  Extension,
+  InputRule,
+  markInputRule,
+  markPasteRule,
+  mergeAttributes,
+} from "@tiptap/core";
 import { Code } from "@tiptap/extension-code";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Image } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
 import { Paragraph } from "@tiptap/extension-paragraph";
+import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
@@ -42,6 +49,26 @@ export const lowlight = createLowlight({
  * mark, which markdown writes freely and the parser builds (`D59`).
  */
 const NoteCode = Code.extend({ excludes: "" });
+
+/** marked's GFM `del` takes one tilde or two; TipTap's rules take only two. */
+const SINGLE_TILDE = /(~(?=[^\s~])([^~]*[^\s~])~(?!~))$/;
+
+const SINGLE_TILDE_PASTE = /(~(?=[^\s~])([^~]*[^\s~])~(?!~))/g;
+
+const NoteStrike = Strike.extend({
+  addInputRules() {
+    return [
+      ...(this.parent?.() ?? []),
+      markInputRule({ find: SINGLE_TILDE, type: this.type }),
+    ];
+  },
+  addPasteRules() {
+    return [
+      ...(this.parent?.() ?? []),
+      markPasteRule({ find: SINGLE_TILDE_PASTE, type: this.type }),
+    ];
+  },
+});
 
 /**
  * Keep the paragraph around an image alone in one, and hand every other
@@ -206,10 +233,10 @@ function scrubEntities(text: string) {
 }
 
 /**
- * Scrub one line's prose, leaving backtick code spans verbatim -- inside a
- * span the entity is content the user typed, not something we generated.
+ * Inside a code span the text is content the user typed, not something we
+ * generated, so it is copied verbatim.
  */
-function scrubLine(line: string) {
+function mapLine(line: string, transform: (text: string) => string) {
   let out = "";
   let index = 0;
 
@@ -217,16 +244,16 @@ function scrubLine(line: string) {
     const tick = line.indexOf("`", index);
 
     if (tick === -1) {
-      return out + scrubEntities(line.slice(index));
+      return out + transform(line.slice(index));
     }
 
-    out += scrubEntities(line.slice(index, tick));
+    out += transform(line.slice(index, tick));
 
     const run = BACKTICK_RUN.exec(line.slice(tick))?.[0] ?? "`";
     const close = line.indexOf(run, tick + run.length);
 
     if (close === -1) {
-      return out + scrubEntities(line.slice(tick));
+      return out + transform(line.slice(tick));
     }
 
     out += line.slice(tick, close + run.length);
@@ -236,17 +263,7 @@ function scrubLine(line: string) {
   return out;
 }
 
-/**
- * Scrub the `&nbsp;` entities TipTap leaks (table cells, blank paragraphs).
- * Every markdown string that could reach a file -- or be compared against one
- * -- goes through here, so the two sides always agree.
- *
- * Code is left alone: the serializer only emits the entity in prose, so inside
- * a fence or a code span it is the author's literal text and rewriting it
- * would silently edit the file. (Raw HTML needs no such guard -- the schema
- * has no HTML node, so none survives to here.)
- */
-export function normalizeMarkdown(markdown: string) {
+function mapProse(markdown: string, transform: (text: string) => string) {
   let fence: null | string = null;
 
   return markdown
@@ -268,14 +285,88 @@ export function normalizeMarkdown(markdown: string) {
         return line;
       }
 
-      return scrubLine(line);
+      return mapLine(line, transform);
     })
     .join("\n");
 }
 
+/**
+ * Scrub the `&nbsp;` entities TipTap leaks (table cells, blank paragraphs).
+ * Every markdown string that could reach a file -- or be compared against one
+ * -- goes through here, so the two sides always agree.
+ *
+ * Code is left alone: the serializer only emits the entity in prose, so inside
+ * a fence or a code span it is the author's literal text and rewriting it
+ * would silently edit the file. (Raw HTML needs no such guard -- the schema
+ * has no HTML node, so none survives to here.)
+ */
+export function normalizeMarkdown(markdown: string) {
+  return mapProse(markdown, scrubEntities);
+}
+
+/** What upstream escapes in a text node, minus the backslash. */
+const TEXT_ESCAPE = new Set(["`", "*", "_", "[", "]", "~"]);
+
+/**
+ * A `\\` pair is left alone, which keeps `escapeMarkdownTitle`'s output and an
+ * author's literal backslash intact.
+ */
+function dropEscapes(text: string) {
+  let out = "";
+  let index = 0;
+
+  while (index < text.length) {
+    const next = text[index + 1];
+
+    if (text[index] !== "\\" || next === undefined) {
+      out += text[index];
+      index += 1;
+    } else if (next === "\\") {
+      out += "\\\\";
+      index += 2;
+    } else if (TEXT_ESCAPE.has(next)) {
+      out += next;
+      index += 2;
+    } else {
+      out += "\\";
+      index += 1;
+    }
+  }
+
+  return out;
+}
+
+type MarkdownConverter = NonNullable<Editor["markdown"]>;
+
+/**
+ * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` in every
+ * text node with no regard for context, so `snake_case` gains a backslash on
+ * its first save. Re-parsing the stripped text leaves marked the authority on
+ * which escape was load-bearing, per document: one construct that needs its
+ * backslash keeps every other escape in the file with it.
+ */
+export function fileMarkdown(manager: MarkdownConverter, escaped: string) {
+  const bare = mapProse(escaped, dropEscapes);
+
+  if (bare === escaped) {
+    return escaped;
+  }
+
+  try {
+    return normalizeMarkdown(manager.serialize(manager.parse(bare))) === escaped
+      ? bare
+      : escaped;
+  } catch {
+    return escaped;
+  }
+}
+
 /** Serialize the editor to markdown for the file on disk. */
 export function serializeMarkdown(editor: Editor) {
-  return normalizeMarkdown(editor.getMarkdown());
+  const escaped = normalizeMarkdown(editor.getMarkdown());
+  const manager = editor.markdown;
+
+  return manager === undefined ? escaped : fileMarkdown(manager, escaped);
 }
 
 /** The full extension stack, shared by the component and headless tests. */
@@ -288,7 +379,11 @@ export function createEditorExtensions(
       codeBlock: false,
       link: false,
       paragraph: false,
+      strike: false,
     }),
+    // Swapped with NoteCode, a text node carrying both marks serializes its
+    // tildes inside the backticks and edits the file on open (`D59`).
+    NoteStrike,
     NoteCode,
     NoteLink.configure({ openOnClick: false }),
     NoteParagraph,

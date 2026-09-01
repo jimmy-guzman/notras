@@ -1,7 +1,7 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
-import { createEditorExtensions } from "./extensions";
+import { createEditorExtensions, serializeMarkdown } from "./extensions";
 
 /**
  * The task-list CSS reaches a row as `ul[data-type="taskList"] > li` (`D39`),
@@ -54,5 +54,62 @@ describe("task item DOM", () => {
 
     expect(row?.matches('li[data-checked="true"]')).toBe(true);
     expect(row?.matches('li[data-type="taskItem"]')).toBe(false);
+  });
+});
+
+const typeInto = (text: string) => {
+  const editor = new Editor({
+    content: "",
+    contentType: "markdown",
+    element: document.createElement("div"),
+    extensions: createEditorExtensions({}),
+  });
+
+  for (const char of text) {
+    const { from, to } = editor.state.selection;
+    const insert = () => editor.state.tr.insertText(char, from, to);
+    const handled = editor.view.someProp("handleTextInput", (input) =>
+      input(editor.view, from, to, char, insert)
+    );
+
+    if (!handled) {
+      editor.view.dispatch(insert());
+    }
+  }
+
+  const markdown = serializeMarkdown(editor);
+
+  editor.destroy();
+
+  return markdown;
+};
+
+describe("strike input rule", () => {
+  it("should strike a span typed with one tilde", () => {
+    expect(typeInto("~organization~")).toBe("~~organization~~");
+  });
+
+  it("should strike a span typed with two tildes", () => {
+    expect(typeInto("~~organization~~")).toBe("~~organization~~");
+  });
+
+  it("should strike a span typed mid-sentence", () => {
+    expect(typeInto("drop ~this~ one")).toBe("drop ~~this~~ one");
+  });
+
+  it("should strike a span typed with one tilde after a word", () => {
+    expect(typeInto("word~x~")).toBe("word~~x~~");
+  });
+
+  it("should strike a span typed with one tilde before a word", () => {
+    expect(typeInto("~x~word")).toBe("~~x~~word");
+  });
+
+  it("should leave a tilde with no closer as typed", () => {
+    expect(typeInto("takes ~5 minutes")).toBe("takes ~5 minutes");
+  });
+
+  it("should leave a closer that follows a space as typed", () => {
+    expect(typeInto("~5 minutes ~")).toBe("~5 minutes ~");
   });
 });

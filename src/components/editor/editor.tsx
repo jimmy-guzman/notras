@@ -10,6 +10,7 @@ import { cn } from "@/lib/ui/utils";
 import { encodeAttachmentPath } from "@/lib/utils/attachments";
 import {
   createEditorExtensions,
+  fileMarkdown,
   normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
@@ -147,7 +148,12 @@ export function Editor({
           const doc = view.state.schema.topNodeType.create(null, slice.content);
           const manager = editorRef.current?.markdown;
 
-          return manager ? manager.serialize(doc.toJSON()) : fallback;
+          return manager
+            ? fileMarkdown(
+                manager,
+                normalizeMarkdown(manager.serialize(doc.toJSON()))
+              )
+            : fallback;
         } catch {
           return fallback;
         }
@@ -304,7 +310,10 @@ export function Editor({
             );
             const md: string = manager.serialize(marked.doc.toJSON());
 
-            return normalizeMarkdown(md).indexOf(SENTINEL);
+            // Source mode shows the file form, so the offset has to index it.
+            return fileMarkdown(manager, normalizeMarkdown(md)).indexOf(
+              SENTINEL
+            );
           } catch {
             return -1;
           }
@@ -361,7 +370,10 @@ export function Editor({
       const diverged = (() => {
         try {
           const canonical = manager
-            ? normalizeMarkdown(manager.serialize(manager.parse(cleanBody)))
+            ? fileMarkdown(
+                manager,
+                normalizeMarkdown(manager.serialize(manager.parse(cleanBody)))
+              )
             : serializeMarkdown(editor);
 
           // Trailing whitespace differs benignly (StarterKit's

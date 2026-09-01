@@ -97,6 +97,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Pasting an image saves `attachments/pasted-<epoch-ms>.png`.
 - Pasting text that looks like markdown pastes rich. Anything else pastes plain. Copying out of the editor puts markdown on the clipboard.
 - Tables are editable and start at two columns by three rows with a header. Task checkboxes are clickable and round-trip as `- [x]` and `- [ ]`.
+- Strikethrough takes one tilde or two, typed or read from a file, and the closing run may not follow a space. The serializer writes two, so `~x~` in a note written elsewhere saves back as `~~x~~`.
+- A literal `` ` ``, `*`, `_`, `[`, `]` or `~` in prose is written to the file as typed. It gains a backslash only where the note would otherwise read back as something else, and then the whole note is escaped.
 - A code block carries a copy button and a language picker. The picker keeps a language lowlight does not know rather than rewriting it, and markdown highlights a leading frontmatter block as YAML.
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
 - Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it. Dragging the scrollbar does not lift it.
