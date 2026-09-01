@@ -74,6 +74,7 @@ function RootLayout() {
   const [paletteMode, setPaletteMode] = useState<PaletteMode>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   // A tag chip opens the palette without setting a mode, so it lands on find.
+  const paletteOpen = paletteMode !== undefined || tag !== undefined;
   const paletteView = paletteMode ?? "find";
 
   // A tag chip navigates rather than calling up here, so the search param is
@@ -102,6 +103,21 @@ function RootLayout() {
       closePalette();
     },
     [closePalette]
+  );
+
+  // Toggling out of the mode that is showing closes through `closePalette`,
+  // which also clears a `?tag=` opening the palette on nobody's mode.
+  const togglePaletteMode = useCallback(
+    (next: PaletteMode) => {
+      if (paletteOpen && paletteView === next) {
+        closePalette();
+
+        return;
+      }
+
+      setPaletteMode(next);
+    },
+    [closePalette, paletteOpen, paletteView]
   );
 
   const openSettings = useCallback(() => {
@@ -223,13 +239,11 @@ function RootLayout() {
   }, []);
 
   useHotkey("Mod+P", () => {
-    setPaletteMode((current) => (current === "find" ? undefined : "find"));
+    togglePaletteMode("find");
   });
   // Pressing one while the other shows switches mode rather than closing.
   useHotkey("Mod+Shift+P", () => {
-    setPaletteMode((current) =>
-      current === "actions" ? undefined : "actions"
-    );
+    togglePaletteMode("actions");
   });
   useHotkey(
     "Mod+N",
@@ -269,7 +283,7 @@ function RootLayout() {
         notesDir={notesDir}
         onOpenChange={handlePaletteOpenChange}
         onOpenSettings={openSettings}
-        open={paletteMode !== undefined || tag !== undefined}
+        open={paletteOpen}
         tag={tag}
       />
       <SettingsDialog
