@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0](https://github.com/jimmy-guzman/notras/compare/v0.2.2...v0.3.0) (2026-09-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* 💥 palette is now cmd+p & shift+cmd+p, raw mode is now cmd+e
+
+### Features
+
+* ✨ add keys to command palette ([#135](https://github.com/jimmy-guzman/notras/issues/135)) ([24a93af](https://github.com/jimmy-guzman/notras/commit/24a93af4de2aa5fa6ed66b209887766566de965f))
+* ✨ split palette find and actions ([#136](https://github.com/jimmy-guzman/notras/issues/136)) ([5e7b86e](https://github.com/jimmy-guzman/notras/commit/5e7b86e9c2a95951a939752764dd5552a010824c))
+
+
+### Bug Fixes
+
+* 🐛 strikethrough does not escape ([#137](https://github.com/jimmy-guzman/notras/issues/137)) ([ecefaf8](https://github.com/jimmy-guzman/notras/commit/ecefaf858144fe294166afbd3271dcf4cfcec5ee))
+
+
+### Refactoring
+
+* 🔄 use tanstack hotkeys ([#130](https://github.com/jimmy-guzman/notras/issues/130)) ([6c957a9](https://github.com/jimmy-guzman/notras/commit/6c957a9def539499a3c567eb33ba745f266d8da1))
+* 🔄 use tanstack pacer for debounce ([#129](https://github.com/jimmy-guzman/notras/issues/129)) ([f6736e5](https://github.com/jimmy-guzman/notras/commit/f6736e5421b4403fcef7d6cdeec71fa9eddadc98))
+* 🔄 use tanstack query for reads & writes ([#127](https://github.com/jimmy-guzman/notras/issues/127)) ([1e88fab](https://github.com/jimmy-guzman/notras/commit/1e88fab6c2dc0faf77222529588567e747be8521))
+* 🔄 use tanstack store ([#133](https://github.com/jimmy-guzman/notras/issues/133)) ([5626377](https://github.com/jimmy-guzman/notras/commit/5626377cbd176b8fb5b1c68c10e2897b3c08cdcd))
+
 ## [0.2.2](https://github.com/jimmy-guzman/notras/compare/v0.2.1...v0.2.2) (2026-08-31)
 
 
