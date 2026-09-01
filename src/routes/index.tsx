@@ -87,7 +87,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
           new note <Chord hotkey="Mod+N" />
         </Button>
         <span>
-          or search with <Chord hotkey="Mod+K" />
+          or search with <Chord hotkey="Mod+P" />
         </span>
       </div>
     </div>
@@ -286,7 +286,7 @@ function Workspace() {
   useHotkey("Mod+T", newNote, { meta: { name: "new note" } });
   useHotkey("Mod+W", closeActive);
   useHotkey("Mod+Shift+T", reopenTab);
-  useHotkey("Mod+P", toggleSource);
+  useHotkey("Mod+E", toggleSource);
   useHotkey("Mod+D", toggleFocusMode);
   useHotkey("Mod+Alt+T", toggleTypewriter, {
     meta: { name: "typewriter scrolling" },

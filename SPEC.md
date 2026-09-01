@@ -51,11 +51,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 ## Tabs
 
 - Tabs sit in the title bar. Each holds its own editing session, undo history, and caret.
-- ⌘N, ⌘T, the strip's `+`, the tray's new note, and the palette's new note all open a new note in a new tab.
+- ⌘N, ⌘T, the strip's `+`, the tray's new note, the palette's new note, and the palette's create row all open a new note in a new tab.
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘P, ⌘D, ⌘⌥T and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘D, ⌘⌥T and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -69,21 +69,23 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 ## Search and the palette
 
-- ⌘K toggles the palette over whatever is showing.
+- ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing.
+- Find mode lists notes and never actions. Actions mode lists actions and never notes.
 - Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes pinned first.
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
 - A hit carries a snippet of at most 24 tokens with the matched text highlighted.
 - Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.
 - A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
+- A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
 - The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, toggle typewriter scrolling, settings, reindex library, and check for updates. Every one but new note, settings, reindex library, and check for updates needs a note showing.
-- Actions match the free text after a tag token, so they stay reachable inside a tag filter.
+- Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
 - An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, toggle typewriter scrolling ⌘⌥t, and settings ⌘,. The rest show none.
 
 ## The editor
 
 - The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
-- ⌘P swaps to raw source and back. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
+- ⌘E swaps to raw source and back. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
 - In source mode, Tab inserts two spaces and Shift-Tab outdents two.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.

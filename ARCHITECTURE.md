@@ -8,7 +8,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | Shell           | Tauri 2 (Rust): file IO commands, FTS5 index, notify watcher, tray, global shortcuts                         |
 | Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR); TanStack Query caches every read (`D66`)            |
-| Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘P raw-source view |
+| Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘E raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, on the stet palette (`D23`)                         |
@@ -189,7 +189,7 @@ TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option
 
 ### Body-only editing
 
-The editor holds the note body as markdown. Frontmatter is parsed off at load with `parseNote` and reattached at save with `composeNote`, always from the session's latest read, so a body save never clobbers a pin or tag toggle. ⌘P is a raw-source view over the whole file.
+The editor holds the note body as markdown. Frontmatter is parsed off at load with `parseNote` and reattached at save with `composeNote`, always from the session's latest read, so a body save never clobbers a pin or tag toggle. ⌘E is a raw-source view over the whole file.
 
 ### Markdown round-trip contract
 
@@ -217,7 +217,9 @@ Define it in `src-tauri/src/notes.rs` or a new module, register it in `generate_
 
 `command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, rename, move, delete, reveal, settings, reindex, and the update check. New note-level actions belong there rather than in new chrome.
 
-`move`, `delete`, `rename`, and `tags` are sub-views of `PaletteView`. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeTags` from `useNoteTags` rather than `runAction`, so several tags can be set in one visit (`D31`).
+One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode so switching re-seeds it. The palette reads chords through `useChordsByName` and registers none itself, which `src/lib/ui/shortcuts.ts` requires.
+
+`move`, `delete`, `rename`, and `tags` are the other sub-views of `PaletteView`, all entered from actions and all returning to it with an empty input, since each repurposes the palette input for its own draft. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeTags` from `useNoteTags` rather than `runAction`, so several tags can be set in one visit (`D31`).
 
 `#` parses through `parseTagQuery` in `src/lib/utils/tag-query.ts`: the token becomes `NoteFilters.tag`, an exact indexed match, and anything after it becomes the FTS query, which `findMany` ANDs with it. So `#work budget` searches "budget" inside the `work` tag. The counted vocabulary comes from `NoteService.listTags()` through the root loader, not from the loaded notes.
 
