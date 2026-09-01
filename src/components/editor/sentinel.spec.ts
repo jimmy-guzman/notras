@@ -1,7 +1,12 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
-import { createEditorExtensions, serializeMarkdown } from "./extensions";
+import {
+  createEditorExtensions,
+  fileMarkdown,
+  normalizeMarkdown,
+  serializeMarkdown,
+} from "./extensions";
 import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
 
 function makeEditor(content: string) {
@@ -120,11 +125,12 @@ describe("source -> rich caret mapping", () => {
     // The stripped buffer serializes to the canonical clean form -- the
     // same comparison the runtime corruption guard makes (must NOT fire).
     const manager = requireManager(editor);
-    const canonical: string = manager.serialize(manager.parse(markdown));
-
-    expect(serializeMarkdown(editor).trimEnd()).toBe(
-      canonical.replaceAll(/&nbsp;|&#160;/g, " ").trimEnd()
+    const canonical = fileMarkdown(
+      manager,
+      normalizeMarkdown(manager.serialize(manager.parse(markdown)))
     );
+
+    expect(serializeMarkdown(editor).trimEnd()).toBe(canonical.trimEnd());
 
     editor.destroy();
   });
@@ -138,7 +144,10 @@ describe("source -> rich caret mapping", () => {
     editor.view.dispatch(editor.state.tr.delete(pos, pos + 1));
 
     const manager = requireManager(editor);
-    const canonical: string = manager.serialize(manager.parse(markdown));
+    const canonical = fileMarkdown(
+      manager,
+      normalizeMarkdown(manager.serialize(manager.parse(markdown)))
+    );
 
     // The stripped buffer no longer serializes to the canonical form --
     // exactly the condition the corruption guard reparses on.

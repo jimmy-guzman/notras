@@ -98,7 +98,23 @@ describe("markdown round-trip", () => {
     ["attachment link", "[my notes.pdf](attachments/my%20notes.pdf)"],
     ["horizontal rule", "---"],
     ["wikilink", "see [[grocery list]] for details"],
+    ["literal tilde", "takes approx ~5 minutes"],
+    ["literal underscore", "the snake_case name"],
+    ["literal asterisk", "2 * 3 = 6"],
+    ["literal bracket", "the [draft] copy"],
+    ["escaped tilde a strike would eat", "\\~one\\~"],
+    ["escaped asterisks emphasis would eat", "\\*one\\*"],
   ])("should round-trip %s", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should canonicalize a single-tilde strike read from a file", () => {
+    expect(roundtrip("~organization~")).toBe("~~organization~~");
+  });
+
+  it("should keep a note escaped when one construct needs its backslash", () => {
+    const markdown = "the snake\\_case name\n\n![notes \\].png](notes.png)";
+
     expect(roundtrip(markdown)).toBe(markdown);
   });
 
