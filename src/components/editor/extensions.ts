@@ -51,9 +51,9 @@ export const lowlight = createLowlight({
 const NoteCode = Code.extend({ excludes: "" });
 
 /** marked's GFM `del` takes one tilde or two; TipTap's rules take only two. */
-const SINGLE_TILDE = /(?:^|\s)(~(?=[^\s~])([^~]*[^\s~])~(?!~))$/;
+const SINGLE_TILDE = /(~(?=[^\s~])([^~]*[^\s~])~(?!~))$/;
 
-const SINGLE_TILDE_PASTE = /(?:^|\s)(~(?=[^\s~])([^~]*[^\s~])~(?!~))/g;
+const SINGLE_TILDE_PASTE = /(~(?=[^\s~])([^~]*[^\s~])~(?!~))/g;
 
 const NoteStrike = Strike.extend({
   addInputRules() {

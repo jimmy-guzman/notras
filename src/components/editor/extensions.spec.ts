@@ -97,6 +97,14 @@ describe("strike input rule", () => {
     expect(typeInto("drop ~this~ one")).toBe("drop ~~this~~ one");
   });
 
+  it("should strike a span typed with one tilde after a word", () => {
+    expect(typeInto("word~x~")).toBe("word~~x~~");
+  });
+
+  it("should strike a span typed with one tilde before a word", () => {
+    expect(typeInto("~x~word")).toBe("~~x~~word");
+  });
+
   it("should leave a tilde with no closer as typed", () => {
     expect(typeInto("takes ~5 minutes")).toBe("takes ~5 minutes");
   });
