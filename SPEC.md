@@ -78,6 +78,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
 - The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, toggle typewriter scrolling, settings, reindex library, and check for updates. Every one but new note, settings, reindex library, and check for updates needs a note showing.
 - Actions match the free text after a tag token, so they stay reachable inside a tag filter.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, toggle typewriter scrolling ⌘⌥t, and settings ⌘,. The rest show none.
 
 ## The editor
 

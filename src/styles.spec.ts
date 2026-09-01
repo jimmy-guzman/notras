@@ -104,13 +104,19 @@ const SYNTAX = [
  * `--card` while source mode is transparent onto `--background`, so the syntax
  * ramp is painted on both and has to clear the floor on both. `--muted` carries
  * the inline-code chip Typeset paints (`D40`), which body text and a muted
- * heading both sit inside.
+ * heading both sit inside, and the `Kbd` chip, whose own text is
+ * `--muted-foreground`.
+ *
+ * That last pair is cleared by moving `--muted-foreground`, never `--muted`:
+ * light would need `--muted` at `#f5f8fb`, which is indistinguishable from
+ * `--background`, and the chip would lose its box against the page.
  */
 const PAIRS: [text: string, surface: string][] = [
   ["foreground", "background"],
   ["card-foreground", "card"],
   ["popover-foreground", "popover"],
   ["foreground", "muted"],
+  ["muted-foreground", "muted"],
   ["muted-foreground", "background"],
   ["muted-foreground", "card"],
   ["muted-foreground", "popover"],

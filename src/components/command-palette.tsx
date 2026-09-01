@@ -19,6 +19,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
+import { Chord } from "@/components/chord";
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   Command,
@@ -29,6 +30,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  CommandShortcut,
 } from "@/components/ui/command";
 import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
@@ -49,6 +51,7 @@ import {
 } from "@/lib/tabs/store";
 import { tabId } from "@/lib/tabs/tab";
 import { errorMessage } from "@/lib/ui/failure";
+import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 import { parseTagQuery } from "@/lib/utils/tag-query";
@@ -440,6 +443,7 @@ export function CommandPalette({
   const { activeId, tabs } = useTabState();
   // Note actions act on the tab that is showing, and only when it holds a note:
   // an external file carries no frontmatter to pin, tag, rename or move.
+  const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
   const currentNote = notes.find((note) => note.path === currentPath);
@@ -875,12 +879,33 @@ export function CommandPalette({
                       (!action.needsNote || currentNote !== undefined) &&
                       matchesQuery(action.label)
                   )
-                  .map(({ Icon, onSelect, text, value }) => (
-                    <CommandItem key={value} onSelect={onSelect} value={value}>
-                      <Icon />
-                      {text}
-                    </CommandItem>
-                  ))}
+                  .map(({ Icon, label, onSelect, text, value }) => {
+                    const chords = chordsByName.get(label);
+
+                    return (
+                      <CommandItem
+                        key={value}
+                        onSelect={onSelect}
+                        value={value}
+                      >
+                        <Icon />
+                        {text}
+                        {chords === undefined ? null : (
+                          <CommandShortcut>
+                            {chords.map(({ hotkey, id }) => (
+                              // A selected row is `bg-muted`, which the chip
+                              // otherwise matches exactly and disappears into.
+                              <Chord
+                                className="tracking-normal group-data-selected/command-item:bg-background"
+                                hotkey={hotkey}
+                                key={id}
+                              />
+                            ))}
+                          </CommandShortcut>
+                        )}
+                      </CommandItem>
+                    );
+                  })}
                 {matchesQuery("search") && query.trim() === "" ? (
                   <CommandItem disabled value="search-hint">
                     <SearchIcon />

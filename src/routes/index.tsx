@@ -3,12 +3,12 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect } from "react";
+import { Chord } from "@/components/chord";
 import { NoteControls } from "@/components/notes/note-controls";
 import { StatusBar } from "@/components/notes/status-bar";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
@@ -83,11 +83,11 @@ function EmptyState({ onNew }: { onNew: () => void }) {
         <p className="text-muted-foreground">just write, otra vez.</p>
       </div>
       <div className="flex items-center gap-4 text-muted-foreground text-sm">
-        <Button onClick={onNew} variant="secondary">
-          new note <Kbd>⌘n</Kbd>
+        <Button onClick={onNew} variant="outline">
+          new note <Chord hotkey="Mod+N" />
         </Button>
         <span>
-          or search with <Kbd>⌘k</Kbd>
+          or search with <Chord hotkey="Mod+K" />
         </span>
       </div>
     </div>
@@ -283,12 +283,14 @@ function Workspace() {
     }
   }, []);
 
-  useHotkey("Mod+T", newNote);
+  useHotkey("Mod+T", newNote, { meta: { name: "new note" } });
   useHotkey("Mod+W", closeActive);
   useHotkey("Mod+Shift+T", reopenTab);
   useHotkey("Mod+P", toggleSource);
   useHotkey("Mod+D", toggleFocusMode);
-  useHotkey("Mod+Alt+T", toggleTypewriter);
+  useHotkey("Mod+Alt+T", toggleTypewriter, {
+    meta: { name: "typewriter scrolling" },
+  });
   useHotkeys(
     TAB_JUMPS.map(([hotkey, index]) => ({
       callback: () => jumpToTab(index),

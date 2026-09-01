@@ -2,10 +2,10 @@ import { useHotkeys } from "@tanstack/react-hotkeys";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
 import { useCallback, useRef, useState } from "react";
+import { Chord } from "@/components/chord";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import { Titlebar } from "@/components/titlebar";
-import { Kbd } from "@/components/ui/kbd";
 import { Toaster, toast } from "@/components/ui/toast";
 import { createNote } from "@/data/create-note";
 import { errorMessage } from "@/lib/ui/failure";
@@ -78,7 +78,7 @@ export function CaptureWindow() {
         placeholderText="jot it down..."
       />
       <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-muted-foreground text-xs">
-        <Kbd>esc</Kbd> saves to inbox
+        <Chord hotkey="Escape" /> saves to inbox
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}
       <Toaster />

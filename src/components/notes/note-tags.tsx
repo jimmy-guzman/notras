@@ -48,9 +48,13 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   const [query, setQuery] = useState("");
   const { changeTags, tags: optimisticTags } = useNoteTags(path, tags);
 
-  useHotkey("Mod+Shift+Y", () => {
-    setOpen(true);
-  });
+  useHotkey(
+    "Mod+Shift+Y",
+    () => {
+      setOpen(true);
+    },
+    { meta: { name: "edit tags" } }
+  );
 
   const counts = new Map(allTags.map(({ count, tag }) => [tag, count]));
 

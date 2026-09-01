@@ -100,6 +100,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 - **The palette is the action surface.** A new note-level action goes in ⌘K rather than into new chrome. `ARCHITECTURE.md` lists what it holds.
 - **`·` joins related metadata.** The status strip reads `214 words · 1 min`, a palette row reads `title · folder`. Use the middot rather than a pipe, a dash, or a second line.
 - **Floating surfaces share one recipe.** Suggestion menus and the link editor are `position: fixed`, `z-index: 50`, bordered, on `--popover`, with `0 8px 24px rgb(0 0 0 / 0.18)`. Menus clamp to the viewport rather than overflowing it.
+- **A chord on screen is drawn by `Chord` from a hotkey, never typed as a glyph.** `src/components/chord.tsx` formats it for the running platform, so `Mod+Shift+N` renders `⌘⇧n` here and `ctrl+shift+n` where the symbols do not exist. A surface that already names an action, such as a palette row, finds its chords through `useChordsByName` instead of carrying them.
 - **Shortcuts live in `README.md`.** That table is the one a person looks up, so it is the one that gets extended. Adding a shortcut here as well is how the two drift.
 
 ## The editor surface
