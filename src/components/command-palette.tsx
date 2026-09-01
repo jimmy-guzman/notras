@@ -10,6 +10,7 @@ import {
   FolderSearchIcon,
   HashIcon,
   KeyboardIcon,
+  type LucideIcon,
   PencilIcon,
   PinIcon,
   RefreshCwIcon,
@@ -29,7 +30,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
 import { toast } from "@/components/ui/toast";
@@ -54,7 +54,7 @@ import { errorMessage } from "@/lib/ui/failure";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
-import { parseTagQuery } from "@/lib/utils/tag-query";
+import { parseTagQuery, type TagQuery } from "@/lib/utils/tag-query";
 
 function Snippet({ snippet }: { snippet: string }) {
   return (
@@ -356,7 +356,142 @@ function typewriterActionText(enabled: boolean) {
     : "turn on typewriter scrolling";
 }
 
-type PaletteView = "delete" | "move" | "rename" | "root" | "tags";
+/** Which door opened the palette: ⌘P finds a note, ⌘⇧P runs an action. */
+export type PaletteMode = "actions" | "find";
+
+type PaletteView = "actions" | "delete" | "find" | "move" | "rename" | "tags";
+
+interface PaletteAction {
+  Icon: LucideIcon;
+  label: string;
+  needsNote: boolean;
+  onSelect: () => void;
+  text: string;
+  value: string;
+}
+
+interface ActionsViewProps {
+  actions: PaletteAction[];
+  chordsByName: ReturnType<typeof useChordsByName>;
+}
+
+function ActionsView({ actions, chordsByName }: ActionsViewProps) {
+  return (
+    <>
+      <CommandEmpty>
+        <p className="text-muted-foreground">nothing found</p>
+        <p className="text-faint">
+          <Chord hotkey="Mod+P" /> to search notes
+        </p>
+      </CommandEmpty>
+      <CommandGroup heading="actions">
+        {actions.map(({ Icon, label, onSelect, text, value }) => {
+          const chords = chordsByName.get(label);
+
+          return (
+            <CommandItem key={value} onSelect={onSelect} value={value}>
+              <Icon />
+              {text}
+              {chords === undefined ? null : (
+                <CommandShortcut>
+                  {chords.map(({ hotkey, id }) => (
+                    // A selected row is `bg-muted`, which the chip otherwise
+                    // matches exactly and disappears into.
+                    <Chord
+                      className="tracking-normal group-data-selected/command-item:bg-background"
+                      hotkey={hotkey}
+                      key={id}
+                    />
+                  ))}
+                </CommandShortcut>
+              )}
+            </CommandItem>
+          );
+        })}
+      </CommandGroup>
+    </>
+  );
+}
+
+interface FindViewProps {
+  allTags: { count: number; tag: string }[];
+  notes: NoteMeta[];
+  onCreate: () => void;
+  onFilterTag: (name: string) => void;
+  onSelectNote: (path: string) => void;
+  query: string;
+  tagQuery?: TagQuery;
+}
+
+function FindView({
+  allTags,
+  notes,
+  onCreate,
+  onFilterTag,
+  onSelectNote,
+  query,
+  tagQuery,
+}: FindViewProps) {
+  const draftTitle = query.trim();
+  // A search that found nothing is a dead end unless it can become a note.
+  // Only a plain one: naming a note from `#work foo` would have to tag it too.
+  const offerCreate =
+    notes.length === 0 && draftTitle !== "" && tagQuery === undefined;
+
+  return (
+    <>
+      <CommandEmpty>
+        <p className="text-muted-foreground">nothing found</p>
+        <p className="text-faint">start with # to search by tag</p>
+      </CommandEmpty>
+      {tagQuery?.query === "" ? (
+        <CommandGroup heading="tags">
+          {allTags
+            .filter(({ tag: name }) => name.includes(tagQuery.tag))
+            .map(({ count, tag: name }) => (
+              <TagFilterItem
+                count={count}
+                key={name}
+                name={name}
+                onPick={onFilterTag}
+              />
+            ))}
+        </CommandGroup>
+      ) : null}
+      <CommandGroup heading="notes">
+        {notes.map((note) => (
+          <NoteItem key={note.path} note={note} onSelect={onSelectNote} />
+        ))}
+        {offerCreate ? (
+          <CommandItem onSelect={onCreate} value="create-note">
+            <FilePlusIcon />
+            <span className="truncate">
+              create "{draftTitle}"
+              {/* The filename is derived, so it is shown, not hidden. */}
+              <span className="text-muted-foreground">
+                {" · "}
+                {filenameFromTitle(draftTitle)}.md
+              </span>
+            </span>
+          </CommandItem>
+        ) : null}
+      </CommandGroup>
+      {draftTitle === "" ? (
+        <CommandItem disabled value="search-hint">
+          <SearchIcon />
+          <div className="flex min-w-0 flex-col">
+            <span className="text-muted-foreground">
+              type to search all notes
+            </span>
+            <span className="text-faint">
+              <Chord hotkey="Mod+Shift+P" /> for actions
+            </span>
+          </div>
+        </CommandItem>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * What the input asks the index for, or nothing when it asks for everything.
@@ -384,6 +519,7 @@ function searchFiltersFor(value: string, knownTags: Set<string>) {
 interface CommandPaletteProps {
   allTags: { count: number; tag: string }[];
   folders: { count: number; folder: string }[];
+  mode: PaletteMode;
   notes: NoteMeta[];
   notesDir: string;
   onOpenChange: (open: boolean) => void;
@@ -403,7 +539,7 @@ function useVisibleNotes(
   // The list only renders under the root view, and the other views repurpose
   // the input, so nothing they hold should reach the index.
   const filters =
-    view === "root" ? searchFiltersFor(debouncedQuery, knownTags) : undefined;
+    view === "find" ? searchFiltersFor(debouncedQuery, knownTags) : undefined;
   // The filters are the key, so a slow "a" resolving after "abc" lands in its
   // own cache entry and never reaches the screen.
   const { data: results, isError } = useQuery({
@@ -433,6 +569,7 @@ function useVisibleNotes(
 export function CommandPalette({
   allTags,
   folders,
+  mode,
   notes,
   notesDir,
   onOpenChange,
@@ -458,10 +595,13 @@ export function CommandPalette({
   );
 
   // A tag chip navigates with `?tag=`, which is what opens the palette. The
-  // parent keys this component on the tag, so the seed applies once per tag
-  // and typing afterwards is never overwritten.
-  const [query, setQuery] = useState(tag === undefined ? "" : `#${tag} `);
-  const [view, setView] = useState<PaletteView>("root");
+  // parent keys this component on the tag and the mode, so the seed applies
+  // once per tag and typing afterwards is never overwritten. Only find reads
+  // a tag: switching to actions over an open filter starts on an empty input.
+  const [query, setQuery] = useState(
+    mode === "find" && tag !== undefined ? `#${tag} ` : ""
+  );
+  const [view, setView] = useState<PaletteView>(mode);
   const tagCounts = new Map(
     allTags.map(({ count, tag: name }) => [name, count])
   );
@@ -471,12 +611,12 @@ export function CommandPalette({
     (next: boolean) => {
       if (!next) {
         setQuery("");
-        setView("root");
+        setView(mode);
       }
 
       onOpenChange(next);
     },
-    [onOpenChange]
+    [mode, onOpenChange]
   );
 
   const tagQuery = parseTagQuery(query);
@@ -486,8 +626,9 @@ export function CommandPalette({
     handleOpenChange(false);
   }, [handleOpenChange]);
 
-  const backToRoot = useCallback(() => {
-    setView("root");
+  const backToActions = useCallback(() => {
+    setQuery("");
+    setView("actions");
   }, []);
 
   const trackNewTab = useCallback(
@@ -528,13 +669,8 @@ export function CommandPalette({
     .toSorted()
     .filter((name) => name.includes(draftTag));
 
-  // Actions match on the free text, so they stay reachable inside a tag
-  // filter rather than disappearing the moment a `#` is typed.
-  const matchesQuery = (label: string) => {
-    const text = tagQuery === undefined ? query.trim() : tagQuery.query;
-
-    return label.toLowerCase().includes(text.toLowerCase());
-  };
+  const matchesQuery = (label: string) =>
+    label.toLowerCase().includes(query.trim().toLowerCase());
 
   const confirmDelete = useCallback(() => {
     if (currentNote === undefined) {
@@ -610,6 +746,18 @@ export function CommandPalette({
       openInTab(path, true);
     });
   }, [runAction]);
+
+  // `create` de-duplicates by appending a counter, so a stale index or a
+  // title that differs from its filename never overwrites the existing note.
+  const createFromQuery = useCallback(() => {
+    const title = query.trim();
+
+    runAction(async () => {
+      const path = await createNote({ filename: filenameFromTitle(title) });
+
+      openInTab(path, true);
+    });
+  }, [query, runAction]);
 
   const togglePin = useCallback(() => {
     if (currentNote === undefined) {
@@ -794,10 +942,11 @@ export function CommandPalette({
           onValueChange={setQuery}
           placeholder={
             {
+              actions: "run an action...",
               delete: "search notes, # for tags...",
+              find: "search notes, # for tags...",
               move: "move to folder... (type a new name to create it)",
               rename: "new title...",
-              root: "search notes, # for tags...",
               tags: "search notes, # for tags...",
             }[view]
           }
@@ -808,7 +957,7 @@ export function CommandPalette({
             <>
               {view === "delete" ? (
                 <DeleteView
-                  onCancel={backToRoot}
+                  onCancel={backToActions}
                   onConfirm={confirmDelete}
                   title={currentNote.title}
                 />
@@ -816,7 +965,7 @@ export function CommandPalette({
               {view === "move" ? (
                 <MoveView
                   folders={folders}
-                  onCancel={backToRoot}
+                  onCancel={backToActions}
                   onMove={moveToFolder}
                   onMoveToNewFolder={moveToNewFolder}
                   onMoveToRoot={moveToNotesRoot}
@@ -825,7 +974,7 @@ export function CommandPalette({
               ) : null}
               {view === "rename" ? (
                 <RenameView
-                  onCancel={backToRoot}
+                  onCancel={backToActions}
                   onConfirm={confirmRename}
                   query={query}
                   title={currentNote.title}
@@ -838,7 +987,7 @@ export function CommandPalette({
                   counts={tagCounts}
                   draftTag={draftTag}
                   onCreate={createTag}
-                  onDone={backToRoot}
+                  onDone={backToActions}
                   onToggle={toggleTag}
                   title={currentNote.title}
                 />
@@ -846,76 +995,27 @@ export function CommandPalette({
             </>
           )}
 
-          {view === "root" ? (
-            <>
-              <CommandEmpty>
-                <p className="text-muted-foreground">nothing found</p>
-                <p className="text-faint">start with # to search by tag</p>
-              </CommandEmpty>
-              {tagQuery?.query === "" ? (
-                <CommandGroup heading="tags">
-                  {allTags
-                    .filter(({ tag: name }) => name.includes(tagQuery.tag))
-                    .map(({ count, tag: name }) => (
-                      <TagFilterItem
-                        count={count}
-                        key={name}
-                        name={name}
-                        onPick={filterByTag}
-                      />
-                    ))}
-                </CommandGroup>
-              ) : null}
-              <CommandGroup heading="notes">
-                {visibleNotes.map((note) => (
-                  <NoteItem key={note.path} note={note} onSelect={openNote} />
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup heading="actions">
-                {actions
-                  .filter(
-                    (action) =>
-                      (!action.needsNote || currentNote !== undefined) &&
-                      matchesQuery(action.label)
-                  )
-                  .map(({ Icon, label, onSelect, text, value }) => {
-                    const chords = chordsByName.get(label);
+          {view === "find" ? (
+            <FindView
+              allTags={allTags}
+              notes={visibleNotes}
+              onCreate={createFromQuery}
+              onFilterTag={filterByTag}
+              onSelectNote={openNote}
+              query={query}
+              tagQuery={tagQuery}
+            />
+          ) : null}
 
-                    return (
-                      <CommandItem
-                        key={value}
-                        onSelect={onSelect}
-                        value={value}
-                      >
-                        <Icon />
-                        {text}
-                        {chords === undefined ? null : (
-                          <CommandShortcut>
-                            {chords.map(({ hotkey, id }) => (
-                              // A selected row is `bg-muted`, which the chip
-                              // otherwise matches exactly and disappears into.
-                              <Chord
-                                className="tracking-normal group-data-selected/command-item:bg-background"
-                                hotkey={hotkey}
-                                key={id}
-                              />
-                            ))}
-                          </CommandShortcut>
-                        )}
-                      </CommandItem>
-                    );
-                  })}
-                {matchesQuery("search") && query.trim() === "" ? (
-                  <CommandItem disabled value="search-hint">
-                    <SearchIcon />
-                    <span className="text-muted-foreground">
-                      type to search all notes
-                    </span>
-                  </CommandItem>
-                ) : null}
-              </CommandGroup>
-            </>
+          {view === "actions" ? (
+            <ActionsView
+              actions={actions.filter(
+                (action) =>
+                  (!action.needsNote || currentNote !== undefined) &&
+                  matchesQuery(action.label)
+              )}
+              chordsByName={chordsByName}
+            />
           ) : null}
         </CommandList>
       </Command>

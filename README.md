@@ -33,19 +33,20 @@ Search runs on a SQLite FTS5 index derived from those files. The index is dispos
 - editable tables, clickable task checkboxes, and inline images
 - code blocks with a copy button and a language picker
 - all of it round-trips through GFM markdown
-- `⌘P` swaps to raw markdown source, the escape hatch for anything exotic
+- `⌘E` swaps to raw markdown source, the escape hatch for anything exotic
 - `⌘D` focus mode dims every block but the one you are in, and a wheel or touch scroll lifts the dim
 - `⌘⌥T` typewriter scrolling keeps the line you are typing vertically centred
 - word count and reading time, in the status strip
 
 ### Finding
 
-- `⌘K` command palette, over full-text search with highlighted snippets
+- `⌘P` finds a note, over full-text search with highlighted snippets
 - `#tag` filters that narrow the search (`#work budget`)
-- every note action lives in that same palette
+- a search that matches nothing offers to create a note under the name you typed
+- `⌘⇧P` runs an action, and every note action lives there
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
 - `⌘⇧K` adds or edits a link, and `⌘`-click opens a web link in your browser
-- tags, pins, and folders, with moves between folders run from the palette
+- tags, pins, and folders, with moves between folders run from `⌘⇧P`
 
 ### Tabs
 
@@ -100,7 +101,8 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 
 | Shortcut  | Action                           |
 | --------- | -------------------------------- |
-| `⌘K`      | command palette (search + acts)  |
+| `⌘P`      | find a note                      |
+| `⌘⇧P`     | run an action                    |
 | `⌘N`/`⌘T` | new note, in a new tab           |
 | `⌘⏎`      | (palette) open in a new tab      |
 | `⌘W`      | close tab                        |
@@ -109,7 +111,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌃⇥`      | next tab (`⌃⇧⇥` for previous)    |
 | `⌘⌥→`     | next tab (`⌘⌥←` for previous)    |
 | `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left) |
-| `⌘P`      | toggle raw markdown source       |
+| `⌘E`      | toggle raw markdown source       |
 | `⌘D`      | toggle focus mode                |
 | `⌘⌥T`     | toggle typewriter scrolling      |
 | `⌘⇧K`     | add / edit link                  |
@@ -119,7 +121,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `esc`     | (capture window) save + hide     |
 | `⌘⏎`      | (capture window) save + hide     |
 
-- `⌘P` and `⌘D` act on the tab that is showing.
+- `⌘E` and `⌘D` act on the tab that is showing.
 - `⌘⇧Y` needs that tab to hold a note. A file opened from outside your library has no frontmatter to tag.
 - All three do nothing on the empty state, which is where closing the last tab lands you.
 - The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.

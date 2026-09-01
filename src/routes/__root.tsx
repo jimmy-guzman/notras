@@ -10,7 +10,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
-import { CommandPalette } from "@/components/command-palette";
+import { CommandPalette, type PaletteMode } from "@/components/command-palette";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { Toaster, toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -71,14 +71,17 @@ function RootLayout() {
   const { tag } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteMode, setPaletteMode] = useState<PaletteMode>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // A tag chip opens the palette without setting a mode, so it lands on find.
+  const paletteOpen = paletteMode !== undefined || tag !== undefined;
+  const paletteView = paletteMode ?? "find";
 
   // A tag chip navigates rather than calling up here, so the search param is
   // what opens the palette; clearing it on close keeps the URL from reopening
   // it on the next render.
   const closePalette = useCallback(() => {
-    setPaletteOpen(false);
+    setPaletteMode(undefined);
 
     if (tag !== undefined) {
       navigate({
@@ -92,7 +95,7 @@ function RootLayout() {
   const handlePaletteOpenChange = useCallback(
     (next: boolean) => {
       if (next) {
-        setPaletteOpen(true);
+        setPaletteMode("find");
 
         return;
       }
@@ -100,6 +103,21 @@ function RootLayout() {
       closePalette();
     },
     [closePalette]
+  );
+
+  // Toggling out of the mode that is showing closes through `closePalette`,
+  // which also clears a `?tag=` opening the palette on nobody's mode.
+  const togglePaletteMode = useCallback(
+    (next: PaletteMode) => {
+      if (paletteOpen && paletteView === next) {
+        closePalette();
+
+        return;
+      }
+
+      setPaletteMode(next);
+    },
+    [closePalette, paletteOpen, paletteView]
   );
 
   const openSettings = useCallback(() => {
@@ -220,8 +238,12 @@ function RootLayout() {
     return disposeLater(unlisten);
   }, []);
 
-  useHotkey("Mod+K", () => {
-    setPaletteOpen((current) => !current);
+  useHotkey("Mod+P", () => {
+    togglePaletteMode("find");
+  });
+  // Pressing one while the other shows switches mode rather than closing.
+  useHotkey("Mod+Shift+P", () => {
+    togglePaletteMode("actions");
   });
   useHotkey(
     "Mod+N",
@@ -255,12 +277,13 @@ function RootLayout() {
       <CommandPalette
         allTags={tags}
         folders={folders}
-        key={tag ?? "palette"}
+        key={`${tag ?? ""}:${paletteView}`}
+        mode={paletteView}
         notes={notes}
         notesDir={notesDir}
         onOpenChange={handlePaletteOpenChange}
         onOpenSettings={openSettings}
-        open={paletteOpen || tag !== undefined}
+        open={paletteOpen}
         tag={tag}
       />
       <SettingsDialog

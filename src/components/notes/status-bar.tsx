@@ -60,7 +60,7 @@ export function StatusBar({
         value: "typewriter",
       },
       {
-        hotkey: "Mod+P",
+        hotkey: "Mod+E",
         icon: CodeIcon,
         label: "markdown source",
         onToggle: onToggleSource,
