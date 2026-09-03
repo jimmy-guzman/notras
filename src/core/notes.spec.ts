@@ -6,6 +6,7 @@ import {
   NOTE_SEGMENT_PATTERN,
   resolveTitle,
   retitleLeadingHeading,
+  suffixedFilename,
 } from "./notes";
 
 /**
@@ -156,5 +157,24 @@ describe("filenameFromTitle", () => {
     for (const title of titles) {
       expect(filenameFromTitle(title)).toMatch(NOTE_SEGMENT_PATTERN);
     }
+  });
+});
+
+describe("suffixedFilename", () => {
+  it("should append the counter when the base has room", () => {
+    expect(suffixedFilename("untitled", 2)).toBe("untitled-2");
+  });
+
+  it("should cut the base so the suffix fits under the cap", () => {
+    const filename = suffixedFilename("a".repeat(120), 10);
+
+    expect(filename).toHaveLength(120);
+    expect(filename.endsWith("-10")).toBe(true);
+  });
+
+  it("should leave no separator run where the cut landed", () => {
+    const filename = suffixedFilename(`${"a".repeat(117)}-bc`, 2);
+
+    expect(filename).toBe(`${"a".repeat(117)}-2`);
   });
 });

@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { NOTE_SEGMENT_PATTERN } from "@/core/notes";
+import { NOTE_NAME_MAX_LENGTH, NOTE_SEGMENT_PATTERN } from "@/core/notes";
 
 const LINE_BREAK = /[\n\r]/;
 
@@ -25,8 +25,8 @@ export const noteTitleSchema = Schema.Trim.pipe(
 export const noteFilenameSchema = Schema.Trim.pipe(
   Schema.check(
     Schema.isMinLength(1, { message: "filename is required" }),
-    Schema.isMaxLength(120, {
-      message: "filename must be 120 characters or fewer",
+    Schema.isMaxLength(NOTE_NAME_MAX_LENGTH, {
+      message: `filename must be ${NOTE_NAME_MAX_LENGTH} characters or fewer`,
     }),
     Schema.isPattern(NOTE_SEGMENT_PATTERN, {
       message: String.raw`filename cannot contain / \ : or start with a dot`,
@@ -36,8 +36,8 @@ export const noteFilenameSchema = Schema.Trim.pipe(
 
 export const folderNameSchema = Schema.Trim.pipe(
   Schema.check(
-    Schema.isMaxLength(120, {
-      message: "folder must be 120 characters or fewer",
+    Schema.isMaxLength(NOTE_NAME_MAX_LENGTH, {
+      message: `folder must be ${NOTE_NAME_MAX_LENGTH} characters or fewer`,
     }),
     // Returning a string is the single-argument way to attach a message (the
     // annotations overload trips unicorn/no-array-method-this-argument).

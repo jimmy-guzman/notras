@@ -138,6 +138,18 @@ describe("noteService.create", () => {
     expect(path).toBe("untitled-3.md");
   });
 
+  it("should keep a deduped filename within the cap", async () => {
+    const harness = makeHarness({
+      [`${"a".repeat(120)}.md`]: "taken",
+    });
+
+    const path = await harness.run(
+      NoteService.use((svc) => svc.create({ filename: "a".repeat(120) }))
+    );
+
+    expect(path).toBe(`${"a".repeat(118)}-2.md`);
+  });
+
   it.each([["a/b"], [String.raw`a\b`], ["a:b"], [".hidden"]])(
     "should reject the filename %s",
     async (filename) => {

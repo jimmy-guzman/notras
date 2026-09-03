@@ -10,7 +10,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
 - A note is a file whose extension is `md` or `markdown`. The match is case-sensitive, so `NOTE.MD` is invisible to the app.
 - A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed.
-- A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`.
+- A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
 - A path segment carries no `/`, `\` or `:`, is not blank, and does not start with a dot. A folder name is at most 120 characters.
 - The title resolves from frontmatter `title:`, then the body's leading `#` heading, then the filename with its extension stripped.
