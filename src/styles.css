@@ -214,20 +214,15 @@
   content: attr(data-placeholder);
 }
 
-/* Moving the selection. Nothing is added to the reading surface at rest: the
-   blocks in flight dim where they sit, and the line marks where they land. No
-   transition on the line's position, since it follows the pointer and that is
-   manipulation rather than a state change (`D71`). The negative margins keep it
-   from taking a row's worth of height mid-drag. */
+/* Moving the selection. No transition on the line's position, since it follows
+   the pointer and that is manipulation rather than a state change. The negative
+   margins keep it from taking a row's worth of height mid-drag. */
 .ProseMirror [data-dragging] {
   opacity: 0.4;
 }
-/* The blocks in flight, following the pointer under the shadow a dragged tab
-   takes (`D60`). No transition on the transform: it tracks the cursor, which is
-   manipulation rather than a state change, so it survives reduced motion the
-   same way a tab does. It lives on the body with no pointer events, because
-   ProseMirror reverts DOM it manages and anything under the cursor would
-   intercept the hit test the drop is resolved from (`D71`). */
+/* The blocks in flight, under the shadow a dragged tab takes. No transition on
+   the transform: it tracks the cursor, which is manipulation rather than a
+   state change, so it survives reduced motion the same way a tab does. */
 .block-drag-ghost {
   position: fixed;
   top: 0;

@@ -133,11 +133,9 @@ function posUnder(view: EditorView, clientX: number, clientY: number) {
 
 /**
  * The gap the pointer is nearest, as a document position. Which side of a block
- * you dropped on is a question about its box, so it is answered here rather
- * than in `move-selection.ts`: a document position tracks how far along the
- * text you are, which is horizontal, and would read a drop at the bottom-left
- * of a block as landing above it. `itemBoundary` there still answers it from
- * the position alone, as the fallback for whatever arrives unresolved.
+ * a drop landed on is a question about its box: a document position tracks how
+ * far along the text the pointer is, and would read a drop at the bottom left
+ * of a block as landing above it.
  */
 function boundaryUnder(view: EditorView, clientX: number, clientY: number) {
   const pos = posUnder(view, clientX, clientY);
@@ -239,10 +237,9 @@ class DragSelectionView {
   private stop() {
     const { drag, view } = this;
 
-    // Escape and a replacement press both arrive with the pointer still down,
-    // and a capture nobody released goes on retargeting that pointer's events
-    // at the editor. `pointercancel` and `pointerup` have released it already,
-    // which is what the guard is for.
+    // Escape and a replacement press arrive with the pointer still down, and a
+    // capture nobody released keeps retargeting its events at the editor.
+    // `pointerup` and `pointercancel` released it already, hence the guard.
     if (drag !== null && view.dom.hasPointerCapture(drag.pointerId)) {
       view.dom.releasePointerCapture(drag.pointerId);
     }
@@ -275,16 +272,14 @@ class DragSelectionView {
   private readonly onPointerDown = (event: PointerEvent) => {
     const { view } = this;
 
-    // One drag, one pointer. A second finger is not primary, so it cannot take
-    // over the drag the first one is running.
+    // One drag, one pointer.
     if (event.button !== 0 || !event.isPrimary) {
       return;
     }
 
-    // A live drag and a fresh primary press cannot both be real: either the
-    // pointer that started it ended somewhere this never saw, which is what
-    // failing to capture allows, or a second device pressed. Ending it here is
-    // what keeps a ghost from outliving its drag.
+    // A live drag and a fresh primary press cannot both be real: the pointer
+    // that started it ended somewhere this never saw, which failing to capture
+    // allows. Ending it here keeps a ghost from outliving its drag.
     if (this.drag !== null) {
       this.stop();
     }
@@ -292,9 +287,8 @@ class DragSelectionView {
     const pos = posUnder(view, event.clientX, event.clientY);
     const repeated = isRepeat(this.lastPress, event);
 
-    // Every left press, not only the ones that go on to drag: the third click
-    // of a triple is the first to land inside a selection, so the pair before
-    // it has to have been counted.
+    // Every left press, not only the ones that drag: a triple click's third
+    // press is the first to land inside a selection.
     this.lastPress = {
       time: event.timeStamp,
       x: event.clientX,
@@ -313,10 +307,8 @@ class DragSelectionView {
 
     // Stops the browser collapsing the selection before we know whether this is
     // a drag, which means a press that never moves has to place the caret. It
-    // cannot wait for `mousedown` and read the click count there: the press
-    // that starts a drag is the second of a pair, since it follows the click
-    // that made the selection, so a repeated click and a drag are the same
-    // event until the pointer moves.
+    // cannot move to `mousedown` and read the click count there: a repeated
+    // click and a drag are the same press until the pointer moves.
     event.preventDefault();
     // Capture keeps the drag alive past the editor's own box. A pointer the
     // browser no longer tracks refuses it, and the drag is still workable.
@@ -325,9 +317,8 @@ class DragSelectionView {
     } catch {
       // no capture, so the pointer has to stay over the editor
     }
-    // Only for the length of the drag. A session may not hold a window listener
-    // (`D53`), and one pointer means one drag, so this never multiplies the way
-    // a listener registered per editor would.
+    // Only for the length of the drag, since one pointer means one drag and a
+    // session may not hold a window listener.
     window.addEventListener("keydown", this.onKeyDown);
     this.pointerY = event.clientY;
     this.drag = {
@@ -393,9 +384,7 @@ class DragSelectionView {
     if (!moved) {
       // The press was a click after all, and `preventDefault` means the browser
       // did not move the caret, so place it where the pointer went down. A
-      // repeated click takes the block instead, which is the browser's own
-      // answer and is only knowable here: a third click and the press that
-      // starts a drag are the same event until the pointer moves.
+      // repeated one takes the block, which is the browser's own answer.
       const block = repeated ? blockSelection(view.state.doc, pressedAt) : null;
 
       view.dispatch(
@@ -415,7 +404,7 @@ class DragSelectionView {
 
     // The drop collapses the selection, since it was only what the drag took
     // hold of. `pointer` meta keeps the typewriter on its default scroll, so
-    // the note does not lurch under a drop (`D63`).
+    // the note does not lurch under a drop.
     const shifted = moveRange(view.state, range, dropAt);
     const tr =
       shifted === null ? null : collapseMove(shifted).setMeta("pointer", true);
@@ -474,9 +463,8 @@ class DragSelectionView {
 /**
  * Dragging the selection moves it. The blocks in flight dim where they sit and
  * a line marks where they land, both as decorations so neither can be drawn
- * somewhere the transaction disagrees with. Nothing is added to the reading
- * surface at rest: the gesture is the one text already uses, and
- * `move-selection.ts` decides what a selection covers (`D71`).
+ * somewhere the transaction disagrees with. `move-selection.ts` decides what a
+ * selection covers.
  */
 export const DragSelection = Extension.create({
   addProseMirrorPlugins() {

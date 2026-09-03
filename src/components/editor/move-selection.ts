@@ -15,11 +15,7 @@ function isListItem(node: Node) {
   return node.type.name === "listItem" || node.type.name === "taskItem";
 }
 
-/**
- * Containers a range widens out of, so the unit is the thing a person would say
- * they are moving: the bullet rather than the paragraph inside it, and the
- * table row rather than one cell's contents.
- */
+/** Containers a range widens out of: the bullet, not the paragraph inside it. */
 const WIDEN_OUT_OF = new Set([
   "listItem",
   "tableCell",
@@ -68,10 +64,9 @@ function fragmentOf(range: NodeRange) {
 }
 
 /**
- * Reshape one block for the container it lands in, one level only. The schema
- * decides every branch: `listItem` and `taskItem` declare the same content
- * expression, so re-typing an item between the two list families always
- * produces valid content, and a paragraph always opens a fresh item.
+ * Reshape one block for the container it lands in, one level only. `listItem`
+ * and `taskItem` declare the same content expression, so re-typing an item
+ * between the two list families always produces valid content.
  */
 function adaptBlock(node: Node, $target: ResolvedPos) {
   const { parent } = $target;
@@ -114,18 +109,9 @@ function adaptFragment(fragment: Fragment, $target: ResolvedPos) {
 
 /**
  * A gap between the items of the nearest list around `pos`, or null outside
- * every list. A pointer lands inside an item's text, and an item is a container
- * the schema would happily nest a paragraph in, so aiming at the raw position
- * drops blocks *inside* the item they were dropped on. Aiming beside it is what
- * makes a dropped item stay an item.
- *
- * Which side it picks is read from the document position, which tracks how far
- * along the text the pointer is rather than which half of the block it is over.
- * That is the weaker of the two answers, and the drag does not rely on it:
- * `boundaryUnder` in `drag-selection.ts` resolves the side from the block's own
- * box first and hands a boundary in, which lands on the branch below. This is
- * the fallback for a position that arrives unresolved, and deleting it takes
- * the dropped-task-keeps-its-checkbox case with it.
+ * every list. An item is a container the schema would happily nest a paragraph
+ * in, so aiming at the raw position drops blocks inside the item they were
+ * dropped on. The fallback for a position that arrives unresolved.
  */
 function itemBoundary($pos: ResolvedPos) {
   const { depth: from, pos } = $pos;
@@ -149,10 +135,9 @@ function itemBoundary($pos: ResolvedPos) {
 }
 
 /**
- * The position a drop should actually use, given tables cannot be crossed. A
- * row never leaves its own table, and nothing else is allowed between rows: a
- * drop aimed inside a table steps out to the table's own edge instead, so
- * dragging a paragraph past a table still works. Null means the drop is refused.
+ * The position a drop should actually use. A row never leaves its own table,
+ * and nothing else lands between rows: a drop aimed inside one steps out to the
+ * table's own edge. Null refuses the drop.
  */
 function tableAware(doc: Node, range: NodeRange, pos: number): null | number {
   const $pos = doc.resolve(pos);
@@ -240,11 +225,9 @@ function stepTarget(range: NodeRange, back: boolean) {
 }
 
 /**
- * The whole blocks a selection moves. `blockRange` gives the shallowest range
- * of siblings covering it, which is one paragraph from a caret and a heading
- * with its body from a selection over both. It skips the inline level, so a
- * caret in a bullet lands on the paragraph inside the item; widening out of a
- * list item is what makes a caret in a bullet mean the bullet, sublist and all.
+ * The whole blocks a selection moves. `blockRange` stops at the paragraph
+ * inside a bullet, so widening out of the item is what makes a caret in a
+ * bullet mean the bullet, sublist and all.
  */
 export function movingRange(doc: Node, selection: Selection): NodeRange | null {
   let range = selection.$from.blockRange(selection.$to);
@@ -269,12 +252,9 @@ export function movingRange(doc: Node, selection: Selection): NodeRange | null {
 }
 
 /**
- * The whole block at `pos`, which is what a third click in the same spot takes.
- * The nearest node holding inline content, so a click in a bullet takes the
- * item's own text rather than the list around it. Null where nothing at `pos`
- * holds text. It mirrors `prosemirror-view`'s own triple click, which the
- * browser cannot run here: the press that would carry it is suppressed so the
- * selection survives long enough to be dragged.
+ * The whole block at `pos`, the way a third click takes it: the nearest node
+ * holding inline content, so a click in a bullet takes the item's own text
+ * rather than the list around it.
  */
 export function blockSelection(doc: Node, pos: number): null | TextSelection {
   const $pos = doc.resolve(pos);
@@ -311,8 +291,7 @@ export function dropTarget(
 /**
  * The transaction moving `range` to the gap at `target`, or null when it would
  * not move. Positions rather than coordinates, so the geometry stays with the
- * caller and this stays testable without a layout engine. The order follows
- * `prosemirror-view`'s own internal move drop.
+ * caller and this stays testable without a layout engine.
  */
 export function moveRange(
   state: EditorState,
@@ -349,9 +328,8 @@ export function moveRange(
   }
 
   // The selection travels with the blocks rather than being replaced by one
-  // covering all of them: a caret stays a caret, so moving a row does not leave
-  // a ragged band across its cells, and a second `⌥↓` still finds the same
-  // range because the caret is still inside what moved.
+  // covering all of them, so a caret stays a caret and a second `⌥↓` finds the
+  // same range.
   const end = Math.min(pos + content.size, tr.doc.content.size);
   const carry = (from: number) =>
     Math.min(Math.max(pos + (from - range.start), pos), end);
@@ -366,9 +344,8 @@ export function moveRange(
 
 /**
  * Collapse a move's selection to a caret, which a drag does and the keyboard
- * does not. A drag needs a non-empty selection only as the thing it grabs, so
- * carrying it past the drop leaves the grab handle highlighted rather than
- * anything a reader wants. The caret lands where the grab started.
+ * does not: a drag's selection was only what it grabbed, so carrying it past
+ * the drop leaves a stray highlight.
  */
 export function collapseMove(tr: Transaction): Transaction {
   return tr.setSelection(TextSelection.near(tr.doc.resolve(tr.selection.from)));
@@ -400,9 +377,8 @@ export function moveRangeByStep(
     return null;
   }
 
-  // A row is the unit whatever the selection was, so a carried selection
-  // preserves nothing and a cross-cell one paints ragged. Collapsing there is
-  // how a drag ends too. No `pointer` meta either way, so the typewriter
-  // recenters the way it does for any other keyboard travel (`D63`).
+  // A row is the unit whatever the selection was, and a cross-cell selection
+  // paints ragged. No `pointer` meta either way, so the typewriter recenters as
+  // it does for any keyboard travel.
   return (isRowRange(range) ? collapseMove(moved) : moved).scrollIntoView();
 }

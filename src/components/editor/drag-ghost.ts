@@ -8,11 +8,9 @@ const STRUCTURAL = new Set(["OL", "TABLE", "TBODY", "THEAD", "UL"]);
 
 /**
  * The clones with those ancestors rebuilt around them. A row renders as nothing
- * outside a table, and a list item outside its list loses the row recipe and
- * grows a marker, since both are reached through the parent. One wrapper holds
- * the lot, because a drag takes siblings and two of them in two lists would
- * carry a list's margins between rows that had none. The attributes come along
- * because `data-type` is what tells a task list from a bullet one.
+ * outside a table, and an item loses its row recipe outside its list, since
+ * both are reached through the parent. One wrapper holds the set, or two items
+ * would carry a list's margins between rows that had none.
  */
 function structured(clones: HTMLElement[], source: HTMLElement) {
   let nodes: Node[] = clones;
@@ -32,8 +30,7 @@ function structured(clones: HTMLElement[], source: HTMLElement) {
       wrapper.style.width = `${origin.getBoundingClientRect().width}px`;
     }
 
-    // A fresh list counts from one, which would renumber the item under the
-    // cursor. Set after the attributes, which carry the origin's own start.
+    // A fresh list counts from one, renumbering the item under the cursor.
     if (
       wrapper instanceof HTMLOListElement &&
       origin instanceof HTMLOListElement
@@ -52,12 +49,10 @@ function structured(clones: HTMLElement[], source: HTMLElement) {
 
 /**
  * A copy of the blocks being dragged, following the pointer under the same
- * shadow a dragged tab takes (`D60`).
- *
- * It lives on `document.body` rather than in the editor for two reasons, both
- * of which broke earlier versions of this feature: ProseMirror's observer
- * reverts DOM it manages, and anything under the cursor would intercept the
- * `posAtCoords` hit test the drop target is resolved from, so it also takes
+ * shadow a dragged tab takes. It lives on `document.body` rather than in the
+ * editor for two reasons, both of which broke earlier versions: ProseMirror's
+ * observer reverts DOM it manages, and anything under the cursor would
+ * intercept the `posAtCoords` hit test the drop is resolved from, hence
  * `pointer-events: none`.
  */
 export class DragGhost {
@@ -74,14 +69,12 @@ export class DragGhost {
     const element = document.createElement("div");
 
     // The note's own typography, since the ghost sits on the body and would
-    // otherwise fall back to the chrome's sans (`D40`).
+    // otherwise fall back to the chrome's sans.
     element.className = "typeset typeset-note block-drag-ghost";
 
-    // Every rule for note content is scoped to `.ProseMirror`, so a clone
-    // outside the editor is a list with no row recipe until one is over it. It
-    // is an inner element rather than the ghost's own class because the editor
-    // root carries `min-height: 100%`, which a fixed ghost would resolve
-    // against the viewport and grow a screen tall.
+    // Every rule for note content is scoped to `.ProseMirror`. An inner element
+    // rather than the ghost's own class, because the editor root carries
+    // `min-height: 100%`, which a fixed ghost resolves against the viewport.
     const surface = document.createElement("div");
 
     surface.className = "ProseMirror";

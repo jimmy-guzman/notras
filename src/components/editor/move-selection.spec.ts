@@ -13,16 +13,13 @@ import {
 } from "./move-selection";
 
 /**
- * The same headless stack `markdown-roundtrip.spec.ts` builds, so a move is
- * asserted in the markdown a reader would find on disk. `doc.check()` runs on
- * both sides, which makes every case a schema test as well: a transaction
- * producing an illegal doc throws here rather than at the first
- * `contentMatchAt` inside a running view.
+ * The stack `markdown-roundtrip.spec.ts` builds, so a move is asserted in the
+ * markdown a reader would find on disk. `doc.check()` runs on both sides, which
+ * makes every case a schema test too.
  *
- * A doc ending in a list serializes with a blank line after it, because any
- * edit at all makes the trailing node append an empty paragraph. Typing one
- * character produces the same, so it belongs to the editor rather than to a
- * move.
+ * A doc ending in a list serializes with a blank line after it, since any edit
+ * makes the trailing node append an empty paragraph. That belongs to the editor
+ * rather than to a move.
  */
 function load(markdown: string) {
   const editor = new Editor({

@@ -16,12 +16,11 @@ function step(editor: Editor, back: boolean) {
 }
 
 /**
- * `⌥↑` and `⌥↓` move whatever the selection covers, which is the pointer
- * drag's keyboard half and the half that needs no pointer at all. The binding
- * is VS Code's move-line-up/down, so it costs macOS's paragraph jump inside the
- * editor and buys the chord people already reach for (`D71`). A TipTap shortcut
- * rather than an app hotkey, because several sessions are alive at once and
- * only the focused editor may answer (`D53`).
+ * `⌥↑` and `⌥↓` move whatever the selection covers. The binding is VS Code's
+ * move-line-up/down, so it costs macOS's paragraph jump inside the editor and
+ * buys the chord people already reach for. A TipTap shortcut rather than an app
+ * hotkey, because several sessions are alive at once and only the focused
+ * editor may answer.
  */
 export const MoveSelectionKeys = Extension.create({
   addKeyboardShortcuts() {

@@ -5,13 +5,7 @@ import { describe, expect, it } from "vitest";
 import { DragGhost } from "./drag-ghost";
 import { createEditorExtensions } from "./extensions";
 
-/**
- * The same headless stack `move-selection.spec.ts` builds, so the ghost is
- * asserted against the DOM a real view produced rather than one written by
- * hand. There is no layout in jsdom, which costs the widths and nothing else:
- * what a clone renders as is decided by the ancestors around it, and those are
- * present here.
- */
+/** The stack `move-selection.spec.ts` builds, so a real view produces the DOM. */
 function load(markdown: string) {
   const editor = new Editor({
     content: markdown,
@@ -25,7 +19,6 @@ function load(markdown: string) {
   return editor;
 }
 
-/** Every position of `type`, which is what a drag hands the ghost. */
 function positionsOf(doc: Node, type: string) {
   const positions: number[] = [];
 
@@ -54,8 +47,8 @@ function ghostFor(markdown: string, type: string, take = positionsOf) {
 
 describe("DragGhost", () => {
   it("should keep a task item a row rather than a bare item", () => {
-    // The row recipe is reached through the list, so an item that travels
-    // without one loses its checkbox to the line above its own text.
+    // The row recipe is reached through the list, so an item travelling without
+    // one drops its checkbox to a line of its own.
     const { editor, element, ghost } = ghostFor("- [x] one", "taskItem");
     const rows = element.querySelectorAll('ul[data-type="taskList"] > li');
 
