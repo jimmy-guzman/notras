@@ -156,7 +156,7 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm typecheck` | type check (tsc)                    |
 | `pnpm test`      | run tests (Vitest, watches)         |
 | `pnpm coverage`  | tests with coverage                 |
-| `pnpm knip`      | detect unused code/deps             |
+| `pnpm knip`      | unused code/deps, test-only exports |
 | `pnpm icons`     | regenerate app icons from `assets/` |
 | `pnpm clean`     | remove build output                 |
 | `pnpm prepare`   | install the git hooks (lefthook)    |
