@@ -178,6 +178,7 @@ class DragSelectionView {
     // The press starts inside the selection, which is inside the editor, so
     // there is no surface outside `view.dom` to listen on.
     view.dom.addEventListener("pointerdown", this.onPointerDown);
+    view.dom.addEventListener("mousedown", this.onMouseDown);
     view.dom.addEventListener("pointermove", this.onPointerMove);
     view.dom.addEventListener("pointerup", this.onPointerUp);
     view.dom.addEventListener("pointercancel", this.onCancel);
@@ -187,6 +188,7 @@ class DragSelectionView {
     const { view } = this;
 
     view.dom.removeEventListener("pointerdown", this.onPointerDown);
+    view.dom.removeEventListener("mousedown", this.onMouseDown);
     view.dom.removeEventListener("pointermove", this.onPointerMove);
     view.dom.removeEventListener("pointerup", this.onPointerUp);
     view.dom.removeEventListener("pointercancel", this.onCancel);
@@ -243,9 +245,6 @@ class DragSelectionView {
     if (
       event.button !== 0 ||
       event.shiftKey ||
-      // A double or triple click selects a word or a block, and suppressing its
-      // `mousedown` would take that away inside an existing selection.
-      event.detail > 1 ||
       pos === null ||
       !isInsideSelection(view.state, pos)
     ) {
@@ -258,9 +257,6 @@ class DragSelectionView {
       return;
     }
 
-    // Stops the browser collapsing the selection before we know whether this is
-    // a drag, which means a press that never moves has to place the caret.
-    event.preventDefault();
     // Capture keeps the drag alive past the editor's own box. A pointer the
     // browser no longer tracks refuses it, and the drag is still workable.
     try {
@@ -282,6 +278,30 @@ class DragSelectionView {
       range,
       span: { end: range.end, start: range.start },
     };
+  };
+
+  /**
+   * The press's default is suppressed here rather than on `pointerdown`, which
+   * stops the browser collapsing the selection before we know whether this is a
+   * drag, and means a press that never moves has to place the caret itself.
+   * `PointerEvent.detail` is 0 by spec, so the click count is only readable
+   * here, and cancelling `pointerdown` would take this event away along with
+   * the word or block a repeated click selects.
+   */
+  private readonly onMouseDown = (event: MouseEvent) => {
+    if (this.drag === null) {
+      return;
+    }
+
+    // A double or triple click selects a word or a block, and suppressing the
+    // default would take that away inside an existing selection.
+    if (event.detail > 1) {
+      this.stop();
+
+      return;
+    }
+
+    event.preventDefault();
   };
 
   private readonly onPointerMove = (event: PointerEvent) => {

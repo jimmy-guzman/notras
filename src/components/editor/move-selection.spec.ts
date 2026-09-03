@@ -611,6 +611,72 @@ describe("tables", () => {
     expect(moved).toBeNull();
   });
 
+  it("should refuse to drop a body row above the header", () => {
+    const editor = load(TABLE);
+    const at = inside(editor.state.doc, "tableCell", 0) + 1;
+
+    editor.commands.setTextSelection({ from: at, to: at });
+
+    const range = movingRange(editor.state.doc, editor.state.selection);
+
+    if (range === null) {
+      editor.destroy();
+      throw new Error("expected a range");
+    }
+
+    // The table's content opens at the gap above the header row, which is where
+    // the pointer lands on the header's top half.
+    const aboveHeader = inside(editor.state.doc, "table");
+    const onHeader = inside(editor.state.doc, "tableHeader", 0) + 1;
+    const above = dropTarget(editor.state.doc, range, aboveHeader);
+    const header = dropTarget(editor.state.doc, range, onHeader);
+    const moved = moveRange(editor.state, range, aboveHeader);
+
+    editor.destroy();
+
+    expect(above).toBeNull();
+    expect(header).toBeNull();
+    expect(moved).toBeNull();
+  });
+
+  it("should drop a body row into the gap under the header", () => {
+    const editor = load(TABLE);
+    // The caret is in "three", the second body row.
+    const at = inside(editor.state.doc, "tableCell", 2) + 1;
+
+    editor.commands.setTextSelection({ from: at, to: at });
+
+    const range = movingRange(editor.state.doc, editor.state.selection);
+
+    if (range === null) {
+      editor.destroy();
+      throw new Error("expected a range");
+    }
+
+    const start = inside(editor.state.doc, "table");
+    const underHeader =
+      start + editor.state.doc.resolve(start).parent.child(0).nodeSize;
+    const line = dropTarget(editor.state.doc, range, underHeader);
+    const tr = moveRange(editor.state, range, underHeader);
+
+    if (tr === null) {
+      editor.destroy();
+      throw new Error("expected a transaction");
+    }
+
+    editor.view.dispatch(tr);
+    editor.state.doc.check();
+
+    const output = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(line).toBe(underHeader);
+    expect(output).toBe(
+      "\n| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n\n"
+    );
+  });
+
   it("should step a paragraph around a table rather than into it", () => {
     const editor = load(`before\n\n${TABLE}\n\nafter`);
     const at = inside(editor.state.doc, "paragraph", 0);

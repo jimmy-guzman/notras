@@ -160,9 +160,12 @@ function tableAware(doc: Node, range: NodeRange, pos: number): null | number {
 
   if (isRowRange(range)) {
     const start = range.$from.start(range.depth);
-    const end = range.$from.end(range.depth);
+    const header = range.parent.child(0);
+    // The first row is the one markdown writes as the header, so the gap above
+    // it is nowhere a row can land. `stepTarget` holds the same floor.
+    const floor = isHeaderRow(header) ? start + header.nodeSize : start;
 
-    return pos >= start && pos <= end ? pos : null;
+    return pos >= floor && pos <= range.$from.end(range.depth) ? pos : null;
   }
 
   if (depth === null) {
