@@ -14,7 +14,7 @@
     "dev:web": "vite",
     "fix": "ultracite fix",
     "icons": "./scripts/icons.sh",
-    "knip": "knip",
+    "knip": "knip && knip --production",
     "prepare": "lefthook install",
     "tauri": "tauri",
     "test": "vitest",
