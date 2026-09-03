@@ -17,6 +17,7 @@ import {
   noteTitle,
   resolveTitle,
   retitleLeadingHeading,
+  suffixedFilename,
 } from "@/core/notes";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
@@ -120,7 +121,7 @@ const makeNoteService = Effect.gen(function* () {
 
     while (yield* fileStore.exists(notePath(folder, filename))) {
       counter += 1;
-      filename = `${baseFilename}-${counter}`;
+      filename = suffixedFilename(baseFilename, counter);
     }
 
     const path = notePath(folder, filename);

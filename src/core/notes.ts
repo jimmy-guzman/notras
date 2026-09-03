@@ -22,6 +22,8 @@ export interface NoteFilters {
 /** Valid path segment: no separators or colons, not hidden, not blank. */
 export const NOTE_SEGMENT_PATTERN = /^(?!\.)[^/\\:]+$/;
 
+export const NOTE_NAME_MAX_LENGTH = 120;
+
 const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
 
 export function noteTitle(path: string) {
@@ -128,11 +130,23 @@ export function filenameFromTitle(title: string) {
     .toLowerCase()
     .replaceAll(/[\s"*/:<>?\\|\p{Cc}]+/gu, "-")
     .replaceAll(/-{2,}/g, "-")
-    .slice(0, 120)
+    .slice(0, NOTE_NAME_MAX_LENGTH)
     .replace(LEADING_DOTS_OR_HYPHENS, "")
     .replace(TRAILING_DOTS_OR_HYPHENS, "");
 
   return slug === "" ? "untitled" : slug;
+}
+
+/** `base-counter`, cut to fit `NOTE_NAME_MAX_LENGTH`. */
+export function suffixedFilename(base: string, counter: number) {
+  const suffix = `-${counter}`;
+  const room = NOTE_NAME_MAX_LENGTH - suffix.length;
+  const stem =
+    base.length > room
+      ? base.slice(0, room).replace(TRAILING_DOTS_OR_HYPHENS, "")
+      : base;
+
+  return `${stem}${suffix}`;
 }
 
 /**
