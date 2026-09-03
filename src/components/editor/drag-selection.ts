@@ -7,6 +7,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { DragGhost } from "./drag-ghost";
 import {
+  blockSelection,
   collapseMove,
   dropTarget,
   moveRange,
@@ -15,6 +16,8 @@ import {
 
 /** The tab strip's number, so both drags start at the same distance. */
 const ACTIVATION_DISTANCE_PX = 4;
+const REPEAT_MS = 500;
+const REPEAT_DISTANCE_PX = 10;
 const AUTOSCROLL_EDGE_PX = 48;
 const AUTOSCROLL_STEP_PX = 8;
 
@@ -23,6 +26,27 @@ const dragSelectionKey = new PluginKey<DragState>("dragSelection");
 interface Span {
   end: number;
   start: number;
+}
+
+interface Press {
+  time: number;
+  x: number;
+  y: number;
+}
+
+/** ProseMirror's own window for one click following another. */
+function isRepeat(previous: null | Press, event: PointerEvent) {
+  if (previous === null) {
+    return false;
+  }
+
+  const dx = event.clientX - previous.x;
+  const dy = event.clientY - previous.y;
+
+  return (
+    event.timeStamp - previous.time < REPEAT_MS &&
+    dx * dx + dy * dy < REPEAT_DISTANCE_PX * REPEAT_DISTANCE_PX
+  );
 }
 
 interface DragState {
@@ -167,9 +191,11 @@ class DragSelectionView {
     pointerId: number;
     pressedAt: number;
     range: NodeRange;
+    repeated: boolean;
     span: Span;
   } = null;
   private ghost: DragGhost | null = null;
+  private lastPress: null | Press = null;
   private pointerY = 0;
   private scrollFrame = 0;
 
@@ -178,7 +204,6 @@ class DragSelectionView {
     // The press starts inside the selection, which is inside the editor, so
     // there is no surface outside `view.dom` to listen on.
     view.dom.addEventListener("pointerdown", this.onPointerDown);
-    view.dom.addEventListener("mousedown", this.onMouseDown);
     view.dom.addEventListener("pointermove", this.onPointerMove);
     view.dom.addEventListener("pointerup", this.onPointerUp);
     view.dom.addEventListener("pointercancel", this.onCancel);
@@ -188,7 +213,6 @@ class DragSelectionView {
     const { view } = this;
 
     view.dom.removeEventListener("pointerdown", this.onPointerDown);
-    view.dom.removeEventListener("mousedown", this.onMouseDown);
     view.dom.removeEventListener("pointermove", this.onPointerMove);
     view.dom.removeEventListener("pointerup", this.onPointerUp);
     view.dom.removeEventListener("pointercancel", this.onCancel);
@@ -240,14 +264,24 @@ class DragSelectionView {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     const { view } = this;
-    const pos = posUnder(view, event.clientX, event.clientY);
 
-    if (
-      event.button !== 0 ||
-      event.shiftKey ||
-      pos === null ||
-      !isInsideSelection(view.state, pos)
-    ) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const pos = posUnder(view, event.clientX, event.clientY);
+    const repeated = isRepeat(this.lastPress, event);
+
+    // Every left press, not only the ones that go on to drag: the third click
+    // of a triple is the first to land inside a selection, so the pair before
+    // it has to have been counted.
+    this.lastPress = {
+      time: event.timeStamp,
+      x: event.clientX,
+      y: event.clientY,
+    };
+
+    if (event.shiftKey || pos === null || !isInsideSelection(view.state, pos)) {
       return;
     }
 
@@ -257,6 +291,13 @@ class DragSelectionView {
       return;
     }
 
+    // Stops the browser collapsing the selection before we know whether this is
+    // a drag, which means a press that never moves has to place the caret. It
+    // cannot wait for `mousedown` and read the click count there: the press
+    // that starts a drag is the second of a pair, since it follows the click
+    // that made the selection, so a repeated click and a drag are the same
+    // event until the pointer moves.
+    event.preventDefault();
     // Capture keeps the drag alive past the editor's own box. A pointer the
     // browser no longer tracks refuses it, and the drag is still workable.
     try {
@@ -276,32 +317,9 @@ class DragSelectionView {
       pointerId: event.pointerId,
       pressedAt: pos,
       range,
+      repeated,
       span: { end: range.end, start: range.start },
     };
-  };
-
-  /**
-   * The press's default is suppressed here rather than on `pointerdown`, which
-   * stops the browser collapsing the selection before we know whether this is a
-   * drag, and means a press that never moves has to place the caret itself.
-   * `PointerEvent.detail` is 0 by spec, so the click count is only readable
-   * here, and cancelling `pointerdown` would take this event away along with
-   * the word or block a repeated click selects.
-   */
-  private readonly onMouseDown = (event: MouseEvent) => {
-    if (this.drag === null) {
-      return;
-    }
-
-    // A double or triple click selects a word or a block, and suppressing the
-    // default would take that away inside an existing selection.
-    if (event.detail > 1) {
-      this.stop();
-
-      return;
-    }
-
-    event.preventDefault();
   };
 
   private readonly onPointerMove = (event: PointerEvent) => {
@@ -352,16 +370,23 @@ class DragSelectionView {
     // The range the press captured, not one recomputed from the live selection:
     // the two can disagree, and then the blocks that dim are not the blocks
     // that move.
-    const { moved, pressedAt, range } = drag;
+    const { moved, pressedAt, range, repeated } = drag;
 
     this.stop();
 
     if (!moved) {
       // The press was a click after all, and `preventDefault` means the browser
-      // did not move the caret, so place it where the pointer went down.
+      // did not move the caret, so place it where the pointer went down. A
+      // repeated click takes the block instead, which is the browser's own
+      // answer and is only knowable here: a third click and the press that
+      // starts a drag are the same event until the pointer moves.
+      const block = repeated ? blockSelection(view.state.doc, pressedAt) : null;
+
       view.dispatch(
         view.state.tr
-          .setSelection(TextSelection.near(view.state.doc.resolve(pressedAt)))
+          .setSelection(
+            block ?? TextSelection.near(view.state.doc.resolve(pressedAt))
+          )
           .setMeta("pointer", true)
       );
 

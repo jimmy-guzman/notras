@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
 import {
+  blockSelection,
   collapseMove,
   dropTarget,
   moveRange,
@@ -404,6 +405,50 @@ describe("moveRange over a selection", () => {
     editor.destroy();
 
     expect(pointer).toBeUndefined();
+  });
+});
+
+describe("blockSelection", () => {
+  it("should cover the whole paragraph a click lands in", () => {
+    const editor = load("one two three\n\nfour");
+    const at = inside(editor.state.doc, "paragraph", 0);
+    const selection = blockSelection(editor.state.doc, at);
+    const covered =
+      selection === null
+        ? null
+        : editor.state.doc.textBetween(selection.from, selection.to);
+
+    editor.destroy();
+
+    expect(covered).toBe("one two three");
+  });
+
+  it("should cover an item's own text rather than the list around it", () => {
+    const editor = load("- a b\n- c d");
+    const at = inside(editor.state.doc, "paragraph", 0);
+    const selection = blockSelection(editor.state.doc, at);
+    const covered =
+      selection === null
+        ? null
+        : editor.state.doc.textBetween(selection.from, selection.to);
+
+    editor.destroy();
+
+    expect(covered).toBe("a b");
+  });
+
+  it("should cover a cell's text rather than the row", () => {
+    const editor = load("| a | b |\n| - | - |\n| one | two |");
+    const at = inside(editor.state.doc, "tableCell", 0) + 1;
+    const selection = blockSelection(editor.state.doc, at);
+    const covered =
+      selection === null
+        ? null
+        : editor.state.doc.textBetween(selection.from, selection.to);
+
+    editor.destroy();
+
+    expect(covered).toBe("one");
   });
 });
 

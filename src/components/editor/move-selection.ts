@@ -269,6 +269,27 @@ export function movingRange(doc: Node, selection: Selection): NodeRange | null {
 }
 
 /**
+ * The whole block at `pos`, which is what a third click in the same spot takes.
+ * The nearest node holding inline content, so a click in a bullet takes the
+ * item's own text rather than the list around it. Null where nothing at `pos`
+ * holds text. It mirrors `prosemirror-view`'s own triple click, which the
+ * browser cannot run here: the press that would carry it is suppressed so the
+ * selection survives long enough to be dragged.
+ */
+export function blockSelection(doc: Node, pos: number): null | TextSelection {
+  const $pos = doc.resolve(pos);
+  const { depth: from } = $pos;
+
+  for (let depth = from; depth > 0; depth -= 1) {
+    if ($pos.node(depth).inlineContent) {
+      return TextSelection.create(doc, $pos.start(depth), $pos.end(depth));
+    }
+  }
+
+  return null;
+}
+
+/**
  * Where a drop at `pos` would land `range`, which the indicator draws from.
  * The line and the transaction read it from here so they cannot disagree.
  */

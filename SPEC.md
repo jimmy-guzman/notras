@@ -103,7 +103,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
 - What the selection covers moves, widened to whole blocks. A caret in a paragraph means that paragraph, a selection across three means those three, and a caret anywhere in a list item means the item with any sublist under it.
 - Pressing inside a selection and dragging moves it. A copy of the blocks follows the pointer under a shadow, they dim where they sit, a line marks where they land, and the cursor reads as grabbing for the length of the drag. A drag starts after 4px, and a press that never moves places the caret instead.
-- A double or triple click inside a selection still selects the word or the block, since only a single press starts a drag.
+- A click inside a selection that never moves places the caret, and a repeated one selects instead: two clicks take the word, three take the block.
 - What a block becomes follows where it lands. An item dropped among items of another kind takes that kind, a paragraph dropped between items becomes an item, and an item dropped outside every list becomes its own blocks. Moving the last item out of a list takes the list with it.
 - A drop onto a block lands beside it rather than inside it, on the half of the block the pointer is over, so an item dropped on another item stays an item.
 - Inside a table the unit is the row: a caret in any cell moves that whole row. A row stays in its own table, so a drop outside it is refused and shows no line, and a paragraph dragged over a table lands before or after it rather than inside.

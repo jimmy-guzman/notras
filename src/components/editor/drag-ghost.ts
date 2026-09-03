@@ -3,21 +3,51 @@ import type { EditorView } from "@tiptap/pm/view";
 /** The class the body wears while a drag runs, so the cursor follows it. */
 const DRAGGING_CLASS = "dragging-blocks";
 
-/** A row renders as nothing outside a table, so it travels with one. */
-function wrapRow(row: HTMLElement, source: HTMLElement) {
-  const table = document.createElement("table");
-  const body = document.createElement("tbody");
-  const origin = source.closest("table");
+/** The ancestors that style their children, so a clone cannot leave them behind. */
+const STRUCTURAL = new Set(["OL", "TABLE", "TBODY", "THEAD", "UL"]);
 
-  if (origin !== null) {
-    table.className = origin.className;
-    table.style.width = `${origin.getBoundingClientRect().width}px`;
+/**
+ * The clones with those ancestors rebuilt around them. A row renders as nothing
+ * outside a table, and a list item outside its list loses the row recipe and
+ * grows a marker, since both are reached through the parent. One wrapper holds
+ * the lot, because a drag takes siblings and two of them in two lists would
+ * carry a list's margins between rows that had none. The attributes come along
+ * because `data-type` is what tells a task list from a bullet one.
+ */
+function structured(clones: HTMLElement[], source: HTMLElement) {
+  let nodes: Node[] = clones;
+  let child = source;
+  let origin = source.parentElement;
+
+  while (origin !== null && STRUCTURAL.has(origin.tagName)) {
+    const wrapper = document.createElement(origin.tagName);
+
+    for (const { name, value } of Array.from(origin.attributes)) {
+      wrapper.setAttribute(name, value);
+    }
+
+    // A table sizes its columns to their content, so a row torn out of one
+    // comes back narrower than the row it left.
+    if (wrapper instanceof HTMLTableElement) {
+      wrapper.style.width = `${origin.getBoundingClientRect().width}px`;
+    }
+
+    // A fresh list counts from one, which would renumber the item under the
+    // cursor. Set after the attributes, which carry the origin's own start.
+    if (
+      wrapper instanceof HTMLOListElement &&
+      origin instanceof HTMLOListElement
+    ) {
+      wrapper.start = origin.start + Array.from(origin.children).indexOf(child);
+    }
+
+    wrapper.append(...nodes);
+    nodes = [wrapper];
+    child = origin;
+    origin = origin.parentElement;
   }
 
-  body.append(row);
-  table.append(body);
-
-  return table;
+  return nodes;
 }
 
 /**
@@ -46,9 +76,20 @@ export class DragGhost {
     // The note's own typography, since the ghost sits on the body and would
     // otherwise fall back to the chrome's sans (`D40`).
     element.className = "typeset typeset-note block-drag-ghost";
+
+    // Every rule for note content is scoped to `.ProseMirror`, so a clone
+    // outside the editor is a list with no row recipe until one is over it. It
+    // is an inner element rather than the ghost's own class because the editor
+    // root carries `min-height: 100%`, which a fixed ghost would resolve
+    // against the viewport and grow a screen tall.
+    const surface = document.createElement("div");
+
+    surface.className = "ProseMirror";
     element.setAttribute("aria-hidden", "true");
 
+    const clones: HTMLElement[] = [];
     let anchor: DOMRect | null = null;
+    let source: null | HTMLElement = null;
 
     for (const pos of blocks) {
       const dom = view.nodeDOM(pos);
@@ -58,10 +99,13 @@ export class DragGhost {
       }
 
       anchor ??= dom.getBoundingClientRect();
+      source ??= dom;
+      clones.push(dom.cloneNode(true) as HTMLElement);
+    }
 
-      const clone = dom.cloneNode(true) as HTMLElement;
-
-      element.append(clone.tagName === "TR" ? wrapRow(clone, dom) : clone);
+    if (source !== null) {
+      surface.append(...structured(clones, source));
+      element.append(surface);
     }
 
     // The block's own width, so the text wraps the way it did in the note.
