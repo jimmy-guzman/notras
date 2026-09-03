@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 70, and some entries below it were removed, so the next entry takes 71.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 71, and some entries below it were removed, so the next entry takes 72.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
@@ -880,3 +880,24 @@ The tab module splits into two stores. `tabs` holds the open set and the active 
 
 **Constraint:** the swap costs 84 bytes gzipped, measured by building the same tree both ways (`index` +84; `routes`, the CSS and the fonts do not move). No package is added to the lockfile: `@tanstack/react-store` was already resolved at 0.11.1 for Pacer and Hotkeys, and the direct dependency pins that copy.
 
+### D71 The selection is what a move acts on
+
+`⌥↑`, `⌥↓` and a drag all move the same thing: the blocks the selection covers, widened to whole siblings by `blockRange` and out to the whole item when the caret sits in a list. `move-selection.ts` decides that and builds the transaction, `drag-selection.ts` supplies only the pointer. The reading surface gains nothing at rest.
+
+**Rejected: a grip in each block's gutter,** which is what Notion, Slack canvas and Tiptap's own extension do. It was built and abandoned twice. A heading and its body is not a node, so a grip could only ever move one block and "move this section" was unreachable by construction. Worse, it had to guess which block was meant from the pointer's x and y, against a surface whose left column already holds markers, checkboxes and a quote bar, so the collisions and the jank were the same fault wearing two faces. Notion escapes this only because it draws its bullets inside the block, leaving the column free; `D40` keeps typeset's markers outside, so that column is taken.
+
+**Rejected: `@tiptap/extension-drag-handle-react`.** It sets `draggable` and listens for `dragstart` and `drop`, and `dragDropEnabled` suppresses DOM drag-drop, which `D60` already found. It also hard-imports `@tiptap/extension-collaboration` and `@tiptap/y-tiptap`, so its documented install is five packages including `yjs`, none of which `src/` would import.
+
+**Rejected: a "select section" command.** Selecting a heading and its body by hand already works, so nothing is blocked and `DEFERRED.md` gets no entry.
+
+**Reversed: the blocks do follow the pointer,** the way a dragged tab does (`D60`). Dimming them in place behind a line was tried first and drew less, but it left nothing moving with the cursor and, because the drag starts on text rather than on a handle, no cursor change either: the pointer stayed an I-beam for the whole gesture. A copy now follows under the tab drag's shadow and the cursor reads as grabbing.
+
+**Constraint:** a pointer move needs a selection first, which is the bargain native text drag already makes. Pressing inside a selection is an unclaimed gesture, since `LeftMouseDown` sets `mightDrag` only for draggable nodes and node selections.
+
+**Constraint:** a pointer move carries `pointer` meta, so `D63`'s typewriter leaves the scroll alone and the note does not lurch under a drop. A keyboard move carries none and recentres like any other keyboard travel.
+
+**Constraint:** `⌥↑` and `⌥↓` displace macOS's paragraph jump inside the editor. They are VS Code's move-line-up/down, and a TipTap keymap rather than an app hotkey because several sessions are alive at once and only the focused editor may answer (`D53`).
+
+**Constraint:** a keyboard move carries the selection and a drag collapses it to a caret, because a drag's selection is only what it took hold of and reads as a stray highlight once the block has landed. Rejected: replacing the selection with one covering the moved range, which renders as a ragged band the moment it crosses table cells. A table row collapses either way: the row is the unit whatever was selected, so a carried selection preserves nothing, and a cross-cell one is a `CellSelection` that would come back as a ragged text band rather than the clean tint it started as.
+
+**Constraint:** a table's unit is the row, and a row never leaves its table. Nothing finer moves, because a cell's paragraph is a block like any other and moving one emptied the cell and dropped its text into the body. The header row is fixed and nothing passes above it, since markdown writes the first row as the header.

@@ -80,6 +80,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 - A dragged tab follows the pointer, and the tabs it crosses slide one place over `0.15s`, as does the released tab and one that ⌘⌥⇧←/→ moves (`D60`).
 - The typewriter recentre glides the note over `0.15s` and yields the moment anything else moves the scroller (`D63`).
 - Dialogs, tooltips, and the tag combobox fade, scale, and slide on open and close. This is macOS behaviour for a sheet, and it is the reason the backdrop blurs too.
+- Dragged blocks follow the pointer under a shadow and their source sits at `0.4` opacity, and neither they nor the line marking where they land carries a transition, since both track the pointer and that is manipulation rather than a state change (`D71`). Like a dragged tab, they still follow it under reduced motion.
 - Shadcn primitives carry their own hover and press transitions, and the toast spinner spins. Beyond those and the tab strip, `src/styles.css` animates only focus mode, wikilinks, and the code-block toolbar and its buttons.
 - The window does not bounce. `html` sets `overscroll-behavior: none`, so a flick past the end of a note stays in the note rather than chaining into the document and dragging the titlebar, the tab strip and the status strip with it. A scroller keeps the bounce of its own, which is what an NSScrollView does.
 
@@ -115,6 +116,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 - **Images** cap at `320px` tall, take `--radius-md`, and show a `--ring` outline when selected.
 - **Wikilinks** read as a dashed underline in the current color at weight 500, which distinguishes them from external links without introducing a second link color.
 - **Code blocks** sit on `--card` at `--radius-md`, in `--font-mono`, and reveal their toolbar (copy, language picker) on hover or focus-within.
+- **Moving blocks adds nothing to the surface** (`D71`). There is no handle and no gutter: what moves is what is selected, and the gesture is the one text already uses. While a drag is in flight a copy of the blocks follows the pointer on `--background` under the tab drag's `0 2px 8px rgb(0 0 0 / 0.18)` (`D60`), the source dims where it sits, and a `--primary` line at 2px marks where it will land.
 - **Source mode** strips that chrome: one bare, transparent, wrapping code block at `0.85rem` and `1.7` line-height, so ⌘E reads as the same document rather than a different screen.
 
 ## Copy

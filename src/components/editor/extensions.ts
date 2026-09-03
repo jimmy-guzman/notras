@@ -29,7 +29,9 @@ import {
 } from "@/lib/utils/attachments";
 
 import { CodeBlockView } from "./code-block-view";
+import { DragSelection } from "./drag-selection";
 import { markdownWithFrontmatter } from "./markdown-frontmatter";
+import { MoveSelectionKeys } from "./move-selection-keys";
 import { SlashMenu } from "./slash-menu";
 import { Wikilink } from "./wikilink";
 
@@ -412,7 +414,9 @@ export function createEditorExtensions(
       placeholder: options.placeholderText ?? "just write...",
     }),
     Focus.configure({ className: "has-focus", mode: "shallowest" }),
+    DragSelection,
     MarkdownLinkInputRule,
+    MoveSelectionKeys,
     SlashMenu,
     Wikilink.configure({
       getTitles: options.getTitles ?? (() => []),

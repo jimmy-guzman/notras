@@ -214,6 +214,52 @@
   content: attr(data-placeholder);
 }
 
+/* Moving the selection. Nothing is added to the reading surface at rest: the
+   blocks in flight dim where they sit, and the line marks where they land. No
+   transition on the line's position, since it follows the pointer and that is
+   manipulation rather than a state change (`D71`). The negative margins keep it
+   from taking a row's worth of height mid-drag. */
+.ProseMirror [data-dragging] {
+  opacity: 0.4;
+}
+/* The blocks in flight, following the pointer under the shadow a dragged tab
+   takes (`D60`). No transition on the transform: it tracks the cursor, which is
+   manipulation rather than a state change, so it survives reduced motion the
+   same way a tab does. It lives on the body with no pointer events, because
+   ProseMirror reverts DOM it manages and anything under the cursor would
+   intercept the hit test the drop is resolved from (`D71`). */
+.block-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  padding: 0 0.75rem;
+  pointer-events: none;
+  background: var(--background);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+.block-drag-ghost > :first-child {
+  margin-block-start: 0;
+}
+/* For the drag's length the cursor says what is happening, and the selection
+   stops painting so the source shows its dim alone. */
+body.dragging-blocks,
+body.dragging-blocks .ProseMirror {
+  cursor: grabbing;
+}
+body.dragging-blocks .ProseMirror ::selection,
+body.dragging-blocks .ProseMirror::selection {
+  background: transparent;
+}
+.block-drop-indicator {
+  height: 2px;
+  margin-block: -1px;
+  pointer-events: none;
+  background: var(--primary);
+  border-radius: 1px;
+}
+
 /* Focus mode: dim every top-level block except the active one. */
 .focus-mode-on .ProseMirror > :not(.has-focus) {
   opacity: 0.28;
