@@ -214,6 +214,64 @@
   content: attr(data-placeholder);
 }
 
+/* Moving the selection: what is in flight dims where it sits. */
+.ProseMirror [data-dragging] {
+  opacity: 0.4;
+}
+/* The copy in flight, under the shadow a dragged tab takes. No transition on
+   the transform: it tracks the cursor, which is manipulation rather than a
+   state change, so it survives reduced motion the same way a tab does. */
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  padding: 0 0.75rem;
+  pointer-events: none;
+  background: var(--background);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+.drag-ghost > :first-child {
+  margin-block-start: 0;
+}
+/* For the drag's length the cursor says what is happening, and the selection
+   stops painting so the source shows its dim alone. */
+body.dragging,
+body.dragging .ProseMirror {
+  cursor: grabbing;
+}
+body.dragging .ProseMirror ::selection,
+body.dragging .ProseMirror::selection {
+  background: transparent;
+}
+/* Where the drop lands, the mark CodeMirror draws: a bar 2px wide and 1em tall
+   at the point itself. Zero net width in the line, so nothing shifts under the
+   pointer, and no transition, since it follows the pointer. The tail form
+   hangs below a block nothing follows, offset by the half leading that puts
+   the inline form's em box on the line. */
+.drop-cursor {
+  display: inline-block;
+  height: 1em;
+  margin-inline: -1px;
+  vertical-align: text-bottom;
+  pointer-events: none;
+  border-left: 2px solid var(--primary);
+}
+.drop-cursor-tail {
+  position: relative;
+  height: 0;
+  pointer-events: none;
+}
+.drop-cursor-tail::before {
+  position: absolute;
+  top: calc((var(--typeset-leading) - 1) * 0.5em);
+  left: 0;
+  height: 1em;
+  content: "";
+  border-left: 2px solid var(--primary);
+}
+
 /* Focus mode: dim every top-level block except the active one. */
 .focus-mode-on .ProseMirror > :not(.has-focus) {
   opacity: 0.28;

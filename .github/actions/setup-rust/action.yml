@@ -32,8 +32,11 @@ runs:
 
     # A SHA from master's history, not the `stable` branch head: that commit
     # sits one ahead of master, so it is GC-able the next time the branch moves.
+    # The version comment names the `v1` tag rather than `master`: zizmor checks
+    # the comment's ref against the pin, and master moves with every patch
+    # release while `v1` stays on the pin between Renovate bumps.
     - name: 🏗️ Setup Rust
-      uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+      uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
       with:
         targets: ${{ inputs.targets }}
         # rust-cache folds the rustc version into its key, so a moving `stable`

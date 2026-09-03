@@ -101,6 +101,20 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A literal `` ` ``, `*`, `_`, `[`, `]` or `~` in prose is written to the file as typed. It gains a backslash only where the note would otherwise read back as something else, and then the whole note is escaped.
 - A code block carries a copy button and a language picker. The picker keeps a language lowlight does not know rather than rewriting it, and markdown highlights a leading frontmatter block as YAML.
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
+- What the selection covers moves, widened to whole blocks. A caret in a paragraph means that paragraph, a selection across three means those three, and a caret anywhere in a list item means the item with any sublist under it.
+- Pressing inside a selection and dragging moves it. A copy of what is held follows the pointer under a shadow, sitting below and right of it so the pointer and the mark stay clear, the source dims where it sits, a bar marks where the drop lands, and the cursor reads as grabbing for the length of the drag. A drag starts after 4px, and a press that never moves places the caret instead.
+- What is highlighted is what moves. A selection inside one block drags the words and drops them at a text position, and a selection covering a block end to end or crossing into another drags the blocks. The copy hugs what it holds and wraps at the block's width at most.
+- The mark is one bar for both kinds of drop, 2px wide and a line tall. For words it stands between characters. For blocks it stands at the start of the first line of the block they land before, and hangs below the block above where nothing follows: after the last block, after the last row or item of a container, and before a rule.
+- Words dropped between blocks become a paragraph of their own. Words dropped into a code block lose their marks.
+- A click inside a selection that never moves places the caret, and a repeated one selects instead: two clicks take the word, three take the block.
+- What a block becomes follows where it lands. An item dropped among items of another kind takes that kind, a paragraph dropped between items becomes an item, and an item dropped outside every list becomes its own blocks. Moving the last item out of a list takes the list with it.
+- A drop onto a block lands beside it rather than inside it, on the half of the block the pointer is over, so an item dropped on another item stays an item.
+- Inside a table the unit is the row: a caret in any cell moves that whole row. A row stays in its own table, so a drop outside it is refused and shows no line, and a paragraph dragged over a table lands before or after it rather than inside.
+- The header row does not move, and no row moves above it, since the first row is the one markdown writes as the header.
+- ⌥↑ and ⌥↓ move it one sibling at a time, and the first item in a list steps out to sit before the list. A move is one undo step, and inside the editor these no longer jump the caret by paragraph.
+- A block drag ends with the caret inside what moved and nothing highlighted, since its selection was only what the drag took hold of. A text drag ends with the dropped words selected, since that highlight covers exactly what moved.
+- ⌥↑ and ⌥↓ keep whatever the selection was, so a caret stays a caret and blocks selected together stay selected and move together on the next press. A table row is the exception and ends with a caret the way a drag does, since the row is the unit whatever was selected.
+- A keyboard move recentres the caret when typewriter scrolling is on; a drop does not.
 - Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it. Dragging the scrollbar does not lift it.
 - ⌘⌥T toggles typewriter scrolling, which holds the caret's line at the editor's vertical centre. The status strip and the palette toggle it too.
 - Typing, deleting, undo, paste, and arrow-key travel recentre with a short glide. A click, a drag-selection, and scrolling by hand do not, and the next keystroke recentres.

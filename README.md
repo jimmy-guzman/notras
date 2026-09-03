@@ -114,6 +114,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘E`      | toggle raw markdown source       |
 | `⌘D`      | toggle focus mode                |
 | `⌘⌥T`     | toggle typewriter scrolling      |
+| `⌥↑`/`⌥↓` | move the selected blocks         |
 | `⌘⇧K`     | add / edit link                  |
 | `⌘⇧Y`     | edit tags                        |
 | `⌘,`      | settings                         |
