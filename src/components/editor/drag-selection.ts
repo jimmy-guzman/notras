@@ -237,6 +237,16 @@ class DragSelectionView {
   }
 
   private stop() {
+    const { drag, view } = this;
+
+    // Escape and a replacement press both arrive with the pointer still down,
+    // and a capture nobody released goes on retargeting that pointer's events
+    // at the editor. `pointercancel` and `pointerup` have released it already,
+    // which is what the guard is for.
+    if (drag !== null && view.dom.hasPointerCapture(drag.pointerId)) {
+      view.dom.releasePointerCapture(drag.pointerId);
+    }
+
     window.removeEventListener("keydown", this.onKeyDown);
     cancelAnimationFrame(this.scrollFrame);
     this.scrollFrame = 0;
@@ -370,10 +380,6 @@ class DragSelectionView {
 
     if (drag === null || event.pointerId !== drag.pointerId) {
       return;
-    }
-
-    if (view.dom.hasPointerCapture(drag.pointerId)) {
-      view.dom.releasePointerCapture(drag.pointerId);
     }
 
     const { dropAt } = dragSelectionKey.getState(view.state) ?? NOTHING;
