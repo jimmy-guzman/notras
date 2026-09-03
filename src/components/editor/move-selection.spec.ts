@@ -464,6 +464,48 @@ describe("dragRange", () => {
 
     expect(range?.parent.type.name).toBe("bulletList");
   });
+
+  it("should take the rule when one is selected as a node", () => {
+    // A selected rule sits between blocks, so its offsets say nothing about
+    // words, and reading them as such sent a block down the text path.
+    const editor = load("one\n\n---\n\ntwo");
+    let at = -1;
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "horizontalRule") {
+        at = pos;
+      }
+
+      return at === -1;
+    });
+    editor.commands.setNodeSelection(at);
+
+    const range = dragRange(editor.state.doc, editor.state.selection);
+    const covered = range === null ? null : range.endIndex - range.startIndex;
+    const parent = range?.parent.type.name;
+
+    editor.destroy();
+
+    expect(parent).toBe("doc");
+    expect(covered).toBe(1);
+  });
+
+  it("should take the row when a cell selection covers one cell", () => {
+    // One cell reaches neither end of its row, and its offsets would have
+    // read as words inside a block.
+    const editor = load(
+      "| a | b |\n| - | - |\n| one | two |\n| three | four |"
+    );
+    const cell = inside(editor.state.doc, "tableCell", 0) - 1;
+
+    editor.commands.setCellSelection({ anchorCell: cell, headCell: cell });
+
+    const range = dragRange(editor.state.doc, editor.state.selection);
+
+    editor.destroy();
+
+    expect(range?.parent.type.name).toBe("table");
+  });
 });
 
 describe("textDropTarget", () => {

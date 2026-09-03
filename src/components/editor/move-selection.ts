@@ -256,7 +256,8 @@ export function movingRange(doc: Node, selection: Selection): NodeRange | null {
  * than blocks, which the drag moves as text. Widening two selected words to
  * their paragraph moves more than the highlight promised. Reaching both ends of
  * a textblock, or crossing into another, is what makes a selection about
- * blocks.
+ * blocks, and so is sitting between blocks at all: a selected rule or a cell
+ * selection has no words to be about.
  */
 export function dragRange(doc: Node, selection: Selection): NodeRange | null {
   const range = movingRange(doc, selection);
@@ -266,6 +267,10 @@ export function dragRange(doc: Node, selection: Selection): NodeRange | null {
   }
 
   const { $from, $to } = selection;
+
+  if (!$from.parent.inlineContent) {
+    return range;
+  }
 
   return $from.parentOffset === 0 &&
     $to.parentOffset === $to.parent.content.size
