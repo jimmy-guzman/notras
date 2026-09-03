@@ -252,21 +252,25 @@ export function movingRange(doc: Node, selection: Selection): NodeRange | null {
 }
 
 /**
- * The whole block at `pos`, the way a third click takes it: the nearest node
- * holding inline content, so a click in a bullet takes the item's own text
- * rather than the list around it.
+ * The blocks a drag moves, or null where the selection is about words rather
+ * than blocks, which the drag moves as text. Widening two selected words to
+ * their paragraph moves more than the highlight promised. Reaching both ends of
+ * a textblock, or crossing into another, is what makes a selection about
+ * blocks.
  */
-export function blockSelection(doc: Node, pos: number): null | TextSelection {
-  const $pos = doc.resolve(pos);
-  const { depth: from } = $pos;
+export function dragRange(doc: Node, selection: Selection): NodeRange | null {
+  const range = movingRange(doc, selection);
 
-  for (let depth = from; depth > 0; depth -= 1) {
-    if ($pos.node(depth).inlineContent) {
-      return TextSelection.create(doc, $pos.start(depth), $pos.end(depth));
-    }
+  if (range === null || range.endIndex - range.startIndex > 1) {
+    return range;
   }
 
-  return null;
+  const { $from, $to } = selection;
+
+  return $from.parentOffset === 0 &&
+    $to.parentOffset === $to.parent.content.size
+    ? range
+    : null;
 }
 
 /**
@@ -286,6 +290,24 @@ export function dropTarget(
 
   // Landing inside itself moves nothing, so promise nothing.
   return plan.at > range.start && plan.at < range.end ? null : plan.at;
+}
+
+/**
+ * Where words dropped at `pos` land, which the mark draws from. `dropPoint`
+ * walks out to a position the words fit, and a boundary nothing fits at is
+ * kept as it is, since `replaceRange` closes the words into a paragraph of
+ * their own there. Null inside the words themselves, where a drop moves
+ * nothing.
+ */
+export function textDropTarget(
+  doc: Node,
+  from: number,
+  to: number,
+  pos: number
+): null | number {
+  const at = dropPoint(doc, pos, doc.slice(from, to)) ?? pos;
+
+  return at > from && at < to ? null : at;
 }
 
 /**
@@ -339,6 +361,45 @@ export function moveRange(
       tr.doc.resolve(carry(state.selection.from)),
       tr.doc.resolve(carry(state.selection.to))
     )
+  );
+}
+
+/**
+ * The transaction moving the words between `from` and `to` to `at`, or null
+ * when it would not move. The steps are ProseMirror's own drop: delete, map,
+ * reinsert, then select what landed. Marks the target refuses are stripped by
+ * the fit, so words dropped into a code block arrive plain.
+ */
+export function moveText(
+  state: EditorState,
+  from: number,
+  to: number,
+  at: number
+): null | Transaction {
+  const { doc, tr } = state;
+
+  if (at > from && at < to) {
+    return null;
+  }
+
+  const slice = doc.slice(from, to);
+
+  tr.deleteRange(from, to);
+
+  const pos = tr.mapping.map(at);
+
+  tr.replaceRange(pos, pos, slice);
+
+  if (tr.doc.eq(doc)) {
+    return null;
+  }
+
+  // The insert's own map says where what landed ends: the fit may have closed
+  // the words into a paragraph, so the slice's size is not the answer.
+  const end = tr.mapping.slice(tr.steps.length - 1).map(pos, 1);
+
+  return tr.setSelection(
+    TextSelection.between(tr.doc.resolve(pos), tr.doc.resolve(end))
   );
 }
 

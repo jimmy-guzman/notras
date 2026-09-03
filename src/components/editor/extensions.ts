@@ -379,6 +379,9 @@ export function createEditorExtensions(
     StarterKit.configure({
       code: false,
       codeBlock: false,
+      // Draws during a DOM `dragover`, which the window's file drop handling
+      // never lets reach the page. `DragSelection` marks its own drops.
+      dropcursor: false,
       link: false,
       paragraph: false,
       strike: false,

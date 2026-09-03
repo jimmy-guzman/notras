@@ -7,17 +7,16 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { DragGhost } from "./drag-ghost";
 import {
-  blockSelection,
   collapseMove,
+  dragRange,
   dropTarget,
   moveRange,
-  movingRange,
+  moveText,
+  textDropTarget,
 } from "./move-selection";
 
 /** The tab strip's number, so both drags start at the same distance. */
 const ACTIVATION_DISTANCE_PX = 4;
-const REPEAT_MS = 500;
-const REPEAT_DISTANCE_PX = 10;
 const AUTOSCROLL_EDGE_PX = 48;
 const AUTOSCROLL_STEP_PX = 8;
 
@@ -28,42 +27,68 @@ interface Span {
   start: number;
 }
 
-interface Press {
-  time: number;
-  x: number;
-  y: number;
-}
-
-/** ProseMirror's own window for one click following another. */
-function isRepeat(previous: null | Press, event: PointerEvent) {
-  if (previous === null) {
-    return false;
-  }
-
-  const dx = event.clientX - previous.x;
-  const dy = event.clientY - previous.y;
-
-  return (
-    event.timeStamp - previous.time < REPEAT_MS &&
-    dx * dx + dy * dy < REPEAT_DISTANCE_PX * REPEAT_DISTANCE_PX
-  );
-}
+/** What a drag holds: whole blocks, or the words inside one. */
+type Held =
+  | { kind: "blocks"; range: NodeRange; span: Span }
+  | { kind: "text"; span: Span };
 
 interface DragState {
-  /** The blocks in flight, dimmed where they sit. */
-  dragAt: null | Span;
-  /** Where the line is drawn, which is where the drop will land. */
+  /** Where the drop will land, which the mark is drawn for. */
   dropAt: null | number;
+  /** What is in flight, dimmed where it sits. */
+  held: null | { kind: Held["kind"]; span: Span };
 }
 
-const NOTHING: DragState = { dragAt: null, dropAt: null };
+const NOTHING: DragState = { dropAt: null, held: null };
 
-function dropLine() {
-  const line = document.createElement("div");
+function dropCursor() {
+  const mark = document.createElement("span");
 
-  line.className = "block-drop-indicator";
+  mark.className = "drop-cursor";
 
-  return line;
+  return mark;
+}
+
+function dropCursorTail() {
+  const mark = document.createElement("div");
+
+  mark.className = "drop-cursor-tail";
+
+  return mark;
+}
+
+/**
+ * Where the mark for a drop at `pos` is drawn. Words land at a text position,
+ * which is its own mark. Blocks land before a block, and the mark stands at
+ * the start of its first line, which is the first text position inside it.
+ * Null where nothing there holds text, so the tail form stands at `pos`.
+ */
+function markPosition(doc: Node, pos: number) {
+  const $pos = doc.resolve(pos);
+
+  if ($pos.parent.inlineContent) {
+    return pos;
+  }
+
+  let node = $pos.nodeAfter;
+  let at = pos + 1;
+
+  while (node !== null && !node.inlineContent) {
+    node = node.firstChild;
+    at += 1;
+  }
+
+  return node === null ? null : at;
+}
+
+function dropMark(doc: Node, dropAt: number) {
+  const at = markPosition(doc, dropAt);
+
+  // Two keys, since ProseMirror reuses a widget's DOM by key and the form has
+  // to change with the position.
+  return at === null
+    ? Decoration.widget(dropAt, dropCursorTail, { key: "drop-cursor-tail" })
+    : Decoration.widget(at, dropCursor, { key: "drop-cursor" });
 }
 
 /** The scroller the note sits in, which a drag near the edge has to move. */
@@ -99,7 +124,7 @@ function blocksIn(doc: Node, span: Span) {
 }
 
 /** One decoration per block in flight, since `Decoration.node` takes one node. */
-function dimmed(doc: Node, span: Span) {
+function dimmedBlocks(doc: Node, span: Span) {
   const $start = doc.resolve(span.start);
   const { parent } = $start;
   const decorations: Decoration[] = [];
@@ -115,6 +140,20 @@ function dimmed(doc: Node, span: Span) {
   }
 
   return decorations;
+}
+
+function dimmed(doc: Node, held: DragState["held"]) {
+  if (held === null) {
+    return [];
+  }
+
+  if (held.kind === "blocks") {
+    return dimmedBlocks(doc, held.span);
+  }
+
+  return [
+    Decoration.inline(held.span.start, held.span.end, { "data-dragging": "" }),
+  ];
 }
 
 /** Containers whose children are rows a drop can land beside. */
@@ -180,20 +219,74 @@ function isInsideSelection(state: EditorState, pos: number) {
   return !empty && pos >= from && pos <= to;
 }
 
+/** What the press took hold of, read off the selection it landed in. */
+function heldBy(state: EditorState): Held {
+  const range = dragRange(state.doc, state.selection);
+
+  // Null is a selection about words, which moves as text.
+  if (range === null) {
+    const { from, to } = state.selection;
+
+    return { kind: "text", span: { end: to, start: from } };
+  }
+
+  return {
+    kind: "blocks",
+    range,
+    span: { end: range.end, start: range.start },
+  };
+}
+
+function ghostFor(
+  view: EditorView,
+  held: Held,
+  clientX: number,
+  clientY: number
+) {
+  if (held.kind === "blocks") {
+    return DragGhost.ofBlocks(
+      view,
+      blocksIn(view.state.doc, held.span),
+      clientX,
+      clientY
+    );
+  }
+
+  return DragGhost.ofText(
+    view,
+    held.span.start,
+    held.span.end,
+    clientX,
+    clientY
+  );
+}
+
+/**
+ * The transaction a drop at `at` makes, or null when nothing would move. A
+ * block drop collapses to a caret, and a text drop keeps the words it landed
+ * selected, since that highlight covers exactly what moved.
+ */
+function dropped(state: EditorState, held: Held, at: number) {
+  if (held.kind === "text") {
+    return moveText(state, held.span.start, held.span.end, at);
+  }
+
+  const shifted = moveRange(state, held.range, at);
+
+  return shifted === null ? null : collapseMove(shifted);
+}
+
 class DragSelectionView {
   private readonly view: EditorView;
   private drag: null | {
+    held: Held;
     moved: boolean;
     originX: number;
     originY: number;
     pointerId: number;
     pressedAt: number;
-    range: NodeRange;
-    repeated: boolean;
-    span: Span;
   } = null;
   private ghost: DragGhost | null = null;
-  private lastPress: null | Press = null;
   private pointerY = 0;
   private scrollFrame = 0;
 
@@ -227,7 +320,7 @@ class DragSelectionView {
     const current = dragSelectionKey.getState(view.state) ?? NOTHING;
     const merged = { ...current, ...next };
 
-    if (merged.dragAt === current.dragAt && merged.dropAt === current.dropAt) {
+    if (merged.held === current.held && merged.dropAt === current.dropAt) {
       return;
     }
 
@@ -260,13 +353,30 @@ class DragSelectionView {
       return;
     }
 
-    const pos = boundaryUnder(view, clientX, clientY);
+    const { held } = drag;
 
-    if (pos === null) {
+    if (held.kind === "blocks") {
+      const pos = boundaryUnder(view, clientX, clientY);
+
+      if (pos !== null) {
+        this.patch({ dropAt: dropTarget(view.state.doc, held.range, pos) });
+      }
+
       return;
     }
 
-    this.patch({ dropAt: dropTarget(view.state.doc, drag.range, pos) });
+    const pos = posUnder(view, clientX, clientY);
+
+    if (pos !== null) {
+      this.patch({
+        dropAt: textDropTarget(
+          view.state.doc,
+          held.span.start,
+          held.span.end,
+          pos
+        ),
+      });
+    }
   }
 
   private readonly onPointerDown = (event: PointerEvent) => {
@@ -285,30 +395,13 @@ class DragSelectionView {
     }
 
     const pos = posUnder(view, event.clientX, event.clientY);
-    const repeated = isRepeat(this.lastPress, event);
-
-    // Every left press, not only the ones that drag: a triple click's third
-    // press is the first to land inside a selection.
-    this.lastPress = {
-      time: event.timeStamp,
-      x: event.clientX,
-      y: event.clientY,
-    };
 
     if (event.shiftKey || pos === null || !isInsideSelection(view.state, pos)) {
       return;
     }
 
-    const range = movingRange(view.state.doc, view.state.selection);
-
-    if (range === null) {
-      return;
-    }
-
     // Stops the browser collapsing the selection before we know whether this is
-    // a drag, which means a press that never moves has to place the caret. It
-    // cannot move to `mousedown` and read the click count there: a repeated
-    // click and a drag are the same press until the pointer moves.
+    // a drag, which means a press that never moves has to place the caret.
     event.preventDefault();
     // Capture keeps the drag alive past the editor's own box. A pointer the
     // browser no longer tracks refuses it, and the drag is still workable.
@@ -322,14 +415,12 @@ class DragSelectionView {
     window.addEventListener("keydown", this.onKeyDown);
     this.pointerY = event.clientY;
     this.drag = {
+      held: heldBy(view.state),
       moved: false,
       originX: event.clientX,
       originY: event.clientY,
       pointerId: event.pointerId,
       pressedAt: pos,
-      range,
-      repeated,
-      span: { end: range.end, start: range.start },
     };
   };
 
@@ -352,13 +443,8 @@ class DragSelectionView {
       }
 
       drag.moved = true;
-      this.ghost = new DragGhost(
-        view,
-        blocksIn(view.state.doc, drag.span),
-        event.clientX,
-        event.clientY
-      );
-      this.patch({ dragAt: drag.span });
+      this.ghost = ghostFor(view, drag.held, event.clientX, event.clientY);
+      this.patch({ held: { kind: drag.held.kind, span: drag.held.span } });
       this.autoScroll();
     }
 
@@ -374,24 +460,18 @@ class DragSelectionView {
     }
 
     const { dropAt } = dragSelectionKey.getState(view.state) ?? NOTHING;
-    // The range the press captured, not one recomputed from the live selection:
-    // the two can disagree, and then the blocks that dim are not the blocks
-    // that move.
-    const { moved, pressedAt, range, repeated } = drag;
+    // What the press captured, not one recomputed from the live selection: the
+    // two can disagree, and then what dims is not what moves.
+    const { held, moved, pressedAt } = drag;
 
     this.stop();
 
     if (!moved) {
       // The press was a click after all, and `preventDefault` means the browser
-      // did not move the caret, so place it where the pointer went down. A
-      // repeated one takes the block, which is the browser's own answer.
-      const block = repeated ? blockSelection(view.state.doc, pressedAt) : null;
-
+      // did not move the caret, so place it where the pointer went down.
       view.dispatch(
         view.state.tr
-          .setSelection(
-            block ?? TextSelection.near(view.state.doc.resolve(pressedAt))
-          )
+          .setSelection(TextSelection.near(view.state.doc.resolve(pressedAt)))
           .setMeta("pointer", true)
       );
 
@@ -402,15 +482,12 @@ class DragSelectionView {
       return;
     }
 
-    // The drop collapses the selection, since it was only what the drag took
-    // hold of. `pointer` meta keeps the typewriter on its default scroll, so
-    // the note does not lurch under a drop.
-    const shifted = moveRange(view.state, range, dropAt);
-    const tr =
-      shifted === null ? null : collapseMove(shifted).setMeta("pointer", true);
+    // `pointer` meta keeps the typewriter on its default scroll, so the note
+    // does not lurch under a drop.
+    const tr = dropped(view.state, held, dropAt);
 
     if (tr !== null) {
-      view.dispatch(tr);
+      view.dispatch(tr.setMeta("pointer", true));
     }
   };
 
@@ -461,10 +538,11 @@ class DragSelectionView {
 }
 
 /**
- * Dragging the selection moves it. The blocks in flight dim where they sit and
- * a line marks where they land, both as decorations so neither can be drawn
- * somewhere the transaction disagrees with. `move-selection.ts` decides what a
- * selection covers.
+ * Dragging the selection moves it: whole blocks when the selection is about
+ * blocks, and the words alone when it sits inside one. What is in flight dims
+ * where it sits and a bar marks where it lands, both as decorations so neither
+ * can be drawn somewhere the transaction disagrees with. `move-selection.ts`
+ * decides what a selection covers and where a drop lands.
  */
 export const DragSelection = Extension.create({
   addProseMirrorPlugins() {
@@ -473,19 +551,16 @@ export const DragSelection = Extension.create({
         key: dragSelectionKey,
         props: {
           decorations(state) {
-            const { dragAt, dropAt } = this.getState(state) ?? NOTHING;
+            const { dropAt, held } = this.getState(state) ?? NOTHING;
 
-            if (dragAt === null && dropAt === null) {
+            if (held === null && dropAt === null) {
               return null;
             }
 
-            const decorations =
-              dragAt === null ? [] : dimmed(state.doc, dragAt);
+            const decorations = dimmed(state.doc, held);
 
             if (dropAt !== null) {
-              decorations.push(
-                Decoration.widget(dropAt, dropLine, { key: "block-drop" })
-              );
+              decorations.push(dropMark(state.doc, dropAt));
             }
 
             return DecorationSet.create(state.doc, decorations);

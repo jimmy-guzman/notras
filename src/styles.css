@@ -214,16 +214,14 @@
   content: attr(data-placeholder);
 }
 
-/* Moving the selection. No transition on the line's position, since it follows
-   the pointer and that is manipulation rather than a state change. The negative
-   margins keep it from taking a row's worth of height mid-drag. */
+/* Moving the selection: what is in flight dims where it sits. */
 .ProseMirror [data-dragging] {
   opacity: 0.4;
 }
-/* The blocks in flight, under the shadow a dragged tab takes. No transition on
+/* The copy in flight, under the shadow a dragged tab takes. No transition on
    the transform: it tracks the cursor, which is manipulation rather than a
    state change, so it survives reduced motion the same way a tab does. */
-.block-drag-ghost {
+.drag-ghost {
   position: fixed;
   top: 0;
   left: 0;
@@ -234,25 +232,44 @@
   border-radius: var(--radius-md);
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
 }
-.block-drag-ghost > :first-child {
+.drag-ghost > :first-child {
   margin-block-start: 0;
 }
 /* For the drag's length the cursor says what is happening, and the selection
    stops painting so the source shows its dim alone. */
-body.dragging-blocks,
-body.dragging-blocks .ProseMirror {
+body.dragging,
+body.dragging .ProseMirror {
   cursor: grabbing;
 }
-body.dragging-blocks .ProseMirror ::selection,
-body.dragging-blocks .ProseMirror::selection {
+body.dragging .ProseMirror ::selection,
+body.dragging .ProseMirror::selection {
   background: transparent;
 }
-.block-drop-indicator {
-  height: 2px;
-  margin-block: -1px;
+/* Where the drop lands, the mark CodeMirror draws: a bar 2px wide and 1em tall
+   at the point itself. Zero net width in the line, so nothing shifts under the
+   pointer, and no transition, since it follows the pointer. The tail form
+   hangs below a block nothing follows, offset by the half leading that puts
+   the inline form's em box on the line. */
+.drop-cursor {
+  display: inline-block;
+  height: 1em;
+  margin-inline: -1px;
+  vertical-align: text-bottom;
   pointer-events: none;
-  background: var(--primary);
-  border-radius: 1px;
+  border-left: 2px solid var(--primary);
+}
+.drop-cursor-tail {
+  position: relative;
+  height: 0;
+  pointer-events: none;
+}
+.drop-cursor-tail::before {
+  position: absolute;
+  top: calc((var(--typeset-leading) - 1) * 0.5em);
+  left: 0;
+  height: 1em;
+  content: "";
+  border-left: 2px solid var(--primary);
 }
 
 /* Focus mode: dim every top-level block except the active one. */

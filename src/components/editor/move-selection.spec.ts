@@ -4,12 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
 import {
-  blockSelection,
   collapseMove,
+  dragRange,
   dropTarget,
   moveRange,
   moveRangeByStep,
+  moveText,
   movingRange,
+  textDropTarget,
 } from "./move-selection";
 
 /**
@@ -405,47 +407,163 @@ describe("moveRange over a selection", () => {
   });
 });
 
-describe("blockSelection", () => {
-  it("should cover the whole paragraph a click lands in", () => {
+describe("dragRange", () => {
+  it("should refuse a selection inside one block", () => {
+    // Widening two words to their paragraph moves more than the highlight
+    // promised, so the press is left to ProseMirror's text drag.
+    const editor = load("one two three four");
+    const at = inside(editor.state.doc, "paragraph", 0);
+
+    editor.commands.setTextSelection({ from: at + 4, to: at + 7 });
+
+    const range = dragRange(editor.state.doc, editor.state.selection);
+
+    editor.destroy();
+
+    expect(range).toBeNull();
+  });
+
+  it("should take the block when the selection covers it end to end", () => {
+    const editor = load("one two\n\nthree");
+    const at = inside(editor.state.doc, "paragraph", 0);
+
+    editor.commands.setTextSelection({ from: at, to: at + 7 });
+
+    const range = dragRange(editor.state.doc, editor.state.selection);
+    const covered = range === null ? null : range.endIndex - range.startIndex;
+
+    editor.destroy();
+
+    expect(covered).toBe(1);
+  });
+
+  it("should take both blocks when the selection crosses a boundary", () => {
+    const editor = load("one two\n\nthree four");
+    const first = inside(editor.state.doc, "paragraph", 0);
+    const second = inside(editor.state.doc, "paragraph", 1);
+
+    editor.commands.setTextSelection({ from: first + 4, to: second + 3 });
+
+    const range = dragRange(editor.state.doc, editor.state.selection);
+    const covered = range === null ? null : range.endIndex - range.startIndex;
+
+    editor.destroy();
+
+    expect(covered).toBe(2);
+  });
+
+  it("should take the item when the selection covers a bullet's text", () => {
+    const editor = load("- one two\n- three");
+    const at = inside(editor.state.doc, "paragraph", 0);
+
+    editor.commands.setTextSelection({ from: at, to: at + 7 });
+
+    const range = dragRange(editor.state.doc, editor.state.selection);
+
+    editor.destroy();
+
+    expect(range?.parent.type.name).toBe("bulletList");
+  });
+});
+
+describe("textDropTarget", () => {
+  it("should refuse a point inside the words themselves", () => {
+    const editor = load("one two three");
+    const at = inside(editor.state.doc, "paragraph", 0);
+    // " two" runs from at + 3 to at + 7, and at + 5 is inside it.
+    const target = textDropTarget(editor.state.doc, at + 3, at + 7, at + 5);
+
+    editor.destroy();
+
+    expect(target).toBeNull();
+  });
+});
+
+describe("moveText", () => {
+  it("should land the words at the point and leave them selected", () => {
     const editor = load("one two three\n\nfour");
-    const at = inside(editor.state.doc, "paragraph", 0);
-    const selection = blockSelection(editor.state.doc, at);
-    const covered =
-      selection === null
-        ? null
-        : editor.state.doc.textBetween(selection.from, selection.to);
+    const first = inside(editor.state.doc, "paragraph", 0);
+    const second = inside(editor.state.doc, "paragraph", 1);
+    // " two" to the end of "four".
+    const tr = moveText(editor.state, first + 3, first + 7, second + 4);
+
+    if (tr === null) {
+      editor.destroy();
+      throw new Error("expected a transaction");
+    }
+
+    editor.view.dispatch(tr);
+    editor.state.doc.check();
+
+    const { from, to } = editor.state.selection;
+    const selected = editor.state.doc.textBetween(from, to);
+    const output = serializeMarkdown(editor);
 
     editor.destroy();
 
-    expect(covered).toBe("one two three");
+    expect(output).toBe("one three\n\nfour two");
+    expect(selected).toBe(" two");
   });
 
-  it("should cover an item's own text rather than the list around it", () => {
-    const editor = load("- a b\n- c d");
-    const at = inside(editor.state.doc, "paragraph", 0);
-    const selection = blockSelection(editor.state.doc, at);
-    const covered =
-      selection === null
-        ? null
-        : editor.state.doc.textBetween(selection.from, selection.to);
+  it("should make a paragraph of words dropped between blocks", () => {
+    const editor = load("one two\n\nthree");
+    const { doc } = editor.state;
+    const first = inside(doc, "paragraph", 0);
+    // The boundary after the first paragraph, which is what the pointer in the
+    // gap between two blocks resolves to.
+    const gap = first + "one two".length + 1;
+    const at = textDropTarget(doc, first + 3, first + 7, gap);
+    const tr =
+      at === null ? null : moveText(editor.state, first + 3, first + 7, at);
+
+    if (tr === null) {
+      editor.destroy();
+      throw new Error("expected a transaction");
+    }
+
+    editor.view.dispatch(tr);
+    editor.state.doc.check();
+
+    const blocks = editor.state.doc.childCount;
+    const middle = editor.state.doc.child(1).textContent;
 
     editor.destroy();
 
-    expect(covered).toBe("a b");
+    expect(blocks).toBe(3);
+    expect(middle).toBe(" two");
   });
 
-  it("should cover a cell's text rather than the row", () => {
-    const editor = load("| a | b |\n| - | - |\n| one | two |");
-    const at = inside(editor.state.doc, "tableCell", 0) + 1;
-    const selection = blockSelection(editor.state.doc, at);
-    const covered =
-      selection === null
-        ? null
-        : editor.state.doc.textBetween(selection.from, selection.to);
+  it("should drop marked words into a code block as plain text", () => {
+    const editor = load("**bo**ld\n\n```\ncode\n```");
+    const first = inside(editor.state.doc, "paragraph", 0);
+    const code = inside(editor.state.doc, "codeBlock", 0);
+    // The bold "bo" to the end of "code".
+    const tr = moveText(editor.state, first, first + 2, code + 4);
+
+    if (tr === null) {
+      editor.destroy();
+      throw new Error("expected a transaction");
+    }
+
+    editor.view.dispatch(tr);
+    // Throws on a mark the code block refuses, so this is the assertion too.
+    editor.state.doc.check();
+
+    const output = serializeMarkdown(editor);
 
     editor.destroy();
 
-    expect(covered).toBe("one");
+    expect(output).toBe("ld\n\n```\ncodebo\n```\n\n");
+  });
+
+  it("should return null when the drop changes nothing", () => {
+    const editor = load("one two");
+    const at = inside(editor.state.doc, "paragraph", 0);
+    const tr = moveText(editor.state, at + 3, at + 7, at + 7);
+
+    editor.destroy();
+
+    expect(tr).toBeNull();
   });
 });
 
