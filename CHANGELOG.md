@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/jimmy-guzman/notras/compare/v0.3.0...v0.3.1) (2026-09-03)
+
+
+### Features
+
+* ✨ add drag and drop blocks ([d5fb291](https://github.com/jimmy-guzman/notras/commit/d5fb29153013e65fc2530a9ddf4d7e4b7fe0b9b6))
+
 ## [0.3.0](https://github.com/jimmy-guzman/notras/compare/v0.2.2...v0.3.0) (2026-09-01)
 
 
