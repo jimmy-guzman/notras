@@ -265,8 +265,18 @@ class DragSelectionView {
   private readonly onPointerDown = (event: PointerEvent) => {
     const { view } = this;
 
-    if (event.button !== 0) {
+    // One drag, one pointer. A second finger is not primary, so it cannot take
+    // over the drag the first one is running.
+    if (event.button !== 0 || !event.isPrimary) {
       return;
+    }
+
+    // A live drag and a fresh primary press cannot both be real: either the
+    // pointer that started it ended somewhere this never saw, which is what
+    // failing to capture allows, or a second device pressed. Ending it here is
+    // what keeps a ghost from outliving its drag.
+    if (this.drag !== null) {
+      this.stop();
     }
 
     const pos = posUnder(view, event.clientX, event.clientY);
@@ -325,7 +335,7 @@ class DragSelectionView {
   private readonly onPointerMove = (event: PointerEvent) => {
     const { drag, view } = this;
 
-    if (drag === null) {
+    if (drag === null || event.pointerId !== drag.pointerId) {
       return;
     }
 
@@ -355,10 +365,10 @@ class DragSelectionView {
     this.track(event.clientX, event.clientY);
   };
 
-  private readonly onPointerUp = () => {
+  private readonly onPointerUp = (event: PointerEvent) => {
     const { drag, view } = this;
 
-    if (drag === null) {
+    if (drag === null || event.pointerId !== drag.pointerId) {
       return;
     }
 
@@ -409,7 +419,11 @@ class DragSelectionView {
     }
   };
 
-  private readonly onCancel = () => {
+  private readonly onCancel = (event: PointerEvent) => {
+    if (this.drag?.pointerId !== event.pointerId) {
+      return;
+    }
+
     this.stop();
   };
 
