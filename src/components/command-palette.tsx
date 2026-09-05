@@ -368,7 +368,7 @@ type PaletteView = "actions" | "delete" | "find" | "move" | "rename" | "tags";
 /**
  * What an action needs on screen before it is offered. A note action reads
  * frontmatter, so an external file cannot answer it; a tab action acts on the
- * open set or the view, which an external file answers as well as a note does.
+ * open set, which an external file answers as well as a note does.
  */
 type PaletteScope = "none" | "note" | "tab";
 
@@ -960,7 +960,7 @@ export function CommandPalette({
     {
       Icon: CrosshairIcon,
       label: "focus mode",
-      needs: "tab",
+      needs: "none",
       onSelect: toggleFocusMode,
       text: toggleActionText(focusModeEnabled, "focus mode"),
       value: "toggle-focus-mode",
@@ -968,7 +968,7 @@ export function CommandPalette({
     {
       Icon: KeyboardIcon,
       label: "typewriter scrolling",
-      needs: "tab",
+      needs: "none",
       onSelect: toggleTypewriter,
       text: toggleActionText(typewriterEnabled, "typewriter scrolling"),
       value: "toggle-typewriter",

@@ -217,7 +217,7 @@ Define it in `src-tauri/src/notes.rs` or a new module, register it in `generate_
 
 `command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, rename, move, delete, reveal, the two writing-mode toggles, close other tabs, close tabs to the right, copy path, settings, reindex, and the update check. New actions belong there rather than in new chrome.
 
-Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while focus mode and copy path stay on it, and it is the one place the palette decides what it can act on.
+Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. The two writing modes take `none`, since the pref they set belongs to the app rather than to what is open.
 
 One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode so switching re-seeds it. The palette reads chords through `useChordsByName` and registers none itself, which `src/lib/ui/shortcuts.ts` requires.
 

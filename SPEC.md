@@ -64,7 +64,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘E, ⌘D, ⌘⌥T, ⌘⌥W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘⌥W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D and ⌘⌥T still set the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -89,7 +89,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
 - A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
 - The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, close other tabs, close tabs to the right, copy path, settings, reindex library, and check for updates.
-- New note, settings, reindex library and check for updates are always listed. Pin, edit tags, rename note, move to folder, delete note and reveal in finder need a note showing. The rest need a tab showing, so they reach an external file too.
+- New note, focus mode, typewriter scrolling, settings, reindex library and check for updates are always listed. Pin, edit tags, rename note, move to folder, delete note and reveal in finder need a note showing. Close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
 - The two writing-mode rows name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
 - Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
 - An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, focus mode ⌘d, typewriter scrolling ⌘⌥t, close other tabs ⌘⌥w, and settings ⌘,. The rest show none.
