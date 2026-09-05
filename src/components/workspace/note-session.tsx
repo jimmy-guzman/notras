@@ -1,7 +1,7 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "cn";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import { insertSentinel } from "@/components/editor/sentinel";
@@ -20,7 +20,8 @@ import {
 import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { composeNote, parseNote } from "@/core/frontmatter";
-import { noteFolder, noteTitle, resolveTitle } from "@/core/notes";
+import { wikilinkResolver } from "@/core/links";
+import { resolveTitle } from "@/core/notes";
 import { writeExternalNote } from "@/data/external-note";
 import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
@@ -57,6 +58,7 @@ interface SessionBufferProps {
 function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
+  const resolveWikilink = useMemo(() => wikilinkResolver(notes), [notes]);
   const id = tabId(tab);
 
   const editorRef = useRef<EditorHandle | null>(null);
@@ -133,6 +135,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     body,
     frontmatter: frontmatterBlock,
     notes,
+    resolveWikilink,
     sourceMode,
     status: autosave.status,
   });
@@ -142,6 +145,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       body,
       frontmatter: frontmatterBlock,
       notes,
+      resolveWikilink,
       sourceMode,
       status: autosave.status,
     };
@@ -173,33 +177,15 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     [notesDir]
   );
 
-  // Resolution is by title, then by filename stem. `D32` decoupled the two, so
-  // a title is no longer unique and links written against a filename have to
-  // keep working. Ties break by nearest folder, then by path.
   const openWikilink = useCallback(
     (linkTitle: string) => {
-      const wanted = linkTitle.trim().toLowerCase();
-      const currentFolder = noteFolder(tab.path);
-      const target = live.current.notes
-        .filter(
-          (meta) =>
-            meta.title.toLowerCase() === wanted ||
-            noteTitle(meta.path).toLowerCase() === wanted
-        )
-        .toSorted((left, right) => {
-          const byTitle =
-            Number(right.title.toLowerCase() === wanted) -
-            Number(left.title.toLowerCase() === wanted);
-          const byFolder =
-            Number(noteFolder(right.path) === currentFolder) -
-            Number(noteFolder(left.path) === currentFolder);
-
-          return byTitle || byFolder || left.path.localeCompare(right.path);
-        })
-        .at(0);
+      const target = live.current.resolveWikilink(linkTitle, tab.path);
 
       if (target === undefined) {
-        toast.add({ title: `no note named "${wanted}"`, type: "error" });
+        toast.add({
+          title: `no note named "${linkTitle.trim().toLowerCase()}"`,
+          type: "error",
+        });
 
         return;
       }

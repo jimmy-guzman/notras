@@ -14,6 +14,7 @@ import {
   FolderSearchIcon,
   HashIcon,
   KeyboardIcon,
+  Link2Icon,
   ListXIcon,
   type LucideIcon,
   NotebookPenIcon,
@@ -73,6 +74,7 @@ import {
 } from "@/lib/tabs/store";
 import { tabFullPath, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { setMentionsOpen } from "@/lib/ui/mentions";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
@@ -898,6 +900,11 @@ export function CommandPalette({
     getTabHandles(activeId)?.toggleSource();
   }, [activeId, close]);
 
+  const showMentions = useCallback(() => {
+    close();
+    setMentionsOpen(true);
+  }, [close]);
+
   const quickCapture = useCallback(() => {
     runAction("could not open quick capture", () => invoke("show_capture"));
   }, [runAction]);
@@ -955,6 +962,14 @@ export function CommandPalette({
       onSelect: startEditTags,
       text: "edit tags...",
       value: "edit-tags",
+    },
+    {
+      Icon: Link2Icon,
+      label: "show mentions",
+      needs: "note",
+      onSelect: showMentions,
+      text: "show mentions",
+      value: "show-mentions",
     },
     {
       Icon: PencilIcon,

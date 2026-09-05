@@ -23,6 +23,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - "move to folder..." keeps the filename rather than the title, creates the folder if it is missing, and refuses a target that is taken.
 - "delete note..." asks once, then removes the file. There is no trash.
 - Frontmatter is not searchable. Only the title and the body reach the index.
+- Every `[[wikilink]]` in a note is a row in the index: the note, the line as `grep -n` counts it, the text between the brackets as written, and the line itself. One inside a fence, indented code, inline code, an HTML block or comment, or between a matching pair of inline tags is not a row, which is where the editor shows text rather than a pill.
 
 ## Saving
 
@@ -56,6 +57,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
 - The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
 - Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" drops every row and rescans, which is what reaches notes nobody has edited.
+- An index a previous version built is dropped to rows on the first launch of a newer one and rebuilt by the startup scan, which the log records.
 
 ## Tabs
 
@@ -73,7 +75,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
 - Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.
-- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render and its wikilinks do not navigate. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
+- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render, its wikilinks do not navigate, and it counts no mentions. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
 - With nothing to restore, the most recently updated note opens.
@@ -89,11 +91,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
 - A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
-- The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, markdown source, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
-- New note, focus mode, typewriter scrolling, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
+- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, markdown source, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- New note, focus mode, typewriter scrolling, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
 - The two writing-mode rows name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
 - Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, focus mode ⌘d, typewriter scrolling ⌘⌥t, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, typewriter scrolling ⌘⌥t, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
 
 ## The editor
 
@@ -103,6 +105,9 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
 - Clicking a pill resolves by title first, then by filename, preferring a note in the same folder, then by path. A link matching nothing says so and creates nothing.
+- The status strip counts the notes that mention the one showing, as `3 mentions` or `1 mention`, and shows nothing while none does. A mention is a wikilink in another note that resolves to this one the way a click would, so a note's links to itself and links that name no note count for nothing.
+- The count, ⌘⇧L, and "show mentions" in the palette open one list: a row per note reading `title · folder`, the line that links beneath it starting on a word a little before the link, and `+1` on a note that links more than once. ⏎ opens the note in the showing tab, ⌘⏎ opens it beside, and esc closes.
+- A link written by anything else reaches the count within about a second, since its row lands with the note's re-index.
 - ⌘⇧K adds or edits a link, and ⌘-click opens one. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
 - A ⌘-click on an attachment link does not open the attachment.
 - Dragging files onto the window copies each into `attachments/` and inserts a link into the tab that is showing. A name already taken becomes `stem-2.ext`. Spaces survive on disk and are percent-encoded in the link.

@@ -2,6 +2,7 @@ import { CodeIcon, CrosshairIcon, KeyboardIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import { Chord } from "@/components/chord";
+import { NoteMentions } from "@/components/notes/note-mentions";
 import { NoteTags } from "@/components/notes/note-tags";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -9,6 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { Mention } from "@/core/links";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { readingTime } from "@/lib/utils/word-count";
 
@@ -18,8 +20,8 @@ const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
 interface StatusBarProps {
   allTags: { count: number; tag: string }[];
   focusModeEnabled: boolean;
-  /** Absent for an external file, which carries no frontmatter to tag. */
-  note?: { path: string; tags: string[] };
+  /** Absent for an external file, which carries no frontmatter to tag and sits in no index to be linked from. */
+  note?: { mentions: Mention[]; path: string; tags: string[] };
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
   onToggleSource: () => void;
@@ -90,12 +92,16 @@ export function StatusBar({
   return (
     <footer className="flex h-7 shrink-0 items-center gap-1 border-t bg-card px-3 text-muted-foreground text-xs">
       {note === undefined ? null : (
-        <NoteTags
-          allTags={allTags}
-          onFilter={onFilterTag}
-          path={note.path}
-          tags={note.tags}
-        />
+        <>
+          <NoteTags
+            allTags={allTags}
+            onFilter={onFilterTag}
+            path={note.path}
+            tags={note.tags}
+          />
+          {/* Keyed so a tab switch remounts it, closing a list opened over the last note. */}
+          <NoteMentions key={note.path} mentions={note.mentions} />
+        </>
       )}
       <span className="ml-auto shrink-0 px-2 tabular-nums">
         {words} {words === 1 ? "word" : "words"} · {readingTime(words)}

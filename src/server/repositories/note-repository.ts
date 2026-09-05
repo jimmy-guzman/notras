@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { DatabaseError } from "@/core/errors";
+import type { NoteLink } from "@/core/links";
 import type { NoteFilters, NoteMeta } from "@/core/notes";
 import { Database } from "@/server/db";
 import {
@@ -17,7 +18,7 @@ import {
   getSnippetExpression,
   getTagFilter,
 } from "@/server/db/fts-query";
-import { note, noteTag } from "@/server/db/schema";
+import { note, noteLink, noteTag } from "@/server/db/schema";
 
 interface TagWithCount {
   count: number;
@@ -36,6 +37,7 @@ interface INoteRepository {
   ) => Effect.Effect<NoteMeta | undefined, DatabaseError>;
   findMany: (filters: NoteFilters) => Effect.Effect<NoteMeta[], DatabaseError>;
   listFolders: () => Effect.Effect<FolderWithCount[], DatabaseError>;
+  listLinks: () => Effect.Effect<NoteLink[], DatabaseError>;
   listTags: () => Effect.Effect<TagWithCount[], DatabaseError>;
 }
 
@@ -186,6 +188,11 @@ const makeDbNoteRepository = Effect.gen(function* () {
 
         return rows.filter((row) => row.folder !== "");
       }),
+
+    listLinks: () =>
+      dbQuery(() =>
+        db.select().from(noteLink).orderBy(noteLink.path, noteLink.line)
+      ),
 
     listTags: () =>
       dbQuery(() =>

@@ -51,6 +51,7 @@ export const Route = createRootRouteWithContext<{
         ...noteQueries.folders(),
         staleTime: STATIC,
       }),
+      context.queryClient.query({ ...noteQueries.links(), staleTime: STATIC }),
       context.queryClient.query({ ...noteQueries.list(), staleTime: STATIC }),
       context.queryClient.query({ ...noteQueries.tags(), staleTime: STATIC }),
       context.queryClient.query({ ...notesDirQuery, staleTime: STATIC }),

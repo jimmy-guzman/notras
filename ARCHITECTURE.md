@@ -49,11 +49,11 @@ flowchart TD
 
 **External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: the root route listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
 
-**The index is disposable.** `ensure_schema` runs CREATE IF NOT EXISTS plus FTS5 on startup, so deleting `.notras/index.db` triggers a rebuild. There is no drizzle-kit, no migration directory, and no `db:push`.
+**The index is disposable.** `ensure_schema` runs CREATE IF NOT EXISTS plus FTS5 on startup, so deleting `.notras/index.db` triggers a rebuild. There is no drizzle-kit, no migration directory, and no `db:push`. `PRAGMA user_version` carries `SCHEMA_VERSION`, and an index behind it is dropped to rows on open, so a change in how a row is derived reaches every note on the startup scan without anyone running "reindex library".
 
 **A rebuild drops the rows first.** `index_file` skips a file whose mtime matches its stored row, which suppresses watcher echo but also makes a plain re-scan a no-op. `reindex_all` calls `index::clear` before scanning, so changing how a row is derived, `resolve_title` for instance, reaches notes nobody has edited since. Without that, an unedited note keeps whatever the old derivation produced and the only recovery is deleting the database.
 
-**Note identity is the relative path.** Renames are delete plus create in the index. Wikilinks resolve by title and then by filename stem, so a retitle can dangle links, a consequence `D5` accepts. `D32` added the stem fallback and the tie-break that orders duplicate titles.
+**Note identity is the relative path.** Renames are delete plus create in the index. Wikilinks resolve by title and then by filename stem, so a retitle can dangle links, a consequence `D5` accepts. `D32` added the stem fallback and the tie-break that orders duplicate titles. That resolution is `wikilinkResolver` in `src/core/links.ts`, and it serves a click on a pill and the mentions count alike.
 
 **The title is resolved, not stored.** Frontmatter `title:`, else the leading `#` heading, else the filename stem. `resolve_title` in `src-tauri/src/index.rs` fills the index column and `resolveTitle` in `src/core/notes.ts` serves the open note.
 
@@ -68,10 +68,13 @@ Rust creates the tables. `src/server/db/schema.ts` mirrors `note` and `note_tag`
 ```sql
 note(path TEXT PK, title TEXT, folder TEXT, pinned INT, created_at INT, updated_at INT)
 note_tag(path TEXT, tag TEXT, PRIMARY KEY(path, tag))
+note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per [[wikilink]] occurrence
 note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet()
 ```
 
 `src/server/db/fts-query.ts` owns query normalization, ranking, and the snippet markers: `buildFtsMatchQuery`, `getSnippetExpression`, `getSearchOrderBy`, `getFtsMatchFilter`, `getTagFilter`.
+
+`note_link` is the graph. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink` until embeds and markdown links join it, `target` is the text between the brackets as written, and `context` is the line. Nothing in the row is resolved. `src/core/links.ts` resolves a target on read, so a note created or retitled after the link was written is still found, and `mentionsOf` there groups the rows that resolve to a note by the note they come from. The scanner in `index.rs` records only what the editor renders as a pill: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest.
 
 ## Project structure
 
@@ -93,7 +96,7 @@ src/
     tabs/             # the title bar's tab strip
     workspace/        # note-session: one open tab, note or external (D54)
     notes/            # note-controls (save/pin), note-tags, use-note-tags,
-                      # save-indicator, status-bar
+                      # note-mentions, save-indicator, status-bar
     command-palette.tsx
     settings-dialog.tsx
     capture-window.tsx
@@ -105,6 +108,7 @@ src/
     file-store.ts     # FileStore port (Context.Service)
     errors.ts         # DatabaseError, FileError
     fts-markers.ts    # [[hl]] snippet markers shared with SQL
+    links.ts          # NoteLink rows, the wikilink resolver, mentionsOf
   data/               # Plain async fns the UI calls (ex-server-actions)
     queries.ts        # THE query keys and options, one factory (D66)
     run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
@@ -126,6 +130,7 @@ src/
     updater.ts        # release check, offer toast, install + relaunch
     ui/chrome.ts      # CHROME_GLYPH (D51)
     ui/failure.ts     # reasonOf(): the reason a rejection carries, or nothing
+    ui/mentions.ts    # the mentions list's open state: strip, chord and palette share it
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -216,7 +221,7 @@ Define it in `src-tauri/src/notes.rs` or another module, never in `lib.rs`: `gen
 
 ### The palette is the action surface
 
-`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, rename, move, delete, reveal, the three writing-mode toggles, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
+`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, the three writing-mode toggles, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
 
 Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode and typewriter scrolling take `none`, since the pref they set belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
 
@@ -243,4 +248,5 @@ Each of these holds a property the architecture depends on. Breaking one is a de
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `src-tauri/src/index.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.
 - **Every editor node defines its markdown form and appears in the round-trip spec.** A node without one silently drops content from externally authored files.
+- **The two wikilink scanners change together.** `wikilinks` in `src-tauri/src/index.rs` and the editor's tokenizer assert one table of cases in one order, in `finds_the_wikilinks_the_editor_renders` and `src/components/editor/wikilink.spec.ts`. Drift shows up as a mention the editor does not render as a pill, or a pill the strip does not count, which nothing else catches.
 - **Indexed note IO reaches no path outside the notes dir.** It goes through Rust commands, so the dynamic scope is enforced at runtime, which is why the `fs` plugin is not installed. Four commands take a host path the user picked and stay out of the index: `read_external`, `write_external`, `attach_file`, and `classify_open_paths`, which reads nothing. Adding a fourth means asking who chose the path.

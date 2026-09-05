@@ -5,6 +5,7 @@ import type { Tab } from "@/lib/tabs/tab";
 
 import { readExternalNote } from "./external-note";
 import { getFolders } from "./get-folders";
+import { getLinks } from "./get-links";
 import { getNote } from "./get-note";
 import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
@@ -67,6 +68,12 @@ export const noteQueries = {
       queryKey: [...index, "folders"] as const,
     }),
   index,
+  links: () =>
+    queryOptions({
+      meta: { what: "could not refresh the link list" },
+      queryFn: getLinks,
+      queryKey: [...index, "links"] as const,
+    }),
   list: (filters?: NoteFilters) =>
     queryOptions({
       meta: { what: "could not refresh the note list" },
