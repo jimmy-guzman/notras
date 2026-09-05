@@ -247,14 +247,17 @@ function RootLayout() {
         }
       }
 
-      try {
-        if (await flushPendingWrites()) {
+      if (await flushPendingWrites()) {
+        // Every buffer landed, so an answer Rust cannot hear is still safe:
+        // its five-second backstop exits either way. A log line would travel
+        // the channel that just failed, so there is nothing left to say.
+        try {
           await invoke("quit_app");
-
-          return;
+        } catch {
+          // See above.
         }
-      } catch {
-        // A flush that threw wrote nothing, so the quit is called off below.
+
+        return;
       }
 
       toast.add({
@@ -262,7 +265,19 @@ function RootLayout() {
         title: "could not save your changes",
         type: "error",
       });
-      await invoke("cancel_quit");
+
+      // The one answer that has to arrive: a cancel Rust cannot hear ends in
+      // its backstop exiting with the buffer unsaved, so the failure is said
+      // out loud while the window is still there.
+      try {
+        await invoke("cancel_quit");
+      } catch (error) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not cancel the quit",
+          type: "error",
+        });
+      }
     });
 
     return disposeLater(unlisten);
@@ -328,12 +343,18 @@ function RootLayout() {
   );
 }
 
-function RootError({ error, reset }: ErrorComponentProps) {
+function RootError({ error }: ErrorComponentProps) {
   const router = useRouter();
-  const retry = useCallback(() => {
-    router.invalidate();
-    reset();
-  }, [reset, router]);
+  // Invalidating re-runs the loaders, and the new match is what resets the
+  // boundary, so no `reset` call is needed beside it.
+  const retry = useCallback(async () => {
+    try {
+      await router.invalidate();
+    } catch {
+      // The screen is still up and the button still works; there is nothing
+      // else to do with a retry that could not start.
+    }
+  }, [router]);
 
   return <RouteError reason={reasonOf(error)} retry={retry} />;
 }
