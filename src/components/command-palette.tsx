@@ -1,8 +1,10 @@
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   ClipboardIcon,
+  CodeIcon,
   CrosshairIcon,
   DownloadIcon,
   FilePlusIcon,
@@ -12,7 +14,9 @@ import {
   FolderSearchIcon,
   HashIcon,
   KeyboardIcon,
+  ListXIcon,
   type LucideIcon,
+  NotebookPenIcon,
   PanelRightCloseIcon,
   PencilIcon,
   PinIcon,
@@ -21,6 +25,7 @@ import {
   SettingsIcon,
   TagPlusIcon,
   Trash2Icon,
+  Undo2Icon,
   XIcon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
@@ -57,9 +62,13 @@ import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   closeNoteTab,
   closeOtherTabs,
+  closeTab,
   closeTabsAfter,
+  getTabHandles,
   openNote as openInTab,
   renameTab,
+  reopenTab,
+  useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
 import { tabId } from "@/lib/tabs/tab";
@@ -612,6 +621,9 @@ export function CommandPalette({
   tag,
 }: CommandPaletteProps) {
   const { activeId, tabs } = useTabState();
+  // A snapshot changes on every keystroke and this component is mounted for
+  // the life of the window, so it subscribes only while it is on screen.
+  const activeSnapshot = useTabSnapshot(open ? activeId : "");
   const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
@@ -871,6 +883,25 @@ export function CommandPalette({
     }
   }, [activeTab, close]);
 
+  const closeActive = useCallback(() => {
+    close();
+    closeTab(activeId);
+  }, [activeId, close]);
+
+  const reopenClosed = useCallback(() => {
+    close();
+    reopenTab();
+  }, [close]);
+
+  const toggleSource = useCallback(() => {
+    close();
+    getTabHandles(activeId)?.toggleSource();
+  }, [activeId, close]);
+
+  const quickCapture = useCallback(() => {
+    runAction("could not open quick capture", () => invoke("show_capture"));
+  }, [runAction]);
+
   const reindex = useCallback(() => {
     runAction("could not reindex", async () => {
       await reindexAll();
@@ -974,7 +1005,26 @@ export function CommandPalette({
       value: "toggle-typewriter",
     },
     {
+      Icon: CodeIcon,
+      label: "markdown source",
+      needs: "tab",
+      onSelect: toggleSource,
+      text: toggleActionText(
+        activeSnapshot?.sourceMode ?? false,
+        "markdown source"
+      ),
+      value: "toggle-source",
+    },
+    {
       Icon: XIcon,
+      label: "close tab",
+      needs: "tab",
+      onSelect: closeActive,
+      text: "close tab",
+      value: "close-tab",
+    },
+    {
+      Icon: ListXIcon,
       label: "close other tabs",
       needs: "tab",
       onSelect: closeOthers,
@@ -996,6 +1046,22 @@ export function CommandPalette({
       onSelect: copyPath,
       text: "copy path",
       value: "copy-path",
+    },
+    {
+      Icon: Undo2Icon,
+      label: "reopen last closed tab",
+      needs: "none",
+      onSelect: reopenClosed,
+      text: "reopen last closed tab",
+      value: "reopen-tab",
+    },
+    {
+      Icon: NotebookPenIcon,
+      label: "quick capture",
+      needs: "none",
+      onSelect: quickCapture,
+      text: "quick capture",
+      value: "quick-capture",
     },
     {
       Icon: SettingsIcon,
