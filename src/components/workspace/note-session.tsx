@@ -499,7 +499,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   const gone = error instanceof FileError && error.kind === "not-found";
   const unreadable = error !== null && !gone;
   // A string rather than the error instance, so a re-read that fails the same
-  // way leaves the effect alone and stacks no second toast (`D38`).
+  // way leaves the effect alone and stacks no second toast.
   const reason = unreadable ? reasonOf(error) : undefined;
 
   useEffect(() => {

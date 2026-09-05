@@ -7,10 +7,9 @@ import { AppRuntime } from "@/server/runtime";
 type AppServices = ManagedRuntime.ManagedRuntime.Services<typeof AppRuntime>;
 
 /**
- * Run an Effect on the app runtime, unwrapping a typed failure into the plain
- * `Error` it is so a UI caller can read its message. A defect is a bug rather
- * than a message for anyone: its cause goes to the log and the caller gets a
- * reason that says only that.
+ * Run an Effect on the app runtime, unwrapping a typed failure into the
+ * `Error` it is. A defect is a bug rather than a message for anyone: its cause
+ * goes to the log and the caller gets a reason that says only that.
  */
 export async function run<A, E>(
   effect: Effect.Effect<A, E, AppServices>
@@ -30,7 +29,7 @@ export async function run<A, E>(
   try {
     await logError(Cause.pretty(exit.cause));
   } catch {
-    // Logging is best effort here: the throw below is what the caller needs.
+    // Best effort; the throw below is what matters.
   }
 
   throw new Error("an unexpected error");

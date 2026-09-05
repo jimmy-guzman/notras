@@ -237,8 +237,6 @@ pub fn index_file(
 
     // `symlink_metadata` does not follow the link, so a note symlinked to
     // something outside the vault never gets its contents into the index.
-    // Only a file that is gone loses its row: one that is there but cannot be
-    // read right now keeps it, and the failure goes to the caller.
     let meta = match fs::symlink_metadata(&abs) {
         Ok(meta) => meta,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {

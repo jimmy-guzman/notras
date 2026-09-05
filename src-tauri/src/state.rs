@@ -23,9 +23,8 @@ pub struct AppState {
     pub quitting: AtomicBool,
 }
 
-/// A poisoned lock means a panic elsewhere already did its damage; the state
-/// behind it is still the one to read, so every taker recovers it rather than
-/// turning one panic into one per command.
+/// A poisoned lock means a panic elsewhere already did its damage; recovering
+/// the state behind it keeps one panic from becoming one per command.
 impl AppState {
     pub fn core(&self) -> MutexGuard<'_, Core> {
         self.core.lock().unwrap_or_else(PoisonError::into_inner)

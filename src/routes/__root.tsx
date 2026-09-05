@@ -69,7 +69,7 @@ function disposeLater(...pending: Promise<() => void>[]) {
           try {
             await logError(`could not remove a listener: ${String(error)}`);
           } catch {
-            // The log is best effort; the cleanup is done either way.
+            // Best effort.
           }
         }
       };
@@ -235,22 +235,22 @@ function RootLayout() {
   useEffect(() => {
     const unlisten = listen("app-quit", async () => {
       // Carets are read off the live sessions, so the set has to be written
-      // here rather than only when it last changed. A set that could not be
-      // written is no reason to hold the quit, so the flush still runs.
+      // here rather than only when it last changed. One that could not be
+      // written is no reason to hold the quit.
       try {
         persistTabs();
       } catch (error) {
         try {
           await logError(`could not persist the tabs: ${String(error)}`);
         } catch {
-          // The log is best effort; the quit is not, so it goes on below.
+          // Best effort.
         }
       }
 
       if (await flushPendingWrites()) {
-        // Every buffer landed, so an answer Rust cannot hear is still safe:
-        // its five-second backstop exits either way. A log line would travel
-        // the channel that just failed, so there is nothing left to say.
+        // Every buffer landed and Rust's backstop exits either way, so an answer
+        // it cannot hear is still safe, and a log line would travel the channel
+        // that just failed.
         try {
           await invoke("quit_app");
         } catch {
@@ -266,9 +266,8 @@ function RootLayout() {
         type: "error",
       });
 
-      // The one answer that has to arrive: a cancel Rust cannot hear ends in
-      // its backstop exiting with the buffer unsaved, so the failure is said
-      // out loud while the window is still there.
+      // A cancel Rust cannot hear ends in its backstop exiting with the buffer
+      // unsaved, so this one failure is said out loud.
       try {
         await invoke("cancel_quit");
       } catch (error) {
@@ -345,14 +344,12 @@ function RootLayout() {
 
 function RootError({ error }: ErrorComponentProps) {
   const router = useRouter();
-  // Invalidating re-runs the loaders, and the new match is what resets the
-  // boundary, so no `reset` call is needed beside it.
+  // The match a new load produces is what resets the boundary.
   const retry = useCallback(async () => {
     try {
       await router.invalidate();
     } catch {
-      // The screen is still up and the button still works; there is nothing
-      // else to do with a retry that could not start.
+      // The screen and its button are still there.
     }
   }, [router]);
 

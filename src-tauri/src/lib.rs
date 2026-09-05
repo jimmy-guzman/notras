@@ -275,9 +275,7 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // First, so what the other plugins log is caught too. One file under the
-    // app's log dir, which is what a user sends when something went wrong, plus
-    // stdout for `pnpm dev`.
+    // First, so what the other plugins log is caught too.
     let mut builder = tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()

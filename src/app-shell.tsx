@@ -11,11 +11,10 @@ import { reasonOf } from "@/lib/ui/failure";
 import { routeTree } from "@/routeTree.gen";
 
 /**
- * The watcher decides staleness; a failed read surfaces at once. A first read
- * reports through its own surface, the route error screen or the tab's pane,
- * so the cache speaks only for a refetch of data already on screen, which
- * would otherwise keep rendering the old rows in silence (`D66`). Which
- * queries it speaks for, and in what words, is the `meta.what` each carries.
+ * The watcher decides staleness; a failed read surfaces at once. The cache
+ * speaks only for a refetch of data already on screen, which would otherwise
+ * keep rendering in silence; a first read has a surface of its own. Each
+ * query's `meta.what` says whether it speaks, and in what words.
  */
 const queryClient = new QueryClient({
   defaultOptions: {

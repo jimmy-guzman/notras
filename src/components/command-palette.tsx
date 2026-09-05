@@ -423,7 +423,6 @@ interface FindViewProps {
   onFilterTag: (name: string) => void;
   onSelectNote: (path: string) => void;
   query: string;
-  /** Why the index could not answer, when it could not. */
   searchError: Error | null;
   tagQuery?: TagQuery;
 }
@@ -441,7 +440,6 @@ function FindView({
   const draftTitle = query.trim();
   // A search that found nothing is a dead end unless it can become a note.
   // Only a plain one: naming a note from `#work foo` would have to tag it too.
-  // One the index could not run found nothing either, and offers nothing.
   const offerCreate =
     searchError === null &&
     notes.length === 0 &&

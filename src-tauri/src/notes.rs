@@ -31,9 +31,7 @@ pub struct CommandError {
     pub message: String,
 }
 
-/// The reason a syscall gives, in the app's voice: lowercase, no errno. The
-/// common kinds get a phrase of their own; the rest keep libc's text with the
-/// `(os error N)` suffix cut and the first letter lowered.
+/// The reason a syscall gives, in the app's voice: lowercase, no errno.
 fn io_reason(error: &io::Error) -> String {
     match error.kind() {
         io::ErrorKind::NotFound => "no such file".to_string(),
@@ -53,7 +51,7 @@ fn io_reason(error: &io::Error) -> String {
 }
 
 /// A missing file is the one failure a tab treats as a deletion; every other
-/// syscall failure leaves the note where it was (`D55`).
+/// syscall failure leaves the note where it was.
 impl From<io::Error> for CommandError {
     fn from(error: io::Error) -> Self {
         Self {
@@ -440,8 +438,7 @@ pub fn set_notes_dir(
     fs::create_dir_all(notes_dir.join(".notras"))?;
     let conn = index::open(&notes_dir)?;
     index::scan_all(&conn, &notes_dir)?;
-    // Started before anything is committed: a folder the app cannot watch is
-    // one it cannot keep in step with, so the change is refused whole.
+    // Started first: a folder the app cannot watch is refused whole.
     let fresh = watcher::start(app.clone(), notes_dir.clone())
         .map_err(|error| format!("could not watch the folder: {error}"))?;
 

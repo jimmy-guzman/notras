@@ -80,7 +80,6 @@ const TAB_JUMPS = [
   ["Mod+9", -1],
 ] as const;
 
-/** What shows when no tab is open: the wordmark, the tagline, and what to press. */
 function Welcome({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6">
@@ -268,7 +267,7 @@ function Workspace() {
           try {
             await logError(`could not remove a listener: ${String(error)}`);
           } catch {
-            // The log is best effort; the cleanup is done either way.
+            // Best effort.
           }
         }
       };
