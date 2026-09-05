@@ -14,6 +14,7 @@ import {
   serializeTabs,
   stepTab,
   tabButtonId,
+  tabFullPath,
   tabPanelId,
 } from "./tab";
 
@@ -42,6 +43,32 @@ describe("tabButtonId and tabPanelId", () => {
     expect(tabButtonId(id)).not.toMatch(WHITESPACE);
     expect(tabPanelId(id)).not.toMatch(WHITESPACE);
     expect(tabButtonId(id)).not.toBe(tabPanelId(id));
+  });
+});
+
+describe("tabFullPath", () => {
+  it("should put the notes dir in front of a note's path", () => {
+    expect(
+      tabFullPath({ id: "t1", kind: "note", path: "a.md" }, "/Users/me/notras")
+    ).toBe("/Users/me/notras/a.md");
+  });
+
+  it("should keep a note's folder between the notes dir and the file", () => {
+    expect(
+      tabFullPath(
+        { id: "t1", kind: "note", path: "work/q3.md" },
+        "/Users/me/notras"
+      )
+    ).toBe("/Users/me/notras/work/q3.md");
+  });
+
+  it("should hand back an external file's own path untouched", () => {
+    expect(
+      tabFullPath(
+        { id: "t1", kind: "external", path: "/tmp/notes/scratch.md" },
+        "/Users/me/notras"
+      )
+    ).toBe("/tmp/notes/scratch.md");
   });
 });
 

@@ -30,6 +30,15 @@ export function tabId(tab: Tab) {
   return tab.id;
 }
 
+/**
+ * Where a tab's file is on disk. A note's path is relative to the notes dir
+ * and an external file's is already absolute, so the two need joining before
+ * anything outside the app can use one.
+ */
+export function tabFullPath(tab: Tab, notesDir: string) {
+  return tab.kind === "note" ? `${notesDir}/${tab.path}` : tab.path;
+}
+
 function indexOfId(tabs: Tab[], id: string) {
   return tabs.findIndex((tab) => tab.id === id);
 }

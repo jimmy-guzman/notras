@@ -71,7 +71,7 @@ import {
   useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
-import { tabId } from "@/lib/tabs/tab";
+import { tabFullPath, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
@@ -879,9 +879,9 @@ export function CommandPalette({
     close();
 
     if (activeTab !== undefined) {
-      copyTabPath(activeTab.path);
+      copyTabPath(tabFullPath(activeTab, notesDir));
     }
-  }, [activeTab, close]);
+  }, [activeTab, close, notesDir]);
 
   const closeActive = useCallback(() => {
     close();

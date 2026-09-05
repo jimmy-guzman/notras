@@ -2,8 +2,9 @@ import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
 /**
- * A tab's path onto the clipboard. It reports its own failure so the strip's
- * context menu and the palette cannot drift into two messages for one action.
+ * A tab's full path onto the clipboard, which the caller resolves. It reports
+ * its own failure so the strip's context menu and the palette cannot drift
+ * into two messages for one action.
  */
 export async function copyTabPath(path: string) {
   try {
