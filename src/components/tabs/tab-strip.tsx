@@ -205,7 +205,11 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
       >
         {snapshot?.status === "failed" ? (
           <span className="me-1.5 size-1.5 shrink-0 rounded-full bg-destructive">
-            <span className="sr-only">could not save</span>
+            <span className="sr-only">
+              {snapshot.reason === undefined
+                ? "could not save"
+                : `could not save: ${snapshot.reason}`}
+            </span>
           </span>
         ) : null}
         <button

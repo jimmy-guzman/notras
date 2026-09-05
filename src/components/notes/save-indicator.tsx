@@ -28,6 +28,7 @@ const STATUS: Record<
 };
 
 interface SaveIndicatorProps {
+  reason: string | undefined;
   status: SaveStatus;
 }
 
@@ -39,8 +40,9 @@ interface SaveIndicatorProps {
  * region exempts only `button`, `input` and `.no-drag`, and a `span` without it
  * never receives the hover that opens the tooltip.
  */
-export function SaveIndicator({ status }: SaveIndicatorProps) {
+export function SaveIndicator({ reason, status }: SaveIndicatorProps) {
   const { icon: Icon, label, tone } = STATUS[status];
+  const text = reason === undefined ? label : `${label}: ${reason}`;
 
   return (
     <Tooltip>
@@ -55,9 +57,9 @@ export function SaveIndicator({ status }: SaveIndicatorProps) {
         }
       >
         <Icon className={CHROME_GLYPH} />
-        <span className="sr-only">{label}</span>
+        <span className="sr-only">{text}</span>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>{text}</TooltipContent>
     </Tooltip>
   );
 }

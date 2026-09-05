@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect, useState } from "react";
 import { CommandPalette, type PaletteMode } from "@/components/command-palette";
 import { RouteError } from "@/components/route-error";
@@ -61,9 +62,15 @@ export const Route = createRootRouteWithContext<{
 function disposeLater(...pending: Promise<() => void>[]) {
   return () => {
     for (const unlisten of pending) {
-      unlisten.then((dispose) => {
-        dispose();
-      });
+      const dispose = async () => {
+        try {
+          (await unlisten)();
+        } catch (error) {
+          await logError(`could not remove a listener: ${String(error)}`);
+        }
+      };
+
+      dispose();
     }
   };
 }
@@ -224,8 +231,13 @@ function RootLayout() {
   useEffect(() => {
     const unlisten = listen("app-quit", async () => {
       // Carets are read off the live sessions, so the set has to be written
-      // here rather than only when it last changed.
-      persistTabs();
+      // here rather than only when it last changed. A set that could not be
+      // written is no reason to hold the quit, so the flush still runs.
+      try {
+        persistTabs();
+      } catch (error) {
+        await logError(`could not persist the tabs: ${String(error)}`);
+      }
 
       try {
         if (await flushPendingWrites()) {

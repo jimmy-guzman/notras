@@ -37,6 +37,33 @@ impl fmt::Display for IndexError {
     }
 }
 
+impl std::error::Error for IndexError {}
+
+/// Open the index under `notes_dir`, rebuilding it from nothing when what is
+/// there cannot be opened or holds no usable schema. The files are the source
+/// of truth, so a database the app cannot read is one it can throw away.
+pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
+    let path = notes_dir.join(".notras/index.db");
+    let opened = Connection::open(&path).and_then(|conn| ensure_schema(&conn).map(|()| conn));
+    let error = match opened {
+        Ok(conn) => return Ok(conn),
+        Err(error) => error,
+    };
+
+    log::warn!("rebuilding the index, which could not be opened: {error}");
+    for suffix in ["", "-wal", "-shm"] {
+        let stale = notes_dir.join(format!(".notras/index.db{suffix}"));
+        if let Err(error) = fs::remove_file(&stale) {
+            if error.kind() != io::ErrorKind::NotFound {
+                log::warn!("could not remove {}: {error}", stale.display());
+            }
+        }
+    }
+    let conn = Connection::open(&path)?;
+    ensure_schema(&conn)?;
+    Ok(conn)
+}
+
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
 /// Rust is the single writer -- the webview only ever issues SELECTs.
@@ -291,9 +318,13 @@ pub fn index_file(
 }
 
 fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        unreadable.push(dir.to_path_buf());
-        return;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            log::warn!("could not list {}: {error}", dir.display());
+            unreadable.push(dir.to_path_buf());
+            return;
+        }
     };
     for entry in entries.flatten() {
         let path = entry.path();
@@ -338,7 +369,8 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, Inde
         };
         match index_file(conn, notes_dir, &rel) {
             Ok(true) => changed.push(rel.clone()),
-            Ok(false) | Err(IndexError::Io(_)) => {}
+            Ok(false) => {}
+            Err(IndexError::Io(error)) => log::warn!("could not read {rel}: {error}"),
             Err(error) => return Err(error),
         }
         seen.insert(rel);

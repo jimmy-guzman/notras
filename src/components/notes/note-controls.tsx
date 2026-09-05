@@ -74,6 +74,7 @@ function PinToggle({ path, pinned }: PinToggleProps) {
 interface NoteControlsProps {
   /** Absent for an external file, which carries no frontmatter to pin. */
   note?: { path: string; pinned: boolean };
+  reason: string | undefined;
   status: SaveStatus;
 }
 
@@ -84,10 +85,10 @@ interface NoteControlsProps {
  * The note's identity moved to its tab when `D52` put the strip here, so this
  * no longer carries the title.
  */
-export function NoteControls({ note, status }: NoteControlsProps) {
+export function NoteControls({ note, reason, status }: NoteControlsProps) {
   return (
     <div className="flex shrink-0 items-center gap-3 ps-3">
-      <SaveIndicator status={status} />
+      <SaveIndicator reason={reason} status={status} />
       {note === undefined ? null : (
         <PinToggle path={note.path} pinned={note.pinned} />
       )}

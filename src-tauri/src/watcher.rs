@@ -20,9 +20,12 @@ pub fn start(
     let debouncer = new_debouncer(
         Duration::from_millis(300),
         None,
-        move |result: DebounceEventResult| {
-            if let Ok(events) = result {
-                handle(&handler_app, &events);
+        move |result: DebounceEventResult| match result {
+            Ok(events) => handle(&handler_app, &events),
+            Err(errors) => {
+                for error in errors {
+                    log::error!("watching the notes dir failed: {error}");
+                }
             }
         },
     );
@@ -45,7 +48,7 @@ pub fn start(
 
 fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
     let state = app.state::<AppState>();
-    let core = state.core.lock().unwrap();
+    let core = state.core();
 
     let mut changed: Vec<String> = Vec::new();
     let mut full_scan = false;
@@ -56,8 +59,10 @@ fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
                 continue;
             };
             if index::is_note_file(path) {
-                if index::index_file(&core.conn, &core.notes_dir, &rel).unwrap_or(false) {
-                    changed.push(rel);
+                match index::index_file(&core.conn, &core.notes_dir, &rel) {
+                    Ok(true) => changed.push(rel),
+                    Ok(false) => {}
+                    Err(error) => log::error!("could not index {rel}: {error}"),
                 }
             } else if path.is_dir() || !path.exists() {
                 // A directory changed (rename/move/delete) -- children events
@@ -69,8 +74,9 @@ fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
     }
 
     if full_scan {
-        if let Ok(scanned) = index::scan_all(&core.conn, &core.notes_dir) {
-            changed.extend(scanned);
+        match index::scan_all(&core.conn, &core.notes_dir) {
+            Ok(scanned) => changed.extend(scanned),
+            Err(error) => log::error!("could not rescan the notes dir: {error}"),
         }
     }
 
@@ -78,6 +84,8 @@ fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
     changed.dedup();
 
     if !changed.is_empty() {
-        let _ = app.emit("notes-changed", NotesChanged { paths: changed });
+        if let Err(error) = app.emit("notes-changed", NotesChanged { paths: changed }) {
+            log::error!("could not emit {}: {error}", "notes-changed");
+        }
     }
 }

@@ -225,7 +225,9 @@ fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
 }
 
 fn emit_changed(app: &AppHandle, paths: Vec<String>) {
-    let _ = app.emit("notes-changed", NotesChanged { paths });
+    if let Err(error) = app.emit("notes-changed", NotesChanged { paths }) {
+        log::error!("could not emit {}: {error}", "notes-changed");
+    }
 }
 
 #[tauri::command]
@@ -234,19 +236,19 @@ pub fn db_select(
     sql: String,
     params: Vec<Value>,
 ) -> Result<Vec<Vec<Value>>, String> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     index::select(&core.conn, &sql, &params)
 }
 
 #[tauri::command]
 pub fn note_exists(state: State<'_, AppState>, path: String) -> Result<bool, CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     Ok(resolve(&core, &path)?.exists())
 }
 
 #[tauri::command]
 pub fn read_note(state: State<'_, AppState>, path: String) -> Result<NoteFile, CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     let abs = resolve(&core, &path)?;
     let content = fs::read_to_string(&abs)?;
     Ok(NoteFile {
@@ -263,7 +265,7 @@ pub fn write_note(
     content: String,
     create: bool,
 ) -> Result<i64, CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     let abs = resolve(&core, &path)?;
     if !is_markdown(&abs) {
         return Err("notes must be markdown files".into());
@@ -289,7 +291,7 @@ pub fn rename_note(
     from: String,
     to: String,
 ) -> Result<(), CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     let source = resolve(&core, &from)?;
     let target = resolve(&core, &to)?;
     if !is_markdown(&target) {
@@ -322,7 +324,7 @@ pub fn delete_note(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<(), CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     let abs = resolve(&core, &path)?;
     fs::remove_file(&abs)?;
     index::remove(&core.conn, &path)?;
@@ -335,7 +337,7 @@ pub fn delete_note(
 /// path relative to the notes dir for building the markdown link.
 #[tauri::command]
 pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String, CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     let source = PathBuf::from(source);
     let name = source
         .file_name()
@@ -374,7 +376,7 @@ pub fn attach_image(
         .decode(base64_data)
         .map_err(|_| "the pasted image is not valid")?;
 
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     let dir = core.notes_dir.join("attachments");
     fs::create_dir_all(&dir)?;
 
@@ -436,15 +438,23 @@ pub fn set_notes_dir(
 ) -> Result<(), CommandError> {
     let notes_dir = PathBuf::from(&path);
     fs::create_dir_all(notes_dir.join(".notras"))?;
-    crate::allow_assets(&app, &notes_dir);
-
-    let conn = rusqlite::Connection::open(notes_dir.join(".notras/index.db"))
-        ?;
-    index::ensure_schema(&conn)?;
+    let conn = index::open(&notes_dir)?;
     index::scan_all(&conn, &notes_dir)?;
 
+    // Persisted before the swap: a folder the next launch cannot find again is
+    // worse than one this launch never switched to.
+    let store = app
+        .store("settings.json")
+        .map_err(|error| format!("the setting could not be saved: {error}"))?;
+    store.set("notesDir", Value::String(path));
+    store
+        .save()
+        .map_err(|error| format!("the setting could not be saved: {error}"))?;
+
+    crate::allow_assets(&app, &notes_dir);
+
     {
-        let mut core = state.core.lock().unwrap();
+        let mut core = state.core();
         core.notes_dir = notes_dir.clone();
         core.conn = conn;
     }
@@ -452,11 +462,7 @@ pub fn set_notes_dir(
     // Swap the watcher only after the core lock is released -- dropping the
     // old debouncer joins its thread, which may be waiting on that lock.
     let fresh = watcher::start(app.clone(), notes_dir);
-    *state.watcher.lock().unwrap() = fresh;
-
-    if let Ok(store) = app.store("settings.json") {
-        store.set("notesDir", Value::String(path));
-    }
+    *state.watcher() = fresh;
 
     emit_changed(&app, vec![]);
     Ok(())
@@ -472,7 +478,7 @@ pub fn reindex_all(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<String>, CommandError> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     index::clear(&core.conn)?;
     let changed = index::scan_all(&core.conn, &core.notes_dir)?;
     drop(core);
@@ -518,14 +524,14 @@ fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
 /// wrote does not keep a vault note as an external tab.
 #[tauri::command]
 pub fn classify_open_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<PendingOpen> {
-    let core = state.core.lock().unwrap();
+    let core = state.core();
     classify_opens(&core.notes_dir, paths)
 }
 
 #[tauri::command]
 pub fn pending_open_files(state: State<'_, AppState>) -> Vec<PendingOpen> {
-    let paths = std::mem::take(&mut *state.pending_open.lock().unwrap());
-    let core = state.core.lock().unwrap();
+    let paths = std::mem::take(&mut *state.pending_open());
+    let core = state.core();
     classify_opens(&core.notes_dir, paths)
 }
 

@@ -334,13 +334,23 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   useEffect(() => {
     publishTabSnapshot(id, {
       pinned: file.pinned,
+      reason: autosave.reason,
       sourceMode,
       status: autosave.status,
       tags: file.tags,
       title,
       words,
     });
-  }, [autosave.status, file.pinned, file.tags, id, sourceMode, title, words]);
+  }, [
+    autosave.reason,
+    autosave.status,
+    file.pinned,
+    file.tags,
+    id,
+    sourceMode,
+    title,
+    words,
+  ]);
 
   // A file that has gone takes its tab with it when the buffer holds nothing
   // worth keeping. Writing stops through `enabled` above, so the text can be

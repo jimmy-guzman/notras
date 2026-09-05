@@ -423,6 +423,8 @@ interface FindViewProps {
   onFilterTag: (name: string) => void;
   onSelectNote: (path: string) => void;
   query: string;
+  /** Why the index could not answer, when it could not. */
+  searchError: Error | null;
   tagQuery?: TagQuery;
 }
 
@@ -433,21 +435,36 @@ function FindView({
   onFilterTag,
   onSelectNote,
   query,
+  searchError,
   tagQuery,
 }: FindViewProps) {
   const draftTitle = query.trim();
   // A search that found nothing is a dead end unless it can become a note.
   // Only a plain one: naming a note from `#work foo` would have to tag it too.
+  // One the index could not run found nothing either, and offers nothing.
   const offerCreate =
-    notes.length === 0 && draftTitle !== "" && tagQuery === undefined;
+    searchError === null &&
+    notes.length === 0 &&
+    draftTitle !== "" &&
+    tagQuery === undefined;
+  const emptyDescription =
+    searchError === null
+      ? "start with # to search by tag"
+      : reasonOf(searchError);
 
   return (
     <>
       <CommandEmpty>
         <Empty className="p-6">
           <EmptyHeader>
-            <EmptyTitle>nothing found</EmptyTitle>
-            <EmptyDescription>start with # to search by tag</EmptyDescription>
+            <EmptyTitle>
+              {searchError === null
+                ? "nothing found"
+                : "could not search notes"}
+            </EmptyTitle>
+            {emptyDescription === undefined ? null : (
+              <EmptyDescription>{emptyDescription}</EmptyDescription>
+            )}
           </EmptyHeader>
         </Empty>
       </CommandEmpty>
@@ -549,7 +566,7 @@ function useVisibleNotes(
     view === "find" ? searchFiltersFor(debouncedQuery, knownTags) : undefined;
   // The filters are the key, so a slow "a" resolving after "abc" lands in its
   // own cache entry and never reaches the screen.
-  const { data: results, isError } = useQuery({
+  const { data: results, error } = useQuery({
     ...noteQueries.list(filters),
     enabled: filters !== undefined,
     placeholderData: keepPreviousData,
@@ -557,20 +574,20 @@ function useVisibleNotes(
   const tagQuery = parseTagQuery(query);
 
   if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
-    return [];
+    return { error: null, notes: [] };
   }
 
   // Asking for nothing builds the key the root loader already primed, and a
   // disabled query still reads the cache, so its full list would land here.
   if (filters === undefined) {
-    return notes.slice(0, 20);
+    return { error: null, notes: notes.slice(0, 20) };
   }
 
-  if (isError) {
-    return [];
+  if (error !== null) {
+    return { error, notes: [] };
   }
 
-  return results ?? notes.slice(0, 20);
+  return { error: null, notes: results ?? notes.slice(0, 20) };
 }
 
 export function CommandPalette({
@@ -627,7 +644,12 @@ export function CommandPalette({
   );
 
   const tagQuery = parseTagQuery(query);
-  const visibleNotes = useVisibleNotes(query, view, knownTags, notes);
+  const { error: searchError, notes: visibleNotes } = useVisibleNotes(
+    query,
+    view,
+    knownTags,
+    notes
+  );
 
   const close = useCallback(() => {
     handleOpenChange(false);
@@ -1014,6 +1036,7 @@ export function CommandPalette({
               onFilterTag={filterByTag}
               onSelectNote={openNote}
               query={query}
+              searchError={searchError}
               tagQuery={tagQuery}
             />
           ) : null}

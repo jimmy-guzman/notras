@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect } from "react";
 import { Chord } from "@/components/chord";
 import { NoteControls } from "@/components/notes/note-controls";
@@ -121,6 +122,7 @@ function ActiveControls({ tab }: ActiveProps) {
           ? { path: tab.path, pinned: snapshot?.pinned ?? false }
           : undefined
       }
+      reason={snapshot?.reason}
       status={snapshot?.status ?? "saved"}
     />
   );
@@ -259,9 +261,15 @@ function Workspace() {
     });
 
     return () => {
-      unlisten.then((dispose) => {
-        dispose();
-      });
+      const dispose = async () => {
+        try {
+          (await unlisten)();
+        } catch (error) {
+          await logError(`could not remove a listener: ${String(error)}`);
+        }
+      };
+
+      dispose();
     };
   }, []);
 

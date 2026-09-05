@@ -49,6 +49,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - An error toast names what failed as its title and carries the reason, when the failure has one, as its description.
 - The reason a filesystem failure carries is lowercase and names no error number: "permission denied", "no such file", "that path is a folder", "the volume is read-only", "the disk is full", and for any other kind the system's own words without their code.
 - A failure the app did not anticipate reaches the user as "an unexpected error", and its cause goes to the log. Both sides write to one log file in the app's log folder, `~/Library/Logs/codes.jimmy.notras/notras.log` on macOS, which `pnpm dev` also prints.
+- A refresh of data already on screen that fails toasts what could not refresh and why. The first read of anything reports through its own surface instead: the route error screen for the workspace, the pane for a tab.
+- A save that failed shows why under "could not save", in the save glyph's tooltip and in the tab's dot.
+- A search the index could not answer reads "could not search notes" over the reason in the palette, and offers no note to create from it.
+- A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
+- The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
 - The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
 - Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" drops every row and rescans, which is what reaches notes nobody has edited.
 
