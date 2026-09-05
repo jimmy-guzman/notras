@@ -167,7 +167,7 @@ Nothing enforces these. Lint held them until `D41` retired the ESLint config, an
 
 ### Data access
 
-The UI calls plain async functions in `src/data/`, one concern per file. They validate with Effect Schema where the input is user-shaped, and run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps typed failures into plain `Error`s, so a caller can write `toast.add({ title: error.message, type: "error" })`.
+The UI calls plain async functions in `src/data/`, one concern per file. They validate with Effect Schema where the input is user-shaped, and run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps a typed failure into the plain `Error` it is, so a caller can put its message in a toast. A defect is not unwrapped: its cause goes to the log through `tauri-plugin-log`, on both sides the one sink, and the caller sees "an unexpected error".
 
 Reads reach those functions through TanStack Query. `src/data/queries.ts` is the only place a key over `src/data` is written: `noteQueries` for everything a note write can affect, `notesDirQuery` for the folder that settings owns. A query over something else, such as the launch-at-login switch the OS owns, is keyed beside the component that shows it. Its keys run generic to specific, so every invalidation the app performs is one prefix, and `D66` carries the rest. Writes stay direct calls, with one exception: `useNoteTags` goes through a mutation whose scope is the note's path, which is what serializes the two surfaces `D31` allows (`D67`). `useAutosave` keeps its own chain (`D54`).
 

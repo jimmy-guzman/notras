@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
@@ -7,6 +8,15 @@ import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { composeNote, parseNote } from "@/core/frontmatter";
@@ -26,8 +36,7 @@ import {
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
-import { errorMessage } from "@/lib/ui/failure";
-import { cn } from "@/lib/ui/utils";
+import { reasonOf } from "@/lib/ui/failure";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import { countWords } from "@/lib/utils/word-count";
 
@@ -376,9 +385,12 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       role="tabpanel"
     >
       {missing ? (
-        <p className="shrink-0 border-b bg-card px-6 py-1.5 text-muted-foreground text-xs">
-          this file is gone. nothing here is being saved, so copy what you need.
-        </p>
+        <Alert className="m-4 shrink-0" variant="destructive">
+          <AlertTitle>this file is gone</AlertTitle>
+          <AlertDescription>
+            nothing here is being saved, so copy what you need
+          </AlertDescription>
+        </Alert>
       ) : null}
       {sourceMode ? (
         <SourceEditor
@@ -408,6 +420,42 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   );
 }
 
+interface UnreadableNoteProps {
+  active: boolean;
+  id: string;
+  reason: string | undefined;
+  retry: () => void;
+}
+
+/** The pane for a tab that never read: nothing to protect, so it says why. */
+function UnreadableNote({ active, id, reason, retry }: UnreadableNoteProps) {
+  return (
+    <div
+      aria-labelledby={tabButtonId(id)}
+      className={cn(
+        "absolute inset-0 flex flex-col",
+        !active && "pointer-events-none invisible"
+      )}
+      id={tabPanelId(id)}
+      role="tabpanel"
+    >
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>could not read this note</EmptyTitle>
+          {reason === undefined ? null : (
+            <EmptyDescription>{reason}</EmptyDescription>
+          )}
+        </EmptyHeader>
+        <EmptyContent>
+          <Button onClick={retry} variant="outline">
+            try again
+          </Button>
+        </EmptyContent>
+      </Empty>
+    </div>
+  );
+}
+
 interface NoteSessionProps {
   active: boolean;
   tab: Tab;
@@ -419,7 +467,10 @@ interface NoteSessionProps {
  */
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
-  const { data, error } = useQuery(noteQueries.file(kind, path));
+  const { data, error, refetch } = useQuery(noteQueries.file(kind, path));
+  const retry = useCallback(() => {
+    refetch();
+  }, [refetch]);
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.
@@ -436,17 +487,20 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   // Only a missing file is a deletion. A permission or IO failure leaves the
   // note where it was, so the tab keeps what it last read (`D55`).
   const gone = error instanceof FileError && error.kind === "not-found";
-  // A repeat leaves the message unchanged, so the effect skips (`D38`).
-  const unreadable =
-    error === null || gone
-      ? null
-      : errorMessage(error, "could not read this note");
+  const unreadable = error !== null && !gone;
+  // A string rather than the error instance, so a re-read that fails the same
+  // way leaves the effect alone and stacks no second toast (`D38`).
+  const reason = unreadable ? reasonOf(error) : undefined;
 
   useEffect(() => {
-    if (unreadable !== null) {
-      toast.add({ title: unreadable, type: "error" });
+    if (unreadable) {
+      toast.add({
+        description: reason,
+        title: "could not read this note",
+        type: "error",
+      });
     }
-  }, [unreadable]);
+  }, [unreadable, reason]);
 
   // Nothing was ever read, so there is no buffer to protect and nothing to
   // show. A failed re-read of a tab that does have one is the buffer's own
@@ -458,7 +512,14 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   }, [gone, file, tab.id]);
 
   if (file === undefined) {
-    return null;
+    return unreadable ? (
+      <UnreadableNote
+        active={active}
+        id={tab.id}
+        reason={reason}
+        retry={retry}
+      />
+    ) : null;
   }
 
   return <SessionBuffer active={active} file={file} missing={gone} tab={tab} />;

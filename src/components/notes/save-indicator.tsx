@@ -1,19 +1,17 @@
+import { cn } from "cn";
 import {
   SaveCheckIcon,
   SaveIcon,
   SaveOffIcon,
   SavePenIcon,
 } from "lucide-react";
-
 import type { SaveStatus } from "@/components/editor/use-autosave";
-
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
-import { cn } from "@/lib/ui/utils";
 
 const STATUS: Record<
   SaveStatus,

@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLayoutEffect, useRef, useState } from "react";
-
 import { toast } from "@/components/ui/toast";
+
 import { setNoteTags } from "@/data/set-note-tags";
+import { reasonOf } from "@/lib/ui/failure";
 
 /**
  * A note's tags with an optimistic write.
@@ -40,7 +41,7 @@ export function useNoteTags(path: string, tags: string[]) {
   const { mutate: changeTags } = useMutation({
     mutationFn: (nextTags: string[]) => setNoteTags(path, nextTags),
     mutationKey,
-    onError: () => {
+    onError: (error) => {
       // A note the user has left owns neither the row nor the toast, and its
       // rollback would land on whatever the showing note has pending.
       if (path !== active.current.path) {
@@ -55,7 +56,11 @@ export function useNoteTags(path: string, tags: string[]) {
       }
 
       setOptimisticTags(active.current.tags);
-      toast.add({ title: "could not update tags", type: "error" });
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
     },
     onMutate: (nextTags: string[]) => {
       setOptimisticTags(nextTags);

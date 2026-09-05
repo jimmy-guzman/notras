@@ -31,17 +31,53 @@ pub struct CommandError {
     pub message: String,
 }
 
-impl CommandError {
-    /// Classify a failed read, so a deleted file is distinguishable from a
-    /// permission or IO failure that leaves the note where it was.
-    fn from_read(error: io::Error) -> Self {
+/// The reason a syscall gives, in the app's voice: lowercase, no errno. The
+/// common kinds get a phrase of their own; the rest keep libc's text with the
+/// `(os error N)` suffix cut and the first letter lowered.
+fn io_reason(error: &io::Error) -> String {
+    match error.kind() {
+        io::ErrorKind::NotFound => "no such file".to_string(),
+        io::ErrorKind::PermissionDenied => "permission denied".to_string(),
+        io::ErrorKind::IsADirectory => "that path is a folder".to_string(),
+        io::ErrorKind::ReadOnlyFilesystem => "the volume is read-only".to_string(),
+        io::ErrorKind::StorageFull => "the disk is full".to_string(),
+        _ => {
+            let text = error.to_string();
+            let text = text.split(" (os error ").next().unwrap_or(&text);
+            let mut chars = text.chars();
+            chars.next().map_or_else(String::new, |first| {
+                first.to_lowercase().chain(chars).collect()
+            })
+        }
+    }
+}
+
+/// A missing file is the one failure a tab treats as a deletion; every other
+/// syscall failure leaves the note where it was (`D55`).
+impl From<io::Error> for CommandError {
+    fn from(error: io::Error) -> Self {
         Self {
             kind: if error.kind() == io::ErrorKind::NotFound {
                 ErrorKind::NotFound
             } else {
                 ErrorKind::Failed
             },
-            message: error.to_string(),
+            message: io_reason(&error),
+        }
+    }
+}
+
+impl From<rusqlite::Error> for CommandError {
+    fn from(error: rusqlite::Error) -> Self {
+        format!("index: {error}").into()
+    }
+}
+
+impl From<index::IndexError> for CommandError {
+    fn from(error: index::IndexError) -> Self {
+        match error {
+            index::IndexError::Io(error) => error.into(),
+            index::IndexError::Db(error) => error.into(),
         }
     }
 }
@@ -111,12 +147,16 @@ fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError
         .open(path)
         .map_err(|error| {
             if error.kind() == io::ErrorKind::AlreadyExists {
-                CommandError {
-                    kind: ErrorKind::Failed,
-                    message: format!("a note already exists at {rel}"),
-                }
+                let path = Path::new(rel);
+                let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or(rel);
+                let folder = path
+                    .parent()
+                    .and_then(|folder| folder.to_str())
+                    .filter(|folder| !folder.is_empty())
+                    .unwrap_or("the notes root");
+                CommandError::from(format!("a note named {name} already exists in {folder}"))
             } else {
-                error.to_string().into()
+                CommandError::from(error)
             }
         })?;
 
@@ -126,7 +166,7 @@ fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError
         drop(file);
         let _ = fs::remove_file(path);
 
-        return Err(error.to_string().into());
+        return Err(error.into());
     }
 
     Ok(())
@@ -156,18 +196,15 @@ fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
 
     let mut temp = Builder::new()
         .suffix(".tmp")
-        .tempfile_in(folder)
-        .map_err(|error| CommandError::from(error.to_string()))?;
+        .tempfile_in(folder)?;
 
     // A temp is private by default, so the note's own mode is carried over
     // rather than narrowed to owner-only by the rename.
     write_temp(&mut temp, content)
         .and_then(|()| fs::metadata(path))
-        .and_then(|meta| fs::set_permissions(temp.path(), meta.permissions()))
-        .map_err(|error| CommandError::from(error.to_string()))?;
+        .and_then(|meta| fs::set_permissions(temp.path(), meta.permissions()))?;
 
-    temp.persist(path)
-        .map_err(|error| CommandError::from(error.error.to_string()))?;
+    temp.persist(path).map_err(|error| error.error)?;
 
     Ok(())
 }
@@ -182,8 +219,7 @@ fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
 fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
     fs::OpenOptions::new()
         .write(true)
-        .open(path)
-        .map_err(CommandError::from_read)?;
+        .open(path)?;
 
     commit(path, content)
 }
@@ -212,7 +248,7 @@ pub fn note_exists(state: State<'_, AppState>, path: String) -> Result<bool, Com
 pub fn read_note(state: State<'_, AppState>, path: String) -> Result<NoteFile, CommandError> {
     let core = state.core.lock().unwrap();
     let abs = resolve(&core, &path)?;
-    let content = fs::read_to_string(&abs).map_err(CommandError::from_read)?;
+    let content = fs::read_to_string(&abs)?;
     Ok(NoteFile {
         content,
         updated_at: mtime_millis(&abs),
@@ -234,13 +270,13 @@ pub fn write_note(
     }
     if create {
         if let Some(parent) = abs.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            fs::create_dir_all(parent)?;
         }
         create_file(&abs, &path, &content)?;
     } else {
         replace(&abs, &content)?;
     }
-    index::index_file(&core.conn, &core.notes_dir, &path).map_err(|e| e.to_string())?;
+    index::index_file(&core.conn, &core.notes_dir, &path)?;
     drop(core);
     emit_changed(&app, vec![path]);
     Ok(mtime_millis(&abs))
@@ -260,14 +296,21 @@ pub fn rename_note(
         return Err("notes must be markdown files".into());
     }
     if target.exists() {
-        return Err(format!("a note named {to} already exists").into());
+        let path = Path::new(&to);
+        let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or(&to);
+        let folder = path
+            .parent()
+            .and_then(|folder| folder.to_str())
+            .filter(|folder| !folder.is_empty())
+            .unwrap_or("the notes root");
+        return Err(format!("a note named {name} already exists in {folder}").into());
     }
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent)?;
     }
-    fs::rename(&source, &target).map_err(|e| e.to_string())?;
-    index::remove(&core.conn, &from).map_err(|e| e.to_string())?;
-    index::index_file(&core.conn, &core.notes_dir, &to).map_err(|e| e.to_string())?;
+    fs::rename(&source, &target)?;
+    index::remove(&core.conn, &from)?;
+    index::index_file(&core.conn, &core.notes_dir, &to)?;
     drop(core);
     emit_changed(&app, vec![from, to]);
     Ok(())
@@ -281,8 +324,8 @@ pub fn delete_note(
 ) -> Result<(), CommandError> {
     let core = state.core.lock().unwrap();
     let abs = resolve(&core, &path)?;
-    fs::remove_file(&abs).map_err(|e| e.to_string())?;
-    index::remove(&core.conn, &path).map_err(|e| e.to_string())?;
+    fs::remove_file(&abs)?;
+    index::remove(&core.conn, &path)?;
     drop(core);
     emit_changed(&app, vec![path]);
     Ok(())
@@ -301,7 +344,7 @@ pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String,
         .to_string();
 
     let dir = core.notes_dir.join("attachments");
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir)?;
 
     let (stem, ext) = match name.rsplit_once('.') {
         Some((stem, ext)) => (stem.to_string(), format!(".{ext}")),
@@ -314,7 +357,7 @@ pub fn attach_file(state: State<'_, AppState>, source: String) -> Result<String,
         candidate = format!("{stem}-{counter}{ext}");
     }
 
-    fs::copy(&source, dir.join(&candidate)).map_err(|e| e.to_string())?;
+    fs::copy(&source, dir.join(&candidate))?;
     Ok(format!("attachments/{candidate}"))
 }
 
@@ -329,11 +372,11 @@ pub fn attach_image(
 
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(base64_data)
-        .map_err(|e| e.to_string())?;
+        .map_err(|_| "the pasted image is not valid")?;
 
     let core = state.core.lock().unwrap();
     let dir = core.notes_dir.join("attachments");
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir)?;
 
     let stamp = std::time::SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -346,7 +389,7 @@ pub fn attach_image(
         candidate = format!("pasted-{stamp}-{counter}.png");
     }
 
-    fs::write(dir.join(&candidate), bytes).map_err(|e| e.to_string())?;
+    fs::write(dir.join(&candidate), bytes)?;
     Ok(format!("attachments/{candidate}"))
 }
 
@@ -356,7 +399,7 @@ pub fn read_external(path: String) -> Result<NoteFile, CommandError> {
     if !is_markdown(&abs) {
         return Err("only markdown files can be opened".into());
     }
-    let content = fs::read_to_string(&abs).map_err(CommandError::from_read)?;
+    let content = fs::read_to_string(&abs)?;
     Ok(NoteFile {
         content,
         updated_at: mtime_millis(&abs),
@@ -392,13 +435,13 @@ pub fn set_notes_dir(
     path: String,
 ) -> Result<(), CommandError> {
     let notes_dir = PathBuf::from(&path);
-    fs::create_dir_all(notes_dir.join(".notras")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(notes_dir.join(".notras"))?;
     crate::allow_assets(&app, &notes_dir);
 
     let conn = rusqlite::Connection::open(notes_dir.join(".notras/index.db"))
-        .map_err(|e| e.to_string())?;
-    index::ensure_schema(&conn).map_err(|e| e.to_string())?;
-    index::scan_all(&conn, &notes_dir).map_err(|e| e.to_string())?;
+        ?;
+    index::ensure_schema(&conn)?;
+    index::scan_all(&conn, &notes_dir)?;
 
     {
         let mut core = state.core.lock().unwrap();
@@ -430,8 +473,8 @@ pub fn reindex_all(
     state: State<'_, AppState>,
 ) -> Result<Vec<String>, CommandError> {
     let core = state.core.lock().unwrap();
-    index::clear(&core.conn).map_err(|e| e.to_string())?;
-    let changed = index::scan_all(&core.conn, &core.notes_dir).map_err(|e| e.to_string())?;
+    index::clear(&core.conn)?;
+    let changed = index::scan_all(&core.conn, &core.notes_dir)?;
     drop(core);
     // Unconditional, because `clear` is itself a change: a vault whose files were
     // all deleted outside the app scans back empty, and without an event the
@@ -519,7 +562,7 @@ mod tests {
     fn missing_file_reads_as_not_found() {
         let error = fs::read_to_string("/notras-does-not-exist/missing.md").unwrap_err();
 
-        assert_eq!(CommandError::from_read(error).kind, ErrorKind::NotFound);
+        assert_eq!(CommandError::from(error).kind, ErrorKind::NotFound);
     }
 
     #[test]
@@ -528,7 +571,7 @@ mod tests {
         // which is the cheapest non-NotFound io error to raise on either.
         let error = fs::read_to_string(scratch_dir("unreadable")).unwrap_err();
 
-        assert_eq!(CommandError::from_read(error).kind, ErrorKind::Failed);
+        assert_eq!(CommandError::from(error).kind, ErrorKind::Failed);
     }
 
     #[test]
@@ -603,7 +646,7 @@ mod tests {
 
         let error = create_file(&taken, "taken.md", "clobbered").unwrap_err();
 
-        assert_eq!(error.message, "a note already exists at taken.md");
+        assert_eq!(error.message, "a note named taken already exists in the notes root");
         assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
     }
 
@@ -682,5 +725,22 @@ mod tests {
 
         let _ = fs::remove_file(&link);
         let _ = fs::remove_dir_all(&real);
+    }
+    #[test]
+    fn a_syscall_failure_reads_as_a_lowercase_reason() {
+        let denied = CommandError::from(io::Error::from_raw_os_error(13));
+        let missing = CommandError::from(io::Error::from(io::ErrorKind::NotFound));
+
+        assert_eq!(denied.kind, ErrorKind::Failed);
+        assert_eq!(denied.message, "permission denied");
+        assert_eq!(missing.kind, ErrorKind::NotFound);
+        assert_eq!(missing.message, "no such file");
+    }
+
+    #[test]
+    fn an_unmapped_syscall_failure_keeps_its_text_without_the_errno() {
+        let error = CommandError::from(io::Error::from_raw_os_error(24));
+
+        assert_eq!(error.message, "too many open files");
     }
 }

@@ -128,8 +128,8 @@ fn open_capture(app: &AppHandle) {
 /// user picked -- the config ships with an empty static scope.
 pub fn allow_assets(app: &AppHandle, notes_dir: &std::path::Path) {
     if let Err(error) = app.asset_protocol_scope().allow_directory(notes_dir, true) {
-        eprintln!(
-            "notras: could not grant asset access to {}: {error}",
+        log::error!(
+            "could not grant asset access to {}: {error}",
             notes_dir.display()
         );
     }
@@ -194,7 +194,7 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = scan_app.emit("notes-changed", NotesChanged { paths: changed });
                 }
             }
-            Err(error) => eprintln!("notras: startup scan failed: {error}"),
+            Err(error) => log::error!("startup scan failed: {error}"),
         }
     });
 
@@ -247,7 +247,21 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // First, so what the other plugins log is caught too. One file under the
+    // app's log dir, which is what a user sends when something went wrong, plus
+    // stdout for `pnpm dev`.
     let mut builder = tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("notras".into()),
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                ])
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build());

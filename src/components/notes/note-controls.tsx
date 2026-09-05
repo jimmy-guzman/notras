@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { PinIcon, PinOffIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { SaveStatus } from "@/components/editor/use-autosave";
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { setNotePinned } from "@/data/pin-note";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
-import { cn } from "@/lib/ui/utils";
+import { reasonOf } from "@/lib/ui/failure";
 
 interface PinToggleProps {
   path: string;
@@ -36,9 +37,13 @@ function PinToggle({ path, pinned }: PinToggleProps) {
 
     try {
       await setNotePinned(path, !optimisticPinned);
-    } catch {
+    } catch (error) {
       setOptimisticPinned(optimisticPinned);
-      toast.add({ title: "could not update pin", type: "error" });
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update pin",
+        type: "error",
+      });
     }
   }, [optimisticPinned, path]);
 

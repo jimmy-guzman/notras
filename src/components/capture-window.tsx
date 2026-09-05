@@ -8,7 +8,7 @@ import { Editor } from "@/components/editor/editor";
 import { Titlebar } from "@/components/titlebar";
 import { Toaster, toast } from "@/components/ui/toast";
 import { createNote } from "@/data/create-note";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 
 const NOOP = () => undefined;
 
@@ -43,7 +43,8 @@ export function CaptureWindow() {
       } catch (error) {
         // Keep the jot on screen -- hiding would lose it.
         toast.add({
-          title: errorMessage(error, "could not save the capture"),
+          description: reasonOf(error),
+          title: "could not save the capture",
           type: "error",
         });
 

@@ -32,7 +32,7 @@ import {
 } from "@/lib/tabs/store";
 import type { PendingOpen, Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 import { attachmentLink } from "@/lib/utils/attachments";
 
 /**
@@ -48,30 +48,21 @@ export const Route = createFileRoute("/")({
       return;
     }
 
-    seeded = true;
-
     // A restored path that no longer reads closes its own tab, so nothing is
     // checked against disk here.
     if (restoreTabs()) {
-      try {
-        await adoptVaultNotes((paths) =>
-          invoke<PendingOpen[]>("classify_open_paths", { paths })
-        );
-      } catch (error) {
-        toast.add({
-          title: errorMessage(error, "could not check restored tabs"),
-          type: "error",
-        });
+      await adoptVaultNotes((paths) =>
+        invoke<PendingOpen[]>("classify_open_paths", { paths })
+      );
+    } else {
+      const [latest] = await getNotes({ limit: 1, sort: "updated" });
+
+      if (latest !== undefined) {
+        openNote(latest.path);
       }
-
-      return;
     }
 
-    const [latest] = await getNotes({ limit: 1, sort: "updated" });
-
-    if (latest !== undefined) {
-      openNote(latest.path);
-    }
+    seeded = true;
   },
 });
 
@@ -88,7 +79,8 @@ const TAB_JUMPS = [
   ["Mod+9", -1],
 ] as const;
 
-function EmptyState({ onNew }: { onNew: () => void }) {
+/** What shows when no tab is open: the wordmark, the tagline, and what to press. */
+function Welcome({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6">
       <div className="flex flex-col items-center gap-1">
@@ -189,17 +181,18 @@ function Workspace() {
 
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
 
-  const newNote = useCallback(() => {
-    createNote()
-      .then((path) => {
-        openNote(path, true);
-      })
-      .catch((error: unknown) => {
-        toast.add({
-          title: errorMessage(error, "could not create note"),
-          type: "error",
-        });
+  const newNote = useCallback(async () => {
+    try {
+      const path = await createNote();
+
+      openNote(path, true);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not create note",
+        type: "error",
       });
+    }
   }, []);
 
   const closeActive = useCallback(() => {
@@ -251,7 +244,8 @@ function Workspace() {
           const error: unknown = copy.reason;
 
           toast.add({
-            title: errorMessage(error, "could not attach file"),
+            description: reasonOf(error),
+            title: "could not attach file",
             type: "error",
           });
         }
@@ -328,7 +322,7 @@ function Workspace() {
         {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
       {tabs.length === 0 ? (
-        <EmptyState onNew={newNote} />
+        <Welcome onNew={newNote} />
       ) : (
         <div className="relative min-h-0 flex-1">
           {tabs.map((tab) => (

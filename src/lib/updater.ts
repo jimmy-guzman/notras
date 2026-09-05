@@ -2,7 +2,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { toast } from "@/components/ui/toast";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 
 /**
  * Whether this build can reach the updater at all. The endpoint that
@@ -57,24 +57,31 @@ export function offerUpdate(update: Update) {
   // Nothing on the Rust side releases this one, so the offer has to. A failed
   // close leaves a resource the process drops on exit, which is not worth
   // interrupting anyone over.
-  const release = () => {
-    update.close().catch(() => undefined);
+  const release = async () => {
+    try {
+      await update.close();
+    } catch {
+      // See above: not worth interrupting anyone over.
+    }
   };
 
   const id = toast.add({
     actionProps: {
       children: "install",
-      onClick: () => {
-        installUpdate(update).catch((error: unknown) => {
+      onClick: async () => {
+        try {
+          await installUpdate(update);
+        } catch (error) {
           // Closing the offer runs `release` through `onClose`, so the failure
           // path must not free the handle itself, and must not close before
           // `installUpdate` is done with it.
           toast.close(id);
           toast.add({
-            title: errorMessage(error, "could not install the update"),
+            description: reasonOf(error),
+            title: "could not install the update",
             type: "error",
           });
-        });
+        }
       },
     },
     onClose: release,

@@ -57,7 +57,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 - **Sort object keys and imports alphabetically.** Biome's `organizeImports` assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit hook, since neither editor config wires it. One exception the preset already encodes: route option objects, which `ultracite/biome/tanstack` leaves unsorted because their types infer in declaration order.
 
-- **Icons come from `lucide-react`, always the `Icon`-suffixed export.** Use `cn()` from `@/lib/ui/utils` for conditional Tailwind classes.
+- **Icons come from `lucide-react`, always the `Icon`-suffixed export.** Use `cn()` from the `cn` package for conditional Tailwind classes.
 
 ## Shaping a unit
 
@@ -98,6 +98,8 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 - **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validation is Effect Schema in `src/server/schemas/`, not zod.
 
 - **A typed failure's message is user-facing text.** `ARCHITECTURE.md` covers how `run()` gets it to a toast. Write those messages to the copy rules in `DESIGN.md`.
+
+- **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 
 - **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** A warning fires because something is off. Silencing it converts a problem you can solve now into one that surfaces later without the warning attached.
 

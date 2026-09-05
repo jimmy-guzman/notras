@@ -30,16 +30,13 @@ pub fn start(
     let mut debouncer = match debouncer {
         Ok(debouncer) => debouncer,
         Err(error) => {
-            eprintln!("notras: could not start the notes watcher: {error}");
+            log::error!("could not start the notes watcher: {error}");
             return None;
         }
     };
 
     if let Err(error) = debouncer.watch(&notes_dir, RecursiveMode::Recursive) {
-        eprintln!(
-            "notras: could not watch {}: {error}",
-            notes_dir.display()
-        );
+        log::error!("could not watch {}: {error}", notes_dir.display());
         return None;
     }
 

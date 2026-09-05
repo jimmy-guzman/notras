@@ -32,6 +32,12 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import { filenameFromTitle } from "@/core/notes";
@@ -50,7 +56,7 @@ import {
   useTabState,
 } from "@/lib/tabs/store";
 import { tabId } from "@/lib/tabs/tab";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
@@ -73,13 +79,6 @@ function Snippet({ snippet }: { snippet: string }) {
       )}
     </span>
   );
-}
-
-function reportActionFailure(error: unknown) {
-  toast.add({
-    title: errorMessage(error, "something went wrong"),
-    type: "error",
-  });
 }
 
 const VISIBLE_TAGS = 3;
@@ -379,10 +378,14 @@ function ActionsView({ actions, chordsByName }: ActionsViewProps) {
   return (
     <>
       <CommandEmpty>
-        <p className="text-muted-foreground">nothing found</p>
-        <p className="text-faint">
-          <Chord hotkey="Mod+P" /> to search notes
-        </p>
+        <Empty className="p-6">
+          <EmptyHeader>
+            <EmptyTitle>nothing found</EmptyTitle>
+            <EmptyDescription>
+              <Chord hotkey="Mod+P" /> to search notes
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </CommandEmpty>
       <CommandGroup heading="actions">
         {actions.map(({ Icon, label, onSelect, text, value }) => {
@@ -441,8 +444,12 @@ function FindView({
   return (
     <>
       <CommandEmpty>
-        <p className="text-muted-foreground">nothing found</p>
-        <p className="text-faint">start with # to search by tag</p>
+        <Empty className="p-6">
+          <EmptyHeader>
+            <EmptyTitle>nothing found</EmptyTitle>
+            <EmptyDescription>start with # to search by tag</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </CommandEmpty>
       {tagQuery?.query === "" ? (
         <CommandGroup heading="tags">
@@ -650,13 +657,13 @@ export function CommandPalette({
   );
 
   const runAction = useCallback(
-    (action: () => Promise<void>) => {
+    async (what: string, action: () => Promise<void>) => {
       close();
 
       try {
-        action().catch(reportActionFailure);
+        await action();
       } catch (error) {
-        reportActionFailure(error);
+        toast.add({ description: reasonOf(error), title: what, type: "error" });
       }
     },
     [close]
@@ -677,7 +684,7 @@ export function CommandPalette({
       return;
     }
 
-    runAction(async () => {
+    runAction("could not delete note", async () => {
       await deleteNote(currentNote.path);
       closeNoteTab(currentNote.path);
       toast.add({ title: "note deleted", type: "success" });
@@ -690,7 +697,7 @@ export function CommandPalette({
         return;
       }
 
-      runAction(async () => {
+      runAction("could not move note", async () => {
         const next = await moveNote(currentNote.path, folder);
 
         renameTab(currentNote.path, next);
@@ -712,7 +719,7 @@ export function CommandPalette({
       return;
     }
 
-    runAction(async () => {
+    runAction("could not rename note", async () => {
       const next = await retitleNote(currentNote.path, query.trim());
 
       renameTab(currentNote.path, next);
@@ -740,7 +747,7 @@ export function CommandPalette({
   }, []);
 
   const newNote = useCallback(() => {
-    runAction(async () => {
+    runAction("could not create note", async () => {
       const path = await createNote();
 
       openInTab(path, true);
@@ -752,7 +759,7 @@ export function CommandPalette({
   const createFromQuery = useCallback(() => {
     const title = query.trim();
 
-    runAction(async () => {
+    runAction("could not create note", async () => {
       const path = await createNote({ filename: filenameFromTitle(title) });
 
       openInTab(path, true);
@@ -764,7 +771,9 @@ export function CommandPalette({
       return;
     }
 
-    runAction(() => setNotePinned(currentNote.path, !currentNote.pinned));
+    runAction("could not update pin", () =>
+      setNotePinned(currentNote.path, !currentNote.pinned)
+    );
   }, [currentNote, runAction]);
 
   const startEditTags = useCallback(() => {
@@ -791,7 +800,9 @@ export function CommandPalette({
       return;
     }
 
-    runAction(() => revealItemInDir(`${notesDir}/${currentNote.path}`));
+    runAction("could not reveal note", () =>
+      revealItemInDir(`${notesDir}/${currentNote.path}`)
+    );
   }, [currentNote, notesDir, runAction]);
 
   const openSettings = useCallback(() => {
@@ -807,7 +818,7 @@ export function CommandPalette({
   }, [close]);
 
   const reindex = useCallback(() => {
-    runAction(async () => {
+    runAction("could not reindex", async () => {
       await reindexAll();
       toast.add({ title: "library reindexed", type: "success" });
     });
@@ -816,7 +827,7 @@ export function CommandPalette({
   // Unlike the launch check, this one was asked for, so it reports either way,
   // including the way a development build cannot report on: it never ran.
   const checkForUpdates = useCallback(() => {
-    runAction(async () => {
+    runAction("could not check for updates", async () => {
       if (!updatesSupported()) {
         toast.add({ title: "update checks are off in development" });
 
