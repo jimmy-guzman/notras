@@ -72,6 +72,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A lone tab does not reorder. Pressing and moving it moves the window, and double-clicking it zooms.
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
+- Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.
 - A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render and its wikilinks do not navigate. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.

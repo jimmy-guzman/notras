@@ -41,7 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
-import { noteQueries } from "@/data/queries";
+import { noteQueries, notesDirQuery } from "@/data/queries";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   activateTab,
@@ -52,7 +52,13 @@ import {
   useTabSnapshot,
 } from "@/lib/tabs/store";
 import type { Tab, TabStep } from "@/lib/tabs/tab";
-import { stepTab, tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
+import {
+  stepTab,
+  tabButtonId,
+  tabFullPath,
+  tabId,
+  tabPanelId,
+} from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
 
 const STEPS: Record<string, TabStep> = {
@@ -94,12 +100,13 @@ interface TabItemProps {
   active: boolean;
   /** Shown until the session publishes a title off its live buffer. */
   fallback: string;
+  notesDir: string;
   /** The only tab has nowhere to go, so its press moves the window instead. */
   sole: boolean;
   tab: Tab;
 }
 
-function TabItem({ active, fallback, sole, tab }: TabItemProps) {
+function TabItem({ active, fallback, notesDir, sole, tab }: TabItemProps) {
   const id = tabId(tab);
   const snapshot = useTabSnapshot(id);
   const ref = useRef<HTMLSpanElement | null>(null);
@@ -160,8 +167,8 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
   }, [id]);
 
   const copyPath = useCallback(() => {
-    copyTabPath(tab.path);
-  }, [tab.path]);
+    copyTabPath(tabFullPath(tab, notesDir));
+  }, [notesDir, tab]);
 
   return (
     <ContextMenu>
@@ -339,6 +346,7 @@ interface TabListProps {
  */
 function TabList({ activeId, tabs }: TabListProps) {
   const { data: notes } = useSuspenseQuery(noteQueries.list());
+  const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
   const ids = useMemo(() => tabs.map(tabId), [tabs]);
@@ -473,6 +481,7 @@ function TabList({ activeId, tabs }: TabListProps) {
                 active={tabId(tab) === activeId}
                 fallback={labelFor(tab)}
                 key={tabId(tab)}
+                notesDir={notesDir}
                 sole={tabs.length === 1}
                 tab={tab}
               />
