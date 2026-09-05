@@ -456,17 +456,18 @@ pub struct PendingOpen {
 }
 
 fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
-    let host = Path::new(&path);
-    match index::relative_path(notes_dir, host).filter(|_| index::is_note_file(host)) {
+    let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
+    match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
         Some(rel) => PendingOpen { kind: OpenKind::Note, path: rel },
         None => PendingOpen { kind: OpenKind::External, path },
     }
 }
 
 fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
+    let notes_dir = fs::canonicalize(notes_dir).unwrap_or_else(|_| notes_dir.to_path_buf());
     paths
         .into_iter()
-        .map(|path| classify_open(notes_dir, path))
+        .map(|path| classify_open(&notes_dir, path))
         .collect()
 }
 
@@ -663,5 +664,23 @@ mod tests {
         let open = classify_open(Path::new("/vault"), "/vault/NOTE.MD".into());
 
         assert_eq!(open, PendingOpen { kind: OpenKind::Note, path: "NOTE.MD".into() });
+    }
+    #[test]
+    #[cfg(unix)]
+    fn classifies_through_a_symlinked_notes_dir() {
+        let real = scratch_dir("symlink-real");
+        fs::write(real.join("a.md"), "").unwrap();
+        let link = std::env::temp_dir().join(format!("notras-test-symlink-link-{}", std::process::id()));
+        let _ = fs::remove_file(&link);
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let through_link = classify_opens(&link, vec![real.join("a.md").to_string_lossy().to_string()]);
+        let through_real = classify_opens(&real, vec![link.join("a.md").to_string_lossy().to_string()]);
+
+        assert_eq!(through_link, vec![PendingOpen { kind: OpenKind::Note, path: "a.md".into() }]);
+        assert_eq!(through_real, vec![PendingOpen { kind: OpenKind::Note, path: "a.md".into() }]);
+
+        let _ = fs::remove_file(&link);
+        let _ = fs::remove_dir_all(&real);
     }
 }
