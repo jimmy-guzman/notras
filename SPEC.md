@@ -64,14 +64,14 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘E, ⌘D, ⌘⌥T and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D and ⌘⌥T still set the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
 - A pointer drag starts after 4px and reorders on release. Pressing a tab selects it first, and the close button never starts a drag.
 - A lone tab does not reorder. Pressing and moving it moves the window, and double-clicking it zooms.
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
-- The tab context menu offers close, close others, close to the right, and copy path. The last three have no shortcut.
+- The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
 - A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render and its wikilinks do not navigate. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
@@ -88,14 +88,16 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
 - A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
-- The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, toggle typewriter scrolling, settings, reindex library, and check for updates. Every one but new note, settings, reindex library, and check for updates needs a note showing.
+- The actions are new note, pin, edit tags, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, markdown source, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- New note, focus mode, typewriter scrolling, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
+- The two writing-mode rows name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
 - Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, toggle typewriter scrolling ⌘⌥t, and settings ⌘,. The rest show none.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, focus mode ⌘d, typewriter scrolling ⌘⌥t, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
 
 ## The editor
 
 - The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
-- ⌘E swaps to raw source and back. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
+- ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
 - In source mode, Tab inserts two spaces and Shift-Tab outdents two.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
@@ -136,7 +138,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 ## Quick capture
 
-- ⌘⇧N opens the capture window from any app, whether or not notras is in front. The tray offers the same.
+- ⌘⇧N opens the capture window from any app, whether or not notras is in front. The tray and the palette offer the same.
 - The window is 560 by 320, fixed, always on top, and out of the taskbar. Reopening it shows the one that exists.
 - esc and ⌘⏎ save and hide. A double press saves once.
 - The note lands in `inbox/` named `yyyy-MM-dd-HHmmss.md`, and a same-second collision takes the next free name.

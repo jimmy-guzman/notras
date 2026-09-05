@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   adoptVaultNotes,
+  closeOtherTabs,
   closeTab,
+  closeTabsAfter,
   getTabHandles,
   getTabState,
   openNote,
   registerTabHandles,
+  reopenTab,
   restoredCaret,
   restoreTabs,
 } from "./store";
@@ -207,5 +210,143 @@ describe("registerTabHandles", () => {
     closeTab(id);
 
     expect(getTabHandles(id)).toBeUndefined();
+  });
+});
+
+describe("closeOtherTabs", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("should keep only the named tab, and make it the active one", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-c",
+        carets: {},
+        tabs: [
+          { id: "kept-a", kind: "note", path: "a.md" },
+          { id: "kept-b", kind: "note", path: "b.md" },
+          { id: "kept-c", kind: "note", path: "c.md" },
+        ],
+      })
+    );
+    restoreTabs();
+
+    closeOtherTabs("kept-a");
+
+    expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-a"]);
+    expect(getTabState().activeId).toBe("kept-a");
+  });
+
+  it("should put the tabs it closed back left to right", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-a",
+        carets: {},
+        tabs: [
+          { id: "kept-a", kind: "note", path: "a.md" },
+          { id: "kept-b", kind: "note", path: "b.md" },
+          { id: "kept-c", kind: "note", path: "c.md" },
+        ],
+      })
+    );
+    restoreTabs();
+
+    closeOtherTabs("kept-a");
+    reopenTab();
+    reopenTab();
+
+    expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
+      "a.md",
+      "b.md",
+      "c.md",
+    ]);
+  });
+
+  it("should leave the strip alone when nothing holds the named id", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-a",
+        carets: {},
+        tabs: [{ id: "kept-a", kind: "note", path: "a.md" }],
+      })
+    );
+    restoreTabs();
+
+    closeOtherTabs("gone");
+
+    expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-a"]);
+  });
+});
+
+describe("closeTabsAfter", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("should keep the named tab and everything left of it", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-a",
+        carets: {},
+        tabs: [
+          { id: "kept-a", kind: "note", path: "a.md" },
+          { id: "kept-b", kind: "note", path: "b.md" },
+          { id: "kept-c", kind: "note", path: "c.md" },
+        ],
+      })
+    );
+    restoreTabs();
+
+    closeTabsAfter("kept-b");
+
+    expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual([
+      "kept-a",
+      "kept-b",
+    ]);
+  });
+
+  it("should leave the active tab showing when it survives", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-a",
+        carets: {},
+        tabs: [
+          { id: "kept-a", kind: "note", path: "a.md" },
+          { id: "kept-b", kind: "note", path: "b.md" },
+          { id: "kept-c", kind: "note", path: "c.md" },
+        ],
+      })
+    );
+    restoreTabs();
+
+    closeTabsAfter("kept-b");
+
+    expect(getTabState().activeId).toBe("kept-a");
+  });
+
+  it("should show the named tab when the active one was closed", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-c",
+        carets: {},
+        tabs: [
+          { id: "kept-a", kind: "note", path: "a.md" },
+          { id: "kept-b", kind: "note", path: "b.md" },
+          { id: "kept-c", kind: "note", path: "c.md" },
+        ],
+      })
+    );
+    restoreTabs();
+
+    closeTabsAfter("kept-a");
+
+    expect(getTabState().activeId).toBe("kept-a");
   });
 });

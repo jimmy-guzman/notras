@@ -3,6 +3,7 @@ mod index;
 mod notes;
 mod state;
 mod watcher;
+mod windows;
 
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -89,7 +90,7 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-fn open_capture(app: &AppHandle) {
+pub(crate) fn open_capture(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("capture") {
         let _ = window.show();
         let _ = window.set_focus();
@@ -322,6 +323,7 @@ pub fn run() {
             notes::set_notes_dir,
             notes::write_external,
             notes::write_note,
+            windows::show_capture,
         ])
         .on_window_event(|window, event| match event {
             // Close-to-tray for the main window; capture window just hides.

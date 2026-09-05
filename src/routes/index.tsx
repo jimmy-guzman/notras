@@ -21,6 +21,7 @@ import { togglePref, usePref } from "@/lib/prefs";
 import {
   activateTab,
   adoptVaultNotes,
+  closeOtherTabs,
   closeTab,
   getTabHandles,
   getTabState,
@@ -200,6 +201,10 @@ function Workspace() {
     closeTab(getTabState().activeId);
   }, []);
 
+  const closeOthers = useCallback(() => {
+    closeOtherTabs(getTabState().activeId);
+  }, []);
+
   const toggleSource = useCallback(() => {
     getTabHandles(getTabState().activeId)?.toggleSource();
   }, []);
@@ -302,10 +307,15 @@ function Workspace() {
   }, []);
 
   useHotkey("Mod+T", newNote, { meta: { name: "new note" } });
-  useHotkey("Mod+W", closeActive);
-  useHotkey("Mod+Shift+T", reopenTab);
-  useHotkey("Mod+E", toggleSource);
-  useHotkey("Mod+D", toggleFocusMode);
+  useHotkey("Mod+W", closeActive, { meta: { name: "close tab" } });
+  useHotkey("Mod+Alt+Shift+W", closeOthers, {
+    meta: { name: "close other tabs" },
+  });
+  useHotkey("Mod+Shift+T", reopenTab, {
+    meta: { name: "reopen last closed tab" },
+  });
+  useHotkey("Mod+E", toggleSource, { meta: { name: "markdown source" } });
+  useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
   useHotkey("Mod+Alt+T", toggleTypewriter, {
     meta: { name: "typewriter scrolling" },
   });

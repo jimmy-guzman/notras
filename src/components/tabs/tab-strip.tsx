@@ -35,7 +35,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "@/components/ui/toast";
 import {
   Tooltip,
   TooltipContent,
@@ -43,6 +42,7 @@ import {
 } from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
+import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   activateTab,
   closeOtherTabs,
@@ -54,7 +54,6 @@ import {
 import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
-import { reasonOf } from "@/lib/ui/failure";
 
 const STEPS: Record<string, TabStep> = {
   ArrowLeft: "previous",
@@ -160,16 +159,8 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
     closeTabsAfter(id);
   }, [id]);
 
-  const copyPath = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(tab.path);
-    } catch (error) {
-      toast.add({
-        description: reasonOf(error),
-        title: "could not copy the path",
-        type: "error",
-      });
-    }
+  const copyPath = useCallback(() => {
+    copyTabPath(tab.path);
   }, [tab.path]);
 
   return (
