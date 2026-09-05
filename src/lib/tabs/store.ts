@@ -2,9 +2,10 @@ import { batch, createStore, useSelector } from "@tanstack/react-store";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
 
-import type { ClosedTab, Tab, TabState } from "./tab";
+import type { ClosedTab, PendingOpen, Tab, TabState } from "./tab";
 
 import {
+  adoptNote,
   closeTab as closeInList,
   legacyTabId,
   moveTabTo,
@@ -159,6 +160,33 @@ export function restoreTabs() {
   }));
 
   return true;
+}
+
+/**
+ * A store an older build wrote holds a vault note opened through "Open With"
+ * as an external tab. Ask which restored external tabs are notes today and
+ * adopt those, so one file never carries two sessions.
+ */
+export async function adoptVaultNotes(
+  classify: (paths: string[]) => Promise<PendingOpen[]>
+) {
+  const external = getTabState().tabs.filter((tab) => tab.kind === "external");
+
+  if (external.length === 0) {
+    return;
+  }
+
+  const classified = await classify(external.map((tab) => tab.path));
+
+  setState(
+    external.reduce((state, tab, index) => {
+      const open = classified[index];
+
+      return open?.kind === "note"
+        ? adoptNote(state, tab.id, open.path)
+        : state;
+    }, getTabState())
+  );
 }
 
 /**

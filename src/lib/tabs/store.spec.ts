@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  adoptVaultNotes,
   closeTab,
   getTabHandles,
   getTabState,
@@ -9,7 +10,7 @@ import {
   restoredCaret,
   restoreTabs,
 } from "./store";
-import { serializeTabs } from "./tab";
+import { parseTabs, serializeTabs } from "./tab";
 
 const STORAGE_KEY = "tabs";
 
@@ -89,6 +90,88 @@ describe("restoreTabs", () => {
     expect(getTabState().activeId).toBe(b?.id);
     expect(restoredCaret(a?.id ?? "")).toBe(12);
     expect(restoredCaret(b?.id ?? "")).toBe(34);
+  });
+});
+
+describe("adoptVaultNotes", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("should adopt an external tab the classifier calls a note", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-x",
+        carets: {},
+        tabs: [{ id: "kept-x", kind: "external", path: "/vault/a.md" }],
+      })
+    );
+    restoreTabs();
+
+    await adoptVaultNotes(async () => [{ kind: "note", path: "a.md" }]);
+
+    expect(getTabState().tabs).toStrictEqual([
+      { id: "kept-x", kind: "note", path: "a.md" },
+    ]);
+    expect(
+      parseTabs(localStorage.getItem(STORAGE_KEY) ?? "")?.tabs
+    ).toStrictEqual([{ id: "kept-x", kind: "note", path: "a.md" }]);
+  });
+
+  it("should leave alone a tab the classifier keeps external", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-x",
+        carets: {},
+        tabs: [{ id: "kept-x", kind: "external", path: "/elsewhere/a.md" }],
+      })
+    );
+    restoreTabs();
+
+    await adoptVaultNotes(async (paths) =>
+      paths.map((path) => ({ kind: "external", path }))
+    );
+
+    expect(getTabState().tabs).toStrictEqual([
+      { id: "kept-x", kind: "external", path: "/elsewhere/a.md" },
+    ]);
+  });
+
+  it("should keep the restored tabs when the classifier rejects", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-x",
+        carets: {},
+        tabs: [{ id: "kept-x", kind: "external", path: "/vault/a.md" }],
+      })
+    );
+    restoreTabs();
+
+    await expect(
+      adoptVaultNotes(() => Promise.reject(new Error("no answer")))
+    ).rejects.toThrow("no answer");
+    expect(getTabState().tabs).toStrictEqual([
+      { id: "kept-x", kind: "external", path: "/vault/a.md" },
+    ]);
+  });
+
+  it("should not ask when no external tab was restored", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-a",
+        carets: {},
+        tabs: [{ id: "kept-a", kind: "note", path: "a.md" }],
+      })
+    );
+    restoreTabs();
+
+    await adoptVaultNotes(() => Promise.reject(new Error("asked")));
+
+    expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-a"]);
   });
 });
 

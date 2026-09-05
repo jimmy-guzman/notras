@@ -440,9 +440,49 @@ pub fn reindex_all(
     Ok(changed)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OpenKind {
+    External,
+    Note,
+}
+
+/// A queued "Open With" path, classified so the webview opens it as the tab
+/// kind the file already is: a note inside the notes dir, external otherwise.
+#[derive(Debug, PartialEq, Serialize)]
+pub struct PendingOpen {
+    pub kind: OpenKind,
+    pub path: String,
+}
+
+fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
+    let host = Path::new(&path);
+    match index::relative_path(notes_dir, host).filter(|_| index::is_note_file(host)) {
+        Some(rel) => PendingOpen { kind: OpenKind::Note, path: rel },
+        None => PendingOpen { kind: OpenKind::External, path },
+    }
+}
+
+fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
+    paths
+        .into_iter()
+        .map(|path| classify_open(notes_dir, path))
+        .collect()
+}
+
+/// The kind each restored external tab is today, so a store an older build
+/// wrote does not keep a vault note as an external tab.
 #[tauri::command]
-pub fn pending_open_files(state: State<'_, AppState>) -> Vec<String> {
-    std::mem::take(&mut *state.pending_open.lock().unwrap())
+pub fn classify_open_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<PendingOpen> {
+    let core = state.core.lock().unwrap();
+    classify_opens(&core.notes_dir, paths)
+}
+
+#[tauri::command]
+pub fn pending_open_files(state: State<'_, AppState>) -> Vec<PendingOpen> {
+    let paths = std::mem::take(&mut *state.pending_open.lock().unwrap());
+    let core = state.core.lock().unwrap();
+    classify_opens(&core.notes_dir, paths)
 }
 
 /// Called by the frontend once it has flushed pending writes, in answer to the
@@ -582,5 +622,46 @@ mod tests {
 
         assert_eq!(error.kind, ErrorKind::Failed);
         assert_eq!(error.message, "invalid note path: ../escape");
+    }
+    #[test]
+    fn classifies_a_vault_file_as_a_note() {
+        let open = classify_open(Path::new("/vault"), "/vault/work/a.md".into());
+
+        assert_eq!(open, PendingOpen { kind: OpenKind::Note, path: "work/a.md".into() });
+    }
+
+    #[test]
+    fn classifies_a_file_outside_the_vault_as_external() {
+        let open = classify_open(Path::new("/vault"), "/elsewhere/a.md".into());
+
+        assert_eq!(open, PendingOpen { kind: OpenKind::External, path: "/elsewhere/a.md".into() });
+    }
+
+    #[test]
+    fn a_sibling_dir_sharing_the_prefix_is_outside_the_vault() {
+        let open = classify_open(Path::new("/vault"), "/vault-archive/a.md".into());
+
+        assert_eq!(open.kind, OpenKind::External);
+    }
+
+    #[test]
+    fn a_hidden_segment_inside_the_vault_is_external() {
+        let open = classify_open(Path::new("/vault"), "/vault/.drafts/a.md".into());
+
+        assert_eq!(open.kind, OpenKind::External);
+    }
+
+    #[test]
+    fn a_non_markdown_file_inside_the_vault_is_external() {
+        let open = classify_open(Path::new("/vault"), "/vault/a.txt".into());
+
+        assert_eq!(open.kind, OpenKind::External);
+    }
+
+    #[test]
+    fn an_uppercase_extension_inside_the_vault_is_external() {
+        let open = classify_open(Path::new("/vault"), "/vault/NOTE.MD".into());
+
+        assert_eq!(open.kind, OpenKind::External);
     }
 }

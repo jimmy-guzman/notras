@@ -63,8 +63,9 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A lone tab does not reorder. Pressing and moving it moves the window, and double-clicking it zooms.
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path. The last three have no shortcut.
-- A file opened through "Open With" is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render and its wikilinks do not navigate.
+- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render and its wikilinks do not navigate. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
+- An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
 - With nothing to restore, the most recently updated note opens.
 
 ## Search and the palette
@@ -142,7 +143,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Closing either window hides it. Quitting is what exits.
 - A quit is held until every open buffer has flushed. A buffer that could not write cancels the quit and says so. A buffer whose file is gone reports the quit as safe while still holding text, and its banner is the only warning.
 - If the webview never answers, the quit goes through after 5 seconds.
-- "Open With" opens each markdown file in its own tab, however many are picked at once. macOS only.
+- "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. macOS only.
 - Settings exposes the notes folder and launch at login. Changing the folder creates its `.notras/`, builds an index, restarts the watcher, and stores the choice.
 - The webview cannot write the index. A statement SQLite does not report as read-only is refused.
 
