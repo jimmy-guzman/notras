@@ -139,6 +139,25 @@ describe("adoptVaultNotes", () => {
     ]);
   });
 
+  it("should keep the restored tabs when the classifier rejects", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-x",
+        carets: {},
+        tabs: [{ id: "kept-x", kind: "external", path: "/vault/a.md" }],
+      })
+    );
+    restoreTabs();
+
+    await expect(
+      adoptVaultNotes(() => Promise.reject(new Error("no answer")))
+    ).rejects.toThrow("no answer");
+    expect(getTabState().tabs).toStrictEqual([
+      { id: "kept-x", kind: "external", path: "/vault/a.md" },
+    ]);
+  });
+
   it("should not ask when no external tab was restored", async () => {
     localStorage.setItem(
       STORAGE_KEY,

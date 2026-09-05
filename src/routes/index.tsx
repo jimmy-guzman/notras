@@ -53,9 +53,16 @@ export const Route = createFileRoute("/")({
     // A restored path that no longer reads closes its own tab, so nothing is
     // checked against disk here.
     if (restoreTabs()) {
-      await adoptVaultNotes((paths) =>
-        invoke<PendingOpen[]>("classify_open_paths", { paths })
-      );
+      try {
+        await adoptVaultNotes((paths) =>
+          invoke<PendingOpen[]>("classify_open_paths", { paths })
+        );
+      } catch (error) {
+        toast.add({
+          title: errorMessage(error, "could not check restored tabs"),
+          type: "error",
+        });
+      }
 
       return;
     }
