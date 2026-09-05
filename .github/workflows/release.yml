@@ -50,8 +50,8 @@ jobs:
           fi
 
   # The release pull request is opened by GITHUB_TOKEN, which never fires
-  # pull_request, so the tagged tree has had no gate run against it. Same
-  # workflow a pull request runs, handed the tag.
+  # pull_request. Merging it fires ci.yml's push arm, but a separate run
+  # declares no edge and verify needs one. Same workflow, handed the tag.
   gate:
     needs: release-please
     # `!= 'failure'` rather than `== 'success'` because the dispatch path skips
