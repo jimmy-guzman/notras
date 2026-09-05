@@ -440,6 +440,10 @@ pub fn set_notes_dir(
     fs::create_dir_all(notes_dir.join(".notras"))?;
     let conn = index::open(&notes_dir)?;
     index::scan_all(&conn, &notes_dir)?;
+    // Started before anything is committed: a folder the app cannot watch is
+    // one it cannot keep in step with, so the change is refused whole.
+    let fresh = watcher::start(app.clone(), notes_dir.clone())
+        .map_err(|error| format!("could not watch the folder: {error}"))?;
 
     // Persisted before the swap: a folder the next launch cannot find again is
     // worse than one this launch never switched to.
@@ -455,14 +459,13 @@ pub fn set_notes_dir(
 
     {
         let mut core = state.core();
-        core.notes_dir = notes_dir.clone();
+        core.notes_dir = notes_dir;
         core.conn = conn;
     }
 
     // Swap the watcher only after the core lock is released -- dropping the
     // old debouncer joins its thread, which may be waiting on that lock.
-    let fresh = watcher::start(app.clone(), notes_dir);
-    *state.watcher() = fresh;
+    *state.watcher() = Some(fresh);
 
     emit_changed(&app, vec![]);
     Ok(())
@@ -734,7 +737,10 @@ mod tests {
     }
     #[test]
     fn a_syscall_failure_reads_as_a_lowercase_reason() {
-        let denied = CommandError::from(io::Error::from_raw_os_error(13));
+        let denied = CommandError::from(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "Permission denied (os error 13)",
+        ));
         let missing = CommandError::from(io::Error::from(io::ErrorKind::NotFound));
 
         assert_eq!(denied.kind, ErrorKind::Failed);
@@ -745,7 +751,10 @@ mod tests {
 
     #[test]
     fn an_unmapped_syscall_failure_keeps_its_text_without_the_errno() {
-        let error = CommandError::from(io::Error::from_raw_os_error(24));
+        let error = CommandError::from(io::Error::new(
+            io::ErrorKind::Other,
+            "Too many open files (os error 24)",
+        ));
 
         assert_eq!(error.message, "too many open files");
     }

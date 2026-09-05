@@ -15,7 +15,10 @@ use crate::NotesChanged;
 pub fn start(
     app: AppHandle,
     notes_dir: PathBuf,
-) -> Option<notify_debouncer_full::Debouncer<notify::RecommendedWatcher, notify_debouncer_full::RecommendedCache>> {
+) -> Result<
+    notify_debouncer_full::Debouncer<notify::RecommendedWatcher, notify_debouncer_full::RecommendedCache>,
+    notify::Error,
+> {
     let handler_app = app.clone();
     let debouncer = new_debouncer(
         Duration::from_millis(300),
@@ -30,20 +33,10 @@ pub fn start(
         },
     );
 
-    let mut debouncer = match debouncer {
-        Ok(debouncer) => debouncer,
-        Err(error) => {
-            log::error!("could not start the notes watcher: {error}");
-            return None;
-        }
-    };
+    let mut debouncer = debouncer?;
+    debouncer.watch(&notes_dir, RecursiveMode::Recursive)?;
 
-    if let Err(error) = debouncer.watch(&notes_dir, RecursiveMode::Recursive) {
-        log::error!("could not watch {}: {error}", notes_dir.display());
-        return None;
-    }
-
-    Some(debouncer)
+    Ok(debouncer)
 }
 
 fn handle(app: &AppHandle, events: &[DebouncedEvent]) {

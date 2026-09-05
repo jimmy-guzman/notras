@@ -66,7 +66,11 @@ function disposeLater(...pending: Promise<() => void>[]) {
         try {
           (await unlisten)();
         } catch (error) {
-          await logError(`could not remove a listener: ${String(error)}`);
+          try {
+            await logError(`could not remove a listener: ${String(error)}`);
+          } catch {
+            // The log is best effort; the cleanup is done either way.
+          }
         }
       };
 
@@ -236,7 +240,11 @@ function RootLayout() {
       try {
         persistTabs();
       } catch (error) {
-        await logError(`could not persist the tabs: ${String(error)}`);
+        try {
+          await logError(`could not persist the tabs: ${String(error)}`);
+        } catch {
+          // The log is best effort; the quit is not, so it goes on below.
+        }
       }
 
       try {

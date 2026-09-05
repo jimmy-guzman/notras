@@ -203,7 +203,13 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let state = app.state::<AppState>();
-    *state.watcher() = watcher::start(app.handle().clone(), notes_dir);
+    *state.watcher() = match watcher::start(app.handle().clone(), notes_dir) {
+        Ok(watcher) => Some(watcher),
+        Err(error) => {
+            log::error!("could not watch the notes dir: {error}");
+            None
+        }
+    };
 
     // Tray: open / new note / quick capture / quit.
     let open = MenuItem::with_id(app, "open", "open notras", true, None::<&str>)?;

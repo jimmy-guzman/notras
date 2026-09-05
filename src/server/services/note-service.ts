@@ -111,7 +111,7 @@ const makeNoteService = Effect.gen(function* () {
     for (const segment of folder === "" ? [] : folder.split("/")) {
       const badFolder = invalidSegment(
         segment,
-        String.raw`folder cannot contain \ : or start with a dot`
+        String.raw`folder parts cannot be blank, contain \ or :, or start with a dot`
       );
 
       if (badFolder !== undefined) {

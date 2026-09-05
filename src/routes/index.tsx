@@ -265,7 +265,11 @@ function Workspace() {
         try {
           (await unlisten)();
         } catch (error) {
-          await logError(`could not remove a listener: ${String(error)}`);
+          try {
+            await logError(`could not remove a listener: ${String(error)}`);
+          } catch {
+            // The log is best effort; the cleanup is done either way.
+          }
         }
       };
 

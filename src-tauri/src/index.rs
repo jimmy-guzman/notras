@@ -326,15 +326,28 @@ fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<P
             return;
         }
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                log::warn!("could not list {}: {error}", dir.display());
+                unreadable.push(dir.to_path_buf());
+                return;
+            }
+        };
         let path = entry.path();
         if path.file_name().is_some_and(is_hidden) {
             continue;
         }
         // `file_type` does not follow symlinks, so a symlinked directory is
         // neither recursed into nor mistaken for a note file.
-        let Ok(file_type) = entry.file_type() else {
-            continue;
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(error) => {
+                log::warn!("could not read {}: {error}", path.display());
+                unreadable.push(dir.to_path_buf());
+                return;
+            }
         };
         if file_type.is_dir() {
             collect_note_files(&path, out, unreadable);
