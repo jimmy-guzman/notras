@@ -547,6 +547,17 @@ describe("titlebar drag region", () => {
  */
 const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/;
 
+/**
+ * The mark `DESIGN.md` documents, read as declarations rather than as the
+ * presence of a `:focus-visible` selector. A rule that names the selector and
+ * then paints nothing, or offsets an outline it never draws, leaves the control
+ * exactly as bare as no rule at all.
+ */
+const DRAWS_THE_MARK = /outline:\s*2px\s+solid\s+var\(--ring\)/;
+
+/** Signed, since a control filling a scrolling surface takes the mark inset. */
+const OFFSETS_THE_MARK = /outline-offset:\s*-?[\d.]+px/;
+
 const selectorsOf = (prelude: string) =>
   prelude
     .split(",")
@@ -559,16 +570,22 @@ const strippedSelectors = noteRules
   .filter(({ body }) => STRIPS_AFFORDANCE.test(body))
   .flatMap(({ prelude }) => selectorsOf(prelude));
 
-const guardedSelectors = new Set(
-  noteRules.flatMap(({ prelude }) => selectorsOf(prelude))
-);
+const focusBodiesOf = (selector: string) =>
+  noteRules
+    .filter(({ prelude }) =>
+      selectorsOf(prelude).includes(`${selector}:focus-visible`)
+    )
+    .map(({ body }) => body);
 
 describe("focus affordance", () => {
   it("should replace every stripped affordance with a focus-visible outline", () => {
     expect(strippedSelectors).not.toStrictEqual([]);
     expect(
       strippedSelectors.filter(
-        (selector) => !guardedSelectors.has(`${selector}:focus-visible`)
+        (selector) =>
+          !focusBodiesOf(selector).some(
+            (body) => DRAWS_THE_MARK.test(body) && OFFSETS_THE_MARK.test(body)
+          )
       )
     ).toStrictEqual([]);
   });
