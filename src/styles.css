@@ -594,6 +594,18 @@ body.dragging .ProseMirror::selection {
   gap: 0.15rem;
   align-items: center;
 }
+
+/* Four of the five controls the app draws itself, the tab strip carrying the
+   fifth. None declares the border a shadcn ring recolors, and forced-colors
+   mode drops the box-shadow half of that ring where it keeps an outline. */
+.ProseMirror ul[data-type="taskList"] > li > label > input:focus-visible,
+.code-block-button:focus-visible,
+.code-block-language:focus-visible,
+.link-editor-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* Syntax highlighting: lowlight classes onto stet's twelve roles. Emphasis is
    weight and slant rather than colour, so the theme survives a palette swap. */
 .hljs-comment,

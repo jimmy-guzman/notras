@@ -180,7 +180,7 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "no-drag group flex h-full min-w-24 flex-1 basis-0 items-center border-border border-r ps-2.5 pe-1",
+              "no-drag group flex h-full min-w-24 flex-1 basis-0 items-center border-border border-r ps-2.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring has-[:focus-visible]:-outline-offset-2",
               active
                 ? "bg-background text-foreground"
                 : "text-muted-foreground hover:bg-muted/40",
@@ -216,7 +216,7 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
           aria-controls={tabPanelId(id)}
           aria-selected={active}
           className={cn(
-            "min-w-0 flex-1 truncate text-start text-sm",
+            "min-w-0 flex-1 truncate text-start text-sm focus-visible:outline-none",
             tab.kind === "external" && "font-mono text-xs"
           )}
           data-tauri-drag-region={sole || undefined}

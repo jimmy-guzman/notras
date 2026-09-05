@@ -175,13 +175,16 @@ const COMMENT = /\/\*[\s\S]*?\*\//g;
 const URL_VALUE = /url\([^)]*\)/g;
 
 /**
- * Rule preludes in source order, whitespace collapsed so a selector the
- * formatter wrapped across lines reads as one string. Tracks brace depth rather than
- * splitting on braces, so a rule nested in an at-rule is still seen, and drops
- * comments and `url()` values first because either can carry a brace.
+ * Every rule as its prelude and the declarations it holds, whitespace collapsed
+ * so a selector the formatter wrapped across lines reads as one string. Tracks
+ * brace depth rather than splitting on braces, so a rule nested in an at-rule is
+ * still seen, and drops comments and `url()` values first because either can
+ * carry a brace. A rule holding a nested one keeps only the declarations after
+ * that nested block, which no caller here reads.
  */
-const preludesOf = (css: string) => {
-  const preludes: string[] = [];
+const rulesOf = (css: string) => {
+  const rules: { body: string; prelude: string }[] = [];
+  const open: string[] = [];
 
   let buffer = "";
 
@@ -189,17 +192,22 @@ const preludesOf = (css: string) => {
     .replaceAll(COMMENT, "")
     .replaceAll(URL_VALUE, "")) {
     if (character === "{") {
-      preludes.push(buffer.trim().replaceAll(/\s+/g, " "));
+      open.push(
+        (buffer.split(";").at(-1) ?? "").trim().replaceAll(/\s+/g, " ")
+      );
       buffer = "";
-    } else if (character === "}" || character === ";") {
+    } else if (character === "}") {
+      rules.push({ body: buffer, prelude: open.pop() ?? "" });
       buffer = "";
     } else {
       buffer += character;
     }
   }
 
-  return preludes.filter((prelude) => prelude !== "");
+  return rules.filter(({ prelude }) => prelude !== "");
 };
+
+const preludesOf = (css: string) => rulesOf(css).map(({ prelude }) => prelude);
 
 const TASK_LIST = 'ul[data-type="taskList"]';
 
@@ -526,5 +534,42 @@ describe("titlebar drag region", () => {
     );
 
     expect(classes.split(WHITESPACE)).toContain("no-drag");
+  });
+});
+
+/**
+ * Two declarations take away the mark the platform draws: `outline: none`
+ * removes the ring, and `appearance: none` strips the native chrome carrying
+ * it. Either leaves keyboard focus landing on a control with nothing on screen
+ * unless that control draws its own. The task checkbox is why this is a gate
+ * rather than a review note: TipTap cancels its `mousedown`, so Tab is the only
+ * way to reach it and the outline is the only state it has.
+ */
+const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/;
+
+const selectorsOf = (prelude: string) =>
+  prelude
+    .split(",")
+    .map((selector) => selector.trim())
+    .filter((selector) => selector !== "");
+
+const noteRules = rulesOf(source);
+
+const strippedSelectors = noteRules
+  .filter(({ body }) => STRIPS_AFFORDANCE.test(body))
+  .flatMap(({ prelude }) => selectorsOf(prelude));
+
+const guardedSelectors = new Set(
+  noteRules.flatMap(({ prelude }) => selectorsOf(prelude))
+);
+
+describe("focus affordance", () => {
+  it("should replace every stripped affordance with a focus-visible outline", () => {
+    expect(strippedSelectors).not.toStrictEqual([]);
+    expect(
+      strippedSelectors.filter(
+        (selector) => !guardedSelectors.has(`${selector}:focus-visible`)
+      )
+    ).toStrictEqual([]);
   });
 });
