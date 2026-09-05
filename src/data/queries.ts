@@ -62,17 +62,20 @@ export const noteQueries = {
   fileKey,
   folders: () =>
     queryOptions({
+      meta: { what: "could not refresh the folder list" },
       queryFn: getFolders,
       queryKey: [...index, "folders"] as const,
     }),
   index,
   list: (filters?: NoteFilters) =>
     queryOptions({
+      meta: { what: "could not refresh the note list" },
       queryFn: () => getNotes(filters),
       queryKey: [...index, "list", filters ?? null] as const,
     }),
   tags: () =>
     queryOptions({
+      meta: { what: "could not refresh the tag list" },
       queryFn: getTags,
       queryKey: [...index, "tags"] as const,
     }),
@@ -80,6 +83,7 @@ export const noteQueries = {
 
 /** Settings rather than index: no write to a note can move it. */
 export const notesDirQuery = queryOptions({
+  meta: { what: "could not refresh the notes folder" },
   queryFn: getNotesDir,
   queryKey: ["notes-dir"] as const,
 });

@@ -13,6 +13,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 interface Live {
   flush: () => Promise<boolean>;
+  reason: string | undefined;
   status: SaveStatus;
   type: (content: string) => void;
 }
@@ -29,6 +30,7 @@ function mountAutosave(
   let enabled = true;
   let live: Live = {
     flush: () => Promise.reject(new Error("the probe never rendered")),
+    reason: undefined,
     status: "saved",
     type: () => undefined,
   };
@@ -42,6 +44,7 @@ function mountAutosave(
 
     live = {
       flush: autosave.flush,
+      reason: autosave.reason,
       status: autosave.status,
       type: autosave.onChange,
     };
@@ -66,6 +69,9 @@ function mountAutosave(
       });
 
       return landed;
+    },
+    get reason() {
+      return live.reason;
     },
     setEnabled(next: boolean) {
       enabled = next;
@@ -311,6 +317,30 @@ describe("useAutosave", () => {
     await expect(harness.flush()).resolves.toBe(true);
     expect(written).toStrictEqual(["hello", "hello"]);
     expect(harness.status).toBe("saved");
+
+    harness.unmount();
+  });
+
+  it("should say why the write failed while it is failed", async () => {
+    let failNext = true;
+    const harness = mountAutosave(() => {
+      if (failNext) {
+        failNext = false;
+
+        return Promise.reject(new Error("the disk is full"));
+      }
+
+      return Promise.resolve(new Date(1));
+    });
+
+    harness.type("hello");
+    await harness.settle();
+
+    expect(harness.status).toBe("failed");
+    expect(harness.reason).toBe("the disk is full");
+
+    await expect(harness.flush()).resolves.toBe(true);
+    expect(harness.reason).toBeUndefined();
 
     harness.unmount();
   });

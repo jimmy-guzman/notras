@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 base64 = "0.22"
+log = "0.4"
 notify = "8"
 notify-debouncer-full = "0.5"
 rusqlite = { version = "0.37", features = ["bundled"] }
@@ -30,6 +31,7 @@ tauri = { version = "2", features = [
   "tray-icon",
 ] }
 tauri-plugin-dialog = "2"
+tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
 # Already in the tree through tauri-plugin-updater; named here for

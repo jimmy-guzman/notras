@@ -118,13 +118,15 @@ Motion carries a state change and nothing else. There is no decorative animation
 - **Code blocks** sit on `--card` at `--radius-md`, in `--font-mono`, and reveal their toolbar (copy, language picker) on hover or focus-within.
 - **Moving blocks adds nothing to the surface** (`D71`). There is no handle and no gutter: what moves is what is selected, and the gesture is the one text already uses. While a drag is in flight a copy of what is held follows the pointer on `--background` under the tab drag's `0 2px 8px rgb(0 0 0 / 0.18)` (`D60`), the source dims where it sits, and a `--primary` bar 2px wide and `1em` tall stands where it will land, which is the drop cursor CodeMirror draws. The copy hugs what it holds under the block's width, so a long paragraph wraps as it did, and it sits `16px` below and right of the pointer so the bar stays in view. It sits in the line as a zero-width inline box, so nothing shifts as it moves.
 - **Source mode** strips that chrome: one bare, transparent, wrapping code block at `0.85rem` and `1.7` line-height, so ⌘E reads as the same document rather than a different screen.
+- **A gone file** shows a destructive `Alert` at the top of the pane: "this file is gone" over "nothing here is being saved, so copy what you need".
 
 ## Copy
 
 - Lowercase, always. Labels, buttons, toasts, tooltips, placeholders, menu items, empty states.
-- Errors reach the user as `toast.add({ title: error.message, type: "error" })`, so the message on a typed failure is user-facing text. Write it as a lowercase sentence naming what failed, and keep it in `src/core/errors.ts` or the schema that raises it.
-- **An empty state is two lines: what is not here, then what to do about it.** The first sits on `--muted-foreground`, the second on `--faint`. Find with no results reads `nothing found` over `start with # to search by tag`, and actions with none reads it over the chord that finds a note. Never leave a blank pane. A find that matched nothing is the one case with no empty state: the create row stands in its place.
-- The launch empty state is the wordmark, the tagline "just write, otra vez.", and the ⌘n / ⌘p hints. It says what to press.
+- Errors reach the user in two parts: what failed, in the app's copy, as the title, and why, from the error, as the description, through `reasonOf` in `src/lib/ui/failure.ts`. The title is a lowercase sentence naming the action, written at the call site; the reason comes from the typed failure or the schema that raises it, lowercase and without an error number.
+- **An empty state is `Empty`: a title, a description, and an action slot, at the sizes the component sets.** Find with no results reads `nothing found` over `start with # to search by tag`, and actions with none reads it over the chord that finds a note. Never leave a blank pane. A find that matched nothing is the one case with no empty state: the create row stands in its place.
+- A pane or screen that could not load is the same `Empty`, with the failure's two parts as its title and description and the retry as an outline button in its action slot.
+- The welcome screen, shown when no tab is open, is not an empty state: it is the wordmark, the tagline "just write, otra vez.", and the ⌘n / ⌘p hints, in its own markup. It says what to press.
 - Name what a control does rather than what it is. The palette entry is "move to folder", not "folder".
 
 ## Accessibility

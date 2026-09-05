@@ -2,11 +2,11 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { attachImage } from "@/data/attach-file";
-import { errorMessage } from "@/lib/ui/failure";
-import { cn } from "@/lib/ui/utils";
+import { reasonOf } from "@/lib/ui/failure";
 import { encodeAttachmentPath } from "@/lib/utils/attachments";
 import {
   createEditorExtensions,
@@ -177,8 +177,12 @@ export function Editor({
               return true;
             }
 
-            openUrl(href).catch(() => {
-              toast.add({ title: "could not open link", type: "error" });
+            openUrl(href).catch((error: unknown) => {
+              toast.add({
+                description: reasonOf(error),
+                title: "could not open link",
+                type: "error",
+              });
             });
 
             return true;
@@ -218,7 +222,7 @@ export function Editor({
                 type: "error",
               });
             });
-            reader.addEventListener("load", () => {
+            reader.addEventListener("load", async () => {
               const result =
                 typeof reader.result === "string" ? reader.result : "";
               const base64 = result.split(",")[1] ?? "";
@@ -232,20 +236,21 @@ export function Editor({
                 return;
               }
 
-              attachImage(base64)
-                .then((relativePath) => {
-                  editorRef.current
-                    ?.chain()
-                    .focus()
-                    .setImage({ src: encodeAttachmentPath(relativePath) })
-                    .run();
-                })
-                .catch((error: unknown) => {
-                  toast.add({
-                    title: errorMessage(error, "could not paste image"),
-                    type: "error",
-                  });
+              try {
+                const relativePath = await attachImage(base64);
+
+                editorRef.current
+                  ?.chain()
+                  .focus()
+                  .setImage({ src: encodeAttachmentPath(relativePath) })
+                  .run();
+              } catch (error) {
+                toast.add({
+                  description: reasonOf(error),
+                  title: "could not paste image",
+                  type: "error",
                 });
+              }
             });
             reader.readAsDataURL(blob);
 

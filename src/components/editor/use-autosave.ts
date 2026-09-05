@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import { registerPendingFlush } from "@/lib/pending-flush";
+import { reasonOf } from "@/lib/ui/failure";
 
 export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
 
@@ -36,6 +37,7 @@ interface AutosaveOptions {
  */
 export function useAutosave(path: string, options: AutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("saved");
+  const [reason, setReason] = useState<string | undefined>(undefined);
   const pendingRef = useRef<null | string>(null);
   const inFlightRef = useRef<Promise<unknown>>(Promise.resolve());
   const pathRef = useRef(path);
@@ -83,10 +85,11 @@ export function useAutosave(path: string, options: AutosaveOptions) {
       refreshStatus();
 
       return true;
-    } catch {
+    } catch (error) {
       // A keystroke may have landed while the failing write was in flight, and
       // that buffer is newer than the snapshot this call started from.
       pendingRef.current ??= content;
+      setReason(reasonOf(error));
       setStatus("failed");
 
       return false;
@@ -150,5 +153,10 @@ export function useAutosave(path: string, options: AutosaveOptions) {
     };
   }, [flush]);
 
-  return { flush, onChange, status };
+  return {
+    flush,
+    onChange,
+    reason: status === "failed" ? reason : undefined,
+    status,
+  };
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
@@ -21,4 +21,20 @@ pub struct AppState {
     /// Set once a quit is in flight, so the webview gets exactly one chance to
     /// flush pending writes before the process goes away.
     pub quitting: AtomicBool,
+}
+
+/// A poisoned lock means a panic elsewhere already did its damage; recovering
+/// the state behind it keeps one panic from becoming one per command.
+impl AppState {
+    pub fn core(&self) -> MutexGuard<'_, Core> {
+        self.core.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn watcher(&self) -> MutexGuard<'_, Option<Debouncer<RecommendedWatcher, RecommendedCache>>> {
+        self.watcher.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn pending_open(&self) -> MutexGuard<'_, Vec<String>> {
+        self.pending_open.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }

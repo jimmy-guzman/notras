@@ -32,6 +32,12 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import { filenameFromTitle } from "@/core/notes";
@@ -50,7 +56,7 @@ import {
   useTabState,
 } from "@/lib/tabs/store";
 import { tabId } from "@/lib/tabs/tab";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
@@ -73,13 +79,6 @@ function Snippet({ snippet }: { snippet: string }) {
       )}
     </span>
   );
-}
-
-function reportActionFailure(error: unknown) {
-  toast.add({
-    title: errorMessage(error, "something went wrong"),
-    type: "error",
-  });
 }
 
 const VISIBLE_TAGS = 3;
@@ -379,10 +378,14 @@ function ActionsView({ actions, chordsByName }: ActionsViewProps) {
   return (
     <>
       <CommandEmpty>
-        <p className="text-muted-foreground">nothing found</p>
-        <p className="text-faint">
-          <Chord hotkey="Mod+P" /> to search notes
-        </p>
+        <Empty className="p-6">
+          <EmptyHeader>
+            <EmptyTitle>nothing found</EmptyTitle>
+            <EmptyDescription>
+              <Chord hotkey="Mod+P" /> to search notes
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </CommandEmpty>
       <CommandGroup heading="actions">
         {actions.map(({ Icon, label, onSelect, text, value }) => {
@@ -420,6 +423,7 @@ interface FindViewProps {
   onFilterTag: (name: string) => void;
   onSelectNote: (path: string) => void;
   query: string;
+  searchError: Error | null;
   tagQuery?: TagQuery;
 }
 
@@ -430,19 +434,37 @@ function FindView({
   onFilterTag,
   onSelectNote,
   query,
+  searchError,
   tagQuery,
 }: FindViewProps) {
   const draftTitle = query.trim();
   // A search that found nothing is a dead end unless it can become a note.
   // Only a plain one: naming a note from `#work foo` would have to tag it too.
   const offerCreate =
-    notes.length === 0 && draftTitle !== "" && tagQuery === undefined;
+    searchError === null &&
+    notes.length === 0 &&
+    draftTitle !== "" &&
+    tagQuery === undefined;
+  const emptyDescription =
+    searchError === null
+      ? "start with # to search by tag"
+      : reasonOf(searchError);
 
   return (
     <>
       <CommandEmpty>
-        <p className="text-muted-foreground">nothing found</p>
-        <p className="text-faint">start with # to search by tag</p>
+        <Empty className="p-6">
+          <EmptyHeader>
+            <EmptyTitle>
+              {searchError === null
+                ? "nothing found"
+                : "could not search notes"}
+            </EmptyTitle>
+            {emptyDescription === undefined ? null : (
+              <EmptyDescription>{emptyDescription}</EmptyDescription>
+            )}
+          </EmptyHeader>
+        </Empty>
       </CommandEmpty>
       {tagQuery?.query === "" ? (
         <CommandGroup heading="tags">
@@ -542,7 +564,7 @@ function useVisibleNotes(
     view === "find" ? searchFiltersFor(debouncedQuery, knownTags) : undefined;
   // The filters are the key, so a slow "a" resolving after "abc" lands in its
   // own cache entry and never reaches the screen.
-  const { data: results, isError } = useQuery({
+  const { data: results, error } = useQuery({
     ...noteQueries.list(filters),
     enabled: filters !== undefined,
     placeholderData: keepPreviousData,
@@ -550,20 +572,20 @@ function useVisibleNotes(
   const tagQuery = parseTagQuery(query);
 
   if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
-    return [];
+    return { error: null, notes: [] };
   }
 
   // Asking for nothing builds the key the root loader already primed, and a
   // disabled query still reads the cache, so its full list would land here.
   if (filters === undefined) {
-    return notes.slice(0, 20);
+    return { error: null, notes: notes.slice(0, 20) };
   }
 
-  if (isError) {
-    return [];
+  if (error !== null) {
+    return { error, notes: [] };
   }
 
-  return results ?? notes.slice(0, 20);
+  return { error: null, notes: results ?? notes.slice(0, 20) };
 }
 
 export function CommandPalette({
@@ -620,7 +642,12 @@ export function CommandPalette({
   );
 
   const tagQuery = parseTagQuery(query);
-  const visibleNotes = useVisibleNotes(query, view, knownTags, notes);
+  const { error: searchError, notes: visibleNotes } = useVisibleNotes(
+    query,
+    view,
+    knownTags,
+    notes
+  );
 
   const close = useCallback(() => {
     handleOpenChange(false);
@@ -650,13 +677,13 @@ export function CommandPalette({
   );
 
   const runAction = useCallback(
-    (action: () => Promise<void>) => {
+    async (what: string, action: () => Promise<void>) => {
       close();
 
       try {
-        action().catch(reportActionFailure);
+        await action();
       } catch (error) {
-        reportActionFailure(error);
+        toast.add({ description: reasonOf(error), title: what, type: "error" });
       }
     },
     [close]
@@ -677,7 +704,7 @@ export function CommandPalette({
       return;
     }
 
-    runAction(async () => {
+    runAction("could not delete note", async () => {
       await deleteNote(currentNote.path);
       closeNoteTab(currentNote.path);
       toast.add({ title: "note deleted", type: "success" });
@@ -690,7 +717,7 @@ export function CommandPalette({
         return;
       }
 
-      runAction(async () => {
+      runAction("could not move note", async () => {
         const next = await moveNote(currentNote.path, folder);
 
         renameTab(currentNote.path, next);
@@ -712,7 +739,7 @@ export function CommandPalette({
       return;
     }
 
-    runAction(async () => {
+    runAction("could not rename note", async () => {
       const next = await retitleNote(currentNote.path, query.trim());
 
       renameTab(currentNote.path, next);
@@ -740,7 +767,7 @@ export function CommandPalette({
   }, []);
 
   const newNote = useCallback(() => {
-    runAction(async () => {
+    runAction("could not create note", async () => {
       const path = await createNote();
 
       openInTab(path, true);
@@ -752,7 +779,7 @@ export function CommandPalette({
   const createFromQuery = useCallback(() => {
     const title = query.trim();
 
-    runAction(async () => {
+    runAction("could not create note", async () => {
       const path = await createNote({ filename: filenameFromTitle(title) });
 
       openInTab(path, true);
@@ -764,7 +791,9 @@ export function CommandPalette({
       return;
     }
 
-    runAction(() => setNotePinned(currentNote.path, !currentNote.pinned));
+    runAction("could not update pin", () =>
+      setNotePinned(currentNote.path, !currentNote.pinned)
+    );
   }, [currentNote, runAction]);
 
   const startEditTags = useCallback(() => {
@@ -791,7 +820,9 @@ export function CommandPalette({
       return;
     }
 
-    runAction(() => revealItemInDir(`${notesDir}/${currentNote.path}`));
+    runAction("could not reveal note", () =>
+      revealItemInDir(`${notesDir}/${currentNote.path}`)
+    );
   }, [currentNote, notesDir, runAction]);
 
   const openSettings = useCallback(() => {
@@ -807,7 +838,7 @@ export function CommandPalette({
   }, [close]);
 
   const reindex = useCallback(() => {
-    runAction(async () => {
+    runAction("could not reindex", async () => {
       await reindexAll();
       toast.add({ title: "library reindexed", type: "success" });
     });
@@ -816,7 +847,7 @@ export function CommandPalette({
   // Unlike the launch check, this one was asked for, so it reports either way,
   // including the way a development build cannot report on: it never ran.
   const checkForUpdates = useCallback(() => {
-    runAction(async () => {
+    runAction("could not check for updates", async () => {
       if (!updatesSupported()) {
         toast.add({ title: "update checks are off in development" });
 
@@ -1003,6 +1034,7 @@ export function CommandPalette({
               onFilterTag={filterByTag}
               onSelectNote={openNote}
               query={query}
+              searchError={searchError}
               tagQuery={tagQuery}
             />
           ) : null}

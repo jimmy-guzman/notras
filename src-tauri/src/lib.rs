@@ -16,6 +16,7 @@ use tauri::window::Color;
 use tauri::{
     AppHandle, Emitter, Manager, RunEvent, Theme, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_store::StoreExt;
 
 use crate::state::{AppState, Core};
@@ -128,8 +129,8 @@ fn open_capture(app: &AppHandle) {
 /// user picked -- the config ships with an empty static scope.
 pub fn allow_assets(app: &AppHandle, notes_dir: &std::path::Path) {
     if let Err(error) = app.asset_protocol_scope().allow_directory(notes_dir, true) {
-        eprintln!(
-            "notras: could not grant asset access to {}: {error}",
+        log::error!(
+            "could not grant asset access to {}: {error}",
             notes_dir.display()
         );
     }
@@ -143,7 +144,9 @@ fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
     tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))
 }
 
-fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+/// Everything a launch needs. A failure here reaches the user as a dialog,
+/// since no window exists yet to say it in.
+fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // The config paints the window dark at creation, which is earlier than this
     // runs. Correcting it here is what keeps a light-mode launch from flashing
     // dark instead of white.
@@ -169,8 +172,7 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // notes dir at runtime rather than blanketing $HOME in the config.
     allow_assets(app.handle(), &notes_dir);
 
-    let conn = rusqlite::Connection::open(notes_dir.join(".notras/index.db"))?;
-    index::ensure_schema(&conn)?;
+    let conn = index::open(&notes_dir)?;
 
     app.manage(AppState {
         core: Mutex::new(Core {
@@ -186,20 +188,28 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let scan_app = app.handle().clone();
     std::thread::spawn(move || {
         let state = scan_app.state::<AppState>();
-        let core = state.core.lock().unwrap();
+        let core = state.core();
         match index::scan_all(&core.conn, &core.notes_dir) {
             Ok(changed) => {
                 drop(core);
                 if !changed.is_empty() {
-                    let _ = scan_app.emit("notes-changed", NotesChanged { paths: changed });
+                    if let Err(error) = scan_app.emit("notes-changed", NotesChanged { paths: changed }) {
+                        log::error!("could not emit {}: {error}", "notes-changed");
+                    }
                 }
             }
-            Err(error) => eprintln!("notras: startup scan failed: {error}"),
+            Err(error) => log::error!("startup scan failed: {error}"),
         }
     });
 
     let state = app.state::<AppState>();
-    *state.watcher.lock().unwrap() = watcher::start(app.handle().clone(), notes_dir);
+    *state.watcher() = match watcher::start(app.handle().clone(), notes_dir) {
+        Ok(watcher) => Some(watcher),
+        Err(error) => {
+            log::error!("could not watch the notes dir: {error}");
+            None
+        }
+    };
 
     // Tray: open / new note / quick capture / quit.
     let open = MenuItem::with_id(app, "open", "open notras", true, None::<&str>)?;
@@ -217,7 +227,9 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             "open" => show_main(app),
             "new-note" => {
                 show_main(app);
-                let _ = app.emit("menu-new-note", ());
+                if let Err(error) = app.emit("menu-new-note", ()) {
+                    log::error!("could not emit {}: {error}", "menu-new-note");
+                }
             }
             "capture" => open_capture(app),
             "quit" => app.exit(0),
@@ -245,9 +257,37 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let Err(error) = init(app) else {
+        return Ok(());
+    };
+
+    log::error!("could not start: {error}");
+    // Blocking, so the reason is on screen before the process goes.
+    app.dialog()
+        .message(error.to_string())
+        .title("notras could not start")
+        .kind(MessageDialogKind::Error)
+        .blocking_show();
+
+    Err(error)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // First, so what the other plugins log is caught too.
     let mut builder = tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("notras".into()),
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                ])
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build());
@@ -263,7 +303,7 @@ pub fn run() {
             .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
-    let app = builder
+    let built = builder
         .invoke_handler(tauri::generate_handler![
             notes::attach_file,
             notes::attach_image,
@@ -297,8 +337,14 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| setup(app))
-        .build(tauri::generate_context!())
-        .expect("error while building notras");
+        .build(tauri::generate_context!());
+    let app = match built {
+        Ok(app) => app,
+        Err(error) => {
+            log::error!("could not build the app: {error}");
+            std::process::exit(1);
+        }
+    };
 
     app.run(|app, event| match event {
         // macOS only: the variant does not exist on the other targets, and an
@@ -322,7 +368,9 @@ pub fn run() {
                 return;
             }
             api.prevent_exit();
-            let _ = app.emit("app-quit", ());
+            if let Err(error) = app.emit("app-quit", ()) {
+                log::error!("could not emit {}: {error}", "app-quit");
+            }
 
             // Backstop for a webview that never answers. It re-checks the flag
             // so a quit the frontend called off (a write failed, and exiting
@@ -348,12 +396,10 @@ pub fn run() {
             show_main(app);
             // The queue is the only delivery mechanism -- the event just tells
             // the frontend to drain it, so a path can never open twice.
-            app.state::<AppState>()
-                .pending_open
-                .lock()
-                .unwrap()
-                .extend(paths);
-            let _ = app.emit("open-file", ());
+            app.state::<AppState>().pending_open().extend(paths);
+            if let Err(error) = app.emit("open-file", ()) {
+                log::error!("could not emit {}: {error}", "open-file");
+            }
         }
         _ => {}
     });

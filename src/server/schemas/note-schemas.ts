@@ -48,7 +48,7 @@ export const folderNameSchema = Schema.Trim.pipe(
 
       return valid
         ? undefined
-        : String.raw`folder cannot contain \ : or start with a dot`;
+        : String.raw`folder parts cannot be blank, contain \ or :, or start with a dot`;
     })
   )
 );

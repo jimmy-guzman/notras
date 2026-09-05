@@ -3,14 +3,18 @@ import type { QueryClient } from "@tanstack/react-query";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
+  type ErrorComponentProps,
   Navigate,
   Outlet,
   useNavigate,
+  useRouter,
 } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect, useState } from "react";
 import { CommandPalette, type PaletteMode } from "@/components/command-palette";
+import { RouteError } from "@/components/route-error";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { Toaster, toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,7 +23,7 @@ import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import type { PendingOpen } from "@/lib/tabs/tab";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 
 /** Cached data answers the loader; only a cold key fetches. */
@@ -34,6 +38,7 @@ export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
   component: RootLayout,
+  errorComponent: RootError,
   // The workspace is the only screen (`D53`), so any other path is a stale URL
   // -- a dev reload holding the retired `/notes/$`, or a malformed deep link.
   notFoundComponent: () => <Navigate replace to="/" />,
@@ -57,9 +62,19 @@ export const Route = createRootRouteWithContext<{
 function disposeLater(...pending: Promise<() => void>[]) {
   return () => {
     for (const unlisten of pending) {
-      unlisten.then((dispose) => {
-        dispose();
-      });
+      const dispose = async () => {
+        try {
+          (await unlisten)();
+        } catch (error) {
+          try {
+            await logError(`could not remove a listener: ${String(error)}`);
+          } catch {
+            // Best effort.
+          }
+        }
+      };
+
+      dispose();
     }
   };
 }
@@ -134,16 +149,18 @@ function RootLayout() {
         return;
       }
 
-      const update = await findUpdate();
+      try {
+        const update = await findUpdate();
 
-      if (update !== null) {
-        offerUpdate(update);
+        if (update !== null) {
+          offerUpdate(update);
+        }
+      } catch {
+        // Deliberately quiet; see above.
       }
     };
 
-    checkOnLaunch().catch(() => {
-      // Deliberately quiet; see above.
-    });
+    checkOnLaunch();
   }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
@@ -176,32 +193,39 @@ function RootLayout() {
     // something in it, so draining is the single delivery mechanism. Each one
     // lands in its own tab rather than replacing what is open (`D54`).
     const drainPendingOpens = async () => {
-      const opens = await invoke<PendingOpen[]>("pending_open_files");
+      try {
+        const opens = await invoke<PendingOpen[]>("pending_open_files");
 
-      for (const { kind, path } of opens) {
-        openTab(kind, path, true);
+        for (const { kind, path } of opens) {
+          openTab(kind, path, true);
+        }
+      } catch (error) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not open file",
+          type: "error",
+        });
       }
     };
 
-    const reportFailure = (fallback: string) => (error: unknown) => {
-      toast.add({
-        title: errorMessage(error, fallback),
-        type: "error",
-      });
-    };
+    const unlistenNew = listen("menu-new-note", async () => {
+      try {
+        const path = await createNote();
 
-    const unlistenNew = listen("menu-new-note", () => {
-      createNote()
-        .then((path) => {
-          openNote(path, true);
-        })
-        .catch(reportFailure("could not create note"));
+        openNote(path, true);
+      } catch (error) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not create note",
+          type: "error",
+        });
+      }
     });
     const unlistenOpen = listen("open-file", () => {
-      drainPendingOpens().catch(reportFailure("could not open file"));
+      drainPendingOpens();
     });
 
-    drainPendingOpens().catch(reportFailure("could not open file"));
+    drainPendingOpens();
 
     return disposeLater(unlistenNew, unlistenOpen);
   }, []);
@@ -209,31 +233,50 @@ function RootLayout() {
   // Quit is held open by Rust until the buffers are on disk -- and called off
   // entirely if one of them could not be written.
   useEffect(() => {
-    const unlisten = listen("app-quit", () => {
+    const unlisten = listen("app-quit", async () => {
       // Carets are read off the live sessions, so the set has to be written
-      // here rather than only when it last changed.
-      persistTabs();
-      flushPendingWrites()
-        .then((saved) => {
-          if (saved) {
-            return invoke("quit_app");
-          }
+      // here rather than only when it last changed. One that could not be
+      // written is no reason to hold the quit.
+      try {
+        persistTabs();
+      } catch (error) {
+        try {
+          await logError(`could not persist the tabs: ${String(error)}`);
+        } catch {
+          // Best effort.
+        }
+      }
 
-          toast.add({
-            title: "could not save your changes -- quit cancelled",
-            type: "error",
-          });
+      if (await flushPendingWrites()) {
+        // Every buffer landed and Rust's backstop exits either way, so an answer
+        // it cannot hear is still safe, and a log line would travel the channel
+        // that just failed.
+        try {
+          await invoke("quit_app");
+        } catch {
+          // See above.
+        }
 
-          return invoke("cancel_quit");
-        })
-        .catch(() => {
-          toast.add({
-            title: "could not save your changes -- quit cancelled",
-            type: "error",
-          });
+        return;
+      }
 
-          return invoke("cancel_quit");
+      toast.add({
+        description: "quit cancelled",
+        title: "could not save your changes",
+        type: "error",
+      });
+
+      // A cancel Rust cannot hear ends in its backstop exiting with the buffer
+      // unsaved, so this one failure is said out loud.
+      try {
+        await invoke("cancel_quit");
+      } catch (error) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not cancel the quit",
+          type: "error",
         });
+      }
     });
 
     return disposeLater(unlisten);
@@ -255,7 +298,8 @@ function RootLayout() {
         openNote(path, true);
       } catch (error) {
         toast.add({
-          title: errorMessage(error, "could not create note"),
+          description: reasonOf(error),
+          title: "could not create note",
           type: "error",
         });
       }
@@ -296,4 +340,18 @@ function RootLayout() {
       <Toaster />
     </TooltipProvider>
   );
+}
+
+function RootError({ error }: ErrorComponentProps) {
+  const router = useRouter();
+  // The match a new load produces is what resets the boundary.
+  const retry = useCallback(async () => {
+    try {
+      await router.invalidate();
+    } catch {
+      // The screen and its button are still there.
+    }
+  }, [router]);
+
+  return <RouteError reason={reasonOf(error)} retry={retry} />;
 }

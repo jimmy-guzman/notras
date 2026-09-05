@@ -19,6 +19,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { cn } from "cn";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -53,7 +54,7 @@ import {
 import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
-import { cn } from "@/lib/ui/utils";
+import { reasonOf } from "@/lib/ui/failure";
 
 const STEPS: Record<string, TabStep> = {
   ArrowLeft: "previous",
@@ -159,10 +160,16 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
     closeTabsAfter(id);
   }, [id]);
 
-  const copyPath = useCallback(() => {
-    navigator.clipboard.writeText(tab.path).catch(() => {
-      toast.add({ title: "could not copy the path", type: "error" });
-    });
+  const copyPath = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(tab.path);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not copy the path",
+        type: "error",
+      });
+    }
   }, [tab.path]);
 
   return (
@@ -198,7 +205,11 @@ function TabItem({ active, fallback, sole, tab }: TabItemProps) {
       >
         {snapshot?.status === "failed" ? (
           <span className="me-1.5 size-1.5 shrink-0 rounded-full bg-destructive">
-            <span className="sr-only">could not save</span>
+            <span className="sr-only">
+              {snapshot.reason === undefined
+                ? "could not save"
+                : `could not save: ${snapshot.reason}`}
+            </span>
           </span>
         ) : null}
         <button

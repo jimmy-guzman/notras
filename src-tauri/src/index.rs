@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{fmt, fs, io};
 use std::time::UNIX_EPOCH;
 
 use rusqlite::types::ValueRef;
@@ -8,6 +8,61 @@ use rusqlite::Connection;
 use serde_json::{json, Value};
 
 use crate::frontmatter;
+
+/// What an index operation can fail on: the note's file, or the database.
+#[derive(Debug)]
+pub enum IndexError {
+    Io(io::Error),
+    Db(rusqlite::Error),
+}
+
+impl From<io::Error> for IndexError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+impl From<rusqlite::Error> for IndexError {
+    fn from(error: rusqlite::Error) -> Self {
+        Self::Db(error)
+    }
+}
+
+impl fmt::Display for IndexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(error) => error.fmt(f),
+            Self::Db(error) => error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for IndexError {}
+
+/// Open the index under `notes_dir`, rebuilding it from nothing when what is
+/// there cannot be opened or holds no usable schema. The files are the source
+/// of truth, so a database the app cannot read is one it can throw away.
+pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
+    let path = notes_dir.join(".notras/index.db");
+    let opened = Connection::open(&path).and_then(|conn| ensure_schema(&conn).map(|()| conn));
+    let error = match opened {
+        Ok(conn) => return Ok(conn),
+        Err(error) => error,
+    };
+
+    log::warn!("rebuilding the index, which could not be opened: {error}");
+    for suffix in ["", "-wal", "-shm"] {
+        let stale = notes_dir.join(format!(".notras/index.db{suffix}"));
+        if let Err(error) = fs::remove_file(&stale) {
+            if error.kind() != io::ErrorKind::NotFound {
+                log::warn!("could not remove {}: {error}", stale.display());
+            }
+        }
+    }
+    let conn = Connection::open(&path)?;
+    ensure_schema(&conn)?;
+    Ok(conn)
+}
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -177,14 +232,18 @@ pub fn index_file(
     conn: &Connection,
     notes_dir: &Path,
     rel_path: &str,
-) -> rusqlite::Result<bool> {
+) -> Result<bool, IndexError> {
     let abs = notes_dir.join(rel_path);
 
     // `symlink_metadata` does not follow the link, so a note symlinked to
     // something outside the vault never gets its contents into the index.
-    let Ok(meta) = fs::symlink_metadata(&abs) else {
-        remove(conn, rel_path)?;
-        return Ok(true);
+    let meta = match fs::symlink_metadata(&abs) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            remove(conn, rel_path)?;
+            return Ok(true);
+        }
+        Err(error) => return Err(error.into()),
     };
     if !meta.is_file() {
         remove(conn, rel_path)?;
@@ -203,9 +262,13 @@ pub fn index_file(
         return Ok(false);
     }
 
-    let Ok(content) = fs::read_to_string(&abs) else {
-        remove(conn, rel_path)?;
-        return Ok(true);
+    let content = match fs::read_to_string(&abs) {
+        Ok(content) => content,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            remove(conn, rel_path)?;
+            return Ok(true);
+        }
+        Err(error) => return Err(error.into()),
     };
 
     let parsed = frontmatter::parse(&content);
@@ -252,22 +315,40 @@ pub fn index_file(
     Ok(true)
 }
 
-fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
+fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<PathBuf>) {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            log::warn!("could not list {}: {error}", dir.display());
+            unreadable.push(dir.to_path_buf());
+            return;
+        }
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                log::warn!("could not list {}: {error}", dir.display());
+                unreadable.push(dir.to_path_buf());
+                return;
+            }
+        };
         let path = entry.path();
         if path.file_name().is_some_and(is_hidden) {
             continue;
         }
         // `file_type` does not follow symlinks, so a symlinked directory is
         // neither recursed into nor mistaken for a note file.
-        let Ok(file_type) = entry.file_type() else {
-            continue;
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(error) => {
+                log::warn!("could not read {}: {error}", path.display());
+                unreadable.push(dir.to_path_buf());
+                return;
+            }
         };
         if file_type.is_dir() {
-            collect_note_files(&path, out);
+            collect_note_files(&path, out, unreadable);
         } else if file_type.is_file() && is_note_file(&path) {
             out.push(path);
         }
@@ -276,9 +357,19 @@ fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>) {
 
 /// Full scan: index every note file and drop rows for files that no longer
 /// exist. Cheap on re-runs thanks to the mtime skip in `index_file`.
-pub fn scan_all(conn: &Connection, notes_dir: &Path) -> rusqlite::Result<Vec<String>> {
+///
+/// A file that is there but cannot be read keeps whatever row it has, and so
+/// does everything under a folder that cannot be listed: absence from the walk
+/// is only evidence of deletion where the walk could look.
+pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, IndexError> {
     let mut files = Vec::new();
-    collect_note_files(notes_dir, &mut files);
+    let mut unreadable = Vec::new();
+    collect_note_files(notes_dir, &mut files, &mut unreadable);
+    let shadowed: Vec<String> = unreadable
+        .iter()
+        .filter_map(|dir| relative_path(notes_dir, dir))
+        .map(|rel| if rel.is_empty() { rel } else { format!("{rel}/") })
+        .collect();
 
     let mut seen = HashSet::with_capacity(files.len());
     let mut changed = Vec::new();
@@ -287,8 +378,11 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> rusqlite::Result<Vec<Str
         let Some(rel) = relative_path(notes_dir, &file) else {
             continue;
         };
-        if index_file(conn, notes_dir, &rel)? {
-            changed.push(rel.clone());
+        match index_file(conn, notes_dir, &rel) {
+            Ok(true) => changed.push(rel.clone()),
+            Ok(false) => {}
+            Err(IndexError::Io(error)) => log::warn!("could not read {rel}: {error}"),
+            Err(error) => return Err(error),
         }
         seen.insert(rel);
     }
@@ -298,7 +392,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> rusqlite::Result<Vec<Str
         let mut stmt = conn.prepare("SELECT path FROM note")?;
         let paths = stmt.query_map([], |row| row.get::<_, String>(0))?;
         for path in paths.flatten() {
-            if !seen.contains(&path) {
+            if !seen.contains(&path) && !shadowed.iter().any(|dir| path.starts_with(dir)) {
                 stale.push(path);
             }
         }

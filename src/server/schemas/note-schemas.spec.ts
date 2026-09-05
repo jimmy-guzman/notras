@@ -58,7 +58,7 @@ describe("folderNameSchema", () => {
     "should reject %s",
     async (folder) => {
       await expect(decodeFolder(folder)).rejects.toThrow(
-        String.raw`folder cannot contain \ : or start with a dot`
+        String.raw`folder parts cannot be blank, contain \ or :, or start with a dot`
       );
     }
   );

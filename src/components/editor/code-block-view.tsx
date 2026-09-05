@@ -1,10 +1,10 @@
 import { useDebouncedCallback } from "@tanstack/react-pacer";
 import type { ReactNodeViewProps } from "@tiptap/react";
-
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
+import { reasonOf } from "@/lib/ui/failure";
 
 import { lowlight } from "./extensions";
 
@@ -34,16 +34,18 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
     ).toSorted();
   }, [language]);
 
-  const copy = useCallback(() => {
-    navigator.clipboard
-      .writeText(node.textContent)
-      .then(() => {
-        setCopied(true);
-        clearCopied();
-      })
-      .catch(() => {
-        toast.add({ title: "could not copy the code block", type: "error" });
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(node.textContent);
+      setCopied(true);
+      clearCopied();
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not copy the code block",
+        type: "error",
       });
+    }
   }, [clearCopied, node.textContent]);
 
   const changeLanguage = useCallback(

@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { setNotesDir } from "@/data/notes-dir";
-import { errorMessage } from "@/lib/ui/failure";
+import { reasonOf } from "@/lib/ui/failure";
 
 interface SettingsDialogProps {
   notesDir: string;
@@ -45,19 +45,20 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const queryClient = useQueryClient();
   // Read when the dialog opens, never on launch: nothing else shows it.
-  const { data: autostart, isError: autostartUnreadable } = useQuery({
+  const { data: autostart, error: autostartError } = useQuery({
     ...autostartQuery,
     enabled: open,
   });
 
   useEffect(() => {
-    if (autostartUnreadable) {
+    if (autostartError !== null) {
       toast.add({
+        description: reasonOf(autostartError),
         title: "could not read the launch at login setting",
         type: "error",
       });
     }
-  }, [autostartUnreadable]);
+  }, [autostartError]);
 
   const changeNotesDir = useCallback(async () => {
     try {
@@ -76,7 +77,8 @@ export function SettingsDialog({
       toast.add({ title: "notes folder updated", type: "success" });
     } catch (error) {
       toast.add({
-        title: errorMessage(error, "could not change folder"),
+        description: reasonOf(error),
+        title: "could not change folder",
         type: "error",
       });
     }
@@ -84,10 +86,14 @@ export function SettingsDialog({
 
   const { isPending: autostartPending, mutate: writeAutostart } = useMutation({
     mutationFn: (value: boolean) => (value ? enable() : disable()),
-    onError: () => {
+    onError: (error) => {
       // The OS holds the truth, so a failure reverts by re-reading it.
       queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
-      toast.add({ title: "could not update launch at login", type: "error" });
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update launch at login",
+        type: "error",
+      });
     },
     onMutate: (value: boolean) => {
       queryClient.setQueryData(autostartQuery.queryKey, value);
@@ -133,7 +139,7 @@ export function SettingsDialog({
               checked={autostart ?? false}
               disabled={
                 autostartPending ||
-                autostartUnreadable ||
+                autostartError !== null ||
                 autostart === undefined
               }
               id="autostart"

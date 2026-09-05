@@ -44,7 +44,16 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A dirty buffer wins. An external edit to a note with unsaved changes is not shown, and the next flush overwrites it.
 - A tab whose file was deleted while its buffer was clean closes itself.
 - A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
-- A read that fails for any other reason leaves the tab's text alone and toasts once. Repeated failures do not stack a second toast.
+- A read that fails for any other reason leaves the tab's text alone and toasts once. Repeated failures do not stack a second toast. A tab that has never read shows the reason in its panel and offers to try again.
+- A failure that stops the workspace from rendering shows what failed and why in place, and offers to try again.
+- An error toast names what failed as its title and carries the reason, when the failure has one, as its description.
+- The reason a filesystem failure carries is lowercase and names no error number: "permission denied", "no such file", "that path is a folder", "the volume is read-only", "the disk is full", and for any other kind the system's own words without their code.
+- A failure the app did not anticipate reaches the user as "an unexpected error", and its cause goes to the log. Both sides write to one log file in the app's log folder, `~/Library/Logs/codes.jimmy.notras/notras.log` on macOS, which `pnpm dev` also prints.
+- A refresh of data already on screen that fails toasts what could not refresh and why. The first read of anything reports through its own surface instead: the route error screen for the workspace, the pane for a tab.
+- A save that failed shows why under "could not save", in the save glyph's tooltip and in the tab's dot.
+- A search the index could not answer reads "could not search notes" over the reason in the palette, and offers no note to create from it.
+- A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
+- The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
 - The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
 - Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" drops every row and rescans, which is what reaches notes nobody has edited.
 
