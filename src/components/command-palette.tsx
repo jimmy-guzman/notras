@@ -2,6 +2,8 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
+  ClipboardIcon,
+  CrosshairIcon,
   DownloadIcon,
   FilePlusIcon,
   FileTextIcon,
@@ -11,6 +13,7 @@ import {
   HashIcon,
   KeyboardIcon,
   type LucideIcon,
+  PanelRightCloseIcon,
   PencilIcon,
   PinIcon,
   RefreshCwIcon,
@@ -18,6 +21,7 @@ import {
   SettingsIcon,
   TagPlusIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { Chord } from "@/components/chord";
@@ -49,8 +53,11 @@ import { noteQueries } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
 import { togglePref, usePref } from "@/lib/prefs";
+import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   closeNoteTab,
+  closeOtherTabs,
+  closeTabsAfter,
   openNote as openInTab,
   renameTab,
   useTabState,
@@ -349,10 +356,8 @@ function TagsView({
   );
 }
 
-function typewriterActionText(enabled: boolean) {
-  return enabled
-    ? "turn off typewriter scrolling"
-    : "turn on typewriter scrolling";
+function toggleActionText(enabled: boolean, mode: string) {
+  return `${enabled ? "turn off" : "turn on"} ${mode}`;
 }
 
 /** Which door opened the palette: ⌘P finds a note, ⌘⇧P runs an action. */
@@ -360,10 +365,17 @@ export type PaletteMode = "actions" | "find";
 
 type PaletteView = "actions" | "delete" | "find" | "move" | "rename" | "tags";
 
+/**
+ * What an action needs on screen before it is offered. A note action reads
+ * frontmatter, so an external file cannot answer it; a tab action acts on the
+ * open set or the view, which an external file answers as well as a note does.
+ */
+type PaletteScope = "none" | "note" | "tab";
+
 interface PaletteAction {
   Icon: LucideIcon;
   label: string;
-  needsNote: boolean;
+  needs: PaletteScope;
   onSelect: () => void;
   text: string;
   value: string;
@@ -600,8 +612,6 @@ export function CommandPalette({
   tag,
 }: CommandPaletteProps) {
   const { activeId, tabs } = useTabState();
-  // Note actions act on the tab that is showing, and only when it holds a note:
-  // an external file carries no frontmatter to pin, tag, rename or move.
   const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
@@ -830,12 +840,36 @@ export function CommandPalette({
     onOpenSettings();
   }, [close, onOpenSettings]);
 
+  const focusModeEnabled = usePref("focus-mode");
   const typewriterEnabled = usePref("typewriter");
+
+  const toggleFocusMode = useCallback(() => {
+    close();
+    togglePref("focus-mode");
+  }, [close]);
 
   const toggleTypewriter = useCallback(() => {
     close();
     togglePref("typewriter");
   }, [close]);
+
+  const closeOthers = useCallback(() => {
+    close();
+    closeOtherTabs(activeId);
+  }, [activeId, close]);
+
+  const closeAfter = useCallback(() => {
+    close();
+    closeTabsAfter(activeId);
+  }, [activeId, close]);
+
+  const copyPath = useCallback(() => {
+    close();
+
+    if (activeTab !== undefined) {
+      copyTabPath(activeTab.path);
+    }
+  }, [activeTab, close]);
 
   const reindex = useCallback(() => {
     runAction("could not reindex", async () => {
@@ -866,11 +900,11 @@ export function CommandPalette({
     });
   }, [runAction]);
 
-  const actions = [
+  const actions: PaletteAction[] = [
     {
       Icon: FilePlusIcon,
       label: "new note",
-      needsNote: false,
+      needs: "none",
       onSelect: newNote,
       text: "new note",
       value: "new-note",
@@ -878,7 +912,7 @@ export function CommandPalette({
     {
       Icon: PinIcon,
       label: "pin",
-      needsNote: true,
+      needs: "note",
       onSelect: togglePin,
       text: currentNote?.pinned ? "unpin note" : "pin note",
       value: "toggle-pin",
@@ -886,7 +920,7 @@ export function CommandPalette({
     {
       Icon: TagPlusIcon,
       label: "edit tags",
-      needsNote: true,
+      needs: "note",
       onSelect: startEditTags,
       text: "edit tags...",
       value: "edit-tags",
@@ -894,7 +928,7 @@ export function CommandPalette({
     {
       Icon: PencilIcon,
       label: "rename note",
-      needsNote: true,
+      needs: "note",
       onSelect: startRename,
       text: "rename note...",
       value: "rename-note",
@@ -902,7 +936,7 @@ export function CommandPalette({
     {
       Icon: FolderInputIcon,
       label: "move to folder",
-      needsNote: true,
+      needs: "note",
       onSelect: startMove,
       text: "move to folder...",
       value: "move-note",
@@ -910,7 +944,7 @@ export function CommandPalette({
     {
       Icon: Trash2Icon,
       label: "delete note",
-      needsNote: true,
+      needs: "note",
       onSelect: startDelete,
       text: "delete note...",
       value: "delete-note",
@@ -918,23 +952,55 @@ export function CommandPalette({
     {
       Icon: FolderSearchIcon,
       label: "reveal in finder",
-      needsNote: true,
+      needs: "note",
       onSelect: revealInFinder,
       text: "reveal in finder",
       value: "reveal-in-finder",
     },
     {
+      Icon: CrosshairIcon,
+      label: "focus mode",
+      needs: "tab",
+      onSelect: toggleFocusMode,
+      text: toggleActionText(focusModeEnabled, "focus mode"),
+      value: "toggle-focus-mode",
+    },
+    {
       Icon: KeyboardIcon,
       label: "typewriter scrolling",
-      needsNote: true,
+      needs: "tab",
       onSelect: toggleTypewriter,
-      text: typewriterActionText(typewriterEnabled),
+      text: toggleActionText(typewriterEnabled, "typewriter scrolling"),
       value: "toggle-typewriter",
+    },
+    {
+      Icon: XIcon,
+      label: "close other tabs",
+      needs: "tab",
+      onSelect: closeOthers,
+      text: "close other tabs",
+      value: "close-other-tabs",
+    },
+    {
+      Icon: PanelRightCloseIcon,
+      label: "close tabs to the right",
+      needs: "tab",
+      onSelect: closeAfter,
+      text: "close tabs to the right",
+      value: "close-tabs-after",
+    },
+    {
+      Icon: ClipboardIcon,
+      label: "copy path",
+      needs: "tab",
+      onSelect: copyPath,
+      text: "copy path",
+      value: "copy-path",
     },
     {
       Icon: SettingsIcon,
       label: "settings",
-      needsNote: false,
+      needs: "none",
       onSelect: openSettings,
       text: "settings",
       value: "settings",
@@ -942,7 +1008,7 @@ export function CommandPalette({
     {
       Icon: RefreshCwIcon,
       label: "reindex library",
-      needsNote: false,
+      needs: "none",
       onSelect: reindex,
       text: "reindex library",
       value: "reindex",
@@ -950,12 +1016,18 @@ export function CommandPalette({
     {
       Icon: DownloadIcon,
       label: "check for updates",
-      needsNote: false,
+      needs: "none",
       onSelect: checkForUpdates,
       text: "check for updates...",
       value: "check-for-updates",
     },
   ];
+
+  const reachable = {
+    none: true,
+    note: currentNote !== undefined,
+    tab: activeTab !== undefined,
+  } satisfies Record<PaletteScope, boolean>;
 
   return (
     <CommandDialog
@@ -1043,8 +1115,7 @@ export function CommandPalette({
             <ActionsView
               actions={actions.filter(
                 (action) =>
-                  (!action.needsNote || currentNote !== undefined) &&
-                  matchesQuery(action.label)
+                  reachable[action.needs] && matchesQuery(action.label)
               )}
               chordsByName={chordsByName}
             />

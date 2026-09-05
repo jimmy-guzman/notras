@@ -43,7 +43,7 @@ Search runs on a SQLite FTS5 index derived from those files. The index is dispos
 - `⌘P` finds a note, over full-text search with highlighted snippets
 - `#tag` filters that narrow the search (`#work budget`)
 - a search that matches nothing offers to create a note under the name you typed
-- `⌘⇧P` runs an action, and every note action lives there
+- `⌘⇧P` runs an action, and every action on a note or a tab lives there
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
 - `⌘⇧K` adds or edits a link, and `⌘`-click opens a web link in your browser
 - tags, pins, and folders, with moves between folders run from `⌘⇧P`
@@ -106,6 +106,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘N`/`⌘T` | new note, in a new tab           |
 | `⌘⏎`      | (palette) open in a new tab      |
 | `⌘W`      | close tab                        |
+| `⌘⌥W`     | close other tabs                 |
 | `⌘⇧T`     | reopen the last closed tab       |
 | `⌘1`-`⌘9` | nth tab; `⌘9` is the last one    |
 | `⌃⇥`      | next tab (`⌃⇧⇥` for previous)    |
@@ -122,9 +123,9 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `esc`     | (capture window) save + hide     |
 | `⌘⏎`      | (capture window) save + hide     |
 
-- `⌘E` and `⌘D` act on the tab that is showing.
+- `⌘E`, `⌘D` and `⌘⌥W` act on the tab that is showing.
 - `⌘⇧Y` needs that tab to hold a note. A file opened from outside your library has no frontmatter to tag.
-- All three do nothing on the empty state, which is where closing the last tab lands you.
+- None of them does anything on the empty state, which is where closing the last tab lands you.
 - The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.
 
 ## Development
