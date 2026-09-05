@@ -268,6 +268,7 @@ pub fn run() {
             notes::attach_file,
             notes::attach_image,
             notes::cancel_quit,
+            notes::classify_open_paths,
             notes::db_select,
             notes::delete_note,
             notes::get_notes_dir,

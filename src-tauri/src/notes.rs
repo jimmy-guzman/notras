@@ -463,14 +463,26 @@ fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     }
 }
 
+fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
+    paths
+        .into_iter()
+        .map(|path| classify_open(notes_dir, path))
+        .collect()
+}
+
+/// The kind each restored external tab is today, so a store an older build
+/// wrote does not keep a vault note as an external tab.
+#[tauri::command]
+pub fn classify_open_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<PendingOpen> {
+    let core = state.core.lock().unwrap();
+    classify_opens(&core.notes_dir, paths)
+}
+
 #[tauri::command]
 pub fn pending_open_files(state: State<'_, AppState>) -> Vec<PendingOpen> {
     let paths = std::mem::take(&mut *state.pending_open.lock().unwrap());
     let core = state.core.lock().unwrap();
-    paths
-        .into_iter()
-        .map(|path| classify_open(&core.notes_dir, path))
-        .collect()
+    classify_opens(&core.notes_dir, paths)
 }
 
 /// Called by the frontend once it has flushed pending writes, in answer to the

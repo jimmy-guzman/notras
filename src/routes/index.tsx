@@ -1,6 +1,7 @@
 import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useCallback, useEffect } from "react";
 import { Chord } from "@/components/chord";
@@ -18,6 +19,7 @@ import { noteQueries } from "@/data/queries";
 import { togglePref, usePref } from "@/lib/prefs";
 import {
   activateTab,
+  adoptVaultNotes,
   closeTab,
   getTabHandles,
   getTabState,
@@ -28,7 +30,7 @@ import {
   useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
-import type { Tab } from "@/lib/tabs/tab";
+import type { PendingOpen, Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
 import { errorMessage } from "@/lib/ui/failure";
 import { attachmentLink } from "@/lib/utils/attachments";
@@ -51,6 +53,10 @@ export const Route = createFileRoute("/")({
     // A restored path that no longer reads closes its own tab, so nothing is
     // checked against disk here.
     if (restoreTabs()) {
+      await adoptVaultNotes((paths) =>
+        invoke<PendingOpen[]>("classify_open_paths", { paths })
+      );
+
       return;
     }
 

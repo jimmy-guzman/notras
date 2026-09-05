@@ -14,6 +14,12 @@ export interface Tab {
   path: string;
 }
 
+/** A queued or restored path with the tab kind Rust chose for it. */
+export interface PendingOpen {
+  kind: Tab["kind"];
+  path: string;
+}
+
 /** The open set and which one is showing. An empty `activeId` means no tabs. */
 export interface TabState {
   activeId: string;
@@ -156,6 +162,34 @@ export function replaceNotePath(
   return {
     activeId: state.activeId,
     tabs: state.tabs.with(index, { ...moved, path: to }),
+  };
+}
+
+/**
+ * Turn the external tab `id` into the note at `path`, collapsing onto that
+ * note's tab when it is already open. A store written before Rust classified
+ * "Open With" paths holds a vault note this way.
+ */
+export function adoptNote(state: TabState, id: string, path: string): TabState {
+  const index = indexOfId(state.tabs, id);
+  const adopted = state.tabs[index];
+
+  if (adopted === undefined) {
+    return state;
+  }
+
+  const existing = state.tabs[indexOfFile(state.tabs, "note", path)];
+
+  if (existing !== undefined) {
+    return {
+      activeId: state.activeId === adopted.id ? existing.id : state.activeId,
+      tabs: state.tabs.toSpliced(index, 1),
+    };
+  }
+
+  return {
+    activeId: state.activeId,
+    tabs: state.tabs.with(index, { ...adopted, kind: "note", path }),
   };
 }
 

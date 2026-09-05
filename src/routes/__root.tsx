@@ -18,7 +18,7 @@ import { createNote } from "@/data/create-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
-import type { Tab } from "@/lib/tabs/tab";
+import type { PendingOpen } from "@/lib/tabs/tab";
 import { errorMessage } from "@/lib/ui/failure";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 
@@ -52,11 +52,6 @@ export const Route = createRootRouteWithContext<{
     ]);
   },
 });
-
-interface PendingOpen {
-  kind: Tab["kind"];
-  path: string;
-}
 
 /** `listen` resolves to its own unsubscribe, which every effect here drops. */
 function disposeLater(...pending: Promise<() => void>[]) {

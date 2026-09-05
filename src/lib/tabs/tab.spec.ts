@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TabState } from "./tab";
 
 import {
+  adoptNote,
   closeTab,
   moveTabTo,
   openTab,
@@ -169,6 +170,39 @@ describe("replaceNotePath", () => {
 
   it("should ignore a path that is not open", () => {
     expect(replaceNotePath(three, "z.md", "y.md")).toStrictEqual(three);
+  });
+});
+
+describe("adoptNote", () => {
+  it("should turn the external tab into the note, keeping its id", () => {
+    const state: TabState = {
+      activeId: "id-external-/vault/b.md",
+      tabs: [note("a.md"), external("/vault/b.md")],
+    };
+
+    const next = adoptNote(state, "id-external-/vault/b.md", "b.md");
+
+    expect(next.tabs).toStrictEqual([
+      note("a.md"),
+      { id: "id-external-/vault/b.md", kind: "note", path: "b.md" },
+    ]);
+    expect(next.activeId).toBe("id-external-/vault/b.md");
+  });
+
+  it("should collapse onto the note when it is already open", () => {
+    const state: TabState = {
+      activeId: "id-external-/vault/a.md",
+      tabs: [note("a.md"), external("/vault/a.md")],
+    };
+
+    const next = adoptNote(state, "id-external-/vault/a.md", "a.md");
+
+    expect(next.tabs).toStrictEqual([note("a.md")]);
+    expect(next.activeId).toBe("id-a.md");
+  });
+
+  it("should ignore an id that is not open", () => {
+    expect(adoptNote(three, "id-missing", "z.md")).toStrictEqual(three);
   });
 });
 
