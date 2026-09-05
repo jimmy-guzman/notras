@@ -250,7 +250,8 @@ function RootLayout() {
       }
 
       toast.add({
-        title: "could not save your changes -- quit cancelled",
+        description: "quit cancelled",
+        title: "could not save your changes",
         type: "error",
       });
       await invoke("cancel_quit");

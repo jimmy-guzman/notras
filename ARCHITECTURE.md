@@ -125,7 +125,7 @@ src/
                       # the stores the chrome and sessions read
     updater.ts        # release check, offer toast, install + relaunch
     ui/chrome.ts      # CHROME_GLYPH (D51)
-    ui/failure.ts     # errorMessage(): narrows a rejection to user-facing text
+    ui/failure.ts     # reasonOf(): the reason a rejection carries, or nothing
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -211,7 +211,7 @@ A re-read replaces the buffer only when the buffer is clean and the file's mtime
 
 ### Adding a Rust command
 
-Define it in `src-tauri/src/notes.rs` or a new module, register it in `generate_handler!` in `lib.rs`, and expose it through the `FileStore` port plus the `tauri-file-store.ts` adapter if it is note IO. A command that mutates an indexed note must index synchronously and call `emit_changed`. The three that do neither write nothing the index covers: `attach_file` and `attach_image` copy into `attachments/`, and `write_external` writes outside the notes dir.
+Define it in `src-tauri/src/notes.rs` or a new module, register it in `generate_handler!` in `lib.rs`, and expose it through the `FileStore` port plus the `tauri-file-store.ts` adapter if it is note IO. A command that can fail returns `Result<T, CommandError>` and lets its failures arrive through `?`: the `From` impls on `CommandError` turn an `io::Error`, a `rusqlite::Error`, or an `IndexError` into a lowercase reason with no error number, and a literal message is a reason too, never the action, which the frontend names. Log with the `log` macros; `tauri-plugin-log` carries them to the app's log dir and to stdout under `pnpm dev`. A command that mutates an indexed note must index synchronously and call `emit_changed`. The three that do neither write nothing the index covers: `attach_file` and `attach_image` copy into `attachments/`, and `write_external` writes outside the notes dir.
 
 ### The palette is the action surface
 
@@ -240,4 +240,4 @@ Each of these holds a property the architecture depends on. Breaking one is a de
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `src-tauri/src/index.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.
 - **Every editor node defines its markdown form and appears in the round-trip spec.** A node without one silently drops content from externally authored files.
-- **Indexed note IO reaches no path outside the notes dir.** It goes through Rust commands, so the dynamic scope is enforced at runtime, which is why the `fs` plugin is not installed. Three commands take a host path the user picked and stay out of the index: `read_external`, `write_external`, and `attach_file`. Adding a fourth means asking who chose the path.
+- **Indexed note IO reaches no path outside the notes dir.** It goes through Rust commands, so the dynamic scope is enforced at runtime, which is why the `fs` plugin is not installed. Four commands take a host path the user picked and stay out of the index: `read_external`, `write_external`, `attach_file`, and `classify_open_paths`, which reads nothing. Adding a fourth means asking who chose the path.

@@ -175,7 +175,7 @@ describe("noteService.create", () => {
     );
 
     expect(error.message).toBe(
-      String.raw`folder cannot contain / \ : or start with a dot`
+      String.raw`folder cannot contain \ : or start with a dot`
     );
   });
 });

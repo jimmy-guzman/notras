@@ -97,7 +97,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 - **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validation is Effect Schema in `src/server/schemas/`, not zod.
 
-- **A typed failure's message is user-facing text.** `ARCHITECTURE.md` covers how `run()` gets it to a toast. Write those messages to the copy rules in `DESIGN.md`.
+- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `run()` gets it to a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
 
 - **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 

@@ -70,13 +70,10 @@ function toNote(path: string, file: NoteFileContent): Note {
  * Schema, but the service is the layer everything else calls, and a bad
  * segment here would become a path.
  */
-function invalidSegment(segment: string, label: string) {
+function invalidSegment(segment: string, message: string) {
   return NOTE_SEGMENT_PATTERN.test(segment)
     ? undefined
-    : new FileError({
-        kind: "failed",
-        message: String.raw`${label} cannot contain / \ : or start with a dot`,
-      });
+    : new FileError({ kind: "failed", message });
 }
 
 const makeNoteService = Effect.gen(function* () {
@@ -102,14 +99,20 @@ const makeNoteService = Effect.gen(function* () {
     const folder = options?.folder ?? "";
     const baseFilename = options?.filename ?? "untitled";
 
-    const badFilename = invalidSegment(baseFilename, "filename");
+    const badFilename = invalidSegment(
+      baseFilename,
+      String.raw`filename cannot contain / \ : or start with a dot`
+    );
 
     if (badFilename !== undefined) {
       return yield* badFilename;
     }
 
     for (const segment of folder === "" ? [] : folder.split("/")) {
-      const badFolder = invalidSegment(segment, "folder");
+      const badFolder = invalidSegment(
+        segment,
+        String.raw`folder cannot contain \ : or start with a dot`
+      );
 
       if (badFolder !== undefined) {
         return yield* badFolder;
@@ -177,7 +180,10 @@ const makeNoteService = Effect.gen(function* () {
     title: string
   ) {
     const filename = filenameFromTitle(title);
-    const badFilename = invalidSegment(filename, "filename");
+    const badFilename = invalidSegment(
+      filename,
+      String.raw`filename cannot contain / \ : or start with a dot`
+    );
 
     if (badFilename !== undefined) {
       return yield* badFilename;
