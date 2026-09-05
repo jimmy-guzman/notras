@@ -43,10 +43,9 @@ fn timestamp_millis(time: std::io::Result<std::time::SystemTime>) -> Option<i64>
 }
 
 pub fn is_note_file(path: &Path) -> bool {
-    matches!(
-        path.extension().and_then(|ext| ext.to_str()),
-        Some("md" | "markdown")
-    )
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
 }
 
 fn is_hidden(component: &std::ffi::OsStr) -> bool {
@@ -560,6 +559,23 @@ mod tests {
         fs::remove_file(dir.join("ideas.md")).unwrap();
         let changed = scan_all(&conn, &dir).unwrap();
         assert_eq!(changed, vec!["ideas.md".to_string()]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn indexes_an_uppercase_extension() {
+        let dir = temp_notes_dir("uppercase");
+        fs::write(dir.join("NOTE.MD"), "# shouted\n").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+
+        assert_eq!(scan_all(&conn, &dir).unwrap().len(), 1);
+
+        let rows = select(&conn, "SELECT path, title FROM note", &[]).unwrap();
+        assert_eq!(rows[0][0], json!("NOTE.MD"));
+        assert_eq!(rows[0][1], json!("shouted"));
 
         let _ = fs::remove_dir_all(&dir);
     }

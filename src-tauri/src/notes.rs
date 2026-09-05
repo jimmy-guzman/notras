@@ -659,9 +659,9 @@ mod tests {
     }
 
     #[test]
-    fn an_uppercase_extension_inside_the_vault_is_external() {
+    fn an_uppercase_extension_inside_the_vault_is_a_note() {
         let open = classify_open(Path::new("/vault"), "/vault/NOTE.MD".into());
 
-        assert_eq!(open.kind, OpenKind::External);
+        assert_eq!(open, PendingOpen { kind: OpenKind::Note, path: "NOTE.MD".into() });
     }
 }

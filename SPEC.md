@@ -8,7 +8,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
 - First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
-- A note is a file whose extension is `md` or `markdown`. The match is case-sensitive, so `NOTE.MD` is invisible to the app.
+- A note is a file whose extension is `md` or `markdown`, matched without regard to case, so `NOTE.MD` is a note.
 - A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed.
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
