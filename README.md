@@ -1,4 +1,4 @@
-![notras: just write, otra vez.](assets/hero.png)
+![notras: write another note.](assets/hero.png)
 
 # notras
 

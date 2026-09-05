@@ -5,7 +5,7 @@ name = "notras"
 # `Cargo.toml` and `Cargo.lock` together, so bumping this alone strands the
 # lockfile and breaks `cargo build --locked` (`D49`).
 version = "0.0.0"
-description = "Just write, otra vez."
+description = "Write another note."
 authors = ["jimmy-guzman"]
 license = "MIT"
 edition = "2021"

@@ -126,7 +126,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 - Errors reach the user in two parts: what failed, in the app's copy, as the title, and why, from the error, as the description, through `reasonOf` in `src/lib/ui/failure.ts`. The title is a lowercase sentence naming the action, written at the call site; the reason comes from the typed failure or the schema that raises it, lowercase and without an error number.
 - **An empty state is `Empty`: a title, a description, and an action slot, at the sizes the component sets.** Find with no results reads `nothing found` over `start with # to search by tag`, and actions with none reads it over the chord that finds a note. Never leave a blank pane. A find that matched nothing is the one case with no empty state: the create row stands in its place.
 - A pane or screen that could not load is the same `Empty`, with the failure's two parts as its title and description and the retry as an outline button in its action slot.
-- The welcome screen, shown when no tab is open, is not an empty state: it is the wordmark, the tagline "just write, otra vez.", and the ⌘n / ⌘p hints, in its own markup. It says what to press.
+- The welcome screen, shown when no tab is open, is not an empty state: it is the wordmark, the tagline "write another note.", and the ⌘n / ⌘p hints, in its own markup. It says what to press.
 - Name what a control does rather than what it is. The palette entry is "move to folder", not "folder".
 
 ## Accessibility

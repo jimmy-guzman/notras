@@ -2,7 +2,7 @@
   "name": "notras",
   "version": "0.3.0",
   "private": true,
-  "description": "Just write, otra vez.",
+  "description": "Write another note.",
   "type": "module",
   "scripts": {
     "build": "tauri build",
