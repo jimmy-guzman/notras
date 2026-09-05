@@ -167,7 +167,7 @@ write_hero() {
   magick -background none -fill "$hero_foreground" -font "$hero_mono" \
     -pointsize 104 -kerning -3 label:notras PNG32:"$word"
   magick -background none -fill "$hero_muted" -font "$hero_sans" \
-    -pointsize 34 label:"just write, otra vez." PNG32:"$tag"
+    -pointsize 34 label:"write another note." PNG32:"$tag"
   ww=$(magick identify -format '%w' "$word")
   wh=$(magick identify -format '%h' "$word")
   th=$(magick identify -format '%h' "$tag")

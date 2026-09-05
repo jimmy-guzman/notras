@@ -414,7 +414,7 @@ export function createEditorExtensions(
       resolveSrc: options.resolveImageSrc ?? ((src: string) => src),
     }),
     Placeholder.configure({
-      placeholder: options.placeholderText ?? "just write...",
+      placeholder: options.placeholderText ?? "write another note...",
     }),
     Focus.configure({ className: "has-focus", mode: "shallowest" }),
     DragSelection,
