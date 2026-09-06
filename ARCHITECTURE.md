@@ -68,7 +68,7 @@ Rust creates the tables. `src/server/db/schema.ts` mirrors `note` and `note_tag`
 ```sql
 note(path TEXT PK, title TEXT, folder TEXT, pinned INT, created_at INT, updated_at INT)
 note_tag(path TEXT, tag TEXT, PRIMARY KEY(path, tag))
-note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per [[wikilink]] occurrence
+note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per [[wikilink]] occurrence, indexed by path
 note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet()
 ```
 

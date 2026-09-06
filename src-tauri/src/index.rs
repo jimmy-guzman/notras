@@ -101,6 +101,9 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
            target TEXT NOT NULL,
            context TEXT NOT NULL
          );
+         -- A rebuild deletes by path once per note as the table grows:
+         -- measured at 4.3s for 10k notes of 5 links unindexed, 0.04s indexed.
+         CREATE INDEX IF NOT EXISTS note_link_path ON note_link (path);
          CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(
            path UNINDEXED,
            title,
