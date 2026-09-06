@@ -38,6 +38,7 @@ import {
 import type { Tab } from "@/lib/tabs/tab";
 import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { useGraphMode } from "@/lib/ui/graph";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import { countWords } from "@/lib/utils/word-count";
 
@@ -60,6 +61,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const resolveWikilink = useMemo(() => wikilinkResolver(notes), [notes]);
   const id = tabId(tab);
+  const graphMode = useGraphMode(id);
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
@@ -356,7 +358,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // way in. ⌘P decides which surface owns the caret; the other one's handle
   // belongs to an editor that has already been destroyed.
   useEffect(() => {
-    if (!active) {
+    if (!active || graphMode) {
       return;
     }
 
@@ -365,7 +367,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     } else {
       editorRef.current?.focus();
     }
-  }, [active]);
+  }, [active, graphMode]);
 
   return (
     <div
@@ -375,7 +377,9 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
         // `visibility` and nothing stronger: it keeps the box, and with it the
         // scroller's offset. `content-visibility: hidden` skips the subtree's
         // layout, which collapses the scroll height and clamps scrollTop to 0.
-        !active && "pointer-events-none invisible"
+        // The graph hides the editor the same way, so the caret and the scroll
+        // are where they were when it leaves.
+        (!active || graphMode) && "pointer-events-none invisible"
       )}
       id={tabPanelId(id)}
       role="tabpanel"

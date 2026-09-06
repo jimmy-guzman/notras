@@ -27,6 +27,7 @@ import {
   TagPlusIcon,
   Trash2Icon,
   Undo2Icon,
+  WaypointsIcon,
   XIcon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
@@ -74,6 +75,7 @@ import {
 } from "@/lib/tabs/store";
 import { tabFullPath, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
@@ -626,6 +628,7 @@ export function CommandPalette({
   // A snapshot changes on every keystroke and this component is mounted for
   // the life of the window, so it subscribes only while it is on screen.
   const activeSnapshot = useTabSnapshot(open ? activeId : "");
+  const graphEnabled = useGraphMode(activeId);
   const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
@@ -905,6 +908,11 @@ export function CommandPalette({
     setMentionsOpen(true);
   }, [close]);
 
+  const toggleGraphView = useCallback(() => {
+    close();
+    toggleGraph(activeId);
+  }, [activeId, close]);
+
   const quickCapture = useCallback(() => {
     runAction("could not open quick capture", () => invoke("show_capture"));
   }, [runAction]);
@@ -1029,6 +1037,14 @@ export function CommandPalette({
         "markdown source"
       ),
       value: "toggle-source",
+    },
+    {
+      Icon: WaypointsIcon,
+      label: "graph view",
+      needs: "note",
+      onSelect: toggleGraphView,
+      text: toggleActionText(graphEnabled, "graph view"),
+      value: "toggle-graph",
     },
     {
       Icon: XIcon,

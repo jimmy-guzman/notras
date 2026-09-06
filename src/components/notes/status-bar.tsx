@@ -1,4 +1,9 @@
-import { CodeIcon, CrosshairIcon, KeyboardIcon } from "lucide-react";
+import {
+  CodeIcon,
+  CrosshairIcon,
+  KeyboardIcon,
+  WaypointsIcon,
+} from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import { Chord } from "@/components/chord";
@@ -19,6 +24,7 @@ const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
 interface StatusBarProps {
   allTags: { count: number; tag: string }[];
   focusModeEnabled: boolean;
+  graphEnabled: boolean;
   /**
    * Absent for an external file, which carries no frontmatter to tag and sits
    * in no index to be mentioned from. `title` is the indexed one, which is
@@ -27,6 +33,7 @@ interface StatusBarProps {
   note?: { path: string; tags: string[]; title?: string };
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
+  onToggleGraph: () => void;
   onToggleSource: () => void;
   onToggleTypewriter: () => void;
   sourceEnabled: boolean;
@@ -37,15 +44,18 @@ interface StatusBarProps {
 export function StatusBar({
   allTags,
   focusModeEnabled,
+  graphEnabled,
   note,
   onFilterTag,
   onToggleFocusMode,
+  onToggleGraph,
   onToggleSource,
   onToggleTypewriter,
   sourceEnabled,
   typewriterEnabled,
   words,
 }: StatusBarProps) {
+  const hasNote = note !== undefined;
   const toggles = useMemo(
     () => [
       {
@@ -72,10 +82,25 @@ export function StatusBar({
         pressed: sourceEnabled,
         value: "source",
       },
+      ...(hasNote
+        ? [
+            {
+              hotkey: "Mod+Shift+G",
+              icon: WaypointsIcon,
+              label: "graph view",
+              onToggle: onToggleGraph,
+              pressed: graphEnabled,
+              value: "graph",
+            },
+          ]
+        : []),
     ],
     [
       focusModeEnabled,
+      graphEnabled,
+      hasNote,
       onToggleFocusMode,
+      onToggleGraph,
       onToggleSource,
       onToggleTypewriter,
       sourceEnabled,

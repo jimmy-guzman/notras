@@ -46,6 +46,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - `⌘⇧P` runs an action on the note, the open tabs, or the app itself
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
 - the status strip counts the notes that mention the one you are in, by `[[link]]` or by writing its title, and lists them with the line that did it. Other apps call the linked ones backlinks
+- `⌘⇧G` swaps the note for its graph: the note in the centre, what mentions it on the left, what it links to on the right, arrows to walk it and `⏎` to hop
 - `⌘⇧K` adds or edits a link, and `⌘`-click opens a web link in your browser
 - tags, pins, and folders, with moves between folders run from `⌘⇧P`
 
@@ -116,6 +117,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘E`      | toggle raw markdown source       |
 | `⌘D`      | toggle focus mode                |
 | `⌘⌥T`     | toggle typewriter scrolling      |
+| `⌘⇧G`     | toggle graph view                |
 | `⌥↑`/`⌥↓` | move the selected blocks         |
 | `⌘⇧K`     | add / edit link                  |
 | `⌘⇧L`     | show mentions                    |
@@ -126,7 +128,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘⏎`      | (capture window) save + hide     |
 
 - `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
-- `⌘⇧Y` and `⌘⇧L` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from.
+- `⌘⇧Y`, `⌘⇧L` and `⌘⇧G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
 - None of those does anything on the empty state, which is where closing the last tab lands you.
 - `⌘D` and `⌘⌥T` set the writing mode, which belongs to the app rather than a note, so they work with nothing open and the next note you create is already in it.
 - The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.

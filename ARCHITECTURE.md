@@ -93,6 +93,7 @@ src/
                       # tab's session, and the two bands (D53)
   components/
     editor/           # TipTap wrapper, extensions, suggestions, autosave, typewriter
+    graph/            # the ring layout and the graph view a tab swaps to
     tabs/             # the title bar's tab strip
     workspace/        # note-session: one open tab, note or external (D54)
     notes/            # note-controls (save/pin), note-tags, use-note-tags,
@@ -109,6 +110,7 @@ src/
     errors.ts         # DatabaseError, FileError
     fts-markers.ts    # [[hl]] snippet markers shared with SQL
     links.ts          # NoteLink rows, the wikilink resolver, mentionsOf
+    graph.ts          # graphOf: what a note links to and what mentions it
   data/               # Plain async fns the UI calls (ex-server-actions)
     queries.ts        # THE query keys and options, one factory (D66)
     run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
@@ -131,6 +133,7 @@ src/
     ui/chrome.ts      # CHROME_GLYPH (D51)
     ui/failure.ts     # reasonOf(): the reason a rejection carries, or nothing
     ui/mentions.ts    # the mentions list's open state: strip, chord and palette share it
+    ui/graph.ts       # which tabs show their graph, and the hop that keeps it on
     ui/utils.ts       # cn()
     utils/            # fts-snippet, tag-query, word-count
 src-tauri/
@@ -221,7 +224,7 @@ Define it in `src-tauri/src/notes.rs` or another module, never in `lib.rs`: `gen
 
 ### The palette is the action surface
 
-`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, the three writing-mode toggles, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
+`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, the three writing-mode toggles, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
 
 Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode and typewriter scrolling take `none`, since the pref they set belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
 
@@ -233,7 +236,7 @@ One component serves two doors. `find` and `actions` are the two root members of
 
 ### Preferences
 
-Window state lives in `localStorage`: the writing-mode toggles in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
+Window state lives in `localStorage`: the writing-mode toggles in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
 
 ### Snippet rendering
 

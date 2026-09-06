@@ -46,7 +46,7 @@ interface MentionItemProps {
   mention: Mention;
 }
 
-function MentionItem({ mention }: MentionItemProps) {
+export function MentionItem({ mention }: MentionItemProps) {
   const { lines, note } = mention;
   const [first] = lines;
 
