@@ -66,7 +66,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘E, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D and ⌘⌥T still set the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘⇧G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D and ⌘⌥T still set the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -91,11 +91,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
 - A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
-- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, markdown source, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
-- New note, focus mode, typewriter scrolling, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
-- The two writing-mode rows name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
+- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- New note, focus mode, typewriter scrolling, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
+- The writing-mode rows and graph view name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
 - Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, typewriter scrolling ⌘⌥t, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⇧g, typewriter scrolling ⌘⌥t, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
 
 ## The editor
 
@@ -144,6 +144,17 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The status strip carries the word count and the reading time at 200 words a minute.
 - Focus mode and typewriter scrolling are app-wide rather than per tab, and both survive a relaunch.
 
+## The graph
+
+- ⌘⇧G swaps the showing tab between its note and its graph, and the strip's fourth view toggle and "graph view" in the palette do the same. An external tab has neither.
+- The graph is the note in the centre, the notes that mention it fanned on the left, and the notes it links to fanned on the right, each once, in the order the mentions list and the note's own text give. A link that names no note draws a faint placeholder after the real links, on a dashed line, which nothing opens and the arrows skip. A link to itself draws nothing, and a note on both sides sits on the right with a dot at the end of its line.
+- Past twelve on a side, the eleven most recently updated show and a `+N` pill carries the rest, placeholders filling what room the real links leave. On the left it opens the mentions list. On the right it opens a list of every note this one links to, each with the line that links it, and ⏎ or a click opens one in place, ⌘⏎ beside.
+- ← and → walk the ring clockwise from the top, and ⏎ or a click opens the focused note in the showing tab with the graph staying on, re-centred on it. ⌘⏎ and ⌘-click open it beside and do the same. Landing puts focus on the centre, and ⏎ on the centre leaves the graph.
+- esc leaves the graph and puts the caret back where it was. The editor is hidden rather than replaced, so the scroll, the caret and the undo history survive a visit.
+- A note on screen before and after a hop glides to its new place over 0.15s with its line turning under it; with reduce motion on the move is instant.
+- With nothing on either side the centre stands alone over "no links yet, and nothing mentions it".
+- A read of the bare mentions that fails draws the graph from links alone and toasts why once, under "could not read the graph".
+
 ## Quick capture
 
 - ⌘⇧N opens the capture window from any app, whether or not notras is in front. The tray and the palette offer the same.
@@ -180,4 +191,4 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode and typewriter scrolling live beside them.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
 - The index at `.notras/index.db` is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
-- The reopen stack, source mode, undo history, and scroll position live in memory and do not survive a relaunch.
+- The reopen stack, source mode, graph mode, undo history, and scroll position live in memory and do not survive a relaunch.

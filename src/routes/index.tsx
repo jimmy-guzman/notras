@@ -6,6 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect } from "react";
 import { Chord } from "@/components/chord";
+import { TabGraph } from "@/components/graph/note-graph";
 import { NoteControls } from "@/components/notes/note-controls";
 import { StatusBar } from "@/components/notes/status-bar";
 import { TabStrip } from "@/components/tabs/tab-strip";
@@ -35,6 +36,7 @@ import {
 import type { PendingOpen, Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { attachmentLink } from "@/lib/utils/attachments";
 
 /**
@@ -130,16 +132,20 @@ function ActiveControls({ tab }: ActiveProps) {
 
 interface ActiveStatusBarProps extends ActiveProps {
   allTags: { count: number; tag: string }[];
+  graphEnabled: boolean;
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
+  onToggleGraph: () => void;
   onToggleSource: () => void;
   onToggleTypewriter: () => void;
 }
 
 function ActiveStatusBar({
   allTags,
+  graphEnabled,
   onFilterTag,
   onToggleFocusMode,
+  onToggleGraph,
   onToggleSource,
   onToggleTypewriter,
   tab,
@@ -154,6 +160,7 @@ function ActiveStatusBar({
     <StatusBar
       allTags={allTags}
       focusModeEnabled={focusModeEnabled}
+      graphEnabled={graphEnabled}
       note={
         tab.kind === "note"
           ? { path: tab.path, tags: snapshot?.tags ?? [], title }
@@ -161,6 +168,7 @@ function ActiveStatusBar({
       }
       onFilterTag={onFilterTag}
       onToggleFocusMode={onToggleFocusMode}
+      onToggleGraph={onToggleGraph}
       onToggleSource={onToggleSource}
       onToggleTypewriter={onToggleTypewriter}
       sourceEnabled={snapshot?.sourceMode ?? false}
@@ -184,6 +192,7 @@ function Workspace() {
   const { data: tags } = useSuspenseQuery(noteQueries.tags());
 
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
+  const graphMode = useGraphMode(activeId);
 
   const newNote = useCallback(async () => {
     try {
@@ -209,6 +218,15 @@ function Workspace() {
 
   const toggleSource = useCallback(() => {
     getTabHandles(getTabState().activeId)?.toggleSource();
+  }, []);
+
+  const toggleGraphView = useCallback(() => {
+    const state = getTabState();
+    const tab = state.tabs.find((entry) => tabId(entry) === state.activeId);
+
+    if (tab?.kind === "note") {
+      toggleGraph(state.activeId);
+    }
   }, []);
 
   const toggleFocusMode = useCallback(() => {
@@ -317,6 +335,7 @@ function Workspace() {
     meta: { name: "reopen last closed tab" },
   });
   useHotkey("Mod+E", toggleSource, { meta: { name: "markdown source" } });
+  useHotkey("Mod+Shift+G", toggleGraphView, { meta: { name: "graph view" } });
   useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
   useHotkey("Mod+Alt+T", toggleTypewriter, {
     meta: { name: "typewriter scrolling" },
@@ -355,13 +374,19 @@ function Workspace() {
               tab={tab}
             />
           ))}
+          {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
+          {activeTab?.kind === "note" && graphMode ? (
+            <TabGraph tab={activeTab} />
+          ) : null}
         </div>
       )}
       {activeTab === undefined ? null : (
         <ActiveStatusBar
           allTags={tags}
+          graphEnabled={graphMode}
           onFilterTag={filterByTag}
           onToggleFocusMode={toggleFocusMode}
+          onToggleGraph={toggleGraphView}
           onToggleSource={toggleSource}
           onToggleTypewriter={toggleTypewriter}
           tab={activeTab}
