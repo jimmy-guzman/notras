@@ -90,7 +90,7 @@ describe("markdown round-trip", () => {
     ["bullet list", "- one\n- two"],
     ["ordered list", "1. first\n2. second"],
     ["nested bullet list", "- one\n  - nested"],
-    ["nested ordered list", "1. first\n  1. nested"],
+    ["nested ordered list", "1. first\n   1. nested"],
     ["blockquote", "> quoted"],
     ["link", "[notes](https://example.com)"],
     ["image with relative src", "![shot](attachments/x.png)"],
