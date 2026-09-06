@@ -13,13 +13,20 @@ export function useGraphMode(id: string) {
   return useSelector(graphs, (ids) => ids.has(id));
 }
 
+/** Only ids of tabs still open, so a closed or replaced tab's flag does not linger. */
+function alive(ids: ReadonlySet<string>) {
+  const open = new Set(getTabState().tabs.map((tab) => tab.id));
+
+  return new Set([...ids].filter((id) => open.has(id)));
+}
+
 export function showGraph(id: string) {
-  graphs.setState((ids) => new Set(ids).add(id));
+  graphs.setState((ids) => alive(ids).add(id));
 }
 
 export function hideGraph(id: string) {
   graphs.setState((ids) => {
-    const next = new Set(ids);
+    const next = alive(ids);
 
     next.delete(id);
 

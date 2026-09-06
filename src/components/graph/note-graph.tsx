@@ -582,18 +582,24 @@ export function TabGraph({ tab }: TabGraphProps) {
     ...noteQueries.mentions(tab.path, center?.title ?? ""),
     enabled: center !== undefined,
   });
-  const reported = useRef(false);
+  // The path rather than a flag: this component outlives a hop on purpose,
+  // so a once-per-mount guard would silence every note after the first.
+  const reported = useRef<string | null>(null);
 
   useEffect(() => {
-    if (bare.error !== null && bare.data === undefined && !reported.current) {
-      reported.current = true;
+    if (
+      bare.error !== null &&
+      bare.data === undefined &&
+      reported.current !== tab.path
+    ) {
+      reported.current = tab.path;
       toast.add({
         description: reasonOf(bare.error),
         title: "could not read the graph",
         type: "error",
       });
     }
-  }, [bare.data, bare.error]);
+  }, [bare.data, bare.error, tab.path]);
 
   // A failed read of the bare mentions leaves the links, which are already
   // here; a blank pane over a hidden editor would say less than the toast.
@@ -607,9 +613,11 @@ export function TabGraph({ tab }: TabGraphProps) {
   );
   const last = useRef(graph);
 
-  if (graph !== undefined) {
-    last.current = graph;
-  }
+  useEffect(() => {
+    if (graph !== undefined) {
+      last.current = graph;
+    }
+  }, [graph]);
 
   const shown = graph ?? last.current;
 
