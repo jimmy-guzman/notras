@@ -8,8 +8,6 @@ knowledge_base:
       - "ARCHITECTURE.md"
       - "DESIGN.md"
       - "DECISIONS.md"
-      - ".agents/skills/**"
-      - ".claude/skills/**"
 reviews:
   path_filters:
     - "!.agents/skills/**"

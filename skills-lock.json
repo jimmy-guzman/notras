@@ -11,19 +11,19 @@
       "source": "shadcn-ui/ui",
       "sourceType": "github",
       "skillPath": "skills/shadcn/SKILL.md",
-      "computedHash": "c1a68ee06a668aced9ab2b5fbdea5f989864123794eb2e056b339a072dbb7f10"
+      "computedHash": "f615de216e085a84e31593ad0fa9062232adc40cd87b7c7ab2b8e49abf6500be"
     },
     "tiptap": {
       "source": "ueberdosis/tiptap",
       "sourceType": "github",
       "skillPath": "skills/tiptap/SKILL.md",
-      "computedHash": "622e01bb76685369f3c4d94a298b861fc732042585835776e396211e9059d224"
+      "computedHash": "772943440276fedbc27339a57ad35ccd3c2bc19c1df3c7ba5237cc5d88f3604a"
     },
     "ultracite": {
       "source": "haydenbleasel/ultracite",
       "sourceType": "github",
       "skillPath": "skills/ultracite/SKILL.md",
-      "computedHash": "ef2be373e387b4b1c57a06a70ad7ddbf5dc3b9e10994e0562bee389ee5f93113"
+      "computedHash": "e91e1a862cd261060a8d15dca52d3c63e084ceb5ce81ba06cbc9386f622795d2"
     },
     "vite": {
       "source": "antfu/skills",
