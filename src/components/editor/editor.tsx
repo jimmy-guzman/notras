@@ -5,6 +5,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
+import { isNotePath } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
 import { reasonOf } from "@/lib/ui/failure";
 import { encodeAttachmentPath } from "@/lib/utils/attachments";
@@ -25,6 +26,32 @@ import {
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
+
+/**
+ * Hrefs arrive from the file on disk (parse, paste, input rule), never only
+ * from the link editor, so the scheme is gated here too.
+ */
+function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
+  if (isNotePath(href) && onNoteLinkClick) {
+    onNoteLinkClick(href);
+
+    return;
+  }
+
+  if (!isSafeUrl(href)) {
+    toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
+
+    return;
+  }
+
+  openUrl(href).catch((error: unknown) => {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not open link",
+      type: "error",
+    });
+  });
+}
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
@@ -53,6 +80,8 @@ interface EditorProps {
   initialContent: string;
   onBlur?: () => void;
   onChange: (content: string) => void;
+  /** Navigate when a markdown link to a note is ⌘-clicked. */
+  onNoteLinkClick?: (href: string) => void;
   onReady?: (handle: EditorHandle) => void;
   /** Navigate when a wikilink pill is clicked. */
   onWikilinkClick?: (title: string) => void;
@@ -169,21 +198,7 @@ export function Editor({
             typeof link?.attrs.href === "string" ? link.attrs.href : "";
 
           if (href !== "") {
-            // Hrefs arrive from the file on disk (parse, paste, input rule),
-            // never only from the link editor -- so gate the scheme here too.
-            if (!isSafeUrl(href)) {
-              toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
-
-              return true;
-            }
-
-            openUrl(href).catch((error: unknown) => {
-              toast.add({
-                description: reasonOf(error),
-                title: "could not open link",
-                type: "error",
-              });
-            });
+            followLink(href, config.onNoteLinkClick);
 
             return true;
           }

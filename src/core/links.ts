@@ -1,7 +1,9 @@
+import { decode } from "mdurl";
+
 import type { NoteMeta } from "./notes";
 import { noteFolder, noteTitle } from "./notes";
 
-/** One `[[target]]` as the index records it: `target` as written, `line` as `grep -n` counts it. */
+/** One `[[target]]` or `[text](target.md)` as the index records it: `kind` says which, `target` as written, `line` as `grep -n` counts it. */
 export interface NoteLink {
   context: string;
   kind: string;
@@ -20,7 +22,7 @@ export interface BareMention {
 export interface MentionLine {
   context: string;
   line: number;
-  /** What the UI finds in `context` to window on: `[[target]]` for a link, the title for a bare one. */
+  /** What the UI finds in `context` to window on: `[[target]]` for a wikilink, the destination for a link, the title for a bare one. */
   match: string;
 }
 
@@ -29,10 +31,56 @@ export interface Mention {
   note: NoteMeta;
 }
 
-export type WikilinkResolver = (
-  target: string,
-  fromPath: string
-) => NoteMeta | undefined;
+export interface LinkResolver {
+  path: (destination: string, from: string) => NoteMeta | undefined;
+  row: (link: NoteLink) => NoteMeta | undefined;
+  title: (target: string, from: string) => NoteMeta | undefined;
+}
+
+const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
+const NOTE_EXTENSION = /\.(?:md|markdown)$/i;
+
+const FRAGMENT_OR_QUERY = /[#?]/;
+
+/** Kept in parity with `is_note_path` in `src-tauri/src/index.rs`. */
+export function isNotePath(destination: string) {
+  if (
+    destination.startsWith("#") ||
+    destination.startsWith("/") ||
+    SCHEME.test(destination)
+  ) {
+    return false;
+  }
+
+  const name =
+    (destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "").split("/").at(-1) ?? "";
+
+  return !name.startsWith(".") && NOTE_EXTENSION.test(name);
+}
+
+function joinNotePath(destination: string, from: string) {
+  const bare = decode(destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "");
+  const segments: string[] = [];
+
+  for (const segment of [...noteFolder(from).split("/"), ...bare.split("/")]) {
+    if (segment === "" || segment === ".") {
+      continue;
+    }
+
+    if (segment === "..") {
+      if (segments.pop() === undefined) {
+        return;
+      }
+
+      continue;
+    }
+
+    segments.push(segment);
+  }
+
+  return segments.join("/");
+}
 
 function namesOf(meta: NoteMeta) {
   return new Set([
@@ -44,17 +92,22 @@ function namesOf(meta: NoteMeta) {
 /**
  * A title can come from a heading, so it is not unique, and a link written
  * against a filename has to keep working: hence both names, and the title
- * winning the tie.
+ * winning the tie. A path matches exactly first and then without regard to
+ * case, since the disk under a Mac does the same.
  */
-export function wikilinkResolver(notes: NoteMeta[]): WikilinkResolver {
+export function linkResolver(notes: NoteMeta[]): LinkResolver {
   const byName = Map.groupBy(
     notes.flatMap((meta) => [...namesOf(meta)].map((name) => ({ meta, name }))),
     ({ name }) => name
   );
+  const byPath = new Map(notes.map((meta) => [meta.path, meta]));
+  const byLowerPath = new Map(
+    notes.map((meta) => [meta.path.toLowerCase(), meta])
+  );
 
-  return (target, fromPath) => {
+  const title: LinkResolver["title"] = (target, from) => {
     const wanted = target.trim().toLowerCase();
-    const fromFolder = noteFolder(fromPath);
+    const fromFolder = noteFolder(from);
 
     return (byName.get(wanted) ?? [])
       .map(({ meta }) => meta)
@@ -70,6 +123,27 @@ export function wikilinkResolver(notes: NoteMeta[]): WikilinkResolver {
       })
       .at(0);
   };
+
+  const path: LinkResolver["path"] = (destination, from) => {
+    const joined = joinNotePath(destination, from);
+
+    return joined === undefined
+      ? undefined
+      : (byPath.get(joined) ?? byLowerPath.get(joined.toLowerCase()));
+  };
+
+  return {
+    path,
+    row: (link) =>
+      link.kind === "link"
+        ? path(link.target, link.path)
+        : title(link.target, link.path),
+    title,
+  };
+}
+
+export function matchOf(link: NoteLink) {
+  return link.kind === "link" ? link.target : `[[${link.target}]]`;
 }
 
 interface SourcedLine extends MentionLine {
@@ -87,19 +161,16 @@ export function mentionsOf(
   notes: NoteMeta[],
   bare: BareMention[]
 ): Mention[] {
-  const resolve = wikilinkResolver(notes);
+  const resolve = linkResolver(notes);
   const byPath = new Map(notes.map((meta) => [meta.path, meta]));
   const title = byPath.get(path)?.title;
   const linked: SourcedLine[] = links
-    .filter(
-      (link) =>
-        link.path !== path && resolve(link.target, link.path)?.path === path
-    )
-    .map(({ context, line, path: source, target }) => ({
-      context,
-      line,
-      match: `[[${target}]]`,
-      source,
+    .filter((link) => link.path !== path && resolve.row(link)?.path === path)
+    .map((link) => ({
+      context: link.context,
+      line: link.line,
+      match: matchOf(link),
+      source: link.path,
     }));
   const spoken: SourcedLine[] =
     title === undefined

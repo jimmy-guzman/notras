@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
+import { FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
 import type { KeyboardEvent, MouseEvent, RefObject } from "react";
 import {
   useCallback,
@@ -15,41 +16,48 @@ import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
-import { graphOf } from "@/core/graph";
+import type { Hub, HubPill, RingMember } from "@/core/graph";
+import { graphOf, hubKey, hubLabel, hubPill, hubRing } from "@/core/graph";
 import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
+import { openNote } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { hideGraph, hopTo } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 
 import type { RingPosition } from "./layout";
-import { clockwiseFrom, layoutRing } from "./layout";
+import { clockwiseFrom, layoutRing, layoutRound } from "./layout";
 
 /** Past this a side reads as a fan no longer; the rest go behind a count. */
 const CAP = 12;
 
+/** The top arc holds fewer, since its pills sit side by side. */
+const TOP_CAP = 5;
+
 const CENTRE: RingPosition = { angle: Number.NaN, x: 0.5, y: 0.5 };
 
-const OVERFLOW_IN = "overflow:in";
-const OVERFLOW_OUT = "overflow:out";
-
-const OVERFLOW_CLASS =
-  "-translate-x-1/2 -translate-y-1/2 absolute bg-background text-muted-foreground tabular-nums outline-none hover:text-foreground";
+const PILL_CLASS =
+  "-translate-x-1/2 -translate-y-1/2 absolute max-w-48 bg-background outline-none transition-[left,top] duration-150 ease-out hover:text-foreground focus-visible:text-foreground";
 
 const MENU_CLASS =
   "w-72 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0";
 
-interface Node {
-  /** On both sides: it links here and is linked from here. */
-  both: boolean;
-  note: NoteMeta;
-  position: RingPosition;
-}
+export type Picture =
+  | {
+      dangling: string[];
+      hubs: HubPill[];
+      incoming: Mention[];
+      kind: "note";
+      note: NoteMeta;
+      outgoing: Mention[];
+    }
+  | { hub: HubPill; kind: "hub"; members: RingMember[] };
 
 type Step = -1 | 1;
 
@@ -60,6 +68,38 @@ interface RingKeys {
 }
 
 type PillRef = (key: string, element: HTMLButtonElement | null) => void;
+
+type Overflow =
+  | { dangling: string[]; kind: "links"; outgoing: Mention[] }
+  | { kind: "members"; members: RingMember[] }
+  | { kind: "mentions" };
+
+type Item =
+  | { both: boolean; kind: "note"; note: NoteMeta; position: RingPosition }
+  | { kind: "hub"; pill: HubPill; position: RingPosition }
+  | { kind: "placeholder"; position: RingPosition; target: string }
+  | {
+      count: number;
+      id: string;
+      kind: "overflow";
+      more: Overflow;
+      position: RingPosition;
+    };
+
+function keyOf(item: Item) {
+  switch (item.kind) {
+    case "note":
+      return item.note.path;
+    case "hub":
+      return hubKey(item.pill.hub);
+    case "placeholder":
+      return `dangling:${item.target}`;
+    case "overflow":
+      return item.id;
+    default:
+      return "";
+  }
+}
 
 /** The most recently updated eleven, kept in the side's own order. */
 function capped(notes: NoteMeta[]) {
@@ -78,6 +118,138 @@ function capped(notes: NoteMeta[]) {
     hidden: notes.length - (CAP - 1),
     shown: notes.filter((note) => recent.has(note.path)),
   };
+}
+
+function leading<T>(all: T[], cap: number) {
+  return all.length <= cap
+    ? { hidden: 0, shown: all }
+    : { hidden: all.length - (cap - 1), shown: all.slice(0, cap - 1) };
+}
+
+function place<T>(
+  side: T[],
+  slots: RingPosition[],
+  item: (entry: T, position: RingPosition) => Item
+) {
+  return side.flatMap((entry, index) => {
+    const position = slots[index];
+
+    return position === undefined ? [] : [item(entry, position)];
+  });
+}
+
+function memberItem(member: RingMember, position: RingPosition): Item {
+  return member.kind === "note"
+    ? { both: false, kind: "note", note: member.note, position }
+    : { kind: "hub", pill: member.pill, position };
+}
+
+function itemsOf(picture: Picture): Item[] {
+  if (picture.kind === "hub") {
+    const { hidden, shown } = leading(picture.members, CAP);
+    const slots = layoutRound(shown.length + (hidden > 0 ? 1 : 0));
+    const last = slots.at(-1);
+
+    return [
+      { kind: "hub", pill: picture.hub, position: CENTRE },
+      ...place(shown, slots, memberItem),
+      ...(hidden > 0 && last !== undefined
+        ? [
+            {
+              count: hidden,
+              id: "overflow:members",
+              kind: "overflow" as const,
+              more: { kind: "members" as const, members: picture.members },
+              position: last,
+            },
+          ]
+        : []),
+    ];
+  }
+
+  const { dangling, hubs, incoming, note, outgoing } = picture;
+  const linked = new Set(outgoing.map((mention) => mention.note.path));
+  const mentioned = new Set(incoming.map((mention) => mention.note.path));
+  const left = capped(
+    incoming
+      .map((mention) => mention.note)
+      .filter((entry) => !linked.has(entry.path))
+  );
+  // Real links first, then what room the cap leaves for placeholders.
+  const right = capped(outgoing.map((mention) => mention.note));
+  const room = Math.max(
+    0,
+    CAP - right.shown.length - (right.hidden > 0 ? 1 : 0)
+  );
+  const shownDangling = dangling.slice(0, room);
+  const hiddenRight = right.hidden + (dangling.length - shownDangling.length);
+  const top = leading(hubs, TOP_CAP);
+  const ring = layoutRing(
+    left.shown.length + (left.hidden > 0 ? 1 : 0),
+    right.shown.length + shownDangling.length + (hiddenRight > 0 ? 1 : 0),
+    top.shown.length + (top.hidden > 0 ? 1 : 0)
+  );
+  const noteItem = (entry: NoteMeta, position: RingPosition): Item => ({
+    both: linked.has(entry.path) && mentioned.has(entry.path),
+    kind: "note",
+    note: entry,
+    position,
+  });
+  const overflowIn = ring.incoming.at(-1);
+  const overflowOut = ring.outgoing.at(-1);
+  const overflowTop = ring.top.at(-1);
+
+  return [
+    { both: false, kind: "note", note, position: CENTRE },
+    ...place(left.shown, ring.incoming, noteItem),
+    ...(left.hidden > 0 && overflowIn !== undefined
+      ? [
+          {
+            count: left.hidden,
+            id: "overflow:in",
+            kind: "overflow" as const,
+            more: { kind: "mentions" as const },
+            position: overflowIn,
+          },
+        ]
+      : []),
+    ...place(right.shown, ring.outgoing, noteItem),
+    ...place(
+      shownDangling,
+      ring.outgoing.slice(right.shown.length),
+      (target, position): Item => ({ kind: "placeholder", position, target })
+    ),
+    ...(hiddenRight > 0 && overflowOut !== undefined
+      ? [
+          {
+            count: hiddenRight,
+            id: "overflow:out",
+            kind: "overflow" as const,
+            more: { dangling, kind: "links" as const, outgoing },
+            position: overflowOut,
+          },
+        ]
+      : []),
+    ...place(
+      top.shown,
+      ring.top,
+      (pill, position): Item => ({ kind: "hub", pill, position })
+    ),
+    ...(top.hidden > 0 && overflowTop !== undefined
+      ? [
+          {
+            count: top.hidden,
+            id: "overflow:top",
+            kind: "overflow" as const,
+            more: {
+              kind: "members" as const,
+              members: hubs.map((pill) => ({ kind: "hub" as const, pill })),
+            },
+            position: overflowTop,
+          },
+        ]
+      : []),
+  ];
 }
 
 function useStageSize(ref: RefObject<HTMLDivElement | null>) {
@@ -174,52 +346,80 @@ function Hairline({
   );
 }
 
+function HubFace({ pill }: { pill: HubPill }) {
+  return (
+    <>
+      {pill.hub.kind === "folder" ? <FolderIcon /> : null}
+      <span className="truncate">{hubLabel(pill.hub)}</span>
+      <span className="text-faint tabular-nums">{pill.count}</span>
+    </>
+  );
+}
+
 interface PillProps {
   centre: boolean;
+  item: Item & { kind: "hub" | "note" };
   keys: RingKeys;
-  node: Node;
   onHop: (path: string, beside: boolean) => void;
-  onLive: (path: string | null) => void;
+  onHub: (hub: Hub) => void;
+  onLive: (key: string | null) => void;
   pillRef: PillRef;
 }
 
-function Pill({ centre, keys, node, onHop, onLive, pillRef }: PillProps) {
-  const { path } = node.note;
+function Pill({
+  centre,
+  item,
+  keys,
+  onHop,
+  onHub,
+  onLive,
+  pillRef,
+}: PillProps) {
+  const key = keyOf(item);
 
   const attach = useCallback(
     (element: HTMLButtonElement | null) => {
-      pillRef(path, element);
+      pillRef(key, element);
     },
-    [path, pillRef]
+    [key, pillRef]
+  );
+
+  const go = useCallback(
+    (beside: boolean) => {
+      if (centre) {
+        keys.onLeave();
+      } else if (item.kind === "note") {
+        onHop(item.note.path, beside);
+      } else {
+        onHub(item.pill.hub);
+      }
+    },
+    [centre, item, keys, onHop, onHub]
   );
 
   const click = useCallback(
     (event: MouseEvent) => {
-      if (centre) {
-        keys.onLeave();
-      } else {
-        onHop(path, event.metaKey);
-      }
+      go(event.metaKey);
     },
-    [centre, keys, onHop, path]
+    [go]
   );
 
   // A native button turns ⏎ into a click, but that click carries no modifier.
   const keyDown = useCallback(
     (event: KeyboardEvent) => {
-      if (event.key === "Enter" && event.metaKey && !centre) {
+      if (event.key === "Enter" && event.metaKey) {
         event.preventDefault();
-        onHop(path, true);
+        go(true);
       } else {
-        ringKeyDown(event, path, keys);
+        ringKeyDown(event, key, keys);
       }
     },
-    [centre, keys, onHop, path]
+    [go, key, keys]
   );
 
   const live = useCallback(() => {
-    onLive(path);
-  }, [onLive, path]);
+    onLive(key);
+  }, [key, onLive]);
 
   const idle = useCallback(() => {
     onLive(null);
@@ -228,7 +428,7 @@ function Pill({ centre, keys, node, onHop, onLive, pillRef }: PillProps) {
   return (
     <Badge
       className={cn(
-        "absolute max-w-48 -translate-x-1/2 -translate-y-1/2 bg-background outline-none transition-[left,top] duration-150 ease-out hover:text-foreground focus-visible:text-foreground",
+        PILL_CLASS,
         centre ? "h-7 px-3 text-foreground text-sm" : "text-muted-foreground"
       )}
       onBlur={idle}
@@ -238,21 +438,26 @@ function Pill({ centre, keys, node, onHop, onLive, pillRef }: PillProps) {
       onMouseEnter={live}
       onMouseLeave={idle}
       render={<button ref={attach} type="button" />}
-      style={pillStyle(node.position)}
+      style={pillStyle(item.position)}
       variant="ghost"
     >
-      <span className="truncate">{node.note.title}</span>
+      {item.kind === "note" ? (
+        <span className="truncate">{item.note.title}</span>
+      ) : (
+        <HubFace pill={item.pill} />
+      )}
     </Badge>
   );
 }
 
-interface PlaceholderProps {
+/** A link that names no note: shown, since the note may yet be written, and opening nothing. */
+function Placeholder({
+  position,
+  target,
+}: {
   position: RingPosition;
   target: string;
-}
-
-/** A link that names no note: shown, since the note may yet be written, and opening nothing. */
-function Placeholder({ position, target }: PlaceholderProps) {
+}) {
   return (
     <Badge
       className="absolute max-w-48 -translate-x-1/2 -translate-y-1/2 bg-background text-faint"
@@ -264,193 +469,167 @@ function Placeholder({ position, target }: PlaceholderProps) {
   );
 }
 
-function useOverflowPill(id: string, keys: RingKeys, pillRef: PillRef) {
+function NoteRow({ note }: { note: NoteMeta }) {
+  const open = useCallback(
+    (event: MouseEvent) => {
+      openNote(note.path, event.metaKey);
+    },
+    [note.path]
+  );
+
+  return (
+    <DropdownMenuItem onClick={open}>
+      <FileTextIcon />
+      <span className="truncate">
+        {note.title}
+        {note.folder === "" ? null : (
+          <span className="text-muted-foreground text-xs">
+            {" "}
+            · {note.folder}
+          </span>
+        )}
+      </span>
+    </DropdownMenuItem>
+  );
+}
+
+function HubRow({ onHub, pill }: { onHub: (hub: Hub) => void; pill: HubPill }) {
+  const go = useCallback(() => {
+    onHub(pill.hub);
+  }, [onHub, pill.hub]);
+
+  return (
+    <DropdownMenuItem onClick={go}>
+      {pill.hub.kind === "folder" ? <FolderIcon /> : <HashIcon />}
+      <span className="truncate">
+        {pill.hub.kind === "folder" ? pill.hub.folder : pill.hub.tag}
+      </span>
+      <span className="ml-auto text-faint tabular-nums">{pill.count}</span>
+    </DropdownMenuItem>
+  );
+}
+
+interface OverflowPillProps {
+  item: Item & { kind: "overflow" };
+  keys: RingKeys;
+  onHub: (hub: Hub) => void;
+  onShowMentions: () => void;
+  pillRef: PillRef;
+}
+
+function OverflowPill({
+  item,
+  keys,
+  onHub,
+  onShowMentions,
+  pillRef,
+}: OverflowPillProps) {
   const attach = useCallback(
     (element: HTMLButtonElement | null) => {
-      pillRef(id, element);
+      pillRef(item.id, element);
     },
-    [id, pillRef]
+    [item.id, pillRef]
   );
 
   const keyDown = useCallback(
     (event: KeyboardEvent) => {
-      ringKeyDown(event, id, keys);
+      ringKeyDown(event, item.id, keys);
     },
-    [id, keys]
+    [item.id, keys]
   );
 
-  return { attach, keyDown };
-}
-
-interface OverflowProps {
-  count: number;
-  keys: RingKeys;
-  pillRef: PillRef;
-  position: RingPosition;
-}
-
-/** The rest of the left side as a count, and a door to the strip's mentions list. */
-function OverflowMentions({
-  count,
-  keys,
-  onShow,
-  pillRef,
-  position,
-}: OverflowProps & { onShow: () => void }) {
-  const { attach, keyDown } = useOverflowPill(OVERFLOW_IN, keys, pillRef);
-
-  return (
+  const pill = (
     <Badge
-      className={OVERFLOW_CLASS}
-      onClick={onShow}
+      className={cn(PILL_CLASS, "text-muted-foreground tabular-nums")}
+      onClick={item.more.kind === "mentions" ? onShowMentions : undefined}
       onKeyDown={keyDown}
       render={<button ref={attach} type="button" />}
-      style={pillStyle(position)}
+      style={pillStyle(item.position)}
       variant="ghost"
     >
-      +{count}
+      +{item.count}
     </Badge>
   );
-}
 
-/** The rest of the right side as a count, opening every note this one links to. */
-function OverflowLinks({
-  count,
-  keys,
-  outgoing,
-  pillRef,
-  position,
-}: OverflowProps & { outgoing: Mention[] }) {
-  const { attach, keyDown } = useOverflowPill(OVERFLOW_OUT, keys, pillRef);
+  if (item.more.kind === "mentions") {
+    return pill;
+  }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Badge
-            className={OVERFLOW_CLASS}
-            onKeyDown={keyDown}
-            render={<button ref={attach} type="button" />}
-            style={pillStyle(position)}
-            variant="ghost"
-          />
-        }
-      >
-        +{count}
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger render={pill} />
       <DropdownMenuContent align="start" className={MENU_CLASS} side="bottom">
-        {outgoing.map((mention) => (
-          <MentionItem key={mention.note.path} mention={mention} />
-        ))}
+        {item.more.kind === "links"
+          ? [
+              ...item.more.outgoing.map((mention) => (
+                <MentionItem key={mention.note.path} mention={mention} />
+              )),
+              ...item.more.dangling.map((target) => (
+                <DropdownMenuItem
+                  className="text-faint"
+                  disabled
+                  key={`dangling:${target}`}
+                >
+                  <span className="truncate">{target}</span>
+                </DropdownMenuItem>
+              )),
+            ]
+          : item.more.members.map((member) =>
+              member.kind === "note" ? (
+                <NoteRow key={member.note.path} note={member.note} />
+              ) : (
+                <HubRow
+                  key={hubKey(member.pill.hub)}
+                  onHub={onHub}
+                  pill={member.pill}
+                />
+              )
+            )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 interface NoteGraphProps {
-  center: NoteMeta;
-  dangling: string[];
-  incoming: Mention[];
   onHop: (path: string, beside: boolean) => void;
+  onHub: (hub: Hub) => void;
   onLeave: () => void;
   onShowMentions: () => void;
-  outgoing: Mention[];
+  picture: Picture;
 }
 
 /**
- * The note in the centre, what mentions it fanned on the left, what it links
- * to fanned on the right. Pills are keyed by path and placed by percentage, so
- * a note on screen before and after a hop is one element gliding to its new
+ * Pills are keyed by what they stand for and placed by percentage, so a note
+ * or a hub on screen before and after a hop is one element gliding to its new
  * place rather than two.
  */
 export function NoteGraph({
-  center,
-  dangling,
-  incoming,
   onHop,
+  onHub,
   onLeave,
   onShowMentions,
-  outgoing,
+  picture,
 }: NoteGraphProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const pills = useRef(new Map<string, HTMLButtonElement>());
   const size = useStageSize(stageRef);
   const [live, setLive] = useState<string | null>(null);
 
-  const { nodes, overflow, placeholders, ring } = useMemo(() => {
-    const linked = new Set(outgoing.map((mention) => mention.note.path));
-    const mentioned = new Set(incoming.map((mention) => mention.note.path));
-    const left = capped(
-      incoming
-        .map((mention) => mention.note)
-        .filter((note) => !linked.has(note.path))
-    );
-    // Real links first, then what room the cap leaves for placeholders.
-    const right = capped(outgoing.map((mention) => mention.note));
-    const room = Math.max(
-      0,
-      CAP - right.shown.length - (right.hidden > 0 ? 1 : 0)
-    );
-    const shownDangling = dangling.slice(0, room);
-    const hiddenRight = right.hidden + (dangling.length - shownDangling.length);
-    const positions = layoutRing(
-      left.shown.length + (left.hidden > 0 ? 1 : 0),
-      right.shown.length + shownDangling.length + (hiddenRight > 0 ? 1 : 0)
-    );
-    const place = (side: NoteMeta[], slots: RingPosition[]) =>
-      side.flatMap((note, index) => {
-        const position = slots[index];
-
-        return position === undefined
-          ? []
-          : [
-              {
-                both: linked.has(note.path) && mentioned.has(note.path),
-                note,
-                position,
-              },
-            ];
-      });
-    const placed = [
-      ...place(left.shown, positions.incoming),
-      ...place(right.shown, positions.outgoing),
-    ];
-    const overflowIn = left.hidden > 0 ? positions.incoming.at(-1) : undefined;
-    const overflowOut = hiddenRight > 0 ? positions.outgoing.at(-1) : undefined;
-
-    return {
-      nodes: [{ both: false, note: center, position: CENTRE }, ...placed],
-      overflow: {
-        incoming:
-          overflowIn === undefined
-            ? undefined
-            : { count: left.hidden, position: overflowIn },
-        outgoing:
-          overflowOut === undefined
-            ? undefined
-            : { count: hiddenRight, position: overflowOut },
-      },
-      placeholders: shownDangling.flatMap((target, index) => {
-        const position = positions.outgoing[right.shown.length + index];
-
-        return position === undefined ? [] : [{ position, target }];
-      }),
-      // Clockwise from the top, which is the order the arrows walk. A
-      // placeholder is not on it: there is nothing to hop to.
-      ring: [
-        ...placed.map((node) => ({
-          angle: node.position.angle,
-          key: node.note.path,
-        })),
-        ...(overflowIn === undefined
-          ? []
-          : [{ angle: overflowIn.angle, key: OVERFLOW_IN }]),
-        ...(overflowOut === undefined
-          ? []
-          : [{ angle: overflowOut.angle, key: OVERFLOW_OUT }]),
-      ].toSorted((a, b) => clockwiseFrom(a.angle) - clockwiseFrom(b.angle)),
-    };
-  }, [center, dangling, incoming, outgoing]);
+  const items = useMemo(() => itemsOf(picture), [picture]);
+  const centreKey = keyOf(
+    items[0] ?? { kind: "placeholder", position: CENTRE, target: "" }
+  );
+  const ring = useMemo(
+    () =>
+      items
+        .filter(
+          (item) =>
+            item.kind !== "placeholder" && !Number.isNaN(item.position.angle)
+        )
+        .map((item) => ({ angle: item.position.angle, key: keyOf(item) }))
+        .toSorted((a, b) => clockwiseFrom(a.angle) - clockwiseFrom(b.angle)),
+    [items]
+  );
 
   const pillRef = useCallback<PillRef>((key, element) => {
     if (element === null) {
@@ -462,8 +641,8 @@ export function NoteGraph({
 
   // Landing, whether by toggle or by hop, puts the hand on the centre.
   useEffect(() => {
-    pills.current.get(center.path)?.focus();
-  }, [center.path]);
+    pills.current.get(centreKey)?.focus();
+  }, [centreKey]);
 
   const onWalk = useCallback(
     (from: string, step: Step) => {
@@ -481,12 +660,11 @@ export function NoteGraph({
 
   const keys = useMemo(() => ({ onLeave, onWalk }), [onLeave, onWalk]);
 
-  const lone =
-    incoming.length === 0 && outgoing.length === 0 && dangling.length === 0;
+  const lone = items.length === 1;
 
   return (
     <div className="relative h-full w-full select-none" ref={stageRef}>
-      {lone ? null : (
+      {lone || picture.kind === "hub" ? null : (
         <>
           <span className="absolute top-[6%] left-[12%] -translate-x-1/2 text-faint text-xs">
             mentions
@@ -496,70 +674,59 @@ export function NoteGraph({
           </span>
         </>
       )}
-      {nodes
-        .filter((node) => !Number.isNaN(node.position.angle))
-        .map((node) => (
+      {items
+        .filter((item) => !Number.isNaN(item.position.angle))
+        .map((item) => (
           <Hairline
-            both={node.both}
-            key={node.note.path}
-            live={live === node.note.path}
-            position={node.position}
+            both={item.kind === "note" && item.both}
+            dashed={item.kind === "placeholder"}
+            key={keyOf(item)}
+            live={live === keyOf(item)}
+            position={item.position}
             size={size}
           />
         ))}
-      {placeholders.map(({ position, target }) => (
-        <Hairline
-          dashed
-          key={`dangling:${target}`}
-          position={position}
-          size={size}
-        />
-      ))}
-      {overflow.incoming === undefined ? null : (
-        <Hairline position={overflow.incoming.position} size={size} />
-      )}
-      {overflow.outgoing === undefined ? null : (
-        <Hairline position={overflow.outgoing.position} size={size} />
-      )}
-      {nodes.map((node) => (
-        <Pill
-          centre={node.note.path === center.path}
-          key={node.note.path}
-          keys={keys}
-          node={node}
-          onHop={onHop}
-          onLive={setLive}
-          pillRef={pillRef}
-        />
-      ))}
-      {placeholders.map(({ position, target }) => (
-        <Placeholder
-          key={`dangling:${target}`}
-          position={position}
-          target={target}
-        />
-      ))}
-      {overflow.incoming === undefined ? null : (
-        <OverflowMentions
-          count={overflow.incoming.count}
-          keys={keys}
-          onShow={onShowMentions}
-          pillRef={pillRef}
-          position={overflow.incoming.position}
-        />
-      )}
-      {overflow.outgoing === undefined ? null : (
-        <OverflowLinks
-          count={overflow.outgoing.count}
-          keys={keys}
-          outgoing={outgoing}
-          pillRef={pillRef}
-          position={overflow.outgoing.position}
-        />
-      )}
+      {items.map((item) => {
+        switch (item.kind) {
+          case "placeholder":
+            return (
+              <Placeholder
+                key={keyOf(item)}
+                position={item.position}
+                target={item.target}
+              />
+            );
+          case "overflow":
+            return (
+              <OverflowPill
+                item={item}
+                key={item.id}
+                keys={keys}
+                onHub={onHub}
+                onShowMentions={onShowMentions}
+                pillRef={pillRef}
+              />
+            );
+          default:
+            return (
+              <Pill
+                centre={keyOf(item) === centreKey}
+                item={item}
+                key={keyOf(item)}
+                keys={keys}
+                onHop={onHop}
+                onHub={onHub}
+                onLive={setLive}
+                pillRef={pillRef}
+              />
+            );
+        }
+      })}
       {lone ? (
         <p className="absolute top-[calc(50%+2rem)] left-1/2 -translate-x-1/2 whitespace-nowrap text-faint text-xs">
-          no links yet, and nothing mentions it
+          {picture.kind === "hub"
+            ? "nothing here yet"
+            : "no links yet, and nothing mentions it"}
         </p>
       ) : null}
     </div>
@@ -582,6 +749,11 @@ export function TabGraph({ tab }: TabGraphProps) {
     ...noteQueries.mentions(tab.path, center?.title ?? ""),
     enabled: center !== undefined,
   });
+  const [hubState, setHubState] = useState<{
+    forPath: string;
+    hub: Hub;
+  } | null>(null);
+  const hub = hubState?.forPath === tab.path ? hubState.hub : null;
   // The path rather than a flag: this component outlives a hop on purpose,
   // so a once-per-mount guard would silence every note after the first.
   const reported = useRef<string | null>(null);
@@ -604,26 +776,52 @@ export function TabGraph({ tab }: TabGraphProps) {
   // A failed read of the bare mentions leaves the links, which are already
   // here; a blank pane over a hidden editor would say less than the toast.
   const rows = bare.data ?? (bare.error === null ? undefined : []);
-  const graph = useMemo(
-    () =>
-      center === undefined || rows === undefined
-        ? undefined
-        : { center, ...graphOf(tab.path, links, notes, rows) },
-    [center, links, notes, rows, tab.path]
-  );
-  const last = useRef(graph);
+  const picture = useMemo<Picture | undefined>(() => {
+    if (hub !== null) {
+      return {
+        hub: hubPill(hub, notes),
+        kind: "hub",
+        members: hubRing(hub, notes),
+      };
+    }
+
+    return center === undefined || rows === undefined
+      ? undefined
+      : {
+          kind: "note",
+          note: center,
+          ...graphOf(tab.path, links, notes, rows),
+        };
+  }, [center, hub, links, notes, rows, tab.path]);
+  const last = useRef(picture);
 
   useEffect(() => {
-    if (graph !== undefined) {
-      last.current = graph;
+    if (picture !== undefined) {
+      last.current = picture;
     }
-  }, [graph]);
+  }, [picture]);
 
-  const shown = graph ?? last.current;
+  const shown = picture ?? last.current;
+
+  const hop = useCallback((path: string, beside: boolean) => {
+    setHubState(null);
+    hopTo(path, beside);
+  }, []);
+
+  const toHub = useCallback(
+    (next: Hub) => {
+      setHubState({ forPath: tab.path, hub: next });
+    },
+    [tab.path]
+  );
 
   const leave = useCallback(() => {
-    hideGraph(tab.id);
-  }, [tab.id]);
+    if (hub === null) {
+      hideGraph(tab.id);
+    } else {
+      setHubState(null);
+    }
+  }, [hub, tab.id]);
 
   const showMentions = useCallback(() => {
     setMentionsOpen(true);
@@ -636,13 +834,11 @@ export function TabGraph({ tab }: TabGraphProps) {
   return (
     <div className="absolute inset-0 bg-background p-6">
       <NoteGraph
-        center={shown.center}
-        dangling={shown.dangling}
-        incoming={shown.incoming}
-        onHop={hopTo}
+        onHop={hop}
+        onHub={toHub}
         onLeave={leave}
         onShowMentions={showMentions}
-        outgoing={shown.outgoing}
+        picture={shown}
       />
     </div>
   );

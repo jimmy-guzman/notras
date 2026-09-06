@@ -20,7 +20,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { composeNote, parseNote } from "@/core/frontmatter";
-import { wikilinkResolver } from "@/core/links";
+import { linkResolver } from "@/core/links";
 import { resolveTitle } from "@/core/notes";
 import { writeExternalNote } from "@/data/external-note";
 import type { SessionFile } from "@/data/queries";
@@ -59,7 +59,7 @@ interface SessionBufferProps {
 function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const resolveWikilink = useMemo(() => wikilinkResolver(notes), [notes]);
+  const resolveLinks = useMemo(() => linkResolver(notes), [notes]);
   const id = tabId(tab);
   const graphMode = useGraphMode(id);
 
@@ -137,7 +137,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     body,
     frontmatter: frontmatterBlock,
     notes,
-    resolveWikilink,
+    resolveLinks,
     sourceMode,
     status: autosave.status,
   });
@@ -147,7 +147,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       body,
       frontmatter: frontmatterBlock,
       notes,
-      resolveWikilink,
+      resolveLinks,
       sourceMode,
       status: autosave.status,
     };
@@ -181,13 +181,28 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   const openWikilink = useCallback(
     (linkTitle: string) => {
-      const target = live.current.resolveWikilink(linkTitle, tab.path);
+      const target = live.current.resolveLinks.title(linkTitle, tab.path);
 
       if (target === undefined) {
         toast.add({
           title: `no note named "${linkTitle.trim().toLowerCase()}"`,
           type: "error",
         });
+
+        return;
+      }
+
+      openNote(target.path);
+    },
+    [tab.path]
+  );
+
+  const openNoteLink = useCallback(
+    (href: string) => {
+      const target = live.current.resolveLinks.path(href, tab.path);
+
+      if (target === undefined) {
+        toast.add({ title: `no note at ${href}`, type: "error" });
 
         return;
       }
@@ -408,6 +423,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
           initialContent={sentineledBody ?? body}
           key={reloadKey}
           onChange={handleBodyChange}
+          onNoteLinkClick={tab.kind === "note" ? openNoteLink : undefined}
           onReady={attachEditor}
           onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
           resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}

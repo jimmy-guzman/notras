@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clockwiseFrom, layoutRing } from "./layout";
+import { clockwiseFrom, layoutRing, layoutRound } from "./layout";
 
 describe("layoutRing", () => {
   it("should sit a lone neighbour on each side level with the centre", () => {
@@ -32,7 +32,30 @@ describe("layoutRing", () => {
   });
 
   it("should give nothing for an empty side", () => {
-    expect(layoutRing(0, 0)).toEqual({ incoming: [], outgoing: [] });
+    expect(layoutRing(0, 0)).toEqual({ incoming: [], outgoing: [], top: [] });
+  });
+
+  it("should lay what holds the note along the top, left to right, and narrow the sides for it", () => {
+    const ring = layoutRing(8, 8, 3);
+    const [left, , right] = ring.top;
+
+    expect(ring.top.every((node) => node.y < 0.5)).toBe(true);
+    expect(left?.x ?? 1).toBeLessThan(right?.x ?? 0);
+    expect(
+      (ring.outgoing.at(-1)?.angle ?? 0) - (ring.outgoing[0]?.angle ?? 0)
+    ).toBeCloseTo(110);
+    expect(
+      (layoutRing(8, 8).outgoing.at(-1)?.angle ?? 0) -
+        (layoutRing(8, 8).outgoing[0]?.angle ?? 0)
+    ).toBeCloseTo(150);
+  });
+});
+
+describe("layoutRound", () => {
+  it("should space members evenly around the ring from the top, clockwise", () => {
+    expect(layoutRound(4).map((node) => node.angle)).toEqual([-90, 0, 90, 180]);
+    expect(layoutRound(1)[0]?.y ?? 1).toBeLessThan(0.5);
+    expect(layoutRound(0)).toEqual([]);
   });
 });
 

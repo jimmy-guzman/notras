@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 use std::time::UNIX_EPOCH;
 
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{Event, LinkType, Options, Parser, Tag};
 use rusqlite::types::ValueRef;
 use rusqlite::Connection;
 use serde::Serialize;
@@ -69,7 +69,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -282,6 +282,33 @@ fn html_tag(html: &str) -> Option<HtmlTag> {
     Some(HtmlTag::Open(name))
 }
 
+/// Kept in parity with `isNotePath` in `src/core/links.ts`.
+fn is_note_path(destination: &str) -> bool {
+    if destination.starts_with('#') || destination.starts_with('/') {
+        return false;
+    }
+    if let Some((head, _)) = destination.split_once(':') {
+        let scheme = head.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+            && head
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'));
+        if scheme {
+            return false;
+        }
+    }
+    let path = destination.split(['#', '?']).next().unwrap_or("");
+    let name = path.rsplit('/').next().unwrap_or("");
+    !name.starts_with('.')
+        && (strip_suffix_ignore_case(name, ".md").is_some()
+            || strip_suffix_ignore_case(name, ".markdown").is_some())
+}
+
+struct Scan {
+    link_spans: Vec<Range<usize>>,
+    links: Vec<(usize, String)>,
+    prose: Vec<bool>,
+}
+
 /// Where a `[[link]]` counts, byte by byte: true for prose, false for what the
 /// editor's parser reads as code, HTML, or a link destination.
 ///
@@ -290,12 +317,14 @@ fn html_tag(html: &str) -> Option<HtmlTag> {
 /// editor's tokenizer takes `[[**a**]]` whole. Text between a matching pair of
 /// inline tags is opaque too, because the editor parses that stretch as HTML
 /// rather than markdown, while an unmatched tag hides only itself.
-fn prose_mask(body: &str) -> Vec<bool> {
+fn scan(body: &str) -> Scan {
     let options =
         Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
     let mut prose = vec![false; body.len()];
     let mut opaque: Vec<Range<usize>> = Vec::new();
     let mut open_tags: Vec<(String, usize)> = Vec::new();
+    let mut links = Vec::new();
+    let mut link_spans = Vec::new();
 
     for (event, range) in Parser::new_ext(body, options).into_offset_iter() {
         match event {
@@ -325,7 +354,19 @@ fn prose_mask(body: &str) -> Vec<bool> {
             }
             Event::Start(tag) => match tag {
                 Tag::Emphasis | Tag::Strong | Tag::Strikethrough => prose[range].fill(true),
-                Tag::Link { .. } | Tag::Image { .. } | Tag::Superscript | Tag::Subscript => {}
+                Tag::Link {
+                    dest_url,
+                    link_type,
+                    ..
+                } => {
+                    link_spans.push(range.clone());
+                    if !matches!(link_type, LinkType::Autolink | LinkType::Email)
+                        && is_note_path(&dest_url)
+                    {
+                        links.push((range.start, dest_url.to_string()));
+                    }
+                }
+                Tag::Image { .. } | Tag::Superscript | Tag::Subscript => {}
                 Tag::CodeBlock(_) | Tag::HtmlBlock => {
                     opaque.push(range);
                     open_tags.clear();
@@ -336,11 +377,30 @@ fn prose_mask(body: &str) -> Vec<bool> {
         }
     }
 
-    for range in opaque {
-        prose[range].fill(false);
+    for range in &opaque {
+        prose[range.clone()].fill(false);
     }
+    links.retain(|(at, _)| !opaque.iter().any(|span| span.contains(at)));
 
-    prose
+    Scan {
+        link_spans,
+        links,
+        prose,
+    }
+}
+
+fn prose_mask(body: &str) -> Vec<bool> {
+    scan(body).prose
+}
+
+fn line_at(body: &str, at: usize) -> (usize, &str) {
+    let line_start = body[..at].rfind('\n').map_or(0, |i| i + 1);
+    let line_end = body[at..].find('\n').map_or(body.len(), |i| at + i);
+
+    (
+        body[..at].matches('\n').count() + 1,
+        body[line_start..line_end].trim_end_matches('\r'),
+    )
 }
 
 fn prose_ranges(body: &str) -> Vec<Range<usize>> {
@@ -408,12 +468,36 @@ fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
         .into_iter()
         .flat_map(|range| wikilink_targets(body, range))
         .map(|(open, target)| {
-            let line_start = body[..open].rfind('\n').map_or(0, |at| at + 1);
-            let line_end = body[open..].find('\n').map_or(body.len(), |at| open + at);
+            let (line, context) = line_at(body, open);
 
             Wikilink {
-                context: body[line_start..line_end].trim_end_matches('\r'),
-                line: body[..open].matches('\n').count() + 1,
+                context,
+                line,
+                target,
+            }
+        })
+        .collect()
+}
+
+struct MarkdownLink<'a> {
+    context: &'a str,
+    line: usize,
+    target: String,
+}
+
+/// Kept in parity with the editor's parser the way `wikilinks` is:
+/// `finds_the_markdown_note_links_the_editor_renders` below and
+/// `src/components/editor/markdown-link.spec.ts` assert one table of cases.
+fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
+    scan(body)
+        .links
+        .into_iter()
+        .map(|(open, target)| {
+            let (line, context) = line_at(body, open);
+
+            MarkdownLink {
+                context,
+                line,
                 target,
             }
         })
@@ -450,12 +534,13 @@ fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
     (wanted.len() == 0 && consumed > 0).then_some(consumed)
 }
 
-/// Inside `[[...]]` the title is a link and counted already, and on the
-/// heading that names the note it is the note's name. A note titled by its
-/// frontmatter has no such heading, so its first heading is prose like the
-/// rest.
+/// Inside `[[...]]` or a markdown link the title is a link and counted
+/// already, and on the heading that names the note it is the note's name. A
+/// note titled by its frontmatter has no such heading, so its first heading
+/// is prose like the rest.
 fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Vec<(usize, &'a str)> {
     let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
+    let markdown_links = scan(body).link_spans;
     let heading_line = heading_names_note
         .then(|| leading_heading(body))
         .flatten()
@@ -467,6 +552,7 @@ fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Ve
         let links: Vec<Range<usize>> = wikilink_targets(body, range.clone())
             .into_iter()
             .map(|(open, target)| open..open + target.len() + 4)
+            .chain(markdown_links.iter().cloned())
             .collect();
         let run = &body[range.clone()];
         let mut skip_until = 0;
@@ -483,16 +569,13 @@ fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Ve
             let bounded = !run[..at].chars().next_back().is_some_and(is_word)
                 && !run[at + len..].chars().next().is_some_and(is_word);
             let linked = links.iter().any(|span| start < span.end && end > span.start);
-            let line = body[..start].matches('\n').count() + 1;
+            let (line, context) = line_at(body, start);
 
             if !bounded || linked || heading_line == Some(line - 1) {
                 continue;
             }
 
-            let line_start = body[..start].rfind('\n').map_or(0, |at| at + 1);
-            let line_end = body[start..].find('\n').map_or(body.len(), |at| start + at);
-
-            found.push((line, body[line_start..line_end].trim_end_matches('\r')));
+            found.push((line, context));
             skip_until = at + len;
         }
     }
@@ -680,6 +763,18 @@ pub fn index_file(
         tx.execute(
             "INSERT INTO note_link (path, line, kind, target, context)
              VALUES (?1, ?2, 'wikilink', ?3, ?4)",
+            rusqlite::params![
+                rel_path,
+                link.line + body_line_offset,
+                link.target,
+                link.context
+            ],
+        )?;
+    }
+    for link in markdown_links(parsed.body) {
+        tx.execute(
+            "INSERT INTO note_link (path, line, kind, target, context)
+             VALUES (?1, ?2, 'link', ?3, ?4)",
             rusqlite::params![
                 rel_path,
                 link.line + body_line_offset,
@@ -1305,6 +1400,8 @@ mod tests {
         fs::write(dir.join("g.md"), "snake_case is a symbol, but the snake is an animal\n").unwrap();
         fs::write(dir.join("q.md"), "# say \"hi\"\n").unwrap();
         fs::write(dir.join("r.md"), "he did say \"hi\" twice\n").unwrap();
+        let linked = "see [the graph view](graph%20view.md) and [graph view](http://x)\n";
+        fs::write(dir.join("h.md"), linked).unwrap();
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
@@ -1345,6 +1442,13 @@ mod tests {
         assert!(find("x.md", "---").is_empty());
 
         let _ = fs::remove_dir_all(&dir);
+        assert_eq!(
+            markdown_links(linked)
+                .iter()
+                .map(|link| link.target.as_str())
+                .collect::<Vec<_>>(),
+            ["graph%20view.md"]
+        );
     }
 
     /// The state a swap leaves between the index vouching for a file and the
@@ -1370,6 +1474,87 @@ mod tests {
         assert!(scan_mentions(&dir, candidates, "graph view").unwrap().is_empty());
 
         let _ = fs::remove_file(&outside);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The markdown-link parity table. `src/components/editor/markdown-link.spec.ts`
+    /// asserts the same cases in the same order against the editor's parser and
+    /// `isNotePath`, so what the index records and what the editor opens on
+    /// ⌘-click can be diffed by eye.
+    #[test]
+    fn finds_the_markdown_note_links_the_editor_renders() {
+        #[rustfmt::skip]
+        let cases: &[(&str, &[&str])] = &[
+            ("[a](b.md)", &["b.md"]),
+            ("[a](./b.md)", &["./b.md"]),
+            ("[a](../b.md)", &["../b.md"]),
+            ("[a](B.MD)", &["B.MD"]),
+            ("[a](b.md#h)", &["b.md#h"]),
+            ("[a](sub/b%20c.md)", &["sub/b%20c.md"]),
+            ("[a](b.md \"title\")", &["b.md"]),
+            ("[a](b.md 'single')", &["b.md"]),
+            ("[a](<b c.md>)", &["b c.md"]),
+            ("[a](  b.md  )", &["b.md"]),
+            ("[a](b\\(1\\).md)", &["b(1).md"]),
+            ("[a][r]\n\n[r]: b.md", &["b.md"]),
+            ("[b.md][]\n\n[b.md]: b.md", &["b.md"]),
+            ("<http://x>", &[]),
+            ("[a](http://x/b.md)", &[]),
+            ("[a](file:///x/b.md)", &[]),
+            ("[a](mailto:x@y.z)", &[]),
+            ("[a](#h)", &[]),
+            ("[a](/abs/b.md)", &[]),
+            ("[a](b.txt)", &[]),
+            ("[a](b.md.txt)", &[]),
+            ("[a](.md)", &[]),
+            ("[a](b.MD.md)", &["b.MD.md"]),
+            ("[a](b.markdown)", &["b.markdown"]),
+            ("[a](b.md?x=1)", &["b.md?x=1"]),
+            ("[a](b.md#^block)", &["b.md#^block"]),
+            ("[a](b.md#h?x)", &["b.md#h?x"]),
+            ("[a](notes/../b.md)", &["notes/../b.md"]),
+            ("![i](b.md)", &[]),
+            ("```\n[a](b.md)\n```", &[]),
+            ("`[a](b.md)`", &[]),
+            ("<span>[a](b.md)</span>", &[]),
+            ("# [a](b.md)", &["b.md"]),
+            ("- [a](b.md)", &["b.md"]),
+            ("[**a**](b.md)", &["b.md"]),
+            ("[a](b.md) and [c](b.md)", &["b.md", "b.md"]),
+            ("[a](b.md)[c](d.md)", &["b.md", "d.md"]),
+            ("[a](b.md \"t\") x [[b]]", &["b.md"]),
+        ];
+
+        for (markdown, expected) in cases {
+            let links = markdown_links(markdown);
+            let found: Vec<&str> = links.iter().map(|link| link.target.as_str()).collect();
+            assert_eq!(&found, expected, "scanning {markdown:?}");
+        }
+    }
+
+    #[test]
+    fn records_markdown_note_links_as_rows() {
+        let dir = temp_notes_dir("markdown-link-rows");
+        fs::write(dir.join("a.md"), "see [there](sub/b.md) and [[c]]\n").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        let rows = select(
+            &conn,
+            "SELECT kind, target, line FROM note_link ORDER BY kind",
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                vec![json!("link"), json!("sub/b.md"), json!(1)],
+                vec![json!("wikilink"), json!("c"), json!(1)],
+            ]
+        );
+
         let _ = fs::remove_dir_all(&dir);
     }
 }
