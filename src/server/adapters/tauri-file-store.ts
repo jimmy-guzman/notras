@@ -3,6 +3,7 @@ import { Effect, Layer, Option, Schema } from "effect";
 import { FileError, FileErrorKind } from "@/core/errors";
 import type { IFileStore, NoteFileContent } from "@/core/file-store";
 import { FileStore } from "@/core/file-store";
+import type { BareMention } from "@/core/links";
 
 /** What a rejecting command sends back (`src-tauri/src/notes.rs`, `D55`). */
 const decodeFailure = Schema.decodeUnknownOption(
@@ -33,6 +34,8 @@ const fileStore: IFileStore = {
     command<number>("write_note", { content, create: true, path }),
   delete: (path) => command<null>("delete_note", { path }).pipe(Effect.asVoid),
   exists: (path) => command<boolean>("note_exists", { path }),
+  findMentions: (path, title) =>
+    command<BareMention[]>("find_mentions", { path, title }),
   getNotesDir: () => command<string>("get_notes_dir"),
   read: (path) => command<NoteFileContent>("read_note", { path }),
   readExternal: (path) => command<NoteFileContent>("read_external", { path }),

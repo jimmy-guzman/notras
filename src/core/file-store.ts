@@ -3,6 +3,7 @@ import type { Effect } from "effect";
 import { Context } from "effect";
 
 import type { FileError } from "./errors";
+import type { BareMention } from "./links";
 
 export interface NoteFileContent {
   content: string;
@@ -24,6 +25,11 @@ export interface IFileStore {
   create: (path: string, content: string) => Effect.Effect<number, FileError>;
   delete: (path: string) => Effect.Effect<void, FileError>;
   exists: (path: string) => Effect.Effect<boolean, FileError>;
+  /** Notes whose prose carries `title` without brackets, found on read rather than indexed. */
+  findMentions: (
+    path: string,
+    title: string
+  ) => Effect.Effect<BareMention[], FileError>;
   getNotesDir: () => Effect.Effect<string, FileError>;
   read: (path: string) => Effect.Effect<NoteFileContent, FileError>;
   /** Read a markdown file outside the notes dir (Open With / drag-in). */

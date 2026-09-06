@@ -45,7 +45,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - a search that matches nothing offers to create a note under the name you typed
 - `⌘⇧P` runs an action on the note, the open tabs, or the app itself
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
-- the status strip counts the notes that mention the one you are in, and lists them with the line that did the linking. Other apps call these backlinks
+- the status strip counts the notes that mention the one you are in, by `[[link]]` or by writing its title, and lists them with the line that did it. Other apps call the linked ones backlinks
 - `⌘⇧K` adds or edits a link, and `⌘`-click opens a web link in your browser
 - tags, pins, and folders, with moves between folders run from `⌘⇧P`
 

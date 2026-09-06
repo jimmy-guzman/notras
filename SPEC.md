@@ -9,7 +9,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
 - First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
 - A note is a file whose extension is `md` or `markdown`, matched without regard to case, so `NOTE.MD` is a note.
-- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed.
+- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed, and a note that became one after indexing is not read for mentions.
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
 - A path segment carries no `/`, `\` or `:`, is not blank, and does not start with a dot. A folder name is at most 120 characters.
@@ -105,9 +105,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
 - Clicking a pill resolves by title first, then by filename, preferring a note in the same folder, then by path. A link matching nothing says so and creates nothing.
-- The status strip counts the notes that mention the one showing, as `3 mentions` or `1 mention`, and shows nothing while none does. A mention is a wikilink in another note that resolves to this one the way a click would, so a note's links to itself and links that name no note count for nothing.
-- The count, ⌘⇧L, and "show mentions" in the palette open one list: a row per note reading `title · folder`, the line that links beneath it starting on a word a little before the link, and `+1` on a note that links more than once. ⏎ opens the note in the showing tab, ⌘⏎ opens it beside, and esc closes.
-- A link written by anything else reaches the count within about a second, since its row lands with the note's re-index.
+- The status strip counts the notes that mention the one showing, as `3 mentions` or `1 mention`, and shows nothing while none does. A mention is a wikilink in another note that resolves to this one the way a click would, or this note's title written there bare, so a note's links to itself and links that name no note count for nothing.
+- A bare title counts when it stands as a whole word, without regard to case, outside links, code, HTML, and the heading that names the other note. A letter, digit or underscore on either side makes it part of a longer word, and a note titled by its frontmatter has no naming heading, so its first heading is prose. The filename is not searched, and two notes sharing a title both count the same bare line.
+- The count, ⌘⇧L, and "show mentions" in the palette open one list: a row per note reading `title · folder`, the line that mentions it beneath, starting on a word a little before the link or the title, and `+1` on a note that mentions it more than once. ⏎ opens the note in the showing tab, ⌘⏎ opens it beside, and esc closes.
+- A link or a bare title written by anything else reaches the count within about a second.
+- A read of the mentions that fails leaves the count absent and toasts why once, under "could not read mentions".
 - ⌘⇧K adds or edits a link, and ⌘-click opens one. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
 - A ⌘-click on an attachment link does not open the attachment.
 - Dragging files onto the window copies each into `attachments/` and inserts a link into the tab that is showing. A name already taken becomes `stem-2.ext`. Spaces survive on disk and are percent-encoded in the link.
@@ -177,5 +179,5 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
 - The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode and typewriter scrolling live beside them.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
-- The index at `.notras/index.db` is derived and disposable.
+- The index at `.notras/index.db` is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
 - The reopen stack, source mode, undo history, and scroll position live in memory and do not survive a relaunch.

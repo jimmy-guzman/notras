@@ -255,6 +255,24 @@ pub fn read_note(state: State<'_, AppState>, path: String) -> Result<NoteFile, C
     })
 }
 
+/// Reads the files the index names and writes nothing. The lock covers the
+/// query alone: the reads can run to hundreds of files, and a save or a
+/// search should not wait on them.
+#[tauri::command]
+pub fn find_mentions(
+    state: State<'_, AppState>,
+    path: String,
+    title: String,
+) -> Result<Vec<index::BareMention>, CommandError> {
+    let (notes_dir, candidates) = {
+        let core = state.core();
+        let candidates = index::mention_candidates(&core.conn, &path, &title)?;
+        (core.notes_dir.clone(), candidates)
+    };
+
+    Ok(index::scan_mentions(&notes_dir, candidates, &title)?)
+}
+
 #[tauri::command]
 pub fn write_note(
     app: AppHandle,

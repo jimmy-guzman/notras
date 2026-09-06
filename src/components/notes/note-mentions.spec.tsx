@@ -28,7 +28,7 @@ function mention(
   const title = path.slice(folder === "" ? 0 : folder.length + 1, -3);
 
   return {
-    lines: [{ context, line, target }],
+    lines: [{ context, line, match: `[[${target}]]` }],
     note: {
       createdAt: new Date(0),
       folder,
@@ -116,7 +116,7 @@ describe("NoteMentions", () => {
     twice.lines.push({
       context: "and [[here]] again",
       line: 4,
-      target: "here",
+      match: "[[here]]",
     });
 
     await mount([twice, mention("b.md", "once [[here]]")]);

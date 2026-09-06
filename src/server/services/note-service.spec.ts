@@ -43,6 +43,7 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
       return Effect.void;
     },
     exists: (path) => Effect.succeed(files.has(path)),
+    findMentions: () => Effect.succeed([]),
     getNotesDir: () => Effect.succeed("/notes"),
     read: (path) => {
       const file = files.get(path);
