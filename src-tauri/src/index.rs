@@ -450,12 +450,17 @@ fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
     (wanted.len() == 0 && consumed > 0).then_some(consumed)
 }
 
-/// Inside `[[...]]` the title is a link and counted already, and on the note's
-/// own title heading it is the note's name.
-fn bare_mentions<'a>(body: &'a str, title: &str) -> Vec<(usize, &'a str)> {
+/// Inside `[[...]]` the title is a link and counted already, and on the
+/// heading that names the note it is the note's name. A note titled by its
+/// frontmatter has no such heading, so its first heading is prose like the
+/// rest.
+fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Vec<(usize, &'a str)> {
     let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
-    let heading_line = leading_heading(body)
+    let heading_line = heading_names_note
+        .then(|| leading_heading(body))
+        .flatten()
         .and_then(|_| body.lines().position(|line| !line.trim().is_empty()));
+    let is_word = |ch: char| ch.is_alphanumeric() || ch == '_';
     let mut found = Vec::new();
 
     for range in prose_ranges(body) {
@@ -475,8 +480,8 @@ fn bare_mentions<'a>(body: &'a str, title: &str) -> Vec<(usize, &'a str)> {
             };
             let start = range.start + at;
             let end = start + len;
-            let bounded = !run[..at].chars().next_back().is_some_and(char::is_alphanumeric)
-                && !run[at + len..].chars().next().is_some_and(char::is_alphanumeric);
+            let bounded = !run[..at].chars().next_back().is_some_and(is_word)
+                && !run[at + len..].chars().next().is_some_and(is_word);
             let linked = links.iter().any(|span| start < span.end && end > span.start);
             let line = body[..start].matches('\n').count() + 1;
 
@@ -540,7 +545,9 @@ pub fn scan_mentions(
             .matches('\n')
             .count();
 
-        found.extend(bare_mentions(parsed.body, title).into_iter().map(
+        let heading_names_note = parsed.frontmatter.title.is_none();
+
+        found.extend(bare_mentions(parsed.body, title, heading_names_note).into_iter().map(
             |(line, context)| BareMention {
                 context: context.to_string(),
                 line: line + body_line_offset,
@@ -1285,6 +1292,8 @@ mod tests {
         .unwrap();
         fs::write(dir.join("b.md"), "# graph view notes\n\nsee graph view here\n").unwrap();
         fs::write(dir.join("c.md"), "nothing here\n").unwrap();
+        fs::write(dir.join("f.md"), "---\ntitle: other\n---\n# graph view\n\nplain\n").unwrap();
+        fs::write(dir.join("g.md"), "snake_case is a symbol, but the snake is an animal\n").unwrap();
         fs::write(dir.join("q.md"), "# say \"hi\"\n").unwrap();
         fs::write(dir.join("r.md"), "he did say \"hi\" twice\n").unwrap();
 
@@ -1308,8 +1317,15 @@ mod tests {
                 ("a.md", 14, "see graph view twice, Graph View"),
                 ("a.md", 14, "see graph view twice, Graph View"),
                 ("b.md", 3, "see graph view here"),
+                // Titled by its frontmatter, so its heading is prose.
+                ("f.md", 4, "# graph view"),
             ]
         );
+
+        // An underscore joins a word, the way a letter does.
+        let rows = find("x.md", "snake");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].context, "snake_case is a symbol, but the snake is an animal");
 
         // A quote in the title reaches FTS escaped.
         let rows = find("q.md", "say \"hi\"");
