@@ -534,7 +534,16 @@ pub fn scan_mentions(
     let mut found = Vec::new();
 
     for candidate in candidates {
-        let content = match fs::read_to_string(notes_dir.join(&candidate)) {
+        let abs = notes_dir.join(&candidate);
+        // The refusal `index_file` makes: a note swapped for a symlink since it
+        // was indexed reads nothing, and the watcher drops its row.
+        match fs::symlink_metadata(&abs) {
+            Ok(meta) if meta.is_file() => {}
+            Ok(_) => continue,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        }
+        let content = match fs::read_to_string(&abs) {
             Ok(content) => content,
             // The index runs behind the folder, and the watcher drops the row.
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
@@ -1335,6 +1344,32 @@ mod tests {
         // No letter or digit means nothing to find, and no error.
         assert!(find("x.md", "---").is_empty());
 
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The state a swap leaves between the index vouching for a file and the
+    /// watcher noticing: the row still names it, and it is a symlink.
+    #[test]
+    #[cfg(unix)]
+    fn skips_a_candidate_swapped_for_a_symlink() {
+        let dir = temp_notes_dir("swapped-candidate");
+        let outside = std::env::temp_dir().join(format!("notras-test-outside-{}", std::process::id()));
+        fs::write(dir.join("graph view.md"), "# graph view\n").unwrap();
+        fs::write(dir.join("s.md"), "the graph view, indexed as a file\n").unwrap();
+        fs::write(&outside, "the graph view, from outside the vault\n").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        fs::remove_file(dir.join("s.md")).unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join("s.md")).unwrap();
+
+        let candidates = mention_candidates(&conn, "graph view.md", "graph view").unwrap();
+        assert_eq!(candidates, vec!["s.md".to_string()]);
+        assert!(scan_mentions(&dir, candidates, "graph view").unwrap().is_empty());
+
+        let _ = fs::remove_file(&outside);
         let _ = fs::remove_dir_all(&dir);
     }
 }
