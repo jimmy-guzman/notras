@@ -1,7 +1,8 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { FileTextIcon } from "lucide-react";
 import type { MouseEvent } from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
@@ -11,20 +12,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/toast";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Mention } from "@/core/links";
+import { mentionsOf } from "@/core/links";
+import { noteQueries } from "@/data/queries";
 import { openNote } from "@/lib/tabs/store";
+import { reasonOf } from "@/lib/ui/failure";
 import { setMentionsOpen, useMentionsOpen } from "@/lib/ui/mentions";
 
 /** The row clamps to one line, so a link deep in a paragraph would sit past the ellipsis. */
 const CONTEXT_LEAD = 32;
 
-function contextFrom(line: { context: string; target: string }) {
-  const at = line.context.indexOf(`[[${line.target}]]`);
+function contextFrom(line: { context: string; match: string }) {
+  const at = line.context.toLowerCase().indexOf(line.match.toLowerCase());
   const rough = Math.max(0, at - CONTEXT_LEAD);
 
   if (rough === 0) {
@@ -146,4 +151,40 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+interface MentionsOfProps {
+  path: string;
+  title: string;
+}
+
+/**
+ * Nothing shows until the bare rows land, so the count never ticks up. A chip
+ * has no room for a failure, so a first read that fails says why once; the
+ * cache speaks for a refetch of rows already on screen.
+ */
+export function MentionsOf({ path, title }: MentionsOfProps) {
+  const { data: links } = useSuspenseQuery(noteQueries.links());
+  const { data: notes } = useSuspenseQuery(noteQueries.list());
+  const bare = useQuery(noteQueries.mentions(path, title));
+  const reported = useRef(false);
+
+  useEffect(() => {
+    if (bare.error !== null && bare.data === undefined && !reported.current) {
+      reported.current = true;
+      toast.add({
+        description: reasonOf(bare.error),
+        title: "could not read mentions",
+        type: "error",
+      });
+    }
+  }, [bare.data, bare.error]);
+
+  const mentions = useMemo(
+    () =>
+      bare.data === undefined ? [] : mentionsOf(path, links, notes, bare.data),
+    [bare.data, links, notes, path]
+  );
+
+  return bare.data === undefined ? null : <NoteMentions mentions={mentions} />;
 }

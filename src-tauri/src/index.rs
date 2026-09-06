@@ -7,6 +7,7 @@ use std::time::UNIX_EPOCH;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use rusqlite::types::ValueRef;
 use rusqlite::Connection;
+use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::frontmatter;
@@ -417,6 +418,138 @@ fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
             }
         })
         .collect()
+}
+
+/// A title written without brackets in another note's prose.
+#[derive(Debug, Serialize)]
+pub struct BareMention {
+    pub context: String,
+    pub line: usize,
+    pub path: String,
+}
+
+/// Byte length of the prefix that folds to `needle`. Both sides fold char by
+/// char, so a dotted I or a final sigma cannot fold one way in the title and
+/// another in the text.
+fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
+    let mut wanted = needle.iter();
+    let mut consumed = 0;
+
+    for ch in text.chars() {
+        if wanted.len() == 0 {
+            break;
+        }
+        for lower in ch.to_lowercase() {
+            if wanted.next() != Some(&lower) {
+                return None;
+            }
+        }
+        consumed += ch.len_utf8();
+    }
+
+    (wanted.len() == 0 && consumed > 0).then_some(consumed)
+}
+
+/// Inside `[[...]]` the title is a link and counted already, and on the note's
+/// own title heading it is the note's name.
+fn bare_mentions<'a>(body: &'a str, title: &str) -> Vec<(usize, &'a str)> {
+    let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
+    let heading_line = leading_heading(body)
+        .and_then(|_| body.lines().position(|line| !line.trim().is_empty()));
+    let mut found = Vec::new();
+
+    for range in prose_ranges(body) {
+        let links: Vec<Range<usize>> = wikilink_targets(body, range.clone())
+            .into_iter()
+            .map(|(open, target)| open..open + target.len() + 4)
+            .collect();
+        let run = &body[range.clone()];
+        let mut skip_until = 0;
+
+        for (at, _) in run.char_indices() {
+            if at < skip_until {
+                continue;
+            }
+            let Some(len) = case_insensitive_prefix(&run[at..], &needle) else {
+                continue;
+            };
+            let start = range.start + at;
+            let end = start + len;
+            let bounded = !run[..at].chars().next_back().is_some_and(char::is_alphanumeric)
+                && !run[at + len..].chars().next().is_some_and(char::is_alphanumeric);
+            let linked = links.iter().any(|span| start < span.end && end > span.start);
+            let line = body[..start].matches('\n').count() + 1;
+
+            if !bounded || linked || heading_line == Some(line - 1) {
+                continue;
+            }
+
+            let line_start = body[..start].rfind('\n').map_or(0, |at| at + 1);
+            let line_end = body[start..].find('\n').map_or(body.len(), |at| start + at);
+
+            found.push((line, body[line_start..line_end].trim_end_matches('\r')));
+            skip_until = at + len;
+        }
+    }
+
+    found
+}
+
+pub fn mention_candidates(
+    conn: &Connection,
+    path: &str,
+    title: &str,
+) -> Result<Vec<String>, IndexError> {
+    // A title with no letter or digit has no word for FTS to find and no
+    // boundary for the scan to respect.
+    if !title.chars().any(char::is_alphanumeric) {
+        return Ok(Vec::new());
+    }
+
+    let phrase = format!("\"{}\"", title.replace('"', "\"\""));
+    let mut stmt = conn.prepare(
+        "SELECT path FROM note_fts WHERE note_fts MATCH ?1 AND path != ?2 ORDER BY path",
+    )?;
+    let candidates = stmt
+        .query_map([&phrase, path], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(candidates)
+}
+
+/// Found on read rather than kept as rows: a row would depend on another
+/// note's title and go stale the moment that note was created or retitled,
+/// which the mtime skip never revisits. Takes no connection, so the caller
+/// can let go of the index lock before the reads.
+pub fn scan_mentions(
+    notes_dir: &Path,
+    candidates: Vec<String>,
+    title: &str,
+) -> Result<Vec<BareMention>, IndexError> {
+    let mut found = Vec::new();
+
+    for candidate in candidates {
+        let content = match fs::read_to_string(notes_dir.join(&candidate)) {
+            Ok(content) => content,
+            // The index runs behind the folder, and the watcher drops the row.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        let parsed = frontmatter::parse(&content);
+        let body_line_offset = content[..content.len() - parsed.body.len()]
+            .matches('\n')
+            .count();
+
+        found.extend(bare_mentions(parsed.body, title).into_iter().map(
+            |(line, context)| BareMention {
+                context: context.to_string(),
+                line: line + body_line_offset,
+                path: candidate.clone(),
+            },
+        ));
+    }
+
+    Ok(found)
 }
 
 pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
@@ -1137,6 +1270,54 @@ mod tests {
             select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
             vec![vec![json!("b")]]
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn finds_bare_mentions_of_a_title() {
+        let dir = temp_notes_dir("bare-mentions");
+        fs::write(dir.join("graph view.md"), "# graph view\n\nthis note is about the graph view\n").unwrap();
+        fs::write(
+            dir.join("a.md"),
+            "---\ntags: [x]\n---\nthe Graph View is next\n\n[[graph view]] is linked\n\ngraph views are plural\n\n```\ngraph view in code\n```\n\nsee graph view twice, Graph View\n",
+        )
+        .unwrap();
+        fs::write(dir.join("b.md"), "# graph view notes\n\nsee graph view here\n").unwrap();
+        fs::write(dir.join("c.md"), "nothing here\n").unwrap();
+        fs::write(dir.join("q.md"), "# say \"hi\"\n").unwrap();
+        fs::write(dir.join("r.md"), "he did say \"hi\" twice\n").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        let find = |path: &str, title: &str| {
+            scan_mentions(&dir, mention_candidates(&conn, path, title).unwrap(), title).unwrap()
+        };
+
+        let rows = find("graph view.md", "graph view");
+        let rows: Vec<(&str, usize, &str)> = rows
+            .iter()
+            .map(|row| (row.path.as_str(), row.line, row.context.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("a.md", 4, "the Graph View is next"),
+                ("a.md", 14, "see graph view twice, Graph View"),
+                ("a.md", 14, "see graph view twice, Graph View"),
+                ("b.md", 3, "see graph view here"),
+            ]
+        );
+
+        // A quote in the title reaches FTS escaped.
+        let rows = find("q.md", "say \"hi\"");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].path, "r.md");
+
+        // No letter or digit means nothing to find, and no error.
+        assert!(find("x.md", "---").is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }

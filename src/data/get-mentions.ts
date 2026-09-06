@@ -1,0 +1,7 @@
+import { NoteService } from "@/server/services/note-service";
+
+import { run } from "./run";
+
+export function getMentions(path: string, title: string) {
+  return run(NoteService.use((svc) => svc.findMentions(path, title)));
+}

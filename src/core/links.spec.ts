@@ -68,11 +68,11 @@ describe("mentionsOf", () => {
     const notes = [meta("a.md"), meta("b.md")];
     const links = [link("a.md", "b", 3), link("a.md", "b", 9)];
 
-    expect(mentionsOf("b.md", links, notes)).toEqual([
+    expect(mentionsOf("b.md", links, notes, [])).toEqual([
       {
         lines: [
-          { context: "see [[b]]", line: 3, target: "b" },
-          { context: "see [[b]]", line: 9, target: "b" },
+          { context: "see [[b]]", line: 3, match: "[[b]]" },
+          { context: "see [[b]]", line: 9, match: "[[b]]" },
         ],
         note: notes[0],
       },
@@ -82,19 +82,21 @@ describe("mentionsOf", () => {
   it("should leave out a note's links to itself", () => {
     const notes = [meta("a.md")];
 
-    expect(mentionsOf("a.md", [link("a.md", "a")], notes)).toEqual([]);
+    expect(mentionsOf("a.md", [link("a.md", "a")], notes, [])).toEqual([]);
   });
 
   it("should leave out a link that resolves to another note", () => {
     const notes = [meta("a.md"), meta("b.md"), meta("c.md")];
 
-    expect(mentionsOf("b.md", [link("a.md", "c")], notes)).toEqual([]);
+    expect(mentionsOf("b.md", [link("a.md", "c")], notes, [])).toEqual([]);
   });
 
   it("should leave out a link that resolves nowhere", () => {
     const notes = [meta("a.md"), meta("b.md")];
 
-    expect(mentionsOf("b.md", [link("a.md", "missing")], notes)).toEqual([]);
+    expect(mentionsOf("b.md", [link("a.md", "missing")], notes, [])).toEqual(
+      []
+    );
   });
 
   it("should resolve each link from its own note's folder", () => {
@@ -107,7 +109,9 @@ describe("mentionsOf", () => {
     const links = [link("x/index.md", "todo"), link("y/index.md", "todo")];
 
     expect(
-      mentionsOf("x/todo.md", links, notes).map((mention) => mention.note.path)
+      mentionsOf("x/todo.md", links, notes, []).map(
+        (mention) => mention.note.path
+      )
     ).toEqual(["x/index.md"]);
   });
 
@@ -116,13 +120,44 @@ describe("mentionsOf", () => {
     const links = [link("c.md", "a"), link("b.md", "a")];
 
     expect(
-      mentionsOf("a.md", links, notes).map((mention) => mention.note.path)
+      mentionsOf("a.md", links, notes, []).map((mention) => mention.note.path)
     ).toEqual(["b.md", "c.md"]);
   });
 
   it("should leave out a link whose note is not in the list yet", () => {
     const notes = [meta("a.md")];
 
-    expect(mentionsOf("a.md", [link("gone.md", "a")], notes)).toEqual([]);
+    expect(mentionsOf("a.md", [link("gone.md", "a")], notes, [])).toEqual([]);
+  });
+
+  it("should count a note that writes the title bare", () => {
+    const notes = [meta("a.md"), meta("b.md", "graph view")];
+    const bare = [{ context: "the graph view is next", line: 2, path: "a.md" }];
+
+    expect(mentionsOf("b.md", [], notes, bare)).toEqual([
+      {
+        lines: [
+          { context: "the graph view is next", line: 2, match: "graph view" },
+        ],
+        note: notes[0],
+      },
+    ]);
+  });
+
+  it("should merge a note's link and its bare line in line order", () => {
+    const notes = [meta("a.md"), meta("b.md", "graph view")];
+    const bare = [{ context: "the graph view is next", line: 2, path: "a.md" }];
+
+    expect(
+      mentionsOf("b.md", [link("a.md", "graph view", 5)], notes, bare)
+    ).toEqual([
+      {
+        lines: [
+          { context: "the graph view is next", line: 2, match: "graph view" },
+          { context: "see [[graph view]]", line: 5, match: "[[graph view]]" },
+        ],
+        note: notes[0],
+      },
+    ]);
   });
 });

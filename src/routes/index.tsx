@@ -4,7 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import { Chord } from "@/components/chord";
 import { NoteControls } from "@/components/notes/note-controls";
 import { StatusBar } from "@/components/notes/status-bar";
@@ -13,7 +13,6 @@ import { Titlebar } from "@/components/titlebar";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
-import { mentionsOf } from "@/core/links";
 import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
 import { getNotes } from "@/data/get-notes";
@@ -148,12 +147,8 @@ function ActiveStatusBar({
   const snapshot = useTabSnapshot(tabId(tab));
   const focusModeEnabled = usePref("focus-mode");
   const typewriterEnabled = usePref("typewriter");
-  const { data: links } = useSuspenseQuery(noteQueries.links());
   const { data: notes } = useSuspenseQuery(noteQueries.list());
-  const mentions = useMemo(
-    () => (tab.kind === "note" ? mentionsOf(tab.path, links, notes) : []),
-    [links, notes, tab]
-  );
+  const title = notes.find((meta) => meta.path === tab.path)?.title;
 
   return (
     <StatusBar
@@ -161,7 +156,7 @@ function ActiveStatusBar({
       focusModeEnabled={focusModeEnabled}
       note={
         tab.kind === "note"
-          ? { mentions, path: tab.path, tags: snapshot?.tags ?? [] }
+          ? { path: tab.path, tags: snapshot?.tags ?? [], title }
           : undefined
       }
       onFilterTag={onFilterTag}

@@ -10,10 +10,18 @@ export interface NoteLink {
   target: string;
 }
 
+/** A title written without brackets in another note's prose, found on read rather than indexed. */
+export interface BareMention {
+  context: string;
+  line: number;
+  path: string;
+}
+
 export interface MentionLine {
   context: string;
   line: number;
-  target: string;
+  /** What the UI finds in `context` to window on: `[[target]]` for a link, the title for a bare one. */
+  match: string;
 }
 
 export interface Mention {
@@ -64,27 +72,52 @@ export function wikilinkResolver(notes: NoteMeta[]): WikilinkResolver {
   };
 }
 
-function toLine({ context, line, target }: NoteLink): MentionLine {
-  return { context, line, target };
+interface SourcedLine extends MentionLine {
+  source: string;
+}
+
+function toLine({ context, line, match }: SourcedLine): MentionLine {
+  return { context, line, match };
 }
 
 /** A note's links to itself are not mentions. */
 export function mentionsOf(
   path: string,
   links: NoteLink[],
-  notes: NoteMeta[]
+  notes: NoteMeta[],
+  bare: BareMention[]
 ): Mention[] {
   const resolve = wikilinkResolver(notes);
   const byPath = new Map(notes.map((meta) => [meta.path, meta]));
-  const inbound = links.filter(
-    (link) =>
-      link.path !== path && resolve(link.target, link.path)?.path === path
-  );
+  const title = byPath.get(path)?.title;
+  const linked: SourcedLine[] = links
+    .filter(
+      (link) =>
+        link.path !== path && resolve(link.target, link.path)?.path === path
+    )
+    .map(({ context, line, path: source, target }) => ({
+      context,
+      line,
+      match: `[[${target}]]`,
+      source,
+    }));
+  const spoken: SourcedLine[] =
+    title === undefined
+      ? []
+      : bare.map(({ context, line, path: source }) => ({
+          context,
+          line,
+          match: title,
+          source,
+        }));
 
-  return [...Map.groupBy(inbound, (link) => link.path)]
+  return [...Map.groupBy([...linked, ...spoken], (row) => row.source)]
     .toSorted(([left], [right]) => left.localeCompare(right))
-    .flatMap(([source, [first, ...rest]]) => {
+    .flatMap(([source, rows]) => {
       const note = byPath.get(source);
+      const [first, ...rest] = rows
+        .toSorted((left, right) => left.line - right.line)
+        .map(toLine);
 
       // The rows and the note list are two reads of one index that a change
       // event refreshes together, so a source with no note is the moment
@@ -94,7 +127,7 @@ export function mentionsOf(
         return [];
       }
 
-      const lines: Mention["lines"] = [toLine(first), ...rest.map(toLine)];
+      const lines: Mention["lines"] = [first, ...rest];
 
       return [{ lines, note }];
     });

@@ -8,7 +8,7 @@ import {
   retitleFrontmatter,
   updateFrontmatter,
 } from "@/core/frontmatter";
-import type { NoteLink } from "@/core/links";
+import type { BareMention, NoteLink } from "@/core/links";
 import type { NoteFilters, NoteMeta } from "@/core/notes";
 import {
   filenameFromTitle,
@@ -41,6 +41,10 @@ interface INoteService {
     folder?: string;
   }) => Effect.Effect<string, FileError>;
   delete: (path: string) => Effect.Effect<void, FileError>;
+  findMentions: (
+    path: string,
+    title: string
+  ) => Effect.Effect<BareMention[], FileError>;
   getByPath: (path: string) => Effect.Effect<Note, FileError>;
   list: (filters?: NoteFilters) => Effect.Effect<NoteMeta[]>;
   listFolders: () => Effect.Effect<{ count: number; folder: string }[]>;
@@ -249,6 +253,8 @@ const makeNoteService = Effect.gen(function* () {
     create,
 
     delete: (path) => fileStore.delete(path),
+
+    findMentions: (path, title) => fileStore.findMentions(path, title),
 
     getByPath,
 

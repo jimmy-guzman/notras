@@ -312,6 +312,7 @@ pub fn run() {
             notes::classify_open_paths,
             notes::db_select,
             notes::delete_note,
+            notes::find_mentions,
             notes::get_notes_dir,
             notes::note_exists,
             notes::pending_open_files,
