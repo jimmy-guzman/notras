@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.1](https://github.com/jimmy-guzman/notras/compare/v0.3.0...v0.3.1) (2026-09-06)
+
+
+### Features
+
+* ✨ add drag and drop blocks or selections ([#139](https://github.com/jimmy-guzman/notras/issues/139)) ([d5e8c9d](https://github.com/jimmy-guzman/notras/commit/d5e8c9d36f603c9533bef1842fae924d9c984581))
+* ✨ add graph hubs ([#154](https://github.com/jimmy-guzman/notras/issues/154)) ([51ad113](https://github.com/jimmy-guzman/notras/commit/51ad1132bf65e0c6cfb35f0f4969c2669ec753fa))
+* ✨ add graph view ([#153](https://github.com/jimmy-guzman/notras/issues/153)) ([61a611a](https://github.com/jimmy-guzman/notras/commit/61a611a1246519836facf2e4f4bb07a7b877b8a1))
+* ✨ add mentions (backlinks) ([#151](https://github.com/jimmy-guzman/notras/issues/151)) ([ff068ea](https://github.com/jimmy-guzman/notras/commit/ff068eaca673bb9936e2c26c2cccf997ff11b347))
+* ✨ count a bare title as a mention ([#152](https://github.com/jimmy-guzman/notras/issues/152)) ([0d0dc2c](https://github.com/jimmy-guzman/notras/commit/0d0dc2c25838196dfed2be6362c1b57fb83f753f))
+* ✨ new app tagline ([#148](https://github.com/jimmy-guzman/notras/issues/148)) ([deb94f9](https://github.com/jimmy-guzman/notras/commit/deb94f9cd176a477e50dc323a231c92d5edd755f))
+* ✨ reach every tab action from the keyboard  ([#149](https://github.com/jimmy-guzman/notras/issues/149)) ([6484fe5](https://github.com/jimmy-guzman/notras/commit/6484fe572c9908ccb840519ecc57b8412f06f878))
+
+
+### Bug Fixes
+
+* 🐛  index markdown files whatever the extension case ([#144](https://github.com/jimmy-guzman/notras/issues/144)) ([2a81b97](https://github.com/jimmy-guzman/notras/commit/2a81b97f2a18c736b2668f3bbe3ae125808d5845)), closes [#114](https://github.com/jimmy-guzman/notras/issues/114)
+* 🐛 bump deps ([8fcbf9e](https://github.com/jimmy-guzman/notras/commit/8fcbf9edf230a83b5d14b3175211b0fa03550d4a))
+* 🐛 copy path is full path ([#150](https://github.com/jimmy-guzman/notras/issues/150)) ([3738979](https://github.com/jimmy-guzman/notras/commit/3738979472df5b7d2e8ce8490a94342b2c925a40))
+* 🐛 enforce the 120 cap on filenames ([#142](https://github.com/jimmy-guzman/notras/issues/142)) ([43631b7](https://github.com/jimmy-guzman/notras/commit/43631b7705f66906770ce79ddfc18c0e939c0af9)), closes [#117](https://github.com/jimmy-guzman/notras/issues/117)
+* 🐛 focus affordance on hand written controls ([#147](https://github.com/jimmy-guzman/notras/issues/147)) ([39f8bd2](https://github.com/jimmy-guzman/notras/commit/39f8bd29365dc2a95a75b758e9165864d9fb228a))
+* 🐛 make every error say what failed and why ([#146](https://github.com/jimmy-guzman/notras/issues/146)) ([f0e1974](https://github.com/jimmy-guzman/notras/commit/f0e19748226b26abe61b6049ebe289d83bb69f5b))
+* 🐛 open with inside the vault opens a note ([#143](https://github.com/jimmy-guzman/notras/issues/143)) ([4787cc5](https://github.com/jimmy-guzman/notras/commit/4787cc5c874fa2d67b398550db4ef6defb7f7b91))
+* 🐛 resolve symlinks before classifying open with ([#145](https://github.com/jimmy-guzman/notras/issues/145)) ([ec40684](https://github.com/jimmy-guzman/notras/commit/ec40684444d5efa2edd332fb76dec763de04a815))
+
 ## [0.3.0](https://github.com/jimmy-guzman/notras/compare/v0.2.2...v0.3.0) (2026-09-01)
 
 
