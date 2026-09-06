@@ -23,6 +23,7 @@ import { StarterKit } from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { encode } from "mdurl";
 
+import { isNotePath } from "@/core/links";
 import {
   escapeMarkdownLabel,
   escapeMarkdownTitle,
@@ -145,6 +146,20 @@ const NoteImage = Image.extend<
 });
 
 const NoteLink = Link.extend({
+  renderHTML({ HTMLAttributes }) {
+    const href =
+      typeof HTMLAttributes.href === "string" ? HTMLAttributes.href : "";
+
+    return [
+      "a",
+      mergeAttributes(
+        this.options.HTMLAttributes,
+        HTMLAttributes,
+        isNotePath(href) ? { "data-note": "" } : {}
+      ),
+      0,
+    ];
+  },
   renderMarkdown(node, helpers) {
     const href = typeof node.attrs?.href === "string" ? node.attrs.href : "";
     const title = typeof node.attrs?.title === "string" ? node.attrs.title : "";

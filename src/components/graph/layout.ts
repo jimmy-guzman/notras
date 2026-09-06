@@ -11,27 +11,35 @@ const RADIUS_Y = 0.36;
 
 /** Degrees between neighbours until the arc is full, and the arc's widest span. */
 const STEP = 22;
-const SPAN = 150;
+const SIDE_SPAN = 150;
+const SIDE_SPAN_UNDER_TOP = 110;
+const TOP_SPAN = 90;
 
-function arc(count: number, centre: number, clockwise: boolean) {
+function at(angle: number): RingPosition {
+  const radians = (angle * Math.PI) / 180;
+
+  return {
+    angle,
+    x: 0.5 + RADIUS_X * Math.cos(radians),
+    y: 0.5 + RADIUS_Y * Math.sin(radians),
+  };
+}
+
+function arc(
+  count: number,
+  centre: number,
+  clockwise: boolean,
+  widest: number
+) {
   if (count === 0) {
     return [];
   }
 
-  const span = Math.min(SPAN, STEP * (count - 1));
+  const span = Math.min(widest, STEP * (count - 1));
   const first = centre - (span / 2) * (clockwise ? 1 : -1);
   const step = count === 1 ? 0 : (span / (count - 1)) * (clockwise ? 1 : -1);
 
-  return Array.from({ length: count }, (_, index) => {
-    const angle = first + step * index;
-    const radians = (angle * Math.PI) / 180;
-
-    return {
-      angle,
-      x: 0.5 + RADIUS_X * Math.cos(radians),
-      y: 0.5 + RADIUS_Y * Math.sin(radians),
-    };
-  });
+  return Array.from({ length: count }, (_, index) => at(first + step * index));
 }
 
 /**
@@ -40,11 +48,20 @@ function arc(count: number, centre: number, clockwise: boolean) {
  * Screen y runs down, so an angle above the centre is negative on the right
  * and past 180 on the left.
  */
-export function layoutRing(incoming: number, outgoing: number) {
+export function layoutRing(incoming: number, outgoing: number, top = 0) {
+  const side = top > 0 ? SIDE_SPAN_UNDER_TOP : SIDE_SPAN;
+
   return {
-    incoming: arc(incoming, 180, false),
-    outgoing: arc(outgoing, 0, true),
+    incoming: arc(incoming, 180, false, side),
+    outgoing: arc(outgoing, 0, true, side),
+    top: arc(top, -90, true, TOP_SPAN),
   };
+}
+
+export function layoutRound(count: number) {
+  return Array.from({ length: count }, (_, index) =>
+    at(-90 + (360 / count) * index)
+  );
 }
 
 /** Clockwise from the top, which is how the arrow keys walk the ring. */

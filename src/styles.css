@@ -427,6 +427,13 @@ body.dragging .ProseMirror::selection {
   border-bottom: 1px dashed currentcolor;
   transition: color 0.15s;
 }
+
+/* A markdown link whose destination is a note is an internal link, and reads as one. */
+.typeset-note a[data-note] {
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 1px dashed currentcolor;
+}
 .wikilink:hover {
   color: var(--muted-foreground);
 }
