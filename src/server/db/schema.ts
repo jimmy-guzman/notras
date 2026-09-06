@@ -27,3 +27,11 @@ export const noteTag = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.path, table.tag] })]
 );
+
+export const noteLink = sqliteTable("note_link", {
+  context: text("context").notNull(),
+  kind: text("kind").notNull(),
+  line: integer("line").notNull(),
+  path: text("path").notNull(),
+  target: text("target").notNull(),
+});

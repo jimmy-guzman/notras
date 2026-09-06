@@ -1,8 +1,10 @@
 use std::collections::HashSet;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 use std::time::UNIX_EPOCH;
 
+use pulldown_cmark::{Event, Options, Parser, Tag};
 use rusqlite::types::ValueRef;
 use rusqlite::Connection;
 use serde_json::{json, Value};
@@ -64,9 +66,18 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
     Ok(conn)
 }
 
+/// Bump when a row's derivation changes. The mtime skip would otherwise leave
+/// every unedited note on the old derivation until someone ran "reindex".
+const SCHEMA_VERSION: i64 = 1;
+
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
 /// Rust is the single writer -- the webview only ever issues SELECTs.
+///
+/// `note_link` holds one row per wikilink occurrence rather than one per pair
+/// of notes, and `target` is the text as written rather than a resolved path:
+/// the webview resolves it on read, so a note created or retitled later is
+/// found by links written before it existed.
 pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
@@ -83,13 +94,34 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
            tag TEXT NOT NULL,
            PRIMARY KEY (path, tag)
          );
+         CREATE TABLE IF NOT EXISTS note_link (
+           path TEXT NOT NULL,
+           line INTEGER NOT NULL,
+           kind TEXT NOT NULL,
+           target TEXT NOT NULL,
+           context TEXT NOT NULL
+         );
+         -- A rebuild deletes by path once per note as the table grows:
+         -- measured at 4.3s for 10k notes of 5 links unindexed, 0.04s indexed.
+         CREATE INDEX IF NOT EXISTS note_link_path ON note_link (path);
          CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(
            path UNINDEXED,
            title,
            content,
            tokenize='unicode61'
          );",
-    )
+    )?;
+
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if version < SCHEMA_VERSION {
+        log::info!(
+            "index schema {version} is behind {SCHEMA_VERSION}, dropping rows for the rescan"
+        );
+        clear(conn)?;
+        conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    }
+
+    Ok(())
 }
 
 fn timestamp_millis(time: std::io::Result<std::time::SystemTime>) -> Option<i64> {
@@ -204,9 +236,193 @@ fn folder_of(rel_path: &str) -> String {
     }
 }
 
+/// `line` is 1-based and `target` is the text between the brackets as written.
+struct Wikilink<'a> {
+    context: &'a str,
+    line: usize,
+    target: &'a str,
+}
+
+enum HtmlTag {
+    Open(String),
+    Close(String),
+}
+
+/// Elements that never take a closing tag, per the HTML standard.
+const VOID_ELEMENTS: [&str; 13] = [
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+    "wbr",
+];
+
+/// The element an inline HTML token opens or closes. A comment, a void element
+/// and a self-closing tag pair with nothing.
+fn html_tag(html: &str) -> Option<HtmlTag> {
+    let rest = html.strip_prefix('<')?;
+    let (closing, rest) = match rest.strip_prefix('/') {
+        Some(rest) => (true, rest),
+        None => (false, rest),
+    };
+    let name: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect::<String>()
+        .to_ascii_lowercase();
+
+    if name.is_empty() {
+        return None;
+    }
+    if closing {
+        return Some(HtmlTag::Close(name));
+    }
+    if html.trim_end().ends_with("/>") || VOID_ELEMENTS.contains(&name.as_str()) {
+        return None;
+    }
+
+    Some(HtmlTag::Open(name))
+}
+
+/// Where a `[[link]]` counts, byte by byte: true for prose, false for what the
+/// editor's parser reads as code, HTML, or a link destination.
+///
+/// CommonMark decides the blocks, so a fence, an indented block and a backtick
+/// span are opaque on both sides. Emphasis delimiters are prose, since the
+/// editor's tokenizer takes `[[**a**]]` whole. Text between a matching pair of
+/// inline tags is opaque too, because the editor parses that stretch as HTML
+/// rather than markdown, while an unmatched tag hides only itself.
+fn prose_mask(body: &str) -> Vec<bool> {
+    let options =
+        Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
+    let mut prose = vec![false; body.len()];
+    let mut opaque: Vec<Range<usize>> = Vec::new();
+    let mut open_tags: Vec<(String, usize)> = Vec::new();
+
+    for (event, range) in Parser::new_ext(body, options).into_offset_iter() {
+        match event {
+            Event::Text(_) => {
+                prose[range.clone()].fill(true);
+                // An escaped character arrives as its own text event with the
+                // backslash left out of its range. The backslash is prose to
+                // the editor's tokenizer, which counts them to decide whether
+                // the bracket after them is escaped.
+                if range.start > 0 && body.as_bytes()[range.start - 1] == b'\\' {
+                    prose[range.start - 1] = true;
+                }
+            }
+            Event::Code(_) | Event::Html(_) => opaque.push(range),
+            Event::InlineHtml(html) => {
+                opaque.push(range.clone());
+                match html_tag(&html) {
+                    Some(HtmlTag::Open(name)) => open_tags.push((name, range.start)),
+                    Some(HtmlTag::Close(name)) => {
+                        if let Some(at) = open_tags.iter().rposition(|(open, _)| *open == name) {
+                            opaque.push(open_tags[at].1..range.end);
+                            open_tags.truncate(at);
+                        }
+                    }
+                    None => {}
+                }
+            }
+            Event::Start(tag) => match tag {
+                Tag::Emphasis | Tag::Strong | Tag::Strikethrough => prose[range].fill(true),
+                Tag::Link { .. } | Tag::Image { .. } | Tag::Superscript | Tag::Subscript => {}
+                Tag::CodeBlock(_) | Tag::HtmlBlock => {
+                    opaque.push(range);
+                    open_tags.clear();
+                }
+                _ => open_tags.clear(),
+            },
+            _ => {}
+        }
+    }
+
+    for range in opaque {
+        prose[range].fill(false);
+    }
+
+    prose
+}
+
+fn prose_ranges(body: &str) -> Vec<Range<usize>> {
+    let mask = prose_mask(body);
+    let mut ranges = Vec::new();
+    let mut start = None;
+
+    for (at, &is_prose) in mask.iter().enumerate() {
+        match (start, is_prose) {
+            (None, true) => start = Some(at),
+            (Some(from), false) => {
+                ranges.push(from..at);
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(from) = start {
+        ranges.push(from..mask.len());
+    }
+
+    ranges
+}
+
+/// Every `[[target]]` in `body[range]`, read the way the editor's tokenizer
+/// reads it: the target holds no bracket and no newline, a `[[` that opens
+/// nothing is text, and a bracket behind an odd run of backslashes is escaped.
+/// Yields each target with the byte offset of its `[[`.
+fn wikilink_targets(body: &str, range: Range<usize>) -> Vec<(usize, &str)> {
+    let mut found = Vec::new();
+    let mut at = range.start;
+
+    while let Some(offset) = body[at..range.end].find("[[") {
+        let open = at + offset;
+        let inner = open + 2;
+        let escaped = body[..open]
+            .bytes()
+            .rev()
+            .take_while(|&byte| byte == b'\\')
+            .count()
+            % 2
+            == 1;
+        let target = body[inner..range.end]
+            .find(']')
+            .map(|end| &body[inner..inner + end])
+            .filter(|target| !target.is_empty() && !target.contains(['[', '\n']))
+            .filter(|target| body[inner + target.len()..range.end].starts_with("]]"));
+
+        match target {
+            Some(target) if !escaped => {
+                found.push((open, target));
+                at = inner + target.len() + 2;
+            }
+            _ => at = open + 1,
+        }
+    }
+
+    found
+}
+
+/// Kept in parity with the editor's tokenizer: `finds_the_wikilinks_the_editor_renders`
+/// below and `src/components/editor/wikilink.spec.ts` assert one table of cases.
+fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
+    prose_ranges(body)
+        .into_iter()
+        .flat_map(|range| wikilink_targets(body, range))
+        .map(|(open, target)| {
+            let line_start = body[..open].rfind('\n').map_or(0, |at| at + 1);
+            let line_end = body[open..].find('\n').map_or(body.len(), |at| open + at);
+
+            Wikilink {
+                context: body[line_start..line_end].trim_end_matches('\r'),
+                line: body[..open].matches('\n').count() + 1,
+                target,
+            }
+        })
+        .collect()
+}
+
 pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM note WHERE path = ?1", [rel_path])?;
     conn.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
+    conn.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
     conn.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
     Ok(())
 }
@@ -221,6 +437,7 @@ pub fn clear(conn: &Connection) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     tx.execute("DELETE FROM note", [])?;
     tx.execute("DELETE FROM note_tag", [])?;
+    tx.execute("DELETE FROM note_link", [])?;
     tx.execute("DELETE FROM note_fts", [])?;
     tx.commit()
 }
@@ -272,6 +489,11 @@ pub fn index_file(
     };
 
     let parsed = frontmatter::parse(&content);
+    // The body is a suffix of the file, so what precedes it is the frontmatter,
+    // and its line count puts a link's line where `grep -n` puts it.
+    let body_line_offset = content[..content.len() - parsed.body.len()]
+        .matches('\n')
+        .count();
     let created_at = timestamp_millis(meta.created()).unwrap_or(updated_at);
     let title = resolve_title(&parsed, rel_path);
 
@@ -301,6 +523,20 @@ pub fn index_file(
         tx.execute(
             "INSERT OR IGNORE INTO note_tag (path, tag) VALUES (?1, ?2)",
             rusqlite::params![rel_path, tag],
+        )?;
+    }
+
+    tx.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
+    for link in wikilinks(parsed.body) {
+        tx.execute(
+            "INSERT INTO note_link (path, line, kind, target, context)
+             VALUES (?1, ?2, 'wikilink', ?3, ?4)",
+            rusqlite::params![
+                rel_path,
+                link.line + body_line_offset,
+                link.target,
+                link.context
+            ],
         )?;
     }
 
@@ -712,5 +948,196 @@ mod tests {
         .is_err());
         assert!(select(&conn, "  select 1", &[]).is_ok());
         assert!(select(&conn, "WITH one AS (SELECT 1) SELECT * FROM one", &[]).is_ok());
+    }
+
+    /// The wikilink parity table. `src/components/editor/wikilink.spec.ts`
+    /// asserts the same cases in the same order against the editor's parser,
+    /// so what the index records and what the editor renders as a pill can be
+    /// diffed by eye.
+    #[test]
+    fn finds_the_wikilinks_the_editor_renders() {
+        // Held one-per-line against rustfmt so this table stays diffable by eye
+        // against its twin in `src/components/editor/wikilink.spec.ts`.
+        #[rustfmt::skip]
+        let cases: &[(&str, &[&str])] = &[
+            ("see [[a]] here", &["a"]),
+            ("[[a]] and [[b]]", &["a", "b"]),
+            ("[[a]] [[a]]", &["a", "a"]),
+            ("[[a]]\nnext line [[b]]", &["a", "b"]),
+            ("[[a]]\n\n[[b]]", &["a", "b"]),
+            ("a [[b]]  \nc", &["b"]),
+            // The target is the text between the brackets, as written.
+            ("[[a|alias]]", &["a|alias"]),
+            ("[[a#h]]", &["a#h"]),
+            ("[[ spaced ]]", &[" spaced "]),
+            ("[[**a**]]", &["**a**"]),
+            ("[[a\\]]", &["a\\"]),
+            // An embed reads as a wikilink behind a `!` until transclusion lands.
+            ("![[a]]", &["a"]),
+            // A bracket inside the target, or nothing inside, opens no link.
+            ("[[a]b]]", &[]),
+            ("[[[a]]]", &["a"]),
+            ("[[a]]]", &["a"]),
+            ("[[]]", &[]),
+            // A bracket behind an odd run of backslashes is text.
+            ("a\\[[b]]", &[]),
+            ("\\\\[[a]]", &["a"]),
+            ("# see [[a]]", &["a"]),
+            ("> [[a]]", &["a"]),
+            ("| [[a]] |\n| --- |\n| x |", &["a"]),
+            ("1. [[a]]", &["a"]),
+            ("- [ ] [[a]]", &["a"]),
+            ("- [[a]]\n  - [[b]]", &["a", "b"]),
+            ("**[[a]]**", &["a"]),
+            ("*[[a]]*", &["a"]),
+            ("[see [[a]]](http://x)", &["a"]),
+            ("[see [[**a**]]](x)", &["**a**"]),
+            ("![see [[a]]](x)", &["a"]),
+            // A link destination is not prose.
+            ("[t]([[a]])", &[]),
+            ("[x]: http://y\n[[a]]", &["a"]),
+            ("`[[a]]`", &[]),
+            ("`` ` [[a]] ``", &[]),
+            ("` unclosed [[a]]", &["a"]),
+            ("`` [[a]] `", &["a"]),
+            ("text `code` [[a]] `more`", &["a"]),
+            ("[[a]] `[[b]]`", &["a"]),
+            ("`[[a]]` and [[b]]", &["b"]),
+            ("```\n[[a]]\n```", &[]),
+            ("~~~\n[[a]]\n~~~", &[]),
+            ("```js\n[[a]]\n```\n[[b]]", &["b"]),
+            ("````\n```\n[[a]]\n```\n````", &[]),
+            ("~~~\n```\n[[a]]\n~~~", &[]),
+            ("```\n[[a]]\n````", &[]),
+            ("   ```\n[[a]]\n   ```", &[]),
+            ("```\n[[a]]", &[]),
+            ("[[a]]\n```\n[[b]]\n```", &["a"]),
+            ("``` [[a]]\n```", &[]),
+            // Backticks in the info string make it a paragraph, not a fence.
+            ("```inline``` [[a]]", &["a"]),
+            ("> ```\n> [[a]]\n> ```", &[]),
+            ("- ```\n  [[a]]\n  ```", &[]),
+            // Indented code, which CommonMark measures from the container.
+            ("    [[a]]", &[]),
+            ("\t[[a]]", &[]),
+            ("para\n\n    [[a]]", &[]),
+            ("para\n    [[a]]", &["a"]),
+            ("- item\n    [[a]]", &["a"]),
+            ("- item\n\n      [[a]]", &[]),
+            // HTML blocks and comments are opaque.
+            ("<!-- [[a]] -->", &[]),
+            ("[[a]]<!-- [[b]] -->", &["a"]),
+            ("<div>[[a]]</div>", &[]),
+            ("line\n<div>\n[[a]]\n</div>", &[]),
+            ("<span>\n[[a]]\n</span>", &[]),
+            // A matching pair of inline tags hides what sits between them.
+            ("<span>[[a]]</span>", &[]),
+            ("x <span>[[a]]</span> y", &[]),
+            ("<span>y</span> [[a]]", &["a"]),
+            ("[[a]] <span>y</span>", &["a"]),
+            ("<span>x</span>[[a]]<span>y</span>", &["a"]),
+            ("<b>[[a]]</b> [[c]]", &["c"]),
+            ("<span>x [[a]]</span> [[b]] <i>[[c]]</i>", &["b"]),
+            ("<span>[[a]] <b>x</b></span>", &[]),
+            ("<span title=\"[[a]]\">x</span>", &[]),
+            // An unmatched tag hides only itself.
+            ("<span>[[a]]", &["a"]),
+            ("[[a]]</span>", &["a"]),
+            ("a <br> [[b]]", &["b"]),
+            ("<kbd>k</kbd> [[a]]", &["a"]),
+            ("<em>x</em>[[a]]", &["a"]),
+        ];
+
+        for (markdown, expected) in cases {
+            let found: Vec<&str> = wikilinks(markdown).iter().map(|link| link.target).collect();
+            assert_eq!(&found, expected, "scanning {markdown:?}");
+        }
+    }
+
+    #[test]
+    fn records_each_wikilink_occurrence_with_its_line() {
+        let dir = temp_notes_dir("wikilink-rows");
+        fs::write(
+            dir.join("a.md"),
+            "---\ntags: [x]\n---\nintro [[b]] here\n\nsee [[b]] and [[c]]\r\n",
+        )
+        .unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+
+        let rows = select(
+            &conn,
+            "SELECT path, line, kind, target, context FROM note_link ORDER BY line, target",
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                vec![
+                    json!("a.md"),
+                    json!(4),
+                    json!("wikilink"),
+                    json!("b"),
+                    json!("intro [[b]] here")
+                ],
+                vec![
+                    json!("a.md"),
+                    json!(6),
+                    json!("wikilink"),
+                    json!("b"),
+                    json!("see [[b]] and [[c]]")
+                ],
+                vec![
+                    json!("a.md"),
+                    json!(6),
+                    json!("wikilink"),
+                    json!("c"),
+                    json!("see [[b]] and [[c]]")
+                ],
+            ]
+        );
+
+        remove(&conn, "a.md").unwrap();
+        assert!(select(&conn, "SELECT path FROM note_link", &[])
+            .unwrap()
+            .is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_older_schema_drops_its_rows_on_open() {
+        let dir = temp_notes_dir("schema-version");
+        fs::write(dir.join("a.md"), "see [[b]]\n").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        scan_all(&conn, &dir).unwrap();
+
+        // Stand in for a database an older build wrote, without touching the
+        // file, so the mtime skip is live.
+        conn.pragma_update(None, "user_version", 0).unwrap();
+        ensure_schema(&conn).unwrap();
+        assert!(select(&conn, "SELECT path FROM note", &[])
+            .unwrap()
+            .is_empty());
+        assert!(select(&conn, "SELECT path FROM note_link", &[])
+            .unwrap()
+            .is_empty());
+
+        assert_eq!(scan_all(&conn, &dir).unwrap().len(), 1);
+        assert_eq!(
+            select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
+            vec![vec![json!("b")]]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

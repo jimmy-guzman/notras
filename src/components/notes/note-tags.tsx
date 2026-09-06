@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
@@ -27,7 +26,7 @@ function TagBadge({ onFilter, tag }: TagBadgeProps) {
 
   return (
     <Badge
-      className="text-muted-foreground hover:text-foreground"
+      className="text-muted-foreground outline-none hover:text-foreground"
       render={<button onClick={filter} type="button" />}
       variant="ghost"
     >
@@ -85,7 +84,10 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   return (
     <div className="flex min-w-0 items-center gap-0.5">
       {hasTags ? (
-        <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
+        // The focus ring is a shadow outside a chip's box, and the clip lands
+        // on the padding edge, so padding cancelled by a margin gives the ring
+        // its room without moving a chip.
+        <div className="-m-1 flex min-w-0 items-center gap-0.5 overflow-hidden p-1">
           {optimisticTags.map((tag) => (
             <TagBadge key={tag} onFilter={onFilter} tag={tag} />
           ))}
@@ -103,7 +105,13 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
       >
         <ComboboxTrigger
           className="[&>svg:last-child]:hidden"
-          render={<Button size="xs" variant="ghost" />}
+          render={
+            <Badge
+              className="text-muted-foreground outline-none hover:text-foreground"
+              render={<button type="button" />}
+              variant="ghost"
+            />
+          }
         >
           <TagPlusIcon data-icon="inline-start" />
           add tag

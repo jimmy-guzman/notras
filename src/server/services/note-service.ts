@@ -8,6 +8,7 @@ import {
   retitleFrontmatter,
   updateFrontmatter,
 } from "@/core/frontmatter";
+import type { NoteLink } from "@/core/links";
 import type { NoteFilters, NoteMeta } from "@/core/notes";
 import {
   filenameFromTitle,
@@ -43,6 +44,7 @@ interface INoteService {
   getByPath: (path: string) => Effect.Effect<Note, FileError>;
   list: (filters?: NoteFilters) => Effect.Effect<NoteMeta[]>;
   listFolders: () => Effect.Effect<{ count: number; folder: string }[]>;
+  listLinks: () => Effect.Effect<NoteLink[]>;
   listTags: () => Effect.Effect<{ count: number; tag: string }[]>;
   move: (path: string, folder: string) => Effect.Effect<string, FileError>;
   /** Renames the file and syncs a heading or `title:` key the note already has. */
@@ -253,6 +255,8 @@ const makeNoteService = Effect.gen(function* () {
     list: (filters) => noteRepo.findMany(filters ?? {}).pipe(Effect.orDie),
 
     listFolders: () => noteRepo.listFolders().pipe(Effect.orDie),
+
+    listLinks: () => noteRepo.listLinks().pipe(Effect.orDie),
 
     listTags: () => noteRepo.listTags().pipe(Effect.orDie),
 

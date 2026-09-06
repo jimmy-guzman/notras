@@ -90,6 +90,7 @@ const stubRepository = Layer.succeed(
     findByPath: () => Effect.succeed(undefined),
     findMany: () => Effect.succeed([]),
     listFolders: () => Effect.succeed([]),
+    listLinks: () => Effect.succeed([]),
     listTags: () => Effect.succeed([]),
   })
 );
@@ -397,6 +398,7 @@ describe("noteService.listTags", () => {
               findByPath: () => Effect.succeed(undefined),
               findMany: () => Effect.succeed([]),
               listFolders: () => Effect.succeed([]),
+              listLinks: () => Effect.succeed([]),
               listTags: () => Effect.succeed(indexed),
             })
           )

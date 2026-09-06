@@ -434,7 +434,9 @@ The strip sets one gap and each item carries its own padding, which comes from t
 
 **Constraint:** the chips are the only part of the strip that shrinks, so `min-w-0` has to reach `NoteTags` unbroken from the footer. The wrapper `div` that briefly sat between them is gone, and any future one carries `min-w-0`.
 
-**Constraint:** the gap inside a control is not one of these numbers. The space between the `TagPlus` icon and the words `add tag` is `size="xs"`'s own.
+**Constraint:** the gap inside a control is not one of these numbers. The space between the `TagPlus` icon and the words `add tag` is the badge's own `gap-1`.
+
+**Refined by `D72`:** `add tag` is a `Badge` rendered as a button, like the tag chips and the mentions count beside it. As a `Button size="xs"` it stood `h-6 px-2.5` in a row of `h-5 px-2` items, and the same focus ring around a taller box made the three read as two kinds of control.
 
 ### D37 Chrome toggles come from `Toggle`, at one size and one on-state
 
@@ -907,3 +909,27 @@ The tab module splits into two stores. `tabs` holds the open set and the active 
 **Constraint:** a keyboard move carries the selection and a block drag collapses it to a caret, because a drag's selection is only what it took hold of and reads as a stray highlight once the block has landed. A text drop keeps the dropped words selected instead: that highlight covers exactly what moved, and it is what the browser, ProseMirror and CodeMirror leave behind. Rejected: replacing the selection with one covering the moved range, which renders as a ragged band the moment it crosses table cells. A table row collapses either way: the row is the unit whatever was selected, so a carried selection preserves nothing, and a cross-cell one is a `CellSelection` that would come back as a ragged text band rather than the clean tint it started as.
 
 **Constraint:** a table's unit is the row, and a row never leaves its table. Nothing finer moves, because a cell's paragraph is a block like any other and moving one emptied the cell and dropped its text into the body. The header row is fixed and nothing passes above it, since markdown writes the first row as the header.
+
+### D72 The link index is a graph table, and a note's inbound links are its mentions
+
+`note_link` holds one row per `[[wikilink]]` occurrence: the note, the line as `grep -n` counts it, a `kind`, the text between the brackets as written, and the line itself. Rust writes it in the same transaction as the note's other rows, TypeScript resolves the targets on read through the one resolver in `src/core/links.ts`, and the status strip shows the result as `3 mentions`. `DEFERRED.md` had ruled backlinks out because nothing recorded which note links to which, and the owner wanted the table shaped for a graph rather than for the minimum backlinks need, so the shape was read off the projects that already store one.
+
+Prior art read at source: zk keeps `source_id, target_id NULL, href, type, snippet, snippet_start, snippet_end` per occurrence; org-roam keeps `pos, source, dest, type, properties` with `dest` never validated; SilverBullet keeps `page, pos, type, snippet, alias` per occurrence; basic-memory keeps `from_id, to_id NULL, to_name, relation_type, context` and resolves forward references later; vault-graph and foam-notes-mcp type their edges and ship placeholder tools for unresolved targets; Obsidian's `MetadataCache` is the one per-pair store, and it is an in-memory cache. GraphRAG ties each relationship to its `text_unit_ids` and Graphiti to its episodes, so provenance per edge is what the AI-side stores keep too. Three conclusions followed: a row is an occurrence, the target is the text as written with unresolved as a state rather than an error, and edges carry a kind.
+
+**Rejected: one row per pair of notes with a count,** which is Obsidian's cache. It cannot say which sentence referenced a note, and it cannot be turned back into occurrences without a rebuild.
+
+**Rejected: storing the resolved target path at index time.** Under the mtime skip a note created or retitled later leaves every row that named it stale, and an unedited note is never re-indexed. zk and basic-memory carry a repair pass for that; resolving on read needs none. Rust stores the text trimmed and otherwise verbatim, so lowercasing happens in one language.
+
+**Rejected: resolving in SQL.** It duplicates the title-then-stem tie-break of `D32` in a second language, and the whole note list is already in memory for the palette.
+
+**Rejected: a hand-rolled scanner for what is code.** The editor's parser was probed with every case before the Rust was written. It treats indented code list-aware, hides HTML blocks and comments, hides text between a matching pair of inline tags while an unmatched tag hides only itself, tokenizes image alt text, and takes `[[**a**]]` whole. That is a CommonMark block parser's job, so pulldown-cmark decides the blocks and a byte mask over the body carries the rest. Hand-rolling it meant re-deriving those rules, which is where the two sides would have drifted.
+
+**Rejected: the foot of the note for the surface,** which Roam and Bear use, and a palette-only list. The foot is seen only when scrolled to the end and needs typewriter and focus-mode work; the palette hides the fact until asked. The strip is always visible, sits outside the scroller, and already opens a popover from the tag picker. Notion's line under the page title was rejected because the note surface has no title anchor: a line above the first block would sit above the user's own `#` heading.
+
+**Rejected: "backlinks" as the word,** along with `3 notes link here` and `3 links here`. "Backlink" names the mechanism and travels only with people who used Roam, Obsidian or Notion, while "mentions" is the everyday word for someone else referring to you. `3 notes link here` is plain but seventeen characters where the owner wanted concise, and `3 links here` reads as the note's own outgoing links. There is one concept and no linked versus unlinked split, since the owner ruled Obsidian's two kinds unfriendly, so a bare title counting later joins the same list. The code was renamed with the copy so the two vocabularies do not sit side by side: rows are links, and what a note sees is mentions.
+
+**Constraint:** the two wikilink scanners change together, which `ARCHITECTURE.md` carries as an invariant. `finds_the_wikilinks_the_editor_renders` in `src-tauri/src/index.rs` and `src/components/editor/wikilink.spec.ts` assert one table of cases in one order.
+
+**Constraint:** the index carries a schema version in `PRAGMA user_version`. An index behind `SCHEMA_VERSION` is dropped to rows on open, since the mtime skip would otherwise leave every unedited note without rows until someone ran "reindex library". Every later column is a bump and a rebuild rather than a migration.
+
+**Constraint:** the chord is ⌘⇧L. ⌘⇧B would have read better and is TipTap's blockquote toggle.

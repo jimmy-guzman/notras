@@ -21,7 +21,7 @@ The folder is trusted input. Anything that can write to it can change what notra
 
 Unsaved edits win over an agent's write. A note open in notras keeps your buffer, and the next save overwrites what the agent put there. [SPEC.md](SPEC.md#external-changes) has the rule.
 
-Search runs on a SQLite FTS5 index derived from those files. The index is disposable, and [ARCHITECTURE.md](ARCHITECTURE.md) covers how it is built and rebuilt.
+Search and mentions run on a SQLite index derived from those files: FTS5 over the text, and a row for every `[[wikilink]]`. The index is disposable, and [ARCHITECTURE.md](ARCHITECTURE.md) covers how it is built and rebuilt.
 
 ## Features
 
@@ -45,6 +45,7 @@ Search runs on a SQLite FTS5 index derived from those files. The index is dispos
 - a search that matches nothing offers to create a note under the name you typed
 - `⌘⇧P` runs an action on the note, the open tabs, or the app itself
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
+- the status strip counts the notes that mention the one you are in, and lists them with the line that did the linking. Other apps call these backlinks
 - `⌘⇧K` adds or edits a link, and `⌘`-click opens a web link in your browser
 - tags, pins, and folders, with moves between folders run from `⌘⇧P`
 
@@ -117,6 +118,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘⌥T`     | toggle typewriter scrolling      |
 | `⌥↑`/`⌥↓` | move the selected blocks         |
 | `⌘⇧K`     | add / edit link                  |
+| `⌘⇧L`     | show mentions                    |
 | `⌘⇧Y`     | edit tags                        |
 | `⌘,`      | settings                         |
 | `⌘⇧N`     | global quick capture             |
@@ -124,7 +126,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘⏎`      | (capture window) save + hide     |
 
 - `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
-- `⌘⇧Y` needs that tab to hold a note. A file opened from outside your library has no frontmatter to tag.
+- `⌘⇧Y` and `⌘⇧L` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from.
 - None of those does anything on the empty state, which is where closing the last tab lands you.
 - `⌘D` and `⌘⌥T` set the writing mode, which belongs to the app rather than a note, so they work with nothing open and the next note you create is already in it.
 - The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.
