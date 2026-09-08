@@ -383,21 +383,38 @@ describe("task list ladder", () => {
  * instead. `src/styles.css` restates both values. A re-fetch through
  * `scripts/update-typeset.sh` that moves either step would leave the
  * restatement behind at the old number, with nothing else reading both files.
+ *
+ * A list nested under a task row is the exception and is held against the
+ * nested task list beside it instead. Typeset calibrated its step against a
+ * line of text and a task row is taller than one, so the two lists have to move
+ * together or a nested bullet drifts away from the rows around it.
  */
 const TYPESET_NESTED_STEP =
   /li > ol\) \{[^}]*?margin-block-start:\s*([\d.]+em)/;
 
-const TASK_NESTED_STEP =
-  /> div\s+> :where\([^{]+\{\s*margin-block-start:\s*([\d.]+em)/;
+const TASK_NESTED_QUOTE =
+  /> div > blockquote \{\s*margin-block-start:\s*([\d.]+em)/;
+
+const TASK_NESTED_LIST =
+  /> :where\(ol, ul:not\(\[data-type="taskList"\]\)\) \{\s*margin-block-start:\s*([\d.]+em)/;
+
+const NESTED_TASK_LIST =
+  /taskList"\] ul\[data-type="taskList"\] \{\s*margin-block:\s*([\d.]+em)/;
 
 const TYPESET_NESTED_FENCE =
   /li > pre\) \{[^}]*?margin-block-start:\s*(calc\([^)]*\))/;
 
 describe("nested block rhythm", () => {
-  it("should restate typeset's nested step under a task row", () => {
+  it("should restate typeset's nested step for a quote under a task row", () => {
     expect(
-      firstMatch(TASK_NESTED_STEP, source, "the task row's nested step")
+      firstMatch(TASK_NESTED_QUOTE, source, "the task row's nested quote step")
     ).toBe(firstMatch(TYPESET_NESTED_STEP, typeset, "typeset's nested step"));
+  });
+
+  it("should step a list under a task row like the nested task list beside it", () => {
+    expect(
+      firstMatch(TASK_NESTED_LIST, source, "the task row's nested list step")
+    ).toBe(firstMatch(NESTED_TASK_LIST, source, "the nested task list step"));
   });
 
   it("should restate typeset's nested step for a fence in a list item", () => {

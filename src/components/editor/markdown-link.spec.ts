@@ -8,7 +8,7 @@ import { createEditorExtensions } from "./extensions";
 /**
  * The markdown-link parity table. `finds_the_markdown_note_links_the_editor_renders`
  * in `src-tauri/src/index.rs` asserts the same cases in the same order, so what
- * the index records and what the editor opens on ⌘-click can be diffed by eye.
+ * the index records and what the editor opens on a click can be diffed by eye.
  */
 const cases: [markdown: string, targets: string[]][] = [
   ["[a](b.md)", ["b.md"]],

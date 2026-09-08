@@ -197,6 +197,13 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     [tab.path]
   );
 
+  // Hover asks the same question a click does, without the toast a miss gets.
+  const resolveWikilink = useCallback(
+    (linkTitle: string) =>
+      live.current.resolveLinks.title(linkTitle, tab.path)?.path,
+    [tab.path]
+  );
+
   const openNoteLink = useCallback(
     (href: string) => {
       const target = live.current.resolveLinks.path(href, tab.path);
@@ -427,6 +434,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
           onReady={attachEditor}
           onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
           resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}
+          resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
           stripSentinel={sentineledBody !== null}
           titles={getTitles}
           typewriterEnabled={typewriterEnabled}

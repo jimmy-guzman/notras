@@ -25,9 +25,9 @@ The context for this repo lives in the six documents below. Read the ones your c
 
 - **Breaking an invariant in `ARCHITECTURE.md` is a design change.** Each one holds a property the architecture depends on, so changing one is never a refactor and gets a `DECISIONS.md` entry of its own.
 
-- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or a comment outlives the line it points at. Reusing an ID repoints every reference to it without any of them changing.
+- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at. Reusing an ID repoints every reference to it without any of them changing.
 
-- **Cite IDs, never restate.** Write `D7` in code, commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now.
+- **Cite IDs, never restate, and never in code.** Write `D7` in commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now. A comment has to stand on its own instead: a reader in the file cannot follow the citation, and `DECISIONS.md` records what was decided once rather than what the code does now.
 
 ## Learning more about Effect
 

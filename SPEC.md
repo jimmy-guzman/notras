@@ -65,7 +65,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Tabs sit in the title bar. Each holds its own editing session, undo history, and caret.
 - ⌘N, ⌘T, the strip's `+`, the tray's new note, the palette's new note, and the palette's create row all open a new note in a new tab.
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
-- ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A wikilink click replaces.
+- ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A link click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
 - Closing the last tab leaves the empty state, where ⌘E, ⌘⇧G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D and ⌘⌥T still set the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
@@ -111,14 +111,15 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The count, ⌘⇧L, and "show mentions" in the palette open one list: a row per note reading `title · folder`, the line that mentions it beneath, starting on a word a little before the link or the title, and `+1` on a note that mentions it more than once. ⏎ opens the note in the showing tab, ⌘⏎ opens it beside, and esc closes.
 - A link or a bare title written by anything else reaches the count within about a second.
 - A read of the mentions that fails leaves the count absent and toasts why once, under "could not read mentions".
-- ⌘-click on a link whose destination is a note opens that note in the showing tab. The destination resolves against the linking note's folder with `.` and `..` folded, exactly first and then without regard to case, and one that climbs above the notes folder or names no note says "no note at" the destination. Such a link reads as internal, with the wikilink's dashed underline in the current colour.
-- ⌘⇧K adds or edits a link, and ⌘-click opens one. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
-- A ⌘-click on an attachment link does not open the attachment.
+- A click on a link whose destination is a note opens that note in the showing tab. The destination resolves against the linking note's folder with `.` and `..` folded, exactly first and then without regard to case, and one that climbs above the notes folder or names no note says "no note at" the destination. Such a link reads as internal: every link on the surface draws the same underline at the same height and thickness, and the style says where it goes, dashed inside the library and solid out of it.
+- ⌘⇧K adds or edits a link. A click opens one, and so does ⌘⇧O on the link at the caret, which is the way there without a mouse. Pointing at a link shows where it goes, and an edit button there opens the same popover ⌘⇧K does, changing the words and the url together. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
+- A click on an attachment link does not open the attachment.
 - Dragging files onto the window copies each into `attachments/` and inserts a link into the tab that is showing. A name already taken becomes `stem-2.ext`. Spaces survive on disk and are percent-encoded in the link.
 - An image extension inserts an image, anything else a link.
 - Pasting an image saves `attachments/pasted-<epoch-ms>.png`.
 - Pasting text that looks like markdown pastes rich. Anything else pastes plain. Copying out of the editor puts markdown on the clipboard.
 - Tables are editable and start at two columns by three rows with a header. Task checkboxes are clickable and round-trip as `- [x]` and `- [ ]`.
+- A table sizes to its content rather than the column. One too wide to fit scrolls sideways inside its own box, and the note does not move with it.
 - Strikethrough takes one tilde or two, typed or read from a file, and the closing run may not follow a space. The serializer writes two, so `~x~` in a note written elsewhere saves back as `~~x~~`.
 - A list nested under an ordered item indents to the marker's width, so `1. first` carries its child at three spaces. A child written at two spaces by an earlier build or another editor still opens nested and saves back at three.
 - A literal `` ` ``, `*`, `_`, `[`, `]` or `~` in prose is written to the file as typed. It gains a backslash only where the note would otherwise read back as something else, and then the whole note is escaped.
