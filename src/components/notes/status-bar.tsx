@@ -118,7 +118,7 @@ export function StatusBar({
   );
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-1 border-t bg-card px-3 text-muted-foreground text-xs">
+    <footer className="flex h-7 shrink-0 items-center gap-1 bg-card px-3 text-muted-foreground text-xs shadow-[inset_0_1px_0_var(--border)]">
       {note === undefined ? null : (
         <>
           <NoteTags

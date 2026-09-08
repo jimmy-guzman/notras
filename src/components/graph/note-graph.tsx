@@ -43,7 +43,7 @@ const TOP_CAP = 5;
 const CENTRE: RingPosition = { angle: Number.NaN, x: 0.5, y: 0.5 };
 
 const PILL_CLASS =
-  "-translate-x-1/2 -translate-y-1/2 absolute max-w-48 bg-background outline-none transition-[left,top] duration-150 ease-out hover:text-foreground focus-visible:text-foreground";
+  "-translate-x-1/2 -translate-y-1/2 absolute bg-background outline-none transition-[left,top] duration-150 ease-out hover:text-foreground focus-visible:text-foreground";
 
 const MENU_CLASS =
   "w-72 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0";
@@ -301,6 +301,10 @@ function ringKeyDown(
 function pillStyle(position: RingPosition) {
   return {
     left: `${position.x * 100}%`,
+    // A pill is centred on its point and the ring's extreme sits a RADIUS_X of
+    // the stage from the centre, so half a pill has what is left of the
+    // half-width to live in. Wider and it hangs off the stage.
+    maxWidth: "min(12rem, 24%)",
     top: `${position.y * 100}%`,
   };
 }
@@ -460,7 +464,7 @@ function Placeholder({
 }) {
   return (
     <Badge
-      className="absolute max-w-48 -translate-x-1/2 -translate-y-1/2 bg-background text-faint"
+      className="absolute -translate-x-1/2 -translate-y-1/2 bg-background text-faint"
       style={pillStyle(position)}
       variant="ghost"
     >
@@ -832,7 +836,7 @@ export function TabGraph({ tab }: TabGraphProps) {
   }
 
   return (
-    <div className="absolute inset-0 bg-background p-6">
+    <div className="absolute inset-0 overflow-clip bg-background p-6">
       <NoteGraph
         onHop={hop}
         onHub={toHub}
