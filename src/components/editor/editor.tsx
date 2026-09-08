@@ -26,15 +26,21 @@ import {
 } from "./typewriter";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
+const ATTACHMENTS_PREFIX = "attachments/";
+
 const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
 
 /**
- * Hrefs arrive from the file on disk (parse, paste, input rule), never only
- * from the link editor, so the scheme is gated here too.
+ * The title of the wikilink the caret sits in or beside, or "" where none is.
+ * The node after the caret is only the answer when it is the pill: with text
+ * following one, `nodeAt(head)` is that text and the pill is behind the caret.
  */
-/** The title of the wikilink the caret sits in or beside, or "" where none is. */
 function wikilinkTitleAt(state: EditorState, head: number) {
-  const node = state.doc.nodeAt(head) ?? state.doc.nodeAt(head - 1);
+  const after = state.doc.nodeAt(head);
+  const node =
+    after?.type.name === "wikilink"
+      ? after
+      : (head > 0 && state.doc.nodeAt(head - 1)) || null;
 
   return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
 }
@@ -53,7 +59,17 @@ function hrefAt(state: EditorState, pos: number) {
   return typeof link?.attrs.href === "string" ? link.attrs.href : "";
 }
 
+/**
+ * Hrefs arrive from the file on disk (parse, paste, input rule), never only
+ * from the link editor, so the scheme is gated here too.
+ */
 function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
+  // An attachment is a file the note carries, not a place to go, and a relative
+  // path is not something the opener can resolve anyway.
+  if (href.startsWith(ATTACHMENTS_PREFIX)) {
+    return;
+  }
+
   if (isNotePath(href) && onNoteLinkClick) {
     onNoteLinkClick(href);
 
