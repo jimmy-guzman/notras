@@ -373,38 +373,65 @@ body.dragging .ProseMirror::selection {
    task row and the block keeps `--typeset-flow`, the gap that separates
    top-level blocks. Restate the step at the shape the div leaves behind. The
    `:not()` holds a nested task list on the tighter rule below rather than on a
-   specificity race between two unlayered selectors (`D39`, `D40`). A table sets
-   its own gap below and a fence is wrapped by its node view, so neither reaches
-   Typeset's step under a bullet either and both stay out of this. */
+   specificity race between two unlayered selectors. A table and a fence are
+   each wrapped by their own node view, so neither reaches Typeset's step under a
+   bullet either and both stay out of this. */
+.ProseMirror ul[data-type="taskList"] > li > div > blockquote {
+  margin-block-start: 0.5em;
+}
+/* A list is the exception, and takes the step a nested task list takes. Typeset
+   calibrated its own against a line of text, and a task row is taller than one,
+   since the checkbox label is `1.75em`, so the same value reads as more space
+   after a row than it does anywhere else. Zeroing the first item is half of it:
+   a parent and its first child collapse to the larger of the two margins, so
+   the item's own step would otherwise stand in for whatever this rule sets. */
 .ProseMirror
   ul[data-type="taskList"]
   > li
   > div
-  > :where(blockquote, ol, ul:not([data-type="taskList"])) {
-  margin-block-start: 0.5em;
+  > :where(ol, ul:not([data-type="taskList"])) {
+  margin-block-start: 0.2em;
+}
+.ProseMirror
+  ul[data-type="taskList"]
+  > li
+  > div
+  > :where(ol, ul:not([data-type="taskList"]))
+  > li:first-child {
+  margin-block-start: 0;
 }
 .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
   margin-block: 0.2em 0;
 }
 
-/* Tables. `not-typeset` keeps the recipe below from being double-styled, and
-   that opts the table out of the block rhythm too. Typeset spaces blocks with
-   margin-block-start alone, so nothing above a table supplies the gap and it
-   sits flush against whatever precedes it. The flow control is the same one
-   every other block reads (`D40`). */
-.ProseMirror table {
-  width: 100%;
+/* Every line sits on a cell, never on the table. Typeset gives each `tbody` cell
+   a leading border and `border-collapse` is `separate`, so a box on the table
+   drew the top edge twice, and the header could not drop edges it did not own.
+   The node view puts every row in `tbody`, so `thead th` never matches and the
+   header is restated here. The wrapper is not Typeset's `.typeset-scroll`, whose
+   `width: max-content` stops a prose cell wrapping; it takes the scroll and the
+   gap and the table keeps `max-width: 100%`. The 6ch floor is Obsidian's, and it
+   is what pushes a wide table into that scroll instead of crushing it. */
+.ProseMirror .tableWrapper {
   margin-block-start: var(--typeset-flow);
-  border-collapse: collapse;
+  overflow-x: auto;
 }
-.ProseMirror th,
-.ProseMirror td {
-  padding: 0.3rem 0.75rem;
-  text-align: left;
-  border: 1px solid var(--border);
+.ProseMirror .tableWrapper > table {
+  margin-block-start: 0;
+  border-block-end: 0;
 }
-.ProseMirror th {
-  background: var(--card);
+.ProseMirror :is(th, td) {
+  min-width: 6ch;
+  padding-inline-start: 1em;
+  border-inline-start: 1px solid var(--typeset-rule);
+}
+.ProseMirror :is(th, td):first-child {
+  border-inline-start: 0;
+}
+.ProseMirror tbody > tr:first-child > th {
+  padding-block: 0.65em;
+  font-weight: 600;
+  border-block-start: 0;
 }
 .ProseMirror .selectedCell {
   background: color-mix(in oklch, var(--primary) 12%, transparent);
@@ -420,22 +447,29 @@ body.dragging .ProseMirror::selection {
   outline: 2px solid var(--ring);
 }
 
-/* Wikilinks: subtle dashed underline, distinct from external links. */
+/* One line for every link, at one height and one thickness, and its style is
+   what says where the link goes: dashed inside the library, solid out of it. A
+   `border-bottom` drew the internal ones before, which cannot break for a
+   descender and sits at the box edge rather than on the font's metrics, so the
+   two kinds read as unrelated rather than as variants. The cursor is a pointer
+   on all of them because a plain click follows all of them. `.wikilink` is a
+   span, so it restates what Typeset hands an anchor. */
+.typeset-note a,
 .wikilink {
   font-weight: 500;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, currentcolor 30%, transparent);
+  text-underline-offset: 0.2em;
   cursor: pointer;
-  border-bottom: 1px dashed currentcolor;
-  transition: color 0.15s;
 }
-
-/* A markdown link whose destination is a note is an internal link, and reads as one. */
-.typeset-note a[data-note] {
-  font-weight: 500;
-  text-decoration: none;
-  border-bottom: 1px dashed currentcolor;
+.typeset-note a[data-note],
+.wikilink {
+  text-decoration-style: dashed;
 }
+.typeset-note a:hover,
 .wikilink:hover {
-  color: var(--muted-foreground);
+  text-decoration-color: currentcolor;
 }
 
 /* Suggestion menus (slash commands, wikilink completion). */
@@ -685,10 +719,15 @@ body.dragging .ProseMirror::selection {
   font-weight: 700;
 }
 
-/* The note surface, as a typeset preset (`D40`). Typeset derives every heading
-   size, list indent and block gap from three controls, so this block is the
-   whole tuning surface: size, leading, flow, plus the three faces. Colour and
-   radius it reads from the --color-* tokens itself.
+/* The note surface, as a typeset preset. Typeset derives the list indent
+   and every block gap from these controls, so they are the tuning surface: size,
+   leading, flow, the three faces, and the one hairline. The heading scale is the
+   exception, below.
+
+   The flow is one line, and Typeset resolves that `em` against whichever element
+   uses it, which holds the ratio at both note sizes. The hairline is Typeset's
+   own rule token pointed at the ink, so the table, a quote's edge, an hr and the
+   footnote separator are one value.
 
    The rule sits outside @layer, which is what lets font-optical-sizing reach the
    surface past Typeset's own @layer components. --typeset-font-heading has to be
@@ -700,9 +739,40 @@ body.dragging .ProseMirror::selection {
   --typeset-font-heading: var(--font-editor);
   --typeset-font-mono: var(--font-mono);
   --typeset-size: 1rem;
-  --typeset-leading: 1.75;
-  --typeset-flow: 1.25em;
+  --typeset-leading: 1.65;
+  --typeset-flow: 1.65em;
+  --typeset-rule: color-mix(in oklch, var(--foreground) 16%, transparent);
   font-optical-sizing: auto;
+}
+/* A level declares only its scale. Cancelling the transform and the tracking
+   retires Typeset's h6, which drew `###### foo` as FOO on a surface editing the
+   user's own file. The air divides back down by the scale because Typeset
+   resolves a margin's `em` against the element itself, so it would otherwise
+   grow with the heading. `:not(:first-child)` keeps a note that opens on a
+   heading, and one the drag ghost lifts, flush: this block is unlayered, so the
+   margin would beat Typeset's own first-child reset. */
+.typeset-note :is(h1, h2, h3, h4, h5, h6) {
+  --heading-scale: 1;
+  font-size: calc(var(--heading-scale) * 1em);
+  font-weight: 600;
+  color: var(--foreground);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.typeset-note h1 {
+  --heading-scale: 1.88;
+  line-height: 1.3;
+}
+.typeset-note h2 {
+  --heading-scale: 1.56;
+  line-height: 1.2;
+}
+.typeset-note h3 {
+  --heading-scale: 1.33;
+  line-height: 1.25;
+}
+.typeset-note :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
+  margin-block-start: calc(var(--typeset-flow) / var(--heading-scale));
 }
 /* Typeset leaves an inline-code chip inheriting whatever colour it sits in, and
    this app paints h5, h6, a strikethrough, a definition and a footnote in

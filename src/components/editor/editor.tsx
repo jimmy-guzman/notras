@@ -1,6 +1,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
+import type { EditorState } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,6 +32,27 @@ const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
  * Hrefs arrive from the file on disk (parse, paste, input rule), never only
  * from the link editor, so the scheme is gated here too.
  */
+/** The title of the wikilink the caret sits in or beside, or "" where none is. */
+function wikilinkTitleAt(state: EditorState, head: number) {
+  const node = state.doc.nodeAt(head) ?? state.doc.nodeAt(head - 1);
+
+  return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
+}
+
+/**
+ * The href of the link mark at `pos`, or "" where there is no link. A click
+ * asks about the position it landed on, which `editor.getAttributes` cannot
+ * answer, since that reads the selection.
+ */
+function hrefAt(state: EditorState, pos: number) {
+  const link = state.doc
+    .resolve(pos)
+    .marks()
+    .find((mark) => mark.type.name === "link");
+
+  return typeof link?.attrs.href === "string" ? link.attrs.href : "";
+}
+
 function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
   if (isNotePath(href) && onNoteLinkClick) {
     onNoteLinkClick(href);
@@ -124,7 +146,8 @@ export function Editor({
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [reading, setReading] = useState(false);
   const [linkShortcut] = useState(() => {
-    // ⌘⇧K: open the link popover at the caret (⌘K belongs to the palette).
+    // ⌘K belongs to the palette, so the link keys sit under ⌘⇧: K makes one, O
+    // follows the one at the caret, which is the only way there without a mouse.
     return Extension.create({
       addKeyboardShortcuts: () => ({
         "Mod-Shift-k": ({ editor: instance }) => {
@@ -142,6 +165,27 @@ export function Editor({
           }));
 
           return true;
+        },
+        "Mod-Shift-o": ({ editor: instance }) => {
+          const { head } = instance.state.selection;
+          const attrs = instance.getAttributes("link");
+          const href = typeof attrs.href === "string" ? attrs.href : "";
+
+          if (href !== "") {
+            followLink(href, config.onNoteLinkClick);
+
+            return true;
+          }
+
+          const title = wikilinkTitleAt(instance.state, head);
+
+          if (title !== "" && config.onWikilinkClick) {
+            config.onWikilinkClick(title);
+
+            return true;
+          }
+
+          return false;
         },
       }),
       name: "linkShortcut",
@@ -187,21 +231,13 @@ export function Editor({
           return fallback;
         }
       },
-      handleClickOn: (view, pos, node, _nodePos, event) => {
-        // ⌘/ctrl+click on a link opens it in the browser.
-        if (event.metaKey || event.ctrlKey) {
-          const link = view.state.doc
-            .resolve(pos)
-            .marks()
-            .find((mark) => mark.type.name === "link");
-          const href =
-            typeof link?.attrs.href === "string" ? link.attrs.href : "";
+      handleClickOn: (view, pos, node) => {
+        const href = hrefAt(view.state, pos);
 
-          if (href !== "") {
-            followLink(href, config.onNoteLinkClick);
+        if (href !== "") {
+          followLink(href, config.onNoteLinkClick);
 
-            return true;
-          }
+          return true;
         }
 
         if (node.type.name === "wikilink" && config.onWikilinkClick) {

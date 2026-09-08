@@ -416,10 +416,7 @@ export function createEditorExtensions(
       },
     }).configure({ lowlight }),
     TableKit.configure({
-      table: {
-        HTMLAttributes: { class: "not-typeset" },
-        resizable: false,
-      },
+      table: { resizable: false },
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
