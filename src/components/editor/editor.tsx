@@ -71,12 +71,19 @@ function wordsAt(state: EditorState) {
  */
 function hoverStateFor(
   target: Element,
+  markHref: string,
   resolveWikilink?: (title: string) => string | undefined
 ) {
-  const href = target.getAttribute("href");
-
-  if (href !== null && href !== "") {
-    return { editable: true, missing: false, title: null, url: href };
+  // An anchor is a link whatever its href says. `renderHTML` blanks the one it
+  // renders for a scheme the app will not open, and the mark still carries the
+  // real destination, which is the one worth showing.
+  if (target.hasAttribute("href")) {
+    return {
+      editable: true,
+      missing: false,
+      title: null,
+      url: markHref || (target.getAttribute("href") ?? ""),
+    };
   }
 
   const title = target.getAttribute("data-wikilink") ?? target.textContent;
@@ -165,7 +172,7 @@ interface EditorProps {
   initialContent: string;
   onBlur?: () => void;
   onChange: (content: string) => void;
-  /** Navigate when a markdown link to a note is ⌘-clicked. */
+  /** Navigate when a markdown link to a note is clicked. */
   onNoteLinkClick?: (href: string) => void;
   onReady?: (handle: EditorHandle) => void;
   /** Navigate when a wikilink pill is clicked. */
@@ -357,7 +364,12 @@ export function Editor({
             return false;
           }
 
-          const state = hoverStateFor(target, config.resolveWikilink);
+          const pos = view.posAtDOM(target, 0);
+          const state = hoverStateFor(
+            target,
+            hrefAt(view.state, pos),
+            config.resolveWikilink
+          );
 
           if (state === null) {
             return false;
@@ -369,7 +381,7 @@ export function Editor({
           setLinkHover({
             ...state,
             left: rect.left,
-            pos: view.posAtDOM(target, 0),
+            pos,
             top: rect.bottom + 6,
           });
 

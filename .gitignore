@@ -34,3 +34,6 @@ data/*.db*
 
 # worktrees
 /.worktrees
+
+# vitest run reports
+/.vitest
