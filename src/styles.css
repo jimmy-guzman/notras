@@ -635,6 +635,32 @@ body.dragging .ProseMirror::selection {
   gap: 0.15rem;
   align-items: center;
 }
+/* Where a link goes, while the pointer is on it. Same surface as the editor it
+   opens, since they are two states of one thing. */
+.link-hover {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: 28rem;
+  padding: 0.2rem 0.2rem 0.2rem 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.link-hover-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-hover-missing {
+  color: var(--destructive);
+}
 
 /* Four of the five controls the app draws itself, the tab strip carrying the
    fifth. None declares the border a shadcn ring recolors, and forced-colors

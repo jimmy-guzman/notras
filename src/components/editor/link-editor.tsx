@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export interface LinkEditorState {
   /** Distinguishes one invocation from the next, so the popover remounts. */
   id: number;
+  /** A wikilink is a title and nothing else: no url, and nothing to unlink. */
+  kind: "link" | "wikilink";
   /** Caret rect for positioning the popover. */
   left: number;
-  /** Empty when creating a link with no selection (text field shown). */
-  needsText: boolean;
+  /** The link's current words, empty when there is nothing selected yet. */
+  text: string;
   top: number;
   url: string;
 }
@@ -19,7 +21,7 @@ interface LinkEditorProps {
   state: LinkEditorState;
 }
 
-/** Small caret-positioned popover to add/edit/remove a link (⌘⇧K). */
+/** Small popover to add, edit or remove a link: both its words and its url. */
 export function LinkEditor({
   onCancel,
   onRemove,
@@ -27,7 +29,7 @@ export function LinkEditor({
   state,
 }: LinkEditorProps) {
   const [url, setUrl] = useState(state.url);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(state.text);
   const containerRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
@@ -63,8 +65,8 @@ export function LinkEditor({
   }, [state.left, state.top]);
 
   const submit = useCallback(() => {
-    onSubmit(url, state.needsText ? text : undefined);
-  }, [onSubmit, state.needsText, text, url]);
+    onSubmit(url, text);
+  }, [onSubmit, text, url]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
@@ -100,25 +102,26 @@ export function LinkEditor({
     // biome-ignore lint/a11y/noStaticElementInteractions: popover-level key handling; focus always sits on a real control inside
     // biome-ignore lint/a11y/noNoninteractiveElementInteractions: popover-level key handling; focus always sits on a real control inside
     <div className="link-editor" onKeyDown={handleKeyDown} ref={containerRef}>
-      {state.needsText ? (
-        <input
-          aria-label="link text"
-          className="link-editor-input"
-          onChange={changeText}
-          placeholder="link text..."
-          ref={firstFieldRef}
-          value={text}
-        />
-      ) : null}
       <input
-        aria-label="link url"
+        aria-label={state.kind === "wikilink" ? "note title" : "link text"}
         className="link-editor-input"
-        onChange={changeUrl}
-        placeholder="enter url..."
-        ref={state.needsText ? undefined : firstFieldRef}
-        type="url"
-        value={url}
+        onChange={changeText}
+        placeholder={
+          state.kind === "wikilink" ? "note title..." : "link text..."
+        }
+        ref={firstFieldRef}
+        value={text}
       />
+      {state.kind === "wikilink" ? null : (
+        <input
+          aria-label="link url"
+          className="link-editor-input"
+          onChange={changeUrl}
+          placeholder="enter url..."
+          type="url"
+          value={url}
+        />
+      )}
       <div className="link-editor-actions">
         <button
           aria-label="apply link"
@@ -128,7 +131,7 @@ export function LinkEditor({
         >
           <CheckIcon size={14} />
         </button>
-        {state.url === "" ? null : (
+        {state.url === "" || state.kind === "wikilink" ? null : (
           <button
             aria-label="remove link"
             className="code-block-button"

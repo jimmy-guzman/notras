@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
-import { Extension } from "@tiptap/core";
+import { Extension, getMarkRange } from "@tiptap/core";
 import type { EditorState } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
@@ -18,6 +18,8 @@ import {
 } from "./extensions";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
+import type { LinkHoverState } from "./link-hover";
+import { LinkHover } from "./link-hover";
 import { findSentinel, SENTINEL } from "./sentinel";
 import {
   createTypewriter,
@@ -27,6 +29,9 @@ import {
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 const ATTACHMENTS_PREFIX = "attachments/";
+
+/** Long enough to cross the gap between a link and its panel. */
+const HOVER_CLOSE_MS = 150;
 
 const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
 
@@ -43,6 +48,48 @@ function wikilinkTitleAt(state: EditorState, head: number) {
       : (head > 0 && state.doc.nodeAt(head - 1)) || null;
 
   return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
+}
+
+/**
+ * The words a link edit starts from: the link the caret is in, or whatever is
+ * selected when there is no link yet.
+ */
+function wordsAt(state: EditorState) {
+  const { from, to } = state.selection;
+  const type = state.schema.marks.link;
+  const range = type && getMarkRange(state.selection.$head, type);
+
+  return range
+    ? state.doc.textBetween(range.from, range.to)
+    : state.doc.textBetween(from, to);
+}
+
+/**
+ * What the panel says about the thing under the pointer. A markdown link
+ * carries its destination; a wikilink resolves by title, so its own text says
+ * nothing useful and the note it lands on does.
+ */
+function hoverStateFor(
+  target: Element,
+  resolveWikilink?: (title: string) => string | undefined
+) {
+  const href = target.getAttribute("href");
+
+  if (href !== null && href !== "") {
+    return { editable: true, missing: false, title: null, url: href };
+  }
+
+  const title = target.getAttribute("data-wikilink") ?? target.textContent;
+
+  if (resolveWikilink === undefined || title === null || title === "") {
+    return null;
+  }
+
+  const path = resolveWikilink(title);
+
+  return path === undefined
+    ? { editable: true, missing: true, title, url: `no note named "${title}"` }
+    : { editable: true, missing: false, title, url: path };
 }
 
 /**
@@ -126,6 +173,8 @@ interface EditorProps {
   placeholderText?: string;
   /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs. */
   resolveImageSrc?: (src: string) => string;
+  /** The note a wikilink title lands on, or undefined when it names none. */
+  resolveWikilink?: (title: string) => string | undefined;
   /**
    * The initial content carries a SENTINEL at the caret spot (source-mode
    * exit): strip it after mount and place the caret exactly there.
@@ -160,6 +209,8 @@ export function Editor({
 
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
+  const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
+  const closeHoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reading, setReading] = useState(false);
   const [linkShortcut] = useState(() => {
     // ⌘K belongs to the palette, so the link keys sit under ⌘⇧: K makes one, O
@@ -167,15 +218,16 @@ export function Editor({
     return Extension.create({
       addKeyboardShortcuts: () => ({
         "Mod-Shift-k": ({ editor: instance }) => {
-          const { empty, head } = instance.state.selection;
+          const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
           const url = typeof attrs.href === "string" ? attrs.href : "";
           const coords = instance.view.coordsAtPos(head);
 
           setLinkEditor((previous) => ({
             id: (previous?.id ?? 0) + 1,
+            kind: "link",
             left: coords.left,
-            needsText: empty && url === "",
+            text: wordsAt(instance.state),
             top: coords.bottom + 6,
             url,
           }));
@@ -247,8 +299,16 @@ export function Editor({
           return fallback;
         }
       },
-      handleClickOn: (view, pos, node) => {
-        const href = hrefAt(view.state, pos);
+      handleClickOn: (view, pos, node, _nodePos, event) => {
+        const anchor =
+          event.target instanceof Element
+            ? event.target.closest("a[href]")
+            : null;
+
+        // `hrefAt` reads the marks at a position and comes up empty at a link's
+        // left edge, where the anchor still knows where it goes.
+        const href =
+          hrefAt(view.state, pos) || (anchor?.getAttribute("href") ?? "");
 
         if (href !== "") {
           followLink(href, config.onNoteLinkClick);
@@ -263,6 +323,58 @@ export function Editor({
         }
 
         return false;
+      },
+      handleDOMEvents: {
+        // The webview follows an anchor on `click`. ProseMirror's own click
+        // handling runs on `mouseup`, one event too early to stop it, so a
+        // link's href would reach the webview past the scheme gate whenever
+        // `handleClickOn` declines to handle it.
+        click: (_view, event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("a[href]") !== null
+          ) {
+            event.preventDefault();
+          }
+
+          return false;
+        },
+        // Closing on a delay is what makes the panel reachable: the pointer has
+        // to cross a strip of editor to get to it, and closing on the way out
+        // of the link would take it away mid-journey.
+        mouseout: () => {
+          closeHoverLater();
+
+          return false;
+        },
+        mouseover: (view, event) => {
+          const target =
+            event.target instanceof Element
+              ? event.target.closest("a[href], [data-wikilink]")
+              : null;
+
+          if (target === null) {
+            return false;
+          }
+
+          const state = hoverStateFor(target, config.resolveWikilink);
+
+          if (state === null) {
+            return false;
+          }
+
+          const rect = target.getBoundingClientRect();
+
+          keepHover();
+          setLinkHover({
+            ...state,
+            left: rect.left,
+            pos: view.posAtDOM(target, 0),
+            top: rect.bottom + 6,
+          });
+
+          return false;
+        },
       },
       handlePaste: (_view, event) => {
         const clipboard = event.clipboardData;
@@ -569,9 +681,72 @@ export function Editor({
     editor?.chain().focus().extendMarkRange("link").unsetLink().run();
   }, [editor]);
 
+  const keepHover = useCallback(() => {
+    if (closeHoverRef.current !== null) {
+      clearTimeout(closeHoverRef.current);
+      closeHoverRef.current = null;
+    }
+  }, []);
+
+  const closeHoverLater = useCallback(() => {
+    keepHover();
+    closeHoverRef.current = setTimeout(
+      () => setLinkHover(null),
+      HOVER_CLOSE_MS
+    );
+  }, [keepHover]);
+
+  useEffect(() => keepHover, [keepHover]);
+
+  // The panel opens the editor where it already sits, so the two are one
+  // surface rather than two places a link is changed from.
+  const editHoveredLink = useCallback(() => {
+    if (editor === null || linkHover === null) {
+      return;
+    }
+
+    // Put the caret in the hovered link first, so the editor's own commands
+    // act on it rather than on wherever the caret happened to be.
+    const { pos, title } = linkHover;
+
+    if (title === null) {
+      editor.commands.setTextSelection(pos);
+    } else {
+      editor.commands.setNodeSelection(pos);
+    }
+
+    setLinkHover(null);
+    setLinkEditor((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      kind: title === null ? "link" : "wikilink",
+      left: linkHover.left,
+      text: title ?? wordsAt(editor.state),
+      top: linkHover.top,
+      url: title === null ? linkHover.url : "",
+    }));
+  }, [editor, linkHover]);
+
   const submitLink = useCallback(
     (rawUrl: string, text?: string) => {
       if (editor === null) {
+        return;
+      }
+
+      // A wikilink has no url: its title is both what it says and where it
+      // goes, so submitting one renames the target.
+      if (linkEditor?.kind === "wikilink") {
+        setLinkEditor(null);
+
+        if (text !== undefined && text.trim() !== "") {
+          editor
+            .chain()
+            .focus()
+            .updateAttributes("wikilink", { title: text.trim() })
+            .run();
+        } else {
+          editor.commands.focus();
+        }
+
         return;
       }
 
@@ -588,14 +763,15 @@ export function Editor({
         return;
       }
 
-      if (text === undefined) {
-        editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
-      } else if (text.trim() === "") {
+      if (text === undefined || text.trim() === "") {
         editor.commands.focus();
       } else {
         editor
           .chain()
           .focus()
+          // Covers the whole link so the words are replaced rather than added
+          // to; on a selection with no link yet it changes nothing.
+          .extendMarkRange("link")
           .insertContent({
             marks: [{ attrs: { href }, type: "link" }],
             text: text.trim(),
@@ -604,7 +780,7 @@ export function Editor({
           .run();
       }
     },
-    [editor]
+    [editor, linkEditor]
   );
 
   return (
@@ -618,6 +794,14 @@ export function Editor({
       ref={scrollerRef}
     >
       <EditorContent className="min-h-full" editor={editor} />
+      {linkHover === null || linkEditor !== null ? null : (
+        <LinkHover
+          onEdit={editHoveredLink}
+          onPointerLeave={closeHoverLater}
+          onPointerOver={keepHover}
+          state={linkHover}
+        />
+      )}
       {linkEditor === null || editor === null ? null : (
         <LinkEditor
           key={linkEditor.id}

@@ -34,6 +34,7 @@ import { DragSelection } from "./drag-selection";
 import { markdownWithFrontmatter } from "./markdown-frontmatter";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SlashMenu } from "./slash-menu";
+import { isSafeUrl } from "./urls";
 import { Wikilink } from "./wikilink";
 
 export interface EditorExtensionOptions {
@@ -146,15 +147,26 @@ const NoteImage = Image.extend<
 });
 
 const NoteLink = Link.extend({
+  /**
+   * Upstream renders a rejected href blank, and overriding `renderHTML` to mark
+   * a note link dropped that. A note's href comes off disk, so the check is
+   * kept here as well as at the click.
+   */
   renderHTML({ HTMLAttributes }) {
     const href =
       typeof HTMLAttributes.href === "string" ? HTMLAttributes.href : "";
+    const allowed = this.options.isAllowedUri(href, {
+      defaultProtocol: this.options.defaultProtocol,
+      defaultValidate: (url: string) => isSafeUrl(url),
+      protocols: this.options.protocols,
+    });
 
     return [
       "a",
       mergeAttributes(
         this.options.HTMLAttributes,
         HTMLAttributes,
+        allowed ? {} : { href: "" },
         isNotePath(href) ? { "data-note": "" } : {}
       ),
       0,
@@ -405,7 +417,13 @@ export function createEditorExtensions(
     // tildes inside the backticks and edits the file on open (`D59`).
     NoteStrike,
     NoteCode,
-    NoteLink.configure({ openOnClick: false }),
+    // The extension defaults `target` to `_blank` and renders it as a mark
+    // attribute, which tells the webview to open a link itself. Every link here
+    // goes through `followLink` and its scheme gate instead.
+    NoteLink.configure({
+      HTMLAttributes: { rel: null, target: null },
+      openOnClick: false,
+    }),
     NoteParagraph,
     Markdown.configure({
       markedOptions: { gfm: true },
