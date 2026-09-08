@@ -1,4 +1,4 @@
-![notras: write another note.](assets/hero.png)
+![notras: write another note](assets/hero.png)
 
 # notras
 
@@ -165,10 +165,12 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm test`      | run tests (Vitest, watches)         |
 | `pnpm coverage`  | tests with coverage                 |
 | `pnpm knip`      | unused code/deps, test-only exports |
-| `pnpm icons`     | regenerate app icons from `assets/` |
+| `pnpm icons`     | generate icons and hero from SVG + theme tokens |
 | `pnpm clean`     | remove build output                 |
 | `pnpm prepare`   | install the git hooks (lefthook)    |
 | `pnpm tauri`     | run the tauri cli directly          |
+
+Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
 
 Rust tests live in `src-tauri`: `cd src-tauri && cargo test --locked`.
 

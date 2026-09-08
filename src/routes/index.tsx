@@ -86,9 +86,28 @@ const TAB_JUMPS = [
 function Welcome({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6">
-      <div className="flex flex-col items-center gap-1">
-        <h1 className="font-bold font-mono text-5xl tracking-tight">notras</h1>
-        <p className="text-muted-foreground">write another note.</p>
+      <div className="flex items-center gap-7">
+        <picture className="shrink-0">
+          <source
+            media="(prefers-color-scheme: light)"
+            srcSet="/logo-light.svg"
+          />
+          <img
+            alt=""
+            className="size-28"
+            height={112}
+            src="/logo-dark.svg"
+            width={112}
+          />
+        </picture>
+        <div className="flex flex-col gap-5">
+          <h1 className="font-mono font-normal text-5xl leading-none tracking-[-0.06em]">
+            notras
+          </h1>
+          <p className="text-muted-foreground text-xl leading-[1.3] tracking-[-0.025em]">
+            write another note
+          </p>
+        </div>
       </div>
       <div className="flex items-center gap-4 text-muted-foreground text-sm">
         <Button onClick={onNew} variant="outline">

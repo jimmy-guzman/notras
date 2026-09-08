@@ -4,6 +4,17 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 `AGENTS.md` maps the rest of the docs.
 
+## Appearance
+
+- The app follows the system's light or dark scheme. Both schemes use warm reading surfaces and a pink accent, with no in-app theme switch.
+- Body text has at least 7:1 contrast on the page and code-block surface in both schemes. Syntax inks have at least 4.5:1 on those surfaces. Comments and punctuation use the secondary text tone; operators use body ink. Placeholders share secondary ink and clear 4.5:1 on the page, card, and hover surface. Selection uses a muted blue surface.
+- At the default root size, prose renders in Literata at 18px in windows at least 768px wide and 20px below that width, with 1.65 line-height. Fenced code and source mode render in iA Writer Mono at 16px with 1.7 line-height in both widths. Inline code follows the surrounding text at 0.9em. The reading column remains at most 42rem wide with 24px horizontal padding.
+- Selected text uses body ink on the same blue surface in editors and inputs. Completed tasks use secondary ink and a strikethrough without additional opacity.
+- On webviews supporting `scrollbar-color`, scrollbars use secondary ink on a transparent track without changing their native width. Other webviews retain system scrollbar colors. Typewriter mode still hides the editor scrollbar. Forced-colors mode uses system selection and scrollbar colors.
+- Main and capture windows use the matching page background at launch and after a system-theme change.
+- The mark is two overlapping sheets with a pink upper-right fold. The installed icon keeps its dark tile; the welcome mark and favicons follow the system scheme. The tray is system-tinted, with a transparent seam and fold.
+- With no tab open, the welcome screen shows the mark beside "notras" and the single-line tagline "write another note". The new-note button and search shortcut remain below it.
+
 ## Notes and files
 
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
