@@ -159,6 +159,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - ← and → walk the ring clockwise from the top, and ⏎ or a click opens the focused note in the showing tab with the graph staying on, re-centred on it. ⌘⏎ and ⌘-click open it beside and do the same. Landing puts focus on the centre, and ⏎ on the centre leaves the graph.
 - esc leaves the graph and puts the caret back where it was. The editor is hidden rather than replaced, so the scroll, the caret and the undo history survive a visit.
 - A note on screen before and after a hop glides to its new place over 0.15s with its line turning under it; with reduce motion on the move is instant.
+- A pill's title truncates to the room the ring leaves it, so the graph fits the window at any width and never puts a scrollbar on it.
 - With nothing on either side the centre stands alone over "no links yet, and nothing mentions it".
 - A read of the bare mentions that fails draws the graph from links alone and toasts why once, under "could not read the graph".
 
@@ -176,6 +177,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - The main window opens at 960 by 720 and stops at 480 by 360.
 - macOS draws an overlay title bar with the traffic lights inset, and the app draws a 36px drag region holding the tab strip, the save glyph, and the pin.
+- The window itself never scrolls. Only the note does, so no scrollbar runs the full height of the window or crosses the two bands.
 - The tray menu offers open notras, new note, quick capture, and quit.
 - Closing either window hides it. Quitting is what exits.
 - A quit is held until every open buffer has flushed. A buffer that could not write cancels the quit and says so. A buffer whose file is gone reports the quit as safe while still holding text, and its banner is the only warning.
