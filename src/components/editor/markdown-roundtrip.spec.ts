@@ -59,6 +59,26 @@ function imageSources(markdown: string) {
 
 describe("markdown round-trip", () => {
   it.each([
+    "````markdown\n```ts\nconst value = 1;\n```\n````",
+    "`````markdown\n````\n```\n&nbsp;\n`````",
+    "```ts\n\nconst value = 1;\n\n\n```",
+  ])(
+    "should preserve code text and language across repeated saves: %s",
+    (markdown) => {
+      const editor = load(markdown);
+      const before = editor.getJSON();
+      const saved = serializeMarkdown(editor);
+
+      editor.destroy();
+      const reopened = load(saved);
+
+      expect(reopened.getJSON()).toEqual(before);
+      expect(serializeMarkdown(reopened)).toBe(saved);
+      reopened.destroy();
+    }
+  );
+
+  it.each([
     ["heading", "# hello"],
     ["emphasis", "some **bold** and *italic* and ~~struck~~ text"],
     ["inline code", "run `pnpm dev` locally"],

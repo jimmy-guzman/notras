@@ -9,13 +9,16 @@ import { reasonOf } from "@/lib/ui/failure";
 import { lowlight } from "./extensions";
 
 /**
- * Code block chrome (pattern from scratch): a hover toolbar with a copy
- * button and a language picker. View-only -- serialization still writes
- * the `language` attr as the fence info string.
+ * Copy a block as markdown and edit its fence language from a hover toolbar.
  */
-export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
+export function CodeBlockView({
+  editor,
+  node,
+  updateAttributes,
+}: ReactNodeViewProps) {
   const language =
     typeof node.attrs.language === "string" ? node.attrs.language : "";
+  const languageLabel = language === "" ? "plain" : language;
   const [copied, setCopied] = useState(false);
   const clearCopied = useDebouncedCallback(
     () => {
@@ -36,7 +39,13 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
 
   const copy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(node.textContent);
+      const manager = editor.markdown;
+
+      if (manager === undefined) {
+        throw new Error("the markdown serializer is unavailable");
+      }
+
+      await navigator.clipboard.writeText(manager.serialize(node.toJSON()));
       setCopied(true);
       clearCopied();
     } catch (error) {
@@ -46,7 +55,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         type: "error",
       });
     }
-  }, [clearCopied, node.textContent]);
+  }, [clearCopied, editor, node]);
 
   const changeLanguage = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -67,19 +76,24 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
           {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
           {copied ? "copied" : "copy"}
         </button>
-        <select
-          aria-label="code language"
-          className="code-block-language"
-          onChange={changeLanguage}
-          value={language}
-        >
-          <option value="">plain</option>
-          {languages.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+        <span className="code-block-language-width">
+          <span aria-hidden="true" className="code-block-language-label">
+            {languageLabel}
+          </span>
+          <select
+            aria-label="code language"
+            className="code-block-language"
+            onChange={changeLanguage}
+            value={language}
+          >
+            <option value="">plain</option>
+            {languages.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </span>
       </div>
       <pre>
         <NodeViewContent<"code"> as="code" />

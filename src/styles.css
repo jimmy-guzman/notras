@@ -590,11 +590,27 @@ body.dragging .ProseMirror::selection {
   color: var(--foreground);
   background: var(--accent);
 }
-.code-block-language {
+.code-block-language-width {
+  position: relative;
+  display: inline-flex;
   height: 1.5rem;
-  padding-inline: 0.4rem;
   font-family: var(--font-sans);
   font-size: 0.72rem;
+}
+/* Native selects size to the longest option. The current label supplies the
+   width without relying on field-sizing support in the host webview. */
+.code-block-language-label {
+  visibility: hidden;
+  padding-inline: 0.4rem;
+  white-space: pre;
+}
+.code-block-language {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding-inline: 0.4rem;
+  font: inherit;
   color: var(--muted-foreground);
   appearance: none;
   cursor: pointer;

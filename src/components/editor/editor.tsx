@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension, getMarkRange } from "@tiptap/core";
@@ -8,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { isNotePath } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
+import { readCodeClipboard } from "@/lib/ui/code-clipboard";
 import { reasonOf } from "@/lib/ui/failure";
 import { encodeAttachmentPath } from "@/lib/utils/attachments";
 import {
@@ -144,9 +146,6 @@ function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
     });
   });
 }
-
-const MARKDOWN_PASTE_PATTERN =
-  /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|```|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
 
 /**
  * Every method no-ops on a destroyed editor. ⌘P swaps the rich surface for the
@@ -449,32 +448,14 @@ export function Editor({
           }
         }
 
-        // Markdown-looking text pastes rich.
-        const text = clipboard.getData("text/plain");
-
-        if (text === "" || !MARKDOWN_PASTE_PATTERN.test(text)) {
-          return false;
-        }
-
-        const instance = editorRef.current;
-
-        if (!instance?.markdown) {
-          return false;
-        }
-
-        try {
-          instance.commands.insertContent(instance.markdown.parse(text));
-
-          return true;
-        } catch {
-          return false;
-        }
+        return false;
       },
     },
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
         placeholderText: config.placeholderText,
+        readCodeClipboard: isTauri() ? readCodeClipboard : undefined,
         resolveImageSrc: config.resolveImageSrc,
       }),
       linkShortcut,

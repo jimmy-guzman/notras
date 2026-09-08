@@ -22,13 +22,13 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { encode } from "mdurl";
-
+import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { isNotePath } from "@/core/links";
+import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
 import {
   escapeMarkdownLabel,
   escapeMarkdownTitle,
 } from "@/lib/utils/attachments";
-
 import { CodeBlockView } from "./code-block-view";
 import { DragSelection } from "./drag-selection";
 import { markdownWithFrontmatter } from "./markdown-frontmatter";
@@ -40,6 +40,7 @@ import { Wikilink } from "./wikilink";
 export interface EditorExtensionOptions {
   getTitles?: () => string[];
   placeholderText?: string;
+  readCodeClipboard?: ReadCodeClipboard;
   resolveImageSrc?: (src: string) => string;
 }
 
@@ -428,9 +429,24 @@ export function createEditorExtensions(
     Markdown.configure({
       markedOptions: { gfm: true },
     }),
+    MarkdownPaste.configure({
+      readCodeClipboard: options.readCodeClipboard ?? null,
+    }),
     CodeBlockLowlight.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
+      },
+      // A fixed triple fence closes early when the code itself holds a fence.
+      // Copy and file writes share this renderer so both reparse as one block.
+      renderMarkdown(node, helpers) {
+        const code = helpers.renderChildren(node.content ?? []);
+        const length = [...code.matchAll(/`+/g)].reduce(
+          (longest, match) => Math.max(longest, match[0].length + 1),
+          3
+        );
+        const fence = "`".repeat(length);
+
+        return `${fence}${node.attrs?.language || ""}\n${code}\n${fence}`;
       },
     }).configure({ lowlight }),
     TableKit.configure({

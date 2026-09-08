@@ -1,3 +1,4 @@
+mod clipboard;
 mod frontmatter;
 mod index;
 mod notes;
@@ -306,6 +307,7 @@ pub fn run() {
 
     let built = builder
         .invoke_handler(tauri::generate_handler![
+            clipboard::read_code_clipboard,
             notes::attach_file,
             notes::attach_image,
             notes::cancel_quit,
