@@ -210,7 +210,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 ## What is stored where
 
 - The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
-- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives beside them.
+- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives in `localStorage["focus-mode"]` beside them.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
 - The index at `.notras/index.db` is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
 - The reopen stack, source mode, graph mode, undo history, and scroll position live in memory and do not survive a relaunch.
