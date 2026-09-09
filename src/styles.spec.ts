@@ -323,12 +323,10 @@ const blockOf = (css: string, selector: string) => {
 const notePreset = blockOf(source, ".typeset-note");
 
 describe("shared surface colors", () => {
-  it("should tint inherited scrollbars without changing their native width", () => {
+  it("should keep native scrollbar colors and width", () => {
     const html = blockOf(source, "html");
 
-    expect(html).toContain(
-      "scrollbar-color: var(--muted-foreground) transparent;"
-    );
+    expect(html).toContain("scrollbar-color: auto;");
     expect(html).not.toContain("scrollbar-width:");
     expect(blockOf(source, ".typewriter-on")).toContain(
       "scrollbar-width: none;"
@@ -423,28 +421,24 @@ describe.each([
 });
 
 describe("reading typography", () => {
-  it("should use 20px prose below the wide-window breakpoint", () => {
-    expect(notePreset).toContain("--typeset-size: 1.25rem;");
+  it("should use 16px prose with the existing reading line-height", () => {
+    expect(notePreset).toContain("--typeset-size: 1rem;");
     expect(notePreset).toContain("font-size: var(--typeset-size);");
     expect(notePreset).toContain("--typeset-leading: 1.65;");
   });
 
-  it("should use 18px prose in wide windows and print", () => {
-    const wide = source.slice(
-      source.indexOf("@media (min-width: 48rem), print")
-    );
-
-    expect(blockOf(wide, ".typeset-note")).toContain(
-      "--typeset-size: 1.125rem;"
-    );
+  it("should keep the same prose size across window widths and print", () => {
+    expect(source.match(/--typeset-size:\s*[^;]+;/g)).toEqual([
+      "--typeset-size: 1rem;",
+    ]);
   });
 
-  it("should use the same 16px code size in fences and source mode", () => {
+  it("should use the same 14px code size in fences and source mode", () => {
     const code = blockOf(source, ".ProseMirror pre");
     const raw = blockOf(source, ".source-editor .ProseMirror pre");
 
-    expect(code).toContain("font-size: 1rem;");
-    expect(code).toContain("line-height: 1.7;");
+    expect(code).toContain("font-size: 0.875rem;");
+    expect(code).toContain("line-height: 1.5;");
     expect(raw).not.toContain("font-size:");
     expect(raw).not.toContain("line-height:");
   });

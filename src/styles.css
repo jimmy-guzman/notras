@@ -137,7 +137,7 @@
      seeds the same value so the first paint is not white. */
   html {
     color-scheme: dark light;
-    scrollbar-color: var(--muted-foreground) transparent;
+    scrollbar-color: auto;
   }
   ::selection {
     color: var(--foreground);
@@ -516,8 +516,8 @@ body.dragging .ProseMirror::selection {
 /* Code blocks (lowlight tokens on the app palette). */
 .ProseMirror pre {
   font-family: var(--font-mono);
-  font-size: 1rem;
-  line-height: 1.7;
+  font-size: 0.875rem;
+  line-height: 1.5;
   background: var(--card);
   border-radius: var(--radius-md);
 }
@@ -781,18 +781,12 @@ body.dragging .ProseMirror::selection {
   --typeset-font-body: var(--font-editor);
   --typeset-font-heading: var(--font-editor);
   --typeset-font-mono: var(--font-mono);
-  --typeset-size: 1.25rem;
+  --typeset-size: 1rem;
   --typeset-leading: 1.65;
   --typeset-flow: 1.65em;
   --typeset-rule: color-mix(in oklch, var(--foreground) 16%, transparent);
-  /* Keep the approved narrow size independent of the vendored 1.125 scale. */
   font-size: var(--typeset-size);
   font-optical-sizing: auto;
-}
-@media (min-width: 48rem), print {
-  .typeset-note {
-    --typeset-size: 1.125rem;
-  }
 }
 /* A level declares only its scale. Cancelling the transform and the tracking
    retires Typeset's h6, which drew `###### foo` as FOO on a surface editing the
