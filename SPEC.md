@@ -10,7 +10,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Body text has at least 7:1 contrast on the page and code-block surface in both schemes. Syntax inks have at least 4.5:1 on those surfaces. Comments and punctuation use the secondary text tone; operators use body ink. Placeholders share secondary ink and clear 4.5:1 on the page, card, and hover surface. Selection uses a muted blue surface.
 - At the default root size, prose renders in Literata at 16px across window widths and in print, with 1.65 line-height. Fenced code and source mode render in iA Writer Mono at 14px with 1.5 line-height across those widths and in print. Inline code follows the surrounding text at 0.9em. The reading column remains at most 42rem wide with 24px horizontal padding.
 - Selected text uses body ink on the same blue surface in editors and inputs. Completed tasks use secondary ink and a strikethrough without additional opacity.
-- Scrollbars use system colors for the current scheme, native width, and native visibility behavior: they auto-hide when the platform is configured to do so and remain visible when it requests "always show". Typewriter mode still hides the editor scrollbar. Forced-colors mode uses system selection and scrollbar colors.
+- Scrollbars use system colors for the current scheme, native width, and native visibility behavior: they auto-hide when the platform is configured to do so and remain visible when it requests "always show". Focus mode still hides the editor scrollbar. Forced-colors mode uses system selection and scrollbar colors.
 - Main and capture windows use the matching page background at launch and after a system-theme change.
 - The mark is two overlapping sheets with a pink upper-right fold. The installed icon keeps its dark tile; the welcome mark and favicons follow the system scheme. The tray is system-tinted, with a transparent seam and fold.
 - With no tab open, the welcome screen shows the mark beside "notras" and the single-line tagline "write another note". The new-note button and search shortcut remain below it.
@@ -78,7 +78,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A link click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘E, ⌘⇧G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D and ⌘⌥T still set the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘⇧G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D still sets the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -103,11 +103,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
 - `#` alone lists matching tags with their counts, and picking one rewrites the query.
 - A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
-- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, typewriter scrolling, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
-- New note, focus mode, typewriter scrolling, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
+- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- New note, focus mode, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
 - The writing-mode rows and graph view name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
 - Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⇧g, typewriter scrolling ⌘⌥t, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⇧g, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
 
 ## The editor
 
@@ -138,7 +138,6 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Copying or saving a code block writes a backtick fence, or a tilde fence when its language label contains a backtick. The fence has at least three characters and is longer than any run of its chosen character in the content. Nested fence examples retain their literal text and language on reopening, and the prose and code following them retain their structure.
 - Fenced code and Markdown source use the same regular-weight, upright syntax inks in both appearance modes. Imports, control flow, declarations, and types have distinct roles. Markdown highlights leading YAML frontmatter closed by `---` or `...`, including trailing spaces, and supported languages inside labeled code fences.
 - Highlighting loads from packaged assets and works offline. Editing retokenizes changed code blocks and preserves mapped highlighting in unchanged blocks. Prose and selection edits do not retokenize unchanged code. A grammar may appear after the text, without moving the caret, changing note content, or adding an undo step. A loading failure leaves editing available and reports "could not highlight code"; reopening the editor retries loading.
-- ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
 - What the selection covers moves, widened to whole blocks. A caret in a paragraph means that paragraph, a selection across three means those three, and a caret anywhere in a list item means the item with any sublist under it.
 - Pressing inside a selection and dragging moves it. A copy of what is held follows the pointer under a shadow, sitting below and right of it so the pointer and the mark stay clear, the source dims where it sits, a bar marks where the drop lands, and the cursor reads as grabbing for the length of the drag. A drag starts after 4px, and a press that never moves places the caret instead.
 - What is highlighted is what moves. A selection inside one block drags the words and drops them at a text position, and a selection covering a block end to end or crossing into another drags the blocks. The copy hugs what it holds and wraps at the block's width at most.
@@ -152,15 +151,15 @@ What notras does. Every claim below is checkable against a running build, so a c
 - ⌥↑ and ⌥↓ move it one sibling at a time, and the first item in a list steps out to sit before the list. A move is one undo step, and inside the editor these no longer jump the caret by paragraph.
 - A block drag ends with the caret inside what moved and nothing highlighted, since its selection was only what the drag took hold of. A text drag ends with the dropped words selected, since that highlight covers exactly what moved.
 - ⌥↑ and ⌥↓ keep whatever the selection was, so a caret stays a caret and blocks selected together stay selected and move together on the next press. A table row is the exception and ends with a caret the way a drag does, since the row is the unit whatever was selected.
-- A keyboard move recentres the caret when typewriter scrolling is on; a drop does not.
-- Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it. Dragging the scrollbar does not lift it.
-- ⌘⌥T toggles typewriter scrolling, which holds the caret's line at the editor's vertical centre. The status strip and the palette toggle it too.
+- A keyboard move recentres the caret when focus mode is on; a drop does not.
+- ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity and holds the caret's line at the editor's vertical centre. The status strip and the palette toggle it too.
+- Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it.
 - Typing, deleting, undo, paste, and arrow-key travel recentre with a short glide. A click, a drag-selection, and scrolling by hand do not, and the next keystroke recentres.
 - The caret types at its natural height until its line reaches the centre and locks there, so scrolling up settles at the note start with no blank above. The last lines reach the centre, toggling the mode does not shift the text, resizing the window keeps the caret's line at its anchor, and with reduce motion on the recentre is instant.
 - Inside a code block the caret stays horizontally in view while the mode is on.
 - The note's scrollbar is hidden while the mode is on.
 - The status strip carries the word count and the reading time at 200 words a minute.
-- Focus mode and typewriter scrolling are app-wide rather than per tab, and both survive a relaunch.
+- Focus mode is app-wide rather than per tab and survives a relaunch.
 
 ## The graph
 
@@ -211,7 +210,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 ## What is stored where
 
 - The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
-- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode and typewriter scrolling live beside them.
+- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives beside them.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
 - The index at `.notras/index.db` is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
 - The reopen stack, source mode, graph mode, undo history, and scroll position live in memory and do not survive a relaunch.

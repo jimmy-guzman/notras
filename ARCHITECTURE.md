@@ -126,7 +126,7 @@ src/
     runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
     pending-flush.ts  # autosave flush registry read by the quit handshake
-    prefs.ts          # focus mode and typewriter, app-wide (D53)
+    prefs.ts          # focus mode, app-wide (D53)
     tabs/             # the open set: tab.ts is the list algebra, store.ts
                       # the stores the chrome and sessions read
     updater.ts        # release check, offer toast, install + relaunch
@@ -189,7 +189,7 @@ TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option
 
 ### The editor owns its buffer
 
-`Editor`, the TipTap wrapper, freezes all props except the writing-mode toggles at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
+`Editor`, the TipTap wrapper, freezes all props except `focusModeEnabled` at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
 
 ### Body-only editing
 
@@ -225,9 +225,9 @@ Define it in `src-tauri/src/notes.rs` or another module, never in `lib.rs`: `gen
 
 ### The palette is the action surface
 
-`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, the three writing-mode toggles, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
+`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
 
-Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode and typewriter scrolling take `none`, since the pref they set belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
+Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode takes `none`, since the pref it sets belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
 
 One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode so switching re-seeds it. The palette reads chords through `useChordsByName` and registers none itself, which `src/lib/ui/shortcuts.ts` requires.
 
@@ -237,7 +237,7 @@ One component serves two doors. `find` and `actions` are the two root members of
 
 ### Preferences
 
-Window state lives in `localStorage`: the writing-mode toggles in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
+Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
 
 ### Snippet rendering
 

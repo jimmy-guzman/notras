@@ -25,7 +25,6 @@ afterEach(() => {
 const mount = async (modes: {
   focusModeEnabled?: boolean;
   initialContent?: string;
-  typewriterEnabled?: boolean;
 }) => {
   const host = document.createElement("div");
 
@@ -129,17 +128,17 @@ describe("focus mode reading state", () => {
   });
 });
 
-describe("typewriter scrollbar chrome", () => {
-  it("should hide the scrollbar chrome while typewriter is on", async () => {
-    const { scroller } = await mount({ typewriterEnabled: true });
+describe("focus mode scroller", () => {
+  it("should mark the scroller while focus mode is on", async () => {
+    const { scroller } = await mount({ focusModeEnabled: true });
 
-    expect(scroller.classList.contains("typewriter-on")).toBe(true);
+    expect(scroller.classList.contains("focus-mode-on")).toBe(true);
   });
 
-  it("should keep the scrollbar chrome while typewriter is off", async () => {
-    const { scroller } = await mount({ typewriterEnabled: false });
+  it("should not mark the scroller while focus mode is off", async () => {
+    const { scroller } = await mount({ focusModeEnabled: false });
 
-    expect(scroller.classList.contains("typewriter-on")).toBe(false);
+    expect(scroller.classList.contains("focus-mode-on")).toBe(false);
   });
 });
 

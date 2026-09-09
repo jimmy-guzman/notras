@@ -188,11 +188,10 @@ interface EditorProps {
   stripSentinel?: boolean;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
-  typewriterEnabled?: boolean;
 }
 
 /**
- * TipTap WYSIWYG markdown editor. All props except the writing-mode toggles
+ * TipTap WYSIWYG markdown editor. All props except `focusModeEnabled`
  * are frozen at mount: the editor owns the buffer, so remount (via `key`)
  * to load different content. Callbacks must therefore be safe to freeze --
  * read live values through refs, not closures. Content in/out is markdown
@@ -200,17 +199,16 @@ interface EditorProps {
  */
 export function Editor({
   focusModeEnabled = false,
-  typewriterEnabled = false,
   ...mountProps
 }: EditorProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
-  const typewriterRef = useRef(typewriterEnabled);
-  const previousTypewriterRef = useRef(typewriterEnabled);
+  const focusModeRef = useRef(focusModeEnabled);
+  const previousFocusModeRef = useRef(focusModeEnabled);
 
   useEffect(() => {
-    typewriterRef.current = typewriterEnabled;
+    focusModeRef.current = focusModeEnabled;
   });
 
   const [config] = useState(() => mountProps);
@@ -267,7 +265,7 @@ export function Editor({
   });
   const [typewriter] = useState(() =>
     createTypewriter({
-      enabled: () => typewriterRef.current,
+      enabled: () => focusModeRef.current,
       scroller: () => scrollerRef.current,
     })
   );
@@ -595,15 +593,15 @@ export function Editor({
   // scroll, and it is gated on a real off-to-on flip so a mount with the
   // pref already on pads without gliding.
   useEffect(() => {
-    const wasEnabled = previousTypewriterRef.current;
+    const wasEnabled = previousFocusModeRef.current;
 
-    previousTypewriterRef.current = typewriterEnabled;
+    previousFocusModeRef.current = focusModeEnabled;
 
     const scroller = scrollerRef.current;
     const content = editor?.view.dom.parentElement;
 
     if (
-      !typewriterEnabled ||
+      !focusModeEnabled ||
       editor === null ||
       scroller === null ||
       !(content instanceof HTMLElement)
@@ -629,7 +627,7 @@ export function Editor({
     }
 
     return disengage;
-  }, [editor, typewriterEnabled]);
+  }, [editor, focusModeEnabled]);
 
   // Wheel and touchmove, never scroll: scroll also fires for the typewriter
   // glide and ProseMirror's own scrollIntoView, which move the scroller on
@@ -781,8 +779,7 @@ export function Editor({
       className={cn(
         "allow-select min-h-0 flex-1 overflow-y-auto",
         focusModeEnabled && "focus-mode-on",
-        reading && "focus-reading",
-        typewriterEnabled && "typewriter-on"
+        reading && "focus-reading"
       )}
       ref={scrollerRef}
     >

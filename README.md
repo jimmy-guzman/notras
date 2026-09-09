@@ -34,8 +34,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - code blocks with a copy button and a language picker
 - all of it round-trips through GFM markdown
 - `⌘E` swaps to raw markdown source, the escape hatch for anything exotic
-- `⌘D` focus mode dims every block but the one you are in, and a wheel or touch scroll lifts the dim
-- `⌘⌥T` typewriter scrolling keeps the line you are typing vertically centred
+- `⌘D` focus mode dims every block but the one you are in, keeps the line you are typing vertically centred, and lifts the dim while you scroll by wheel or touch
 - word count and reading time, in the status strip
 
 ### Finding
@@ -117,7 +116,6 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 | `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left) |
 | `⌘E`      | toggle raw markdown source       |
 | `⌘D`      | toggle focus mode                |
-| `⌘⌥T`     | toggle typewriter scrolling      |
 | `⌘⇧G`     | toggle graph view                |
 | `⌥↑`/`⌥↓` | move the selected blocks         |
 | `⌘⇧K`     | add / edit link                  |
@@ -132,7 +130,7 @@ Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
 - `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
 - `⌘⇧Y`, `⌘⇧L` and `⌘⇧G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
 - None of those does anything on the empty state, which is where closing the last tab lands you.
-- `⌘D` and `⌘⌥T` set the writing mode, which belongs to the app rather than a note, so they work with nothing open and the next note you create is already in it.
+- `⌘D` sets the writing mode, which belongs to the app rather than a note, so it works with nothing open and the next note you create is already in it.
 - The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.
 
 ## Development

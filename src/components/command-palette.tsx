@@ -5,15 +5,14 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   ClipboardIcon,
   CodeIcon,
-  CrosshairIcon,
   DownloadIcon,
   FilePlusIcon,
   FileTextIcon,
+  FocusIcon,
   FolderIcon,
   FolderInputIcon,
   FolderSearchIcon,
   HashIcon,
-  KeyboardIcon,
   Link2Icon,
   ListXIcon,
   type LucideIcon,
@@ -59,7 +58,7 @@ import { setNotePinned } from "@/data/pin-note";
 import { noteQueries } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
-import { togglePref, usePref } from "@/lib/prefs";
+import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   closeNoteTab,
@@ -857,17 +856,11 @@ export function CommandPalette({
     onOpenSettings();
   }, [close, onOpenSettings]);
 
-  const focusModeEnabled = usePref("focus-mode");
-  const typewriterEnabled = usePref("typewriter");
+  const focusModeEnabled = useFocusMode();
 
-  const toggleFocusMode = useCallback(() => {
+  const toggleFocus = useCallback(() => {
     close();
-    togglePref("focus-mode");
-  }, [close]);
-
-  const toggleTypewriter = useCallback(() => {
-    close();
-    togglePref("typewriter");
+    toggleFocusMode();
   }, [close]);
 
   const closeOthers = useCallback(() => {
@@ -1012,20 +1005,12 @@ export function CommandPalette({
       value: "reveal-in-finder",
     },
     {
-      Icon: CrosshairIcon,
+      Icon: FocusIcon,
       label: "focus mode",
       needs: "none",
-      onSelect: toggleFocusMode,
+      onSelect: toggleFocus,
       text: toggleActionText(focusModeEnabled, "focus mode"),
       value: "toggle-focus-mode",
-    },
-    {
-      Icon: KeyboardIcon,
-      label: "typewriter scrolling",
-      needs: "none",
-      onSelect: toggleTypewriter,
-      text: toggleActionText(typewriterEnabled, "typewriter scrolling"),
-      value: "toggle-typewriter",
     },
     {
       Icon: CodeIcon,

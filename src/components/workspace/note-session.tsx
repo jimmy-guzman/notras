@@ -26,7 +26,7 @@ import { writeExternalNote } from "@/data/external-note";
 import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { saveNote } from "@/data/save-note";
-import { usePref } from "@/lib/prefs";
+import { useFocusMode } from "@/lib/prefs";
 import {
   clearRestoredCaret,
   closeTab,
@@ -108,8 +108,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     clearRestoredCaret(id);
   }, [id]);
 
-  const focusModeEnabled = usePref("focus-mode");
-  const typewriterEnabled = usePref("typewriter");
+  const focusModeEnabled = useFocusMode();
 
   // Tracks the mtime of our own writes so a re-read can tell an external edit
   // from a stale snapshot of something we just saved.
@@ -437,7 +436,6 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
           resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
           stripSentinel={sentineledBody !== null}
           titles={getTitles}
-          typewriterEnabled={typewriterEnabled}
         />
       )}
     </div>

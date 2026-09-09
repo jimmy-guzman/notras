@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 71, and some entries below it were removed, so the next entry takes 72.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The highest number issued so far is 75, and some entries below it were removed, so the next entry takes 76.
 
 An entry belongs here when picking one option ruled out another for a reason worth recording. A rule that must hold, with no competing option anyone would weigh, is an invariant and lives in `ARCHITECTURE.md`.
 
@@ -965,3 +965,21 @@ Rejected: the organic mascot of `D33` and the later smiling-paper studies. The o
 One SVG supplies the geometry at every size. The generator resolves its colors from the stylesheet and widens only the separating seam for small exports. This supersedes `D33`'s raster source, palette exception, and separately maintained size variants. The installed icon keeps the dark tile; the welcome mark and favicons follow the system, and the tray uses transparent detail for system tinting.
 
 The tile retains `D34`'s grid, rim, and shadow. Its duplicate SVG tile and comparison guard are removed because the script now draws the only tile shape. Generated files remain stripped of timestamps. The owner ruled out logo animation; the mark stays static.
+
+### D75 Focus mode is one mode
+
+Focus mode dims every block but the caret's (`D64`) and holds the caret's line at the scroller's centre (`D63`) under one pref and one chord, ⌘D. The two shipped as separate toggles, focus mode on ⌘D and typewriter scrolling on ⌘⌥T. The owner ruled the split a mistake: the app's goal is the smallest set of options that gets writing right, and the two toggles were one intent, writing without distraction, offered as two settings. The split was also the outlier. iA Writer's Mac Focus Mode is one chord, ⌘D, with sentence, paragraph and typewriter as variants under it, and Ulysses's Typewriter Mode is one chord with fixed scrolling and current-line highlight as options inside it, per their support pages. The halves complete each other: the dim without the recentre leaves the bright block drifting down the viewport as the person types, and the recentre without the dim is a scroll preference rather than focus. `src/lib/prefs.ts` holds one boolean, ⌘⌥T is retired, and the scroller carries one class, `focus-mode-on`, which the dim, the reading lift and the hidden scrollbar all key off. The scrolling half keeps its name in the code: `typewriter.ts` and its plugin name the mechanism, and "focus mode" is what the person sees.
+
+**Rejected: keeping typewriter scrolling as its own toggle,** which is what shipped. It doubled the pref, the chord, the status-strip toggle, the palette row and the CSS class for one intent.
+
+**Rejected: the variants the reference apps offer,** a picker under focus mode. It is the same second option behind a different door. What goes with it: the centred line without the fade, which iA's typewriter variant is, and the fade without the centring, so focus mode on a short note now pads the bottom by half the viewport and hides the scrollbar, which the dim alone never did. No case for either half on its own was named.
+
+**Rejected: centring always on, with ⌘D as the dim alone.** The fewest options of any shape, and it puts the padded bottom, the hidden scrollbar and a viewport that moves on every keystroke on every note at all times, editing passes included, where iA's own guidance is to switch focus off to edit.
+
+**Rejected: deleting the recentre and keeping the dim,** the least code. It keeps the half that fades and drops the half that holds the block still.
+
+**Rejected: reading the old `typewriter` key on first launch, or removing it.** Either is a migration line that outlives its one-time job, and the recovery for a machine that had only typewriter on is one ⌘D.
+
+**Constraint:** `localStorage["typewriter"]` stays behind on a machine that set it. Nothing reads it and nothing removes it.
+
+**Constraint:** the mode hides the scrollbar, so the scrollbar half of `D64`'s constraint is moot: there is no bar to drag with the dim held. The paging-key half of it stands.
