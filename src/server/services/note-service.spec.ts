@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { FileError } from "@/core/errors";
 import type { IFileStore, NoteFileContent } from "@/core/file-store";
 import { FileStore } from "@/core/file-store";
+import type { NoteMeta } from "@/core/notes";
+import { parseSearch } from "@/core/search";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 import { NoteService } from "./note-service";
@@ -84,18 +86,16 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
 }
 
 // The index is Rust-owned and derived; nothing here exercises it.
-const stubRepository = Layer.succeed(
-  NoteRepository,
-  NoteRepository.of({
-    count: () => Effect.succeed(0),
-    findByPath: () => Effect.succeed(undefined),
-    findMany: () => Effect.succeed([]),
-    listDestinations: () => Effect.succeed([]),
-    listFolders: () => Effect.succeed([]),
-    listLinks: () => Effect.succeed([]),
-    listTags: () => Effect.succeed([]),
-  })
-);
+const emptyRepository = NoteRepository.of({
+  count: () => Effect.succeed(0),
+  findByPath: () => Effect.succeed(undefined),
+  findMany: () => Effect.succeed([]),
+  listDestinations: () => Effect.succeed([]),
+  listFolders: () => Effect.succeed([]),
+  listLinks: () => Effect.succeed([]),
+  listTags: () => Effect.succeed([]),
+});
+const stubRepository = Layer.succeed(NoteRepository, emptyRepository);
 
 function makeHarness(seed?: Record<string, string>) {
   const fake = makeFakeFileStore(seed);
@@ -457,5 +457,117 @@ describe("noteService.getByPath", () => {
     );
 
     expect(note.title).toBe("effect: a primer");
+  });
+});
+
+describe("noteService.search", () => {
+  it("should intersect destinations, folders and tags before capping ranked results", async () => {
+    const notes: NoteMeta[] = Array.from({ length: 80 }, (_, index) => ({
+      createdAt: new Date(0),
+      folder: index < 40 ? "other" : "work/2026",
+      path: `${index < 40 ? "other" : "work/2026"}/${index}.md`,
+      pinned: index === 40,
+      snippet: `ranked context ${index}`,
+      tags: ["review"],
+      title: `Note ${index}`,
+      updatedAt: new Date(0),
+    }));
+    const repository = Layer.succeed(NoteRepository, {
+      ...emptyRepository,
+      findMany: () => Effect.succeed(notes),
+      listDestinations: () =>
+        Effect.succeed(
+          notes.map(({ path }) => ({
+            context: "source link",
+            kind: "destination",
+            line: 1,
+            path,
+            target: "https://github.com/notras",
+          }))
+        ),
+    });
+    const layer = NoteService.layerNoDeps.pipe(
+      Layer.provide(
+        Layer.merge(
+          repository,
+          Layer.succeed(FileStore, makeFakeFileStore().fileStore)
+        )
+      )
+    );
+    const result = await Effect.runPromise(
+      NoteService.use((service) =>
+        service.search(
+          parseSearch("budget folder:work #review link:github.com")
+        )
+      ).pipe(Effect.provide(layer))
+    );
+    expect(result).toEqual(notes.slice(40, 70));
+  });
+
+  it("should resolve an outgoing source outside the free-text candidates", async () => {
+    const target: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "projects",
+      path: "projects/budget.md",
+      pinned: false,
+      snippet: "budget context",
+      tags: [],
+      title: "Budget",
+      updatedAt: new Date(0),
+    };
+    const source = { ...target, path: "projects/atlas.md", title: "Atlas" };
+    const repository = Layer.succeed(NoteRepository, {
+      ...emptyRepository,
+      findMany: ({ query }) =>
+        Effect.succeed(query ? [target] : [source, target]),
+      listDestinations: () =>
+        Effect.succeed([
+          {
+            context: "see [[Budget]]",
+            kind: "wikilink",
+            line: 1,
+            path: source.path,
+            target: "Budget",
+          },
+        ]),
+    });
+    const layer = NoteService.layerNoDeps.pipe(
+      Layer.provide(
+        Layer.merge(
+          repository,
+          Layer.succeed(FileStore, makeFakeFileStore().fileStore)
+        )
+      )
+    );
+    const result = await Effect.runPromise(
+      NoteService.use((service) =>
+        service.search(parseSearch("budget from:projects/atlas.md"))
+      ).pipe(Effect.provide(layer))
+    );
+    expect(result).toEqual([target]);
+  });
+
+  it("should report a failed phrase read instead of returning an empty result", async () => {
+    const failure = new FileError({
+      kind: "failed",
+      message: "could not read saved prose",
+    });
+    const layer = NoteService.layerNoDeps.pipe(
+      Layer.provide(
+        Layer.merge(
+          stubRepository,
+          Layer.succeed(FileStore, {
+            ...makeFakeFileStore().fileStore,
+            findMentions: () => Effect.fail(failure),
+          })
+        )
+      )
+    );
+    const result = await Effect.runPromise(
+      NoteService.use((service) =>
+        service.search(parseSearch('mention:"Ada Lovelace"'))
+      ).pipe(Effect.flip, Effect.provide(layer))
+    );
+    expect(result).toEqual(failure);
   });
 });

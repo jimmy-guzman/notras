@@ -89,6 +89,18 @@ describe("palette search", () => {
       { count: 2, folder: "work/2026" },
     ]);
   });
+  it("should complete an empty filter before existing text and filters", () => {
+    expect(searchSuggestion("folder: budget #work ")).toEqual({
+      kind: "folder",
+      value: "",
+    });
+    expect(
+      insertSearchFilter("folder: budget #work ", {
+        kind: "folder",
+        value: "work/active",
+      })
+    ).toBe("folder:work/active budget #work ");
+  });
   it("should intersect recursive folders and repeated tags before limiting", () => {
     const notes = [
       ...Array.from({ length: 40 }, (_, i) => note(`other/${i}.md`, ["work"])),
