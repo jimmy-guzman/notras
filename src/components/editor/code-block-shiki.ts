@@ -1,6 +1,7 @@
 import { findChildren } from "@tiptap/core";
 import { CodeBlock } from "@tiptap/extension-code-block";
 import type { Node } from "@tiptap/pm/model";
+import type { Transaction } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -15,6 +16,7 @@ import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
 const BACKTICK_RUN = /`+/g;
+const TILDE_RUN = /~+/g;
 
 function codeBlocks(doc: Node) {
   return findChildren(doc, (node) => node.type.name === "codeBlock");
@@ -36,12 +38,15 @@ function documentLanguages(doc: Node) {
   });
 }
 
-function decorationsFor(doc: Node, highlighter: HighlighterCore | undefined) {
+function decorationsFor(
+  blocks: ReturnType<typeof codeBlocks>,
+  highlighter: HighlighterCore | undefined
+) {
   if (highlighter === undefined) {
-    return DecorationSet.empty;
+    return [];
   }
 
-  const decorations = codeBlocks(doc).flatMap(({ node, pos }) => {
+  return blocks.flatMap(({ node, pos }) => {
     const language = syntaxLanguage(node.attrs.language);
 
     if (
@@ -65,8 +70,41 @@ function decorationsFor(doc: Node, highlighter: HighlighterCore | undefined) {
           )
       );
   });
+}
 
-  return DecorationSet.create(doc, decorations);
+function refreshChangedDecorations(
+  transaction: Transaction,
+  decorations: DecorationSet,
+  previousDoc: Node,
+  highlighter: HighlighterCore | undefined
+) {
+  const previousBlocks = codeBlocks(previousDoc).map(({ node, pos }) => {
+    const mapped = transaction.mapping.mapResult(pos);
+
+    return {
+      mappedPos: mapped.pos,
+      node,
+      pos,
+      // ProseMirror shares unchanged nodes, even when edits shift their position.
+      unchanged: !mapped.deleted && transaction.doc.nodeAt(mapped.pos) === node,
+    };
+  });
+  const unchangedPositions = new Set(
+    previousBlocks
+      .filter((block) => block.unchanged)
+      .map((block) => block.mappedPos)
+  );
+  const obsolete = previousBlocks
+    .filter((block) => !block.unchanged)
+    .flatMap(({ node, pos }) => decorations.find(pos, pos + node.nodeSize));
+  const changed = codeBlocks(transaction.doc).filter(
+    ({ pos }) => !unchangedPositions.has(pos)
+  );
+
+  return decorations
+    .remove(obsolete)
+    .map(transaction.mapping, transaction.doc)
+    .add(transaction.doc, decorationsFor(changed, highlighter));
 }
 
 function syntaxPlugin() {
@@ -121,10 +159,23 @@ function syntaxPlugin() {
       decorations: (state) => key.getState(state),
     },
     state: {
-      apply: (transaction, decorations) =>
-        transaction.docChanged || transaction.getMeta(key)
-          ? decorationsFor(transaction.doc, highlighter)
-          : decorations.map(transaction.mapping, transaction.doc),
+      apply(transaction, decorations, previous) {
+        if (transaction.getMeta(key)) {
+          return DecorationSet.create(
+            transaction.doc,
+            decorationsFor(codeBlocks(transaction.doc), highlighter)
+          );
+        }
+
+        return transaction.docChanged
+          ? refreshChangedDecorations(
+              transaction,
+              decorations,
+              previous.doc,
+              highlighter
+            )
+          : decorations.map(transaction.mapping, transaction.doc);
+      },
       init: () => DecorationSet.empty,
     },
     view(view) {
@@ -148,13 +199,15 @@ export const CodeBlockShiki = CodeBlock.extend({
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";
+    const language = node.attrs?.language ?? "";
+    // Backtick fences cannot carry a backtick in their info string.
+    const marker = language.includes("`") ? "~" : "`";
     // A literal fence in an example must not close the block enclosing it.
-    const length = (body.match(BACKTICK_RUN) ?? []).reduce(
-      (minimum, run) => Math.max(minimum, run.length + 1),
-      3
-    );
-    const fence = "`".repeat(length);
+    const length = (
+      body.match(marker === "~" ? TILDE_RUN : BACKTICK_RUN) ?? []
+    ).reduce((minimum, run) => Math.max(minimum, run.length + 1), 3);
+    const fence = marker.repeat(length);
 
-    return [`${fence}${node.attrs?.language ?? ""}`, body, fence].join("\n");
+    return [`${fence}${language}`, body, fence].join("\n");
   },
 });

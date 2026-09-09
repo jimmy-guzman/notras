@@ -62,6 +62,9 @@ describe("markdown round-trip", () => {
     "````markdown\n```ts\nconst value = 1;\n```\n````",
     "`````markdown\n````\n```\n&nbsp;\n`````",
     "```ts\n\nconst value = 1;\n\n\n```",
+    "~~~lang`label\nconst value = 1;\n~~~\n\nafter",
+    "~~~~~lang`label\n~~~~\n```ts\nconst value = 1;\n```\n~~~~~\n\nafter",
+    "~~~lang`label\n\n~~~",
   ])(
     "should preserve code text and language across repeated saves: %s",
     (markdown) => {

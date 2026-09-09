@@ -84,7 +84,7 @@ A CodeMirror 6 live-preview editor was built first and replaced. The existing CM
 
 **Rejected: CodeMirror 6 live preview.** Built, working, and it kept the file and the buffer identical. Rejected because every rendered construct was a decoration the app maintained by hand, against a library that gives the same result as document nodes.
 
-**Rejected: a plain markdown textarea.** Nothing to round-trip and no data-safety risk at all. Rejected because "just write" means seeing the document, and ⌘P keeps the textarea available for anything exotic.
+**Rejected: a plain markdown textarea.** Nothing to round-trip and no data-safety risk at all. Rejected because "just write" means seeing the document, and ⌘E keeps the textarea available for anything exotic.
 
 **Constraint:** every editor node must define its markdown form, which `ARCHITECTURE.md` carries as an invariant.
 
