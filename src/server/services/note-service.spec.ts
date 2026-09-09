@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { FileError } from "@/core/errors";
 import type { IFileStore, NoteFileContent } from "@/core/file-store";
 import { FileStore } from "@/core/file-store";
+import { resolveNotePath } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
+import { noteTitle } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { Database, schema } from "@/server/db";
 import { NoteRepository } from "@/server/repositories/note-repository";
@@ -92,8 +94,11 @@ function makeFakeFileStore(seed: Record<string, string> = {}) {
 const emptyRepository = NoteRepository.of({
   count: () => Effect.succeed(0),
   findByPath: () => Effect.succeed(undefined),
+  findDestinations: () => Effect.succeed([]),
+  findIncoming: () => Effect.succeed([]),
+  findLinkTargets: () => Effect.succeed([]),
   findMany: () => Effect.succeed([]),
-  listDestinations: () => Effect.succeed([]),
+  findOutgoing: () => Effect.succeed([]),
   listLinks: () => Effect.succeed([]),
   listTags: () => Effect.succeed([]),
 });
@@ -400,8 +405,11 @@ describe("noteService.listTags", () => {
             NoteRepository.of({
               count: () => Effect.succeed(0),
               findByPath: () => Effect.succeed(undefined),
+              findDestinations: () => Effect.succeed([]),
+              findIncoming: () => Effect.succeed([]),
+              findLinkTargets: () => Effect.succeed([]),
               findMany: () => Effect.succeed([]),
-              listDestinations: () => Effect.succeed([]),
+              findOutgoing: () => Effect.succeed([]),
               listLinks: () => Effect.succeed([]),
               listTags: () => Effect.succeed(indexed),
             })
@@ -475,8 +483,7 @@ describe("noteService.search", () => {
     }));
     const repository = Layer.succeed(NoteRepository, {
       ...emptyRepository,
-      findMany: () => Effect.succeed(notes),
-      listDestinations: () =>
+      findDestinations: () =>
         Effect.succeed(
           notes.map(({ path }) => ({
             context: "source link",
@@ -486,6 +493,7 @@ describe("noteService.search", () => {
             target: "https://github.com/notras",
           }))
         ),
+      findMany: () => Effect.succeed(notes),
     });
     const layer = NoteService.layerNoDeps.pipe(
       Layer.provide(
@@ -519,9 +527,11 @@ describe("noteService.search", () => {
     const source = { ...target, path: "projects/atlas.md", title: "Atlas" };
     const repository = Layer.succeed(NoteRepository, {
       ...emptyRepository,
+      findByPath: () => Effect.succeed(source),
+      findLinkTargets: () => Effect.succeed([target]),
       findMany: ({ query }) =>
         Effect.succeed(query ? [target] : [source, target]),
-      listDestinations: () =>
+      findOutgoing: () =>
         Effect.succeed([
           {
             context: "see [[Budget]]",
@@ -584,6 +594,16 @@ describe("indexed relationship searches", () => {
     ["needle from:missing.md", []],
   ])("should preserve resolved results for %s", async (query, paths) => {
     const sqlite = new DatabaseSync(":memory:");
+    sqlite.function("notras_lower", (value) => String(value).toLowerCase());
+    sqlite.function("notras_note_name", (path) =>
+      noteTitle(String(path)).toLowerCase()
+    );
+    sqlite.function("notras_link_key", (kind, target, source) =>
+      kind === "wikilink"
+        ? String(target).trim().toLowerCase()
+        : (resolveNotePath(String(target), String(source))?.toLowerCase() ??
+          null)
+    );
     sqlite.exec(`
       CREATE TABLE note(path TEXT PRIMARY KEY, title TEXT, folder TEXT, pinned INTEGER, created_at INTEGER, updated_at INTEGER);
       CREATE TABLE note_tag(path TEXT, tag TEXT);

@@ -63,18 +63,6 @@ interface INoteService {
   write: (path: string, content: string) => Effect.Effect<Date, FileError>;
 }
 
-function searchLinkPaths(search: NoteSearch, candidates: NoteMeta[]) {
-  const outgoing = search.filters.flatMap(({ kind, value }) =>
-    kind === "from" ? [value] : []
-  );
-  if (search.filters.some(({ kind }) => kind === "to" || kind === "link")) {
-    return search.query === ""
-      ? undefined
-      : [...new Set([...candidates.map(({ path }) => path), ...outgoing])];
-  }
-  return outgoing;
-}
-
 function toNote(path: string, file: NoteFileContent): Note {
   const parsed = parseNote(file.content);
 
@@ -292,34 +280,49 @@ const makeNoteService = Effect.gen(function* () {
       const candidates = yield* noteRepo
         .findMany({ query: search.query })
         .pipe(Effect.orDie);
-      const notes =
-        search.query !== "" &&
-        search.filters.some(({ kind }) => kind === "to" || kind === "from")
-          ? yield* noteRepo.findMany({}).pipe(Effect.orDie)
-          : candidates;
-      const links = search.filters.some(
-        ({ kind }) => kind === "to" || kind === "from" || kind === "link"
-      )
-        ? yield* noteRepo
-            .listDestinations(searchLinkPaths(search, candidates))
-            .pipe(Effect.orDie)
-        : [];
       const matches = yield* Effect.forEach(
         search.filters,
         Effect.fn("NoteService.searchFilter")(function* (filter) {
-          const target =
+          if (filter.kind === "mention") {
+            const bare = yield* fileStore.findMentions(undefined, filter.value);
+            return searchFilterMatches(filter, candidates, [], bare);
+          }
+          if (filter.kind === "folder" || filter.kind === "tag") {
+            return searchFilterMatches(filter, candidates, [], []);
+          }
+          if (filter.kind === "link") {
+            const links = yield* noteRepo
+              .findDestinations(filter.value, search.query)
+              .pipe(Effect.orDie);
+            return searchFilterMatches(filter, candidates, links, []);
+          }
+          const target = yield* noteRepo
+            .findByPath(filter.value)
+            .pipe(Effect.orDie);
+          if (target === undefined) {
+            return new Map<string, string | null>();
+          }
+          const links = yield* (
             filter.kind === "to"
-              ? notes.find(({ path }) => path === filter.value)
-              : undefined;
-          const bare = yield* (() => {
-            if (filter.kind === "mention") {
-              return fileStore.findMentions(undefined, filter.value);
-            }
-            if (target !== undefined) {
-              return fileStore.findMentions(target.path, target.title);
-            }
-            return Effect.succeed([]);
-          })();
+              ? noteRepo.findIncoming(target, search.query)
+              : noteRepo.findOutgoing(target.path)
+          ).pipe(Effect.orDie);
+          const targets = yield* noteRepo
+            .findLinkTargets(links)
+            .pipe(Effect.orDie);
+          // Resolver candidates retain repository order for path case ties.
+          const notes = [
+            ...new Map(
+              [...targets, ...candidates, target].map((note) => [
+                note.path,
+                note,
+              ])
+            ).values(),
+          ];
+          const bare =
+            filter.kind === "to"
+              ? yield* fileStore.findMentions(target.path, target.title)
+              : [];
           return searchFilterMatches(filter, notes, links, bare);
         })
       );

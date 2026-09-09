@@ -6,6 +6,7 @@ use std::time::UNIX_EPOCH;
 
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use rusqlite::types::ValueRef;
+use rusqlite::functions::FunctionFlags;
 use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -71,6 +72,67 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 /// every unedited note on the old derivation until someone ran "reindex".
 const SCHEMA_VERSION: i64 = 4;
 
+fn relationship_key(kind: &str, target: &str, source: &str) -> Option<String> {
+    if kind == "wikilink" {
+        return Some(target.trim_matches(|ch| matches!(ch,
+            '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' |
+            '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+        )).to_lowercase());
+    }
+    let bare = target.split(['#', '?']).next()?;
+    let mut decoded = Vec::new();
+    let bytes = bare.as_bytes();
+    let mut at = 0;
+    while at < bytes.len() {
+        let hex = bytes.get(at + 1..at + 3).and_then(|pair| {
+            Some((pair[0] as char).to_digit(16)? * 16 + (pair[1] as char).to_digit(16)?)
+        });
+        if let Some(value) = hex.filter(|_| bytes[at] == b'%') {
+            let byte = value as u8;
+            // mdurl preserves reserved escapes, uppercasing their hex digits.
+            if b";/?:@&=+$,#".contains(&byte) {
+                decoded.extend(format!("%{byte:02X}").bytes());
+            } else {
+                decoded.push(byte);
+            }
+            at += 3;
+        } else {
+            decoded.push(bytes[at]);
+            at += 1;
+        }
+    }
+    // Malformed UTF-8 stays a candidate: mdurl's replacement rules differ
+    // from Rust's, so only the core resolver can decide its final target.
+    let decoded = String::from_utf8(decoded).ok()?;
+    let folder = source.rsplit_once('/').map_or("", |(folder, _)| folder);
+    let mut segments = Vec::new();
+    for segment in folder.split('/').chain(decoded.split('/')) {
+        match segment {
+            "" | "." => (),
+            ".." => { segments.pop()?; },
+            segment => segments.push(segment),
+        }
+    }
+    Some(segments.join("/").to_lowercase())
+}
+
+fn register_relationship_functions(conn: &Connection) -> rusqlite::Result<()> {
+    let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
+    conn.create_scalar_function("notras_lower", 1, flags, |ctx| {
+        Ok(ctx.get::<String>(0)?.to_lowercase())
+    })?;
+    conn.create_scalar_function("notras_note_name", 1, flags, |ctx| {
+        let path = ctx.get::<String>(0)?;
+        let name = path.rsplit('/').next().unwrap_or(&path);
+        let extension = if name.to_ascii_lowercase().ends_with(".markdown") { 9 }
+            else if name.to_ascii_lowercase().ends_with(".md") { 3 } else { 0 };
+        Ok(name[..name.len() - extension].to_lowercase())
+    })?;
+    conn.create_scalar_function("notras_link_key", 3, flags, |ctx| {
+        Ok(relationship_key(&ctx.get::<String>(0)?, &ctx.get::<String>(1)?, &ctx.get::<String>(2)?))
+    })
+}
+
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
 /// Rust is the single writer -- the webview only ever issues SELECTs.
@@ -80,6 +142,7 @@ const SCHEMA_VERSION: i64 = 4;
 /// the webview resolves it on read, so a note created or retitled later is
 /// found by links written before it existed.
 pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
+    register_relationship_functions(conn)?;
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
          CREATE TABLE IF NOT EXISTS note (
