@@ -1,7 +1,5 @@
-/* Literata carries an opsz 7-72 axis, which is what font-optical-sizing spends
-   on the note surface. iA Writer Mono ships one cut per file, and the three
-   pulled here are the three the syntax theme asks for: regular for code, 700
-   for keywords, italic for comments. */
+/* Literata's opsz axis supplies the reading cut. Mono bold and italic remain
+   available for marked inline code; syntax highlighting uses the regular cut. */
 @import "@fontsource-variable/literata/opsz.css";
 @import "@fontsource-variable/literata/opsz-italic.css";
 @import "@fontsource/ia-writer-mono/latin-400.css";
@@ -513,10 +511,11 @@ body.dragging .ProseMirror::selection {
   color: var(--muted-foreground);
 }
 
-/* Code blocks (lowlight tokens on the app palette). */
 .ProseMirror pre {
   font-family: var(--font-mono);
   font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 400;
   line-height: 1.5;
   background: var(--card);
   border-radius: var(--radius-md);
@@ -689,77 +688,6 @@ body.dragging .ProseMirror::selection {
 .link-editor-input:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-}
-
-/* Weight and slant preserve syntax emphasis when palette colors change. */
-.hljs-comment,
-.hljs-quote {
-  font-style: italic;
-  color: var(--syntax-comment);
-}
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal {
-  font-weight: 700;
-  color: var(--syntax-keyword);
-}
-.hljs-section,
-.hljs-doctag {
-  font-weight: 700;
-  color: var(--syntax-keyword);
-}
-.hljs-meta,
-.hljs-meta-keyword {
-  color: var(--syntax-keyword-import);
-}
-.hljs-title,
-.hljs-title.function_ {
-  color: var(--syntax-function);
-}
-.hljs-name,
-.hljs-selector-id,
-.hljs-selector-class {
-  color: var(--syntax-tag);
-}
-.hljs-attr,
-.hljs-attribute,
-.hljs-property,
-.hljs-variable,
-.hljs-template-variable {
-  color: var(--syntax-member);
-}
-.hljs-string,
-.hljs-regexp,
-.hljs-char.escape_,
-.hljs-subst {
-  color: var(--syntax-string);
-}
-.hljs-number,
-.hljs-symbol,
-.hljs-bullet {
-  color: var(--syntax-number);
-}
-.hljs-operator {
-  color: var(--syntax-operator);
-}
-.hljs-punctuation {
-  color: var(--syntax-punctuation);
-}
-.hljs-type,
-.hljs-class,
-.hljs-built_in,
-.hljs-params {
-  color: var(--syntax-type);
-}
-.hljs-link {
-  color: var(--syntax-function);
-  text-decoration: underline;
-}
-.hljs-emphasis {
-  font-style: italic;
-}
-.hljs-strong {
-  font-weight: 700;
 }
 
 /* The note surface, as a typeset preset. Typeset derives the list indent

@@ -8,7 +8,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | Shell           | Tauri 2 (Rust): file IO commands, FTS5 index, notify watcher, tray, global shortcuts                         |
 | Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR); TanStack Query caches every read (`D66`)            |
-| Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); lowlight code blocks; ⌘E raw-source view |
+| Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
@@ -198,6 +198,12 @@ The editor holds the note body as markdown. Frontmatter is parsed off at load wi
 ### Markdown round-trip contract
 
 `markdown-roundtrip.spec.ts` pins the set of constructs that must survive file to editor to file. Extend it when adding nodes. Custom syntax uses the extension-config trio `markdownTokenName`/`markdownTokenizer` plus `parseMarkdown` and `renderMarkdown`; `wikilink.ts` is the worked example. Overriding an upstream parse decision means owning the token (`D58`), and owning it for parsing means owning it for rendering: the render path resolves a node through the parse registry first, so a handler with no `renderMarkdown` renders nothing.
+
+### Syntax highlighting
+
+`code-block-shiki.ts` extends Tiptap's code-block node in both editors. Shiki tokens become inline decorations, leaving the document, selection, and Markdown serializer unchanged. `syntax-highlighter.ts` initializes one highlighter per webview and loads packaged grammars on demand, including languages named inside Markdown fences. A completed load decorates the current document through a transaction excluded from undo history. A destroyed view receives no completion transaction. A loading failure reports a toast and stops further loading in that editor instance; the note remains editable.
+
+`syntax-theme.ts` maps TextMate scopes to the CSS ink roles. The stylesheet owns the colors in both schemes, so a system appearance change needs no tokenization. Shiki's JavaScript regex engine runs within the existing CSP without WebAssembly compilation. The language picker lists the bundled grammars and preserves aliases and unsupported labels verbatim. Plain and unsupported fences receive no decorations (`D73`).
 
 ### An attachment destination is a URL
 

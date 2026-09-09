@@ -1,84 +1,84 @@
-import { common, createLowlight } from "lowlight";
 import { describe, expect, it } from "vitest";
 
-import { markdownWithFrontmatter } from "./markdown-frontmatter";
-
-const lowlight = createLowlight({
-  ...common,
-  markdown: markdownWithFrontmatter,
-});
-
-type Content = ReturnType<typeof lowlight.highlight>["children"][number];
-
-/** Every run of text a reader sees, paired with the class painting it. */
-const tokens = (source: string) => {
-  const flat: { text: string; token: string }[] = [];
-
-  const walk = (node: Content, inherited: string) => {
-    if (node.type === "text") {
-      flat.push({ text: node.value, token: inherited });
-
-      return;
-    }
-
-    if (node.type !== "element") {
-      return;
-    }
-
-    const own = node.properties.className;
-    const token = Array.isArray(own) ? own.join(" ") : inherited;
-
-    for (const child of node.children) {
-      walk(child, token);
-    }
-  };
-
-  for (const child of lowlight.highlight("markdown", source).children) {
-    walk(child, "");
-  }
-
-  return flat;
-};
+import { loadSyntaxHighlighter } from "@/components/editor/syntax-highlighter";
 
 describe("markdown with frontmatter", () => {
-  it("should highlight a frontmatter key as a yaml attribute", () => {
-    expect(tokens("---\npinned: true\n---\n# a title")).toContainEqual({
-      text: "pinned:",
-      token: "hljs-attr",
-    });
-  });
+  it.each(["---", "...", "---  "])(
+    "should close frontmatter on %s and highlight the following heading",
+    async (delimiter) => {
+      const highlighter = await loadSyntaxHighlighter(["markdown", "yaml"]);
+      const tokens = highlighter.codeToTokensBase(
+        `---\npinned: true\n${delimiter}\n# a title`,
+        {
+          lang: "markdown",
+          theme: "notras",
+        }
+      );
 
-  it("should not read a closing --- as a setext heading", () => {
-    expect(tokens("---\ntags: [notras]\n---\n# a title")).not.toContainEqual({
-      text: "tags: [notras]\n---",
-      token: "hljs-section",
-    });
-  });
+      expect(tokens[1]).toContainEqual(
+        expect.objectContaining({
+          color: "var(--syntax-member)",
+          content: "pinned",
+        })
+      );
+      expect(tokens[3]).toContainEqual(
+        expect.objectContaining({
+          color: "var(--syntax-keyword)",
+          content: expect.stringContaining("a title"),
+        })
+      );
+    }
+  );
 
-  it("should leave a --- pair below the frontmatter unhighlighted", () => {
+  it("should not read a closing delimiter as a setext heading", async () => {
+    const highlighter = await loadSyntaxHighlighter(["markdown", "yaml"]);
+    const tokens = highlighter.codeToTokensBase(
+      "---\ntags: [notras]\n---\n# a title",
+      { lang: "markdown", theme: "notras" }
+    );
+
+    expect(tokens[1]).toContainEqual(
+      expect.objectContaining({
+        color: "var(--syntax-member)",
+        content: "tags",
+      })
+    );
     expect(
-      tokens("---\npinned: true\n---\nbefore\n\n---\n\nafter")
-    ).toContainEqual({ text: "\nbefore\n\n---\n\nafter", token: "" });
+      tokens[2]?.every(({ color }) => color === "var(--syntax-punctuation)")
+    ).toBe(true);
   });
 
-  it("should close a frontmatter block on a ... delimiter", () => {
-    expect(tokens("---\npinned: true\n...\n# a title")).toContainEqual({
-      text: "# a title",
-      token: "hljs-section",
+  it("should leave later separators outside the frontmatter grammar", async () => {
+    const highlighter = await loadSyntaxHighlighter(["markdown", "yaml"]);
+    const source = "---\npinned: true\n---\nbefore\n\n---\n\nafter: text";
+    const tokens = highlighter.codeToTokensBase(source, {
+      lang: "markdown",
+      theme: "notras",
     });
+
+    expect(tokens[7]).toEqual([
+      expect.objectContaining({
+        color: "var(--foreground)",
+        content: "after: text",
+      }),
+    ]);
   });
 
-  it("should close a frontmatter block on a delimiter with trailing spaces", () => {
-    expect(tokens("---\npinned: true\n---  \n# a title")).toContainEqual({
-      text: "# a title",
-      token: "hljs-section",
-    });
-  });
+  it("should highlight a language inside a Markdown fence", async () => {
+    const highlighter = await loadSyntaxHighlighter(["markdown", "typescript"]);
+    const tokens = highlighter.codeToTokensBase(
+      "```ts\nconst answer = 42;\n```",
+      { lang: "markdown", theme: "notras" }
+    );
 
-  it("should still highlight a heading after the frontmatter block", () => {
-    expect(tokens("---\npinned: true\n---\n# a title")).toContainEqual({
-      text: "# a title",
-      token: "hljs-section",
-    });
+    expect(tokens[1]).toContainEqual(
+      expect.objectContaining({
+        color: "var(--syntax-keyword)",
+        content: "const",
+      })
+    );
+    expect(tokens[1]).toContainEqual(
+      expect.objectContaining({ color: "var(--syntax-number)", content: "42" })
+    );
   });
 });

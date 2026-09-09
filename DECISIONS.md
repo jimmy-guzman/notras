@@ -78,7 +78,7 @@ The Rust side needs it for indexing, the TypeScript side needs it for editing pi
 
 ### D7 TipTap 3 for the editor
 
-The editor is TipTap 3 WYSIWYG over the official `@tiptap/markdown`, which round-trips GFM in both directions. ⌘P shows the raw file in a single lowlight-highlighted code block.
+The editor is TipTap 3 WYSIWYG over the official `@tiptap/markdown`, which round-trips GFM in both directions. ⌘E shows the raw file in a single code block. `D73` records its highlighting.
 
 A CodeMirror 6 live-preview editor was built first and replaced. The existing CM6 live-markdown extensions were dead or alpha, so every rendered construct was hand-rolled as a decoration. `@tiptap/markdown` shipping an official bidirectional serializer made a real WYSIWYG document viable, which is what that work was approximating, so the answer to the effort was to stop paying it.
 
@@ -945,6 +945,8 @@ The owner approved the complete paper-and-pink prototype after comparing the pal
 Dark secondary lightness moves from the prototype's `0.670` to `0.675`: the former measured 4.47:1 on hover, below the existing gate. Rejected: changing hover fills or lowering the gate to preserve that prototype value. The other palette values follow the approved prototype.
 
 Literata stays on the reading surface at 16px across window widths and in print. The owner found both prose and code too large and preferred compact text. Fenced code and source mode use 14px iA Writer Mono with 1.5 line-height independently of prose size; inline code follows prose at 0.9em. The reading column and 1.65 prose line-height stay unchanged. Rejected: enlarging text automatically in narrow windows, because window width does not establish viewing distance. Rejected: shipping the prototype's font, size, and palette switches as app settings, because they were comparison tools rather than an approved feature. The preview's phone and tablet widths inform reading layout without adding platform support or navigation.
+
+Shiki replaces Lowlight in both editors after the owner found bold keywords distracting and the token distinctions too broad. The approved reference was stet's rendered code, which carries colors without font styles. TextMate scopes use the existing CSS inks, keeping the palette and code size unchanged. Rejected: CSS-only remapping, because Lowlight grouped imports and control flow with other keywords and exposed whole parameter groups rather than their individual roles. The bundled Markdown grammar replaces the custom frontmatter grammar. The owner approved plain and unsupported fences staying unhighlighted, rejecting automatic language guessing behind a picker labeled "plain".
 
 Rejected: adopting Flexoki wholesale, which would replace the identifying pink. Rejected: preserving the previous hex values to match the other projects exactly, because their syntax contrast hierarchy reversed between modes. The resulting palette is specific to notras; this change does not update or claim matching ports in the other projects.
 

@@ -206,6 +206,53 @@ describe("markdown round-trip", () => {
     expect(roundtrip(markdown)).toBe(markdown);
   });
 
+  it.for([
+    {
+      markdown:
+        '````markdown\n# example\n\n```ts\nconst question = "what changed?";\n```\n````\n\nafter the block\n\n```\nplain code\n```',
+      name: "a nested three-backtick fence followed by prose and code",
+    },
+    {
+      markdown:
+        "`````markdown\n````markdown\n```ts\nconst a = 1;\n```\n````\n`````\n\nafter the block",
+      name: "multiple levels of nested fences",
+    },
+    {
+      markdown: "~~~markdown\n```ts\nconst a = 1;\n```\n~~~\n\nafter the block",
+      name: "a tilde fence containing backticks",
+    },
+    {
+      markdown: "````\n```\n\n````\n\nafter the block",
+      name: "a plain block ending with a fence and a blank line",
+    },
+    {
+      markdown:
+        "> ````markdown\n> ```ts\n> const a = 1;\n> ```\n> ````\n\nafter the quote",
+      name: "a nested fence inside a blockquote",
+    },
+    {
+      markdown:
+        "- example\n\n  ````markdown\n  ```ts\n  const a = 1;\n  ```\n  ````\n\nafter the list",
+      name: "a nested fence inside a list",
+    },
+    {
+      markdown: "```text\n\n```\n\nafter the block",
+      name: "an empty labeled block",
+    },
+  ])(
+    "should preserve $name across saves",
+    ({ markdown }, { onTestFinished }) => {
+      const before = load(markdown);
+      onTestFinished(() => before.destroy());
+      const saved = serializeMarkdown(before);
+      const after = load(saved);
+      onTestFinished(() => after.destroy());
+
+      expect(after.getJSON()).toEqual(before.getJSON());
+      expect(serializeMarkdown(after)).toBe(saved);
+    }
+  );
+
   it("should round-trip tables (cells pad to a canonical width)", () => {
     const markdown = "| a | b |\n| --- | --- |\n| 1 | 2 |";
     const compact = roundtrip(markdown).replaceAll(/ +/g, " ").trim();

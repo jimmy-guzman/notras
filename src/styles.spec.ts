@@ -323,6 +323,14 @@ const blockOf = (css: string, selector: string) => {
 const notePreset = blockOf(source, ".typeset-note");
 
 describe("shared surface colors", () => {
+  it("should keep code at regular weight without syntax italics", () => {
+    const code = blockOf(source, ".ProseMirror pre");
+
+    expect(code).toContain("font-weight: 400;");
+    expect(code).toContain("font-style: normal;");
+    expect(source).not.toContain(".hljs-");
+  });
+
   it("should keep native scrollbar colors and width", () => {
     const html = blockOf(source, "html");
 
