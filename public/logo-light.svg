@@ -5,17 +5,17 @@
   xmlns="http://www.w3.org/2000/svg"
 >
   <title>notras</title>
-  <rect fill="var(--foreground)" height="88" rx="7" width="76" x="40" y="12" />
+  <rect fill="#3d3a36" height="88" rx="7" width="76" x="40" y="12" />
   <path
     d="M27 34H75Q78 34 80 36L94 50Q96 52 96 55V115Q96 122 89 122H27Q20 122 20 115V41Q20 34 27 34Z"
-    fill="var(--foreground)"
+    fill="#3d3a36"
     paint-order="stroke fill"
-    stroke="var(--background)"
+    stroke="#f7f3ee"
     stroke-linejoin="round"
-    stroke-width="var(--seam)"
+    stroke-width="2"
   />
   <path
     d="M76 34.2Q78 34.3 80 36L94 50Q95.5 51.5 95.9 53H80Q76 53 76 49Z"
-    fill="var(--primary)"
+    fill="#a14b77"
   />
 </svg>

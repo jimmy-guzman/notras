@@ -1,7 +1,5 @@
-/* Literata carries an opsz 7-72 axis, which is what font-optical-sizing spends
-   on the note surface. iA Writer Mono ships one cut per file, and the three
-   pulled here are the three the syntax theme asks for: regular for code, 700
-   for keywords, italic for comments. */
+/* Literata's opsz axis supplies the reading cut. Mono bold and italic remain
+   available for marked inline code; syntax highlighting uses the regular cut. */
 @import "@fontsource-variable/literata/opsz.css";
 @import "@fontsource-variable/literata/opsz-italic.css";
 @import "@fontsource/ia-writer-mono/latin-400.css";
@@ -53,84 +51,78 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* The palette is stet's, whose source of truth is
-   packages/tui/src/theme/{dark,light}.ts. Seven values are playa.dev's lifted
-   variants rather than stet's own, because stet treats contrast as a
-   comfortable target while src/styles.spec.ts makes WCAG AA a floor. Each was
-   lifted in OKLCH holding chroma and hue.
-
-   --accent is shadcn's name for a hover surface, not for the accent. The accent
-   lands on --primary. */
+/* --accent serves neutral hover surfaces. Keeping pink on --primary prevents
+   those surfaces from becoming accent-colored. */
 :root {
-  --background: #191b1d;
-  --foreground: #e9ebee;
-  --card: #101214;
-  --card-foreground: #e9ebee;
-  --popover: #101214;
-  --popover-foreground: #e9ebee;
-  --primary: #ffa7d9;
-  --primary-foreground: #101214;
-  --secondary: #2c2e30;
-  --secondary-foreground: #e9ebee;
-  --muted: #2c2e30;
-  --muted-foreground: #939597;
-  --accent: #2c2e30;
-  --accent-foreground: #e9ebee;
-  --destructive: #e76761;
-  --border: #2c2e30;
-  --input: #2c2e30;
-  --ring: #ffa7d9;
-  --faint: #5c5e60;
-  --selection: #234155;
-  --syntax-comment: #919395;
-  --syntax-function: #71c1f7;
-  --syntax-keyword: #ffa7d9;
-  --syntax-keyword-control: #eeae7b;
-  --syntax-keyword-import: #c79ef7;
-  --syntax-member: #7aacf6;
-  --syntax-number: #e7d398;
-  --syntax-operator: #78d0e5;
-  --syntax-punctuation: #9c9ea1;
-  --syntax-string: #91d39f;
-  --syntax-tag: #b4b9eb;
-  --syntax-type: #77ddca;
+  --background: #25221f;
+  --foreground: #c4c0bb;
+  --card: #211d1a;
+  --card-foreground: #c4c0bb;
+  --popover: #211d1a;
+  --popover-foreground: #c4c0bb;
+  --primary: #e697bc;
+  --primary-foreground: #25221f;
+  --secondary: #322e2b;
+  --secondary-foreground: #c4c0bb;
+  --muted: #322e2b;
+  --muted-foreground: #9a9692;
+  --accent: #322e2b;
+  --accent-foreground: #c4c0bb;
+  --destructive: #dd9891;
+  --border: #45423e;
+  --input: #45423e;
+  --ring: #e697bc;
+  --faint: #9a9692;
+  --selection: #36393d;
+  --syntax-comment: #9a9692;
+  --syntax-function: #88afe2;
+  --syntax-keyword: #e697bc;
+  --syntax-keyword-control: #d2a272;
+  --syntax-keyword-import: #b4a0db;
+  --syntax-member: #88afe2;
+  --syntax-number: #b9ae6e;
+  --syntax-operator: #c4c0bb;
+  --syntax-punctuation: #9a9692;
+  --syntax-string: #85bc90;
+  --syntax-tag: #b4a0db;
+  --syntax-type: #65bdbd;
   --radius: 0.875rem;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --background: #f7f8fa;
-    --foreground: #2a2e33;
-    --card: #ffffff;
-    --card-foreground: #2a2e33;
-    --popover: #ffffff;
-    --popover-foreground: #2a2e33;
-    --primary: #c53794;
-    --primary-foreground: #ffffff;
-    --secondary: #d5d8db;
-    --secondary-foreground: #2a2e33;
-    --muted: #d5d8db;
-    --muted-foreground: #5c5e60;
-    --accent: #d5d8db;
-    --accent-foreground: #2a2e33;
-    --destructive: #b64340;
-    --border: #bbbec1;
-    --input: #bbbec1;
-    --ring: #ab3276;
-    --faint: #8d8f92;
-    --selection: #b4d6ef;
-    --syntax-comment: #626467;
-    --syntax-function: #006aa5;
-    --syntax-keyword: #ab3276;
-    --syntax-keyword-control: #a36328;
-    --syntax-keyword-import: #7d4dad;
-    --syntax-member: #2a61b1;
-    --syntax-number: #876f1f;
-    --syntax-operator: #007890;
-    --syntax-punctuation: #5c5e60;
-    --syntax-string: #287c42;
-    --syntax-tag: #5e61a1;
-    --syntax-type: #007565;
+    --background: #f7f3ee;
+    --foreground: #3d3a36;
+    --card: #fef9f4;
+    --card-foreground: #3d3a36;
+    --popover: #fef9f4;
+    --popover-foreground: #3d3a36;
+    --primary: #a14b77;
+    --primary-foreground: #f7f3ee;
+    --secondary: #eae5e1;
+    --secondary-foreground: #3d3a36;
+    --muted: #eae5e1;
+    --muted-foreground: #696561;
+    --accent: #eae5e1;
+    --accent-foreground: #3d3a36;
+    --destructive: #945550;
+    --border: #d1cdc8;
+    --input: #d1cdc8;
+    --ring: #a14b77;
+    --faint: #696561;
+    --selection: #d6d9df;
+    --syntax-comment: #696561;
+    --syntax-function: #466b99;
+    --syntax-keyword: #a14b77;
+    --syntax-keyword-control: #8a5e30;
+    --syntax-keyword-import: #705d93;
+    --syntax-member: #466b99;
+    --syntax-number: #746a2a;
+    --syntax-operator: #3d3a36;
+    --syntax-punctuation: #696561;
+    --syntax-string: #42774e;
+    --syntax-tag: #705d93;
+    --syntax-type: #117878;
   }
 }
 
@@ -143,6 +135,20 @@
      seeds the same value so the first paint is not white. */
   html {
     color-scheme: dark light;
+    scrollbar-color: auto;
+  }
+  ::selection {
+    color: var(--foreground);
+    background: var(--selection);
+  }
+  @media (forced-colors: active) {
+    html {
+      scrollbar-color: auto;
+    }
+    ::selection {
+      color: HighlightText;
+      background: Highlight;
+    }
   }
   body {
     @apply bg-background text-foreground;
@@ -201,10 +207,6 @@
 .ProseMirror {
   min-height: 100%;
   caret-color: var(--foreground);
-}
-.ProseMirror ::selection,
-.ProseMirror::selection {
-  background: var(--selection);
 }
 .ProseMirror p.is-editor-empty:first-child::before {
   float: left;
@@ -366,7 +368,6 @@ body.dragging .ProseMirror::selection {
 .ProseMirror ul[data-type="taskList"] > li[data-checked="true"] > div {
   color: var(--muted-foreground);
   text-decoration: line-through;
-  opacity: 0.7;
 }
 /* A task item's content sits in the node view's `div`, so Typeset's
    `li > ul, li > ol, li > blockquote` step never reaches a block nested under a
@@ -510,9 +511,12 @@ body.dragging .ProseMirror::selection {
   color: var(--muted-foreground);
 }
 
-/* Code blocks (lowlight tokens on the app palette). */
 .ProseMirror pre {
   font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.5;
   background: var(--card);
   border-radius: var(--radius-md);
 }
@@ -522,8 +526,6 @@ body.dragging .ProseMirror::selection {
   padding: 0;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-  line-height: 1.7;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   background: transparent;
@@ -542,9 +544,8 @@ body.dragging .ProseMirror::selection {
    anyway. Unlike the row recipe `D39` scoped, nothing here sets `display` or
    claims a child, so a descendant cannot delete a marker.
 
-   The `/ 0.875` is Typeset's own: `pre` renders at `0.875em`, so an `em`
-   margin there resolves against the smaller size and has to be divided back
-   up. Neither wrapper sets padding, a border, or a block formatting context,
+   The nested gap retains Typeset's step, resolved against the independent
+   code size. Neither wrapper sets padding, a border, or a block formatting context,
    so the margin collapses out through both and paints where the fence sits. A
    fence can never be a list item's first child, since a list item's content is
    `paragraph block*`, so nothing here has to restate Typeset's first-child
@@ -689,78 +690,6 @@ body.dragging .ProseMirror::selection {
   outline-offset: 2px;
 }
 
-/* Syntax highlighting: lowlight classes onto stet's twelve roles. Emphasis is
-   weight and slant rather than colour, so the theme survives a palette swap. */
-.hljs-comment,
-.hljs-quote {
-  font-style: italic;
-  color: var(--syntax-comment);
-}
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal {
-  font-weight: 700;
-  color: var(--syntax-keyword);
-}
-.hljs-section,
-.hljs-doctag {
-  font-weight: 700;
-  color: var(--syntax-keyword);
-}
-.hljs-meta,
-.hljs-meta-keyword {
-  color: var(--syntax-keyword-import);
-}
-.hljs-title,
-.hljs-title.function_ {
-  color: var(--syntax-function);
-}
-.hljs-name,
-.hljs-selector-id,
-.hljs-selector-class {
-  color: var(--syntax-tag);
-}
-.hljs-attr,
-.hljs-attribute,
-.hljs-property,
-.hljs-variable,
-.hljs-template-variable {
-  color: var(--syntax-member);
-}
-.hljs-string,
-.hljs-regexp,
-.hljs-char.escape_,
-.hljs-subst {
-  color: var(--syntax-string);
-}
-.hljs-number,
-.hljs-symbol,
-.hljs-bullet {
-  color: var(--syntax-number);
-}
-.hljs-operator {
-  color: var(--syntax-operator);
-}
-.hljs-punctuation {
-  color: var(--syntax-punctuation);
-}
-.hljs-type,
-.hljs-class,
-.hljs-built_in,
-.hljs-params {
-  color: var(--syntax-type);
-}
-.hljs-link {
-  color: var(--syntax-function);
-  text-decoration: underline;
-}
-.hljs-emphasis {
-  font-style: italic;
-}
-.hljs-strong {
-  font-weight: 700;
-}
-
 /* The note surface, as a typeset preset. Typeset derives the list indent
    and every block gap from these controls, so they are the tuning surface: size,
    leading, flow, the three faces, and the one hairline. The heading scale is the
@@ -784,6 +713,7 @@ body.dragging .ProseMirror::selection {
   --typeset-leading: 1.65;
   --typeset-flow: 1.65em;
   --typeset-rule: color-mix(in oklch, var(--foreground) 16%, transparent);
+  font-size: var(--typeset-size);
   font-optical-sizing: auto;
 }
 /* A level declares only its scale. Cancelling the transform and the tracking
@@ -822,5 +752,6 @@ body.dragging .ProseMirror::selection {
    dark and 3.37:1 in light, which src/styles.spec.ts caught. A chip carries
    content, so it takes --foreground wherever it sits (`D40`). */
 .typeset-note :not(pre) > code {
+  font-size: 0.9em;
   color: var(--foreground);
 }

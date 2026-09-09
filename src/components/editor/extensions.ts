@@ -8,7 +8,6 @@ import {
   mergeAttributes,
 } from "@tiptap/core";
 import { Code } from "@tiptap/extension-code";
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Image } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
 import { Paragraph } from "@tiptap/extension-paragraph";
@@ -20,8 +19,8 @@ import { Focus, Placeholder } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
-import { common, createLowlight } from "lowlight";
 import { encode } from "mdurl";
+import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { isNotePath } from "@/core/links";
 import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
@@ -31,7 +30,6 @@ import {
 } from "@/lib/utils/attachments";
 import { CodeBlockView } from "./code-block-view";
 import { DragSelection } from "./drag-selection";
-import { markdownWithFrontmatter } from "./markdown-frontmatter";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SlashMenu } from "./slash-menu";
 import { isSafeUrl } from "./urls";
@@ -43,11 +41,6 @@ export interface EditorExtensionOptions {
   readCodeClipboard?: ReadCodeClipboard;
   resolveImageSrc?: (src: string) => string;
 }
-
-export const lowlight = createLowlight({
-  ...common,
-  markdown: markdownWithFrontmatter,
-});
 
 /**
  * TipTap's `excludes: "_"` refuses a text node holding `code` beside any other
@@ -432,23 +425,11 @@ export function createEditorExtensions(
     MarkdownPaste.configure({
       readCodeClipboard: options.readCodeClipboard ?? null,
     }),
-    CodeBlockLowlight.extend({
+    CodeBlockShiki.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
       },
-      // A fixed triple fence closes early when the code itself holds a fence.
-      // Copy and file writes share this renderer so both reparse as one block.
-      renderMarkdown(node, helpers) {
-        const code = helpers.renderChildren(node.content ?? []);
-        const length = [...code.matchAll(/`+/g)].reduce(
-          (longest, match) => Math.max(longest, match[0].length + 1),
-          3
-        );
-        const fence = "`".repeat(length);
-
-        return `${fence}${node.attrs?.language || ""}\n${code}\n${fence}`;
-      },
-    }).configure({ lowlight }),
+    }),
     TableKit.configure({
       table: { resizable: false },
     }),

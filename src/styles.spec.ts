@@ -135,11 +135,6 @@ const PAIRS: [text: string, surface: string][] = [
 
 const AA = 4.5;
 
-/**
- * The placeholder is guidance rather than content, and it sits under the text a
- * reader is about to type, so it stays below the floor the rest of the palette
- * holds to.
- */
 const PLACEHOLDER_FLOOR = 2;
 
 describe.each([
@@ -168,6 +163,16 @@ describe.each([
     expect([...tokens.keys()].toSorted()).toStrictEqual(
       [...other.keys()].toSorted()
     );
+  });
+
+  it("should export the logo with the app's paper and pink colors", () => {
+    const mark = projectFile("assets", "icon.svg")
+      .replaceAll("var(--foreground)", tokenValue(scheme, tokens, "foreground"))
+      .replaceAll("var(--background)", tokenValue(scheme, tokens, "background"))
+      .replaceAll("var(--primary)", tokenValue(scheme, tokens, "primary"))
+      .replaceAll("var(--seam)", "2");
+
+    expect(projectFile("public", `logo-${scheme}.svg`)).toBe(mark);
   });
 });
 
@@ -272,7 +277,7 @@ const typesetRole = (role: string) => {
 const MARKER_COLOUR = /::marker\s*\{\s*color:\s*var\(--typeset-([\w-]+)\)/g;
 
 const INLINE_CODE_COLOUR =
-  /\.typeset-note :not\(pre\) > code \{\s*color: var\(--([\w-]+)\)/;
+  /\.typeset-note :not\(pre\) > code \{[^}]*?\bcolor: var\(--([\w-]+)\)/;
 
 const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(
   ([, role]) => role
@@ -317,6 +322,57 @@ const blockOf = (css: string, selector: string) => {
 
 const notePreset = blockOf(source, ".typeset-note");
 
+describe("shared surface colors", () => {
+  it("should keep code at regular weight without syntax italics", () => {
+    const code = blockOf(source, ".ProseMirror pre");
+
+    expect(code).toContain("font-weight: 400;");
+    expect(code).toContain("font-style: normal;");
+    expect(source).not.toContain(".hljs-");
+  });
+
+  it("should keep native scrollbar colors and width", () => {
+    const html = blockOf(source, "html");
+
+    expect(html).toContain("scrollbar-color: auto;");
+    expect(html).not.toContain("scrollbar-width:");
+    expect(blockOf(source, ".typewriter-on")).toContain(
+      "scrollbar-width: none;"
+    );
+  });
+
+  it("should use one readable selection treatment inside and outside the editor", () => {
+    const selection = blockOf(source, "::selection");
+
+    expect(selection).toContain("color: var(--foreground);");
+    expect(selection).toContain("background: var(--selection);");
+    expect(preludesOf(source)).not.toContain(
+      ".ProseMirror ::selection, .ProseMirror::selection"
+    );
+  });
+
+  it("should let forced colors supply the scrollbar and selection colors", () => {
+    const forced = source.slice(
+      source.indexOf("@media (forced-colors: active)")
+    );
+
+    expect(blockOf(forced, "html")).toContain("scrollbar-color: auto;");
+    expect(blockOf(forced, "::selection")).toContain("color: HighlightText;");
+    expect(blockOf(forced, "::selection")).toContain("background: Highlight;");
+  });
+
+  it("should keep completed task content at the secondary ink contrast", () => {
+    const completed = blockOf(
+      source,
+      '.ProseMirror ul[data-type="taskList"] > li[data-checked="true"] > div'
+    );
+
+    expect(completed).toContain("color: var(--muted-foreground);");
+    expect(completed).toContain("text-decoration: line-through;");
+    expect(completed).not.toContain("opacity:");
+  });
+});
+
 /**
  * The three controls plus the three faces are the whole tuning surface, so a
  * dropped line falls back to a Typeset default in silence: `--typeset-size`
@@ -340,6 +396,65 @@ describe("the note preset", () => {
 
   it("should keep the optical sizing Literata's opsz axis asks for", () => {
     expect(notePreset).toContain("font-optical-sizing: auto");
+  });
+});
+
+describe.each([
+  ["dark", darkTokens],
+  ["light", lightTokens],
+])("%s reading contrast", (scheme, tokens) => {
+  it.each(["background", "card", "muted"])(
+    "should keep placeholder text above AA on %s",
+    (surface) => {
+      expect(
+        contrast(
+          tokenValue(scheme, tokens, "faint"),
+          tokenValue(scheme, tokens, surface)
+        )
+      ).toBeGreaterThanOrEqual(AA);
+    }
+  );
+
+  it.each(["background", "card"])(
+    "should keep body text above AAA on %s",
+    (surface) => {
+      expect(
+        contrast(
+          tokenValue(scheme, tokens, "foreground"),
+          tokenValue(scheme, tokens, surface)
+        )
+      ).toBeGreaterThanOrEqual(7);
+    }
+  );
+});
+
+describe("reading typography", () => {
+  it("should use 16px prose with the existing reading line-height", () => {
+    expect(notePreset).toContain("--typeset-size: 1rem;");
+    expect(notePreset).toContain("font-size: var(--typeset-size);");
+    expect(notePreset).toContain("--typeset-leading: 1.65;");
+  });
+
+  it("should keep the same prose size across window widths and print", () => {
+    expect(source.match(/--typeset-size:\s*[^;]+;/g)).toEqual([
+      "--typeset-size: 1rem;",
+    ]);
+  });
+
+  it("should use the same 14px code size in fences and source mode", () => {
+    const code = blockOf(source, ".ProseMirror pre");
+    const raw = blockOf(source, ".source-editor .ProseMirror pre");
+
+    expect(code).toContain("font-size: 0.875rem;");
+    expect(code).toContain("line-height: 1.5;");
+    expect(raw).not.toContain("font-size:");
+    expect(raw).not.toContain("line-height:");
+  });
+
+  it("should size inline code with the sentence around it", () => {
+    expect(blockOf(source, ".typeset-note :not(pre) > code")).toContain(
+      "font-size: 0.9em;"
+    );
   });
 });
 

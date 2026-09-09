@@ -1,15 +1,13 @@
 import type { Editor } from "@tiptap/core";
 
 import { Extension } from "@tiptap/core";
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Document } from "@tiptap/extension-document";
 import { Text } from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { common, createLowlight } from "lowlight";
 import { useEffect, useState } from "react";
 
-import { markdownWithFrontmatter } from "./markdown-frontmatter";
+import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 
 export interface SourceEditorHandle {
   focus: () => void;
@@ -27,11 +25,6 @@ interface SourceEditorProps {
   onChange: (content: string) => void;
   onReady?: (handle: SourceEditorHandle) => void;
 }
-
-const lowlight = createLowlight({
-  ...common,
-  markdown: markdownWithFrontmatter,
-});
 
 const SourceDocument = Document.extend({
   content: "codeBlock",
@@ -79,8 +72,8 @@ function caretPosition(editor: Editor, offset: number) {
 }
 
 /**
- * Raw markdown source mode (⌘P): the whole file in a single code block,
- * syntax-highlighted with lowlight's markdown grammar and backed by real
+ * Raw markdown source mode (⌘E): the whole file in a single code block,
+ * syntax-highlighted with Shiki's markdown grammar and backed by real
  * undo. The caret lands on the block you were editing (see sentinel.ts) and
  * the same autosave drives writes.
  */
@@ -124,11 +117,10 @@ export function SourceEditor({
     extensions: [
       SourceDocument,
       Text,
-      CodeBlockLowlight.configure({
+      CodeBlockShiki.configure({
         defaultLanguage: "markdown",
         exitOnArrowDown: false,
         exitOnTripleEnter: false,
-        lowlight,
       }),
       UndoRedo,
       TabIndent,

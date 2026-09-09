@@ -3,10 +3,9 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
-
-import { lowlight } from "./extensions";
 
 /**
  * Copy a block as markdown and edit its fence language from a hover toolbar.
@@ -27,10 +26,10 @@ export function CodeBlockView({
     { wait: 1500 }
   );
 
-  // A fence can name a language lowlight does not know (```mermaid). Keep it
+  // A fence can name a language the highlighter does not know. Keep it
   // in the list, or the picker would silently rewrite it to "plain".
   const languages = useMemo(() => {
-    const known = lowlight.listLanguages();
+    const known = codeLanguages;
 
     return (
       language === "" || known.includes(language) ? known : [...known, language]

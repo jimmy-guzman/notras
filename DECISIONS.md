@@ -78,13 +78,13 @@ The Rust side needs it for indexing, the TypeScript side needs it for editing pi
 
 ### D7 TipTap 3 for the editor
 
-The editor is TipTap 3 WYSIWYG over the official `@tiptap/markdown`, which round-trips GFM in both directions. ⌘P shows the raw file in a single lowlight-highlighted code block.
+The editor is TipTap 3 WYSIWYG over the official `@tiptap/markdown`, which round-trips GFM in both directions. ⌘E shows the raw file in a single code block. `D73` records its highlighting.
 
 A CodeMirror 6 live-preview editor was built first and replaced. The existing CM6 live-markdown extensions were dead or alpha, so every rendered construct was hand-rolled as a decoration. `@tiptap/markdown` shipping an official bidirectional serializer made a real WYSIWYG document viable, which is what that work was approximating, so the answer to the effort was to stop paying it.
 
 **Rejected: CodeMirror 6 live preview.** Built, working, and it kept the file and the buffer identical. Rejected because every rendered construct was a decoration the app maintained by hand, against a library that gives the same result as document nodes.
 
-**Rejected: a plain markdown textarea.** Nothing to round-trip and no data-safety risk at all. Rejected because "just write" means seeing the document, and ⌘P keeps the textarea available for anything exotic.
+**Rejected: a plain markdown textarea.** Nothing to round-trip and no data-safety risk at all. Rejected because "just write" means seeing the document, and ⌘E keeps the textarea available for anything exotic.
 
 **Constraint:** every editor node must define its markdown form, which `ARCHITECTURE.md` carries as an invariant.
 
@@ -936,3 +936,32 @@ Prior art read at source: zk keeps `source_id, target_id NULL, href, type, snipp
 
 **Refined: a bare title counts, found on read.** `find_mentions` narrows the vault through FTS to the notes holding the title's words, then scans each body with the same prose mask for whole-word, case-insensitive occurrences outside `[[...]]` and off the note's own title heading. Rejected: `kind = 'mention'` rows in `note_link`. A bare mention of B in A depends on B's title, so a row for it goes stale when B is created or retitled, and A is never re-indexed under the mtime skip; keeping it right would take a reverse pass on every title change and a scan of every write against every title. On read, the cost is one FTS query and a handful of file reads when a note shows, which is the trade Obsidian makes. The filename stem is not searched, since prose carries titles, and two notes sharing a title both count the same line, since nothing in prose can pick one.
 
+### D73 Warm reading surfaces retain the shared accent
+
+The approved reading palette replaces the cool neutrals of `D23`. The owner wanted Flexoki's reading-oriented warmth without losing the pink identity connecting notras to stet, playa.dev, and jimmy.codes. After comparing prose and code in both schemes, the owner approved adjusting the accent alongside the other colors. `DESIGN.md` records the Oklab recipe and role mapping; `src/styles.css` holds the resulting hex values used by the app and icon generator.
+
+The owner approved the complete paper-and-pink prototype after comparing the palette, reading typography, code, interface surfaces, and icon in both schemes. Six neutrals, eight colored inks, and a selection mixture supply the existing semantic tokens. This replaces the earlier study's contrast-target search with fixed OKLCH anchors. Both modes share hue assignments, while their measured contrast ratios differ. Body ink clears 7:1 and syntax clears 4.5:1 on paper and card. Comments, punctuation, and placeholders share secondary ink; operators share body ink.
+
+Dark secondary lightness moves from the prototype's `0.670` to `0.675`: the former measured 4.47:1 on hover, below the existing gate. Rejected: changing hover fills or lowering the gate to preserve that prototype value. The other palette values follow the approved prototype.
+
+Literata stays on the reading surface at 16px across window widths and in print. The owner found both prose and code too large and preferred compact text. Fenced code and source mode use 14px iA Writer Mono with 1.5 line-height independently of prose size; inline code follows prose at 0.9em. The reading column and 1.65 prose line-height stay unchanged. Rejected: enlarging text automatically in narrow windows, because window width does not establish viewing distance. Rejected: shipping the prototype's font, size, and palette switches as app settings, because they were comparison tools rather than an approved feature. The preview's phone and tablet widths inform reading layout without adding platform support or navigation.
+
+Shiki replaces Lowlight in both editors after the owner found bold keywords distracting and the token distinctions too broad. The approved reference was stet's rendered code, which carries colors without font styles. TextMate scopes use the existing CSS inks, keeping the palette and code size unchanged. Rejected: CSS-only remapping, because Lowlight grouped imports and control flow with other keywords and exposed whole parameter groups rather than their individual roles. The bundled Markdown grammar replaces the custom frontmatter grammar. The owner approved plain and unsupported fences staying unhighlighted, rejecting automatic language guessing behind a picker labeled "plain".
+
+Rejected: adopting Flexoki wholesale, which would replace the identifying pink. Rejected: preserving the previous hex values to match the other projects exactly, because their syntax contrast hierarchy reversed between modes. The resulting palette is specific to notras; this change does not update or claim matching ports in the other projects.
+
+The owner described the preview as pleasant. That supports the first impression, not a claim about three-hour comfort. The launch-color synchronization of `D27` and the contrast gate remain unchanged, and neither proves adjacent-color distinguishability or comfort over time.
+
+Scrollbars retain the platform's colors and behavior. The owner found both full-strength secondary ink and an 80% ink blend too prominent, and reported that the tinted scrollbar stayed visible while idle. Rejected: custom scrollbar colors and weakening the shared text token, whose hover contrast is already close to the text minimum. Scrollbar visibility follows the platform, including its "always show" preference. Rejected: app-controlled hiding that overrides that preference. Selection in editors and inputs uses the palette. Completed tasks retain secondary ink and strikethrough without another opacity reduction. Native controls keep their system appearance. Rejected: replacing scrollbar geometry or native popups to force identical rendering across webviews.
+
+The theme retains the existing shadcn button and dialog styles. Rejected: custom hover fills, focus outlines, and dialog backdrops introduced during the surface pass, because they changed the components to accommodate the palette. Token values need validation against the components' existing states. Readable prose and code pairs alone do not establish readable button hover pairs.
+
+### D74 Two overlapping sheets replace the mascot
+
+The approved mark is a plain rear sheet under a closely overlapping front sheet with a small pink upper-right fold. It carries the idea of writing another note without a face. The welcome screen and README pair it with the lowercase wordmark and "write another note". The owner chose one line for the welcome tagline; the README hero retains the two-line layout.
+
+Rejected: the organic mascot of `D33` and the later smiling-paper studies. The owner found the face more recognizable as a character inside the app than as the app's identifying icon. Rejected: wider separation between the sheets, which made the rear sheet read as an outline rather than another page.
+
+One SVG supplies the geometry at every size. The generator resolves its colors from the stylesheet and widens only the separating seam for small exports. This supersedes `D33`'s raster source, palette exception, and separately maintained size variants. The installed icon keeps the dark tile; the welcome mark and favicons follow the system, and the tray uses transparent detail for system tinting.
+
+The tile retains `D34`'s grid, rim, and shadow. Its duplicate SVG tile and comparison guard are removed because the script now draws the only tile shape. Generated files remain stripped of timestamps. The owner ruled out logo animation; the mark stays static.

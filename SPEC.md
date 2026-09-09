@@ -4,6 +4,17 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 `AGENTS.md` maps the rest of the docs.
 
+## Appearance
+
+- The app follows the system's light or dark scheme. Both schemes use warm reading surfaces and a pink accent, with no in-app theme switch.
+- Body text has at least 7:1 contrast on the page and code-block surface in both schemes. Syntax inks have at least 4.5:1 on those surfaces. Comments and punctuation use the secondary text tone; operators use body ink. Placeholders share secondary ink and clear 4.5:1 on the page, card, and hover surface. Selection uses a muted blue surface.
+- At the default root size, prose renders in Literata at 16px across window widths and in print, with 1.65 line-height. Fenced code and source mode render in iA Writer Mono at 14px with 1.5 line-height across those widths and in print. Inline code follows the surrounding text at 0.9em. The reading column remains at most 42rem wide with 24px horizontal padding.
+- Selected text uses body ink on the same blue surface in editors and inputs. Completed tasks use secondary ink and a strikethrough without additional opacity.
+- Scrollbars use system colors for the current scheme, native width, and native visibility behavior: they auto-hide when the platform is configured to do so and remain visible when it requests "always show". Typewriter mode still hides the editor scrollbar. Forced-colors mode uses system selection and scrollbar colors.
+- Main and capture windows use the matching page background at launch and after a system-theme change.
+- The mark is two overlapping sheets with a pink upper-right fold. The installed icon keeps its dark tile; the welcome mark and favicons follow the system scheme. The tray is system-tinted, with a transparent seam and fold.
+- With no tab open, the welcome screen shows the mark beside "notras" and the single-line tagline "write another note". The new-note button and search shortcut remain below it.
+
 ## Notes and files
 
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
@@ -123,7 +134,10 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Strikethrough takes one tilde or two, typed or read from a file, and the closing run may not follow a space. The serializer writes two, so `~x~` in a note written elsewhere saves back as `~~x~~`.
 - A list nested under an ordered item indents to the marker's width, so `1. first` carries its child at three spaces. A child written at two spaces by an earlier build or another editor still opens nested and saves back at three.
 - A literal `` ` ``, `*`, `_`, `[`, `]` or `~` in prose is written to the file as typed. It gains a backslash only where the note would otherwise read back as something else, and then the whole note is escaped.
-- A code block carries a copy button and a language picker. Copy writes the whole block as fenced markdown with its current language. The fences are longer than any backtick run in the code, so a block containing fences survives copying and saving. The picker fits its selected label with equal horizontal padding and keeps a language lowlight does not know rather than rewriting it. Changing the language updates the saved fence language, and markdown highlights a leading frontmatter block as YAML.
+- A code block carries a copy button and a language picker. Copy writes the whole block as fenced markdown with its current language. The picker fits its selected label with equal horizontal padding, lists Shiki's bundled languages, and preserves aliases and unsupported labels rather than rewriting them. Changing the language updates the saved fence language. Plain and unsupported languages remain unhighlighted, without automatic language guessing.
+- Copying or saving a code block writes a backtick fence, or a tilde fence when its language label contains a backtick. The fence has at least three characters and is longer than any run of its chosen character in the content. Nested fence examples retain their literal text and language on reopening, and the prose and code following them retain their structure.
+- Fenced code and Markdown source use the same regular-weight, upright syntax inks in both appearance modes. Imports, control flow, declarations, and types have distinct roles. Markdown highlights leading YAML frontmatter closed by `---` or `...`, including trailing spaces, and supported languages inside labeled code fences.
+- Highlighting loads from packaged assets and works offline. Editing retokenizes changed code blocks and preserves mapped highlighting in unchanged blocks. Prose and selection edits do not retokenize unchanged code. A grammar may appear after the text, without moving the caret, changing note content, or adding an undo step. A loading failure leaves editing available and reports "could not highlight code"; reopening the editor retries loading.
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity.
 - What the selection covers moves, widened to whole blocks. A caret in a paragraph means that paragraph, a selection across three means those three, and a caret anywhere in a list item means the item with any sublist under it.
 - Pressing inside a selection and dragging moves it. A copy of what is held follows the pointer under a shadow, sitting below and right of it so the pointer and the mark stay clear, the source dims where it sits, a bar marks where the drop lands, and the cursor reads as grabbing for the length of the drag. A drag starts after 4px, and a press that never moves places the caret instead.
