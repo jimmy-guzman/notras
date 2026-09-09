@@ -97,7 +97,7 @@ Clearing that flag turns off Gatekeeper's check for this app, so run the checksu
 xattr -dr com.apple.quarantine /Applications/notras.app
 ```
 
-Signing and notarization are tracked in [DEFERRED.md](DEFERRED.md).
+Signing and notarization are tracked in [issue #171](https://github.com/jimmy-guzman/notras/issues/171).
 
 ## Keyboard shortcuts
 
@@ -197,8 +197,9 @@ Rust tests live in `src-tauri`: `cd src-tauri && cargo test --locked`.
 | [DESIGN.md](DESIGN.md)             | Typography, color, space, motion, interaction, the editor surface, copy                |
 | [DECISIONS.md](DECISIONS.md)       | A log of decisions, each with its rationale and what it rejected                       |
 | [SPEC.md](SPEC.md)                 | What the app does, as claims you can check against a running build                     |
-| [DEFERRED.md](DEFERRED.md)         | Work ruled out rather than done, each entry with its reason                            |
 | [AGENTS.md](AGENTS.md)             | The rules for changing any of it, and the map of which doc holds which fact            |
+
+Actionable future work is tracked in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).
 
 ## License
 

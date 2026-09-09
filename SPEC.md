@@ -1,6 +1,6 @@
 # SPEC
 
-What notras does. Every claim below is checkable against a running build, so a claim nobody can check does not belong here. `ARCHITECTURE.md` carries how the system is built, `DESIGN.md` the interface conventions, and `DEFERRED.md` the work ruled out rather than done.
+What notras does. Every claim below is checkable against a running build, so a claim nobody can check does not belong here. `ARCHITECTURE.md` carries how the system is built and `DESIGN.md` the interface conventions. [GitHub issues](https://github.com/jimmy-guzman/notras/issues) track actionable future work.
 
 `AGENTS.md` maps the rest of the docs.
 

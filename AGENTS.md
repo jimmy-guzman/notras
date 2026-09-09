@@ -4,7 +4,7 @@ Apply these when writing or changing code, and when writing prose in this repo. 
 
 ## Project docs
 
-The context for this repo lives in the six documents below. Read the ones your change touches before changing anything.
+The context for this repo lives in the five documents below. Read the ones your change touches before changing anything.
 
 | Doc               | What it holds                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -12,14 +12,13 @@ The context for this repo lives in the six documents below. Read the ones your c
 | `DESIGN.md`       | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
 | `DECISIONS.md`    | A log of decisions made, each with its rationale and what it rejected. A record, not a rulebook.                                                             |
 | `SPEC.md`         | What the app does, as claims a reader can check against a running build.                                                                                     |
-| `DEFERRED.md`     | Work ruled out rather than done, each entry carrying the reason it was ruled out.                                                                            |
 | `README.md`       | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns.                                                                 |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files above, so a stack detail, a pattern, or a color token added here is in the wrong place.
 
 - **Behavior you change is a claim in `SPEC.md`.** Update the claim in the same commit that changes the behavior, since a spec that disagrees with the build misleads every reader who trusts it. A behavior with no claim yet gets one.
 
-- **Work you rule out of the current change goes in `DEFERRED.md`,** carrying the reason. The bar is at the top of that file, and cost is not on it. What landed belongs in the commit, not in a second log.
+- **Actionable future work belongs in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).** State the problem, the desired outcome, the evidence, and any unresolved prerequisite. Check for an existing issue before opening one. Speculative ideas need no backlog entry. What landed belongs in the commit, not in a second log.
 
 - **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out an option for a reason worth recording makes the choice a decision. Add a numbered entry with the rationale and what was rejected.
 
@@ -164,7 +163,7 @@ For anything touching the Rust side or window behavior, also launch `pnpm dev` a
 
 - **Split a task you cannot produce complete evidence for.** A task whose weakest part lands in several places at once, or whose decision list runs past what a reviewer can hold, has bundled work that then takes one verdict. Diff size measures how much code arrived and says nothing about how many choices sit inside it.
 
-- **A finding you are not fixing gets written down.** An out-of-scope defect gets an issue, and an out-of-scope question goes to the person reviewing. Neither one widens the current change, and neither one reaches the end of the phase unwritten. `DEFERRED.md` takes work ruled out, never a bug.
+- **A finding you are not fixing gets written down.** An out-of-scope defect gets a GitHub issue, and an out-of-scope question goes to the person reviewing. Neither one widens the current change, and neither one reaches the end of the phase unwritten.
 
 ## Writing prose
 
@@ -266,4 +265,4 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated `Cargo.lock` beside it, which is what `cargo test --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
 
-- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, `DEFERRED.md`, or `README.md` should be updated, then apply the changes.** Docs rot as soon as the code moves without them. Catching the update at the point of change is when it reliably happens at all.
+- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs rot as soon as the code moves without them. Catching the update at the point of change is when it reliably happens at all.
