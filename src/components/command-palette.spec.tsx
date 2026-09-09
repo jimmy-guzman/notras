@@ -87,16 +87,14 @@ describe("command palette keyboard", () => {
     const palette = await mount("find", []);
     onTestFinished(palette.unmount);
     const read = Promise.withResolvers<NoteMeta[]>();
-    const pending = palette.client.fetchQuery({
-      ...noteQueries.search(parseSearch("Roadmap")),
-      queryFn: () => read.promise,
-    });
+    const pending = Promise.allSettled([
+      palette.client.fetchQuery({
+        ...noteQueries.search(parseSearch("Roadmap")),
+        queryFn: () => read.promise,
+      }),
+    ]);
     act(() => type(palette.input, "Roadmap"));
-    await act(async () => {
-      await vi.waitFor(() =>
-        expect(document.body.textContent).toContain("searching notes")
-      );
-    });
+    expect(document.body.textContent).not.toContain("searching notes");
     act(() => press(palette.input, "Enter"));
     expect(palette.input.value).toBe("Roadmap");
     await act(async () => {
@@ -233,11 +231,13 @@ describe("command palette keyboard", () => {
         ?.textContent
     ).toContain("Project second");
     const read = Promise.withResolvers<NoteMeta[]>();
-    const pending = palette.client.fetchQuery({
-      ...options,
-      queryFn: () => read.promise,
-      staleTime: 0,
-    });
+    const pending = Promise.allSettled([
+      palette.client.fetchQuery({
+        ...options,
+        queryFn: () => read.promise,
+        staleTime: 0,
+      }),
+    ]);
     await act(async () => {
       await Promise.resolve();
     });
@@ -325,5 +325,262 @@ describe("command palette keyboard", () => {
       palette.input.getAttribute("aria-labelledby") ?? ""
     );
     expect(label?.textContent).toBe("run an action");
+  });
+});
+
+describe("steady palette searches", () => {
+  it("should retain recent rows without opening them while a new search is pending", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const recent: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "recent.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Recent",
+      updatedAt: new Date(0),
+    };
+    const found: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "found.md",
+      pinned: false,
+      snippet: "Matching context",
+      tags: [],
+      title: "Found",
+      updatedAt: new Date(0),
+    };
+    const palette = await mount("find", [recent]);
+    onTestFinished(palette.unmount);
+    const read = Promise.withResolvers<NoteMeta[]>();
+    const request = Promise.allSettled([
+      palette.client.fetchQuery({
+        ...noteQueries.search(parseSearch("found")),
+        queryFn: () => read.promise,
+      }),
+    ]);
+    const row = document.querySelector<HTMLElement>('[role="option"]');
+    act(() => type(palette.input, "found"));
+    expect(document.querySelector('[role="option"]')).toBe(row);
+    expect(row?.textContent).toContain("Recent");
+    expect(row?.getAttribute("aria-disabled")).toBe("true");
+    expect(document.body.textContent).not.toContain("searching notes");
+    act(() => {
+      row?.click();
+      press(palette.input, "Enter");
+      palette.input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "Enter",
+          metaKey: true,
+        })
+      );
+    });
+    expect(palette.closed).toEqual([]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+    expect(document.querySelector('[role="option"]')).toBe(row);
+    await act(async () => {
+      read.resolve([found]);
+      await request;
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(
+      document.querySelector('[role="option"][aria-selected="true"]')
+        ?.textContent
+    ).toContain("Found");
+    expect(document.body.textContent).not.toContain("Recent");
+    expect(palette.closed).toEqual([]);
+    act(() => press(palette.input, "Enter"));
+    expect(palette.closed).toEqual([false]);
+    expect(getTabState().tabs.some((tab) => tab.path === "found.md")).toBe(
+      true
+    );
+  });
+
+  it("should delay the footer spinner until a read takes 500ms and reset it for another query", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const palette = await mount("find", []);
+    onTestFinished(palette.unmount);
+    const read = Promise.withResolvers<NoteMeta[]>();
+    const request = Promise.allSettled([
+      palette.client.fetchQuery({
+        ...noteQueries.search(parseSearch("slow")),
+        queryFn: () => read.promise,
+      }),
+    ]);
+    act(() => type(palette.input, "slow"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(149);
+    });
+    expect(
+      document.querySelector('svg[aria-label="searching notes"]')
+    ).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(499);
+    });
+    expect(
+      document.querySelector('svg[aria-label="searching notes"]')
+    ).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(
+      document.querySelector('svg[aria-label="searching notes"]')
+    ).not.toBeNull();
+    expect(
+      document.querySelector('[cmdk-list] svg[aria-label="searching notes"]')
+    ).toBeNull();
+    expect(document.body.textContent).not.toContain("searching notes");
+    palette.client.setQueryData(
+      noteQueries.search(parseSearch("cached")).queryKey,
+      []
+    );
+    act(() => type(palette.input, "cached"));
+    expect(
+      document.querySelector('svg[aria-label="searching notes"]')
+    ).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+    expect(document.body.textContent).toContain('create "cached"');
+    await act(async () => {
+      read.resolve([]);
+      await request;
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    expect(
+      document.querySelector('svg[aria-label="searching notes"]')
+    ).toBeNull();
+    expect(document.body.textContent).toContain('create "cached"');
+  });
+
+  it("should ignore intermediate responses and restore recent notes immediately when cleared", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const recent: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "recent.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Recent",
+      updatedAt: new Date(0),
+    };
+    const intermediate: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "intermediate.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Intermediate",
+      updatedAt: new Date(0),
+    };
+    const palette = await mount("find", [recent]);
+    onTestFinished(palette.unmount);
+    const firstRead = Promise.withResolvers<NoteMeta[]>();
+    const firstRequest = Promise.allSettled([
+      palette.client.fetchQuery({
+        ...noteQueries.search(parseSearch("first")),
+        queryFn: () => firstRead.promise,
+      }),
+    ]);
+    const lastRead = Promise.withResolvers<NoteMeta[]>();
+    const lastRequest = Promise.allSettled([
+      palette.client.fetchQuery({
+        ...noteQueries.search(parseSearch("last")),
+        queryFn: () => lastRead.promise,
+      }),
+    ]);
+    act(() => type(palette.input, "first"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+    act(() => type(palette.input, "last"));
+    await act(async () => {
+      firstRead.resolve([intermediate]);
+      await firstRequest;
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(document.body.textContent).toContain("Recent");
+    expect(document.body.textContent).not.toContain("Intermediate");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(149);
+    });
+    expect(document.body.textContent).not.toContain("Intermediate");
+    act(() => type(palette.input, ""));
+    expect(
+      document.querySelector('[role="option"]')?.getAttribute("aria-disabled")
+    ).toBe("false");
+    expect(document.body.textContent).toContain("Recent");
+    await act(async () => {
+      lastRead.resolve([intermediate]);
+      await lastRequest;
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    expect(document.body.textContent).not.toContain("Intermediate");
+    expect(
+      document.querySelector('svg[aria-label="searching notes"]')
+    ).toBeNull();
+  });
+
+  it("should show current filter choices immediately after a failed search", async ({
+    onTestFinished,
+  }) => {
+    const note: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "work",
+      path: "work/note.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Note",
+      updatedAt: new Date(0),
+    };
+    const palette = await mount("find", [note]);
+    onTestFinished(palette.unmount);
+    const key = noteQueries.search(parseSearch("broken")).queryKey;
+    palette.client.setQueryData(key, []);
+    palette.client
+      .getQueryCache()
+      .find({ queryKey: key })
+      ?.setState({ error: new Error("index unavailable"), status: "error" });
+    act(() => type(palette.input, "broken"));
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(document.body.textContent).toContain("index unavailable");
+    });
+    act(() => type(palette.input, "folder:"));
+    expect(document.querySelector('[role="option"]')?.textContent).toContain(
+      "notes root"
+    );
+    expect(document.body.textContent).not.toContain("index unavailable");
+    expect(document.body.textContent).not.toContain("incomplete filter");
   });
 });
