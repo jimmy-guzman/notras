@@ -6,12 +6,17 @@ import { Text } from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useState } from "react";
-
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
+import {
+  createFindHandle,
+  Find,
+  type FindHandle,
+} from "@/components/editor/find";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { styleNonce } from "@/lib/style-nonce";
 
 export interface SourceEditorHandle {
+  find: FindHandle;
   focus: () => void;
   /** Caret position as a character offset into the raw text. */
   getCursorOffset: () => number;
@@ -118,6 +123,7 @@ export function SourceEditor({
     },
     extensions: [
       SourceDocument,
+      Find,
       Text,
       CodeBlockShiki.configure({
         defaultLanguage: "markdown",
@@ -131,6 +137,7 @@ export function SourceEditor({
     injectNonce: styleNonce,
     onCreate: ({ editor: instance }) => {
       config.onReady?.({
+        find: createFindHandle(instance),
         focus: () => {
           if (!instance.isDestroyed) {
             instance.commands.focus();

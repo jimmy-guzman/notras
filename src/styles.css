@@ -791,3 +791,33 @@ body.dragging .ProseMirror::selection {
   font-size: 0.9em;
   color: var(--foreground);
 }
+
+.ProseMirror.note-find-open::before {
+  display: block;
+  height: 52px;
+  content: "";
+}
+
+.note-find-match {
+  color: var(--foreground);
+  background-color: color-mix(in oklch, var(--primary) 24%, transparent);
+}
+
+.note-find-active {
+  outline: 1px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.focus-mode-on[data-find-open="true"] .ProseMirror > :not(.has-focus) {
+  opacity: 1;
+}
+
+@media (forced-colors: active) {
+  .note-find-match {
+    color: HighlightText;
+    background-color: Highlight;
+  }
+  .note-find-active {
+    outline-color: CanvasText;
+  }
+}

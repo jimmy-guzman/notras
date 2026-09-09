@@ -6,6 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect } from "react";
 import { Chord } from "@/components/chord";
+import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
 import { NoteControls } from "@/components/notes/note-controls";
 import { StatusBar } from "@/components/notes/status-bar";
@@ -36,6 +37,7 @@ import {
 import type { PendingOpen, Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { noteFind, openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { attachmentLink } from "@/lib/utils/attachments";
 
@@ -341,7 +343,10 @@ function Workspace() {
     meta: { name: "reopen last closed tab" },
   });
   useHotkey("Mod+E", toggleSource, { meta: { name: "markdown source" } });
-  useHotkey("Mod+Shift+G", toggleGraphView, { meta: { name: "graph view" } });
+  useHotkey("Mod+Alt+G", toggleGraphView, {
+    meta: { name: "graph view" },
+  });
+  useHotkey("Mod+F", openNoteFind, { meta: { name: "find in note" } });
   useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
   useHotkeys(
     TAB_JUMPS.map(([hotkey, index]) => ({
@@ -381,6 +386,7 @@ function Workspace() {
           {activeTab?.kind === "note" && graphMode ? (
             <TabGraph tab={activeTab} />
           ) : null}
+          <FindBar controller={noteFind} />
         </div>
       )}
       {activeTab === undefined ? null : (

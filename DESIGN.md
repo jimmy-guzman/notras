@@ -191,3 +191,5 @@ Motion carries a state change and nothing else. There is no decorative animation
 - Do not write an action twice. A second entry point is fine when both route through one implementation; a second copy of the logic is not (`D31`).
 
 Palette filter choices remain inside find mode. Picking a folder or tag preserves the rest of the query. Pending searches hide previous results so Enter cannot open a note from an earlier query.
+
+Find in a note uses a floating input group at the editor's upper-right with lowercase accessible labels, a current/total count, previous and next buttons, and close. Matching uses the primary ink as a translucent fill; the active match adds an outline. Escape returns focus to the match or prior caret. Focus mode keeps its padding while find suspends dimming and typewriter scrolling. Standard find shortcuts are ⌘F, ⌘G, and ⌘⇧G; graph view uses ⌘⌥G.

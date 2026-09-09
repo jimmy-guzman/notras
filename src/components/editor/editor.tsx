@@ -20,6 +20,7 @@ import {
   normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
+import { createFindHandle, Find, type FindHandle } from "./find";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
@@ -155,6 +156,7 @@ function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
  * so a handle outliving its instance is a state the design permits.
  */
 export interface EditorHandle {
+  find: FindHandle;
   focus: () => void;
   /**
    * The caret's exact offset in this buffer's markdown serialization,
@@ -167,6 +169,7 @@ export interface EditorHandle {
 }
 
 interface EditorProps {
+  findOpen?: boolean;
   focusModeEnabled?: boolean;
   focusOnMount?: boolean;
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
@@ -193,13 +196,14 @@ interface EditorProps {
 }
 
 /**
- * TipTap WYSIWYG markdown editor. All props except `focusModeEnabled`
+ * TipTap WYSIWYG markdown editor. All props except `focusModeEnabled` and `findOpen`
  * are frozen at mount: the editor owns the buffer, so remount (via `key`)
  * to load different content. Callbacks must therefore be safe to freeze --
  * read live values through refs, not closures. Content in/out is markdown
  * (`@tiptap/markdown`); the buffer is the note BODY, never frontmatter.
  */
 export function Editor({
+  findOpen = false,
   focusModeEnabled = false,
   ...mountProps
 }: EditorProps) {
@@ -214,11 +218,11 @@ export function Editor({
   }, []);
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
-  const focusModeRef = useRef(focusModeEnabled);
+  const focusModeRef = useRef(focusModeEnabled && !findOpen);
   const previousFocusModeRef = useRef(focusModeEnabled);
 
   useEffect(() => {
-    focusModeRef.current = focusModeEnabled;
+    focusModeRef.current = focusModeEnabled && !findOpen;
   });
 
   const [config] = useState(() => mountProps);
@@ -466,6 +470,7 @@ export function Editor({
         readCodeClipboard: isTauri() ? readCodeClipboard : undefined,
         resolveImageSrc: config.resolveImageSrc,
       }),
+      Find,
       linkShortcut,
       typewriter,
     ],
@@ -477,6 +482,7 @@ export function Editor({
     onCreate: ({ editor: instance }) => {
       editorRef.current = instance;
       config.onReady?.({
+        find: createFindHandle(instance),
         focus: () => {
           if (!instance.isDestroyed) {
             instance.commands.focus();
@@ -792,6 +798,7 @@ export function Editor({
         focusModeEnabled && "focus-mode-on",
         reading && "focus-reading"
       )}
+      data-find-open={findOpen}
       ref={attachScrollArea}
     >
       <EditorContent className="min-h-full" editor={editor} />

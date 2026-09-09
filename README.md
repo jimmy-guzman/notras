@@ -33,6 +33,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - editable tables, clickable task checkboxes, and inline images
 - code blocks with a copy button and a language picker
 - all of it round-trips through GFM markdown
+- `⌘F` finds literal text in the current buffer, including unsaved edits, with `⌘G` and `⌘⇧G` to move between matches. It works in rich text, source, external files, and quick capture.
 - `⌘E` swaps to raw markdown source, the escape hatch for anything exotic
 - `⌘D` focus mode dims every block but the one you are in, keeps the line you are typing vertically centred, and lifts the dim while you scroll by wheel or touch
 - word count and reading time, in the status strip
@@ -46,7 +47,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
 - `[text](other.md)` links to notes open with a click, and read as internal
 - the status strip counts the notes that mention the one you are in, by `[[link]]` or by writing its title, and lists them with the line that did it. Other apps call the linked ones backlinks
-- `⌘⇧G` swaps the note for its graph: the note in the centre, what mentions it on the left, what it links to on the right, its folder and tags along the top, arrows to walk it and `⏎` to hop, into a note or into a tag
+- `⌘⌥G` swaps the note for its graph: the note in the centre, what mentions it on the left, what it links to on the right, its folder and tags along the top, arrows to walk it and `⏎` to hop, into a note or into a tag
 - `⌘⇧K` adds or edits a link, `⌘⇧O` opens the one at the caret, and a click opens a web link in your browser
 - tags, pins, and folders, with moves between folders run from `⌘⇧P`
 
@@ -116,7 +117,9 @@ Signing and notarization are tracked in [issue #171](https://github.com/jimmy-gu
 | `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left) |
 | `⌘E`      | toggle raw markdown source       |
 | `⌘D`      | toggle focus mode                |
-| `⌘⇧G`     | toggle graph view                |
+| `⌘F`      | find in the current buffer       |
+| `⌘G` / `⌘⇧G` | next / previous match       |
+| `⌘⌥G`     | toggle graph view                |
 | `⌥↑`/`⌥↓` | move the selected blocks         |
 | `⌘⇧K`     | add / edit link                  |
 | `⌘⇧O`     | open the link at the caret       |
@@ -128,10 +131,10 @@ Signing and notarization are tracked in [issue #171](https://github.com/jimmy-gu
 | `⌘⏎`      | (capture window) save + hide     |
 
 - `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
-- `⌘⇧Y`, `⌘⇧L` and `⌘⇧G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
+- `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
 - None of those does anything on the empty state, which is where closing the last tab lands you.
 - `⌘D` sets the writing mode, which belongs to the app rather than a note, so it works with nothing open and the next note you create is already in it.
-- The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, and the editor's own keys do.
+- The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, find in note, and the editor's own keys do.
 
 ## Development
 

@@ -8,6 +8,7 @@ export interface SearchFilter {
 }
 
 interface SearchToken extends SearchFilter {
+  complete: boolean;
   end: number;
   start: number;
 }
@@ -85,6 +86,7 @@ function scanSearch(input: string) {
       words.push(input.slice(offset, part.end));
     } else {
       tokens.push({
+        complete: part.complete,
         end: part.end,
         kind: filterKind(prefix),
         start: offset,
@@ -107,10 +109,10 @@ export function parseSearch(input: string): NoteSearch {
   };
 }
 
-/** The last filter remains suggestible until whitespace follows it. */
+/** Incomplete filters and the filter currently being typed offer suggestions. */
 export function searchSuggestion(input: string): SearchFilter | undefined {
   const token = scanSearch(input).tokens.findLast(
-    ({ end }) => end === input.length
+    ({ complete, end }) => !complete || end === input.length
   );
   return token === undefined
     ? undefined
@@ -122,13 +124,15 @@ export function insertSearchFilter(
   filter: SearchFilter
 ): string {
   const token = scanSearch(input).tokens.findLast(
-    ({ end, kind }) => end === input.length && kind === filter.kind
+    ({ complete, end, kind }) =>
+      (!complete || end === input.length) && kind === filter.kind
   );
   const escaped = filter.value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
   const value = NEEDS_QUOTES.test(filter.value) ? `"${escaped}"` : escaped;
   const prefix = filter.kind === "tag" ? "#" : `${filter.kind}:`;
   const before = token === undefined ? input : input.slice(0, token.start);
-  return `${before}${before === "" || WHITESPACE.test(before.at(-1) ?? "") ? "" : " "}${prefix}${value} `;
+  const after = token === undefined ? "" : input.slice(token.end).trimStart();
+  return `${before}${before === "" || WHITESPACE.test(before.at(-1) ?? "") ? "" : " "}${prefix}${value} ${after}`;
 }
 
 export function searchFolders(

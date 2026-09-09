@@ -391,12 +391,112 @@ fn scan(body: &str) -> Scan {
     }
 }
 
+fn trim_autolink(raw: &str) -> &str {
+    let mut end = 0;
+    while end < raw.len() {
+        let rest = &raw[end..];
+        let ch = rest.chars().next().unwrap();
+        if ch == '(' {
+            let Some(close) = rest.find(')') else {
+                break;
+            };
+            end += close + 1;
+        } else if ch == '&' {
+            let entity = rest.strip_prefix('&').unwrap().strip_suffix(';');
+            if entity.is_some_and(|name| {
+                !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric())
+            }) {
+                break;
+            }
+            end += 1;
+        } else if matches!(
+            ch,
+            '?' | '!' | '.' | ',' | ':' | ';' | '*' | '_' | '\'' | '"' | '~' | ')'
+        ) {
+            let punctuation = rest
+                .chars()
+                .take_while(|c| {
+                    matches!(
+                        c,
+                        '?' | '!' | '.' | ',' | ':' | ';' | '*' | '_' | '\'' | '"' | '~' | ')'
+                    )
+                })
+                .count();
+            if punctuation == rest.len() {
+                break;
+            }
+            end += punctuation;
+        } else {
+            end += ch.len_utf8();
+        }
+    }
+    &raw[..end]
+}
+
+fn bare_email(raw: &str) -> Option<&str> {
+    let local = raw
+        .bytes()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'+' | b'-'))
+        .count();
+    if local == 0 || raw.as_bytes().get(local) != Some(&b'@') {
+        return None;
+    }
+    let domain_char = |c: &u8| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-');
+    let first = raw[local + 1..].bytes().take_while(domain_char).count();
+    if first == 0 {
+        return None;
+    }
+    let mut at = local + 1 + first;
+    let mut end = None;
+    while raw.as_bytes().get(at) == Some(&b'.') {
+        let length = raw[at + 1..].bytes().take_while(domain_char).count();
+        if length == 0 || !raw.as_bytes()[at + length].is_ascii_alphanumeric() {
+            break;
+        }
+        at += 1 + length;
+        end = Some(at);
+    }
+    end.map(|end| &raw[..end])
+}
+
+fn bare_destination(raw: &str) -> Option<(&str, String)> {
+    let prefix = ["https://", "http://", "ftp://", "www."]
+        .into_iter()
+        .find(|prefix| {
+            raw.get(..prefix.len()).is_some_and(|start| {
+                if *prefix == "www." {
+                    start == *prefix
+                } else {
+                    start.eq_ignore_ascii_case(prefix)
+                }
+            })
+        });
+    if let Some(prefix) = prefix {
+        if !raw
+            .as_bytes()
+            .get(prefix.len())
+            .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'-')
+        {
+            return None;
+        }
+        let value = trim_autolink(raw);
+        let target = if prefix == "www." {
+            format!("http://{value}")
+        } else {
+            value.to_string()
+        };
+        Some((value, target))
+    } else {
+        bare_email(raw).map(|value| (value, format!("mailto:{value}")))
+    }
+}
+
 /// GFM bare destinations inside parser-approved prose. Explicit links and
 /// wikilinks own their spans, so their labels never produce nested links.
 fn autolinks(body: &str, prose: &[bool], spans: &[Range<usize>]) -> Vec<(usize, String, usize)> {
     let mut found = Vec::new();
     let mut until = 0;
-    for (at, ch) in body.char_indices() {
+    for (at, _) in body.char_indices() {
         if at < until || !prose[at] || spans.iter().any(|span| span.contains(&at)) {
             continue;
         }
@@ -407,25 +507,14 @@ fn autolinks(body: &str, prose: &[bool], spans: &[Range<usize>]) -> Vec<(usize, 
             }
         }
         let rest = &body[at..];
-        let url = ["https://", "http://", "ftp://", "www."].iter().find(|prefix| rest.starts_with(**prefix));
-        let boundary = body[..at].chars().next_back().is_none_or(|c| !c.is_alphanumeric() && !matches!(c, '_' | '.' | '-' | '@'));
-        if !boundary || (url.is_none() && !ch.is_ascii_alphanumeric()) { continue; }
-        let raw_end = rest.char_indices().find(|(offset, c)| !prose[at + offset] || c.is_whitespace() || matches!(c, '<' | '>' | '[' | ']' | '*' | '"' | '\'' | '`')).map_or(rest.len(), |(offset, _)| offset);
-        let raw = &rest[..raw_end];
-        let mut value = raw.trim_end_matches(['.', ',', ':', ';', '!', '?', '_', '~']);
-        while value.ends_with(')') && value.matches(')').count() > value.matches('(').count() {
-            value = value[..value.len() - 1].trim_end_matches(['.', ',', ':', ';', '!', '?']);
+        let raw_end = rest
+            .char_indices()
+            .find(|(offset, c)| !prose[at + offset] || c.is_whitespace() || *c == '<')
+            .map_or(rest.len(), |(offset, _)| offset);
+        if let Some((value, target)) = bare_destination(&rest[..raw_end]) {
+            until = at + value.len();
+            found.push((at, target, until));
         }
-        let target = if let Some(prefix) = url {
-            if value.len() <= prefix.len() { continue; }
-            if *prefix == "www." { format!("http://{value}") } else { value.to_string() }
-        } else {
-            let Some((local, domain)) = value.split_once('@') else { continue; };
-            if local.is_empty() || !local.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-')) || !domain.contains('.') || !domain.split('.').all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')) { continue; }
-            format!("mailto:{value}")
-        };
-        until = at + value.len();
-        found.push((at, target, until));
     }
     found
 }

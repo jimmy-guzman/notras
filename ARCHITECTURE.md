@@ -189,7 +189,11 @@ TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option
 
 ### The editor owns its buffer
 
-`Editor`, the TipTap wrapper, freezes all props except `focusModeEnabled` at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
+`Editor`, the TipTap wrapper, freezes all props except `focusModeEnabled` and `findOpen` at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
+
+Both editor handles expose a `FindHandle` backed by the shared Tiptap `Find` extension. The extension maps text-block character offsets to ProseMirror positions, including atomic wikilink titles, and decorates matches without document changes or undo entries. A selection bookmark tracks the prior caret through edits.
+
+`createFindController` binds one active editor handle and releases its subscription and highlights on handoff. The workspace owns one controller, and capture owns another. Their query and open state remain in memory. Sessions bind handles; the window owns shortcuts and the floating `FindBar`. A hidden or destroyed editor cannot receive navigation.
 
 ### Body-only editing
 
@@ -227,13 +231,13 @@ Define it in `src-tauri/src/notes.rs` or another module, never in `lib.rs`: `gen
 
 `command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
 
-Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode takes `none`, since the pref it sets belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
+Every action row carries a `needs` scope of `none`, `note`, `tab` or `editor`, and the filter offers it only where the workspace answers it. The `editor` scope checks for an attached editor handle, including a note behind graph view. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode takes `none`, since the pref it sets belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
 
 One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode so switching re-seeds it. The palette reads chords through `useChordsByName` and registers none itself, which `src/lib/ui/shortcuts.ts` requires.
 
 `move`, `delete`, `rename`, and `tags` are the other sub-views of `PaletteView`, all entered from actions and all returning to it with an empty input, since each repurposes the palette input for its own draft. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeTags` from `useNoteTags` rather than `runAction`, so several tags can be set in one visit (`D31`).
 
-`#` parses through `parseTagQuery` in `src/lib/utils/tag-query.ts`: the token becomes `NoteFilters.tag`, an exact indexed match, and anything after it becomes the FTS query, which `findMany` ANDs with it. So `#work budget` searches "budget" inside the `work` tag. The counted vocabulary comes from `NoteService.listTags()` through the root loader, not from the loaded notes.
+`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes`, `NoteService.search`, and `noteQueries.search` carry the complete parsed query under the index invalidation prefix. The service reads ranked FTS candidates without a limit, intersects the filters, and caps the result at 30. Folder suggestions derive ancestors and subtree counts from the note list. The counted tag vocabulary comes from `NoteService.listTags()` through the root loader.
 
 ### Preferences
 
@@ -254,5 +258,3 @@ Each of these holds a property the architecture depends on. Breaking one is a de
 - **Every editor node defines its markdown form and appears in the round-trip spec.** A node without one silently drops content from externally authored files.
 - **The two wikilink scanners change together.** `wikilinks` in `src-tauri/src/index.rs` and the editor's tokenizer assert one table of cases in one order, in `finds_the_wikilinks_the_editor_renders` and `src/components/editor/wikilink.spec.ts`. Drift shows up as a mention the editor does not render as a pill, or a pill the strip does not count, which nothing else catches. `markdown_links` and `src/components/editor/markdown-link.spec.ts` are the same pair for `[text](note.md)`, and `is_note_path` and `isNotePath` are the one rule both apply.
 - **Indexed note IO reaches no path outside the notes dir.** It goes through Rust commands, so the dynamic scope is enforced at runtime, which is why the `fs` plugin is not installed. Four commands take a host path the user picked and stay out of the index: `read_external`, `write_external`, `attach_file`, and `classify_open_paths`, which reads nothing. Adding a fourth means asking who chose the path.
-
-`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes`, `NoteService.search`, and `noteQueries.search` carry the complete parsed query under the index invalidation prefix. The service reads ranked FTS candidates without a limit, intersects the filters, and caps the result at 30. Folder suggestions derive ancestors and subtree counts from the note list.

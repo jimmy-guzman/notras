@@ -79,7 +79,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A link click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘E, ⌘⇧G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D still sets the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘⌥G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D still sets the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -108,11 +108,22 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `mention:"Ada Lovelace"` finds the whole phrase in saved prose without regard to case, including headings and excluding frontmatter, code, HTML, and link spans. The phrase need not name a note, and punctuation-only phrases are searchable.
 - `link:github.com` matches literal destination text without regard to case: note paths, attachments, external URLs, unresolved wikilinks, and rendered autolinks. Image sources do not match. Without free text, results show matching context when available; outgoing context names its source note.
 - Palette search reads saved library content. A failed read shows its reason and never offers creation.
-- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- The actions are find in note, new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- Find in note needs an available editor, including an external file.
 - New note, focus mode, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
 - The writing-mode rows and graph view name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
 - Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⇧g, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⌥g, find in note ⌘f, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+
+## Find in a note
+
+- ⌘F opens or focuses a floating find bar at the editor's upper-right. It searches the active unsaved buffer in rich text, raw source, external-file tabs, and quick capture. From graph view it returns to the editor. With no editor available, the palette action is absent.
+- A single-line editor selection seeds the query. Otherwise the window's last query is reused. Query and open state stay in memory across tabs and rich/source changes; capture keeps separate state.
+- Matching is literal, case-insensitive, and non-overlapping. Rich text matches across formatting within each text block, including code, table cells, link labels, and atomic wikilink titles. Source searches the entire raw file, including frontmatter.
+- The bar shows `current / total`, previous, next, and close controls. Matches are highlighted and the active match has an outline. Searching and navigating preserve document content and undo history. Edits and undo recompute matches.
+- Enter and Shift+Enter move forward and backward in the find input. ⌘G and ⌘⇧G do the same from the editor, wrap at either end, and reopen the last search when the bar is closed. Graph view uses ⌘⌥G.
+- Escape closes find, clears its highlights, and focuses the active match or the previous caret when nothing matches. In capture, this Escape does not save or hide the window.
+- While find is open, focus-mode dimming and typewriter scrolling are suspended. Existing focus-mode padding remains. Match navigation scrolls the editor viewport and leaves the window and floating bar stationary.
 
 ## The editor
 
@@ -168,7 +179,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 ## The graph
 
-- ⌘⇧G swaps the showing tab between its note and its graph, and the strip's fourth view toggle and "graph view" in the palette do the same. An external tab has neither.
+- ⌘⌥G swaps the showing tab between its note and its graph, and the strip's fourth view toggle and "graph view" in the palette do the same. An external tab has neither.
 - The graph is the note in the centre, the notes that mention it fanned on the left, and the notes it links to fanned on the right, each once, in the order the mentions list and the note's own text give. A link that names no note draws a faint placeholder after the real links, on a dashed line, which nothing opens and the arrows skip. A link to itself draws nothing, and a note on both sides sits on the right with a dot at the end of its line.
 - Past twelve on a side, the eleven most recently updated show and a `+N` pill carries the rest, placeholders filling what room the real links leave. On the left it opens the mentions list. On the right it opens a list of every note this one links to, each with the line that links it, then the targets that name no note, which open nothing. ⏎ or a click opens a note in place, ⌘⏎ beside.
 - The note's folder, when it has one, and then its tags in frontmatter order sit along the top of the ring: a folder as its icon and name, a tag as `#tag`, each followed by how many things its own ring holds. More than five fold into a `+N` that lists them all.
@@ -189,7 +200,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The note lands in `inbox/` named `yyyy-MM-dd-HHmmss.md`, and a same-second collision takes the next free name.
 - Capturing nothing writes nothing, and the window hides.
 - A failed save keeps the jot on screen and says so.
-- The capture window runs outside the router, so the palette and the tab shortcuts do not reach it. The editor's own keys do.
+- The capture window runs outside the router, so the palette and the tab shortcuts do not reach it. The editor's own keys and find in note do.
 
 ## The window and the system
 

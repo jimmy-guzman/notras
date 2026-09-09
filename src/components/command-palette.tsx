@@ -18,6 +18,7 @@ import {
   PencilIcon,
   PinIcon,
   RefreshCwIcon,
+  SearchIcon,
   SettingsIcon,
   TagPlusIcon,
   Trash2Icon,
@@ -70,6 +71,7 @@ import {
 } from "@/lib/tabs/store";
 import { tabFullPath, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { useChordsByName } from "@/lib/ui/shortcuts";
@@ -287,7 +289,7 @@ type PaletteView = "actions" | "delete" | "find" | "move" | "rename" | "tags";
  * frontmatter, so an external file cannot answer it; a tab action acts on the
  * open set, which an external file answers as well as a note does.
  */
-type PaletteScope = "none" | "note" | "tab";
+type PaletteScope = "editor" | "none" | "note" | "tab";
 
 interface PaletteAction {
   Icon: LucideIcon;
@@ -629,6 +631,11 @@ export function CommandPalette({
     getTabHandles(activeId)?.toggleSource();
   }, [activeId, close]);
 
+  const findInNote = useCallback(() => {
+    close();
+    openNoteFind();
+  }, [close]);
+
   const showMentions = useCallback(() => {
     close();
     setMentionsOpen(true);
@@ -673,6 +680,14 @@ export function CommandPalette({
   }, [runAction]);
 
   const actions: PaletteAction[] = [
+    {
+      Icon: SearchIcon,
+      label: "find in note",
+      needs: "editor",
+      onSelect: findInNote,
+      text: "find in note",
+      value: "find-in-note",
+    },
     {
       Icon: FilePlusIcon,
       label: "new note",
@@ -839,6 +854,7 @@ export function CommandPalette({
   ];
 
   const reachable = {
+    editor: getTabHandles(activeId) !== undefined,
     none: true,
     note: currentNote !== undefined,
     tab: activeTab !== undefined,
