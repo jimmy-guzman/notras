@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/jimmy-guzman/notras/compare/v0.3.1...v0.4.0) (2026-09-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* 💥 typewriter mode is now part of focus mode
+
+### Features
+
+* ✨ code blocks preserve language metadata ([#161](https://github.com/jimmy-guzman/notras/issues/161)) ([36f6a11](https://github.com/jimmy-guzman/notras/commit/36f6a11bd5e760fc33043ac33e9abf37e3ece641))
+* ✨ fold typewriter scrolling into focus mode ([#162](https://github.com/jimmy-guzman/notras/issues/162)) ([f8a8fa9](https://github.com/jimmy-guzman/notras/commit/f8a8fa9fdaf474115a1629936a0a0d7e0d86b649))
+* ✨ refresh theme, logo, and syntax ([#160](https://github.com/jimmy-guzman/notras/issues/160)) ([12a34be](https://github.com/jimmy-guzman/notras/commit/12a34be806673df94fe362783a7b1153b2546b8c))
+
+
+### Bug Fixes
+
+* 🐛 prevent elastic scrolling on window ([#158](https://github.com/jimmy-guzman/notras/issues/158)) ([5ccaa8d](https://github.com/jimmy-guzman/notras/commit/5ccaa8dd6e6133b69b109b98c124d63eac147b87))
+
 ## [0.3.1](https://github.com/jimmy-guzman/notras/compare/v0.3.0...v0.3.1) (2026-09-08)
 
 
