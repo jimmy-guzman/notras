@@ -1786,6 +1786,20 @@ mod tests {
     }
 
     #[test]
+    fn should_keep_ascii_phrases_beside_unicode_token_boundaries() {
+        let dir = temp_notes_dir("unicode-boundary-candidates");
+        fs::write(dir.join("a.md"), "Ada\u{e000}\n").unwrap();
+        fs::write(dir.join("b.md"), "\u{e000}Ada\n").unwrap();
+        fs::write(dir.join("c.md"), "unrelated prose\n").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+        let found = scan_prose(&dir, phrase_candidates(&conn, "Ada").unwrap(), "Ada", true).unwrap();
+        assert_eq!(found.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(), vec!["a.md", "b.md"]);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn should_keep_unicode_case_variants_that_fts_does_not_fold() {
         let dir = temp_notes_dir("unicode-phrase-candidates");
         fs::write(dir.join("a.md"), "foo ა bar\n").unwrap();
