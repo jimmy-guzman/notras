@@ -1556,5 +1556,47 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&dir);
+    }    #[test]
+    fn should_index_rendered_destinations() {
+        let cases: &[(&str, &[&str])] = &[
+            ("[a](attachments/report.pdf)", &["attachments/report.pdf"]),
+            ("<https://github.com/a>", &["https://github.com/a"]),
+            ("https://github.com/a.", &["https://github.com/a"]),
+            ("www.github.com/a", &["http://www.github.com/a"]),
+            ("ada@example.com", &["mailto:ada@example.com"]),
+            ("(https://github.com/a(b)).", &["https://github.com/a(b)"]),
+            ("`https://github.com/a`", &[]),
+            ("![a](https://github.com/a.png)", &[]),
+            ("[https://github.com/a](b.md)", &["b.md"]),
+            ("<span>https://github.com/a</span>", &[]),
+        ];
+        for (markdown, expected) in cases {
+            let links = destinations(markdown);
+            let found: Vec<&str> = links.iter().map(|link| link.target.as_str()).collect();
+            assert_eq!(&found, expected, "scanning {markdown:?}");
+        }
     }
+
+    #[test]
+    fn should_search_literal_prose_including_headings_without_fts() {
+        let dir = temp_notes_dir("literal-prose");
+        fs::write(dir.join("a.md"), "---\ntitle: Ada Lovelace\n---\n# Ada Lovelace\n\nada lovelace wrote this.\n\n`Ada Lovelace` [Ada Lovelace](a.md) <span>Ada Lovelace</span>\n\nLovelaces and xAda Lovelace are different.\n\nA +++ phrase.\n").unwrap();
+        let mentions = scan_prose(&dir, vec!["a.md".into()], "Ada Lovelace", true).unwrap();
+        assert_eq!(mentions.iter().map(|row| row.line).collect::<Vec<_>>(), vec![4, 6]);
+        assert_eq!(scan_prose(&dir, vec!["a.md".into()], "+++", true).unwrap().len(), 1);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn should_classify_non_note_destinations_separately() {
+        let dir = temp_notes_dir("destination-kinds");
+        fs::write(dir.join("a.md"), "[b](b.md) https://github.com/a ![image](x.png)").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+        let rows = select(&conn, "SELECT kind, target FROM note_link ORDER BY kind", &[]).unwrap();
+        assert_eq!(rows, vec![vec![json!("destination"), json!("https://github.com/a")], vec![json!("link"), json!("b.md")]]);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
 }

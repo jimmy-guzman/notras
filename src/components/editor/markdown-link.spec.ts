@@ -56,7 +56,7 @@ const cases: [markdown: string, targets: string[]][] = [
 ];
 
 /** The destination of every note link a markdown string parses into, in order. */
-function noteLinks(markdown: string) {
+function destinations(markdown: string) {
   const editor = new Editor({
     content: markdown,
     contentType: "markdown",
@@ -77,14 +77,31 @@ function noteLinks(markdown: string) {
 
   editor.destroy();
 
-  return hrefs.filter(isNotePath);
+  return hrefs;
 }
 
 describe("markdown link", () => {
   it.each(cases)(
     "should open the same note link the index records in %j",
     (markdown, expected) => {
-      expect(noteLinks(markdown)).toEqual(expected);
+      expect(destinations(markdown).filter(isNotePath)).toEqual(expected);
     }
   );
+});
+
+describe("destination indexing parity", () => {
+  it.each([
+    ["[a](attachments/report.pdf)", ["attachments/report.pdf"]],
+    ["<https://github.com/a>", ["https://github.com/a"]],
+    ["https://github.com/a.", ["https://github.com/a"]],
+    ["www.github.com/a", ["http://www.github.com/a"]],
+    ["ada@example.com", ["mailto:ada@example.com"]],
+    ["(https://github.com/a(b)).", ["https://github.com/a(b)"]],
+    ["`https://github.com/a`", []],
+    ["![a](https://github.com/a.png)", []],
+    ["[https://github.com/a](b.md)", ["b.md"]],
+    ["<span>https://github.com/a</span>", []],
+  ])("should index the destinations rendered in %s", (markdown, expected) => {
+    expect(destinations(String(markdown))).toEqual(expected);
+  });
 });

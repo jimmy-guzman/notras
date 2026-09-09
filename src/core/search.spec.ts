@@ -4,6 +4,7 @@ import {
   filterSearchNotes,
   insertSearchFilter,
   parseSearch,
+  searchFilterMatches,
   searchFolders,
   searchSuggestion,
 } from "@/core/search";
@@ -103,5 +104,122 @@ describe("palette search", () => {
     expect(filterSearchNotes(notes, parseSearch("folder:/"))).toHaveLength(30);
     expect(filterSearchNotes(notes, parseSearch("folder:missing"))).toEqual([]);
     expect(filterSearchNotes(notes, parseSearch("#missing"))).toEqual([]);
+  });
+});
+
+describe("relationship and destination filters", () => {
+  it("should preserve quoted phrases and canonical note paths", () => {
+    expect(
+      parseSearch(
+        'budget mention:"Ada Lovelace" to:projects/atlas.md from:inbox/a.md link:github.com'
+      ).filters
+    ).toEqual([
+      { kind: "mention", value: "Ada Lovelace" },
+      { kind: "to", value: "projects/atlas.md" },
+      { kind: "from", value: "inbox/a.md" },
+      { kind: "link", value: "github.com" },
+    ]);
+    expect(
+      insertSearchFilter("folder:work #review from:Atl", {
+        kind: "from",
+        value: "projects/atlas.md",
+      })
+    ).toBe("folder:work #review from:projects/atlas.md ");
+  });
+  it("should resolve outgoing targets and exclude self links and unresolved destinations", () => {
+    const notes = [
+      note("projects/atlas.md"),
+      note("projects/b.md"),
+      note("else/b.md"),
+    ].map((meta) => ({
+      ...meta,
+      title: meta.path.endsWith("b.md") ? "B" : "Atlas",
+    }));
+    const links = ["B", "Atlas", "missing"].map((target) => ({
+      context: `see [[${target}]]`,
+      kind: "wikilink",
+      line: 1,
+      path: "projects/atlas.md",
+      target,
+    }));
+    expect([
+      ...searchFilterMatches(
+        { kind: "from", value: "projects/atlas.md" },
+        notes,
+        links,
+        []
+      ),
+    ]).toEqual([["projects/b.md", "Atlas (projects/atlas.md): see [[B]]"]]);
+    expect([
+      ...searchFilterMatches(
+        { kind: "from", value: "absent.md" },
+        notes,
+        links,
+        []
+      ),
+    ]).toEqual([]);
+  });
+  it("should combine resolved incoming links with bare mentions", () => {
+    const notes = [note("atlas.md"), note("a.md"), note("b.md")].map(
+      (meta) => ({
+        ...meta,
+        title: meta.path === "atlas.md" ? "Atlas" : meta.title,
+      })
+    );
+    const links = [
+      {
+        context: "see [[Atlas]]",
+        kind: "wikilink",
+        line: 1,
+        path: "a.md",
+        target: "Atlas",
+      },
+      {
+        context: "[[Atlas]]",
+        kind: "wikilink",
+        line: 1,
+        path: "atlas.md",
+        target: "Atlas",
+      },
+    ];
+    expect([
+      ...searchFilterMatches({ kind: "to", value: "atlas.md" }, notes, links, [
+        { context: "Atlas here", line: 2, path: "b.md" },
+      ]).keys(),
+    ]).toEqual(["a.md", "b.md"]);
+  });
+  it("should match destination text literally without resolving it", () => {
+    const links = [
+      {
+        context: "[code](https://GitHub.com/a)",
+        kind: "destination",
+        line: 1,
+        path: "a.md",
+        target: "https://GitHub.com/a",
+      },
+      {
+        context: "[[missing]]",
+        kind: "wikilink",
+        line: 1,
+        path: "b.md",
+        target: "missing",
+      },
+    ];
+    expect([
+      ...searchFilterMatches(
+        { kind: "link", value: "github.com" },
+        [],
+        links,
+        []
+      ).keys(),
+    ]).toEqual(["a.md"]);
+    expect([
+      ...searchFilterMatches(
+        { kind: "link", value: "missing" },
+        [],
+        links,
+        []
+      ).keys(),
+    ]).toEqual(["b.md"]);
   });
 });
