@@ -23,6 +23,21 @@ function note(path: string, tags: string[] = []): NoteMeta {
 }
 
 describe("palette search", () => {
+  it("should replace the filter at the caret while retaining later filters and text", () => {
+    const query = "folder:wo budget #review folder:archive";
+    expect(searchSuggestion(query, 9)).toEqual({ kind: "folder", value: "wo" });
+    expect(
+      insertSearchFilter(query, { kind: "folder", value: "work/2026" }, 9)
+    ).toBe("folder:work/2026 budget #review folder:archive");
+    expect(searchSuggestion(query, 14)).toBeUndefined();
+  });
+  it("should prefer the caret token over a later unfinished filter", () => {
+    const query = "folder:wo budget folder:";
+    expect(searchSuggestion(query, 9)).toEqual({ kind: "folder", value: "wo" });
+    expect(
+      insertSearchFilter(query, { kind: "folder", value: "work" }, 9)
+    ).toBe("folder:work budget folder:");
+  });
   it("should combine repeated filters anywhere with free text", () => {
     expect(
       parseSearch("budget #Work folder:work q3 #review folder:work/2026")
