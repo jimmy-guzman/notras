@@ -41,8 +41,8 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 ### Finding
 
 - `⌘P` finds a note, over full-text search with highlighted snippets
-- `#tag` filters that narrow the search (`#work budget`)
-- a search that matches nothing offers to create a note under the name you typed
+- combine `#tag`, `folder:path`, `to:note.md`, `from:note.md`, `mention:"a phrase"`, and `link:github.com` with free text; the "add filter" button supplies folder, tag, and note choices
+- a completed search without filters that matches nothing offers to create a note under the name you typed
 - `⌘⇧P` runs an action on the note, the open tabs, or the app itself
 - `[[note title]]` wikilinks as clickable pills, with autocomplete
 - `[text](other.md)` links to notes open with a click, and read as internal

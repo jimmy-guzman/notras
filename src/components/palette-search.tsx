@@ -1,20 +1,18 @@
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
   HashIcon,
-  LinkIcon,
   PinIcon,
-  TextSearchIcon,
 } from "lucide-react";
 import { useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
@@ -23,6 +21,7 @@ import { filenameFromTitle, type NoteMeta } from "@/core/notes";
 import {
   insertSearchFilter,
   parseSearch,
+  type SearchFilter,
   searchFolders,
   searchSuggestion,
 } from "@/core/search";
@@ -74,13 +73,17 @@ function NoteItem({ note, onSelect }: NoteItemProps) {
   return (
     <CommandItem onSelect={select} value={note.path}>
       <FileTextIcon />
-      <div className="flex min-w-0 flex-col">
-        <span className="flex items-center gap-1.5 truncate">
-          {note.title}
-          {/* In a text run, not the row's icon slot, so it stays 12px (`D51`). */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="min-w-0 truncate" title={note.path}>
+            {note.title}
+          </span>
           {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
           {note.folder === "" ? null : (
-            <span className="text-muted-foreground text-xs">
+            <span
+              className="max-w-1/3 shrink-0 truncate text-muted-foreground text-xs"
+              title={note.path}
+            >
               · {note.folder}
             </span>
           )}
@@ -100,8 +103,80 @@ function folderLabel(folder: string) {
   return folder === "/" ? "notes root" : folder;
 }
 
+interface PickerChoice {
+  count?: number;
+  detail?: string;
+  label: string;
+  value: string;
+}
+
+function pickerChoices(
+  filter: SearchFilter | undefined,
+  notes: NoteMeta[],
+  tags: { count: number; tag: string }[]
+) {
+  if (filter === undefined) {
+    return;
+  }
+  const choices: PickerChoice[] = (() => {
+    switch (filter.kind) {
+      case "folder":
+        return searchFolders(notes).map(({ count, folder }) => ({
+          count,
+          label: folderLabel(folder),
+          value: folder,
+        }));
+      case "tag":
+        return tags.map(({ count, tag }) => ({
+          count,
+          label: tag,
+          value: tag,
+        }));
+      case "to":
+      case "from":
+        return notes.map(({ path, title }) => ({
+          detail: path,
+          label: title,
+          value: path,
+        }));
+      default:
+        return [];
+    }
+  })();
+  if (choices.some(({ value }) => value === filter.value)) {
+    return;
+  }
+  const presentation = (() => {
+    switch (filter.kind) {
+      case "folder":
+        return { heading: "folders", Icon: FolderIcon };
+      case "tag":
+        return { heading: "tags", Icon: HashIcon };
+      default:
+        return { heading: "notes to filter by", Icon: FileTextIcon };
+    }
+  })();
+  return {
+    ...presentation,
+    choices: choices.filter(({ label, value }) =>
+      `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
+    ),
+  };
+}
+
+function filterHelp(kind: SearchFilter["kind"] | undefined) {
+  if (kind === "mention") {
+    return 'type a phrase, for example mention:"Ada Lovelace"';
+  }
+  if (kind === "link") {
+    return "type part of a destination, for example link:github.com";
+  }
+  return "type a folder, tag, or note to filter by";
+}
+
 interface PaletteSearchProps {
   allTags: { count: number; tag: string }[];
+  cursor?: number;
   notes: NoteMeta[];
   onCreate: () => void;
   onQueryChange: (query: string) => void;
@@ -111,6 +186,7 @@ interface PaletteSearchProps {
 
 export function PaletteSearch({
   allTags,
+  cursor,
   notes,
   onCreate,
   onQueryChange,
@@ -124,8 +200,7 @@ export function PaletteSearch({
     ...noteQueries.search(parseSearch(debounced)),
     enabled: !(idle || parseSearch(debounced).incomplete),
   });
-  const pending =
-    !idle && (debounced !== query || result.isPending || result.isFetching);
+  const pending = !idle && (debounced !== query || result.isPending);
   const visible = (() => {
     if (idle) {
       return notes.slice(0, 20);
@@ -135,40 +210,28 @@ export function PaletteSearch({
     }
     return result.data ?? [];
   })();
-  const suggestion = searchSuggestion(query);
-  const pickFolder = useCallback(
-    (value: string) =>
-      onQueryChange(
-        insertSearchFilter(query, { kind: "folder", value: value.slice(7) })
-      ),
-    [onQueryChange, query]
-  );
-  const pickTag = useCallback(
-    (value: string) =>
-      onQueryChange(
-        insertSearchFilter(query, { kind: "tag", value: value.slice(4) })
-      ),
-    [onQueryChange, query]
-  );
-  const pickNote = useCallback(
+  const candidate = searchSuggestion(query, cursor);
+  const picker = pickerChoices(candidate, notes, allTags);
+  const showPicker =
+    picker !== undefined && picker.choices.length > 0 && !result.isError;
+  const pickFilter = useCallback(
     (value: string) => {
-      if (suggestion?.kind !== "to" && suggestion?.kind !== "from") {
-        return;
+      if (candidate !== undefined) {
+        onQueryChange(
+          insertSearchFilter(query, { kind: candidate.kind, value }, cursor)
+        );
       }
-      onQueryChange(
-        insertSearchFilter(query, {
-          kind: suggestion.kind,
-          value: value.slice(5),
-        })
-      );
     },
-    [onQueryChange, query, suggestion?.kind]
+    [candidate, cursor, onQueryChange, query]
   );
-  const chooseFilter = useCallback(
-    (value: string) =>
-      onQueryChange(`${query.trimEnd()}${idle ? "" : " "}${value}`),
-    [idle, onQueryChange, query]
-  );
+  const stopCommandKeys = useCallback((event: React.KeyboardEvent) => {
+    if (event.key !== "Escape") {
+      event.stopPropagation();
+    }
+  }, []);
+  const retry = useCallback(async () => {
+    await result.refetch();
+  }, [result]);
   const offerCreate =
     !(idle || pending || search.incomplete) &&
     result.isSuccess &&
@@ -177,7 +240,7 @@ export function PaletteSearch({
   const status = (() => {
     if (search.incomplete) {
       return {
-        description: "complete the filter or choose a suggestion",
+        description: filterHelp(candidate?.kind),
         title: "incomplete filter",
       };
     }
@@ -191,14 +254,16 @@ export function PaletteSearch({
       };
     }
     return {
-      description: "choose a filter to narrow your search",
+      description: idle
+        ? "create a note with the new note action"
+        : "try different words or remove a filter",
       title: "nothing found",
     };
   })();
 
   return (
     <>
-      {visible.length === 0 && !offerCreate ? (
+      {!showPicker && visible.length === 0 && !offerCreate ? (
         <Empty className="p-6" role="status">
           <EmptyHeader>
             <EmptyTitle>{status.title}</EmptyTitle>
@@ -206,111 +271,55 @@ export function PaletteSearch({
               <EmptyDescription>{status.description}</EmptyDescription>
             )}
           </EmptyHeader>
+          {result.isError && !idle && !search.incomplete ? (
+            <EmptyContent onKeyDown={stopCommandKeys}>
+              <Button onClick={retry} size="sm" variant="outline">
+                retry
+              </Button>
+            </EmptyContent>
+          ) : null}
         </Empty>
       ) : null}
-      <CommandGroup heading="notes">
-        {visible.map((note) => (
-          <NoteItem key={note.path} note={note} onSelect={onSelectNote} />
-        ))}
-        {offerCreate ? (
-          <CommandItem onSelect={onCreate} value="create-note">
-            <FilePlusIcon />
-            <span className="truncate">
-              create "{query.trim()}"{" "}
-              <span className="text-muted-foreground">
-                · {filenameFromTitle(query.trim())}.md
+      {!showPicker && (visible.length > 0 || offerCreate) ? (
+        <CommandGroup heading="notes">
+          {visible.map((note) => (
+            <NoteItem key={note.path} note={note} onSelect={onSelectNote} />
+          ))}
+          {offerCreate ? (
+            <CommandItem onSelect={onCreate} value="create-note">
+              <FilePlusIcon />
+              <span className="truncate">
+                create "{query.trim()}"{" "}
+                <span className="text-muted-foreground">
+                  · {filenameFromTitle(query.trim())}.md
+                </span>
               </span>
-            </span>
-          </CommandItem>
-        ) : null}
-      </CommandGroup>
-      {suggestion?.kind === "folder" ? (
-        <CommandGroup heading="folders">
-          {searchFolders(notes)
-            .filter(({ folder }) =>
-              folder.toLowerCase().includes(suggestion.value.toLowerCase())
-            )
-            .map(({ count, folder }) => (
-              <CommandItem
-                key={folder}
-                onSelect={pickFolder}
-                value={`folder-${folder}`}
-              >
-                <FolderIcon />
-                <span className="flex-1 truncate">{folderLabel(folder)}</span>
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {count}
-                </span>
-              </CommandItem>
-            ))}
+            </CommandItem>
+          ) : null}
         </CommandGroup>
       ) : null}
-      {suggestion?.kind === "tag" ? (
-        <CommandGroup heading="tags">
-          {allTags
-            .filter(({ tag }) => tag.includes(suggestion.value))
-            .map(({ count, tag }) => (
-              <CommandItem key={tag} onSelect={pickTag} value={`tag-${tag}`}>
-                <HashIcon />
-                <span className="flex-1 truncate">{tag}</span>
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {count}
-                </span>
-              </CommandItem>
-            ))}
-        </CommandGroup>
-      ) : null}
-      {suggestion?.kind === "to" || suggestion?.kind === "from" ? (
-        <CommandGroup heading="notes to filter by">
-          {notes
-            .filter(({ path, title }) =>
-              `${title} ${path}`
-                .toLowerCase()
-                .includes(suggestion.value.toLowerCase())
-            )
-            .map((note) => (
-              <CommandItem
-                key={note.path}
-                onSelect={pickNote}
-                value={`pick-${note.path}`}
-              >
-                <FileTextIcon />
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate">{note.title}</span>
+      {showPicker ? (
+        <CommandGroup heading={picker.heading}>
+          {picker.choices.map(({ count, detail, label, value }) => (
+            <CommandItem key={value} onSelect={pickFilter} value={value}>
+              <picker.Icon />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{label}</span>
+                {detail === undefined ? null : (
                   <span className="truncate text-muted-foreground text-xs">
-                    {note.path}
+                    {detail}
                   </span>
-                </div>
-              </CommandItem>
-            ))}
+                )}
+              </div>
+              {count === undefined ? null : (
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {count}
+                </span>
+              )}
+            </CommandItem>
+          ))}
         </CommandGroup>
       ) : null}
-      <CommandGroup heading="search by">
-        <CommandItem onSelect={chooseFilter} value="to:">
-          <ArrowLeftIcon />
-          mentions of a note
-        </CommandItem>
-        <CommandItem onSelect={chooseFilter} value="from:">
-          <ArrowRightIcon />
-          links from a note
-        </CommandItem>
-        <CommandItem onSelect={chooseFilter} value="mention:">
-          <TextSearchIcon />
-          phrase in prose
-        </CommandItem>
-        <CommandItem onSelect={chooseFilter} value="link:">
-          <LinkIcon />
-          link destination
-        </CommandItem>
-        <CommandItem onSelect={chooseFilter} value="folder:">
-          <FolderIcon />
-          folder
-        </CommandItem>
-        <CommandItem onSelect={chooseFilter} value="#">
-          <HashIcon />
-          tag
-        </CommandItem>
-      </CommandGroup>
     </>
   );
 }

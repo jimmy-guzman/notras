@@ -110,10 +110,14 @@ export function parseSearch(input: string): NoteSearch {
 }
 
 /** Incomplete filters and the filter currently being typed offer suggestions. */
-export function searchSuggestion(input: string): SearchFilter | undefined {
-  const token = scanSearch(input).tokens.findLast(
-    ({ complete, end }) => !complete || end === input.length
-  );
+export function searchSuggestion(
+  input: string,
+  cursor = input.length
+): SearchFilter | undefined {
+  const { tokens } = scanSearch(input);
+  const token =
+    tokens.find(({ end, start }) => start <= cursor && cursor <= end) ??
+    tokens.findLast(({ complete }) => !complete);
   return token === undefined
     ? undefined
     : { kind: token.kind, value: token.value };
@@ -121,12 +125,14 @@ export function searchSuggestion(input: string): SearchFilter | undefined {
 
 export function insertSearchFilter(
   input: string,
-  filter: SearchFilter
+  filter: SearchFilter,
+  cursor = input.length
 ): string {
-  const token = scanSearch(input).tokens.findLast(
-    ({ complete, end, kind }) =>
-      (!complete || end === input.length) && kind === filter.kind
-  );
+  const { tokens } = scanSearch(input);
+  const candidate =
+    tokens.find(({ end, start }) => start <= cursor && cursor <= end) ??
+    tokens.findLast(({ complete }) => !complete);
+  const token = candidate?.kind === filter.kind ? candidate : undefined;
   const escaped = filter.value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
   const value = NEEDS_QUOTES.test(filter.value) ? `"${escaped}"` : escaped;
   const prefix = filter.kind === "tag" ? "#" : `${filter.kind}:`;
