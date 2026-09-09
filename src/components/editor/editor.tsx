@@ -6,9 +6,11 @@ import type { EditorState } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { isNotePath } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
+import { styleNonce } from "@/lib/style-nonce";
 import { readCodeClipboard } from "@/lib/ui/code-clipboard";
 import { reasonOf } from "@/lib/ui/failure";
 import { encodeAttachmentPath } from "@/lib/utils/attachments";
@@ -201,7 +203,15 @@ export function Editor({
   focusModeEnabled = false,
   ...mountProps
 }: EditorProps) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const attachScrollArea = useCallback((root: HTMLDivElement | null) => {
+    scrollAreaRef.current = root;
+    scrollerRef.current =
+      root?.querySelector<HTMLDivElement>(
+        '[data-slot="scroll-area-viewport"]'
+      ) ?? null;
+  }, []);
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
   const focusModeRef = useRef(focusModeEnabled);
@@ -460,6 +470,7 @@ export function Editor({
       typewriter,
     ],
     immediatelyRender: false,
+    injectNonce: styleNonce,
     onBlur: () => {
       config.onBlur?.();
     },
@@ -633,9 +644,9 @@ export function Editor({
   // glide and ProseMirror's own scrollIntoView, which move the scroller on
   // every keystroke (`D64`).
   useEffect(() => {
-    const scroller = scrollerRef.current;
+    const surface = scrollAreaRef.current;
 
-    if (!focusModeEnabled || scroller === null) {
+    if (!focusModeEnabled || surface === null) {
       return;
     }
 
@@ -650,14 +661,14 @@ export function Editor({
       setReading(false);
     };
 
-    scroller.addEventListener("wheel", engage, { passive: true });
-    scroller.addEventListener("touchmove", engage, { passive: true });
-    scroller.addEventListener("click", restore);
+    surface.addEventListener("wheel", engage, { passive: true });
+    surface.addEventListener("touchmove", engage, { passive: true });
+    surface.addEventListener("click", restore);
 
     return () => {
-      scroller.removeEventListener("wheel", engage);
-      scroller.removeEventListener("touchmove", engage);
-      scroller.removeEventListener("click", restore);
+      surface.removeEventListener("wheel", engage);
+      surface.removeEventListener("touchmove", engage);
+      surface.removeEventListener("click", restore);
       setReading(false);
     };
   }, [focusModeEnabled]);
@@ -775,13 +786,13 @@ export function Editor({
   );
 
   return (
-    <div
+    <ScrollArea
       className={cn(
-        "allow-select min-h-0 flex-1 overflow-y-auto",
+        "allow-select min-h-0 flex-1",
         focusModeEnabled && "focus-mode-on",
         reading && "focus-reading"
       )}
-      ref={scrollerRef}
+      ref={attachScrollArea}
     >
       <EditorContent className="min-h-full" editor={editor} />
       {linkHover === null || linkEditor !== null ? null : (
@@ -801,6 +812,6 @@ export function Editor({
           state={linkEditor}
         />
       )}
-    </div>
+    </ScrollArea>
   );
 }

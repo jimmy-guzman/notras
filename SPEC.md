@@ -10,7 +10,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Body text has at least 7:1 contrast on the page and code-block surface in both schemes. Syntax inks have at least 4.5:1 on those surfaces. Comments and punctuation use the secondary text tone; operators use body ink. Placeholders share secondary ink and clear 4.5:1 on the page, card, and hover surface. Selection uses a muted blue surface.
 - At the default root size, prose renders in Literata at 16px across window widths and in print, with 1.65 line-height. Fenced code and source mode render in iA Writer Mono at 14px with 1.5 line-height across those widths and in print. Inline code follows the surrounding text at 0.9em. The reading column remains at most 42rem wide with 24px horizontal padding.
 - Selected text uses body ink on the same blue surface in editors and inputs. Completed tasks use secondary ink and a strikethrough without additional opacity.
-- Scrollbars use system colors for the current scheme, native width, and native visibility behavior: they auto-hide when the platform is configured to do so and remain visible when it requests "always show". Focus mode still hides the editor scrollbar. Forced-colors mode uses system selection and scrollbar colors.
+- The note and source editors use shadcn's scrollbar. It fades in over 150 ms during user scrolling, including keyboard scrolling, then fades out over 300 ms after 500 ms of inactivity. Hover alone does not reveal it, and a hidden bar does not intercept clicks. It stays visible while its thumb is held, including a pause during a drag. Focus mode hides the note scrollbar while wheel, touch, and keyboard scrolling still work. Reduced motion removes the fade. Other native scroll surfaces keep their system colors, width, and visibility behavior. Forced-colors mode uses system selection colors.
+- Continuous scrolling keeps the text and scrollbar moving together in notes with many highlighted code blocks, including in installed builds.
 - Main and capture windows use the matching page background at launch and after a system-theme change.
 - The mark is two overlapping sheets with a pink upper-right fold. The installed icon keeps its dark tile; the welcome mark and favicons follow the system scheme. The tray is system-tinted, with a transparent seam and fold.
 - With no tab open, the welcome screen shows the mark beside "notras" and the single-line tagline "write another note". The new-note button and search shortcut remain below it.
@@ -190,7 +191,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - The main window opens at 960 by 720 and stops at 480 by 360.
 - macOS draws an overlay title bar with the traffic lights inset, and the app draws a 36px drag region holding the tab strip, the save glyph, and the pin.
-- The window itself never scrolls. Only the note does, so no scrollbar runs the full height of the window or crosses the two bands.
+- The window itself never scrolls, including when content overflows or caret movement asks an ancestor to scroll. The note or source editor has one vertical scrollbar between the two bands. No outer scrollbar runs the full height of the window or crosses either band.
 - The tray menu offers open notras, new note, quick capture, and quit.
 - Closing either window hides it. Quitting is what exits.
 - A quit is held until every open buffer has flushed. A buffer that could not write cancels the quit and says so. A buffer whose file is gone reports the quit as safe while still holding text, and its banner is the only warning.

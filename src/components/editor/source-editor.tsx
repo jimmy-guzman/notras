@@ -8,6 +8,8 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useState } from "react";
 
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { styleNonce } from "@/lib/style-nonce";
 
 export interface SourceEditorHandle {
   focus: () => void;
@@ -126,6 +128,7 @@ export function SourceEditor({
       TabIndent,
     ],
     immediatelyRender: false,
+    injectNonce: styleNonce,
     onCreate: ({ editor: instance }) => {
       config.onReady?.({
         focus: () => {
@@ -171,8 +174,8 @@ export function SourceEditor({
   }, [config, editor]);
 
   return (
-    <div className="source-editor allow-select min-h-0 flex-1 overflow-y-auto">
+    <ScrollArea className="source-editor allow-select min-h-0 flex-1">
       <EditorContent className="min-h-full" editor={editor} />
-    </div>
+    </ScrollArea>
   );
 }
