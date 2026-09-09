@@ -718,6 +718,8 @@ Markdown writes all four and the parser builds them, the schema rejected the res
 
 ### D61 `SPEC.md` states behaviour, and `DEFERRED.md` holds what was ruled out
 
+Historical note: This entry preserves the original backlog arrangement. `DEFERRED.md` has since been removed, and actionable future work is tracked in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).
+
 `SPEC.md` carried a 34-box walkthrough run under `pnpm dev`, 16 checked and 18 open, plus a list of work nobody had picked up. Every box described real behaviour in the shape of a to-do item, so a checked box logged what the change that added it had already verified, and an open one recorded an intention. The same file was answering what the app does and what nobody has done. `SPEC.md` now states what the app does, as claims a reader can check against a running build, and `DEFERRED.md` carries the ruled-out work under an entry bar of its own.
 
 **Rejected: keeping the 18 open boxes as a checklist.** They name behaviour nobody has walked end to end, mostly the tab work in `D52` through `D56`. Rejected because a checklist that only grows a tail of unwalked boxes tracks a backlog, and an issue tracks a backlog better. The behaviour each box described is stated in `SPEC.md` instead, where it holds whether or not anyone has walked it lately.
