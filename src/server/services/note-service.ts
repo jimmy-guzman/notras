@@ -52,7 +52,6 @@ interface INoteService {
   ) => Effect.Effect<BareMention[], FileError>;
   getByPath: (path: string) => Effect.Effect<Note, FileError>;
   list: (filters?: NoteFilters) => Effect.Effect<NoteMeta[]>;
-  listFolders: () => Effect.Effect<{ count: number; folder: string }[]>;
   listLinks: () => Effect.Effect<NoteLink[]>;
   listTags: () => Effect.Effect<{ count: number; tag: string }[]>;
   move: (path: string, folder: string) => Effect.Effect<string, FileError>;
@@ -62,6 +61,18 @@ interface INoteService {
   setPinned: (path: string, pinned: boolean) => Effect.Effect<void, FileError>;
   setTags: (path: string, tags: string[]) => Effect.Effect<void, FileError>;
   write: (path: string, content: string) => Effect.Effect<Date, FileError>;
+}
+
+function searchLinkPaths(search: NoteSearch, candidates: NoteMeta[]) {
+  const outgoing = search.filters.flatMap(({ kind, value }) =>
+    kind === "from" ? [value] : []
+  );
+  if (search.filters.some(({ kind }) => kind === "to" || kind === "link")) {
+    return search.query === ""
+      ? undefined
+      : [...new Set([...candidates.map(({ path }) => path), ...outgoing])];
+  }
+  return outgoing;
 }
 
 function toNote(path: string, file: NoteFileContent): Note {
@@ -266,8 +277,6 @@ const makeNoteService = Effect.gen(function* () {
 
     list: (filters) => noteRepo.findMany(filters ?? {}).pipe(Effect.orDie),
 
-    listFolders: () => noteRepo.listFolders().pipe(Effect.orDie),
-
     listLinks: () => noteRepo.listLinks().pipe(Effect.orDie),
 
     listTags: () => noteRepo.listTags().pipe(Effect.orDie),
@@ -283,15 +292,17 @@ const makeNoteService = Effect.gen(function* () {
       const candidates = yield* noteRepo
         .findMany({ query: search.query })
         .pipe(Effect.orDie);
-      const notes = search.filters.some(
-        ({ kind }) => kind === "to" || kind === "from"
-      )
-        ? yield* noteRepo.findMany({}).pipe(Effect.orDie)
-        : candidates;
+      const notes =
+        search.query !== "" &&
+        search.filters.some(({ kind }) => kind === "to" || kind === "from")
+          ? yield* noteRepo.findMany({}).pipe(Effect.orDie)
+          : candidates;
       const links = search.filters.some(
         ({ kind }) => kind === "to" || kind === "from" || kind === "link"
       )
-        ? yield* noteRepo.listDestinations().pipe(Effect.orDie)
+        ? yield* noteRepo
+            .listDestinations(searchLinkPaths(search, candidates))
+            .pipe(Effect.orDie)
         : [];
       const matches = yield* Effect.forEach(
         search.filters,

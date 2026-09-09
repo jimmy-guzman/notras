@@ -69,7 +69,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -494,15 +494,24 @@ fn bare_destination(raw: &str) -> Option<(&str, String)> {
 /// GFM bare destinations inside parser-approved prose. Explicit links and
 /// wikilinks own their spans, so their labels never produce nested links.
 fn autolinks(body: &str, prose: &[bool], spans: &[Range<usize>]) -> Vec<(usize, String, usize)> {
+    let mut linked = vec![false; body.len()];
+    for span in spans {
+        linked[span.clone()].fill(true);
+    }
+    let mut wikilinks = wikilink_targets(body, 0..body.len()).into_iter().peekable();
     let mut found = Vec::new();
     let mut until = 0;
     for (at, _) in body.char_indices() {
-        if at < until || !prose[at] || spans.iter().any(|span| span.contains(&at)) {
+        if at < until || !prose[at] || linked[at] {
             continue;
         }
-        if body[at..].starts_with("[[") {
-            if let Some((_, target)) = wikilink_targets(body, at..body.len()).first() {
-                until = at + target.len() + 4;
+        while wikilinks.peek().is_some_and(|(open, _)| *open < at) {
+            wikilinks.next();
+        }
+        if let Some(&(open, target)) = wikilinks.peek() {
+            if open == at {
+                until = open + target.len() + 4;
+                wikilinks.next();
                 continue;
             }
         }
@@ -716,6 +725,27 @@ fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Ve
     }
 
     found
+}
+
+/// Candidate files for a literal phrase, including the note's own heading.
+pub fn phrase_candidates(conn: &Connection, phrase: &str) -> Result<Vec<String>, IndexError> {
+    // unicode61 and Rust differ on Unicode case folding and word boundaries.
+    // Keep Unicode bodies even for ASCII phrases to avoid losing matches.
+    if phrase.is_ascii() && phrase.chars().any(|ch| ch.is_ascii_alphanumeric()) {
+        let query = format!("\"{}\"", phrase.replace('"', "\"\""));
+        let mut stmt = conn.prepare(
+            "SELECT path FROM note_fts WHERE note_fts MATCH ?1
+             UNION SELECT path FROM note_fts WHERE length(content) != length(CAST(content AS BLOB))
+             ORDER BY path"
+        )?;
+        let paths = stmt.query_map([query], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(paths);
+    }
+    let mut stmt = conn.prepare("SELECT path FROM note ORDER BY path")?;
+    let paths = stmt.query_map([], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(paths)
 }
 
 pub fn mention_candidates(

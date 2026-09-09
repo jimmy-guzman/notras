@@ -25,19 +25,15 @@ interface TagWithCount {
   tag: string;
 }
 
-interface FolderWithCount {
-  count: number;
-  folder: string;
-}
-
 interface INoteRepository {
   count: () => Effect.Effect<number, DatabaseError>;
   findByPath: (
     path: string
   ) => Effect.Effect<NoteMeta | undefined, DatabaseError>;
   findMany: (filters: NoteFilters) => Effect.Effect<NoteMeta[], DatabaseError>;
-  listDestinations: () => Effect.Effect<NoteLink[], DatabaseError>;
-  listFolders: () => Effect.Effect<FolderWithCount[], DatabaseError>;
+  listDestinations: (
+    paths?: string[]
+  ) => Effect.Effect<NoteLink[], DatabaseError>;
   listLinks: () => Effect.Effect<NoteLink[], DatabaseError>;
   listTags: () => Effect.Effect<TagWithCount[], DatabaseError>;
 }
@@ -176,24 +172,16 @@ const makeDbNoteRepository = Effect.gen(function* () {
 
     findMany,
 
-    listDestinations: () =>
+    listDestinations: (paths) =>
       dbQuery(() =>
-        db.select().from(noteLink).orderBy(noteLink.path, noteLink.line)
+        db
+          .select()
+          .from(noteLink)
+          .where(
+            paths === undefined ? undefined : inArray(noteLink.path, paths)
+          )
+          .orderBy(noteLink.path, noteLink.line)
       ),
-
-    listFolders: () =>
-      dbQuery(async () => {
-        const rows = await db
-          .select({
-            count: drizzleCount(),
-            folder: note.folder,
-          })
-          .from(note)
-          .groupBy(note.folder)
-          .orderBy(note.folder);
-
-        return rows.filter((row) => row.folder !== "");
-      }),
 
     listLinks: () =>
       dbQuery(() =>

@@ -269,9 +269,7 @@ pub fn find_mentions(
         let candidates = if let Some(path) = &path {
             index::mention_candidates(&core.conn, path, &title)?
         } else {
-            let mut stmt = core.conn.prepare("SELECT path FROM note ORDER BY path")?;
-            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
-            rows
+            index::phrase_candidates(&core.conn, &title)?
         };
         (core.notes_dir.clone(), candidates)
     };

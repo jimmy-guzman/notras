@@ -94,7 +94,6 @@ const emptyRepository = NoteRepository.of({
   findByPath: () => Effect.succeed(undefined),
   findMany: () => Effect.succeed([]),
   listDestinations: () => Effect.succeed([]),
-  listFolders: () => Effect.succeed([]),
   listLinks: () => Effect.succeed([]),
   listTags: () => Effect.succeed([]),
 });
@@ -403,7 +402,6 @@ describe("noteService.listTags", () => {
               findByPath: () => Effect.succeed(undefined),
               findMany: () => Effect.succeed([]),
               listDestinations: () => Effect.succeed([]),
-              listFolders: () => Effect.succeed([]),
               listLinks: () => Effect.succeed([]),
               listTags: () => Effect.succeed(indexed),
             })

@@ -47,10 +47,6 @@ export const Route = createRootRouteWithContext<{
   // Priming only: an inactive query is one invalidation cannot reach.
   loader: async ({ context }) => {
     await Promise.all([
-      context.queryClient.query({
-        ...noteQueries.folders(),
-        staleTime: STATIC,
-      }),
       context.queryClient.query({ ...noteQueries.links(), staleTime: STATIC }),
       context.queryClient.query({ ...noteQueries.list(), staleTime: STATIC }),
       context.queryClient.query({ ...noteQueries.tags(), staleTime: STATIC }),
