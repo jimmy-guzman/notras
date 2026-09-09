@@ -1003,3 +1003,9 @@ The stylesheet registers Base UI's four overflow-distance properties with `<leng
 Palette filters combine with AND, including repeated filters. Folder matching includes descendants and uses `folder:/` for the library root. Quoted values preserve spaces and support escaped quotes and backslashes. Pickers preserve the rest of the input. Rejected: separate search modes that discard existing constraints, and limiting FTS candidates before filtering, which omits valid results.
 
 The service preserves the repository's ranking and intersects filters before the cap. The palette hides previous results during debounce and reports incomplete input, empty results, and failed reads separately. Rejected: showing recent notes for unresolved filters or offering creation before a successful unfiltered search, because both misrepresent the submitted query.
+
+### D78 Saved relationships and literal searches
+
+`to:` uses the existing note resolver and bare-title mention rules; `from:` uses explicit resolved links. Pickers serialize library-relative paths so duplicate titles remain distinguishable. Literal `mention:` searches include headings and do not depend on a note title. Rejected: treating a literal phrase as a note reference, because that changes heading and self-reference exclusions.
+
+Arbitrary phrases scan saved prose across the library. Rejected: narrowing these candidates through FTS, because its tokenizer cannot represent all literal phrases. Non-note destinations have their own `note_link` kind, and graph reads select internal kinds. Rejected: exposing external URLs as graph nodes or dangling notes. Schema version 3 rebuilds unchanged notes on startup.

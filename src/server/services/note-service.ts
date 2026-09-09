@@ -20,7 +20,11 @@ import {
   retitleLeadingHeading,
   suffixedFilename,
 } from "@/core/notes";
-import { filterSearchNotes, type NoteSearch } from "@/core/search";
+import {
+  filterSearchNotes,
+  type NoteSearch,
+  searchFilterMatches,
+} from "@/core/search";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 interface Note {
@@ -276,10 +280,50 @@ const makeNoteService = Effect.gen(function* () {
       if (search.incomplete) {
         return [];
       }
-      const notes = yield* noteRepo
+      const candidates = yield* noteRepo
         .findMany({ query: search.query })
         .pipe(Effect.orDie);
-      return filterSearchNotes(notes, search);
+      const notes = search.filters.some(
+        ({ kind }) => kind === "to" || kind === "from"
+      )
+        ? yield* noteRepo.findMany({}).pipe(Effect.orDie)
+        : candidates;
+      const links = search.filters.some(
+        ({ kind }) => kind === "to" || kind === "from" || kind === "link"
+      )
+        ? yield* noteRepo.listDestinations().pipe(Effect.orDie)
+        : [];
+      const matches = yield* Effect.forEach(
+        search.filters,
+        Effect.fn("NoteService.searchFilter")(function* (filter) {
+          const target =
+            filter.kind === "to"
+              ? notes.find(({ path }) => path === filter.value)
+              : undefined;
+          const bare = yield* (() => {
+            if (filter.kind === "mention") {
+              return fileStore.findMentions(undefined, filter.value);
+            }
+            if (target !== undefined) {
+              return fileStore.findMentions(target.path, target.title);
+            }
+            return Effect.succeed([]);
+          })();
+          return searchFilterMatches(filter, notes, links, bare);
+        })
+      );
+      const matched = candidates
+        .filter(({ path }) => matches.every((match) => match.has(path)))
+        .map((note) => ({
+          ...note,
+          snippet:
+            note.snippet ??
+            matches
+              .map((match) => match.get(note.path))
+              .find((context) => context !== null && context !== undefined) ??
+            null,
+        }));
+      return filterSearchNotes(matched, search);
     }),
 
     setPinned: (path, pinned) => rewriteFrontmatter(path, { pinned }),

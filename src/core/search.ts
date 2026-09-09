@@ -1,7 +1,9 @@
+import type { BareMention, NoteLink } from "@/core/links";
+import { linkResolver, mentionsOf } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 
 export interface SearchFilter {
-  kind: "folder" | "tag";
+  kind: "folder" | "from" | "link" | "mention" | "tag" | "to";
   value: string;
 }
 
@@ -16,7 +18,24 @@ export interface NoteSearch {
   query: string;
 }
 
-const FILTER_START = /^(folder:|#)/;
+const FILTER_START = /^(folder:|from:|link:|mention:|to:|#)/;
+
+function filterKind(prefix: string): SearchFilter["kind"] {
+  switch (prefix) {
+    case "folder:":
+      return "folder";
+    case "from:":
+      return "from";
+    case "link:":
+      return "link";
+    case "mention:":
+      return "mention";
+    case "to:":
+      return "to";
+    default:
+      return "tag";
+  }
+}
 const WHITESPACE = /\s/;
 const NEEDS_QUOTES = /[\s"\\]/;
 
@@ -67,7 +86,7 @@ function scanSearch(input: string) {
     } else {
       tokens.push({
         end: part.end,
-        kind: prefix === "#" ? "tag" : "folder",
+        kind: filterKind(prefix),
         start: offset,
         value: prefix === "#" ? part.value.toLowerCase() : part.value,
       });
@@ -128,6 +147,64 @@ export function searchFolders(
     .toSorted((left, right) => left.folder.localeCompare(right.folder));
 }
 
+/** Contexts keyed by result path, resolved against the complete library. */
+export function searchFilterMatches(
+  filter: SearchFilter,
+  notes: NoteMeta[],
+  links: NoteLink[],
+  bare: BareMention[]
+): Map<string, string | null> {
+  const { kind, value } = filter;
+  if (kind === "folder" || kind === "tag") {
+    return new Map(
+      notes
+        .filter((note) =>
+          kind === "tag"
+            ? note.tags.includes(value)
+            : value === "/" ||
+              note.folder === value ||
+              note.folder.startsWith(`${value}/`)
+        )
+        .map((note) => [note.path, null])
+    );
+  }
+  if (kind === "mention") {
+    return new Map(bare.map(({ context, path }) => [path, context]));
+  }
+  if (kind === "link") {
+    return new Map(
+      links
+        .filter(({ target: destination }) =>
+          destination.toLowerCase().includes(value.toLowerCase())
+        )
+        .map(({ context, path }) => [path, context])
+    );
+  }
+  const target = notes.find(({ path }) => path === value);
+  if (target === undefined) {
+    return new Map();
+  }
+  if (kind === "to") {
+    return new Map(
+      mentionsOf(target.path, links, notes, bare).map(({ lines, note }) => [
+        note.path,
+        lines[0].context,
+      ])
+    );
+  }
+  const resolve = linkResolver(notes);
+  return new Map(
+    links
+      .filter(({ path }) => path === target.path)
+      .flatMap((link) => {
+        const note = resolve.row(link);
+        return note === undefined || note.path === target.path
+          ? []
+          : [[note.path, `${target.title} (${target.path}): ${link.context}`]];
+      })
+  );
+}
+
 /** Input notes already carry FTS ranking; all filters precede the palette cap. */
 export function filterSearchNotes(
   notes: NoteMeta[],
@@ -138,13 +215,19 @@ export function filterSearchNotes(
   }
   return notes
     .filter((note) =>
-      search.filters.every(({ kind, value }) =>
-        kind === "tag"
-          ? note.tags.includes(value)
-          : value === "/" ||
+      search.filters.every(({ kind, value }) => {
+        if (kind === "tag") {
+          return note.tags.includes(value);
+        }
+        if (kind === "folder") {
+          return (
+            value === "/" ||
             note.folder === value ||
             note.folder.startsWith(`${value}/`)
-      )
+          );
+        }
+        return true;
+      })
     )
     .slice(0, 30);
 }

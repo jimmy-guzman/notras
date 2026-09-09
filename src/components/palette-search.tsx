@@ -1,11 +1,15 @@
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
   HashIcon,
+  LinkIcon,
   PinIcon,
+  TextSearchIcon,
 } from "lucide-react";
 import { useCallback } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
@@ -146,6 +150,20 @@ export function PaletteSearch({
       ),
     [onQueryChange, query]
   );
+  const pickNote = useCallback(
+    (value: string) => {
+      if (suggestion?.kind !== "to" && suggestion?.kind !== "from") {
+        return;
+      }
+      onQueryChange(
+        insertSearchFilter(query, {
+          kind: suggestion.kind,
+          value: value.slice(5),
+        })
+      );
+    },
+    [onQueryChange, query, suggestion?.kind]
+  );
   const chooseFilter = useCallback(
     (value: string) =>
       onQueryChange(`${query.trimEnd()}${idle ? "" : " "}${value}`),
@@ -242,7 +260,48 @@ export function PaletteSearch({
             ))}
         </CommandGroup>
       ) : null}
+      {suggestion?.kind === "to" || suggestion?.kind === "from" ? (
+        <CommandGroup heading="notes to filter by">
+          {notes
+            .filter(({ path, title }) =>
+              `${title} ${path}`
+                .toLowerCase()
+                .includes(suggestion.value.toLowerCase())
+            )
+            .map((note) => (
+              <CommandItem
+                key={note.path}
+                onSelect={pickNote}
+                value={`pick-${note.path}`}
+              >
+                <FileTextIcon />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">{note.title}</span>
+                  <span className="truncate text-muted-foreground text-xs">
+                    {note.path}
+                  </span>
+                </div>
+              </CommandItem>
+            ))}
+        </CommandGroup>
+      ) : null}
       <CommandGroup heading="search by">
+        <CommandItem onSelect={chooseFilter} value="to:">
+          <ArrowLeftIcon />
+          mentions of a note
+        </CommandItem>
+        <CommandItem onSelect={chooseFilter} value="from:">
+          <ArrowRightIcon />
+          links from a note
+        </CommandItem>
+        <CommandItem onSelect={chooseFilter} value="mention:">
+          <TextSearchIcon />
+          phrase in prose
+        </CommandItem>
+        <CommandItem onSelect={chooseFilter} value="link:">
+          <LinkIcon />
+          link destination
+        </CommandItem>
         <CommandItem onSelect={chooseFilter} value="folder:">
           <FolderIcon />
           folder

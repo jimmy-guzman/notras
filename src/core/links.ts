@@ -134,10 +134,14 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
 
   return {
     path,
-    row: (link) =>
-      link.kind === "link"
-        ? path(link.target, link.path)
-        : title(link.target, link.path),
+    row: (link) => {
+      if (link.kind === "link") {
+        return path(link.target, link.path);
+      }
+      if (link.kind === "wikilink") {
+        return title(link.target, link.path);
+      }
+    },
     title,
   };
 }

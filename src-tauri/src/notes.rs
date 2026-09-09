@@ -261,16 +261,26 @@ pub fn read_note(state: State<'_, AppState>, path: String) -> Result<NoteFile, C
 #[tauri::command]
 pub fn find_mentions(
     state: State<'_, AppState>,
-    path: String,
+    path: Option<String>,
     title: String,
 ) -> Result<Vec<index::BareMention>, CommandError> {
     let (notes_dir, candidates) = {
         let core = state.core();
-        let candidates = index::mention_candidates(&core.conn, &path, &title)?;
+        let candidates = if let Some(path) = &path {
+            index::mention_candidates(&core.conn, path, &title)?
+        } else {
+            let mut stmt = core.conn.prepare("SELECT path FROM note ORDER BY path")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+            rows
+        };
         (core.notes_dir.clone(), candidates)
     };
 
-    Ok(index::scan_mentions(&notes_dir, candidates, &title)?)
+    if path.is_some() {
+        Ok(index::scan_mentions(&notes_dir, candidates, &title)?)
+    } else {
+        Ok(index::scan_prose(&notes_dir, candidates, &title, true)?)
+    }
 }
 
 #[tauri::command]

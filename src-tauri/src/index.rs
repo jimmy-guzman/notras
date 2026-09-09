@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 use std::time::UNIX_EPOCH;
 
-use pulldown_cmark::{Event, LinkType, Options, Parser, Tag};
+use pulldown_cmark::{Event, Options, Parser, Tag};
 use rusqlite::types::ValueRef;
 use rusqlite::Connection;
 use serde::Serialize;
@@ -69,7 +69,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -356,17 +356,13 @@ fn scan(body: &str) -> Scan {
                 Tag::Emphasis | Tag::Strong | Tag::Strikethrough => prose[range].fill(true),
                 Tag::Link {
                     dest_url,
-                    link_type,
                     ..
                 } => {
                     link_spans.push(range.clone());
-                    if !matches!(link_type, LinkType::Autolink | LinkType::Email)
-                        && is_note_path(&dest_url)
-                    {
-                        links.push((range.start, dest_url.to_string()));
-                    }
+                    links.push((range.start, dest_url.to_string()));
                 }
-                Tag::Image { .. } | Tag::Superscript | Tag::Subscript => {}
+                Tag::Image { .. } => link_spans.push(range),
+                Tag::Superscript | Tag::Subscript => {}
                 Tag::CodeBlock(_) | Tag::HtmlBlock => {
                     opaque.push(range);
                     open_tags.clear();
@@ -382,11 +378,56 @@ fn scan(body: &str) -> Scan {
     }
     links.retain(|(at, _)| !opaque.iter().any(|span| span.contains(at)));
 
+    for (at, target, end) in autolinks(body, &prose, &link_spans) {
+        links.push((at, target));
+        link_spans.push(at..end);
+    }
+    links.sort_by_key(|(at, _)| *at);
+
     Scan {
         link_spans,
         links,
         prose,
     }
+}
+
+/// GFM bare destinations inside parser-approved prose. Explicit links and
+/// wikilinks own their spans, so their labels never produce nested links.
+fn autolinks(body: &str, prose: &[bool], spans: &[Range<usize>]) -> Vec<(usize, String, usize)> {
+    let mut found = Vec::new();
+    let mut until = 0;
+    for (at, ch) in body.char_indices() {
+        if at < until || !prose[at] || spans.iter().any(|span| span.contains(&at)) {
+            continue;
+        }
+        if body[at..].starts_with("[[") {
+            if let Some((_, target)) = wikilink_targets(body, at..body.len()).first() {
+                until = at + target.len() + 4;
+                continue;
+            }
+        }
+        let rest = &body[at..];
+        let url = ["https://", "http://", "ftp://", "www."].iter().find(|prefix| rest.starts_with(**prefix));
+        let boundary = body[..at].chars().next_back().is_none_or(|c| !c.is_alphanumeric() && !matches!(c, '_' | '.' | '-' | '@'));
+        if !boundary || (url.is_none() && !ch.is_ascii_alphanumeric()) { continue; }
+        let raw_end = rest.char_indices().find(|(offset, c)| !prose[at + offset] || c.is_whitespace() || matches!(c, '<' | '>' | '[' | ']' | '*' | '"' | '\'' | '`')).map_or(rest.len(), |(offset, _)| offset);
+        let raw = &rest[..raw_end];
+        let mut value = raw.trim_end_matches(['.', ',', ':', ';', '!', '?', '_', '~']);
+        while value.ends_with(')') && value.matches(')').count() > value.matches('(').count() {
+            value = value[..value.len() - 1].trim_end_matches(['.', ',', ':', ';', '!', '?']);
+        }
+        let target = if let Some(prefix) = url {
+            if value.len() <= prefix.len() { continue; }
+            if *prefix == "www." { format!("http://{value}") } else { value.to_string() }
+        } else {
+            let Some((local, domain)) = value.split_once('@') else { continue; };
+            if local.is_empty() || !local.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-')) || !domain.contains('.') || !domain.split('.').all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')) { continue; }
+            format!("mailto:{value}")
+        };
+        until = at + value.len();
+        found.push((at, target, until));
+    }
+    found
 }
 
 fn prose_mask(body: &str) -> Vec<bool> {
@@ -488,7 +529,7 @@ struct MarkdownLink<'a> {
 /// Kept in parity with the editor's parser the way `wikilinks` is:
 /// `finds_the_markdown_note_links_the_editor_renders` below and
 /// `src/components/editor/markdown-link.spec.ts` assert one table of cases.
-fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
+fn destinations(body: &str) -> Vec<MarkdownLink<'_>> {
     scan(body)
         .links
         .into_iter()
@@ -502,6 +543,11 @@ fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
+    destinations(body).into_iter().filter(|link| is_note_path(&link.target)).collect()
 }
 
 /// A title written without brackets in another note's prose.
@@ -614,6 +660,10 @@ pub fn scan_mentions(
     candidates: Vec<String>,
     title: &str,
 ) -> Result<Vec<BareMention>, IndexError> {
+    scan_prose(notes_dir, candidates, title, false)
+}
+
+pub fn scan_prose(notes_dir: &Path, candidates: Vec<String>, title: &str, include_headings: bool) -> Result<Vec<BareMention>, IndexError> {
     let mut found = Vec::new();
 
     for candidate in candidates {
@@ -637,7 +687,7 @@ pub fn scan_mentions(
             .matches('\n')
             .count();
 
-        let heading_names_note = parsed.frontmatter.title.is_none();
+        let heading_names_note = !include_headings && parsed.frontmatter.title.is_none();
 
         found.extend(bare_mentions(parsed.body, title, heading_names_note).into_iter().map(
             |(line, context)| BareMention {
@@ -771,15 +821,17 @@ pub fn index_file(
             ],
         )?;
     }
-    for link in markdown_links(parsed.body) {
+    for link in destinations(parsed.body) {
+        let kind = if is_note_path(&link.target) { "link" } else { "destination" };
         tx.execute(
             "INSERT INTO note_link (path, line, kind, target, context)
-             VALUES (?1, ?2, 'link', ?3, ?4)",
+             VALUES (?1, ?2, ?5, ?3, ?4)",
             rusqlite::params![
                 rel_path,
                 link.line + body_line_offset,
                 link.target,
-                link.context
+                link.context,
+                kind
             ],
         )?;
     }
@@ -1527,7 +1579,7 @@ mod tests {
 
         for (markdown, expected) in cases {
             let links = markdown_links(markdown);
-            let found: Vec<&str> = links.iter().map(|link| link.target.as_str()).collect();
+            let found: Vec<&str> = links.iter().filter(|link| is_note_path(&link.target)).map(|link| link.target.as_str()).collect();
             assert_eq!(&found, expected, "scanning {markdown:?}");
         }
     }
@@ -1556,7 +1608,8 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&dir);
-    }    #[test]
+    }
+    #[test]
     fn should_index_rendered_destinations() {
         let cases: &[(&str, &[&str])] = &[
             ("[a](attachments/report.pdf)", &["attachments/report.pdf"]),
