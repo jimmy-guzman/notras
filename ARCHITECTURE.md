@@ -68,13 +68,13 @@ Rust creates the tables. `src/server/db/schema.ts` mirrors `note` and `note_tag`
 ```sql
 note(path TEXT PK, title TEXT, folder TEXT, pinned INT, created_at INT, updated_at INT)
 note_tag(path TEXT, tag TEXT, PRIMARY KEY(path, tag))
-note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per [[wikilink]] or [text](note.md), kind telling which, indexed by path
+note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per link destination, kind distinguishing wikilink, link, and destination, indexed by path
 note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet()
 ```
 
 `src/server/db/fts-query.ts` owns query normalization, ranking, and the snippet markers: `buildFtsMatchQuery`, `getSnippetExpression`, `getSearchOrderBy`, `getFtsMatchFilter`, `getTagFilter`.
 
-`note_link` is the graph. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink` or `link`, the latter for a `[text](note.md)` whose destination `is_note_path` accepts, `target` is the text between the brackets or the destination as written, and `context` is the line. Nothing in the row is resolved. `src/core/links.ts` resolves a target on read, a wikilink by title and a link by path relative to the note, so a note created or retitled after the link was written is still found, and `mentionsOf` there groups the rows that resolve to a note by the note they come from. The scanner in `index.rs` records only what the editor renders as a pill: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest. A title written bare is not a row, because it depends on another note's title, which the file being indexed cannot know. `find_mentions` finds those on read: FTS names the notes holding the words, and the same mask decides which occurrences are prose.
+`note_link` stores destinations; graph reads select only `wikilink` and `link` kinds. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink`, `link`, or `destination`; `link` is for a `[text](note.md)` whose destination `is_note_path` accepts, `target` is the text between the brackets or the destination as written, and `context` is the line. Nothing in the row is resolved. `src/core/links.ts` resolves a target on read, a wikilink by title and a link by path relative to the note, so a note created or retitled after the link was written is still found, and `mentionsOf` there groups the rows that resolve to a note by the note they come from. The scanner in `index.rs` records rendered destinations: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest. A title written bare is not a row, because it depends on another note's title, which the file being indexed cannot know. `find_mentions` finds those on read: FTS names candidates for a note reference, and the same mask decides which occurrences are prose. An absent path requests an arbitrary phrase, including headings. ASCII phrases with letters or digits use FTS candidates plus files with non-ASCII bodies; punctuation-only and non-ASCII phrases scan the saved library. This retains matches that unicode61 can miss because its Unicode case folding and word boundaries differ from the literal scanner. Bare GFM autolinks are recognized within eligible prose and excluded from phrase spans. Autolink scanning masks explicit link spans once and advances through precomputed wikilinks, skipping a wikilink only at its opening offset. The index schema version rebuilds destination rows for unchanged files too.
 
 ## Project structure
 
@@ -135,7 +135,7 @@ src/
     ui/mentions.ts    # the mentions list's open state: strip, chord and palette share it
     ui/graph.ts       # which tabs show their graph, and the hop that keeps it on
     ui/utils.ts       # cn()
-    utils/            # fts-snippet, tag-query, word-count
+    utils/            # fts-snippet, word-count
 src-tauri/
   src/lib.rs          # setup: notes dir, index, watcher, tray, shortcuts
   src/notes.rs        # note IO commands (write/rename/delete/attach/external)
@@ -181,7 +181,7 @@ Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying th
 
 ### Test seam
 
-A service whose layer bakes in dependencies also exposes `layerNoDeps`, as `NoteService` does, so specs can provide stubs. `note-service.spec.ts` wires it with an in-memory `FileStore` and a stub `NoteRepository`.
+A service whose layer bakes in dependencies also exposes `layerNoDeps`, as `NoteService` does, so specs can provide stubs. `note-service.spec.ts` wires it with an in-memory `FileStore` and a stub `NoteRepository`. Its relationship integration cases also inject a real Node SQLite database through the repository layer and assert which rows cross the database boundary. Native SQL functions use core-equivalent callbacks in these cases; Rust tests cover their normalization contract.
 
 ### Routes
 
@@ -189,7 +189,11 @@ TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option
 
 ### The editor owns its buffer
 
-`Editor`, the TipTap wrapper, freezes all props except `focusModeEnabled` at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
+`Editor`, the TipTap wrapper, freezes all props except `focusModeEnabled` and `findOpen` at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
+
+Both editor handles expose a `FindHandle` backed by the shared Tiptap `Find` extension. The extension maps text-block character offsets to ProseMirror positions, including atomic wikilink titles, and decorates matches without document changes or undo entries. A selection bookmark tracks the prior caret through edits.
+
+`createFindController` binds one active editor handle and releases its subscription and highlights on handoff. The workspace owns one controller, and capture owns another. Their query and open state remain in memory. Sessions bind handles; the window owns shortcuts and the floating `FindBar`. A hidden or destroyed editor cannot receive navigation.
 
 ### Body-only editing
 
@@ -225,15 +229,19 @@ Define it in `src-tauri/src/notes.rs` or another module, never in `lib.rs`: `gen
 
 ### The palette is the action surface
 
-`command-palette.tsx` holds search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
+`command-palette.tsx` owns palette navigation and action execution. `palette-actions.tsx` renders action rows, `palette-note-views.tsx` renders note operations, `palette-filters.tsx` renders filter choices, and `palette-search.tsx` reads and renders search results and token suggestions. Together they offer search, tag filtering via `#`, new note, pin, tag editing, show mentions, rename, move, delete, reveal, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex, and the update check. New actions belong there rather than in new chrome.
 
-Every action row carries a `needs` scope of `none`, `note` or `tab`, and the filter offers it only where the workspace answers it. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode takes `none`, since the pref it sets belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
+Palette search separates the input query, its debounced read, and the last displayed note results. Only results belonging to the current input become a displayed snapshot. A pending replacement retains that snapshot with disabled rows; completed empty states, failures, and filter choices clear the retained notes. The snapshot lives in the mounted search component, outside the query cache. Query keys and index invalidation remain unchanged. Search reports delayed loading and the displayed query to the palette, which owns the footer spinner and list scrolling. Changing the displayed query remounts its note group to select the first result; refreshing that query preserves row identity and selection. The loading timer starts only for an active read and is cleared on a query change or unmount.
 
-One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode so switching re-seeds it. The palette reads chords through `useChordsByName` and registers none itself, which `src/lib/ui/shortcuts.ts` requires.
+Every action row carries a `needs` scope of `none`, `note`, `tab` or `editor`, and the filter offers it only where the workspace answers it. The `editor` scope checks for an attached editor handle, including a note behind graph view. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode takes `none`, since the pref it sets belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
 
-`move`, `delete`, `rename`, and `tags` are the other sub-views of `PaletteView`, all entered from actions and all returning to it with an empty input, since each repurposes the palette input for its own draft. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeTags` from `useNoteTags` rather than `runAction`, so several tags can be set in one visit (`D31`).
+One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode, tag, and opening session so switching or reopening re-seeds it. Closing retains the mounted view for its exit animation. The palette reads chords through `useChordsByName` and registers none itself.
 
-`#` parses through `parseTagQuery` in `src/lib/utils/tag-query.ts`: the token becomes `NoteFilters.tag`, an exact indexed match, and anything after it becomes the FTS query, which `findMany` ANDs with it. So `#work budget` searches "budget" inside the `work` tag. The counted vocabulary comes from `NoteService.listTags()` through the root loader, not from the loaded notes.
+`src/lib/ui/shortcuts.ts` owns React registration through local `useHotkey` and `useHotkeys` hooks. They use TanStack's public keyboard manager for parsing, dispatch, platform conventions, and the live registry. Registration, callback changes, option updates, and cleanup run in layout effects, so an uncommitted render cannot change a live binding. The supported options are enabled state and the action name. Equal option values cause no registry publication, which lets a component read its own bindings without a render loop. Changing those options preserves the registration; removing or replacing a binding unregisters it.
+
+`filters` has its own draft input and returns to the preserved find query. Its entry button sits outside the Command list, so asynchronous result selection cannot land on a filter action. `move`, `delete`, `rename`, and `tags` are the note sub-views of `PaletteView`, all entered from actions and all returning to it with an empty input, since each repurposes the palette input for its own draft. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeTags` from `useNoteTags` rather than `runAction`, so several tags can be set in one visit (`D31`).
+
+`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes`, `NoteService.search`, and `noteQueries.search` carry the complete parsed query under the index invalidation prefix. The service reads ranked FTS candidates without a limit, intersects the filters, and caps the result at 30. Relationship reads filter destinations, incoming target keys, or outgoing source paths in SQLite before rows cross IPC. The resolver reads only notes whose titles, filename stems, or paths can match those links, retaining the complete competing title group and repository ordering. Rust registers deterministic query functions for Unicode lowercase, filename stems, and normalized link keys. Malformed path encodings remain candidates for the core resolver because URI replacement rules can differ. Lookup key sets use JSON parameters to avoid SQLite variable limits. FTS candidates remain uncapped until all filters have been intersected. Folder choices derive from the note list, so the root loader does not fetch a separate folder inventory. Folder suggestions and move choices derive ancestors and subtree counts from the note list. The input caret identifies the token to suggest and replace. The counted tag vocabulary comes from `NoteService.listTags()` through the root loader.
 
 ### Preferences
 

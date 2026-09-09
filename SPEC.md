@@ -36,7 +36,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - "delete note..." asks once, then removes the file. There is no trash.
 - Frontmatter is not searchable. Only the title and the body reach the index.
 - Every `[[wikilink]]` in a note is a row in the index: the note, the line as `grep -n` counts it, the text between the brackets as written, and the line itself. One inside a fence, indented code, inline code, an HTML block or comment, or between a matching pair of inline tags is not a row, which is where the editor shows text rather than a pill.
-- A markdown link whose destination is a note is a row too, with its destination as written. A destination counts when it carries no scheme, is not an anchor or an absolute path, and ends in `.md` or `.markdown` before any `#` or `?`, whatever the case. An autolink, an image, and a link inside code or an HTML pair do not count. The index and the editor agree on one table of cases.
+- A markdown link whose destination is a note is a row too, with its destination as written. A destination counts when it carries no scheme, is not an anchor or an absolute path, and ends in `.md` or `.markdown` before any `#` or `?`, whatever the case. These note destinations use `link` rows. Other rendered destinations use `destination` rows, including bare and angle-bracket autolinks, attachment links, and external URLs. Images and links inside code or an HTML pair do not count. Malformed or escaped wikilink openings do not suppress rendered autolinks. The index and the editor agree on one table of cases.
 
 ## Saving
 
@@ -79,7 +79,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A link click replaces.
 - ⌘W closes the showing tab and the tab on its right takes over, or the one on its left when it was last. Closing a background tab leaves the active one alone.
-- Closing the last tab leaves the empty state, where ⌘E, ⌘⇧G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D still sets the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
+- Closing the last tab leaves the empty state, where ⌘E, ⌘⌥G, ⌘⌥⇧W and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's `+` alone. ⌘D still sets the writing mode, and the next note opened is already in it. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, and closing the same file twice moves its one entry to the top.
 - ⌘1 to ⌘8 select the nth tab and ⌘9 selects the last one. ⌃⇥ and ⌘⌥→ cycle forward, ⌃⇧⇥ and ⌘⌥← cycle back, and both wrap.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
@@ -101,14 +101,34 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
 - A hit carries a snippet of at most 24 tokens with the matched text highlighted.
 - Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.
-- A query starting with `#` filters by tag: `#work budget` narrows to notes tagged `work` and searches them for `budget`. An unknown tag returns nothing.
-- `#` alone lists matching tags with their counts, and picking one rewrites the query.
-- A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row is absent for an empty query and inside a tag filter.
-- The actions are new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- `#tag` and `folder:path` may appear anywhere alongside free text. All filters, including repeated filters, combine with AND before the 30-result cap. A folder includes its descendants; `folder:/` includes the notes root and its descendants. An unknown tag or folder returns nothing.
+- Find mode keeps an "add filter" button below the results. It opens choices for folder, tag, mentions of a note, links from a note, phrase in prose, and link destination. Escape returns from these choices without changing the query. Incomplete tokens show suggestions. Folder suggestions include ancestors and subtree counts, with a "notes root" choice. Picking a suggestion replaces the token at the caret, or an unfinished token, and preserves other filters and free text. Resolved tokens show note results instead of a picker. Values accept quotes and escaped quotes or backslashes.
+- A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row appears only after a completed, unfiltered free-text search returns no results. Pending searches offer no creation. Incomplete filters and failures show their own messages.
+- `to:projects/atlas.md` finds notes mentioning that note through resolved internal links or its bare title. Existing duplicate-title resolution and self-reference exclusions apply. `from:projects/atlas.md` finds existing notes it explicitly links to, excluding itself and unresolved targets. Note pickers show titles and paths and insert canonical library-relative paths. An unresolved path returns nothing. Relationship searches select matching destination rows and relevant resolver candidates before crossing the native database bridge; free-text candidates remain uncapped until the filters have been applied.
+- `mention:"Ada Lovelace"` finds the whole phrase in saved prose without regard to case, including headings and excluding frontmatter, code, HTML, and link spans. The phrase need not name a note, and punctuation-only phrases are searchable. ASCII phrases with letters or digits use FTS to narrow candidate files before literal matching, retaining files with non-ASCII bodies because Unicode word boundaries differ. Punctuation-only and non-ASCII phrases scan the saved library so tokenizer or Unicode case-folding differences cannot omit matches.
+- `link:github.com` matches literal destination text without regard to case: note paths, attachments, external URLs, unresolved wikilinks, and rendered autolinks. Image sources do not match. Without free text, results show matching context when available; outgoing context names its source note.
+- Palette search reads saved library content. A failed read shows its reason and a retry button, and never offers creation. While a changed query debounces or loads, the last displayed note rows stay visible at the same opacity and scroll position. Those rows cannot open through Enter, ⌘Enter, or a click, and those gestures are not queued. Results replace the previous rows together when the current query completes, with the first result selected and the list scrolled to the top. Refreshing the same query keeps its rows usable and preserves the choice while that note remains in the results. Clearing the input restores recent notes immediately. Responses and failures for an earlier query cannot replace the current display.
+- The actions are find in note, new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
+- Find in note needs an available editor, including an external file.
 - New note, focus mode, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
 - The writing-mode rows and graph view name what selecting them does: "turn on focus mode" while it is off, "turn off focus mode" while it is on.
-- Leaving a delete, move, rename or tags sub-view returns to actions with an empty input.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⇧g, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- Escape or cancel in a delete, move, rename or tags sub-view returns to actions with an empty input. Closing by Escape, backdrop, or the opening shortcut starts a fresh query on the next opening. Rename selects the existing title. Deletion starts with cancel selected.
+- Move filters folder paths without regard to case and preserves their spelling. It includes ancestor folders and subtree counts. Notes root appears only when it matches the query, and an existing folder is not offered as new.
+- Action search matches the wording shown on the row, including "unpin note" and "turn on focus mode". The input has an accessible name for its current task. Attached tags expose their checked state independently of keyboard selection.
+- Search, actions, filter choices, move, and tags share a 24rem palette height, capped to the available window height. Rename and delete fit their content. Typing and changes between results, loading, and empty states do not resize a list view. A search read that remains pending for 500ms shows a spinner in reserved space beside "add filter". The 150ms debounce stays quiet. The spinner disappears when the read settles, the query changes, or the view closes, and respects reduced motion.
+- The palette keeps its input and filter button visible at the supported 480 by 360 minimum window. Its list scrolls within the available height. Long titles truncate with an ellipsis while folder context keeps its own space.
+- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⌥g, find in note ⌘f, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- Opening the palette, switching notes, and changing editor modes produce no shortcut-registry render warnings in the development build. Shortcut labels follow live registrations. Callbacks and enabled state change only when the owning React render commits; a suspended replacement keeps the previous behavior. Unmounting the owner removes its bindings.
+
+## Find in a note
+
+- ⌘F opens or focuses a floating find bar at the editor's upper-right. It searches the active unsaved buffer in rich text, raw source, external-file tabs, and quick capture. From graph view it returns to the editor. With no editor available, the palette action is absent.
+- A single-line editor selection seeds the query. Otherwise the window's last query is reused. Query and open state stay in memory across tabs and rich/source changes; capture keeps separate state.
+- Matching is literal, case-insensitive, and non-overlapping. Rich text matches across formatting within each text block, including code, table cells, link labels, and atomic wikilink titles. Source searches the entire raw file, including frontmatter.
+- The bar shows `current / total`, previous, next, and close controls. Matches are highlighted and the active match has an outline. Searching and navigating preserve document content and undo history. Edits and undo recompute matches.
+- Enter and Shift+Enter move forward and backward in the find input. ⌘G and ⌘⇧G do the same from the editor, wrap at either end, and reopen the last search when the bar is closed. Graph view uses ⌘⌥G.
+- Escape closes find, clears its highlights, and focuses the active match or the previous caret when nothing matches. In capture, this Escape does not save or hide the window.
+- While find is open, focus-mode dimming and typewriter scrolling are suspended. Existing focus-mode padding remains. Match navigation scrolls the editor viewport and leaves the window and floating bar stationary.
 
 ## The editor
 
@@ -164,7 +184,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 ## The graph
 
-- ⌘⇧G swaps the showing tab between its note and its graph, and the strip's fourth view toggle and "graph view" in the palette do the same. An external tab has neither.
+- ⌘⌥G swaps the showing tab between its note and its graph, and the strip's fourth view toggle and "graph view" in the palette do the same. An external tab has neither.
 - The graph is the note in the centre, the notes that mention it fanned on the left, and the notes it links to fanned on the right, each once, in the order the mentions list and the note's own text give. A link that names no note draws a faint placeholder after the real links, on a dashed line, which nothing opens and the arrows skip. A link to itself draws nothing, and a note on both sides sits on the right with a dot at the end of its line.
 - Past twelve on a side, the eleven most recently updated show and a `+N` pill carries the rest, placeholders filling what room the real links leave. On the left it opens the mentions list. On the right it opens a list of every note this one links to, each with the line that links it, then the targets that name no note, which open nothing. ⏎ or a click opens a note in place, ⌘⏎ beside.
 - The note's folder, when it has one, and then its tags in frontmatter order sit along the top of the ring: a folder as its icon and name, a tag as `#tag`, each followed by how many things its own ring holds. More than five fold into a `+N` that lists them all.
@@ -185,7 +205,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The note lands in `inbox/` named `yyyy-MM-dd-HHmmss.md`, and a same-second collision takes the next free name.
 - Capturing nothing writes nothing, and the window hides.
 - A failed save keeps the jot on screen and says so.
-- The capture window runs outside the router, so the palette and the tab shortcuts do not reach it. The editor's own keys do.
+- The capture window runs outside the router, so the palette and the tab shortcuts do not reach it. The editor's own keys and find in note do.
 
 ## The window and the system
 

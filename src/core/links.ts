@@ -59,7 +59,11 @@ export function isNotePath(destination: string) {
   return !name.startsWith(".") && NOTE_EXTENSION.test(name);
 }
 
-function joinNotePath(destination: string, from: string) {
+/** Resolve a destination's path segments without looking up an indexed note. */
+export function resolveNotePath(
+  destination: string,
+  from: string
+): string | undefined {
   const bare = decode(destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "");
   const segments: string[] = [];
 
@@ -125,7 +129,7 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
   };
 
   const path: LinkResolver["path"] = (destination, from) => {
-    const joined = joinNotePath(destination, from);
+    const joined = resolveNotePath(destination, from);
 
     return joined === undefined
       ? undefined
@@ -134,10 +138,14 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
 
   return {
     path,
-    row: (link) =>
-      link.kind === "link"
-        ? path(link.target, link.path)
-        : title(link.target, link.path),
+    row: (link) => {
+      if (link.kind === "link") {
+        return path(link.target, link.path);
+      }
+      if (link.kind === "wikilink") {
+        return title(link.target, link.path);
+      }
+    },
     title,
   };
 }

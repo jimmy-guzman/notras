@@ -4,12 +4,16 @@ import {
   count as drizzleCount,
   eq,
   inArray,
+  or,
+  type SQL,
   sql,
 } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { DatabaseError } from "@/core/errors";
 import type { NoteLink } from "@/core/links";
+import { resolveNotePath } from "@/core/links";
 import type { NoteFilters, NoteMeta } from "@/core/notes";
+import { noteTitle } from "@/core/notes";
 import { Database } from "@/server/db";
 import {
   buildFtsMatchQuery,
@@ -25,18 +29,24 @@ interface TagWithCount {
   tag: string;
 }
 
-interface FolderWithCount {
-  count: number;
-  folder: string;
-}
-
 interface INoteRepository {
   count: () => Effect.Effect<number, DatabaseError>;
   findByPath: (
     path: string
   ) => Effect.Effect<NoteMeta | undefined, DatabaseError>;
+  findDestinations: (
+    text: string,
+    query: string
+  ) => Effect.Effect<NoteLink[], DatabaseError>;
+  findIncoming: (
+    target: NoteMeta,
+    query: string
+  ) => Effect.Effect<NoteLink[], DatabaseError>;
+  findLinkTargets: (
+    links: NoteLink[]
+  ) => Effect.Effect<NoteMeta[], DatabaseError>;
   findMany: (filters: NoteFilters) => Effect.Effect<NoteMeta[], DatabaseError>;
-  listFolders: () => Effect.Effect<FolderWithCount[], DatabaseError>;
+  findOutgoing: (path: string) => Effect.Effect<NoteLink[], DatabaseError>;
   listLinks: () => Effect.Effect<NoteLink[], DatabaseError>;
   listTags: () => Effect.Effect<TagWithCount[], DatabaseError>;
 }
@@ -117,11 +127,13 @@ const makeDbNoteRepository = Effect.gen(function* () {
   });
 
   const findMany = Effect.fn("NoteRepository.findMany")(function* (
-    filters: NoteFilters
+    filters: NoteFilters,
+    relationship?: SQL
   ) {
     const matchQuery = buildFtsMatchQuery(filters.query);
 
     const conditions = [
+      relationship,
       filters.folder === undefined
         ? undefined
         : eq(note.folder, filters.folder),
@@ -173,25 +185,98 @@ const makeDbNoteRepository = Effect.gen(function* () {
 
     findByPath,
 
+    findDestinations: (text, query) => {
+      const matchQuery = buildFtsMatchQuery(query);
+      return dbQuery(() =>
+        db
+          .select()
+          .from(noteLink)
+          .where(
+            and(
+              sql`instr(notras_lower(${noteLink.target}), notras_lower(${text.toLowerCase()})) > 0`,
+              matchQuery === undefined
+                ? undefined
+                : sql`${noteLink.path} IN (SELECT path FROM note_fts WHERE note_fts MATCH ${matchQuery})`
+            )
+          )
+          .orderBy(noteLink.path, noteLink.line)
+      );
+    },
+
+    findIncoming: (target, query) => {
+      const matchQuery = buildFtsMatchQuery(query);
+      const key = sql`notras_link_key(${noteLink.kind}, ${noteLink.target}, ${noteLink.path})`;
+      return dbQuery(() =>
+        db
+          .select()
+          .from(noteLink)
+          .where(
+            and(
+              matchQuery === undefined
+                ? undefined
+                : sql`${noteLink.path} IN (SELECT path FROM note_fts WHERE note_fts MATCH ${matchQuery})`,
+              or(
+                and(
+                  eq(noteLink.kind, "wikilink"),
+                  sql`${key} IN (notras_lower(${target.title.toLowerCase()}), notras_lower(${noteTitle(target.path).toLowerCase()}))`
+                ),
+                and(
+                  eq(noteLink.kind, "link"),
+                  or(
+                    eq(key, sql`notras_lower(${target.path.toLowerCase()})`),
+                    sql`${key} IS NULL`
+                  )
+                )
+              )
+            )
+          )
+          .orderBy(noteLink.path, noteLink.line)
+      );
+    },
+
+    findLinkTargets: (links) => {
+      const names = links
+        .filter(({ kind }) => kind === "wikilink")
+        .map(({ target }) => target.trim().toLowerCase());
+      const paths = links
+        .filter(({ kind }) => kind === "link")
+        .flatMap(({ target, path }) => {
+          const joined = resolveNotePath(target, path);
+          return joined === undefined ? [] : [joined.toLowerCase()];
+        });
+      return findMany(
+        {},
+        or(
+          sql`notras_lower(${note.title}) IN (SELECT notras_lower(value) FROM json_each(${JSON.stringify(names)}))`,
+          sql`notras_note_name(${note.path}) IN (SELECT notras_lower(value) FROM json_each(${JSON.stringify(names)}))`,
+          sql`notras_lower(${note.path}) IN (SELECT notras_lower(value) FROM json_each(${JSON.stringify(paths)}))`
+        )
+      );
+    },
+
     findMany,
 
-    listFolders: () =>
-      dbQuery(async () => {
-        const rows = await db
-          .select({
-            count: drizzleCount(),
-            folder: note.folder,
-          })
-          .from(note)
-          .groupBy(note.folder)
-          .orderBy(note.folder);
-
-        return rows.filter((row) => row.folder !== "");
-      }),
+    findOutgoing: (path) =>
+      dbQuery(() =>
+        db
+          .select()
+          .from(noteLink)
+          .where(
+            and(
+              eq(noteLink.path, path),
+              inArray(noteLink.kind, ["link", "wikilink"])
+            )
+          )
+          .orderBy(noteLink.path, noteLink.line)
+      ),
 
     listLinks: () =>
       dbQuery(() =>
-        db.select().from(noteLink).orderBy(noteLink.path, noteLink.line)
+        db
+          .select()
+          .from(noteLink)
+          .where(inArray(noteLink.kind, ["link", "wikilink"]))
+          .orderBy(noteLink.path, noteLink.line)
       ),
 
     listTags: () =>

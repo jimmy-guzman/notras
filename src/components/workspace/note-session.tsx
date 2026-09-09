@@ -4,6 +4,7 @@ import { cn } from "cn";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
+import type { FindHandle } from "@/components/editor/find";
 import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
@@ -38,6 +39,7 @@ import {
 import type { Tab } from "@/lib/tabs/tab";
 import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { useGraphMode } from "@/lib/ui/graph";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import { countWords } from "@/lib/utils/word-count";
@@ -62,6 +64,15 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   const resolveLinks = useMemo(() => linkResolver(notes), [notes]);
   const id = tabId(tab);
   const graphMode = useGraphMode(id);
+  const findState = useNoteFind();
+  const focusOnMount = active && !findState.open;
+  const [findHandle, setFindHandle] = useState<FindHandle | null>(null);
+
+  useEffect(() => {
+    if (active && !graphMode && findHandle?.alive()) {
+      return noteFind.bind(findHandle);
+    }
+  }, [active, findHandle, graphMode]);
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
@@ -261,10 +272,12 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   const attachSourceEditor = useCallback((handle: SourceEditorHandle) => {
     sourceRef.current = handle;
+    setFindHandle(handle.find);
   }, []);
 
   const attachEditor = useCallback((handle: EditorHandle) => {
     editorRef.current = handle;
+    setFindHandle(handle.find);
   }, []);
 
   // Whichever surface is live owns the caret; the other one's handle is stale
@@ -379,7 +392,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // way in. ⌘P decides which surface owns the caret; the other one's handle
   // belongs to an editor that has already been destroyed.
   useEffect(() => {
-    if (!active || graphMode) {
+    if (!active || graphMode || noteFind.store.state.open) {
       return;
     }
 
@@ -415,7 +428,7 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       ) : null}
       {sourceMode ? (
         <SourceEditor
-          focusOnMount={active}
+          focusOnMount={focusOnMount}
           initialCursor={sourceCursor}
           initialValue={composeNote(frontmatterBlock, body)}
           key={`${reloadKey}:source`}
@@ -424,8 +437,9 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
         />
       ) : (
         <Editor
+          findOpen={findState.open}
           focusModeEnabled={focusModeEnabled}
-          focusOnMount={active}
+          focusOnMount={focusOnMount}
           initialContent={sentineledBody ?? body}
           key={reloadKey}
           onChange={handleBodyChange}

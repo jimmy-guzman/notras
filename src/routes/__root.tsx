@@ -1,4 +1,3 @@
-import { useHotkey } from "@tanstack/react-hotkeys";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -24,6 +23,7 @@ import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import type { PendingOpen } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 
 /** Cached data answers the loader; only a cold key fetches. */
@@ -47,10 +47,6 @@ export const Route = createRootRouteWithContext<{
   // Priming only: an inactive query is one invalidation cannot reach.
   loader: async ({ context }) => {
     await Promise.all([
-      context.queryClient.query({
-        ...noteQueries.folders(),
-        staleTime: STATIC,
-      }),
       context.queryClient.query({ ...noteQueries.links(), staleTime: STATIC }),
       context.queryClient.query({ ...noteQueries.list(), staleTime: STATIC }),
       context.queryClient.query({ ...noteQueries.tags(), staleTime: STATIC }),
@@ -81,13 +77,13 @@ function disposeLater(...pending: Promise<() => void>[]) {
 }
 
 function RootLayout() {
-  const { data: folders } = useSuspenseQuery(noteQueries.folders());
   const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const { data: tags } = useSuspenseQuery(noteQueries.tags());
   const { tag } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [paletteSession, setPaletteSession] = useState(0);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   // A tag chip opens the palette without setting a mode, so it lands on find.
@@ -112,6 +108,7 @@ function RootLayout() {
   const handlePaletteOpenChange = useCallback(
     (next: boolean) => {
       if (next) {
+        setPaletteSession((session) => session + 1);
         setPaletteMode("find");
 
         return;
@@ -132,6 +129,7 @@ function RootLayout() {
         return;
       }
 
+      setPaletteSession((session) => session + 1);
       setPaletteMode(next);
     },
     [closePalette, paletteOpen, paletteView]
@@ -322,8 +320,7 @@ function RootLayout() {
       </div>
       <CommandPalette
         allTags={tags}
-        folders={folders}
-        key={`${tag ?? ""}:${paletteView}`}
+        key={`${tag ?? ""}:${paletteView}:${paletteSession}`}
         mode={paletteView}
         notes={notes}
         notesDir={notesDir}

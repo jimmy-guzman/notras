@@ -68,7 +68,7 @@ export function StatusBar({
       ...(hasNote
         ? [
             {
-              hotkey: "Mod+Shift+G",
+              hotkey: "Mod+Alt+G",
               icon: WaypointsIcon,
               label: "graph view",
               onToggle: onToggleGraph,

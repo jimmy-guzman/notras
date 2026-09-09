@@ -25,9 +25,9 @@ export interface IFileStore {
   create: (path: string, content: string) => Effect.Effect<number, FileError>;
   delete: (path: string) => Effect.Effect<void, FileError>;
   exists: (path: string) => Effect.Effect<boolean, FileError>;
-  /** Notes whose prose carries `title` without brackets, found on read rather than indexed. */
+  /** An undefined path searches arbitrary prose, including headings. A path searches references to that note and excludes its own content and naming headings. */
   findMentions: (
-    path: string,
+    path: string | undefined,
     title: string
   ) => Effect.Effect<BareMention[], FileError>;
   getNotesDir: () => Effect.Effect<string, FileError>;

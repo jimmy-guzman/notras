@@ -1,16 +1,17 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import type { NoteFilters } from "@/core/notes";
+import type { NoteSearch } from "@/core/search";
 import type { Tab } from "@/lib/tabs/tab";
 
 import { readExternalNote } from "./external-note";
-import { getFolders } from "./get-folders";
 import { getLinks } from "./get-links";
 import { getMentions } from "./get-mentions";
 import { getNote } from "./get-note";
 import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
 import { getNotesDir } from "./notes-dir";
+import { searchNotes } from "./search-notes";
 
 // Not members: reading the object while it is still being built widens it
 // to `any`.
@@ -62,12 +63,6 @@ export const noteQueries = {
       refetchOnWindowFocus: kind === "external" ? "always" : false,
     }),
   fileKey,
-  folders: () =>
-    queryOptions({
-      meta: { what: "could not refresh the folder list" },
-      queryFn: getFolders,
-      queryKey: [...index, "folders"] as const,
-    }),
   index,
   links: () =>
     queryOptions({
@@ -86,6 +81,12 @@ export const noteQueries = {
       meta: { what: "could not refresh the mentions" },
       queryFn: () => getMentions(path, title),
       queryKey: [...index, "mentions", path, title] as const,
+    }),
+  search: (search: NoteSearch) =>
+    queryOptions({
+      meta: { what: "could not search notes" },
+      queryFn: () => searchNotes(search),
+      queryKey: [...index, "search", search] as const,
     }),
   tags: () =>
     queryOptions({

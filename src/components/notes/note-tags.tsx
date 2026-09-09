@@ -1,7 +1,5 @@
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useCallback, useState } from "react";
-
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,6 +11,7 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
+import { useHotkey } from "@/lib/ui/shortcuts";
 
 interface TagBadgeProps {
   onFilter: (tag: string) => void;
