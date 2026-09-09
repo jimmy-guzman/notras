@@ -70,6 +70,20 @@ async function pasteNativeCode(
       title: "could not paste",
       type: "error",
     });
+    await previous;
+
+    if (!editor.isDestroyed) {
+      const { state, view } = editor;
+
+      view.dispatch(
+        state.tr
+          .setSelection(paste.selection.resolve(state.doc))
+          .replaceSelection(slice)
+          .setMeta("paste", true)
+          .setMeta("uiEvent", "paste")
+          .scrollIntoView()
+      );
+    }
   } finally {
     pending.delete(paste);
     await previous;

@@ -18,6 +18,90 @@ function pasteText(target: Editor, text: string) {
 }
 
 describe("code paste", () => {
+  it.each([
+    "the clipboard metadata is invalid",
+    "the clipboard command is unavailable",
+  ])(
+    "should preserve the original paste when reading fails: %s",
+    async (reason) => {
+      editor = new Editor({
+        content: "before replace after",
+        extensions: createEditorExtensions({
+          readCodeClipboard: () => Promise.reject(new Error(reason)),
+        }),
+      });
+      const before = editor.getJSON();
+      const clipboardData = new DataTransfer();
+
+      editor.commands.setTextSelection({ from: 8, to: 15 });
+      clipboardData.setData("text/plain", "bold");
+      clipboardData.setData("text/html", "<p><strong>bold</strong></p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+
+      expect(editor.getJSON().content?.[0]).toEqual({
+        content: [
+          { text: "before ", type: "text" },
+          { marks: [{ type: "bold" }], text: "bold", type: "text" },
+          { text: " after", type: "text" },
+        ],
+        type: "paragraph",
+      });
+      expect(editor.commands.undo()).toBe(true);
+      expect(editor.getJSON()).toEqual(before);
+    }
+  );
+
+  it("should wait for an earlier paste before inserting a failed paste", async () => {
+    const first = Promise.withResolvers<CodeClipboard | null>();
+
+    editor = new Editor({
+      content: "",
+      extensions: createEditorExtensions({
+        readCodeClipboard: (text) =>
+          text === "first"
+            ? first.promise
+            : Promise.reject(new Error("the clipboard metadata is invalid")),
+      }),
+    });
+    pasteText(editor, "first");
+    pasteText(editor, "second");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(editor.state.doc.textContent).toBe("");
+    first.resolve(null);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(editor.state.doc.textContent).toBe("firstsecond");
+  });
+
+  it("should leave an unmounted editor alone when the clipboard read fails", async () => {
+    const clipboard = Promise.withResolvers<CodeClipboard | null>();
+
+    editor = new Editor({
+      content: "before",
+      extensions: createEditorExtensions({
+        readCodeClipboard: () => clipboard.promise,
+      }),
+    });
+    pasteText(editor, "after");
+    editor.destroy();
+    clipboard.reject(new Error("the clipboard metadata is invalid"));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(editor.state.doc.textContent).toBe("before");
+  });
+
   it("should keep consecutive native pastes in their original order", async () => {
     const first = Promise.withResolvers<CodeClipboard | null>();
     const second = Promise.withResolvers<CodeClipboard | null>();
