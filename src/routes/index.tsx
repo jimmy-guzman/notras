@@ -18,7 +18,7 @@ import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
 import { getNotes } from "@/data/get-notes";
 import { noteQueries } from "@/data/queries";
-import { togglePref, usePref } from "@/lib/prefs";
+import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import {
   activateTab,
   adoptVaultNotes,
@@ -156,7 +156,6 @@ interface ActiveStatusBarProps extends ActiveProps {
   onToggleFocusMode: () => void;
   onToggleGraph: () => void;
   onToggleSource: () => void;
-  onToggleTypewriter: () => void;
 }
 
 function ActiveStatusBar({
@@ -166,12 +165,10 @@ function ActiveStatusBar({
   onToggleFocusMode,
   onToggleGraph,
   onToggleSource,
-  onToggleTypewriter,
   tab,
 }: ActiveStatusBarProps) {
   const snapshot = useTabSnapshot(tabId(tab));
-  const focusModeEnabled = usePref("focus-mode");
-  const typewriterEnabled = usePref("typewriter");
+  const focusModeEnabled = useFocusMode();
   const { data: notes } = useSuspenseQuery(noteQueries.list());
   const title = notes.find((meta) => meta.path === tab.path)?.title;
 
@@ -189,9 +186,7 @@ function ActiveStatusBar({
       onToggleFocusMode={onToggleFocusMode}
       onToggleGraph={onToggleGraph}
       onToggleSource={onToggleSource}
-      onToggleTypewriter={onToggleTypewriter}
       sourceEnabled={snapshot?.sourceMode ?? false}
-      typewriterEnabled={typewriterEnabled}
       words={snapshot?.words ?? 0}
     />
   );
@@ -246,14 +241,6 @@ function Workspace() {
     if (tab?.kind === "note") {
       toggleGraph(state.activeId);
     }
-  }, []);
-
-  const toggleFocusMode = useCallback(() => {
-    togglePref("focus-mode");
-  }, []);
-
-  const toggleTypewriter = useCallback(() => {
-    togglePref("typewriter");
   }, []);
 
   const filterByTag = useCallback(
@@ -356,9 +343,6 @@ function Workspace() {
   useHotkey("Mod+E", toggleSource, { meta: { name: "markdown source" } });
   useHotkey("Mod+Shift+G", toggleGraphView, { meta: { name: "graph view" } });
   useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
-  useHotkey("Mod+Alt+T", toggleTypewriter, {
-    meta: { name: "typewriter scrolling" },
-  });
   useHotkeys(
     TAB_JUMPS.map(([hotkey, index]) => ({
       callback: () => jumpToTab(index),
@@ -407,7 +391,6 @@ function Workspace() {
           onToggleFocusMode={toggleFocusMode}
           onToggleGraph={toggleGraphView}
           onToggleSource={toggleSource}
-          onToggleTypewriter={toggleTypewriter}
           tab={activeTab}
         />
       )}

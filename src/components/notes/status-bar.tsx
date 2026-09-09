@@ -1,9 +1,4 @@
-import {
-  CodeIcon,
-  CrosshairIcon,
-  KeyboardIcon,
-  WaypointsIcon,
-} from "lucide-react";
+import { CodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import { Chord } from "@/components/chord";
@@ -35,9 +30,7 @@ interface StatusBarProps {
   onToggleFocusMode: () => void;
   onToggleGraph: () => void;
   onToggleSource: () => void;
-  onToggleTypewriter: () => void;
   sourceEnabled: boolean;
-  typewriterEnabled: boolean;
   words: number;
 }
 
@@ -50,9 +43,7 @@ export function StatusBar({
   onToggleFocusMode,
   onToggleGraph,
   onToggleSource,
-  onToggleTypewriter,
   sourceEnabled,
-  typewriterEnabled,
   words,
 }: StatusBarProps) {
   const hasNote = note !== undefined;
@@ -60,19 +51,11 @@ export function StatusBar({
     () => [
       {
         hotkey: "Mod+D",
-        icon: CrosshairIcon,
+        icon: FocusIcon,
         label: "focus mode",
         onToggle: onToggleFocusMode,
         pressed: focusModeEnabled,
         value: "focus",
-      },
-      {
-        hotkey: "Mod+Alt+T",
-        icon: KeyboardIcon,
-        label: "typewriter scrolling",
-        onToggle: onToggleTypewriter,
-        pressed: typewriterEnabled,
-        value: "typewriter",
       },
       {
         hotkey: "Mod+E",
@@ -102,9 +85,7 @@ export function StatusBar({
       onToggleFocusMode,
       onToggleGraph,
       onToggleSource,
-      onToggleTypewriter,
       sourceEnabled,
-      typewriterEnabled,
     ]
   );
 

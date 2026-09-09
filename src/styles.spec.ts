@@ -336,7 +336,7 @@ describe("shared surface colors", () => {
 
     expect(html).toContain("scrollbar-color: auto;");
     expect(html).not.toContain("scrollbar-width:");
-    expect(blockOf(source, ".typewriter-on")).toContain(
+    expect(blockOf(source, ".focus-mode-on")).toContain(
       "scrollbar-width: none;"
     );
   });
