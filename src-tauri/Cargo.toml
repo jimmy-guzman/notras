@@ -59,10 +59,12 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = [
   "NSButton",
   "NSControl",
+  "NSPasteboard",
   "NSResponder",
   "NSView",
   "NSWindow",
 ] }
+objc2-foundation = "0.3"
 
 [profile.release]
 codegen-units = 1

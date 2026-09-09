@@ -2501,6 +2501,7 @@ dependencies = [
  "notify-debouncer-full",
  "objc2",
  "objc2-app-kit",
+ "objc2-foundation",
  "pulldown-cmark",
  "rusqlite",
  "serde",

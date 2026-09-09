@@ -1,6 +1,8 @@
+import { Editor as TiptapEditor } from "@tiptap/core";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
+import { createEditorExtensions } from "@/components/editor/extensions";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
@@ -22,6 +24,7 @@ afterEach(() => {
  */
 const mount = async (modes: {
   focusModeEnabled?: boolean;
+  initialContent?: string;
   typewriterEnabled?: boolean;
 }) => {
   const host = document.createElement("div");
@@ -34,8 +37,8 @@ const mount = async (modes: {
   await act(async () => {
     root.render(
       createElement(Editor, {
-        ...modes,
         initialContent: "first\n\nsecond",
+        ...modes,
         onChange: () => undefined,
         onReady: (ready) => {
           handle = ready;
@@ -137,5 +140,118 @@ describe("typewriter scrollbar chrome", () => {
     const { scroller } = await mount({ typewriterEnabled: false });
 
     expect(scroller.classList.contains("typewriter-on")).toBe(false);
+  });
+});
+
+describe("code block clipboard", () => {
+  it("should preserve code editor metadata through the mounted editor", async () => {
+    const { handle, scroller } = await mount({ initialContent: "" });
+    const surface = scroller.querySelector(".ProseMirror");
+
+    if (surface === null) {
+      throw new Error("the editor surface did not render");
+    }
+
+    const clipboardData = new DataTransfer();
+
+    clipboardData.setData("text/plain", "# comment\nprint(1)");
+    clipboardData.setData("vscode-editor-data", '{"mode":"python"}');
+    act(() => {
+      surface.dispatchEvent(new ClipboardEvent("paste", { clipboardData }));
+    });
+
+    expect(handle.getContent().trimEnd()).toBe(
+      "```python\n# comment\nprint(1)\n```"
+    );
+  });
+
+  it.each([
+    ["named", "```ts\nconst value = 1;\n```"],
+    ["plain", "```\nplain code\n```"],
+    ["unknown language", "```mermaid\ngraph TD\n```"],
+    ["empty", "```ts\n\n```"],
+    ["nested fences", "````markdown\n```ts\nconst value = 1;\n```\n````"],
+  ])(
+    "should copy a %s code block as fenced markdown",
+    async (_name, markdown) => {
+      const { scroller } = await mount({ initialContent: markdown });
+      const copy = scroller.querySelector('button[aria-label="copy code"]');
+      const surface = scroller.querySelector(".ProseMirror");
+
+      if (!(copy instanceof HTMLButtonElement) || surface === null) {
+        throw new Error("the code block did not render");
+      }
+
+      await act(async () => {
+        copy.click();
+        await Promise.resolve();
+      });
+
+      const copied = await navigator.clipboard.readText();
+
+      expect(copied).toBe(markdown);
+      expect(copy.textContent).toBe("copied");
+
+      const pasted = new TiptapEditor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", copied);
+      pasted.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+
+      expect(pasted.state.doc.firstChild?.type.name).toBe("codeBlock");
+      expect(pasted.state.doc.firstChild?.textContent).toBe(
+        surface.querySelector("pre code")?.textContent
+      );
+      pasted.destroy();
+    }
+  );
+
+  it("should copy the newly selected language and preserve it in markdown", async () => {
+    const { handle, scroller } = await mount({
+      initialContent: "```mermaid\ngraph TD\n```",
+    });
+    const language = scroller.querySelector(
+      'select[aria-label="code language"]'
+    );
+    const copy = scroller.querySelector('button[aria-label="copy code"]');
+
+    if (
+      !(
+        language instanceof HTMLSelectElement &&
+        copy instanceof HTMLButtonElement
+      )
+    ) {
+      throw new Error("the code block toolbar did not render");
+    }
+
+    expect(language.value).toBe("mermaid");
+    await act(async () => {
+      language.value = "typescript";
+      language.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      copy.click();
+      await Promise.resolve();
+    });
+
+    expect(language.value).toBe("typescript");
+    expect(handle.getContent().trimEnd()).toBe("```typescript\ngraph TD\n```");
+    expect(await navigator.clipboard.readText()).toBe(
+      "```typescript\ngraph TD\n```"
+    );
+
+    await act(async () => {
+      language.value = "";
+      language.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handle.getContent().trimEnd()).toBe("```\ngraph TD\n```");
   });
 });
