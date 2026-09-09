@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { cn } from "cn";
 import {
   ClipboardIcon,
   CodeIcon,
@@ -45,6 +46,7 @@ import {
   CommandInput,
   CommandList,
 } from "@/components/ui/command";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { filenameFromTitle, type NoteMeta } from "@/core/notes";
 import { searchFolders } from "@/core/search";
@@ -91,6 +93,27 @@ type PaletteView =
   | "move"
   | "rename"
   | "tags";
+
+function PaletteFooter({
+  label,
+  loading,
+  onSelect,
+}: {
+  label: string;
+  loading: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center justify-between border-t px-3 py-2">
+      <Button onClick={onSelect} size="sm" variant="ghost">
+        {label}
+      </Button>
+      <span className="flex size-4 items-center justify-center">
+        {loading ? <Spinner aria-label="searching notes" /> : null}
+      </span>
+    </div>
+  );
+}
 
 interface CommandPaletteProps {
   allTags: { count: number; tag: string }[];
@@ -143,6 +166,13 @@ export function CommandPalette({
   const [filterQuery, setFilterQuery] = useState("");
   const [cursor, setCursor] = useState(query.length);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const resetSearchScroll = useCallback(() => {
+    if (listRef.current !== null) {
+      listRef.current.scrollTop = 0;
+    }
+  }, []);
   useLayoutEffect(() => {
     inputRef.current?.focus();
     if (view === "rename") {
@@ -651,6 +681,7 @@ export function CommandPalette({
 
   const filterMode = view === "filters";
   const hasFooter = view === "find" || filterMode;
+  const listView = view !== "rename" && view !== "delete";
   const inputValue = filterMode ? filterQuery : query;
   const changeInput = filterMode ? setFilterQuery : changeQuery;
   const footerAction = filterMode ? back : showFilters;
@@ -707,14 +738,20 @@ export function CommandPalette({
 
   return (
     <CommandDialog
-      className="top-[min(20dvh,8rem)] flex max-h-[calc(80dvh-1rem)] flex-col gap-0"
+      className={cn(
+        "top-[min(20dvh,8rem)] flex max-h-[calc(80dvh-1rem)] flex-col gap-0",
+        { "h-96": listView }
+      )}
       description="search notes and run actions"
       onOpenChange={handleOpenChange}
       open={open}
       title="command palette"
     >
       <Command
-        className="h-auto min-h-0"
+        className={cn(
+          "h-auto min-h-0 **:data-[slot=command-input-wrapper]:shrink-0",
+          { "flex-1": listView }
+        )}
         key={view}
         label={
           {
@@ -750,7 +787,10 @@ export function CommandPalette({
           ref={inputRef}
           value={inputValue}
         />
-        <CommandList className="min-h-0">
+        <CommandList
+          className={cn("min-h-0", { "max-h-none flex-1": listView })}
+          ref={listRef}
+        >
           {noteView}
 
           {view === "filters" ? (
@@ -763,7 +803,9 @@ export function CommandPalette({
               cursor={cursor}
               notes={notes}
               onCreate={createFromQuery}
+              onLoadingChange={setSearchLoading}
               onQueryChange={applySuggestion}
+              onResultQueryChange={resetSearchScroll}
               onSelectNote={openNote}
               query={query}
             />
@@ -782,11 +824,11 @@ export function CommandPalette({
         </CommandList>
       </Command>
       {hasFooter ? (
-        <div className="shrink-0 border-t px-3 py-2">
-          <Button onClick={footerAction} size="sm" variant="ghost">
-            {footerLabel}
-          </Button>
-        </div>
+        <PaletteFooter
+          label={footerLabel}
+          loading={searchLoading}
+          onSelect={footerAction}
+        />
       ) : null}
     </CommandDialog>
   );
