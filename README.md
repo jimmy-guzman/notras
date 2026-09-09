@@ -173,10 +173,11 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 
 Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
 
-Rust commands run from `src-tauri`. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the dependency checker once:
+Rust commands run from `src-tauri`. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional tools once:
 
 ```bash
 cargo install cargo-machete --locked --version 0.9.2
+cargo install cargo-llvm-cov --locked --version 0.9.1
 ```
 
 | Command | Description |
@@ -186,8 +187,9 @@ cargo install cargo-machete --locked --version 0.9.2
 | `cargo fmt --all` | format Rust sources |
 | `cargo clippy --locked --all-targets -- -D warnings` | Clippy, with warnings treated as errors |
 | `cargo test --locked` | Rust tests, including doctests |
+| `../scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-CI runs Clippy and tests on macOS, Linux, and Windows. Dependency and formatting checks run on Linux. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+CI runs Clippy and tests on macOS, Linux, and Windows. Dependency and formatting checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. Coverage includes application and shell code and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
 
 ## Technologies
 

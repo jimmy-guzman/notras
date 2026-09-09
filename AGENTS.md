@@ -149,7 +149,7 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. `README.md` lists the dependency checker's installation command.
+CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. Nothing automated covers it, which `D21` records. Say which claims you checked and which you took from the code alone.
 
