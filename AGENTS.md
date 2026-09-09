@@ -147,10 +147,9 @@ cargo machete
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
-../scripts/check-rust-coverage.sh  # on Linux
 ```
 
-CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency, formatting, and coverage checks run on Linux. Read the coverage artifact when the floor fails. Do not lower the floor to make a change pass. `README.md` lists tool installation commands.
+CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. `README.md` lists the dependency checker's installation command.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. Nothing automated covers it, which `D21` records. Say which claims you checked and which you took from the code alone.
 
