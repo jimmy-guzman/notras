@@ -1141,6 +1141,13 @@ mod tests {
         }
     }
 
+    #[test]
+    fn should_fold_filename_stems_after_removing_the_extension() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        assert_eq!(select(&conn, "SELECT notras_note_name('ΟΣ.md')", &[]).unwrap(), vec![vec![json!("ος")]]);
+    }
+
     /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
     /// same cases in the same order, so the two resolvers can be diffed by eye.
     #[test]
