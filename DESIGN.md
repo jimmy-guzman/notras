@@ -164,7 +164,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 
 - Lowercase, always. Labels, buttons, toasts, tooltips, placeholders, menu items, empty states.
 - Errors reach the user in two parts: what failed, in the app's copy, as the title, and why, from the error, as the description, through `reasonOf` in `src/lib/ui/failure.ts`. The title is a lowercase sentence naming the action, written at the call site; the reason comes from the typed failure or the schema that raises it, lowercase and without an error number.
-- **An empty state is `Empty`: a title, a description, and an action slot, at the sizes the component sets.** Find with no results reads `nothing found` over `start with # to search by tag`, and actions with none reads it over the chord that finds a note. Never leave a blank pane. A find that matched nothing is the one case with no empty state: the create row stands in its place.
+- **An empty state is `Empty`: a title, a description, and an action slot, at the sizes the component sets.** Find with no results reads `nothing found` over `choose a filter to narrow your search`, and actions with none reads it over the chord that finds a note. Never leave a blank pane. A find that matched nothing is the one case with no empty state: the create row stands in its place.
 - A pane or screen that could not load is the same `Empty`, with the failure's two parts as its title and description and the retry as an outline button in its action slot.
 - The welcome screen, shown when no tab is open, carries the mark and wordmark beside "write another note", with the ⌘n / ⌘p hints below. It keeps its own markup because it introduces the app rather than reporting missing content.
 - Name what a control does rather than what it is. The palette entry is "move to folder", not "folder".
@@ -189,3 +189,5 @@ Motion carries a state change and nothing else. There is no decorative animation
 - Do not capitalize user-facing text.
 - Do not animate anything that is not a state change.
 - Do not write an action twice. A second entry point is fine when both route through one implementation; a second copy of the logic is not (`D31`).
+
+Palette filter choices remain inside find mode. Picking a folder or tag preserves the rest of the query. Pending searches hide previous results so Enter cannot open a note from an earlier query.

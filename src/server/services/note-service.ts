@@ -20,6 +20,7 @@ import {
   retitleLeadingHeading,
   suffixedFilename,
 } from "@/core/notes";
+import { filterSearchNotes, type NoteSearch } from "@/core/search";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 interface Note {
@@ -53,6 +54,7 @@ interface INoteService {
   move: (path: string, folder: string) => Effect.Effect<string, FileError>;
   /** Renames the file and syncs a heading or `title:` key the note already has. */
   retitle: (path: string, title: string) => Effect.Effect<string, FileError>;
+  search: (search: NoteSearch) => Effect.Effect<NoteMeta[], FileError>;
   setPinned: (path: string, pinned: boolean) => Effect.Effect<void, FileError>;
   setTags: (path: string, tags: string[]) => Effect.Effect<void, FileError>;
   write: (path: string, content: string) => Effect.Effect<Date, FileError>;
@@ -269,6 +271,16 @@ const makeNoteService = Effect.gen(function* () {
     move,
 
     retitle,
+
+    search: Effect.fn("NoteService.search")(function* (search: NoteSearch) {
+      if (search.incomplete) {
+        return [];
+      }
+      const notes = yield* noteRepo
+        .findMany({ query: search.query })
+        .pipe(Effect.orDie);
+      return filterSearchNotes(notes, search);
+    }),
 
     setPinned: (path, pinned) => rewriteFrontmatter(path, { pinned }),
 

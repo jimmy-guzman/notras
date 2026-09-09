@@ -135,7 +135,7 @@ src/
     ui/mentions.ts    # the mentions list's open state: strip, chord and palette share it
     ui/graph.ts       # which tabs show their graph, and the hop that keeps it on
     ui/utils.ts       # cn()
-    utils/            # fts-snippet, tag-query, word-count
+    utils/            # fts-snippet, word-count
 src-tauri/
   src/lib.rs          # setup: notes dir, index, watcher, tray, shortcuts
   src/notes.rs        # note IO commands (write/rename/delete/attach/external)
@@ -254,3 +254,5 @@ Each of these holds a property the architecture depends on. Breaking one is a de
 - **Every editor node defines its markdown form and appears in the round-trip spec.** A node without one silently drops content from externally authored files.
 - **The two wikilink scanners change together.** `wikilinks` in `src-tauri/src/index.rs` and the editor's tokenizer assert one table of cases in one order, in `finds_the_wikilinks_the_editor_renders` and `src/components/editor/wikilink.spec.ts`. Drift shows up as a mention the editor does not render as a pill, or a pill the strip does not count, which nothing else catches. `markdown_links` and `src/components/editor/markdown-link.spec.ts` are the same pair for `[text](note.md)`, and `is_note_path` and `isNotePath` are the one rule both apply.
 - **Indexed note IO reaches no path outside the notes dir.** It goes through Rust commands, so the dynamic scope is enforced at runtime, which is why the `fs` plugin is not installed. Four commands take a host path the user picked and stay out of the index: `read_external`, `write_external`, `attach_file`, and `classify_open_paths`, which reads nothing. Adding a fourth means asking who chose the path.
+
+`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes`, `NoteService.search`, and `noteQueries.search` carry the complete parsed query under the index invalidation prefix. The service reads ranked FTS candidates without a limit, intersects the filters, and caps the result at 30. Folder suggestions derive ancestors and subtree counts from the note list.

@@ -1,5 +1,3 @@
-import { useDebouncedValue } from "@tanstack/react-pacer";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
@@ -7,7 +5,6 @@ import {
   CodeIcon,
   DownloadIcon,
   FilePlusIcon,
-  FileTextIcon,
   FocusIcon,
   FolderIcon,
   FolderInputIcon,
@@ -21,7 +18,6 @@ import {
   PencilIcon,
   PinIcon,
   RefreshCwIcon,
-  SearchIcon,
   SettingsIcon,
   TagPlusIcon,
   Trash2Icon,
@@ -32,6 +28,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import { Chord } from "@/components/chord";
 import { useNoteTags } from "@/components/notes/use-note-tags";
+import { PaletteSearch } from "@/components/palette-search";
 import {
   Command,
   CommandDialog,
@@ -55,7 +52,6 @@ import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { moveNote } from "@/data/move-note";
 import { setNotePinned } from "@/data/pin-note";
-import { noteQueries } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
 import { retitleNote } from "@/data/retitle-note";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
@@ -78,80 +74,9 @@ import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
-import { getSnippetParts } from "@/lib/utils/fts-snippet";
-import { parseTagQuery, type TagQuery } from "@/lib/utils/tag-query";
 
-function Snippet({ snippet }: { snippet: string }) {
-  return (
-    <span className="truncate text-muted-foreground text-xs">
-      {getSnippetParts(snippet).map((part) =>
-        part.match ? (
-          <mark
-            className="rounded-xs bg-primary/20 text-foreground"
-            key={part.id}
-          >
-            {part.text}
-          </mark>
-        ) : (
-          <span key={part.id}>{part.text}</span>
-        )
-      )}
-    </span>
-  );
-}
-
-const VISIBLE_TAGS = 3;
-
-// `CommandItem` appends its own `ml-auto` checkmark, so a second `ml-auto`
-// here would split the free space with it and let the label's width shift the
-// count. A flex-1 label and a fixed column keep the digits in one place.
 const COUNT_CLASS =
   "w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums";
-
-function tagLabel(tags: string[]) {
-  const shown = tags
-    .slice(0, VISIBLE_TAGS)
-    .map((tag) => `#${tag}`)
-    .join(" ");
-  const hidden = tags.length - VISIBLE_TAGS;
-
-  return hidden > 0 ? `${shown} +${hidden}` : shown;
-}
-
-interface NoteItemProps {
-  note: NoteMeta;
-  onSelect: (path: string) => void;
-}
-
-function NoteItem({ note, onSelect }: NoteItemProps) {
-  const select = useCallback(() => {
-    onSelect(note.path);
-  }, [note.path, onSelect]);
-
-  return (
-    <CommandItem onSelect={select} value={note.path}>
-      <FileTextIcon />
-      <div className="flex min-w-0 flex-col">
-        <span className="flex items-center gap-1.5 truncate">
-          {note.title}
-          {/* In a text run, not the row's icon slot, so it stays 12px (`D51`). */}
-          {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
-          {note.folder === "" ? null : (
-            <span className="text-muted-foreground text-xs">
-              · {note.folder}
-            </span>
-          )}
-          {note.tags.length === 0 ? null : (
-            <span className="truncate text-muted-foreground text-xs">
-              · {tagLabel(note.tags)}
-            </span>
-          )}
-        </span>
-        {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
-      </div>
-    </CommandItem>
-  );
-}
 
 interface FolderItemProps {
   count: number;
@@ -196,26 +121,6 @@ function TagChoiceItem({
       onSelect={toggle}
       value={`tag-${name}`}
     >
-      <HashIcon />
-      <span className="flex-1 truncate">{name}</span>
-      <span className={COUNT_CLASS}>{count}</span>
-    </CommandItem>
-  );
-}
-
-interface TagFilterItemProps {
-  count: number;
-  name: string;
-  onPick: (name: string) => void;
-}
-
-function TagFilterItem({ count, name, onPick }: TagFilterItemProps) {
-  const pick = useCallback(() => {
-    onPick(name);
-  }, [name, onPick]);
-
-  return (
-    <CommandItem onSelect={pick} value={`tag-${name}`}>
       <HashIcon />
       <span className="flex-1 truncate">{name}</span>
       <span className={COUNT_CLASS}>{count}</span>
@@ -440,128 +345,6 @@ function ActionsView({ actions, chordsByName }: ActionsViewProps) {
   );
 }
 
-interface FindViewProps {
-  allTags: { count: number; tag: string }[];
-  notes: NoteMeta[];
-  onCreate: () => void;
-  onFilterTag: (name: string) => void;
-  onSelectNote: (path: string) => void;
-  query: string;
-  searchError: Error | null;
-  tagQuery?: TagQuery;
-}
-
-function FindView({
-  allTags,
-  notes,
-  onCreate,
-  onFilterTag,
-  onSelectNote,
-  query,
-  searchError,
-  tagQuery,
-}: FindViewProps) {
-  const draftTitle = query.trim();
-  // A search that found nothing is a dead end unless it can become a note.
-  // Only a plain one: naming a note from `#work foo` would have to tag it too.
-  const offerCreate =
-    searchError === null &&
-    notes.length === 0 &&
-    draftTitle !== "" &&
-    tagQuery === undefined;
-  const emptyDescription =
-    searchError === null
-      ? "start with # to search by tag"
-      : reasonOf(searchError);
-
-  return (
-    <>
-      <CommandEmpty>
-        <Empty className="p-6">
-          <EmptyHeader>
-            <EmptyTitle>
-              {searchError === null
-                ? "nothing found"
-                : "could not search notes"}
-            </EmptyTitle>
-            {emptyDescription === undefined ? null : (
-              <EmptyDescription>{emptyDescription}</EmptyDescription>
-            )}
-          </EmptyHeader>
-        </Empty>
-      </CommandEmpty>
-      {tagQuery?.query === "" ? (
-        <CommandGroup heading="tags">
-          {allTags
-            .filter(({ tag: name }) => name.includes(tagQuery.tag))
-            .map(({ count, tag: name }) => (
-              <TagFilterItem
-                count={count}
-                key={name}
-                name={name}
-                onPick={onFilterTag}
-              />
-            ))}
-        </CommandGroup>
-      ) : null}
-      <CommandGroup heading="notes">
-        {notes.map((note) => (
-          <NoteItem key={note.path} note={note} onSelect={onSelectNote} />
-        ))}
-        {offerCreate ? (
-          <CommandItem onSelect={onCreate} value="create-note">
-            <FilePlusIcon />
-            <span className="truncate">
-              create "{draftTitle}"
-              {/* The filename is derived, so it is shown, not hidden. */}
-              <span className="text-muted-foreground">
-                {" · "}
-                {filenameFromTitle(draftTitle)}.md
-              </span>
-            </span>
-          </CommandItem>
-        ) : null}
-      </CommandGroup>
-      {draftTitle === "" ? (
-        <CommandItem disabled value="search-hint">
-          <SearchIcon />
-          <div className="flex min-w-0 flex-col">
-            <span className="text-muted-foreground">
-              type to search all notes
-            </span>
-            <span className="text-faint">
-              <Chord hotkey="Mod+Shift+P" /> for actions
-            </span>
-          </div>
-        </CommandItem>
-      ) : null}
-    </>
-  );
-}
-
-/**
- * What the input asks the index for, or nothing when it asks for everything.
- *
- * A tag is an indexed exact match that ANDs with full-text search, so both
- * paths run one query and differ only in what they pass.
- */
-function searchFiltersFor(value: string, knownTags: Set<string>) {
-  const parsed = parseTagQuery(value);
-  const filters: { query: string; tag?: string } =
-    parsed === undefined
-      ? { query: value.trim() }
-      : { query: parsed.query, tag: parsed.tag };
-
-  if (
-    filters.query === "" &&
-    (filters.tag === undefined || !knownTags.has(filters.tag))
-  ) {
-    return;
-  }
-
-  return { limit: 30, ...filters };
-}
-
 interface CommandPaletteProps {
   allTags: { count: number; tag: string }[];
   folders: { count: number; folder: string }[];
@@ -572,44 +355,6 @@ interface CommandPaletteProps {
   onOpenSettings: () => void;
   open: boolean;
   tag?: string;
-}
-
-/** The rows under "notes": what the index answered, or the recent ones. */
-function useVisibleNotes(
-  query: string,
-  view: PaletteView,
-  knownTags: Set<string>,
-  notes: NoteMeta[]
-) {
-  const [debouncedQuery] = useDebouncedValue(query, { wait: 150 });
-  // The list only renders under the root view, and the other views repurpose
-  // the input, so nothing they hold should reach the index.
-  const filters =
-    view === "find" ? searchFiltersFor(debouncedQuery, knownTags) : undefined;
-  // The filters are the key, so a slow "a" resolving after "abc" lands in its
-  // own cache entry and never reaches the screen.
-  const { data: results, error } = useQuery({
-    ...noteQueries.list(filters),
-    enabled: filters !== undefined,
-    placeholderData: keepPreviousData,
-  });
-  const tagQuery = parseTagQuery(query);
-
-  if (tagQuery !== undefined && !knownTags.has(tagQuery.tag)) {
-    return { error: null, notes: [] };
-  }
-
-  // Asking for nothing builds the key the root loader already primed, and a
-  // disabled query still reads the cache, so its full list would land here.
-  if (filters === undefined) {
-    return { error: null, notes: notes.slice(0, 20) };
-  }
-
-  if (error !== null) {
-    return { error, notes: [] };
-  }
-
-  return { error: null, notes: results ?? notes.slice(0, 20) };
 }
 
 export function CommandPalette({
@@ -665,14 +410,6 @@ export function CommandPalette({
       onOpenChange(next);
     },
     [mode, onOpenChange]
-  );
-
-  const tagQuery = parseTagQuery(query);
-  const { error: searchError, notes: visibleNotes } = useVisibleNotes(
-    query,
-    view,
-    knownTags,
-    notes
   );
 
   const close = useCallback(() => {
@@ -787,10 +524,6 @@ export function CommandPalette({
     setQuery("");
     noteTags.changeTags([...noteTags.tags, draftTag]);
   }, [draftTag, noteTags]);
-
-  const filterByTag = useCallback((name: string) => {
-    setQuery(`#${name} `);
-  }, []);
 
   const newNote = useCallback(() => {
     runAction("could not create note", async () => {
@@ -1181,15 +914,13 @@ export function CommandPalette({
           )}
 
           {view === "find" ? (
-            <FindView
+            <PaletteSearch
               allTags={allTags}
-              notes={visibleNotes}
+              notes={notes}
               onCreate={createFromQuery}
-              onFilterTag={filterByTag}
+              onQueryChange={setQuery}
               onSelectNote={openNote}
               query={query}
-              searchError={searchError}
-              tagQuery={tagQuery}
             />
           ) : null}
 
