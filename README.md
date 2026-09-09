@@ -173,7 +173,23 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 
 Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
 
-Rust tests live in `src-tauri`: `cd src-tauri && cargo test --locked`.
+Rust commands run from `src-tauri`. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional gate tools once:
+
+```bash
+cargo install cargo-machete --locked --version 0.9.2
+cargo install cargo-llvm-cov --locked --version 0.9.1
+```
+
+| Command | Description |
+| ------- | ----------- |
+| `cargo machete` | unused Rust dependencies |
+| `cargo fmt --all -- --check` | Rust formatting check |
+| `cargo fmt --all` | format Rust sources |
+| `cargo clippy --locked --all-targets -- -D warnings` | Clippy, with warnings treated as errors |
+| `cargo test --locked` | Rust tests, including doctests |
+| `../scripts/check-rust-coverage.sh` | Linux line coverage gate and reports in `target/coverage/` |
+
+CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting, and coverage checks run on Linux. The `rust-coverage` artifact contains LCOV and JSON reports even when coverage misses the floor. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
 
 ## Technologies
 
