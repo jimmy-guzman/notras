@@ -1,9 +1,7 @@
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { FileTextIcon } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-
 import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,6 +22,7 @@ import { noteQueries } from "@/data/queries";
 import { openNote } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { setMentionsOpen, useMentionsOpen } from "@/lib/ui/mentions";
+import { useHotkey } from "@/lib/ui/shortcuts";
 
 /** The row clamps to one line, so a link deep in a paragraph would sit past the ellipsis. */
 const CONTEXT_LEAD = 32;

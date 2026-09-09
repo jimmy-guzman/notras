@@ -1,4 +1,3 @@
-import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { useSelector } from "@tanstack/react-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { format } from "date-fns";
@@ -13,6 +12,7 @@ import { Toaster, toast } from "@/components/ui/toast";
 import { createNote } from "@/data/create-note";
 import { reasonOf } from "@/lib/ui/failure";
 import { createFindController } from "@/lib/ui/find";
+import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 
 const NOOP = () => undefined;
 

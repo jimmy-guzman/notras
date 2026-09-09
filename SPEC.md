@@ -117,6 +117,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Action search matches the wording shown on the row, including "unpin note" and "turn on focus mode". The input has an accessible name for its current task. Attached tags expose their checked state independently of keyboard selection.
 - The palette keeps its input and filter button visible at the supported 480 by 360 minimum window. Its list scrolls within the available height. Long titles truncate with an ellipsis while folder context keeps its own space.
 - An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⌥g, find in note ⌘f, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- Opening the palette, switching notes, and changing editor modes produce no shortcut-registry render warnings in the development build. Shortcut labels follow live registrations. Callbacks and enabled state change only when the owning React render commits; a suspended replacement keeps the previous behavior. Unmounting the owner removes its bindings.
 
 ## Find in a note
 

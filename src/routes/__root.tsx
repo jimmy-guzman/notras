@@ -1,4 +1,3 @@
-import { useHotkey } from "@tanstack/react-hotkeys";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -24,6 +23,7 @@ import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import type { PendingOpen } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
+import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 
 /** Cached data answers the loader; only a cold key fetches. */

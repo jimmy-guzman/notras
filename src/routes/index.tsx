@@ -1,4 +1,3 @@
-import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
@@ -39,6 +38,7 @@ import { stepTab, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
+import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { attachmentLink } from "@/lib/utils/attachments";
 
 /**
