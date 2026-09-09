@@ -111,6 +111,15 @@ describe("destination indexing parity", () => {
     ["![a](https://github.com/a.png)", []],
     ["[https://github.com/a](b.md)", ["b.md"]],
     ["<span>https://github.com/a</span>", []],
+    [
+      "[[https://github.com\n[[a much longer valid wikilink target]]",
+      ["https://github.com"],
+    ],
+    [
+      "\\[[https://github.com\n[[a much longer valid wikilink target]]",
+      ["https://github.com"],
+    ],
+    ["[[https://github.com]] https://example.com", ["https://example.com"]],
   ])("should index the destinations rendered in %s", (markdown, expected) => {
     expect(destinations(String(markdown))).toEqual(expected);
   });

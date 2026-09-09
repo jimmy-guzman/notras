@@ -1,3 +1,5 @@
+import { DatabaseSync } from "node:sqlite";
+import { drizzle } from "drizzle-orm/sqlite-proxy";
 import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { FileError } from "@/core/errors";
@@ -5,6 +7,7 @@ import type { IFileStore, NoteFileContent } from "@/core/file-store";
 import { FileStore } from "@/core/file-store";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
+import { Database, schema } from "@/server/db";
 import { NoteRepository } from "@/server/repositories/note-repository";
 
 import { NoteService } from "./note-service";
@@ -569,5 +572,56 @@ describe("noteService.search", () => {
       ).pipe(Effect.flip, Effect.provide(layer))
     );
     expect(result).toEqual(failure);
+  });
+});
+
+describe("indexed relationship searches", () => {
+  it.each([
+    ["needle from:projects/atlas.md link:éxample", ["projects/budget.md"]],
+    ["needle to:projects/atlas.md", ["projects/budget.md"]],
+    ["from:projects/atlas.md", ["projects/budget.md"]],
+    ["needle link:éxample", ["projects/budget.md"]],
+    ["needle from:missing.md", []],
+  ])("should preserve resolved results for %s", async (query, paths) => {
+    const sqlite = new DatabaseSync(":memory:");
+    sqlite.exec(`
+      CREATE TABLE note(path TEXT PRIMARY KEY, title TEXT, folder TEXT, pinned INTEGER, created_at INTEGER, updated_at INTEGER);
+      CREATE TABLE note_tag(path TEXT, tag TEXT);
+      CREATE TABLE note_link(path TEXT, line INTEGER, kind TEXT, target TEXT, context TEXT);
+      CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content);
+      INSERT INTO note VALUES ('projects/atlas.md', 'Atlas', 'projects', 0, 0, 0), ('projects/budget.md', 'Budget', 'projects', 0, 0, 0), ('archive/budget.md', 'Budget', 'archive', 0, 0, 0);
+      INSERT INTO note_fts VALUES ('projects/atlas.md', 'Atlas', ''), ('projects/budget.md', 'Budget', 'needle'), ('archive/budget.md', 'Budget', '');
+      INSERT INTO note_link VALUES ('projects/atlas.md', 1, 'wikilink', 'Budget', 'outgoing context'), ('projects/budget.md', 1, 'wikilink', 'Atlas', 'incoming context'), ('projects/budget.md', 2, 'destination', 'https://Éxample.com', 'external context'), ('archive/budget.md', 1, 'wikilink', 'Atlas', 'archived context');
+    `);
+    const db = drizzle(
+      async (sql, params) => ({
+        rows: sqlite
+          .prepare(sql)
+          .all(...params)
+          .map((row) => Object.values(row)),
+      }),
+      { schema }
+    );
+    const repository = NoteRepository.layer.pipe(
+      Layer.provide(Layer.succeed(Database, db))
+    );
+    const layer = NoteService.layerNoDeps.pipe(
+      Layer.provide(
+        Layer.merge(
+          repository,
+          Layer.succeed(FileStore, makeFakeFileStore().fileStore)
+        )
+      )
+    );
+    try {
+      const result = await Effect.runPromise(
+        NoteService.use((service) =>
+          service.search(parseSearch(String(query)))
+        ).pipe(Effect.provide(layer))
+      );
+      expect(result.map(({ path }) => path)).toEqual(paths);
+    } finally {
+      sqlite.close();
+    }
   });
 });

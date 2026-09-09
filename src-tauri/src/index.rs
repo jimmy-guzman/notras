@@ -1721,6 +1721,9 @@ mod tests {
             ("![a](https://github.com/a.png)", &[]),
             ("[https://github.com/a](b.md)", &["b.md"]),
             ("<span>https://github.com/a</span>", &[]),
+            ("[[https://github.com\n[[a much longer valid wikilink target]]", &["https://github.com"]),
+            ("\\[[https://github.com\n[[a much longer valid wikilink target]]", &["https://github.com"]),
+            ("[[https://github.com]] https://example.com", &["https://example.com"]),
         ];
         for (markdown, expected) in cases {
             let links = destinations(markdown);
@@ -1748,6 +1751,50 @@ mod tests {
         scan_all(&conn, &dir).unwrap();
         let rows = select(&conn, "SELECT kind, target FROM note_link ORDER BY kind", &[]).unwrap();
         assert_eq!(rows, vec![vec![json!("destination"), json!("https://github.com/a")], vec![json!("link"), json!("b.md")]]);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn should_narrow_ascii_phrase_candidates_before_matching_literal_prose() {
+        let dir = temp_notes_dir("phrase-candidates");
+        fs::write(dir.join("a.md"), "# Ada Lovelace\n\nAda-Lovelace is not the same phrase.\n").unwrap();
+        fs::write(dir.join("b.md"), "`Ada Lovelace`\n").unwrap();
+        fs::write(dir.join("c.md"), "unrelated prose\n").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+        let candidates = phrase_candidates(&conn, "Ada Lovelace").unwrap();
+        assert_eq!(candidates, vec!["a.md", "b.md"]);
+        let found = scan_prose(&dir, candidates, "Ada Lovelace", true).unwrap();
+        assert_eq!(found.iter().map(|row| (row.path.as_str(), row.line)).collect::<Vec<_>>(), vec![("a.md", 1)]);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn should_keep_punctuation_only_phrase_candidates() {
+        let dir = temp_notes_dir("punctuation-candidates");
+        fs::write(dir.join("a.md"), "prose !!! here\n").unwrap();
+        fs::write(dir.join("b.md"), "ordinary prose\n").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+        let candidates = phrase_candidates(&conn, "!!!").unwrap();
+        assert_eq!(candidates, vec!["a.md", "b.md"]);
+        let found = scan_prose(&dir, candidates, "!!!", true).unwrap();
+        assert_eq!(found.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(), vec!["a.md"]);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn should_keep_unicode_case_variants_that_fts_does_not_fold() {
+        let dir = temp_notes_dir("unicode-phrase-candidates");
+        fs::write(dir.join("a.md"), "foo ა bar\n").unwrap();
+        fs::write(dir.join("b.md"), "foo Ა bar\n").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+        let found = scan_prose(&dir, phrase_candidates(&conn, "foo Ა bar").unwrap(), "foo Ა bar", true).unwrap();
+        assert_eq!(found.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(), vec!["a.md", "b.md"]);
         fs::remove_dir_all(dir).unwrap();
     }
 
