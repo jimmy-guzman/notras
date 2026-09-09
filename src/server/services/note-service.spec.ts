@@ -577,7 +577,9 @@ describe("indexed relationship searches", () => {
   it.each([
     ["needle from:projects/atlas.md link:éxample", ["projects/budget.md"]],
     ["needle to:projects/atlas.md", ["projects/budget.md"]],
+    ["to:projects/atlas.md", ["projects/budget.md", "archive/budget.md"]],
     ["from:projects/atlas.md", ["projects/budget.md"]],
+    ["link:éxample", ["projects/budget.md"]],
     ["needle link:éxample", ["projects/budget.md"]],
     ["needle from:missing.md", []],
   ])("should preserve resolved results for %s", async (query, paths) => {
@@ -590,14 +592,21 @@ describe("indexed relationship searches", () => {
       INSERT INTO note VALUES ('projects/atlas.md', 'Atlas', 'projects', 0, 0, 0), ('projects/budget.md', 'Budget', 'projects', 0, 0, 0), ('archive/budget.md', 'Budget', 'archive', 0, 0, 0);
       INSERT INTO note_fts VALUES ('projects/atlas.md', 'Atlas', ''), ('projects/budget.md', 'Budget', 'needle'), ('archive/budget.md', 'Budget', '');
       INSERT INTO note_link VALUES ('projects/atlas.md', 1, 'wikilink', 'Budget', 'outgoing context'), ('projects/budget.md', 1, 'wikilink', 'Atlas', 'incoming context'), ('projects/budget.md', 2, 'destination', 'https://Éxample.com', 'external context'), ('archive/budget.md', 1, 'wikilink', 'Atlas', 'archived context');
+      WITH RECURSIVE noise(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM noise WHERE i < 100)
+      INSERT INTO note SELECT 'noise/' || i || '.md', 'Unrelated ' || i, 'noise', 0, 0, 0 FROM noise;
+      INSERT INTO note_fts SELECT path, title, '' FROM note WHERE folder = 'noise';
+      INSERT INTO note_link SELECT path, 1, 'wikilink', 'Unrelated 1', 'irrelevant context' FROM note WHERE folder = 'noise';
     `);
+    const reads: { count: number; sql: string }[] = [];
     const db = drizzle(
-      async (sql, params) => ({
-        rows: sqlite
+      (sql, params) => {
+        const rows = sqlite
           .prepare(sql)
           .all(...params)
-          .map((row) => Object.values(row)),
-      }),
+          .map((row) => Object.values(row));
+        reads.push({ count: rows.length, sql });
+        return Promise.resolve({ rows });
+      },
       { schema }
     );
     const repository = NoteRepository.layer.pipe(
@@ -618,6 +627,18 @@ describe("indexed relationship searches", () => {
         ).pipe(Effect.provide(layer))
       );
       expect(result.map(({ path }) => path)).toEqual(paths);
+      expect(
+        reads
+          .filter(({ sql }) => sql.includes('from "note_link"'))
+          .every(({ count }) => count < 10)
+      ).toBe(true);
+      if (String(query).startsWith("needle")) {
+        expect(
+          reads
+            .filter(({ sql }) => sql.includes('from "note"'))
+            .every(({ count }) => count < 10)
+        ).toBe(true);
+      }
     } finally {
       sqlite.close();
     }

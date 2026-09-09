@@ -1123,6 +1123,24 @@ mod tests {
         dir
     }
 
+    #[test]
+    fn should_normalize_relationship_query_keys_without_resolving_titles() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        assert_eq!(select(&conn, "SELECT notras_lower('ÉXAMPLE'), notras_note_name('work/Atlas.MARKDOWN')", &[]).unwrap(), vec![vec![json!("éxample"), json!("atlas")]]);
+        for (kind, target, source, expected) in [
+            ("wikilink", "\u{feff} BUDGET \u{a0}", "work/a.md", Some("budget")),
+            ("link", "../b%20c.md#heading", "work/a.md", Some("b c.md")),
+            ("link", "../b%2fc.md?query", "work/a.md", Some("b%2fc.md")),
+            ("link", "./%C3%89.md", "work/a.md", Some("work/é.md")),
+            ("link", "../../b.md", "work/a.md", None),
+            ("link", "%ff.md", "work/a.md", None),
+        ] {
+            let rows = select(&conn, "SELECT notras_link_key(?1, ?2, ?3)", &[json!(kind), json!(target), json!(source)]).unwrap();
+            assert_eq!(rows, vec![vec![json!(expected)]], "{target}");
+        }
+    }
+
     /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
     /// same cases in the same order, so the two resolvers can be diffed by eye.
     #[test]
