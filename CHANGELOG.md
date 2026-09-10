@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/jimmy-guzman/notras/compare/v0.4.0...v0.5.0) (2026-09-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* 💥 graph view shortcut is now `cmd+alt+g`
+
+### Features
+
+* ✨ add palette filters and note find ([#174](https://github.com/jimmy-guzman/notras/issues/174)) ([e332858](https://github.com/jimmy-guzman/notras/commit/e3328582d7dd8263ffdc2aeec1dccf21d9857620))
+
+
+### Bug Fixes
+
+* 🐛 eliminate duplicate scrollbars & scroll stutter ([#163](https://github.com/jimmy-guzman/notras/issues/163)) ([ef32871](https://github.com/jimmy-guzman/notras/commit/ef32871bfcbae944320fd9f013da2ba42d255208))
+
 ## [0.4.0](https://github.com/jimmy-guzman/notras/compare/v0.3.1...v0.4.0) (2026-09-09)
 
 
