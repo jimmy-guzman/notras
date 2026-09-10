@@ -783,6 +783,48 @@ mod tests {
     use std::cell::Cell;
 
     #[test]
+    fn should_preserve_missing_file_causes_without_changing_the_wire_error() {
+        use std::error::Error as _;
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        let error = library.read_note("missing.md".into()).unwrap_err();
+
+        assert_eq!(
+            serde_json::to_value(&error).unwrap(),
+            serde_json::json!({"kind": "not-found", "message": "no such file"})
+        );
+        let source = error.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        assert_eq!(source.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn should_preserve_sqlite_causes_without_changing_the_wire_error() {
+        use std::error::Error as _;
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        library.conn.execute_batch("DROP TABLE note").unwrap();
+        let error = library.list_notes(Default::default()).unwrap_err();
+
+        assert_eq!(
+            serde_json::to_value(&error).unwrap(),
+            serde_json::json!({"kind": "failed", "message": "index: no such table: note"})
+        );
+        assert!(error.source().unwrap().is::<rusqlite::Error>());
+    }
+
+    #[test]
+    fn should_preserve_invalid_image_causes_without_creating_an_attachment() {
+        use std::error::Error as _;
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        let error = library.attach_image("%%%".into()).unwrap_err();
+
+        assert_eq!(error.message, "the pasted image is not valid");
+        assert!(error.source().unwrap().is::<base64::DecodeError>());
+        assert!(!directory.path().join("attachments").exists());
+    }
+
+    #[test]
     fn should_recompute_collision_suffixes_and_exclude_the_current_file() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();

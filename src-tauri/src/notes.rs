@@ -380,3 +380,30 @@ pub fn quit_app<R: Runtime>(app: AppHandle<R>) {
 pub fn cancel_quit(state: State<'_, AppState>) {
     state.quitting.store(false, Ordering::SeqCst);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::panic::{catch_unwind, panic_any};
+
+    #[test]
+    fn should_resume_a_blocking_operation_panic_with_its_original_payload() {
+        let panic = catch_unwind(|| {
+            tauri::async_runtime::block_on(run_blocking::<()>(|| panic_any(42_u32)))
+        })
+        .expect_err("a blocking panic must unwind the caller");
+        assert_eq!(*panic.downcast::<u32>().unwrap(), 42);
+    }
+
+    #[test]
+    fn should_return_expected_blocking_errors_unchanged() {
+        let error = tauri::async_runtime::block_on(run_blocking::<()>(|| {
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound).into())
+        }))
+        .unwrap_err();
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            serde_json::json!({"kind": "not-found", "message": "no such file"})
+        );
+    }
+}

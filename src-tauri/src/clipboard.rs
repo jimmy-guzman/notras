@@ -139,10 +139,10 @@ mod tests {
             r#"{"version":1,"mode":"typescript","multicursorText":null,"isFromEmptySelection":false}"#,
         );
         assert_eq!(
-            metadata::chromium(&data),
-            Ok(Some(CodeClipboard {
+            metadata::chromium(&data).unwrap(),
+            Some(CodeClipboard {
                 language: Some("typescript".into())
-            }))
+            })
         );
     }
 
@@ -150,15 +150,15 @@ mod tests {
     fn should_recognize_code_when_syntax_copy_is_disabled() {
         let data = chromium_bytes("vscode-editor-data", r#"{"version":1,"mode":null}"#);
         assert_eq!(
-            metadata::chromium(&data),
-            Ok(Some(CodeClipboard { language: None }))
+            metadata::chromium(&data).unwrap(),
+            Some(CodeClipboard { language: None })
         );
     }
 
     #[test]
     fn should_leave_other_chromium_clipboard_formats_alone() {
         let data = chromium_bytes("other-editor-data", "{\"mode\":\"python\"}");
-        assert_eq!(metadata::chromium(&data), Ok(None));
+        assert_eq!(metadata::chromium(&data).unwrap(), None);
     }
 
     #[test]
@@ -167,6 +167,26 @@ mod tests {
         for length in 0..data.len() {
             assert!(metadata::chromium(&data[..length]).is_err());
         }
+    }
+
+    #[test]
+    fn should_preserve_chromium_json_failure_causes() {
+        use std::error::Error as _;
+        let data = chromium_bytes("vscode-editor-data", "{\"mode\":12}");
+        let result: Result<_, super::CommandError> = (|| Ok(metadata::chromium(&data)?))();
+        let error = result.unwrap_err();
+        assert_eq!(error.message, "the clipboard metadata is invalid");
+        assert!(error.source().unwrap().is::<serde_json::Error>());
+    }
+
+    #[test]
+    fn should_preserve_zed_json_failure_causes() {
+        use std::error::Error as _;
+        let result: Result<_, super::CommandError> =
+            (|| Ok(metadata::zed(br#"[{"len":"12"}]"#, 12)?))();
+        let error = result.unwrap_err();
+        assert_eq!(error.message, "the clipboard metadata is invalid");
+        assert!(error.source().unwrap().is::<serde_json::Error>());
     }
 
     #[test]
@@ -179,8 +199,8 @@ mod tests {
     fn should_recognize_zed_without_inventing_a_language() {
         let data = br#"[{"len":12,"is_entire_line":false,"first_line_indent":0}]"#;
         assert_eq!(
-            metadata::zed(data, 12),
-            Ok(Some(CodeClipboard { language: None }))
+            metadata::zed(data, 12).unwrap(),
+            Some(CodeClipboard { language: None })
         );
     }
 
