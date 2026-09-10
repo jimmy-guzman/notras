@@ -169,8 +169,6 @@ function ActiveStatusBar({
 }: ActiveStatusBarProps) {
   const snapshot = useTabSnapshot(tabId(tab));
   const focusModeEnabled = useFocusMode();
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
-  const title = notes.find((meta) => meta.path === tab.path)?.title;
 
   return (
     <StatusBar
@@ -179,7 +177,7 @@ function ActiveStatusBar({
       graphEnabled={graphEnabled}
       note={
         tab.kind === "note"
-          ? { path: tab.path, tags: snapshot?.tags ?? [], title }
+          ? { path: tab.path, tags: snapshot?.tags ?? [] }
           : undefined
       }
       onFilterTag={onFilterTag}

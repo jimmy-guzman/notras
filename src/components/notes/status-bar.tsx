@@ -20,12 +20,8 @@ interface StatusBarProps {
   allTags: { count: number; tag: string }[];
   focusModeEnabled: boolean;
   graphEnabled: boolean;
-  /**
-   * Absent for an external file, which carries no frontmatter to tag and sits
-   * in no index to be mentioned from. `title` is the indexed one, which is
-   * what other notes write, and it is absent until the note list carries it.
-   */
-  note?: { path: string; tags: string[]; title?: string };
+  /** External files do not belong to the saved library. */
+  note?: { path: string; tags: string[] };
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
   onToggleGraph: () => void;
@@ -108,10 +104,8 @@ export function StatusBar({
             path={note.path}
             tags={note.tags}
           />
-          {note.title === undefined ? null : (
-            /* Keyed so a tab switch remounts it, closing a list opened over the last note. */
-            <MentionsOf key={note.path} path={note.path} title={note.title} />
-          )}
+          {/* Keyed so a tab switch closes the previous note's mentions list. */}
+          <MentionsOf key={note.path} path={note.path} />
         </>
       )}
       <span className="ml-auto shrink-0 px-2 tabular-nums">

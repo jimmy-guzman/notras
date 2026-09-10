@@ -32,11 +32,23 @@ async dbSelect(sql: string, params: JsonValue[]) : Promise<JsonValue[][]> {
 async deleteNote(path: string) : Promise<DeleteReceipt> {
     return await TAURI_INVOKE("delete_note", { path });
 },
-async findMentions(path: string | null, title: string) : Promise<BareMention[]> {
-    return await TAURI_INVOKE("find_mentions", { path, title });
+async findMentions(path: string) : Promise<Mention[]> {
+    return await TAURI_INVOKE("find_mentions", { path });
 },
 async getNotesDir() : Promise<string> {
     return await TAURI_INVOKE("get_notes_dir");
+},
+async listNotes(filters: NoteFilters) : Promise<NoteMeta[]> {
+    return await TAURI_INVOKE("list_notes", { filters });
+},
+async listTags() : Promise<CountedTag[]> {
+    return await TAURI_INVOKE("list_tags");
+},
+async readGraph(target: GraphTarget) : Promise<GraphResult> {
+    return await TAURI_INVOKE("read_graph", { target });
+},
+async searchNotes(search: NoteSearch) : Promise<NoteMeta[]> {
+    return await TAURI_INVOKE("search_notes", { search });
 },
 async pendingOpenFiles() : Promise<PendingOpen[]> {
     return await TAURI_INVOKE("pending_open_files");
@@ -50,7 +62,7 @@ async quitApp() : Promise<void> {
 async readExternal(path: string) : Promise<NoteFile> {
     return await TAURI_INVOKE("read_external", { path });
 },
-async readNote(path: string) : Promise<NoteFile> {
+async readNote(path: string) : Promise<SavedNote> {
     return await TAURI_INVOKE("read_note", { path });
 },
 async reindexAll() : Promise<string[]> {
@@ -96,15 +108,12 @@ notesChanged: "notes-changed"
 
 /** user-defined types **/
 
-/**
- * A title written without brackets in another note's prose.
- */
-export type BareMention = { context: string; line: number; path: string }
 export type CodeClipboard = { language: string | null }
 /**
  * A command failure: the kind the caller branches on, and the message it shows.
  */
 export type CommandError = { kind: ErrorKind; message: string }
+export type CountedTag = { count: number; tag: string }
 export type CreateNote = { content: string | null; folder: string | null; name: NoteName | null }
 export type DeleteReceipt = { path: string; warnings: MutationWarning[] }
 /**
@@ -112,7 +121,14 @@ export type DeleteReceipt = { path: string; warnings: MutationWarning[] }
  * read it should retry or report, and a message string cannot carry that.
  */
 export type ErrorKind = "failed" | "not-found"
+export type Graph = { dangling: string[]; hubs: HubPill[]; incoming: Mention[]; outgoing: Mention[] }
+export type GraphResult = { picture: Picture | null; mentionsError: CommandError | null }
+export type GraphTarget = { kind: "note"; path: string } | { kind: "hub"; hub: Hub }
+export type Hub = { kind: "folder"; folder: string } | { kind: "tag"; tag: string }
+export type HubPill = { count: number; hub: Hub }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type Mention = { lines: MentionLine[]; note: NoteMeta }
+export type MentionLine = { context: string; line: number; match: string }
 export type MutationReceipt = { path: string; updatedAt: number; warnings: MutationWarning[] }
 /**
  * A committed file change whose derived index or source cleanup needs attention.
@@ -120,7 +136,11 @@ export type MutationReceipt = { path: string; updatedAt: number; warnings: Mutat
 export type MutationWarning = { kind: "index"; path: string; message: string } | { kind: "cleanup"; path: string; message: string }
 export type MutationWarnings = { warnings: MutationWarning[] }
 export type NoteFile = { content: string; updatedAt: number }
+export type NoteFilters = { folder: string | null; limit: number | null; pinnedOnly: boolean | null; query: string | null; sort: NoteSort | null; tag: string | null }
+export type NoteMeta = { createdAt: number; folder: string; path: string; pinned: boolean; snippet: string | null; tags: string[]; title: string; updatedAt: number }
 export type NoteName = { kind: "filename"; value: string } | { kind: "title"; value: string }
+export type NoteSearch = { filters: SearchFilter[]; incomplete: boolean; query: string }
+export type NoteSort = "updated"
 /**
  * Relative paths whose saved content or index rows changed; empty means the library.
  */
@@ -132,7 +152,11 @@ export type PathMutationReceipt = { path: string; file: NoteFile; remainingSourc
  * kind the file already is: a note inside the notes dir, external otherwise.
  */
 export type PendingOpen = { kind: OpenKind; path: string }
+export type Picture = { kind: "note"; note: NoteMeta; graph: Graph } | { kind: "hub"; hub: HubPill; members: RingMember[] }
+export type RingMember = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta }
 export type SaveName = { kind: "heading" } | { kind: "filename"; value: string }
+export type SavedNote = { content: string; path: string; pinned: boolean; tags: string[]; title: string; updatedAt: number }
+export type SearchFilter = { kind: "folder"; value: string } | { kind: "from"; value: string } | { kind: "link"; value: string } | { kind: "mention"; value: string } | { kind: "tag"; value: string } | { kind: "to"; value: string }
 
 /** tauri-specta globals **/
 

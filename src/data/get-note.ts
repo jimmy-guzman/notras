@@ -1,7 +1,7 @@
-import { NoteService } from "@/server/services/note-service";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-export function getNote(path: string) {
-  return run(NoteService.use((svc) => svc.getByPath(path)));
+export async function getNote(path: string) {
+  const note = await nativeCommand(() => commands.readNote(path));
+  return { ...note, updatedAt: new Date(note.updatedAt) };
 }

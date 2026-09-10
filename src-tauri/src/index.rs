@@ -245,7 +245,7 @@ fn strip_suffix_ignore_case<'a>(name: &'a str, suffix: &str) -> Option<&'a str> 
 /// The extension is stripped case-insensitively, matching `noteTitle` in
 /// `src/core/notes.ts`. The two must agree or the same file gets one title in
 /// the index and another in the open note.
-fn title_of(rel_path: &str) -> String {
+pub(crate) fn title_of(rel_path: &str) -> String {
     let name = rel_path.rsplit('/').next().unwrap_or(rel_path);
     strip_suffix_ignore_case(name, ".markdown")
         .or_else(|| strip_suffix_ignore_case(name, ".md"))
@@ -294,7 +294,7 @@ pub(crate) fn leading_heading(body: &str) -> Option<String> {
 /// A note's display title: the leading `#` heading, then imported frontmatter `title:`,
 /// then the filename stem. Kept in parity with `resolveTitle` in
 /// `src/core/notes.ts`.
-fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
+pub(crate) fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
     leading_heading(parsed.body)
         .or_else(|| parsed.frontmatter.title.clone())
         .unwrap_or_else(|| title_of(rel_path))

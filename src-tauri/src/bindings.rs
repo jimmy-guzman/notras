@@ -30,6 +30,10 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::delete_note::<tauri::Wry>,
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir,
+            notes::list_notes::<tauri::Wry>,
+            notes::list_tags::<tauri::Wry>,
+            notes::read_graph::<tauri::Wry>,
+            notes::search_notes::<tauri::Wry>,
             notes::pending_open_files::<tauri::Wry>,
             notes::quit_app::<tauri::Wry>,
             notes::read_external,
@@ -136,7 +140,8 @@ mod tests {
         assert_eq!(
             invoke(&window, "read_note", json!({"path": "ideas/a.md"})).unwrap(),
             json!({
-                "content": "# first\nbody", "updatedAt": receipt["updatedAt"]
+                "content": "# first\nbody", "updatedAt": receipt["updatedAt"],
+                "path": "ideas/a.md", "title": "first", "pinned": false, "tags": []
             })
         );
         assert_eq!(
@@ -473,6 +478,79 @@ mod tests {
             json!([["external.md", "watched"]])
         );
         *app.state::<AppState>().watcher() = None;
+    }
+
+    #[test]
+    fn should_serve_typed_saved_queries_through_the_production_registry() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        fs::write(directory.path().join("atlas.md"), "# Atlas\n[[Source]]").unwrap();
+        fs::write(
+            directory.path().join("source.md"),
+            "---\ntags: [work]\n---\n# Source\nAtlas in prose",
+        )
+        .unwrap();
+        let conn = index::open(directory.path()).unwrap();
+        index::scan_complete(&conn, directory.path()).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                core: Mutex::new(Core {
+                    notes_dir: directory.path().to_owned(),
+                    conn,
+                    index_dirty: Default::default(),
+                }),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let listed = invoke(&window, "list_notes", json!({"filters":{"tag":"work"}})).unwrap();
+        assert_eq!(listed[0]["path"], "source.md");
+        assert!(listed[0]["updatedAt"].as_i64().unwrap() > 0);
+        assert_eq!(
+            invoke(&window, "list_tags", json!({})).unwrap(),
+            json!([{"tag":"work","count":1}])
+        );
+        let mentions = invoke(&window, "find_mentions", json!({"path":"atlas.md"})).unwrap();
+        assert_eq!(mentions[0]["note"]["title"], "Source");
+        assert_eq!(
+            mentions[0]["lines"],
+            json!([{"context":"Atlas in prose","line":5,"match":"Atlas"}])
+        );
+        let result = invoke(&window, "search_notes", json!({"search":{"query":"", "incomplete":false,"filters":[{"kind":"to","value":"atlas.md"}]}})).unwrap();
+        assert_eq!(result[0]["path"], "source.md");
+        let graph = invoke(
+            &window,
+            "read_graph",
+            json!({"target":{"kind":"note","path":"atlas.md"}}),
+        )
+        .unwrap();
+        assert_eq!(graph["picture"]["kind"], "note");
+        assert_eq!(graph["picture"]["graph"]["incoming"], mentions);
+        assert_eq!(
+            graph["picture"]["graph"]["outgoing"][0]["note"]["path"],
+            "source.md"
+        );
+        assert!(graph["mentionsError"].is_null());
+        let hub = invoke(
+            &window,
+            "read_graph",
+            json!({"target":{"kind":"hub","hub":{"kind":"tag","tag":"work"}}}),
+        )
+        .unwrap();
+        assert_eq!(hub["picture"]["hub"]["count"], 1);
+        assert_eq!(hub["picture"]["members"][0]["note"]["path"], "source.md");
+        assert!(invoke(&window, "list_notes", json!({"filters":{"limit":-1}})).is_err());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("atlas.md")).unwrap(),
+            "# Atlas\n[[Source]]"
+        );
     }
 
     #[test]

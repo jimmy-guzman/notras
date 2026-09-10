@@ -10,7 +10,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR); TanStack Query caches every read (`D66`)            |
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
-| Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
+| Index queries   | Rust `rusqlite`, typed operation commands                                                                      |
 | Native contract | Pinned Specta types and Tauri commands/events; Serde wire values and thiserror failures |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
 | Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
@@ -29,9 +29,8 @@ flowchart TD
         UI --> Persistence[Session persistence controller]
         Persistence --> Mutations[Typed mutation client]
         Query --> Data[src/data async fns]
-        Data --> Services[Effect services]
-        Services --> FileStore[FileStore port]
-        Services --> Index[Database port, read-only]
+        Data --> Reads[Typed query client]
+        Data --> FileStore[Effect FileStore: library settings and rebuilds]
     end
 
     subgraph rust [Rust: single writer of the index]
@@ -43,7 +42,7 @@ flowchart TD
 
     Mutations --> Commands
     FileStore --> Commands
-    Index --> Commands
+    Reads --> Commands
     Agents[any editor / git / AI agent] -.write markdown.-> Files
     Commands -. notes-changed event .-> UI
     Watcher -. notes-changed event .-> UI
@@ -57,17 +56,17 @@ flowchart TD
 
 **A rebuild drops the rows first.** `index_file` skips a file whose mtime matches its stored row, which suppresses watcher echo but also makes a plain re-scan a no-op. `reindex_all` calls `index::clear` before scanning, so changing how a row is derived, `resolve_title` for instance, reaches notes nobody has edited since. Without that, an unedited note keeps whatever the old derivation produced and the only recovery is deleting the database.
 
-**Note identity is the relative path.** Renames are delete plus create in the index. Wikilinks resolve by title and then by filename stem, so a retitle can dangle links, a consequence `D5` accepts. `D32` added the stem fallback and the tie-break that orders duplicate titles. That resolution is `wikilinkResolver` in `src/core/links.ts`, and it serves a click on a pill and the mentions count alike.
+**Note identity is the relative path.** Renames are delete plus create in the index. Wikilinks resolve by title and then by filename stem, so a retitle can dangle links, a consequence `D5` accepts. `D32` added the stem fallback and the tie-break that orders duplicate titles. Rust resolves saved relationships in `relationships.rs`; `linkResolver` in `src/core/links.ts` resolves editor clicks. Shared fixtures cover title precedence, same-folder preference, Unicode scalar path ordering for ties, and mdurl-compatible percent decoding.
 
 **The heading supplies the name.** The leading `#` heading takes precedence over an imported frontmatter `title:`, with the filename stem as the last fallback. TypeScript and Rust use the same resolution order. Existing frontmatter titles remain verbatim.
 
 **Only an in-app heading edit requests a derived filename.** Editor transactions report heading edits explicitly, including edits whose final text is unchanged. Rename edits the live heading and introduces it when absent. Rust recomputes the available filename for each naming request. Empty headings, reads, searches, and external observations do not request renaming. Undo restores the heading and the filename associated with its action; an occupied destination receives a suffix.
 
-**Frontmatter has two parsers.** TypeScript parses and edits the live document; Rust parses persisted documents for indexing. Both interpret `pinned`, `tags`, and imported `title` values. Pin and tag controls update the session document, preserving unknown fields and the closing delimiter. They share its history and persistence with source edits.
+**Frontmatter has two parsers.** TypeScript parses and edits the live document; Rust parses persisted documents for indexing and direct reads. Both interpret `pinned`, `tags`, and imported `title` values. Pin and tag controls update the session document, preserving unknown fields and the closing delimiter. They share its history and persistence with source edits.
 
 ## Index schema
 
-Rust creates the tables. `src/server/db/schema.ts` mirrors `note` and `note_tag` as Drizzle definitions so SELECTs are typed. `note_fts` has no mirror and is reached only through the raw `sql` in `fts-query.ts`.
+Rust owns the tables and their queries. The webview sends structured filters and receives typed results; it holds no schema mirror or SQL builder.
 
 ```sql
 note(path TEXT PK, title TEXT, folder TEXT, pinned INT, created_at INT, updated_at INT)
@@ -76,9 +75,9 @@ note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row
 note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet()
 ```
 
-`src/server/db/fts-query.ts` owns query normalization, ranking, and the snippet markers: `buildFtsMatchQuery`, `getSnippetExpression`, `getSearchOrderBy`, `getFtsMatchFilter`, `getTagFilter`.
+`queries.rs` owns FTS normalization, AND-prefix matching, BM25 ordering and 24-token snippets. `src/core/fts-markers.ts` carries the matching display markers. All search filters intersect before the 30-result cap. FTS snippets take precedence over filter context; otherwise the first filter that supplies context wins. Tag reads use insertion order to preserve frontmatter order. The frontend retains locale-aware sorting for displayed note groups; duplicate-title resolution uses Unicode scalar path ordering. Folder hubs retain their prior JavaScript string ordering.
 
-`note_link` stores destinations; graph reads select only `wikilink` and `link` kinds. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink`, `link`, or `destination`; `link` is for a `[text](note.md)` whose destination `is_note_path` accepts, `target` is the text between the brackets or the destination as written, and `context` is the line. Nothing in the row is resolved. `src/core/links.ts` resolves a target on read, a wikilink by title and a link by path relative to the note, so a note created or retitled after the link was written is still found, and `mentionsOf` there groups the rows that resolve to a note by the note they come from. The scanner in `index.rs` records rendered destinations: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest. A title written bare is not a row, because it depends on another note's title, which the file being indexed cannot know. `find_mentions` finds those on read: FTS names candidates for a note reference, and the same mask decides which occurrences are prose. An absent path requests an arbitrary phrase, including headings. ASCII phrases with letters or digits use FTS candidates plus files with non-ASCII bodies; punctuation-only and non-ASCII phrases scan the saved library. This retains matches that unicode61 can miss because its Unicode case folding and word boundaries differ from the literal scanner. Bare GFM autolinks are recognized within eligible prose and excluded from phrase spans. Autolink scanning masks explicit link spans once and advances through precomputed wikilinks, skipping a wikilink only at its opening offset. The index schema version rebuilds destination rows for unchanged files too.
+`note_link` stores destinations; graph reads select only `wikilink` and `link` kinds. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink`, `link`, or `destination`; `link` is for a `[text](note.md)` whose destination `is_note_path` accepts, `target` is the text between the brackets or the destination as written, and `context` is the line. Nothing in the row is resolved. `relationships.rs` resolves a target on read, a wikilink by title and a link by path relative to the note, so a note created or retitled after the link was written is still found, and groups the rows that resolve to a note by the note they come from. The scanner in `index.rs` records rendered destinations: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest. A title written bare is not a row, because it depends on another note's title, which the file being indexed cannot know. `find_mentions` finds those on read: FTS names candidates for a note reference, and the same mask decides which occurrences are prose. The `mention:` search filter requests an arbitrary phrase, including headings. Mention requests take only a path; Rust reads the target title from the index. ASCII phrases with letters or digits use FTS candidates plus files with non-ASCII bodies; punctuation-only and non-ASCII phrases scan the saved library. This retains matches that unicode61 can miss because its Unicode case folding and word boundaries differ from the literal scanner. Bare GFM autolinks are recognized within eligible prose and excluded from phrase spans. Autolink scanning masks explicit link spans once and advances through precomputed wikilinks, skipping a wikilink only at its opening offset. The index schema version rebuilds destination rows for unchanged files too.
 
 ## Project structure
 
@@ -111,23 +110,19 @@ src/
     frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
     notes.ts          # NoteMeta, NoteFilters, path/title helpers
     file-store.ts     # FileStore port (Context.Service)
-    errors.ts         # DatabaseError, FileError
+    errors.ts         # FileError
     fts-markers.ts    # [[hl]] snippet markers shared with SQL
-    links.ts          # NoteLink rows, the wikilink resolver, mentionsOf
-    graph.ts          # graphOf: what a note links to and what mentions it
+    links.ts          # editor link resolution and mention display types
+    graph.ts          # graph display types and hub labels
   data/               # Plain async fns the UI calls (ex-server-actions)
     queries.ts        # THE query keys and options, one factory (D66)
-    native-command.ts # typed native failure normalization for mutations
-    run.ts            # Effect boundary for remaining reads
+    native-command.ts # typed native failure normalization
+    run.ts            # Effect boundary for library settings and rebuilds
   server/
     adapters/         # the only note IO and SQL path to @tauri-apps/*;
                       # UI code reaches it for events, dialogs and windows
       tauri-file-store.ts   # FileStore -> Rust commands
-      tauri-database.ts     # drizzle sqlite-proxy -> db_select command
       bindings.ts          # GENERATED native commands, events and wire types
-    db/               # Database service, index schema mirror, fts-query helpers
-    repositories/     # note-repository: SELECTs against the index
-    services/         # note-service, app-layer
     runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
     pending-flush.ts  # autosave flush registry read by the quit handshake
@@ -146,7 +141,9 @@ src-tauri/
   src/application.rs  # platform-free file operations, Core and wire results
   src/bindings.rs     # shared command/event registry, export and IPC tests
   src/notes.rs        # Tauri handlers: blocking dispatch, locks and events
-  src/index.rs        # index schema, indexer, scan, read-only select
+  src/index.rs        # index schema, indexer, prose scan, read-only select
+  src/queries.rs      # saved-library query operations and wire results
+  src/relationships.rs # saved link resolution, mentions and graph membership
   src/frontmatter.rs  # Rust twin of src/core/frontmatter.ts
   src/watcher.rs      # debounced notify watcher -> reindex -> event
   src/windows.rs      # window commands; a command may not live in lib.rs
@@ -171,26 +168,26 @@ scripts/
 Nothing enforces these. Lint held them until `D41` retired the ESLint config, and `D43` records why they were not ported to Biome. Review is the check now, and the fix for a violation is never to move the import.
 
 - **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or `@/data`. It runs in the webview and in any other runtime, which is what makes it testable without a window.
-- **`src/server/{db,repositories,services}/**` is platform-free.** No `@tauri-apps/*`, `react`, or `react-dom`, and no imports from `@/lib`, `@/components`, or `@/data`. Inject behavior through the ports instead: `FileStore` in `src/core`, `Database` in `src/server/db`. Native bindings live in `src/server/adapters/**`; `src/data/native-command.ts` also imports the log plugin for mutation defects.
+- **Native query and application modules are window-free.** They receive `Core`, which owns the library directory and SQLite connection. `notes.rs` supplies the blocking task and core lock. The remaining Effect `FileStore` adapter handles library settings and rebuilds. Native bindings live in `src/server/adapters/**`.
 - **UI code** (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO and SQL go through `src/data`.
 
 ## Key patterns
 
 ### Data access
 
-The UI calls plain async functions in `src/data/`, one concern per file. Mutations call generated operation commands through `nativeCommand`; Rust validates user input. Query callers still run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps a typed failure into the plain `Error` it is, so a caller can put its message in a toast. A defect is not unwrapped: its cause goes to the log through `tauri-plugin-log`, on both sides the one sink, and the caller sees "an unexpected error".
+The UI calls plain async functions in `src/data/`, one concern per file. Queries and mutations call generated operation commands through `nativeCommand`; Rust owns persisted metadata, filters and relationship resolution. Only library settings and reindexing still run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps a typed failure into the plain `Error` it is, so a caller can put its message in a toast. A defect is not unwrapped: its cause goes to the log through `tauri-plugin-log`, on both sides the one sink, and the caller sees "an unexpected error".
 
 Reads reach those functions through TanStack Query. `src/data/queries.ts` owns note query keys. Open-note actions use the loaded session. The palette, pin control, and tag controls read its live snapshot. One persistence queue saves complete documents and orders folder moves; query results cannot acknowledge an edit.
 
 ### Effect style
 
-Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying their own `static readonly layer`, so no service has an `XxxLive` const. An adapter still does: `TauriFileStoreLive` is a `Layer.succeed` over the `FileStore` port. Reach a service with `Service.use((svc) => svc.method(...))` rather than `Effect.flatMap(Tag, fn)`. Methods with a generator body are `Effect.fn("Service.method")`; plain delegations stay one-liners. Errors are `Schema.TaggedError`. Services convert `DatabaseError` to defects with `.pipe(Effect.orDie)`; `FileError` stays typed because its message reaches the user.
+`FileStore` remains a `Context.Service` for library settings and reindexing. `TauriFileStoreLive` supplies its native commands, and `AppRuntime` composes it with the logger. `FileError` remains a typed failure because its message reaches the user.
 
 ### Test seam
 
-A service whose layer bakes in dependencies also exposes `layerNoDeps`, as `NoteService` does, so specs can provide stubs. `note-service.spec.ts` wires it with an in-memory `FileStore` and a stub `NoteRepository`. Its relationship integration cases also inject a real Node SQLite database through the repository layer and assert which rows cross the database boundary. Native SQL functions use core-equivalent callbacks in these cases; Rust tests cover their normalization contract.
+Query tests use real SQLite and temporary note directories. Recorded fixtures preserve the former TypeScript graph, mention and filter behavior. Shared resolver fixtures run in Rust and TypeScript, including malformed percent encodings and duplicate titles. React tests fake the IPC boundary while using the real query adapters and cache.
 
-Rust application functions take `Core`, which pairs the notes directory with its SQLite connection, without an `AppHandle` or window. Tauri handlers run blocking work through `spawn_blocking` and take the core lock inside that task. A guard never crosses an `await`. Successful indexed mutations release the core lock before emitting `NotesChanged`. Library switches hold the watcher lock across preparation, settings persistence and replacement, and release the core lock before dropping the old watcher.
+Rust application functions take `Core`, which pairs the notes directory with its SQLite connection, without an `AppHandle` or window. Tauri handlers run blocking work through `spawn_blocking` and take the core lock inside that task. A guard never crosses an `await`. Each indexed query checks index health and keeps its lookups and prose file reads under that lock. Failed recovery rejects the query. Direct note reads parse metadata from the file independently of index health. Files changed by external writers are reconciled through the watcher, not isolated by this lock. Graph reads can return explicit relationships with a separate prose failure; mentions and search reject prose failures. Successful indexed mutations release the core lock before emitting `NotesChanged`. Library switches hold the watcher lock across preparation, settings persistence and replacement, and release the core lock before dropping the old watcher.
 
 The IPC tests use Tauri's test runtime with the production command registry, temporary directories and real SQLite. They send JSON requests through Tauri's argument decoder and check serialized receipts, failures and events. They do not exercise an OS webview, tray or clipboard. Mutation receipts carry the committed path, timestamp and warnings. Path receipts also carry committed content and any remaining source. Data functions convert timestamps to `Date`. Controller tests supply persistence functions; mounted session tests exercise the real editor, tab store and query cache over the IPC boundary.
 
@@ -236,7 +233,7 @@ The controller accepts reads only for its committed path and after pending write
 
 ### Adding a Rust command
 
-Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted mutations reach the generated client through `src/data`. The remaining reads and library settings use the `FileStore` adapter; UI concerns call generated shell commands directly.
+Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted reads and mutations reach the generated client through `src/data`. Library settings and reindexing use the `FileStore` adapter; UI concerns call generated shell commands directly.
 
 The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. Biome excludes the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
 
@@ -256,7 +253,7 @@ One component serves two doors. `find` and `actions` are the two root members of
 
 `filters` has its own draft input and returns to the preserved find query. Its entry button sits outside the Command list, so asynchronous result selection cannot land on a filter action. `move`, `delete`, `rename`, and `tags` are the note sub-views of `PaletteView`, all entered from actions and all returning to it with an empty input, since each repurposes the palette input for its own draft. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeTags` from `useNoteTags` rather than `runAction`, so several tags can be set in one visit (`D31`).
 
-`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes`, `NoteService.search`, and `noteQueries.search` carry the complete parsed query under the index invalidation prefix. The service reads ranked FTS candidates without a limit, intersects the filters, and caps the result at 30. Relationship reads filter destinations, incoming target keys, or outgoing source paths in SQLite before rows cross IPC. The resolver reads only notes whose titles, filename stems, or paths can match those links, retaining the complete competing title group and repository ordering. Rust registers deterministic query functions for Unicode lowercase, filename stems, and normalized link keys. Malformed path encodings remain candidates for the core resolver because URI replacement rules can differ. Lookup key sets use JSON parameters to avoid SQLite variable limits. FTS candidates remain uncapped until all filters have been intersected. Folder choices derive from the note list, so the root loader does not fetch a separate folder inventory. Folder suggestions and move choices derive ancestors and subtree counts from the note list. The input caret identifies the token to suggest and replace. The counted tag vocabulary comes from `NoteService.listTags()` through the root loader.
+`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes` sends the complete query to Rust through `noteQueries.search`, under the index invalidation prefix. Rust reads ranked FTS candidates, intersects filters, and caps the result at 30. Saved relationship queries resolve indexed links with operation-local title and path maps, then combine them with narrowed prose scans. Only completed results cross IPC. Folder suggestions and move choices derive ancestors and subtree counts from the note list. The input caret identifies the token to suggest and replace. The counted tag vocabulary comes from `list_tags` through the root loader.
 
 ### Preferences
 
@@ -264,13 +261,13 @@ Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the o
 
 ### Snippet rendering
 
-FTS snippets carry `[[hl]]` and `[[/hl]]` markers, defined in `src/core/fts-markers.ts` so the SQL and the renderer share one definition. `getSnippetParts` parses them into segments. Nothing renders a snippet through `dangerouslySetInnerHTML`.
+FTS snippets carry `[[hl]]` and `[[/hl]]` markers from native SQL. `src/core/fts-markers.ts` defines the matching renderer markers; native query tests and frontend snippet tests verify the wire format. `getSnippetParts` parses them into segments. Nothing renders a snippet through `dangerouslySetInnerHTML`.
 
 ## Invariants
 
 Each of these holds a property the architecture depends on. Breaking one is a design change, not a refactor.
 
-- **TypeScript never writes the index.** No non-SELECT support in `db_select`, no SQL writes from a repository. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
+- **TypeScript never writes the index.** Typed query commands return saved results. The unused `db_select` compatibility command remains read-only until the final migration cleanup. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
 - **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/server/runtime.ts`, `src/data/native-command.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `src-tauri/src/index.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.

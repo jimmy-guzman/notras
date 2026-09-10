@@ -29,10 +29,7 @@ function command<T>(operation: () => Promise<T>) {
 }
 
 const fileStore: IFileStore = {
-  findMentions: (path, title) =>
-    command(() => commands.findMentions(path ?? null, title)),
   getNotesDir: () => command(commands.getNotesDir),
-  read: (path) => command(() => commands.readNote(path)),
   reindexAll: () => command(commands.reindexAll),
   setNotesDir: (path) =>
     command(() => commands.setNotesDir(path)).pipe(Effect.asVoid),

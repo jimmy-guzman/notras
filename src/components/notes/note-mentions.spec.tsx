@@ -1,12 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-
 import type { Mention } from "@/core/links";
+import { noteQueries } from "@/data/queries";
 import { getTabState } from "@/lib/tabs/store";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 
-import { NoteMentions } from "./note-mentions";
+import { MentionsOf, NoteMentions } from "./note-mentions";
 
 // `act` refuses to run without this, and no setup file exists to set it.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -201,5 +203,62 @@ describe("NoteMentions", () => {
     expect(
       getTabState().tabs.find((tab) => tab.id === getTabState().activeId)?.path
     ).toBe("b.md");
+  });
+});
+
+describe("MentionsOf native queries", () => {
+  it("should publish the complete count together and request only the saved path", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const response = Promise.withResolvers<unknown>();
+    const calls: unknown[] = [];
+    mockIPC((command, args) => {
+      calls.push({ args, command });
+      return response.promise;
+    });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    teardown = () => {
+      act(() => root.unmount());
+      host.remove();
+      client.clear();
+      clearMocks();
+    };
+    await act(async () => {
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(MentionsOf, { path: "atlas.md" })
+        )
+      );
+      await Promise.resolve();
+    });
+    expect(host.textContent).toBe("");
+    await act(async () => {
+      response.resolve(
+        ["a.md", "b.md"].map((path) => ({
+          lines: [{ context: "Atlas in prose", line: 2, match: "Atlas" }],
+          note: {
+            createdAt: 0,
+            folder: "",
+            path,
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: path,
+            updatedAt: 1000,
+          },
+        }))
+      );
+      await client.fetchQuery(noteQueries.mentions("atlas.md"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host.textContent).toBe("2 mentions");
+    expect(calls).toEqual([
+      { args: { path: "atlas.md" }, command: "find_mentions" },
+    ]);
   });
 });

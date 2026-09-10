@@ -2,10 +2,10 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { NoteFilters } from "@/core/notes";
 import type { NoteSearch } from "@/core/search";
+import { getGraph } from "@/data/get-graph";
 import type { Tab } from "@/lib/tabs/tab";
-
+import type { GraphTarget } from "@/server/adapters/bindings";
 import { readExternalNote } from "./external-note";
-import { getLinks } from "./get-links";
 import { getMentions } from "./get-mentions";
 import { getNote } from "./get-note";
 import { getNotes } from "./get-notes";
@@ -63,24 +63,24 @@ export const noteQueries = {
       refetchOnWindowFocus: kind === "external" ? "always" : false,
     }),
   fileKey,
-  index,
-  links: () =>
+  graph: (target: GraphTarget) =>
     queryOptions({
-      meta: { what: "could not refresh the link list" },
-      queryFn: getLinks,
-      queryKey: [...index, "links"] as const,
+      meta: { what: "could not refresh the graph" },
+      queryFn: () => getGraph(target),
+      queryKey: [...index, "graph", target] as const,
     }),
+  index,
   list: (filters?: NoteFilters) =>
     queryOptions({
       meta: { what: "could not refresh the note list" },
       queryFn: () => getNotes(filters),
       queryKey: [...index, "list", filters ?? null] as const,
     }),
-  mentions: (path: string, title: string) =>
+  mentions: (path: string) =>
     queryOptions({
       meta: { what: "could not refresh the mentions" },
-      queryFn: () => getMentions(path, title),
-      queryKey: [...index, "mentions", path, title] as const,
+      queryFn: () => getMentions(path),
+      queryKey: [...index, "mentions", path] as const,
     }),
   search: (search: NoteSearch) =>
     queryOptions({

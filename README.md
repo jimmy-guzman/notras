@@ -209,7 +209,6 @@ Mutation tests cover native file and index outcomes, shared normalization fixtur
 - [TipTap](https://tiptap.dev) 3
 - [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown)
 - [Effect](https://effect.website) 4 (release candidate)
-- [Drizzle ORM](https://orm.drizzle.team)
 - [SQLite](https://sqlite.org) FTS5
 - [Shadcn UI](https://ui.shadcn.com)
 - [Base UI](https://base-ui.com)

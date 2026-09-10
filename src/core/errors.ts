@@ -1,12 +1,5 @@
 import { Schema } from "effect";
 
-export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
-  "DatabaseError",
-  {
-    cause: Schema.Defect(),
-  }
-) {}
-
 /**
  * Whether the file was not there, or the operation failed for some other
  * reason. A tab treats the first as a deletion and keeps its buffer through the

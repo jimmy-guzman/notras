@@ -1,15 +1,16 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type { Hub, HubPill, RingMember } from "@/core/graph";
+import { toast } from "@/components/ui/toast";
+import type { Hub, HubPill, Picture, RingMember } from "@/core/graph";
 import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
+import { noteQueries } from "@/data/queries";
 import { getTabState } from "@/lib/tabs/store";
-
-import type { Picture } from "./note-graph";
-import { NoteGraph } from "./note-graph";
+import { NoteGraph, TabGraph } from "./note-graph";
 
 // `act` refuses to run without this, and no setup file exists to set it.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -387,5 +388,121 @@ describe("NoteGraph", () => {
     expect(pills(host)).toHaveLength(1);
     expect(host.textContent).toContain("no links yet, and nothing mentions it");
     expect(host.textContent).not.toContain("links\n");
+  });
+});
+
+describe("TabGraph native queries", () => {
+  it("should keep the previous graph through a hop and show explicit links after a prose failure", async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const response = Promise.withResolvers<unknown>();
+    const calls: unknown[] = [];
+    mockIPC((command, args) => {
+      calls.push({ args, command });
+      return response.promise;
+    });
+    const reported = vi.spyOn(toast, "add");
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initial = notePicture({ note: meta("first.md") });
+    client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "first.md" }).queryKey,
+      { mentionsError: null, picture: initial }
+    );
+    teardown = () => {
+      act(() => root.unmount());
+      host.remove();
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    };
+    await act(async () => {
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(TabGraph, {
+            tab: { id: "first", kind: "note", path: "first.md" },
+          })
+        )
+      );
+      await Promise.resolve();
+    });
+    expect(host.textContent).toContain("first");
+    await act(async () => {
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(TabGraph, {
+            tab: { id: "second", kind: "note", path: "second.md" },
+          })
+        )
+      );
+      await Promise.resolve();
+    });
+    expect(host.textContent).toContain("first");
+    expect(host.textContent).not.toContain("second");
+    await act(async () => {
+      response.resolve({
+        mentionsError: { kind: "failed", message: "permission denied" },
+        picture: {
+          graph: {
+            dangling: [],
+            hubs: [],
+            incoming: [],
+            outgoing: [
+              {
+                lines: [
+                  { context: "[[Linked]]", line: 2, match: "[[Linked]]" },
+                ],
+                note: {
+                  createdAt: 0,
+                  folder: "",
+                  path: "linked.md",
+                  pinned: false,
+                  snippet: null,
+                  tags: [],
+                  title: "Linked",
+                  updatedAt: 1000,
+                },
+              },
+            ],
+          },
+          kind: "note",
+          note: {
+            createdAt: 0,
+            folder: "",
+            path: "second.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "Second",
+            updatedAt: 1000,
+          },
+        },
+      });
+      await client.fetchQuery(
+        noteQueries.graph({ kind: "note", path: "second.md" })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host.textContent).toContain("Second");
+    expect(host.textContent).toContain("Linked");
+    expect(reported).toHaveBeenCalledExactlyOnceWith({
+      description: "permission denied",
+      title: "could not read the graph",
+      type: "error",
+    });
+    expect(calls).toEqual([
+      {
+        args: { target: { kind: "note", path: "second.md" } },
+        command: "read_graph",
+      },
+    ]);
   });
 });

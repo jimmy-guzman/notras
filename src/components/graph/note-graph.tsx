@@ -1,4 +1,4 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
 import type { KeyboardEvent, MouseEvent, RefObject } from "react";
@@ -20,8 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
-import type { Hub, HubPill, RingMember } from "@/core/graph";
-import { graphOf, hubKey, hubLabel, hubPill, hubRing } from "@/core/graph";
+import type { Hub, HubPill, Picture, RingMember } from "@/core/graph";
+import { hubKey, hubLabel } from "@/core/graph";
 import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
@@ -47,17 +47,6 @@ const PILL_CLASS =
 
 const MENU_CLASS =
   "w-72 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0";
-
-export type Picture =
-  | {
-      dangling: string[];
-      hubs: HubPill[];
-      incoming: Mention[];
-      kind: "note";
-      note: NoteMeta;
-      outgoing: Mention[];
-    }
-  | { hub: HubPill; kind: "hub"; members: RingMember[] };
 
 type Step = -1 | 1;
 
@@ -746,57 +735,33 @@ interface TabGraphProps {
  * so a hop is a glide between two pictures rather than a blank between them.
  */
 export function TabGraph({ tab }: TabGraphProps) {
-  const { data: links } = useSuspenseQuery(noteQueries.links());
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
-  const center = notes.find((meta) => meta.path === tab.path);
-  const bare = useQuery({
-    ...noteQueries.mentions(tab.path, center?.title ?? ""),
-    enabled: center !== undefined,
-  });
   const [hubState, setHubState] = useState<{
     forPath: string;
     hub: Hub;
   } | null>(null);
   const hub = hubState?.forPath === tab.path ? hubState.hub : null;
-  // The path rather than a flag: this component outlives a hop on purpose,
-  // so a once-per-mount guard would silence every note after the first.
+  const result = useQuery(
+    noteQueries.graph(
+      hub === null ? { kind: "note", path: tab.path } : { hub, kind: "hub" }
+    )
+  );
   const reported = useRef<string | null>(null);
+  const failure =
+    result.data?.mentionsError ??
+    (result.data === undefined ? result.error : null);
 
   useEffect(() => {
-    if (
-      bare.error !== null &&
-      bare.data === undefined &&
-      reported.current !== tab.path
-    ) {
+    if (failure !== null && reported.current !== tab.path) {
       reported.current = tab.path;
       toast.add({
-        description: reasonOf(bare.error),
+        description: reasonOf(failure),
         title: "could not read the graph",
         type: "error",
       });
     }
-  }, [bare.data, bare.error, tab.path]);
+  }, [failure, tab.path]);
 
-  // A failed read of the bare mentions leaves the links, which are already
-  // here; a blank pane over a hidden editor would say less than the toast.
-  const rows = bare.data ?? (bare.error === null ? undefined : []);
-  const picture = useMemo<Picture | undefined>(() => {
-    if (hub !== null) {
-      return {
-        hub: hubPill(hub, notes),
-        kind: "hub",
-        members: hubRing(hub, notes),
-      };
-    }
-
-    return center === undefined || rows === undefined
-      ? undefined
-      : {
-          kind: "note",
-          note: center,
-          ...graphOf(tab.path, links, notes, rows),
-        };
-  }, [center, hub, links, notes, rows, tab.path]);
+  const picture = result.data?.picture;
   const last = useRef(picture);
 
   useEffect(() => {

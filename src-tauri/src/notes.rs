@@ -9,12 +9,13 @@ use tauri_specta::Event;
 
 use crate::application::{
     self, CommandError, CreateNote, DeleteReceipt, MutationReceipt, MutationWarning, NoteFile,
-    PathMutationReceipt, PendingOpen, SaveName,
+    PathMutationReceipt, PendingOpen, SaveName, SavedNote,
 };
 use crate::bindings::{MutationWarnings, NotesChanged};
 use crate::index;
 use crate::state::AppState;
 use crate::watcher;
+use crate::{queries, relationships::Mention};
 
 async fn run_blocking<T: Send + 'static>(
     operation: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
@@ -50,7 +51,7 @@ fn emit_changed<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) {
 pub async fn read_note<R: Runtime>(
     app: AppHandle<R>,
     path: String,
-) -> Result<NoteFile, CommandError> {
+) -> Result<SavedNote, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
         let core = state.core();
@@ -107,28 +108,67 @@ pub async fn db_select<R: Runtime>(
 #[specta::specta]
 pub async fn find_mentions<R: Runtime>(
     app: AppHandle<R>,
-    path: Option<String>,
-    title: String,
-) -> Result<Vec<index::BareMention>, CommandError> {
+    path: String,
+) -> Result<Vec<Mention>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
+        let core = state.core();
+        queries::find_mentions(&core, &path)
+    })
+    .await
+}
 
-        let (notes_dir, candidates) = {
-            let core = state.core();
-            application::ensure_index(&core)?;
-            let candidates = if let Some(path) = &path {
-                index::mention_candidates(&core.conn, path, &title)?
-            } else {
-                index::phrase_candidates(&core.conn, &title)?
-            };
-            (core.notes_dir.clone(), candidates)
-        };
+#[tauri::command]
+#[specta::specta]
+pub async fn list_notes<R: Runtime>(
+    app: AppHandle<R>,
+    filters: queries::NoteFilters,
+) -> Result<Vec<queries::NoteMeta>, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        let core = state.core();
+        queries::list_notes(&core, filters)
+    })
+    .await
+}
 
-        if path.is_some() {
-            Ok(index::scan_mentions(&notes_dir, candidates, &title)?)
-        } else {
-            Ok(index::scan_prose(&notes_dir, candidates, &title, true)?)
-        }
+#[tauri::command]
+#[specta::specta]
+pub async fn list_tags<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Vec<queries::CountedTag>, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        let core = state.core();
+        queries::list_tags(&core)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn search_notes<R: Runtime>(
+    app: AppHandle<R>,
+    search: queries::NoteSearch,
+) -> Result<Vec<queries::NoteMeta>, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        let core = state.core();
+        queries::search_notes(&core, search)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_graph<R: Runtime>(
+    app: AppHandle<R>,
+    target: queries::GraphTarget,
+) -> Result<queries::GraphResult, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        let core = state.core();
+        queries::read_graph(&core, target)
     })
     .await
 }

@@ -1,7 +1,7 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { FileTextIcon } from "lucide-react";
 import type { MouseEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,7 +17,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Mention } from "@/core/links";
-import { mentionsOf } from "@/core/links";
 import { noteQueries } from "@/data/queries";
 import { openNote } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
@@ -154,36 +153,33 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
 
 interface MentionsOfProps {
   path: string;
-  title: string;
 }
 
 /**
- * Nothing shows until the bare rows land, so the count never ticks up. A chip
+ * Nothing shows until the complete mentions land, so the count never ticks up. A chip
  * has no room for a failure, so a first read that fails says why once; the
  * cache speaks for a refetch of rows already on screen.
  */
-export function MentionsOf({ path, title }: MentionsOfProps) {
-  const { data: links } = useSuspenseQuery(noteQueries.links());
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
-  const bare = useQuery(noteQueries.mentions(path, title));
+export function MentionsOf({ path }: MentionsOfProps) {
+  const mentions = useQuery(noteQueries.mentions(path));
   const reported = useRef(false);
 
   useEffect(() => {
-    if (bare.error !== null && bare.data === undefined && !reported.current) {
+    if (
+      mentions.error !== null &&
+      mentions.data === undefined &&
+      !reported.current
+    ) {
       reported.current = true;
       toast.add({
-        description: reasonOf(bare.error),
+        description: reasonOf(mentions.error),
         title: "could not read mentions",
         type: "error",
       });
     }
-  }, [bare.data, bare.error]);
+  }, [mentions.data, mentions.error]);
 
-  const mentions = useMemo(
-    () =>
-      bare.data === undefined ? [] : mentionsOf(path, links, notes, bare.data),
-    [bare.data, links, notes, path]
+  return mentions.data === undefined ? null : (
+    <NoteMentions mentions={mentions.data} />
   );
-
-  return bare.data === undefined ? null : <NoteMentions mentions={mentions} />;
 }

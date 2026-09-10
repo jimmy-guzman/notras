@@ -1,23 +1,7 @@
 import { decode } from "mdurl";
 
-import type { NoteMeta } from "./notes";
-import { noteFolder, noteTitle } from "./notes";
-
-/** One `[[target]]` or `[text](target.md)` as the index records it: `kind` says which, `target` as written, `line` as `grep -n` counts it. */
-export interface NoteLink {
-  context: string;
-  kind: string;
-  line: number;
-  path: string;
-  target: string;
-}
-
-/** A title written without brackets in another note's prose, found on read rather than indexed. */
-export interface BareMention {
-  context: string;
-  line: number;
-  path: string;
-}
+import type { NoteMeta } from "@/core/notes";
+import { noteFolder, noteTitle } from "@/core/notes";
 
 export interface MentionLine {
   context: string;
@@ -33,7 +17,6 @@ export interface Mention {
 
 export interface LinkResolver {
   path: (destination: string, from: string) => NoteMeta | undefined;
-  row: (link: NoteLink) => NoteMeta | undefined;
   title: (target: string, from: string) => NoteMeta | undefined;
 }
 
@@ -60,7 +43,7 @@ export function isNotePath(destination: string) {
 }
 
 /** Resolve a destination's path segments without looking up an indexed note. */
-export function resolveNotePath(
+function resolveNotePath(
   destination: string,
   from: string
 ): string | undefined {
@@ -84,6 +67,29 @@ export function resolveNotePath(
   }
 
   return segments.join("/");
+}
+
+function comparePaths(left: string, right: string) {
+  const leftPoints = Array.from(left, (char) => char.codePointAt(0));
+  const rightPoints = Array.from(right, (char) => char.codePointAt(0));
+  for (
+    let at = 0;
+    at < Math.max(leftPoints.length, rightPoints.length);
+    at += 1
+  ) {
+    const a = leftPoints[at];
+    const b = rightPoints[at];
+    if (a === undefined) {
+      return b === undefined ? 0 : -1;
+    }
+    if (b === undefined) {
+      return 1;
+    }
+    if (a !== b) {
+      return a - b;
+    }
+  }
+  return 0;
 }
 
 function namesOf(meta: NoteMeta) {
@@ -123,7 +129,7 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
           Number(noteFolder(right.path) === fromFolder) -
           Number(noteFolder(left.path) === fromFolder);
 
-        return byTitle || byFolder || left.path.localeCompare(right.path);
+        return byTitle || byFolder || comparePaths(left.path, right.path);
       })
       .at(0);
   };
@@ -138,76 +144,6 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
 
   return {
     path,
-    row: (link) => {
-      if (link.kind === "link") {
-        return path(link.target, link.path);
-      }
-      if (link.kind === "wikilink") {
-        return title(link.target, link.path);
-      }
-    },
     title,
   };
-}
-
-export function matchOf(link: NoteLink) {
-  return link.kind === "link" ? link.target : `[[${link.target}]]`;
-}
-
-interface SourcedLine extends MentionLine {
-  source: string;
-}
-
-function toLine({ context, line, match }: SourcedLine): MentionLine {
-  return { context, line, match };
-}
-
-/** A note's links to itself are not mentions. */
-export function mentionsOf(
-  path: string,
-  links: NoteLink[],
-  notes: NoteMeta[],
-  bare: BareMention[]
-): Mention[] {
-  const resolve = linkResolver(notes);
-  const byPath = new Map(notes.map((meta) => [meta.path, meta]));
-  const title = byPath.get(path)?.title;
-  const linked: SourcedLine[] = links
-    .filter((link) => link.path !== path && resolve.row(link)?.path === path)
-    .map((link) => ({
-      context: link.context,
-      line: link.line,
-      match: matchOf(link),
-      source: link.path,
-    }));
-  const spoken: SourcedLine[] =
-    title === undefined
-      ? []
-      : bare.map(({ context, line, path: source }) => ({
-          context,
-          line,
-          match: title,
-          source,
-        }));
-
-  return [...Map.groupBy([...linked, ...spoken], (row) => row.source)]
-    .toSorted(([left], [right]) => left.localeCompare(right))
-    .flatMap(([source, rows]) => {
-      const note = byPath.get(source);
-      const [first, ...rest] = rows
-        .toSorted((left, right) => left.line - right.line)
-        .map(toLine);
-
-      // The rows and the note list are two reads of one index that a change
-      // event refreshes together, so a source with no note is the moment
-      // between the two landing. A group is never empty, which the type of
-      // `first` cannot say.
-      if (note === undefined || first === undefined) {
-        return [];
-      }
-
-      const lines: Mention["lines"] = [first, ...rest];
-
-      return [{ lines, note }];
-    });
 }

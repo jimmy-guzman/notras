@@ -62,7 +62,6 @@
     "cmdk": "1.1.1",
     "cn": "0.2.6",
     "date-fns": "4.4.0",
-    "drizzle-orm": "0.45.2",
     "effect": "4.0.0-rc.112",
     "lucide-react": "1.42.0",
     "mdurl": "2.1.0",

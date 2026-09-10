@@ -108,6 +108,18 @@ pub struct NoteFile {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedNote {
+    pub content: String,
+    pub path: String,
+    pub pinned: bool,
+    pub tags: Vec<String>,
+    pub title: String,
+    #[specta(type = f64)]
+    pub updated_at: i64,
+}
+
 /// Resolve a relative note path against the notes dir, rejecting anything
 /// that escapes it or touches hidden files/directories.
 fn resolve(core: &Core, rel: &str) -> Result<PathBuf, String> {
@@ -361,11 +373,17 @@ pub fn db_select(core: &Core, sql: String, params: Vec<Value>) -> Result<Vec<Vec
     index::select(&core.conn, &sql, &params)
 }
 
-pub fn read_note(core: &Core, path: String) -> Result<NoteFile, CommandError> {
+pub fn read_note(core: &Core, path: String) -> Result<SavedNote, CommandError> {
     let abs = resolve(core, &path)?;
     let file = fs::File::open(&abs)?;
     let content = fs::read_to_string(&abs)?;
-    Ok(NoteFile {
+    let parsed = frontmatter::parse(&content);
+    let title = index::resolve_title(&parsed, &path);
+    Ok(SavedNote {
+        pinned: parsed.frontmatter.pinned,
+        tags: parsed.frontmatter.tags,
+        title,
+        path,
         content,
         updated_at: checked_mtime(&file)?,
     })
@@ -585,7 +603,11 @@ pub fn move_note(
     } else {
         format!("{folder}/{name}")
     };
-    let file = read_note(core, path.clone())?;
+    let saved = read_note(core, path.clone())?;
+    let file = NoteFile {
+        content: saved.content,
+        updated_at: saved.updated_at,
+    };
     if path == target {
         return Ok(PathMutationReceipt {
             path,

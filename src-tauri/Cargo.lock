@@ -2510,6 +2510,7 @@ dependencies = [
  "objc2-foundation",
  "proptest",
  "pulldown-cmark",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

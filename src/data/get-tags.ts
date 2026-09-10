@@ -1,7 +1,6 @@
-import { NoteService } from "@/server/services/note-service";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-export function getTags() {
-  return run(NoteService.use((svc) => svc.listTags()));
+export async function getTags() {
+  return await nativeCommand(commands.listTags);
 }

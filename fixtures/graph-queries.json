@@ -1,0 +1,1056 @@
+[
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[c]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "c"
+        },
+        {
+          "context": "see [[b]]",
+          "kind": "wikilink",
+          "line": 2,
+          "path": "a.md",
+          "target": "b"
+        },
+        {
+          "context": "see [[c]]",
+          "kind": "wikilink",
+          "line": 3,
+          "path": "a.md",
+          "target": "c"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [],
+      "incoming": [],
+      "outgoing": [
+        {
+          "lines": [
+            {
+              "context": "see [[c]]",
+              "line": 1,
+              "match": "[[c]]"
+            },
+            {
+              "context": "see [[c]]",
+              "line": 3,
+              "match": "[[c]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "c.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "c",
+            "updatedAt": 0
+          }
+        },
+        {
+          "lines": [
+            {
+              "context": "see [[b]]",
+              "line": 2,
+              "match": "[[b]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "b.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "b",
+            "updatedAt": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[c]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "c"
+        },
+        {
+          "context": "see [[c]]",
+          "kind": "wikilink",
+          "line": 3,
+          "path": "a.md",
+          "target": "c"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [],
+      "incoming": [],
+      "outgoing": [
+        {
+          "lines": [
+            {
+              "context": "see [[c]]",
+              "line": 1,
+              "match": "[[c]]"
+            },
+            {
+              "context": "see [[c]]",
+              "line": 3,
+              "match": "[[c]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "c.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "c",
+            "updatedAt": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[Missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "Missing"
+        },
+        {
+          "context": "see [[Missing]]",
+          "kind": "wikilink",
+          "line": 2,
+          "path": "a.md",
+          "target": "Missing"
+        },
+        {
+          "context": "see [[also gone]]",
+          "kind": "wikilink",
+          "line": 3,
+          "path": "a.md",
+          "target": "also gone"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": ["Missing", "also gone"],
+      "hubs": [],
+      "incoming": [],
+      "outgoing": []
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "missing"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": ["missing"],
+      "hubs": [],
+      "incoming": [],
+      "outgoing": []
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "missing"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "missing.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "missing",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [],
+      "incoming": [],
+      "outgoing": [
+        {
+          "lines": [
+            {
+              "context": "see [[missing]]",
+              "line": 1,
+              "match": "[[missing]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "missing.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "missing",
+            "updatedAt": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "a"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [],
+      "incoming": [],
+      "outgoing": []
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "b.md",
+          "target": "a"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      [
+        {
+          "context": "the a note",
+          "line": 3,
+          "path": "c.md"
+        }
+      ]
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [],
+      "incoming": [
+        {
+          "lines": [
+            {
+              "context": "see [[a]]",
+              "line": 1,
+              "match": "[[a]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "b.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "b",
+            "updatedAt": 0
+          }
+        },
+        {
+          "lines": [
+            {
+              "context": "the a note",
+              "line": 3,
+              "match": "a"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "c.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "c",
+            "updatedAt": 0
+          }
+        }
+      ],
+      "outgoing": []
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[b]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "b"
+        },
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "b.md",
+          "target": "a"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [],
+      "incoming": [
+        {
+          "lines": [
+            {
+              "context": "see [[a]]",
+              "line": 1,
+              "match": "[[a]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "b.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "b",
+            "updatedAt": 0
+          }
+        }
+      ],
+      "outgoing": [
+        {
+          "lines": [
+            {
+              "context": "see [[b]]",
+              "line": 1,
+              "match": "[[b]]"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "",
+            "path": "b.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "b",
+            "updatedAt": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "work/a.md",
+      [],
+      [
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["q3", "work"],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "b",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["q3"],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [
+        {
+          "count": 2,
+          "hub": {
+            "folder": "work",
+            "kind": "folder"
+          }
+        },
+        {
+          "count": 2,
+          "hub": {
+            "kind": "tag",
+            "tag": "q3"
+          }
+        },
+        {
+          "count": 2,
+          "hub": {
+            "kind": "tag",
+            "tag": "work"
+          }
+        }
+      ],
+      "incoming": [],
+      "outgoing": []
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "c.md",
+      [],
+      [
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["q3", "work"],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "b",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["q3"],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [
+        {
+          "count": 2,
+          "hub": {
+            "kind": "tag",
+            "tag": "q3"
+          }
+        }
+      ],
+      "incoming": [],
+      "outgoing": []
+    }
+  },
+  {
+    "operation": "graphOf",
+    "args": [
+      "work/a.md",
+      [
+        {
+          "context": "see [[b.md]]",
+          "kind": "link",
+          "line": 1,
+          "path": "work/a.md",
+          "target": "b.md"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": {
+      "dangling": [],
+      "hubs": [
+        {
+          "count": 2,
+          "hub": {
+            "folder": "work",
+            "kind": "folder"
+          }
+        }
+      ],
+      "incoming": [],
+      "outgoing": [
+        {
+          "lines": [
+            {
+              "context": "see [[b.md]]",
+              "line": 1,
+              "match": "b.md"
+            }
+          ],
+          "note": {
+            "createdAt": 0,
+            "folder": "work",
+            "path": "work/b.md",
+            "pinned": false,
+            "snippet": null,
+            "tags": [],
+            "title": "b",
+            "updatedAt": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "operation": "hubRing",
+    "args": [
+      {
+        "kind": "tag",
+        "tag": "t"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "z.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["t"],
+          "title": "z",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["t"],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "m.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "m",
+          "updatedAt": 0
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "kind": "note",
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["t"],
+          "title": "a",
+          "updatedAt": 0
+        }
+      },
+      {
+        "kind": "note",
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "z.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["t"],
+          "title": "z",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "hubRing",
+    "args": [
+      {
+        "folder": "work/sub",
+        "kind": "folder"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/z.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "z",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/sub",
+          "path": "work/sub/deep.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "deep",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/other",
+          "path": "work/other/x.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "x",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "root.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "root",
+          "updatedAt": 0
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "kind": "hub",
+        "pill": {
+          "count": 4,
+          "hub": {
+            "folder": "work",
+            "kind": "folder"
+          }
+        }
+      },
+      {
+        "kind": "note",
+        "note": {
+          "createdAt": 0,
+          "folder": "work/sub",
+          "path": "work/sub/deep.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "deep",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "hubRing",
+    "args": [
+      {
+        "folder": "work",
+        "kind": "folder"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/z.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "z",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/sub",
+          "path": "work/sub/deep.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "deep",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/other",
+          "path": "work/other/x.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "x",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "root.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "root",
+          "updatedAt": 0
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "kind": "hub",
+        "pill": {
+          "count": 1,
+          "hub": {
+            "folder": "work/other",
+            "kind": "folder"
+          }
+        }
+      },
+      {
+        "kind": "hub",
+        "pill": {
+          "count": 1,
+          "hub": {
+            "folder": "work/sub",
+            "kind": "folder"
+          }
+        }
+      },
+      {
+        "kind": "note",
+        "note": {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      },
+      {
+        "kind": "note",
+        "note": {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/z.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "z",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "hubPill",
+    "args": [
+      {
+        "folder": "work",
+        "kind": "folder"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/sub",
+          "path": "work/sub/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      ]
+    ],
+    "expected": {
+      "count": 2,
+      "hub": {
+        "folder": "work",
+        "kind": "folder"
+      }
+    }
+  }
+]

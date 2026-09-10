@@ -4,6 +4,8 @@ mod clipboard;
 mod frontmatter;
 mod index;
 mod notes;
+mod queries;
+mod relationships;
 mod state;
 mod watcher;
 mod windows;
