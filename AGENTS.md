@@ -52,7 +52,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **Ultracite, a Biome preset, is the only formatter and linter** (`D15`, `D41`), and it is dev tooling only. No Prettier and no ESLint. Do not silence a lint error with a config override: suppress a false positive at the call site with `biome-ignore` and a reason. One override exists and is documented, the Shadcn `src/components/ui/**` block in `biome.jsonc`, which turns off the rules with no autofix because `scripts/update-shadcn.sh` regenerates those files (`D19`, `D37`).
+- **Ultracite, a Biome preset, is the only JS/TS formatter and linter** (`D15`, `D41`), and it is dev tooling only. Rust uses rustfmt and Clippy. No Prettier and no ESLint. Do not silence a lint error with a config override: suppress a false positive at the call site with `biome-ignore` and a reason. One override exists and is documented, the Shadcn `src/components/ui/**` block in `biome.jsonc`, which turns off the rules with no autofix because `scripts/update-shadcn.sh` regenerates those files (`D19`, `D37`).
 
 - **Sort object keys and imports alphabetically.** Biome's `organizeImports` assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit hook, since neither editor config wires it. One exception the preset already encodes: route option objects, which `ultracite/biome/tanstack` leaves unsorted because their types infer in declaration order.
 
@@ -138,10 +138,18 @@ pnpm typecheck        # 1. types
 pnpm check            # 2. lint + format
 pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
 pnpm build:web        # 4. web bundle build
-cargo test --locked   # 5. (when src-tauri changed) in src-tauri/, `D49`
 ```
 
-CI runs these commands in this order, and runs `cargo test` on macOS and Linux, so a Rust change that passes on the platform you are on can still be the one that fails on the other.
+When Rust sources or gate configuration change, also run these commands from `src-tauri/` in this order:
+
+```txt
+cargo machete
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+```
+
+CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. Nothing automated covers it, which `D21` records. Say which claims you checked and which you took from the code alone.
 

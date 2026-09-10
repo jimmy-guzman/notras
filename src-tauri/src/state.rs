@@ -30,11 +30,15 @@ impl AppState {
         self.core.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub fn watcher(&self) -> MutexGuard<'_, Option<Debouncer<RecommendedWatcher, RecommendedCache>>> {
+    pub fn watcher(
+        &self,
+    ) -> MutexGuard<'_, Option<Debouncer<RecommendedWatcher, RecommendedCache>>> {
         self.watcher.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn pending_open(&self) -> MutexGuard<'_, Vec<String>> {
-        self.pending_open.lock().unwrap_or_else(PoisonError::into_inner)
+        self.pending_open
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }

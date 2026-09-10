@@ -195,7 +195,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             Ok(changed) => {
                 drop(core);
                 if !changed.is_empty() {
-                    if let Err(error) = scan_app.emit("notes-changed", NotesChanged { paths: changed }) {
+                    if let Err(error) =
+                        scan_app.emit("notes-changed", NotesChanged { paths: changed })
+                    {
                         log::error!("could not emit {}: {error}", "notes-changed");
                     }
                 }
@@ -369,7 +371,11 @@ pub fn run() {
                 return;
             }
 
-            if app.state::<AppState>().quitting.swap(true, Ordering::SeqCst) {
+            if app
+                .state::<AppState>()
+                .quitting
+                .swap(true, Ordering::SeqCst)
+            {
                 return;
             }
             api.prevent_exit();

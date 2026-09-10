@@ -16,7 +16,10 @@ pub fn start(
     app: AppHandle,
     notes_dir: PathBuf,
 ) -> Result<
-    notify_debouncer_full::Debouncer<notify::RecommendedWatcher, notify_debouncer_full::RecommendedCache>,
+    notify_debouncer_full::Debouncer<
+        notify::RecommendedWatcher,
+        notify_debouncer_full::RecommendedCache,
+    >,
     notify::Error,
 > {
     let handler_app = app.clone();

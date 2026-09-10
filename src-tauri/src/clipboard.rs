@@ -38,7 +38,9 @@ mod metadata {
         let value = bytes.get(..size).ok_or(INVALID)?;
         *bytes = bytes.get(padded..).ok_or(INVALID)?;
         let units = value
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]));
         String::from_utf16(&units.collect::<Vec<_>>()).map_err(|_| INVALID)
     }
@@ -121,7 +123,7 @@ mod tests {
             for unit in units {
                 payload.extend(unit.to_le_bytes());
             }
-            while payload.len() % 4 != 0 {
+            while !payload.len().is_multiple_of(4) {
                 payload.push(0);
             }
         }

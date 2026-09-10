@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::{fmt, fs, io};
 use std::time::UNIX_EPOCH;
+use std::{fmt, fs, io};
 
 use pulldown_cmark::{Event, Options, Parser, Tag};
-use rusqlite::types::ValueRef;
 use rusqlite::functions::FunctionFlags;
+use rusqlite::types::ValueRef;
 use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -74,10 +74,30 @@ const SCHEMA_VERSION: i64 = 4;
 
 fn relationship_key(kind: &str, target: &str, source: &str) -> Option<String> {
     if kind == "wikilink" {
-        return Some(target.trim_matches(|ch| matches!(ch,
-            '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' |
-            '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
-        )).to_lowercase());
+        return Some(
+            target
+                .trim_matches(|ch| {
+                    matches!(
+                        ch,
+                        '\t' | '\n'
+                            | '\u{b}'
+                            | '\u{c}'
+                            | '\r'
+                            | ' '
+                            | '\u{a0}'
+                            | '\u{1680}'
+                            | '\u{2000}'
+                            ..='\u{200a}'
+                                | '\u{2028}'
+                                | '\u{2029}'
+                                | '\u{202f}'
+                                | '\u{205f}'
+                                | '\u{3000}'
+                                | '\u{feff}'
+                    )
+                })
+                .to_lowercase(),
+        );
     }
     let bare = target.split(['#', '?']).next()?;
     let mut decoded = Vec::new();
@@ -109,7 +129,9 @@ fn relationship_key(kind: &str, target: &str, source: &str) -> Option<String> {
     for segment in folder.split('/').chain(decoded.split('/')) {
         match segment {
             "" | "." => (),
-            ".." => { segments.pop()?; },
+            ".." => {
+                segments.pop()?;
+            }
             segment => segments.push(segment),
         }
     }
@@ -124,12 +146,21 @@ fn register_relationship_functions(conn: &Connection) -> rusqlite::Result<()> {
     conn.create_scalar_function("notras_note_name", 1, flags, |ctx| {
         let path = ctx.get::<String>(0)?;
         let name = path.rsplit('/').next().unwrap_or(&path);
-        let extension = if name.to_ascii_lowercase().ends_with(".markdown") { 9 }
-            else if name.to_ascii_lowercase().ends_with(".md") { 3 } else { 0 };
+        let extension = if name.to_ascii_lowercase().ends_with(".markdown") {
+            9
+        } else if name.to_ascii_lowercase().ends_with(".md") {
+            3
+        } else {
+            0
+        };
         Ok(name[..name.len() - extension].to_lowercase())
     })?;
     conn.create_scalar_function("notras_link_key", 3, flags, |ctx| {
-        Ok(relationship_key(&ctx.get::<String>(0)?, &ctx.get::<String>(1)?, &ctx.get::<String>(2)?))
+        Ok(relationship_key(
+            &ctx.get::<String>(0)?,
+            &ctx.get::<String>(1)?,
+            &ctx.get::<String>(2)?,
+        ))
     })
 }
 
@@ -417,10 +448,7 @@ fn scan(body: &str) -> Scan {
             }
             Event::Start(tag) => match tag {
                 Tag::Emphasis | Tag::Strong | Tag::Strikethrough => prose[range].fill(true),
-                Tag::Link {
-                    dest_url,
-                    ..
-                } => {
+                Tag::Link { dest_url, .. } => {
                     link_spans.push(range.clone());
                     links.push((range.start, dest_url.to_string()));
                 }
@@ -708,7 +736,10 @@ fn destinations(body: &str) -> Vec<MarkdownLink<'_>> {
 
 #[cfg(test)]
 fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
-    destinations(body).into_iter().filter(|link| is_note_path(&link.target)).collect()
+    destinations(body)
+        .into_iter()
+        .filter(|link| is_note_path(&link.target))
+        .collect()
 }
 
 /// A title written without brackets in another note's prose.
@@ -745,7 +776,11 @@ fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
 /// already, and on the heading that names the note it is the note's name. A
 /// note titled by its frontmatter has no such heading, so its first heading
 /// is prose like the rest.
-fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Vec<(usize, &'a str)> {
+fn bare_mentions<'a>(
+    body: &'a str,
+    title: &str,
+    heading_names_note: bool,
+) -> Vec<(usize, &'a str)> {
     let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
     let markdown_links = scan(body).link_spans;
     let heading_line = heading_names_note
@@ -775,7 +810,9 @@ fn bare_mentions<'a>(body: &'a str, title: &str, heading_names_note: bool) -> Ve
             let end = start + len;
             let bounded = !run[..at].chars().next_back().is_some_and(is_word)
                 && !run[at + len..].chars().next().is_some_and(is_word);
-            let linked = links.iter().any(|span| start < span.end && end > span.start);
+            let linked = links
+                .iter()
+                .any(|span| start < span.end && end > span.start);
             let (line, context) = line_at(body, start);
 
             if !bounded || linked || heading_line == Some(line - 1) {
@@ -799,14 +836,16 @@ pub fn phrase_candidates(conn: &Connection, phrase: &str) -> Result<Vec<String>,
         let mut stmt = conn.prepare(
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1
              UNION SELECT path FROM note_fts WHERE length(content) != length(CAST(content AS BLOB))
-             ORDER BY path"
+             ORDER BY path",
         )?;
-        let paths = stmt.query_map([query], |row| row.get::<_, String>(0))?
+        let paths = stmt
+            .query_map([query], |row| row.get::<_, String>(0))?
             .collect::<Result<Vec<_>, _>>()?;
         return Ok(paths);
     }
     let mut stmt = conn.prepare("SELECT path FROM note ORDER BY path")?;
-    let paths = stmt.query_map([], |row| row.get::<_, String>(0))?
+    let paths = stmt
+        .query_map([], |row| row.get::<_, String>(0))?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(paths)
 }
@@ -845,7 +884,12 @@ pub fn scan_mentions(
     scan_prose(notes_dir, candidates, title, false)
 }
 
-pub fn scan_prose(notes_dir: &Path, candidates: Vec<String>, title: &str, include_headings: bool) -> Result<Vec<BareMention>, IndexError> {
+pub fn scan_prose(
+    notes_dir: &Path,
+    candidates: Vec<String>,
+    title: &str,
+    include_headings: bool,
+) -> Result<Vec<BareMention>, IndexError> {
     let mut found = Vec::new();
 
     for candidate in candidates {
@@ -871,13 +915,15 @@ pub fn scan_prose(notes_dir: &Path, candidates: Vec<String>, title: &str, includ
 
         let heading_names_note = !include_headings && parsed.frontmatter.title.is_none();
 
-        found.extend(bare_mentions(parsed.body, title, heading_names_note).into_iter().map(
-            |(line, context)| BareMention {
-                context: context.to_string(),
-                line: line + body_line_offset,
-                path: candidate.clone(),
-            },
-        ));
+        found.extend(
+            bare_mentions(parsed.body, title, heading_names_note)
+                .into_iter()
+                .map(|(line, context)| BareMention {
+                    context: context.to_string(),
+                    line: line + body_line_offset,
+                    path: candidate.clone(),
+                }),
+        );
     }
 
     Ok(found)
@@ -909,11 +955,7 @@ pub fn clear(conn: &Connection) -> rusqlite::Result<()> {
 /// Index a single note file. Returns `true` when the index changed. Files
 /// whose mtime matches the stored row are skipped, which also suppresses
 /// watcher echo for writes that already indexed synchronously.
-pub fn index_file(
-    conn: &Connection,
-    notes_dir: &Path,
-    rel_path: &str,
-) -> Result<bool, IndexError> {
+pub fn index_file(conn: &Connection, notes_dir: &Path, rel_path: &str) -> Result<bool, IndexError> {
     let abs = notes_dir.join(rel_path);
 
     // `symlink_metadata` does not follow the link, so a note symlinked to
@@ -1004,7 +1046,11 @@ pub fn index_file(
         )?;
     }
     for link in destinations(parsed.body) {
-        let kind = if is_note_path(&link.target) { "link" } else { "destination" };
+        let kind = if is_note_path(&link.target) {
+            "link"
+        } else {
+            "destination"
+        };
         tx.execute(
             "INSERT INTO note_link (path, line, kind, target, context)
              VALUES (?1, ?2, ?5, ?3, ?4)",
@@ -1082,7 +1128,13 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, Inde
     let shadowed: Vec<String> = unreadable
         .iter()
         .filter_map(|dir| relative_path(notes_dir, dir))
-        .map(|rel| if rel.is_empty() { rel } else { format!("{rel}/") })
+        .map(|rel| {
+            if rel.is_empty() {
+                rel
+            } else {
+                format!("{rel}/")
+            }
+        })
         .collect();
 
     let mut seen = HashSet::with_capacity(files.len());
@@ -1190,16 +1242,34 @@ mod tests {
     fn should_normalize_relationship_query_keys_without_resolving_titles() {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        assert_eq!(select(&conn, "SELECT notras_lower('ÉXAMPLE'), notras_note_name('work/Atlas.MARKDOWN')", &[]).unwrap(), vec![vec![json!("éxample"), json!("atlas")]]);
+        assert_eq!(
+            select(
+                &conn,
+                "SELECT notras_lower('ÉXAMPLE'), notras_note_name('work/Atlas.MARKDOWN')",
+                &[]
+            )
+            .unwrap(),
+            vec![vec![json!("éxample"), json!("atlas")]]
+        );
         for (kind, target, source, expected) in [
-            ("wikilink", "\u{feff} BUDGET \u{a0}", "work/a.md", Some("budget")),
+            (
+                "wikilink",
+                "\u{feff} BUDGET \u{a0}",
+                "work/a.md",
+                Some("budget"),
+            ),
             ("link", "../b%20c.md#heading", "work/a.md", Some("b c.md")),
             ("link", "../b%2fc.md?query", "work/a.md", Some("b%2fc.md")),
             ("link", "./%C3%89.md", "work/a.md", Some("work/é.md")),
             ("link", "../../b.md", "work/a.md", None),
             ("link", "%ff.md", "work/a.md", None),
         ] {
-            let rows = select(&conn, "SELECT notras_link_key(?1, ?2, ?3)", &[json!(kind), json!(target), json!(source)]).unwrap();
+            let rows = select(
+                &conn,
+                "SELECT notras_link_key(?1, ?2, ?3)",
+                &[json!(kind), json!(target), json!(source)],
+            )
+            .unwrap();
             assert_eq!(rows, vec![vec![json!(expected)]], "{target}");
         }
     }
@@ -1208,7 +1278,10 @@ mod tests {
     fn should_fold_filename_stems_after_removing_the_extension() {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        assert_eq!(select(&conn, "SELECT notras_note_name('ΟΣ.md')", &[]).unwrap(), vec![vec![json!("ος")]]);
+        assert_eq!(
+            select(&conn, "SELECT notras_note_name('ΟΣ.md')", &[]).unwrap(),
+            vec![vec![json!("ος")]]
+        );
     }
 
     /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
@@ -1323,7 +1396,8 @@ mod tests {
 
         // Stand in for a row written by an older derivation, without touching
         // the file, so the mtime skip is live.
-        conn.execute("UPDATE note SET title = 'agent-note'", []).unwrap();
+        conn.execute("UPDATE note SET title = 'agent-note'", [])
+            .unwrap();
         assert!(scan_all(&conn, &dir).unwrap().is_empty());
         let stale: String = conn
             .query_row("SELECT title FROM note", [], |row| row.get(0))
@@ -1430,8 +1504,12 @@ mod tests {
 
         // Even asked for directly, a symlink never lands a row.
         index_file(&conn, &dir, "linked.md").unwrap();
-        let rows = select(&conn, "SELECT path FROM note WHERE path = ?1", &[json!("linked.md")])
-            .unwrap();
+        let rows = select(
+            &conn,
+            "SELECT path FROM note WHERE path = ?1",
+            &[json!("linked.md")],
+        )
+        .unwrap();
         assert!(rows.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
@@ -1647,16 +1725,32 @@ mod tests {
     #[test]
     fn finds_bare_mentions_of_a_title() {
         let dir = temp_notes_dir("bare-mentions");
-        fs::write(dir.join("graph view.md"), "# graph view\n\nthis note is about the graph view\n").unwrap();
+        fs::write(
+            dir.join("graph view.md"),
+            "# graph view\n\nthis note is about the graph view\n",
+        )
+        .unwrap();
         fs::write(
             dir.join("a.md"),
             "---\ntags: [x]\n---\nthe Graph View is next\n\n[[graph view]] is linked\n\ngraph views are plural\n\n```\ngraph view in code\n```\n\nsee graph view twice, Graph View\n",
         )
         .unwrap();
-        fs::write(dir.join("b.md"), "# graph view notes\n\nsee graph view here\n").unwrap();
+        fs::write(
+            dir.join("b.md"),
+            "# graph view notes\n\nsee graph view here\n",
+        )
+        .unwrap();
         fs::write(dir.join("c.md"), "nothing here\n").unwrap();
-        fs::write(dir.join("f.md"), "---\ntitle: other\n---\n# graph view\n\nplain\n").unwrap();
-        fs::write(dir.join("g.md"), "snake_case is a symbol, but the snake is an animal\n").unwrap();
+        fs::write(
+            dir.join("f.md"),
+            "---\ntitle: other\n---\n# graph view\n\nplain\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("g.md"),
+            "snake_case is a symbol, but the snake is an animal\n",
+        )
+        .unwrap();
         fs::write(dir.join("q.md"), "# say \"hi\"\n").unwrap();
         fs::write(dir.join("r.md"), "he did say \"hi\" twice\n").unwrap();
         let linked = "see [the graph view](graph%20view.md) and [graph view](http://x)\n";
@@ -1690,7 +1784,10 @@ mod tests {
         // An underscore joins a word, the way a letter does.
         let rows = find("x.md", "snake");
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].context, "snake_case is a symbol, but the snake is an animal");
+        assert_eq!(
+            rows[0].context,
+            "snake_case is a symbol, but the snake is an animal"
+        );
 
         // A quote in the title reaches FTS escaped.
         let rows = find("q.md", "say \"hi\"");
@@ -1716,7 +1813,8 @@ mod tests {
     #[cfg(unix)]
     fn skips_a_candidate_swapped_for_a_symlink() {
         let dir = temp_notes_dir("swapped-candidate");
-        let outside = std::env::temp_dir().join(format!("notras-test-outside-{}", std::process::id()));
+        let outside =
+            std::env::temp_dir().join(format!("notras-test-outside-{}", std::process::id()));
         fs::write(dir.join("graph view.md"), "# graph view\n").unwrap();
         fs::write(dir.join("s.md"), "the graph view, indexed as a file\n").unwrap();
         fs::write(&outside, "the graph view, from outside the vault\n").unwrap();
@@ -1730,7 +1828,9 @@ mod tests {
 
         let candidates = mention_candidates(&conn, "graph view.md", "graph view").unwrap();
         assert_eq!(candidates, vec!["s.md".to_string()]);
-        assert!(scan_mentions(&dir, candidates, "graph view").unwrap().is_empty());
+        assert!(scan_mentions(&dir, candidates, "graph view")
+            .unwrap()
+            .is_empty());
 
         let _ = fs::remove_file(&outside);
         let _ = fs::remove_dir_all(&dir);
@@ -1786,7 +1886,11 @@ mod tests {
 
         for (markdown, expected) in cases {
             let links = markdown_links(markdown);
-            let found: Vec<&str> = links.iter().filter(|link| is_note_path(&link.target)).map(|link| link.target.as_str()).collect();
+            let found: Vec<&str> = links
+                .iter()
+                .filter(|link| is_note_path(&link.target))
+                .map(|link| link.target.as_str())
+                .collect();
             assert_eq!(&found, expected, "scanning {markdown:?}");
         }
     }
@@ -1832,16 +1936,28 @@ mod tests {
             ("prefixhttps://github.com", &["https://github.com"]),
             ("https://github.com/a&amp;", &["https://github.com/a"]),
             ("https://github.com/a(foo", &["https://github.com/a"]),
-            ("https://github.com/a(b(c)d)", &["https://github.com/a(b(c)d"]),
+            (
+                "https://github.com/a(b(c)d)",
+                &["https://github.com/a(b(c)d"],
+            ),
             ("https://? ", &[]),
             ("www.", &[]),
             ("`https://github.com/a`", &[]),
             ("![a](https://github.com/a.png)", &[]),
             ("[https://github.com/a](b.md)", &["b.md"]),
             ("<span>https://github.com/a</span>", &[]),
-            ("[[https://github.com\n[[a much longer valid wikilink target]]", &["https://github.com"]),
-            ("\\[[https://github.com\n[[a much longer valid wikilink target]]", &["https://github.com"]),
-            ("[[https://github.com]] https://example.com", &["https://example.com"]),
+            (
+                "[[https://github.com\n[[a much longer valid wikilink target]]",
+                &["https://github.com"],
+            ),
+            (
+                "\\[[https://github.com\n[[a much longer valid wikilink target]]",
+                &["https://github.com"],
+            ),
+            (
+                "[[https://github.com]] https://example.com",
+                &["https://example.com"],
+            ),
         ];
         for (markdown, expected) in cases {
             let links = destinations(markdown);
@@ -1855,27 +1971,54 @@ mod tests {
         let dir = temp_notes_dir("literal-prose");
         fs::write(dir.join("a.md"), "---\ntitle: Ada Lovelace\n---\n# Ada Lovelace\n\nada lovelace wrote this.\n\n`Ada Lovelace` [Ada Lovelace](a.md) <span>Ada Lovelace</span>\n\nLovelaces and xAda Lovelace are different.\n\nA +++ phrase.\n").unwrap();
         let mentions = scan_prose(&dir, vec!["a.md".into()], "Ada Lovelace", true).unwrap();
-        assert_eq!(mentions.iter().map(|row| row.line).collect::<Vec<_>>(), vec![4, 6]);
-        assert_eq!(scan_prose(&dir, vec!["a.md".into()], "+++", true).unwrap().len(), 1);
+        assert_eq!(
+            mentions.iter().map(|row| row.line).collect::<Vec<_>>(),
+            vec![4, 6]
+        );
+        assert_eq!(
+            scan_prose(&dir, vec!["a.md".into()], "+++", true)
+                .unwrap()
+                .len(),
+            1
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn should_classify_non_note_destinations_separately() {
         let dir = temp_notes_dir("destination-kinds");
-        fs::write(dir.join("a.md"), "[b](b.md) https://github.com/a ![image](x.png)").unwrap();
+        fs::write(
+            dir.join("a.md"),
+            "[b](b.md) https://github.com/a ![image](x.png)",
+        )
+        .unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
         scan_all(&conn, &dir).unwrap();
-        let rows = select(&conn, "SELECT kind, target FROM note_link ORDER BY kind", &[]).unwrap();
-        assert_eq!(rows, vec![vec![json!("destination"), json!("https://github.com/a")], vec![json!("link"), json!("b.md")]]);
+        let rows = select(
+            &conn,
+            "SELECT kind, target FROM note_link ORDER BY kind",
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                vec![json!("destination"), json!("https://github.com/a")],
+                vec![json!("link"), json!("b.md")]
+            ]
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn should_narrow_ascii_phrase_candidates_before_matching_literal_prose() {
         let dir = temp_notes_dir("phrase-candidates");
-        fs::write(dir.join("a.md"), "# Ada Lovelace\n\nAda-Lovelace is not the same phrase.\n").unwrap();
+        fs::write(
+            dir.join("a.md"),
+            "# Ada Lovelace\n\nAda-Lovelace is not the same phrase.\n",
+        )
+        .unwrap();
         fs::write(dir.join("b.md"), "`Ada Lovelace`\n").unwrap();
         fs::write(dir.join("c.md"), "unrelated prose\n").unwrap();
         let conn = Connection::open_in_memory().unwrap();
@@ -1884,7 +2027,13 @@ mod tests {
         let candidates = phrase_candidates(&conn, "Ada Lovelace").unwrap();
         assert_eq!(candidates, vec!["a.md", "b.md"]);
         let found = scan_prose(&dir, candidates, "Ada Lovelace", true).unwrap();
-        assert_eq!(found.iter().map(|row| (row.path.as_str(), row.line)).collect::<Vec<_>>(), vec![("a.md", 1)]);
+        assert_eq!(
+            found
+                .iter()
+                .map(|row| (row.path.as_str(), row.line))
+                .collect::<Vec<_>>(),
+            vec![("a.md", 1)]
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -1899,7 +2048,13 @@ mod tests {
         let candidates = phrase_candidates(&conn, "!!!").unwrap();
         assert_eq!(candidates, vec!["a.md", "b.md"]);
         let found = scan_prose(&dir, candidates, "!!!", true).unwrap();
-        assert_eq!(found.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(), vec!["a.md"]);
+        assert_eq!(
+            found
+                .iter()
+                .map(|row| row.path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a.md"]
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -1912,8 +2067,15 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
         scan_all(&conn, &dir).unwrap();
-        let found = scan_prose(&dir, phrase_candidates(&conn, "Ada").unwrap(), "Ada", true).unwrap();
-        assert_eq!(found.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(), vec!["a.md", "b.md"]);
+        let found =
+            scan_prose(&dir, phrase_candidates(&conn, "Ada").unwrap(), "Ada", true).unwrap();
+        assert_eq!(
+            found
+                .iter()
+                .map(|row| row.path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a.md", "b.md"]
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -1925,9 +2087,20 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
         scan_all(&conn, &dir).unwrap();
-        let found = scan_prose(&dir, phrase_candidates(&conn, "foo Ა bar").unwrap(), "foo Ა bar", true).unwrap();
-        assert_eq!(found.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(), vec!["a.md", "b.md"]);
+        let found = scan_prose(
+            &dir,
+            phrase_candidates(&conn, "foo Ა bar").unwrap(),
+            "foo Ა bar",
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            found
+                .iter()
+                .map(|row| row.path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a.md", "b.md"]
+        );
         fs::remove_dir_all(dir).unwrap();
     }
-
 }

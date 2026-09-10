@@ -29,6 +29,12 @@ runs:
           exit 1
         fi
         echo "channel=$channel" >> "$GITHUB_OUTPUT"
+        components=$(awk -F'[][]' '/^components/ { gsub(/[" ]/, "", $2); print $2 }' src-tauri/rust-toolchain.toml)
+        if [ -z "$components" ]; then
+          echo "::error::no components in src-tauri/rust-toolchain.toml"
+          exit 1
+        fi
+        echo "components=$components" >> "$GITHUB_OUTPUT"
 
     # A SHA from master's history, not the `stable` branch head: that commit
     # sits one ahead of master, so it is GC-able the next time the branch moves.
@@ -38,6 +44,7 @@ runs:
     - name: 🏗️ Setup Rust
       uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
       with:
+        components: ${{ steps.toolchain.outputs.components }}
         targets: ${{ inputs.targets }}
         # rust-cache folds the rustc version into its key, so a moving `stable`
         # invalidated every cache in the repo at 1.97.1 -> 1.98.0, with no

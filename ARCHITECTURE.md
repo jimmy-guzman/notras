@@ -13,8 +13,8 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
 | Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
-| Lint + format   | Ultracite (Biome preset) for dev tooling; TipTap's markdown serializer is the runtime canonical form         |
-| Testing         | Vitest + happy-dom (TS), `cargo test` (Rust)                                                                 |
+| Lint + format   | Ultracite (Biome preset) for JS/TS; rustfmt and Clippy for Rust; TipTap's markdown serializer is the runtime canonical form |
+| Testing         | Vitest + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
 | Package manager | pnpm                                                                                                         |
 
 ## Files are the source of truth

@@ -146,7 +146,10 @@ fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError
         .map_err(|error| {
             if error.kind() == io::ErrorKind::AlreadyExists {
                 let path = Path::new(rel);
-                let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or(rel);
+                let name = path
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or(rel);
                 let folder = path
                     .parent()
                     .and_then(|folder| folder.to_str())
@@ -192,9 +195,7 @@ fn write_temp(temp: &mut NamedTempFile, content: &str) -> io::Result<()> {
 fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
     let folder = path.parent().ok_or("a note outside any folder")?;
 
-    let mut temp = Builder::new()
-        .suffix(".tmp")
-        .tempfile_in(folder)?;
+    let mut temp = Builder::new().suffix(".tmp").tempfile_in(folder)?;
 
     // A temp is private by default, so the note's own mode is carried over
     // rather than narrowed to owner-only by the rename.
@@ -215,9 +216,7 @@ fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
 /// refuses a destination that is absent, and `commit` buys crash safety for
 /// every save in exchange for that window.
 fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
-    fs::OpenOptions::new()
-        .write(true)
-        .open(path)?;
+    fs::OpenOptions::new().write(true).open(path)?;
 
     commit(path, content)
 }
@@ -323,7 +322,10 @@ pub fn rename_note(
     }
     if target.exists() {
         let path = Path::new(&to);
-        let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or(&to);
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(&to);
         let folder = path
             .parent()
             .and_then(|folder| folder.to_str())
@@ -533,8 +535,14 @@ pub struct PendingOpen {
 fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
     match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
-        Some(rel) => PendingOpen { kind: OpenKind::Note, path: rel },
-        None => PendingOpen { kind: OpenKind::External, path },
+        Some(rel) => PendingOpen {
+            kind: OpenKind::Note,
+            path: rel,
+        },
+        None => PendingOpen {
+            kind: OpenKind::External,
+            path,
+        },
     }
 }
 
@@ -678,7 +686,10 @@ mod tests {
 
         let error = create_file(&taken, "taken.md", "clobbered").unwrap_err();
 
-        assert_eq!(error.message, "a note named taken already exists in the notes root");
+        assert_eq!(
+            error.message,
+            "a note named taken already exists in the notes root"
+        );
         assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
     }
 
@@ -703,14 +714,26 @@ mod tests {
     fn classifies_a_vault_file_as_a_note() {
         let open = classify_open(Path::new("/vault"), "/vault/work/a.md".into());
 
-        assert_eq!(open, PendingOpen { kind: OpenKind::Note, path: "work/a.md".into() });
+        assert_eq!(
+            open,
+            PendingOpen {
+                kind: OpenKind::Note,
+                path: "work/a.md".into()
+            }
+        );
     }
 
     #[test]
     fn classifies_a_file_outside_the_vault_as_external() {
         let open = classify_open(Path::new("/vault"), "/elsewhere/a.md".into());
 
-        assert_eq!(open, PendingOpen { kind: OpenKind::External, path: "/elsewhere/a.md".into() });
+        assert_eq!(
+            open,
+            PendingOpen {
+                kind: OpenKind::External,
+                path: "/elsewhere/a.md".into()
+            }
+        );
     }
 
     #[test]
@@ -738,22 +761,43 @@ mod tests {
     fn an_uppercase_extension_inside_the_vault_is_a_note() {
         let open = classify_open(Path::new("/vault"), "/vault/NOTE.MD".into());
 
-        assert_eq!(open, PendingOpen { kind: OpenKind::Note, path: "NOTE.MD".into() });
+        assert_eq!(
+            open,
+            PendingOpen {
+                kind: OpenKind::Note,
+                path: "NOTE.MD".into()
+            }
+        );
     }
     #[test]
     #[cfg(unix)]
     fn classifies_through_a_symlinked_notes_dir() {
         let real = scratch_dir("symlink-real");
         fs::write(real.join("a.md"), "").unwrap();
-        let link = std::env::temp_dir().join(format!("notras-test-symlink-link-{}", std::process::id()));
+        let link =
+            std::env::temp_dir().join(format!("notras-test-symlink-link-{}", std::process::id()));
         let _ = fs::remove_file(&link);
         std::os::unix::fs::symlink(&real, &link).unwrap();
 
-        let through_link = classify_opens(&link, vec![real.join("a.md").to_string_lossy().to_string()]);
-        let through_real = classify_opens(&real, vec![link.join("a.md").to_string_lossy().to_string()]);
+        let through_link =
+            classify_opens(&link, vec![real.join("a.md").to_string_lossy().to_string()]);
+        let through_real =
+            classify_opens(&real, vec![link.join("a.md").to_string_lossy().to_string()]);
 
-        assert_eq!(through_link, vec![PendingOpen { kind: OpenKind::Note, path: "a.md".into() }]);
-        assert_eq!(through_real, vec![PendingOpen { kind: OpenKind::Note, path: "a.md".into() }]);
+        assert_eq!(
+            through_link,
+            vec![PendingOpen {
+                kind: OpenKind::Note,
+                path: "a.md".into()
+            }]
+        );
+        assert_eq!(
+            through_real,
+            vec![PendingOpen {
+                kind: OpenKind::Note,
+                path: "a.md".into()
+            }]
+        );
 
         let _ = fs::remove_file(&link);
         let _ = fs::remove_dir_all(&real);
@@ -774,10 +818,7 @@ mod tests {
 
     #[test]
     fn an_unmapped_syscall_failure_keeps_its_text_without_the_errno() {
-        let error = CommandError::from(io::Error::new(
-            io::ErrorKind::Other,
-            "Too many open files (os error 24)",
-        ));
+        let error = CommandError::from(io::Error::other("Too many open files (os error 24)"));
 
         assert_eq!(error.message, "too many open files");
     }

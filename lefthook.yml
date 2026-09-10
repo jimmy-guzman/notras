@@ -11,3 +11,13 @@ pre-commit:
         - "**/*.css"
       stage_fixed: true
     - run: pnpm knip
+    - name: rust-format
+      glob:
+        - "src-tauri/*.rs"
+        - "src-tauri/**/*.rs"
+        - "rustfmt.toml"
+        - ".rustfmt.toml"
+        - "src-tauri/rustfmt.toml"
+        - "src-tauri/.rustfmt.toml"
+        - "src-tauri/rust-toolchain.toml"
+      run: cd src-tauri && cargo fmt --all -- --check
