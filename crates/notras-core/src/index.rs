@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use std::{fs, io};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::{
@@ -253,11 +253,12 @@ pub fn scan_prose(
 }
 
 pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
-    conn.execute("DELETE FROM note WHERE path = ?1", [rel_path])?;
-    conn.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
-    conn.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
-    conn.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
-    Ok(())
+    let tx = conn.unchecked_transaction()?;
+    tx.execute("DELETE FROM note WHERE path = ?1", [rel_path])?;
+    tx.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
+    tx.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
+    tx.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
+    tx.commit()
 }
 
 /// Empty the derived index so the next scan rebuilds every row.
@@ -321,7 +322,7 @@ fn index_note(
             [rel_path],
             |row| row.get(0),
         )
-        .ok();
+        .optional()?;
     if !force && stored == Some(updated_at) {
         return Ok(false);
     }
@@ -518,16 +519,18 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
         seen.insert(rel);
     }
 
-    let mut stale = Vec::new();
-    {
+    let stale = {
         let mut stmt = conn.prepare("SELECT path FROM note")?;
-        let paths = stmt.query_map([], |row| row.get::<_, String>(0))?;
-        for path in paths.flatten() {
-            if !seen.contains(&path) && !shadowed.iter().any(|dir| path.starts_with(dir)) {
-                stale.push(path);
-            }
-        }
-    }
+        let paths = stmt
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        paths
+            .into_iter()
+            .filter(|path| {
+                !seen.contains(path) && !shadowed.iter().any(|dir| path.starts_with(dir))
+            })
+            .collect::<Vec<_>>()
+    };
     for path in stale {
         remove(conn, &path)?;
         changed.push(path);

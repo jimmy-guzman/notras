@@ -50,6 +50,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
 - A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read attempts a complete rebuild and reports a failure if recovery is incomplete. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
+- Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
 
 ## External changes
