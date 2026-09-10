@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createNotePersistence } from "./note-persistence";
 
 const initial = {
@@ -256,4 +256,107 @@ describe("note persistence", () => {
     expect(writes).toEqual([]);
     expect(observed).toEqual([externalContent]);
   });
+});
+
+it("should reconcile a newer file observed during a save without receiving it twice", async () => {
+  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    onPathChanged: () => undefined,
+    write: () => held.promise,
+  });
+  const release = note.retain();
+  note.edit({ content: "# Errands\n\nlocal edit", mode: "body" });
+  const saving = note.save();
+  await Promise.resolve();
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nexternal edit",
+      updatedAt: new Date(2),
+    },
+    false
+  );
+  expect(note.store.state.content).toContain("local edit");
+  held.resolve({ path: "shopping.md", updatedAt: new Date(1) });
+  await saving;
+  expect(note.store.state.content).toBe("# Errands\n\nexternal edit");
+  expect(note.applyHistory("undo")).toBe(false);
+  await release();
+});
+
+it("should discard a deferred missing observation after the save changes the path", async () => {
+  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  let closed = false;
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    onCleanFileMissing: () => {
+      closed = true;
+    },
+    onPathChanged: () => undefined,
+    write: () => held.promise,
+  });
+  const release = note.retain();
+  const saving = note.changePath({ kind: "retitle", title: "Weekend" });
+  await Promise.resolve();
+  note.receiveFile("shopping.md", undefined, true);
+  held.resolve({ path: "weekend.md", updatedAt: new Date(1) });
+  await saving;
+  expect(note.store.state).toMatchObject({
+    missing: false,
+    path: "weekend.md",
+    status: "saved",
+  });
+  expect(closed).toBe(false);
+  await release();
+});
+
+it("should autosave native source edits and derive the tab state without a React publisher", async () => {
+  vi.useFakeTimers();
+  const writes: unknown[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    onPathChanged: () => undefined,
+    write: (path, content, name) => {
+      writes.push({ content, name, path });
+      return Promise.resolve({ path: "weekend.md", updatedAt: new Date(1) });
+    },
+  });
+  const release = note.retain();
+  const host = document.createElement("div");
+  note.sourceEditor.mount(host);
+  try {
+    note.sourceEditor.commands.setTextSelection({ from: 3, to: 10 });
+    note.sourceEditor.commands.insertContent("Weekend");
+    expect(note.snapshot.state).toMatchObject({
+      status: "dirty",
+      title: "Weekend",
+    });
+    await vi.advanceTimersByTimeAsync(799);
+    expect(writes).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(writes).toEqual([
+      {
+        content: "# Weekend\n\nbody",
+        name: { kind: "heading" },
+        path: "shopping.md",
+      },
+    ]);
+    expect(note.snapshot.state.status).toBe("saved");
+    note.sourceEditor.commands.undo();
+    expect(note.store.state.content).toBe(initial.content);
+    expect(note.snapshot.state).toMatchObject({
+      status: "dirty",
+      title: "Errands",
+    });
+    await note.flush();
+    expect(writes.at(-1)).toEqual({
+      content: initial.content,
+      name: { kind: "filename", value: "shopping.md" },
+      path: "weekend.md",
+    });
+  } finally {
+    await release();
+    vi.useRealTimers();
+  }
 });

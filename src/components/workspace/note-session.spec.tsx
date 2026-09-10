@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { act, createElement } from "react";
+import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,9 +52,13 @@ function mountSession(content?: string) {
   act(() => {
     root.render(
       createElement(
-        QueryClientProvider,
-        { client },
-        createElement(NoteSession, { active: true, tab })
+        StrictMode,
+        null,
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(NoteSession, { active: true, tab })
+        )
       )
     );
   });
@@ -402,4 +406,46 @@ describe("NoteSession", () => {
     expect(getNote).toHaveBeenCalledTimes(2);
     expect(panel()?.textContent).toContain("could not read this note");
   });
+});
+
+it("should retain source spelling and undo through repeated rich and source switches", async () => {
+  const writes: string[] = [];
+  mockIPC((command, args) => {
+    if (command === "save_note") {
+      if (
+        args === undefined ||
+        !("content" in args) ||
+        typeof args.content !== "string"
+      ) {
+        throw new Error("save content missing");
+      }
+      writes.push(args.content);
+      return { path: "a.md", updatedAt: 2, warnings: [] };
+    }
+  });
+  mountSession("*hello*");
+  await editor();
+  act(() => sessionHandles().toggleSource());
+  const source = await editor();
+  act(() => {
+    source.commands.selectAll();
+    source.commands.insertContent("_hello_");
+  });
+  act(() => sessionHandles().toggleSource());
+  await editor();
+  act(() => sessionHandles().toggleSource());
+  const remounted = await editor();
+  expect(remounted.state.doc.textContent).toBe("_hello_");
+  act(() => remounted.commands.undo());
+  expect(remounted.state.doc.textContent).toBe("*hello*");
+  act(() => remounted.commands.redo());
+  await act(async () => {
+    await flushPendingWrites();
+  });
+  expect(writes.at(-1)).toBe("_hello_");
+  for (const root of roots.splice(0)) {
+    act(() => root.unmount());
+  }
+  clearMocks();
+  document.body.innerHTML = "";
 });

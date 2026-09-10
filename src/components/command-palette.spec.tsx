@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createStore } from "@tanstack/react-store";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
@@ -6,7 +7,7 @@ import { CommandPalette } from "@/components/command-palette";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
-import { getTabState, openNote, publishTabSnapshot } from "@/lib/tabs/store";
+import { getTabState, openNote, registerTabSnapshot } from "@/lib/tabs/store";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -291,15 +292,18 @@ describe("command palette keyboard", () => {
     onTestFinished,
   }) => {
     openNote("projects/atlas.md");
-    publishTabSnapshot(getTabState().activeId, {
-      pinned: true,
-      reason: undefined,
-      sourceMode: false,
-      status: "dirty",
-      tags: ["work"],
-      title: "Atlas",
-      words: 1,
-    });
+    registerTabSnapshot(
+      getTabState().activeId,
+      createStore(() => ({
+        pinned: true,
+        reason: undefined,
+        sourceMode: false,
+        status: "dirty",
+        tags: ["work"],
+        title: "Atlas",
+        words: 1,
+      }))
+    );
     const palette = await mount("actions", [
       {
         createdAt: new Date(0),

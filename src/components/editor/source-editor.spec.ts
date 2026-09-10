@@ -2,6 +2,7 @@ import { Editor as TiptapEditor } from "@tiptap/core";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createNoteDocument } from "@/components/editor/note-document";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 
@@ -27,13 +28,13 @@ const mountBeside = async (focusOnMount: boolean) => {
   button.focus();
 
   const root = createRoot(host);
+  const note = createNoteDocument("---\npinned: true\n---\n# a title", "a.md");
 
   await act(async () => {
     root.render(
       createElement(SourceEditor, {
+        editor: note.editor,
         focusOnMount,
-        initialValue: "---\npinned: true\n---\n# a title",
-        onChange: () => undefined,
       })
     );
     await Promise.resolve();
@@ -43,6 +44,7 @@ const mountBeside = async (focusOnMount: boolean) => {
     act(() => {
       root.unmount();
     });
+    note.destroy();
     button.remove();
     host.remove();
   };
@@ -56,19 +58,20 @@ describe("source editor focus", () => {
     document.body.append(host);
     const root = createRoot(host);
     const source = "---\ntitle: old\n---\n# old\nbody";
+    const note = createNoteDocument(source, "old.md");
     const handles: SourceEditorHandle[] = [];
     await act(() => {
       root.render(
         createElement(SourceEditor, {
+          editor: note.editor,
           initialCursor: source.length,
-          initialValue: source,
-          onChange: () => undefined,
           onReady: (ready) => handles.push(ready),
         })
       );
     });
     teardown = () => {
       act(() => root.unmount());
+      note.destroy();
       host.remove();
     };
     await act(async () => {
@@ -89,8 +92,14 @@ describe("source editor focus", () => {
       handle.insertText(" plus typing");
     });
     act(() => {
-      handle.replaceContent(
-        "---\ntitle: longer title\n---\n# longer title\nbody plus typing"
+      editor.view.dispatch(
+        editor.state.tr
+          .insertText(
+            "---\ntitle: longer title\n---\n# longer title\n",
+            1,
+            source.indexOf("body") + 1
+          )
+          .setMeta("addToHistory", false)
       );
     });
     const expected =
@@ -128,17 +137,20 @@ it("should retain source text and caret while highlighting and inserting text", 
   let handle: SourceEditorHandle | undefined;
   const source =
     "---\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```";
+  const note = createNoteDocument(source, "a.md", () =>
+    changes.push(note.content())
+  );
   onTestFinished(() => {
     act(() => root.unmount());
+    note.destroy();
     container.remove();
   });
 
   await act(() => {
     root.render(
       createElement(SourceEditor, {
+        editor: note.editor,
         initialCursor: 4,
-        initialValue: source,
-        onChange: (text) => changes.push(text),
         onReady: (ready) => {
           handle = ready;
         },
@@ -164,4 +176,44 @@ it("should retain source text and caret while highlighting and inserting text", 
     "---\n# a comment\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```",
   ]);
   expect(handle.getCursorOffset()).toBe(16);
+});
+
+it("should release find navigation when its view detaches and search again after remount", async () => {
+  const note = createNoteDocument("needle needle", "a.md");
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const handles: SourceEditorHandle[] = [];
+  await act(() =>
+    root.render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        onReady: (handle) => handles.push(handle),
+      })
+    )
+  );
+  const [first] = handles;
+  if (first === undefined) {
+    throw new Error("source did not mount");
+  }
+  act(() => first.find.setQuery("needle"));
+  expect(first.find.snapshot().total).toBe(2);
+  act(() => root.render(null));
+  expect(first.find.alive()).toBe(false);
+  expect(() => first.find.navigate(1)).not.toThrow();
+  await act(() =>
+    root.render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        onReady: (handle) => handles.push(handle),
+      })
+    )
+  );
+  const second = handles.at(-1);
+  expect(second?.find.alive()).toBe(true);
+  act(() => second?.find.setQuery("needle"));
+  expect(second?.find.snapshot().total).toBe(2);
+  act(() => root.unmount());
+  note.destroy();
+  host.remove();
 });

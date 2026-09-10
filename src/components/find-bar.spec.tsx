@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CaptureWindow } from "@/components/capture-window";
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "@/components/editor/find";
+import { createNoteDocument } from "@/components/editor/note-document";
 import {
   SourceEditor,
   type SourceEditorHandle,
@@ -98,15 +99,18 @@ describe("find controls", () => {
     const handles: SourceEditorHandle[] = [];
     const changes: string[] = [];
     const source = "---\ntitle: Atlas\n---\n# Atlas\n\n`Atlas`";
+    const note = createNoteDocument(source, "atlas.md", () =>
+      changes.push(note.content())
+    );
     onTestFinished(() => {
       act(() => root.unmount());
+      note.destroy();
       host.remove();
     });
     await act(async () => {
       root.render(
         createElement(SourceEditor, {
-          initialValue: source,
-          onChange: (value) => changes.push(value),
+          editor: note.editor,
           onReady: (ready) => handles.push(ready),
         })
       );

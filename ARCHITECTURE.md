@@ -187,7 +187,7 @@ TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option
 
 ### The session owns the document
 
-`note-document.ts` owns the complete Markdown document and ProseMirror history. Rich and source editors project that document and delegate undo and redo to it. Rename and metadata actions enter the same history. A filename history entry identifies the result of its action, including a native collision suffix; a new heading edit creates a fresh naming request. Editor callbacks are fixed at mount and read current session values through stable functions.
+`note-document.ts` owns a Tiptap source editor whose single code block holds the complete Markdown document and ProseMirror history. The source view mounts onto that editor. Detaching it retains the document and history while removing view plugins, so rich edits do not run source highlighting. Rich mode projects the body and delegates edits, selections, undo, and redo to the same document. Rename and metadata actions enter the same history. A filename history entry identifies the result of its action, including a native collision suffix; a new heading edit creates a fresh naming request. Editor callbacks are fixed at mount and read current session values through stable functions.
 
 Both editor handles expose a `FindHandle` backed by the shared Tiptap `Find` extension. The extension maps text-block character offsets to ProseMirror positions, including atomic wikilink titles, and decorates matches without document changes or undo entries. A selection bookmark tracks the prior caret through edits.
 
@@ -213,13 +213,13 @@ The rich editor projects the body; source mode projects the complete Markdown. B
 
 ### Editing session per tab
 
-The workspace renders one `NoteSession` per open tab, keyed by an opaque tab id that survives renaming. Each session owns its document, history, committed path, and ordered persistence queue. React subscribes to presentation state. `useAutosave` supplies the 800ms timer and blur, unmount, and quit flushes. `pending-flush.ts` retains a closing session until its final flush settles. External files use the same document and save flow without indexing. A clean external update patches the mounted editor and resets document history without issuing a save. A failed final flush cancels quit.
+The workspace renders one `NoteSession` per open tab, keyed by an opaque tab id that survives renaming. Each session owns its document, history, committed path, and ordered persistence queue. `note-persistence.ts` owns the 800ms debounce, file-read reconciliation, and derived presentation state. `useAutosave` subscribes and connects blur, unmount, and quit flushes. Tab chrome subscribes directly to the session's derived store through a registered reference; no React effect copies document snapshots into the tab store. `pending-flush.ts` retains a closing session until its final flush settles, then the session destroys its source editor. External files use the same document and save flow without indexing. A clean external update patches the mounted editor and resets document history without issuing a save. A failed final flush cancels quit.
 
 An update restart is the exception. It reaches `ExitRequested` carrying `RESTART_EXIT_CODE`, which Tauri refuses to prevent, so `lib.rs` returns before the handshake rather than opening one it cannot honour. `installUpdate` in `src/lib/updater.ts` awaits `flushPendingWrites` itself between `downloadAndInstall` and `relaunch`. A failed flush leaves the app running the old version rather than restarting, and the bundle already downloaded applies the next time someone launches it.
 
 ### External-change reload guard
 
-The controller accepts reads only for its committed path and after pending writes and folder moves settle. A re-read replaces the document only when it is clean and the file's mtime is newer than its acknowledged timestamp. Stale reads cannot replace newer local content.
+The controller accepts reads only for its committed path. It retains the latest observation while writes or folder moves are pending, then reconciles it when those operations settle. An observation for a former path is discarded. A re-read replaces the document only when it is clean and the file's mtime is newer than its acknowledged timestamp. Stale reads cannot replace newer local content.
 
 ### Adding a Rust command
 
@@ -247,7 +247,7 @@ One component serves two doors. `find` and `actions` are the two root members of
 
 ### Preferences
 
-Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the generated `get_notes_dir` and `set_notes_dir` commands behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
+Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and references to the sessions' derived presentation stores in another. Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the generated `get_notes_dir` and `set_notes_dir` commands behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
 
 ### Snippet rendering
 

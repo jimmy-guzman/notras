@@ -29,9 +29,8 @@ import {
 } from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
-import { composeNote, parseNote } from "@/core/frontmatter";
+import { parseNote } from "@/core/frontmatter";
 import { linkResolver } from "@/core/links";
-import { resolveTitle } from "@/core/notes";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import type { SessionFile } from "@/data/queries";
@@ -42,8 +41,8 @@ import {
   clearRestoredCaret,
   closeTab,
   openNote,
-  publishTabSnapshot,
   registerTabHandles,
+  registerTabSnapshot,
   renameTab,
   restoredCaret,
 } from "@/lib/tabs/store";
@@ -53,7 +52,6 @@ import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { useGraphMode } from "@/lib/ui/graph";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
-import { countWords } from "@/lib/utils/word-count";
 
 interface SessionBufferProps {
   active: boolean;
@@ -94,17 +92,14 @@ function SessionBuffer({
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
-  const sourceModeRef = useRef(false);
   const [persistence] = useState(() =>
     createNotePersistence(
       { ...file, kind: tab.kind, path: tab.path },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
+        onCleanFileMissing: () => closeTab(id),
         onDocumentChanged: (content, selection) => {
-          // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
-          if (sourceModeRef.current) {
-            sourceRef.current?.replaceContent(content, selection);
-          } else {
+          if (!persistence.store.state.sourceMode) {
             const currentBody = parseNote(content).body;
             const prefix = content.length - currentBody.length;
             editorRef.current?.replaceContent(
@@ -127,23 +122,15 @@ function SessionBuffer({
     )
   );
   const autosave = useAutosave(persistence);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: replay deferred observations when a write or path operation finishes
   useLayoutEffect(() => {
     persistence.receiveFile(tab.path, readFile, readMissing);
-  }, [
-    autosave.path,
-    autosave.pendingPaths,
-    autosave.status,
-    autosave.writing,
-    persistence,
-    readFile,
-    readMissing,
-    tab.path,
-  ]);
-  const { body, raw: frontmatterBlock } = parseNote(autosave.content);
-  const words = countWords(autosave.content);
-  const { missing } = autosave;
-  const [sourceMode, setSourceMode] = useState(false);
+  }, [persistence, readFile, readMissing, tab.path]);
+  useLayoutEffect(
+    () => registerTabSnapshot(id, persistence.snapshot),
+    [id, persistence]
+  );
+  const { body } = parseNote(autosave.content);
+  const { missing, sourceMode } = autosave;
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source mode,
@@ -183,18 +170,6 @@ function SessionBuffer({
       resolveLinks,
     };
   });
-  // `D32`'s chain, resolved off the live buffer rather than the last read, so
-  // the tab label follows a heading as it is typed. An external file has no
-  // frontmatter contract, so it is named by its file.
-  const title =
-    tab.kind === "external"
-      ? (tab.path.split("/").at(-1) ?? tab.path)
-      : resolveTitle(
-          tab.path,
-          body,
-          parseNote(composeNote(frontmatterBlock, "")).frontmatter.title
-        );
-
   // Live values behind stable getters, so the mount-frozen editor callbacks
   // never go stale.
   const getTitles = useCallback(
@@ -271,13 +246,6 @@ function SessionBuffer({
     [onChange, persistence]
   );
 
-  const handleSourceChange = useCallback(
-    (content: string, edit: DocumentEdit) => {
-      onChange({ content, mode: "document" }, edit);
-    },
-    [onChange]
-  );
-
   const selectBody = useCallback(
     (anchor: number, head: number) => {
       const raw = persistence.store.state.content;
@@ -302,8 +270,7 @@ function SessionBuffer({
   // Body-relative, so source mode has to shed the frontmatter prefix the way
   // `toggleSource` does.
   const getCaret = useCallback(() => {
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
-    if (!sourceModeRef.current) {
+    if (!persistence.store.state.sourceMode) {
       return editorRef.current?.getCaretSourceOffset() ?? -1;
     }
 
@@ -322,32 +289,32 @@ function SessionBuffer({
     );
   }, [persistence]);
 
-  const insertText = useCallback((text: string) => {
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
-    const target = sourceModeRef.current
-      ? sourceRef.current
-      : editorRef.current;
+  const insertText = useCallback(
+    (text: string) => {
+      const target = persistence.store.state.sourceMode
+        ? sourceRef.current
+        : editorRef.current;
 
-    if (target === null) {
-      toast.add({ title: "no editor to insert into", type: "error" });
+      if (target === null) {
+        toast.add({ title: "no editor to insert into", type: "error" });
 
-      return;
-    }
+        return;
+      }
 
-    target.insertText(text);
-  }, []);
+      target.insertText(text);
+    },
+    [persistence]
+  );
 
   // The caret rides through the markdown converters as a sentinel, so the
   // mapping between the two surfaces is exact (see sentinel.ts). The mode
-  // comes off a ref, since the snapshot the chrome calls this through has to
-  // stay stable.
+  // is read from the session because tab handles outlive individual renders.
   const toggleSource = useCallback(() => {
     const raw = persistence.store.state.content;
     const currentBody = parseNote(raw).body;
     const prefixLength = raw.length - currentBody.length;
-    const wasSource = sourceModeRef.current;
+    const wasSource = persistence.store.state.sourceMode;
 
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
     if (wasSource) {
       const offset = sourceRef.current?.getCursorOffset() ?? 0;
       const bodyOffset = Math.max(
@@ -362,8 +329,7 @@ function SessionBuffer({
       setSourceCursor(offset === -1 ? raw.length : prefixLength + offset);
     }
 
-    sourceModeRef.current = !wasSource;
-    setSourceMode(!wasSource);
+    persistence.setSourceMode(!wasSource);
   }, [persistence]);
 
   const { changePath } = autosave;
@@ -386,43 +352,6 @@ function SessionBuffer({
     toggleSource,
   ]);
 
-  // The chrome renders once above every session, so what it draws travels up
-  // through the store rather than down through props.
-  useEffect(() => {
-    const { frontmatter } = parseNote(autosave.content);
-    publishTabSnapshot(id, {
-      pinned: frontmatter.pinned,
-      reason: autosave.reason,
-      sourceMode,
-      status: autosave.status,
-      tags: frontmatter.tags,
-      title,
-      words,
-    });
-  }, [
-    autosave.reason,
-    autosave.status,
-    autosave.content,
-    id,
-    sourceMode,
-    title,
-    words,
-  ]);
-
-  // A file that has gone takes its tab with it when the buffer holds nothing
-  // worth keeping. Writing stops through `enabled` above, so the text can be
-  // copied out without the save recreating the file.
-  //
-  // Decided once, against the status at the moment the file went. Re-deciding
-  // on every status change closed the tab when a write already in flight
-  // resolved and reported `saved`, throwing away the buffer this exists to
-  // keep.
-  useEffect(() => {
-    if (missing && persistence.store.state.status === "saved") {
-      closeTab(id);
-    }
-  }, [missing, id, persistence]);
-
   // A tab mounted in the background never took focus, so it takes it on the
   // way in. ⌘P decides which surface owns the caret; the other one's handle
   // belongs to an editor that has already been destroyed.
@@ -431,13 +360,12 @@ function SessionBuffer({
       return;
     }
 
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
-    if (sourceModeRef.current) {
+    if (persistence.store.state.sourceMode) {
       sourceRef.current?.focus();
     } else {
       editorRef.current?.focus();
     }
-  }, [active, graphMode]);
+  }, [active, graphMode, persistence]);
 
   return (
     <div
@@ -464,13 +392,10 @@ function SessionBuffer({
       ) : null}
       {sourceMode ? (
         <SourceEditor
+          editor={persistence.sourceEditor}
           focusOnMount={focusOnMount}
           initialCursor={sourceCursor}
-          initialValue={composeNote(frontmatterBlock, body)}
-          onChange={handleSourceChange}
-          onHistory={onHistory}
           onReady={attachSourceEditor}
-          onSelect={persistence.select}
         />
       ) : (
         <Editor

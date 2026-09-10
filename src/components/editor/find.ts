@@ -144,11 +144,12 @@ function revealMatch(editor: Editor) {
 }
 
 export function createFindHandle(editor: Editor): FindHandle {
-  let destroyed = editor.isDestroyed;
+  const { view } = editor;
+  let destroyed = view.isDestroyed;
   return {
-    alive: () => !(destroyed || editor.isDestroyed),
+    alive: () => !(destroyed || view.isDestroyed),
     navigate: (direction) => {
-      if (editor.isDestroyed) {
+      if (view.isDestroyed) {
         return;
       }
       const state = findKey.getState(editor.state);
@@ -170,7 +171,7 @@ export function createFindHandle(editor: Editor): FindHandle {
       revealMatch(editor);
     },
     restoreFocus: () => {
-      if (editor.isDestroyed) {
+      if (view.isDestroyed) {
         return;
       }
       const state = findKey.getState(editor.state);
@@ -189,14 +190,14 @@ export function createFindHandle(editor: Editor): FindHandle {
       revealMatch(editor);
     },
     selectionText: () => {
-      if (editor.isDestroyed) {
+      if (view.isDestroyed) {
         return "";
       }
       const { from, to } = editor.state.selection;
       return editor.state.doc.textBetween(from, to, "\n", textOf);
     },
     setQuery: (query) => {
-      if (editor.isDestroyed) {
+      if (view.isDestroyed) {
         return;
       }
       const state = findKey.getState(editor.state);
@@ -223,7 +224,7 @@ export function createFindHandle(editor: Editor): FindHandle {
       revealMatch(editor);
     },
     snapshot: () => {
-      const state = editor.isDestroyed
+      const state = view.isDestroyed
         ? undefined
         : findKey.getState(editor.state);
       return {
@@ -242,9 +243,11 @@ export function createFindHandle(editor: Editor): FindHandle {
         listener();
       };
       editor.on("destroy", onDestroy);
+      editor.on("unmount", onDestroy);
       return () => {
         editor.off("transaction", listener);
         editor.off("destroy", onDestroy);
+        editor.off("unmount", onDestroy);
       };
     },
   };
