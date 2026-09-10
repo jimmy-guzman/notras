@@ -6,7 +6,7 @@ use std::time::UNIX_EPOCH;
 use serde::{Deserialize, Serialize};
 use tempfile::{Builder, NamedTempFile};
 
-use crate::{frontmatter, index, markdown, Library};
+use crate::{frontmatter, index, markdown, note_file::OpenedNote, Library};
 
 /// Why a command failed. A webview tab has to tell a file that is gone from a
 /// read it should retry or report, and a message string cannot carry that.
@@ -328,9 +328,11 @@ fn note_path(folder: &str, filename: &str) -> String {
 }
 
 fn checked_mtime(file: &fs::File) -> Result<i64, CommandError> {
-    let time = file
-        .metadata()?
-        .modified()?
+    timestamp_millis(file.metadata()?.modified())
+}
+
+fn timestamp_millis(time: io::Result<std::time::SystemTime>) -> Result<i64, CommandError> {
+    let time = time?
         .duration_since(UNIX_EPOCH)
         .map_err(|_| "the file timestamp precedes the epoch")?;
     i64::try_from(time.as_millis()).map_err(|_| "the file timestamp is too large".into())
@@ -578,8 +580,9 @@ impl Library {
 
     pub fn read_note(&self, path: String) -> Result<SavedNote, CommandError> {
         let abs = resolve(self, &path)?;
-        let file = fs::File::open(&abs)?;
-        let content = fs::read_to_string(&abs)?;
+        let file = OpenedNote::open(&abs)?;
+        let metadata = file.metadata()?;
+        let content = file.read()?;
         let parsed = frontmatter::parse(&content);
         let title = markdown::resolve_title(&parsed, &path);
         Ok(SavedNote {
@@ -588,7 +591,7 @@ impl Library {
             title,
             path,
             content,
-            updated_at: checked_mtime(&file)?,
+            updated_at: timestamp_millis(metadata.modified())?,
         })
     }
 
@@ -1327,5 +1330,154 @@ mod tests {
         let error = CommandError::from(io::Error::other("Too many open files (os error 24)"));
 
         assert_eq!(error.message, "too many open files");
+    }
+
+    #[test]
+    fn should_reject_noncanonical_library_paths() {
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        fs::create_dir(directory.path().join("folder")).unwrap();
+        fs::write(directory.path().join("folder/note.md"), "# note").unwrap();
+        #[cfg(unix)]
+        fs::write(directory.path().join(r"folder\note.md"), "# note").unwrap();
+
+        for path in [
+            "folder/./note.md",
+            "folder//note.md",
+            r"folder\note.md",
+            "folder/note.md/",
+        ] {
+            assert!(library.read_note(path.into()).is_err(), "accepted {path}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_reading_a_symlinked_note() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "# outside").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("note.md"),
+            directory.path().join("note.md"),
+        )
+        .unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+
+        assert!(library.read_note("note.md".into()).is_err());
+        assert_eq!(
+            read_external(
+                outside
+                    .path()
+                    .join("note.md")
+                    .to_string_lossy()
+                    .into_owned()
+            )
+            .unwrap()
+            .content,
+            "# outside"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_saving_through_a_symlinked_parent() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "# outside").unwrap();
+        std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+
+        assert!(library
+            .save_note("linked/note.md".into(), "# changed".into(), None)
+            .is_err());
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "# outside"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_deleting_a_symlinked_note() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "# outside").unwrap();
+        let link = directory.path().join("note.md");
+        std::os::unix::fs::symlink(outside.path().join("note.md"), &link).unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+
+        assert!(library.delete_note("note.md".into()).is_err());
+        assert!(fs::symlink_metadata(link).unwrap().is_symlink());
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "# outside"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_creating_or_moving_into_a_symlinked_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        fs::write(directory.path().join("note.md"), "# source").unwrap();
+
+        assert!(library
+            .create_note(CreateNote {
+                folder: Some("linked".into()),
+                ..Default::default()
+            })
+            .is_err());
+        assert!(library
+            .move_note("note.md".into(), "linked".into())
+            .is_err());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# source"
+        );
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_writing_attachments_through_a_symlinked_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("source.txt"), "attachment").unwrap();
+        std::os::unix::fs::symlink(outside.path(), directory.path().join("attachments")).unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+
+        assert!(library
+            .attach_file(
+                outside
+                    .path()
+                    .join("source.txt")
+                    .to_string_lossy()
+                    .into_owned()
+            )
+            .is_err());
+        assert!(library.attach_image("aW1hZ2U=".into()).is_err());
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn should_return_slash_separated_paths_after_saving_in_a_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        fs::create_dir(directory.path().join("folder")).unwrap();
+        fs::write(directory.path().join("folder/note.md"), "# before").unwrap();
+
+        let receipt = library
+            .save_note(
+                "folder/note.md".into(),
+                "# after".into(),
+                Some(SaveName::Heading),
+            )
+            .unwrap();
+
+        assert_eq!(receipt.path, "folder/after.md");
+        assert_eq!(receipt.warnings.len(), 0);
     }
 }

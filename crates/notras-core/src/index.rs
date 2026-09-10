@@ -1229,4 +1229,67 @@ mod tests {
             vec![vec![json!(2)]]
         );
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_remove_index_rows_for_a_note_beneath_a_symlinked_parent() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let folder = directory.path().join("folder");
+        fs::create_dir(&folder).unwrap();
+        fs::write(folder.join("note.md"), "# note").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        index_file(&conn, directory.path(), "folder/note.md").unwrap();
+        fs::rename(&folder, outside.path().join("folder")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("folder"), &folder).unwrap();
+
+        index_file(&conn, directory.path(), "folder/note.md").unwrap();
+
+        assert_eq!(
+            select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
+            vec![vec![json!(0)]]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_skip_prose_candidates_beneath_a_symlinked_parent() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "a phrase in prose").unwrap();
+        std::os::unix::fs::symlink(outside.path(), directory.path().join("folder")).unwrap();
+
+        assert!(scan_prose(
+            directory.path(),
+            vec!["folder/note.md".into()],
+            "phrase",
+            true
+        )
+        .unwrap()
+        .is_empty());
+    }
+
+    #[test]
+    fn should_reject_an_invalid_modification_time_without_indexing_zero() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "# note").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_times(
+                fs::FileTimes::new().set_modified(UNIX_EPOCH - std::time::Duration::from_secs(1)),
+            )
+            .unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+
+        assert!(index_file(&conn, directory.path(), "note.md").is_err());
+        assert_eq!(
+            select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
+            vec![vec![json!(0)]]
+        );
+    }
 }

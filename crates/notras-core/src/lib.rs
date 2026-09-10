@@ -8,6 +8,7 @@ mod application;
 mod frontmatter;
 mod index;
 mod markdown;
+mod note_file;
 mod queries;
 mod relationships;
 
@@ -201,5 +202,38 @@ mod tests {
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, "readable");
         assert_eq!(library.reconcile_paths([unreadable.as_path()]), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reconcile_canonical_paths_when_the_selected_root_is_a_symlink() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("root");
+        let link = directory.path().join("selected");
+        fs::create_dir(&root).unwrap();
+        std::os::unix::fs::symlink(&root, &link).unwrap();
+        let library = Library::open(link).unwrap();
+        let note = root.canonicalize().unwrap().join("note.md");
+        fs::write(&note, "# note").unwrap();
+
+        assert_eq!(
+            library.reconcile_paths([note.as_path()]),
+            Some(vec!["note.md".into()])
+        );
+        assert_eq!(
+            library.read_note("note.md".into()).unwrap().content,
+            "# note"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_a_symlinked_index_directory_before_creating_a_database() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), directory.path().join(".notras")).unwrap();
+
+        assert!(Library::open(directory.path().to_owned()).is_err());
+        assert!(!outside.path().join("index.db").exists());
     }
 }
