@@ -16,5 +16,6 @@ export default defineConfig({
     },
     environment: "happy-dom",
     exclude: [...configDefaults.exclude, "src-tauri/**"],
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

@@ -14,7 +14,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
 | Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
 | Lint + format   | Ultracite (Biome preset) for JS/TS; rustfmt and Clippy for Rust; TipTap's markdown serializer is the runtime canonical form |
-| Testing         | Vitest + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
+| Testing         | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
 | Package manager | pnpm                                                                                                         |
 
 ## Files are the source of truth
@@ -174,6 +174,8 @@ The UI calls plain async functions in `src/data/`, one concern per file. Queries
 Reads reach those functions through TanStack Query. `src/data/queries.ts` owns note query keys. Open-note actions use the loaded session. The palette, pin control, and tag controls read its live snapshot. One persistence queue saves complete documents and orders folder moves; query results cannot acknowledge an edit.
 
 ### Test seam
+
+React tests run through Testing Library in happy-dom. `vitest.setup.ts` registers DOM matchers, the React act environment, and cleanup without enabling Vitest globals. Editor history and persistence tests use the real Tiptap engine. The happy-dom environment does not establish native IME behavior, layout, or selection feel.
 
 Query tests use real SQLite and temporary note directories. Recorded fixtures preserve the former TypeScript graph, mention and filter behavior. Shared resolver fixtures run in Rust and TypeScript, including malformed percent encodings and duplicate titles. React tests fake the IPC boundary while using the real query adapters and cache.
 

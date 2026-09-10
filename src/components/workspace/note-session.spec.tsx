@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { act, createElement, StrictMode } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createElement, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FileError } from "@/core/errors";
@@ -14,18 +15,10 @@ import { tabPanelId } from "@/lib/tabs/tab";
 
 import { NoteSession } from "./note-session";
 
-// The furthest boundary a component test can reach: below this sit the Effect
-// runtime and a Tauri command, neither of which exists here.
 vi.mock("@/data/get-note", () => ({ getNote: vi.fn() }));
-
-// `act` refuses to run without this, and no setup file exists to set it.
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const tab = { id: "t1", kind: "note", path: "a.md" } as const;
 
-const roots: Root[] = [];
-
-/** Mount one session in a real root, the way `use-note-tags.spec.ts` does. */
 function mountSession(content?: string) {
   const client = new QueryClient({
     defaultOptions: {
@@ -42,42 +35,23 @@ function mountSession(content?: string) {
     client.setQueryData(noteQueries.list().queryKey, []);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
   }
-  const container = document.createElement("div");
 
-  document.body.append(container);
-
-  const root = createRoot(container);
-
-  roots.push(root);
-  act(() => {
-    root.render(
+  render(
+    createElement(
+      StrictMode,
+      null,
       createElement(
-        StrictMode,
-        null,
-        createElement(
-          QueryClientProvider,
-          { client },
-          createElement(NoteSession, { active: true, tab })
-        )
+        QueryClientProvider,
+        { client },
+        createElement(NoteSession, { active: true, tab })
       )
-    );
-  });
+    )
+  );
   return client;
 }
 
-/**
- * Let the read reject and React commit what follows. Bounded polling rather
- * than one tick, since under a loaded suite the rejection can take several.
- */
 async function settle() {
-  for (let tick = 0; tick < 40 && panel() === null; tick += 1) {
-    // biome-ignore lint/performance/noAwaitInLoops: a poll has to let one tick finish before it looks at the DOM again
-    await act(async () => {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 5);
-      });
-    });
-  }
+  await waitFor(() => expect(panel()).toBeInTheDocument());
 }
 
 function panel() {
@@ -85,11 +59,11 @@ function panel() {
 }
 
 async function editor(id: string = tab.id) {
-  await act(async () => {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
-  });
+  await waitFor(() =>
+    expect(
+      document.getElementById(tabPanelId(id))?.querySelector(".ProseMirror")
+    ).toBeInTheDocument()
+  );
   const surface = document
     .getElementById(tabPanelId(id))
     ?.querySelector(".ProseMirror");
@@ -124,16 +98,11 @@ describe("NoteSession", () => {
   });
 
   afterEach(() => {
-    for (const root of roots.splice(0)) {
-      act(() => {
-        root.unmount();
-      });
-    }
+    cleanup();
     for (const entry of getTabState().tabs) {
       closeTab(entry.id);
     }
     clearMocks();
-    document.body.innerHTML = "";
   });
 
   it.each([false, true])(
@@ -395,15 +364,11 @@ describe("NoteSession", () => {
     mountSession();
     await settle();
 
-    await act(async () => {
-      panel()?.querySelector("button")?.click();
-      await new Promise((resolve) => {
-        setTimeout(resolve, 0);
-      });
-    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "try again" }));
     await settle();
 
-    expect(getNote).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(getNote).toHaveBeenCalledTimes(2));
     expect(panel()?.textContent).toContain("could not read this note");
   });
 });
@@ -443,9 +408,6 @@ it("should retain source spelling and undo through repeated rich and source swit
     await flushPendingWrites();
   });
   expect(writes.at(-1)).toBe("_hello_");
-  for (const root of roots.splice(0)) {
-    act(() => root.unmount());
-  }
+  cleanup();
   clearMocks();
-  document.body.innerHTML = "";
 });

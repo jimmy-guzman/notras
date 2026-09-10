@@ -1,119 +1,28 @@
+import { act, render, renderHook, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
-  act,
   createElement,
-  StrictMode,
+  Fragment,
+  type PropsWithChildren,
   Suspense,
   startTransition,
 } from "react";
-import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
-
 import { chordGlyph, useChordsByName } from "./shortcuts";
-
-// `act` refuses to run without this, and no setup file exists to set it.
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const NOOP = () => undefined;
 
-let teardown: (() => void) | null = null;
-
-afterEach(() => {
-  teardown?.();
-  teardown = null;
-});
-
-/**
- * Registers a named pair and a nameless binding, then reads the lookup back
- * from a child, as the palette reads bindings registered by the routes.
- */
-const mountLookup = async () => {
-  // A plain `let` assigned only inside the child narrows to `never` at the
-  // read below, since the compiler cannot see the closure write.
-  const captured: { value: ReturnType<typeof useChordsByName> | null } = {
-    value: null,
-  };
-
-  function Reader() {
-    captured.value = useChordsByName();
-
-    return null;
-  }
-
-  function Fixture() {
-    useHotkeys(
-      [
-        { callback: NOOP, hotkey: "Mod+N" },
-        { callback: NOOP, hotkey: "Mod+T" },
-      ],
-      { meta: { name: "new note" } }
-    );
-    useHotkey("Mod+W", NOOP);
-
-    return createElement(Reader);
-  }
-
-  const host = document.createElement("div");
-
-  document.body.append(host);
-
-  const root = createRoot(host);
-
-  await act(async () => {
-    root.render(createElement(Fixture));
-    await Promise.resolve();
-  });
-
-  teardown = () => {
-    act(() => {
-      root.unmount();
-    });
-    host.remove();
-  };
-
-  const { value } = captured;
-
-  if (value === null) {
-    throw new Error("the lookup never rendered");
-  }
-
-  return value;
-};
-
-describe("chord glyph", () => {
-  it("should separate the segments the platform needs a separator for", () => {
-    // happy-dom does not report macOS, so this is the word-label branch, where
-    // dropping the separator would read `ctrlshiftk`.
-    expect(chordGlyph("Mod+Shift+K")).toBe("ctrl+shift+k");
-  });
-
-  it("should print a single key with no separator", () => {
-    expect(chordGlyph("Escape")).toBe("esc");
-  });
-});
-
-describe("chords by name", () => {
-  it("should collect every chord registered under one name", async () => {
-    const chords = await mountLookup();
-
-    expect(chords.get("new note")?.map(({ hotkey }) => hotkey)).toStrictEqual([
-      "Mod+N",
-      "Mod+T",
-    ]);
-  });
-
-  it("should leave a name nothing registered absent", async () => {
-    const chords = await mountLookup();
-
-    expect(chords.get("close tab")).toBeUndefined();
-  });
-});
-
-function pressShortcut(key: string) {
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", { bubbles: true, ctrlKey: true, key })
+function RegisteredBindings({ children }: PropsWithChildren) {
+  useHotkeys(
+    [
+      { callback: NOOP, hotkey: "Mod+N" },
+      { callback: NOOP, hotkey: "Mod+T" },
+    ],
+    { meta: { name: "new note" } }
   );
-  document.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key }));
+  useHotkey("Mod+W", NOOP);
+  return children;
 }
 
 interface BindingProps {
@@ -148,95 +57,84 @@ function ChordReader() {
   );
 }
 
+describe("chord glyph", () => {
+  it("should separate the segments the platform needs a separator for", () => {
+    // happy-dom does not report macOS, so this exercises the word-label branch.
+    expect(chordGlyph("Mod+Shift+K")).toBe("ctrl+shift+k");
+  });
+  it("should print a single key with no separator", () => {
+    expect(chordGlyph("Escape")).toBe("esc");
+  });
+});
+
+describe("chords by name", () => {
+  it("should collect every chord registered under one name", () => {
+    const { result } = renderHook(() => useChordsByName(), {
+      wrapper: RegisteredBindings,
+    });
+    expect(
+      result.current.get("new note")?.map(({ hotkey }) => hotkey)
+    ).toStrictEqual(["Mod+N", "Mod+T"]);
+  });
+  it("should leave a name nothing registered absent", () => {
+    const { result } = renderHook(() => useChordsByName(), {
+      wrapper: RegisteredBindings,
+    });
+    expect(result.current.get("close tab")).toBeUndefined();
+  });
+});
+
 describe("shortcut registration lifecycle", () => {
   it("should update live chord labels and callbacks without updating another component during render", async ({
     onTestFinished,
   }) => {
+    const user = userEvent.setup();
     const warnings = vi.spyOn(console, "error").mockImplementation(NOOP);
     onTestFinished(() => warnings.mockRestore());
-    const host = document.createElement("div");
-    document.body.append(host);
-    const root = createRoot(host);
-    onTestFinished(() => {
-      act(() => root.unmount());
-      host.remove();
-    });
     const calls: string[] = [];
-    const run = (name: string) => {
-      calls.push(name);
-    };
-    const render = async (name: string, enabled: boolean) => {
-      await act(async () => {
-        root.render(
-          createElement(
-            StrictMode,
-            null,
-            createElement(LiveBindings, { enabled, name, onRun: run }),
-            createElement(ChordReader)
-          )
-        );
-        await Promise.resolve();
-      });
-    };
-    await render("first", true);
-    expect(host.textContent).toContain("first: Mod+S, Mod+O");
-    act(() => {
-      pressShortcut("s");
-      pressShortcut("o");
+    const bindings = (name: string, enabled: boolean) =>
+      createElement(
+        Fragment,
+        null,
+        createElement(LiveBindings, {
+          enabled,
+          name,
+          onRun: (value) => calls.push(value),
+        }),
+        createElement(ChordReader)
+      );
+    const { rerender } = render(bindings("first", true), {
+      reactStrictMode: true,
     });
-    await render("second", false);
-    expect(host.textContent).toContain("second: Mod+S, Mod+O");
-    expect(host.textContent).not.toContain("first");
-    act(() => {
-      pressShortcut("s");
-      pressShortcut("o");
-    });
+    expect(screen.getByRole("status")).toHaveTextContent("first: Mod+S, Mod+O");
+    await user.keyboard("{Control>}so{/Control}");
+    rerender(bindings("second", false));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "second: Mod+S, Mod+O"
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent("first");
+    await user.keyboard("{Control>}so{/Control}");
     expect(calls).toEqual(["first", "first"]);
-    await render("third", true);
-    act(() => {
-      pressShortcut("s");
-      pressShortcut("o");
-    });
+    rerender(bindings("third", true));
+    await user.keyboard("{Control>}so{/Control}");
     expect(calls).toEqual(["first", "first", "third", "third"]);
     expect(warnings).not.toHaveBeenCalled();
-    await act(async () => {
-      root.render(createElement(ChordReader));
-      await Promise.resolve();
-    });
-    expect(host.textContent).toBe("");
-    act(() => {
-      pressShortcut("s");
-      pressShortcut("o");
-    });
+    rerender(createElement(ChordReader));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    await user.keyboard("{Control>}so{/Control}");
     expect(calls).toHaveLength(4);
   });
 
-  it("should keep the committed callbacks and options while a replacement render is suspended", async ({
-    onTestFinished,
-  }) => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    const root = createRoot(host);
-    onTestFinished(() => {
-      act(() => root.unmount());
-      host.remove();
-    });
+  it("should keep the committed callbacks and options while a replacement render is suspended", async () => {
+    const user = userEvent.setup();
     const pending = Promise.withResolvers<void>();
     const calls: string[] = [];
     function SuspendingBindings({ suspend }: { suspend: boolean }) {
       const name = suspend ? "pending" : "committed";
-      useHotkey(
-        "Control+S",
-        () => {
-          calls.push(name);
-        },
-        { enabled: true }
-      );
+      useHotkey("Control+S", () => calls.push(name), { enabled: true });
       useHotkeys([
         {
-          callback: () => {
-            calls.push(name);
-          },
+          callback: () => calls.push(name),
           hotkey: "Control+O",
           options: { enabled: !suspend },
         },
@@ -246,146 +144,74 @@ describe("shortcut registration lifecycle", () => {
       }
       return createElement("span", null, name);
     }
-    await act(async () => {
-      root.render(
-        createElement(
-          Suspense,
-          { fallback: "loading" },
-          createElement(SuspendingBindings, { suspend: false })
-        )
-      );
-      await Promise.resolve();
-    });
-    await act(async () => {
-      startTransition(() => {
-        root.render(
+    const { container, rerender } = render(
+      createElement(
+        Suspense,
+        { fallback: "loading" },
+        createElement(SuspendingBindings, { suspend: false })
+      )
+    );
+    await act(() => {
+      startTransition(() =>
+        rerender(
           createElement(
             Suspense,
             { fallback: "loading" },
             createElement(SuspendingBindings, { suspend: true })
           )
-        );
-      });
-      await Promise.resolve();
+        )
+      );
     });
-    expect(host.textContent).toBe("committed");
-    act(() => {
-      pressShortcut("s");
-      pressShortcut("o");
-    });
+    expect(container.textContent).toBe("committed");
+    await user.keyboard("{Control>}so{/Control}");
     expect(calls).toEqual(["committed", "committed"]);
   });
 });
 
 describe("shortcut ownership", () => {
-  it("should let a component register shortcuts and read its own live labels", async ({
-    onTestFinished,
-  }) => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    const root = createRoot(host);
-    onTestFinished(() => {
-      act(() => root.unmount());
-      host.remove();
-    });
+  it("should let a component register shortcuts and read its own live labels", async () => {
+    const user = userEvent.setup();
     const calls: string[] = [];
     function Owner({ name }: { name: string }) {
-      useHotkey(
-        "Mod+S",
-        () => {
-          calls.push(name);
-        },
-        { meta: { name } }
-      );
+      useHotkey("Mod+S", () => calls.push(name), { meta: { name } });
       const chords = useChordsByName();
       return createElement("output", null, [...chords.keys()].join(", "));
     }
-    await act(async () => {
-      root.render(createElement(Owner, { name: "save" }));
-      await Promise.resolve();
-    });
-    expect(host.textContent).toBe("save");
-    await act(async () => {
-      root.render(createElement(Owner, { name: "save capture" }));
-      await Promise.resolve();
-    });
-    expect(host.textContent).toBe("save capture");
-    act(() => pressShortcut("s"));
+    const { rerender } = render(createElement(Owner, { name: "save" }));
+    expect(screen.getByRole("status").textContent).toBe("save");
+    rerender(createElement(Owner, { name: "save capture" }));
+    expect(screen.getByRole("status").textContent).toBe("save capture");
+    await user.keyboard("{Control>}s{/Control}");
     expect(calls).toEqual(["save capture"]);
   });
 
-  it("should remove replaced list bindings and dispatch each current binding once", async ({
-    onTestFinished,
-  }) => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    const root = createRoot(host);
-    onTestFinished(() => {
-      act(() => root.unmount());
-      host.remove();
-    });
+  it("should remove replaced list bindings and dispatch each current binding once", async () => {
+    const user = userEvent.setup();
     const calls: string[] = [];
     function Owner({ changed }: { changed: boolean }) {
       useHotkeys(
         changed
           ? [
-              {
-                callback: () => {
-                  calls.push("new second");
-                },
-                hotkey: "Mod+2",
-              },
-              {
-                callback: () => {
-                  calls.push("third");
-                },
-                hotkey: "Mod+3",
-              },
+              { callback: () => calls.push("new second"), hotkey: "Mod+2" },
+              { callback: () => calls.push("third"), hotkey: "Mod+3" },
             ]
           : [
-              {
-                callback: () => {
-                  calls.push("first");
-                },
-                hotkey: "Mod+1",
-              },
-              {
-                callback: () => {
-                  calls.push("second");
-                },
-                hotkey: "Mod+2",
-              },
+              { callback: () => calls.push("first"), hotkey: "Mod+1" },
+              { callback: () => calls.push("second"), hotkey: "Mod+2" },
             ],
         { meta: { name: "switch tab" } }
       );
       return createElement(ChordReader);
     }
-    await act(async () => {
-      root.render(
-        createElement(
-          StrictMode,
-          null,
-          createElement(Owner, { changed: false })
-        )
-      );
-      await Promise.resolve();
+    const { rerender } = render(createElement(Owner, { changed: false }), {
+      reactStrictMode: true,
     });
-    act(() => {
-      pressShortcut("1");
-      pressShortcut("2");
-    });
-    await act(async () => {
-      root.render(
-        createElement(StrictMode, null, createElement(Owner, { changed: true }))
-      );
-      await Promise.resolve();
-    });
-    expect(host.textContent).toBe("switch tab: Mod+2, Mod+3");
-    act(() => {
-      pressShortcut("1");
-      pressShortcut("2");
-      pressShortcut("3");
-    });
+    await user.keyboard("{Control>}12{/Control}");
+    rerender(createElement(Owner, { changed: true }));
+    expect(screen.getByRole("status").textContent).toBe(
+      "switch tab: Mod+2, Mod+3"
+    );
+    await user.keyboard("{Control>}123{/Control}");
     expect(calls).toEqual(["first", "second", "new second", "third"]);
   });
 });

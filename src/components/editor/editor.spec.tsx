@@ -1,21 +1,18 @@
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { describe, expect, it } from "vitest";
 import { createEditorExtensions } from "@/components/editor/extensions";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
-
-// `act` refuses to run without this, and no setup file exists to set it.
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
-let teardown: (() => void) | null = null;
-
-afterEach(() => {
-  teardown?.();
-  teardown = null;
-});
 
 /**
  * Mount the editor and hand back its scroller div and handle. happy-dom
@@ -26,52 +23,28 @@ const mount = async (modes: {
   focusModeEnabled?: boolean;
   initialContent?: string;
 }) => {
-  const host = document.createElement("div");
+  const handles: EditorHandle[] = [];
 
-  document.body.append(host);
+  const { container: host } = render(
+    createElement(Editor, {
+      initialContent: "first\n\nsecond",
+      ...modes,
+      onChange: () => undefined,
+      onReady: (ready) => {
+        handles.push(ready);
+      },
+    })
+  );
 
-  const root = createRoot(host);
-  let handle: EditorHandle | null = null;
-
-  await act(async () => {
-    root.render(
-      createElement(Editor, {
-        initialContent: "first\n\nsecond",
-        ...modes,
-        onChange: () => undefined,
-        onReady: (ready) => {
-          handle = ready;
-        },
-      })
-    );
-    await Promise.resolve();
-  });
-
-  // `immediatelyRender: false` creates the editor a tick after the render,
-  // and the first mount in a run needs the extra flush.
-  for (let flushes = 0; handle === null && flushes < 10; flushes += 1) {
-    // biome-ignore lint/performance/noAwaitInLoops: each flush must land before deciding whether another is needed
-    await act(async () => {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 0);
-      });
-    });
-  }
-
-  teardown = () => {
-    act(() => {
-      root.unmount();
-    });
-    host.remove();
-  };
-
+  await waitFor(() => expect(handles).toHaveLength(1));
+  const [handle] = handles;
   const scroller = host.firstElementChild;
 
-  if (!(scroller instanceof HTMLElement) || handle === null) {
+  if (!(scroller instanceof HTMLElement) || handle === undefined) {
     throw new Error("the editor did not mount");
   }
 
-  return { handle: handle as EditorHandle, scroller };
+  return { handle, scroller };
 };
 
 describe("focus mode reading state", () => {
@@ -107,25 +80,21 @@ describe("focus mode reading state", () => {
   it("should lift the dim while scrolling", async () => {
     const { scroller } = await mount({ focusModeEnabled: true });
 
-    act(() => {
-      scroller.dispatchEvent(new Event("wheel"));
-    });
+    fireEvent.wheel(scroller);
 
-    expect(scroller.classList.contains("focus-mode-on")).toBe(true);
-    expect(scroller.classList.contains("focus-reading")).toBe(true);
+    expect(scroller).toHaveClass("focus-mode-on");
+    expect(scroller).toHaveClass("focus-reading");
   });
 
   it("should restore the dim when the caret engages", async () => {
     const { handle, scroller } = await mount({ focusModeEnabled: true });
 
-    act(() => {
-      scroller.dispatchEvent(new Event("wheel"));
-    });
+    fireEvent.wheel(scroller);
     act(() => {
       handle.insertText("x");
     });
 
-    expect(scroller.classList.contains("focus-reading")).toBe(false);
+    expect(scroller).not.toHaveClass("focus-reading");
   });
 
   it("should restore the dim when a click leaves the selection alone", async () => {
@@ -136,24 +105,18 @@ describe("focus mode reading state", () => {
       throw new Error("the editor surface did not render");
     }
 
-    act(() => {
-      scroller.dispatchEvent(new Event("wheel"));
-    });
-    act(() => {
-      surface.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+    fireEvent.wheel(scroller);
+    fireEvent.click(surface);
 
-    expect(scroller.classList.contains("focus-reading")).toBe(false);
+    expect(scroller).not.toHaveClass("focus-reading");
   });
 
   it("should not track reading while focus mode is off", async () => {
     const { scroller } = await mount({ focusModeEnabled: false });
 
-    act(() => {
-      scroller.dispatchEvent(new Event("wheel"));
-    });
+    fireEvent.wheel(scroller);
 
-    expect(scroller.classList.contains("focus-reading")).toBe(false);
+    expect(scroller).not.toHaveClass("focus-reading");
   });
 });
 
@@ -161,13 +124,13 @@ describe("focus mode scroller", () => {
   it("should mark the scroller while focus mode is on", async () => {
     const { scroller } = await mount({ focusModeEnabled: true });
 
-    expect(scroller.classList.contains("focus-mode-on")).toBe(true);
+    expect(scroller).toHaveClass("focus-mode-on");
   });
 
   it("should not mark the scroller while focus mode is off", async () => {
     const { scroller } = await mount({ focusModeEnabled: false });
 
-    expect(scroller.classList.contains("focus-mode-on")).toBe(false);
+    expect(scroller).not.toHaveClass("focus-mode-on");
   });
 });
 
@@ -203,17 +166,15 @@ describe("code block clipboard", () => {
     "should copy a %s code block as fenced markdown",
     async (_name, markdown) => {
       const { scroller } = await mount({ initialContent: markdown });
-      const copy = scroller.querySelector('button[aria-label="copy code"]');
+      const user = userEvent.setup();
+      const copy = screen.getByRole("button", { name: "copy code" });
       const surface = scroller.querySelector(".ProseMirror");
 
       if (!(copy instanceof HTMLButtonElement) || surface === null) {
         throw new Error("the code block did not render");
       }
 
-      await act(async () => {
-        copy.click();
-        await Promise.resolve();
-      });
+      await user.click(copy);
 
       const copied = await navigator.clipboard.readText();
 
@@ -240,33 +201,18 @@ describe("code block clipboard", () => {
   );
 
   it("should copy the newly selected language and preserve it in markdown", async () => {
-    const { handle, scroller } = await mount({
+    const { handle } = await mount({
       initialContent: "```mermaid\ngraph TD\n```",
     });
-    const language = scroller.querySelector(
-      'select[aria-label="code language"]'
-    );
-    const copy = scroller.querySelector('button[aria-label="copy code"]');
-
-    if (
-      !(
-        language instanceof HTMLSelectElement &&
-        copy instanceof HTMLButtonElement
-      )
-    ) {
-      throw new Error("the code block toolbar did not render");
-    }
+    const user = userEvent.setup();
+    const language = screen.getByRole<HTMLSelectElement>("combobox", {
+      name: "code language",
+    });
+    const copy = screen.getByRole("button", { name: "copy code" });
 
     expect(language.value).toBe("mermaid");
-    await act(async () => {
-      language.value = "typescript";
-      language.dispatchEvent(new Event("change", { bubbles: true }));
-      await Promise.resolve();
-    });
-    await act(async () => {
-      copy.click();
-      await Promise.resolve();
-    });
+    await user.selectOptions(language, "typescript");
+    await user.click(copy);
 
     expect(language.value).toBe("typescript");
     expect(handle.getContent().trimEnd()).toBe("```typescript\ngraph TD\n```");
@@ -274,11 +220,7 @@ describe("code block clipboard", () => {
       "```typescript\ngraph TD\n```"
     );
 
-    await act(async () => {
-      language.value = "";
-      language.dispatchEvent(new Event("change", { bubbles: true }));
-      await Promise.resolve();
-    });
+    await user.selectOptions(language, "");
 
     expect(handle.getContent().trimEnd()).toBe("```\ngraph TD\n```");
   });

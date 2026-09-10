@@ -1,5 +1,6 @@
-import { act, createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import {
   DeleteView,
@@ -8,36 +9,21 @@ import {
 } from "@/components/palette-note-views";
 import { Command, CommandList } from "@/components/ui/command";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
-async function mount(view: ReactNode) {
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  await act(() => {
-    root.render(
-      createElement(
-        Command,
-        { label: "note action", shouldFilter: false },
-        createElement(CommandList, null, view)
-      )
-    );
-  });
-  return {
-    host,
-    unmount: () => {
-      act(() => root.unmount());
-      host.remove();
-    },
-  };
+function mount(view: ReactNode) {
+  return render(
+    createElement(
+      Command,
+      { label: "note action", shouldFilter: false },
+      createElement(CommandList, null, view)
+    )
+  );
 }
 
 describe("palette note views", () => {
-  it("should select the matching existing folder without offering root or a duplicate new folder", async ({
-    onTestFinished,
-  }) => {
+  it("should select the matching existing folder without offering root or a duplicate new folder", async () => {
+    const user = userEvent.setup();
     const moved: string[] = [];
-    const { host, unmount } = await mount(
+    const { container: host } = mount(
       createElement(MoveView, {
         folders: [
           { count: 3, folder: "/" },
@@ -50,22 +36,18 @@ describe("palette note views", () => {
         query: "client work",
       })
     );
-    onTestFinished(unmount);
     expect(host.textContent).not.toContain("notes root");
     expect(host.textContent).not.toContain("new folder");
-    const selected = host.querySelector<HTMLElement>(
-      '[role="option"][aria-selected="true"]'
-    );
-    expect(selected?.textContent).toContain("Client Work");
-    act(() => selected?.click());
+    const selected = screen.getByRole("option", { selected: true });
+    expect(selected.textContent).toContain("Client Work");
+    await user.click(selected);
     expect(moved).toEqual(["Client Work"]);
   });
 
-  it("should expose tag attachment independently of keyboard selection", async ({
-    onTestFinished,
-  }) => {
+  it("should expose tag attachment independently of keyboard selection", async () => {
+    const user = userEvent.setup();
     const toggled: [string, boolean][] = [];
-    const { host, unmount } = await mount(
+    mount(
       createElement(TagsView, {
         attached: ["work"],
         choices: ["review", "work"],
@@ -77,33 +59,27 @@ describe("palette note views", () => {
         title: "Atlas",
       })
     );
-    onTestFinished(unmount);
-    const attached = host.querySelector<HTMLElement>(
-      '[role="option"][aria-checked="true"]'
-    );
-    expect(attached?.textContent).toContain("work");
-    expect(attached?.getAttribute("aria-selected")).toBe("false");
-    act(() => attached?.click());
+    const attached = screen.getByRole("option", { name: "work 2" });
+    expect(attached.textContent).toContain("work");
+    expect(attached).toHaveAttribute("aria-selected", "false");
+    expect(attached).toHaveAttribute("aria-checked", "true");
+    await user.click(attached);
     expect(toggled).toEqual([["work", true]]);
   });
 
-  it("should default deletion confirmation to cancel", async ({
-    onTestFinished,
-  }) => {
+  it("should default deletion confirmation to cancel", async () => {
+    const user = userEvent.setup();
     const actions: string[] = [];
-    const { host, unmount } = await mount(
+    mount(
       createElement(DeleteView, {
         onCancel: () => actions.push("cancel"),
         onConfirm: () => actions.push("delete"),
         title: "Atlas",
       })
     );
-    onTestFinished(unmount);
-    const selected = host.querySelector<HTMLElement>(
-      '[role="option"][aria-selected="true"]'
-    );
-    expect(selected?.textContent).toBe("cancel");
-    act(() => selected?.click());
+    const selected = screen.getByRole("option", { selected: true });
+    expect(selected.textContent).toBe("cancel");
+    await user.click(selected);
     expect(actions).toEqual(["cancel"]);
   });
 });

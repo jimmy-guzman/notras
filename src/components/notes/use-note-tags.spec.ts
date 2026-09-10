@@ -1,6 +1,5 @@
 import { useSelector } from "@tanstack/react-store";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { act, renderHook } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { createNotePersistence } from "@/components/editor/note-persistence";
 import { parseNote } from "@/core/frontmatter";
@@ -11,8 +10,6 @@ import {
   registerTabHandles,
 } from "@/lib/tabs/store";
 import { useNoteTags } from "./use-note-tags";
-
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 it("should edit the live document and keep the chosen tags when saving fails", async ({
   onTestFinished,
@@ -39,28 +36,14 @@ it("should edit the live document and keep the chosen tags when saving fails", a
     insertText: () => undefined,
     toggleSource: () => undefined,
   });
-  let changeTags: ((tags: string[]) => Promise<void>) | undefined;
-  const root = createRoot(document.createElement("div"));
-  function Probe() {
+  const { result } = renderHook(() => {
     const state = useSelector(note.store);
-    const tags = useNoteTags(
-      state.path,
-      parseNote(state.content).frontmatter.tags
-    );
-    ({ changeTags } = tags);
-    return createElement("span", null, tags.tags.join(","));
-  }
-  onTestFinished(() => {
-    act(() => root.unmount());
-    closeTab(id);
+    return useNoteTags(state.path, parseNote(state.content).frontmatter.tags);
   });
-  act(() => root.render(createElement(Probe)));
-  if (changeTags === undefined) {
-    throw new Error("the tags did not mount");
-  }
+  onTestFinished(() => closeTab(id));
   let changing: Promise<void> | undefined;
   act(() => {
-    changing = changeTags?.(["kept", "added"]);
+    changing = result.current.changeTags(["kept", "added"]);
   });
   expect(parseNote(note.store.state.content).frontmatter.tags).toEqual([
     "kept",

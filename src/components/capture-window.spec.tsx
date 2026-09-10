@@ -1,34 +1,22 @@
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CaptureWindow } from "@/components/capture-window";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-let root: Root | undefined;
-
-afterEach(async () => {
-  await act(() => {
-    root?.unmount();
-  });
+afterEach(() => {
+  cleanup();
   clearMocks();
-  document.body.innerHTML = "";
 });
 
 async function mountCapture() {
   mockWindows("capture");
-  const container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  await act(() => {
-    root?.render(createElement(CaptureWindow));
-  });
-  await act(async () => {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
-  });
+  const { container } = render(createElement(CaptureWindow));
+  await waitFor(() =>
+    expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
+  );
   const surface = container.querySelector(".ProseMirror");
   if (
     surface === null ||
@@ -40,16 +28,9 @@ async function mountCapture() {
   return surface.editor;
 }
 
-async function pressEscape() {
-  await act(() => {
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
-    );
-  });
-}
-
 describe("capture persistence", () => {
   it("should clear and hide a committed capture when indexing reports a warning", async () => {
+    const user = userEvent.setup();
     const writes: unknown[] = [];
     const hides: string[] = [];
     mockIPC((command, args) => {
@@ -75,15 +56,16 @@ describe("capture persistence", () => {
     act(() => {
       editor.commands.insertContent("a captured thought");
     });
-    await pressEscape();
+    await user.keyboard("{Escape}");
     expect(writes).toHaveLength(1);
     expect(hides).toHaveLength(1);
     expect(document.querySelector(".ProseMirror")?.textContent).toBe("");
-    await pressEscape();
+    await user.keyboard("{Escape}");
     expect(writes).toHaveLength(1);
   });
 
   it("should retain the jot and show the reason when no file committed", async () => {
+    const user = userEvent.setup();
     const hides: string[] = [];
     mockIPC((command) => {
       if (command === "create_note") {
@@ -97,7 +79,7 @@ describe("capture persistence", () => {
     act(() => {
       editor.commands.insertContent("keep this thought");
     });
-    await pressEscape();
+    await user.keyboard("{Escape}");
     expect(hides).toEqual([]);
     expect(document.querySelector(".ProseMirror")?.textContent).toBe(
       "keep this thought"

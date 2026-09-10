@@ -96,6 +96,8 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Testing
 
+- **Use the existing test tools instead of rebuilding their infrastructure.** Use `render` for React components and `renderHook` for hooks without UI. Query controls by role or label and use `user-event` for interactions. Keep explicit events for tests that need an exact timer boundary, a native event payload, or an editor transaction. Shared setup owns React cleanup and DOM matchers; do not add per-file roots, polling loops, or act-environment flags.
+
 - **Test behavior, not implementation.** Assert what a caller or user observes. Both terms scale with the unit under test: for a component it is the person clicking, for a function it is the code calling it. A test that asserts internals breaks on every refactor while proving nothing about whether the code works.
 
 - **Every test title starts with `should`.** The title has to finish the sentence "it should ...", which forces it to name an observable outcome. A title that cannot finish it is describing the implementation.
