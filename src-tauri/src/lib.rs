@@ -55,25 +55,33 @@ fn use_compact_window_controls<R: Runtime>(window: &tauri::WebviewWindow<R>) {
         return;
     }
 
-    let Ok(pointer) = window.ns_window() else {
-        return;
-    };
+    let native_window = window.clone();
+    if let Err(error) = window.run_on_main_thread(move || {
+        let Ok(pointer) = native_window.ns_window() else {
+            return;
+        };
 
-    // Tauri hands back the NSWindow backing this webview window.
-    let ns_window: &NSWindow = unsafe { &*pointer.cast::<NSWindow>() };
+        // SAFETY: Tauri returns a non-null, aligned NSWindow pointer retained in
+        // the current autorelease pool. This closure runs on the main thread,
+        // and the borrow ends before returning to the event loop or draining
+        // that pool. No native reference escapes the closure.
+        let ns_window: &NSWindow = unsafe { &*pointer.cast::<NSWindow>() };
 
-    if let Some(view) = ns_window.contentView() {
-        view.setPrefersCompactControlSizeMetrics(true);
-    }
-
-    for kind in [
-        NSWindowButton::CloseButton,
-        NSWindowButton::MiniaturizeButton,
-        NSWindowButton::ZoomButton,
-    ] {
-        if let Some(button) = ns_window.standardWindowButton(kind) {
-            button.setPrefersCompactControlSizeMetrics(true);
+        if let Some(view) = ns_window.contentView() {
+            view.setPrefersCompactControlSizeMetrics(true);
         }
+
+        for kind in [
+            NSWindowButton::CloseButton,
+            NSWindowButton::MiniaturizeButton,
+            NSWindowButton::ZoomButton,
+        ] {
+            if let Some(button) = ns_window.standardWindowButton(kind) {
+                button.setPrefersCompactControlSizeMetrics(true);
+            }
+        }
+    }) {
+        log::error!("could not update window controls: {error}");
     }
 }
 

@@ -11,7 +11,7 @@ pub struct CodeClipboard {
 mod metadata {
     use serde::Deserialize;
 
-    use super::CodeClipboard;
+    use super::{CodeClipboard, CommandError};
 
     const INVALID: &str = "the clipboard metadata is invalid";
 
@@ -25,14 +25,17 @@ mod metadata {
         len: usize,
     }
 
-    fn read_u32(bytes: &mut &[u8]) -> Result<u32, &'static str> {
+    fn read_u32(bytes: &mut &[u8]) -> Result<u32, CommandError> {
         let value = bytes.get(..4).ok_or(INVALID)?;
         *bytes = &bytes[4..];
-        Ok(u32::from_le_bytes(value.try_into().map_err(|_| INVALID)?))
+        Ok(u32::from_le_bytes(value.try_into().map_err(|error| {
+            CommandError::with_source(INVALID, error)
+        })?))
     }
 
-    fn read_string(bytes: &mut &[u8]) -> Result<String, &'static str> {
-        let length = usize::try_from(read_u32(bytes)?).map_err(|_| INVALID)?;
+    fn read_string(bytes: &mut &[u8]) -> Result<String, CommandError> {
+        let length = usize::try_from(read_u32(bytes)?)
+            .map_err(|error| CommandError::with_source(INVALID, error))?;
         let size = length.checked_mul(2).ok_or(INVALID)?;
         let padded = size.checked_add(3).ok_or(INVALID)? & !3;
         let value = bytes.get(..size).ok_or(INVALID)?;
@@ -42,15 +45,17 @@ mod metadata {
             .0
             .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]));
-        String::from_utf16(&units.collect::<Vec<_>>()).map_err(|_| INVALID)
+        String::from_utf16(&units.collect::<Vec<_>>())
+            .map_err(|error| CommandError::with_source(INVALID, error))
     }
 
     /// Decode Chromium's Pickle map, whose strings are UTF-16 and aligned to four bytes.
-    pub(super) fn chromium(data: &[u8]) -> Result<Option<CodeClipboard>, &'static str> {
-        let payload_size = usize::try_from(read_u32(&mut &data[..])?).map_err(|_| INVALID)?;
+    pub(super) fn chromium(data: &[u8]) -> Result<Option<CodeClipboard>, CommandError> {
+        let payload_size = usize::try_from(read_u32(&mut &data[..])?)
+            .map_err(|error| CommandError::with_source(INVALID, error))?;
         let header_size = data.len().checked_sub(payload_size).ok_or(INVALID)?;
         if header_size < 4 || header_size % 4 != 0 {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
         let mut payload = &data[header_size..];
         let count = read_u32(&mut payload)?;
@@ -58,7 +63,8 @@ mod metadata {
             let kind = read_string(&mut payload)?;
             let value = read_string(&mut payload)?;
             if kind == "vscode-editor-data" {
-                let metadata: VsCode = serde_json::from_str(&value).map_err(|_| INVALID)?;
+                let metadata: VsCode = serde_json::from_str(&value)
+                    .map_err(|error| CommandError::with_source(INVALID, error))?;
                 return Ok(Some(CodeClipboard {
                     language: metadata.mode,
                 }));
@@ -67,13 +73,14 @@ mod metadata {
         Ok(None)
     }
 
-    pub(super) fn zed(data: &[u8], text_len: usize) -> Result<Option<CodeClipboard>, &'static str> {
-        let selections: Vec<ZedSelection> = serde_json::from_slice(data).map_err(|_| INVALID)?;
+    pub(super) fn zed(data: &[u8], text_len: usize) -> Result<Option<CodeClipboard>, CommandError> {
+        let selections: Vec<ZedSelection> = serde_json::from_slice(data)
+            .map_err(|error| CommandError::with_source(INVALID, error))?;
         if selections.is_empty() {
             return Ok(None);
         }
         if selections.iter().any(|selection| selection.len > text_len) {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
         Ok(Some(CodeClipboard { language: None }))
     }
@@ -106,7 +113,7 @@ fn read_matching_clipboard(text: &str) -> Result<Option<CodeClipboard>, CommandE
         }
     }
     if let Some(data) = zed {
-        return Ok(metadata::zed(&data.to_vec(), text.len())?);
+        return metadata::zed(&data.to_vec(), text.len());
     }
     Ok(None)
 }
@@ -173,8 +180,7 @@ mod tests {
     fn should_preserve_chromium_json_failure_causes() {
         use std::error::Error as _;
         let data = chromium_bytes("vscode-editor-data", "{\"mode\":12}");
-        let result: Result<_, super::CommandError> = (|| Ok(metadata::chromium(&data)?))();
-        let error = result.unwrap_err();
+        let error = metadata::chromium(&data).unwrap_err();
         assert_eq!(error.message, "the clipboard metadata is invalid");
         assert!(error.source().unwrap().is::<serde_json::Error>());
     }
@@ -182,9 +188,7 @@ mod tests {
     #[test]
     fn should_preserve_zed_json_failure_causes() {
         use std::error::Error as _;
-        let result: Result<_, super::CommandError> =
-            (|| Ok(metadata::zed(br#"[{"len":"12"}]"#, 12)?))();
-        let error = result.unwrap_err();
+        let error = metadata::zed(br#"[{"len":"12"}]"#, 12).unwrap_err();
         assert_eq!(error.message, "the clipboard metadata is invalid");
         assert!(error.source().unwrap().is::<serde_json::Error>());
     }

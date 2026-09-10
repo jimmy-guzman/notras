@@ -193,7 +193,7 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo test --workspace --locked` | engine and shell tests, including doctests |
 | `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes both workspace crates and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+Both crates inherit checks requiring explicit unsafe operations, safety comments on unsafe blocks, and reasons for lint allowances. CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes both workspace crates and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
 
 Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
 

@@ -1,5 +1,5 @@
 use std::sync::atomic::AtomicBool;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard};
 
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
@@ -17,23 +17,22 @@ pub struct AppState {
     pub quitting: AtomicBool,
 }
 
-/// A poisoned lock means a panic elsewhere already did its damage; recovering
-/// the state behind it keeps one panic from becoming one per command.
+/// Access panics if a prior operation poisoned the requested state.
 impl AppState {
     pub fn library(&self) -> MutexGuard<'_, Library> {
-        self.library.lock().unwrap_or_else(PoisonError::into_inner)
+        self.library.lock().expect("library state was poisoned")
     }
 
     pub fn watcher(
         &self,
     ) -> MutexGuard<'_, Option<Debouncer<RecommendedWatcher, RecommendedCache>>> {
-        self.watcher.lock().unwrap_or_else(PoisonError::into_inner)
+        self.watcher.lock().expect("watcher state was poisoned")
     }
 
     pub fn pending_open(&self) -> MutexGuard<'_, Vec<String>> {
         self.pending_open
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .expect("pending opens were poisoned")
     }
 }
 

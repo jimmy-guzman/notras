@@ -30,6 +30,23 @@ pub enum ErrorKind {
 pub struct CommandError {
     pub kind: ErrorKind,
     pub message: String,
+    #[serde(skip)]
+    #[cfg_attr(feature = "bindings", specta(skip))]
+    source: Option<Box<dyn std::error::Error + Send + Sync>>,
+}
+
+impl CommandError {
+    /// Retain a diagnostic cause without exposing it in the serialized failure.
+    pub fn with_source(
+        message: impl Into<String>,
+        source: impl std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            kind: ErrorKind::Failed,
+            message: message.into(),
+            source: Some(Box::new(source)),
+        }
+    }
 }
 
 /// The reason a syscall gives, in the app's voice: lowercase, no errno.
@@ -62,13 +79,14 @@ impl From<io::Error> for CommandError {
                 ErrorKind::Failed
             },
             message: io_reason(&error),
+            source: Some(Box::new(error)),
         }
     }
 }
 
 impl From<rusqlite::Error> for CommandError {
     fn from(error: rusqlite::Error) -> Self {
-        format!("index: {error}").into()
+        Self::with_source(format!("index: {error}"), error)
     }
 }
 
@@ -88,6 +106,7 @@ impl From<String> for CommandError {
         Self {
             kind: ErrorKind::Failed,
             message,
+            source: None,
         }
     }
 }
@@ -146,7 +165,7 @@ fn create_file(path: &Path, rel: &str, content: &str) -> Result<i64, CommandErro
     let updated_at = checked_mtime(temp.as_file())?;
     temp.persist_noclobber(path).map_err(|error| {
         if error.error.kind() == io::ErrorKind::AlreadyExists {
-            collision(rel)
+            CommandError::with_source(collision(rel).message, error.error)
         } else {
             error.error.into()
         }
@@ -372,7 +391,7 @@ fn publish_move(
     let updated_at = checked_mtime(temp.as_file())?;
     temp.persist_noclobber(&target).map_err(|error| {
         if error.error.kind() == io::ErrorKind::AlreadyExists {
-            collision(to.as_str())
+            CommandError::with_source(collision(to.as_str()).message, error.error)
         } else {
             error.error.into()
         }
@@ -741,7 +760,7 @@ impl Library {
 
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(base64_data)
-            .map_err(|_| "the pasted image is not valid")?;
+            .map_err(|error| CommandError::with_source("the pasted image is not valid", error))?;
 
         let dir = RelativePath::parse("attachments")?.resolve(&self.notes_dir)?;
         fs::create_dir_all(&dir)?;

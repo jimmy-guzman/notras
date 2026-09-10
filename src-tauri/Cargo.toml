@@ -62,3 +62,6 @@ objc2-foundation = "0.3"
 rusqlite.workspace = true
 tempfile.workspace = true
 tauri = { version = "2", features = ["test"] }
+
+[lints]
+workspace = true

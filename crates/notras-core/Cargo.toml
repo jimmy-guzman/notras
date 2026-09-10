@@ -23,3 +23,6 @@ thiserror = "2"
 [dev-dependencies]
 proptest = "1"
 serde_json.workspace = true
+
+[lints]
+workspace = true

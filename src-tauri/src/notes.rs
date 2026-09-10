@@ -20,12 +20,16 @@ use notras_core::{
 async fn run_blocking<T: Send + 'static>(
     operation: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
 ) -> Result<T, CommandError> {
-    tauri::async_runtime::spawn_blocking(operation)
-        .await
-        .map_err(|error| {
+    match tauri::async_runtime::spawn_blocking(operation).await {
+        Ok(result) => result,
+        Err(tauri::Error::JoinError(error)) if error.is_panic() => {
+            std::panic::resume_unwind(error.into_panic())
+        }
+        Err(error) => {
             log::error!("native command task failed: {error}");
-            CommandError::from("an unexpected error")
-        })?
+            Err(CommandError::with_source("an unexpected error", error))
+        }
+    }
 }
 
 fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
@@ -308,18 +312,19 @@ pub async fn set_notes_dir<R: Runtime>(
         let notes_dir = library.directory().to_owned();
         library.scan_complete()?;
         // Started first: a folder the app cannot watch is refused whole.
-        let fresh = watcher::start(app.clone(), notes_dir.clone())
-            .map_err(|error| format!("could not watch the folder: {error}"))?;
+        let fresh = watcher::start(app.clone(), notes_dir.clone()).map_err(|error| {
+            CommandError::with_source(format!("could not watch the folder: {error}"), error)
+        })?;
 
         // Persisted before the swap: a folder the next launch cannot find again is
         // worse than one this launch never switched to.
-        let store = app
-            .store("settings.json")
-            .map_err(|error| format!("the setting could not be saved: {error}"))?;
+        let store = app.store("settings.json").map_err(|error| {
+            CommandError::with_source(format!("the setting could not be saved: {error}"), error)
+        })?;
         store.set("notesDir", Value::String(path));
-        store
-            .save()
-            .map_err(|error| format!("the setting could not be saved: {error}"))?;
+        store.save().map_err(|error| {
+            CommandError::with_source(format!("the setting could not be saved: {error}"), error)
+        })?;
 
         crate::allow_assets(&app, &notes_dir);
 
