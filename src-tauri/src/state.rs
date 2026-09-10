@@ -1,14 +1,14 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use crate::application::Core;
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
+use notras_core::Library;
 
 pub struct AppState {
-    pub core: Mutex<Core>,
-    /// Kept outside `core` so replacing the watcher never happens while the
-    /// core lock is held (the watcher callback takes that lock).
+    pub library: Mutex<Library>,
+    /// Kept outside `library` so replacing the watcher never happens while the
+    /// library lock is held (the watcher callback takes that lock).
     pub watcher: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
     /// Files handed to us by "Open With" before the frontend was listening.
     pub pending_open: Mutex<Vec<String>>,
@@ -20,8 +20,8 @@ pub struct AppState {
 /// A poisoned lock means a panic elsewhere already did its damage; recovering
 /// the state behind it keeps one panic from becoming one per command.
 impl AppState {
-    pub fn core(&self) -> MutexGuard<'_, Core> {
-        self.core.lock().unwrap_or_else(PoisonError::into_inner)
+    pub fn library(&self) -> MutexGuard<'_, Library> {
+        self.library.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn watcher(

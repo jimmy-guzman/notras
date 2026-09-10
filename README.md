@@ -176,7 +176,7 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 
 Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
 
-Rust commands run from `src-tauri`. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional tools once:
+Rust commands run from the repository root. The Cargo workspace contains the independent `notras-core` engine and the Tauri shell in `src-tauri`. Both use the root `target` directory. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional tools once:
 
 ```bash
 cargo install cargo-machete --locked --version 0.9.2
@@ -188,11 +188,12 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo machete` | unused Rust dependencies |
 | `cargo fmt --all -- --check` | Rust formatting check |
 | `cargo fmt --all` | format Rust sources |
-| `cargo clippy --locked --all-targets -- -D warnings` | Clippy, with warnings treated as errors |
-| `cargo test --locked` | Rust tests, including doctests |
-| `../scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
+| `cargo clippy --workspace --locked --all-targets -- -D warnings` | Clippy, with warnings treated as errors |
+| `cargo test -p notras-core --locked` | engine tests without Tauri or binding metadata |
+| `cargo test --workspace --locked` | engine and shell tests, including doctests |
+| `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes application and shell code and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes both workspace crates and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
 
 Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
 

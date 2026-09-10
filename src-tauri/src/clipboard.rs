@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::application::CommandError;
+use notras_core::CommandError;
 
 #[derive(Debug, PartialEq, Serialize, specta::Type)]
 pub struct CodeClipboard {

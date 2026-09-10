@@ -1,0 +1,25 @@
+[package]
+name = "notras-core"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+description = "The file-backed note engine for notras"
+
+[features]
+bindings = ["dep:specta"]
+
+[dependencies]
+base64 = "0.22"
+log.workspace = true
+pulldown-cmark = { version = "0.13.4", default-features = false }
+regex = "1"
+rusqlite.workspace = true
+serde.workspace = true
+specta = { workspace = true, optional = true }
+tempfile.workspace = true
+thiserror = "2"
+
+[dev-dependencies]
+proptest = "1"
+serde_json.workspace = true

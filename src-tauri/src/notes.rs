@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
@@ -7,15 +6,16 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
-use crate::application::{
-    self, CommandError, CreateNote, DeleteReceipt, MutationReceipt, MutationWarning, NoteFile,
-    PathMutationReceipt, PendingOpen, SaveName, SavedNote,
-};
 use crate::bindings::{MutationWarnings, NotesChanged};
-use crate::index;
 use crate::state::AppState;
 use crate::watcher;
-use crate::{queries, relationships::Mention};
+use notras_core::{
+    self, CommandError, CreateNote, DeleteReceipt, Library, MutationReceipt, MutationWarning,
+    NoteFile, PathMutationReceipt, PendingOpen, SaveName, SavedNote,
+};
+use notras_core::{
+    CountedTag, GraphResult, GraphTarget, Mention, NoteFilters, NoteMeta, NoteSearch,
+};
 
 async fn run_blocking<T: Send + 'static>(
     operation: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
@@ -54,8 +54,8 @@ pub async fn read_note<R: Runtime>(
 ) -> Result<SavedNote, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        application::read_note(&core, path)
+        let library = state.library();
+        library.read_note(path)
     })
     .await
 }
@@ -68,8 +68,8 @@ pub async fn attach_file<R: Runtime>(
 ) -> Result<String, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        application::attach_file(&core, source)
+        let library = state.library();
+        library.attach_file(source)
     })
     .await
 }
@@ -82,8 +82,8 @@ pub async fn attach_image<R: Runtime>(
 ) -> Result<String, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        application::attach_image(&core, base64_data)
+        let library = state.library();
+        library.attach_image(base64_data)
     })
     .await
 }
@@ -96,8 +96,8 @@ pub async fn find_mentions<R: Runtime>(
 ) -> Result<Vec<Mention>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        queries::find_mentions(&core, &path)
+        let library = state.library();
+        library.find_mentions(&path)
     })
     .await
 }
@@ -106,25 +106,23 @@ pub async fn find_mentions<R: Runtime>(
 #[specta::specta]
 pub async fn list_notes<R: Runtime>(
     app: AppHandle<R>,
-    filters: queries::NoteFilters,
-) -> Result<Vec<queries::NoteMeta>, CommandError> {
+    filters: NoteFilters,
+) -> Result<Vec<NoteMeta>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        queries::list_notes(&core, filters)
+        let library = state.library();
+        library.list_notes(filters)
     })
     .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_tags<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<Vec<queries::CountedTag>, CommandError> {
+pub async fn list_tags<R: Runtime>(app: AppHandle<R>) -> Result<Vec<CountedTag>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        queries::list_tags(&core)
+        let library = state.library();
+        library.list_tags()
     })
     .await
 }
@@ -133,12 +131,12 @@ pub async fn list_tags<R: Runtime>(
 #[specta::specta]
 pub async fn search_notes<R: Runtime>(
     app: AppHandle<R>,
-    search: queries::NoteSearch,
-) -> Result<Vec<queries::NoteMeta>, CommandError> {
+    search: NoteSearch,
+) -> Result<Vec<NoteMeta>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        queries::search_notes(&core, search)
+        let library = state.library();
+        library.search_notes(search)
     })
     .await
 }
@@ -147,12 +145,12 @@ pub async fn search_notes<R: Runtime>(
 #[specta::specta]
 pub async fn read_graph<R: Runtime>(
     app: AppHandle<R>,
-    target: queries::GraphTarget,
-) -> Result<queries::GraphResult, CommandError> {
+    target: GraphTarget,
+) -> Result<GraphResult, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        queries::read_graph(&core, target)
+        let library = state.library();
+        library.read_graph(target)
     })
     .await
 }
@@ -166,8 +164,8 @@ pub async fn create_note<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = {
-            let core = state.core();
-            application::create_note(&core, options)?
+            let library = state.library();
+            library.create_note(options)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(&app, vec![result.path.clone()]);
@@ -187,8 +185,8 @@ pub async fn save_note<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = {
-            let core = state.core();
-            application::save_note(&core, path.clone(), content, name)?
+            let library = state.library();
+            library.save_note(path.clone(), content, name)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(
@@ -214,8 +212,8 @@ pub async fn move_note<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = {
-            let core = state.core();
-            application::move_note(&core, path.clone(), folder)?
+            let library = state.library();
+            library.move_note(path.clone(), folder)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(
@@ -240,8 +238,8 @@ pub async fn delete_note<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = {
-            let core = state.core();
-            application::delete_note(&core, path)?
+            let library = state.library();
+            library.delete_note(path)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(&app, vec![result.path.clone()]);
@@ -256,8 +254,8 @@ pub async fn reindex_all<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, C
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = {
-            let core = state.core();
-            application::reindex_all(&core)?
+            let library = state.library();
+            library.reindex_all()?
         };
         emit_changed(&app, result.clone());
         Ok(result)
@@ -268,7 +266,7 @@ pub async fn reindex_all<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, C
 #[tauri::command]
 #[specta::specta]
 pub async fn read_external(path: String) -> Result<NoteFile, CommandError> {
-    run_blocking(move || application::read_external(path)).await
+    run_blocking(move || notras_core::read_external(path)).await
 }
 
 #[tauri::command]
@@ -280,7 +278,7 @@ pub async fn write_external<R: Runtime>(
     name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
-        let result = application::write_external(path, content, name)?;
+        let result = notras_core::write_external(path, content, name)?;
         emit_warnings(&app, &result.warnings);
         Ok(result)
     })
@@ -290,7 +288,7 @@ pub async fn write_external<R: Runtime>(
 #[tauri::command]
 #[specta::specta]
 pub fn get_notes_dir(state: State<'_, AppState>) -> String {
-    state.core().notes_dir.to_string_lossy().to_string()
+    state.library().directory().to_string_lossy().to_string()
 }
 
 #[tauri::command]
@@ -303,12 +301,11 @@ pub async fn set_notes_dir<R: Runtime>(
         let state = app.state::<AppState>();
 
         // Switches can run on different blocking workers. Keep their saved setting,
-        // core swap and watcher replacement in the same order.
+        // library swap and watcher replacement in the same order.
         let mut watcher = state.watcher();
         let notes_dir = PathBuf::from(&path);
-        fs::create_dir_all(notes_dir.join(".notras"))?;
-        let conn = index::open(&notes_dir)?;
-        index::scan_complete(&conn, &notes_dir)?;
+        let library = Library::open(notes_dir.clone())?;
+        library.scan_complete()?;
         // Started first: a folder the app cannot watch is refused whole.
         let fresh = watcher::start(app.clone(), notes_dir.clone())
             .map_err(|error| format!("could not watch the folder: {error}"))?;
@@ -326,13 +323,11 @@ pub async fn set_notes_dir<R: Runtime>(
         crate::allow_assets(&app, &notes_dir);
 
         {
-            let mut core = state.core();
-            core.notes_dir = notes_dir;
-            core.conn = conn;
-            core.index_dirty.set(false);
+            let mut current = state.library();
+            *current = library;
         }
 
-        // Swap the watcher only after the core lock is released -- dropping the
+        // Swap the watcher only after the library lock is released -- dropping the
         // old debouncer joins its thread, which may be waiting on that lock.
         *watcher = Some(fresh);
         drop(watcher);
@@ -351,8 +346,8 @@ pub async fn classify_open_paths<R: Runtime>(
 ) -> Result<Vec<PendingOpen>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let core = state.core();
-        Ok(application::classify_opens(&core.notes_dir, paths))
+        let library = state.library();
+        Ok(library.classify_opens(paths))
     })
     .await
 }
@@ -365,8 +360,8 @@ pub async fn pending_open_files<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let paths = std::mem::take(&mut *state.pending_open());
-        let core = state.core();
-        Ok(application::classify_opens(&core.notes_dir, paths))
+        let library = state.library();
+        Ok(library.classify_opens(paths))
     })
     .await
 }

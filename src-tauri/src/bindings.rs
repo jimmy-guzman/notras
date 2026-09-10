@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 
-use crate::application::MutationWarning;
 use crate::{clipboard, notes, windows};
+use notras_core::MutationWarning;
 
 /// Relative paths whose saved content or index rows changed; empty means the library.
 #[derive(Clone, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
@@ -59,7 +59,8 @@ mod tests {
     use serde_json::{json, Value};
     use tauri::{Listener, Manager};
 
-    use crate::{application::Core, index, state::AppState};
+    use crate::state::AppState;
+    use notras_core::Library;
 
     use super::*;
 
@@ -96,11 +97,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                core: Mutex::new(Core {
-                    index_dirty: Default::default(),
-                    notes_dir: directory.path().to_owned(),
-                    conn: index::open(directory.path()).unwrap(),
-                }),
+                library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -115,7 +112,7 @@ mod tests {
         let (sender, changes) = mpsc::channel();
         let handle = app.handle().clone();
         let listener = app.listen("notes-changed", move |event| {
-            let available = handle.state::<AppState>().core.try_lock().is_ok();
+            let available = handle.state::<AppState>().library.try_lock().is_ok();
             sender
                 .send((
                     serde_json::from_str::<Value>(event.payload()).unwrap(),
@@ -199,16 +196,13 @@ mod tests {
     fn should_report_committed_capture_warnings_after_unlocking_and_recover_reads() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
-        let conn = index::open(directory.path()).unwrap();
-        conn.execute_batch("PRAGMA query_only = ON").unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        let conn = rusqlite::Connection::open(directory.path().join(".notras/index.db")).unwrap();
+        conn.execute_batch("CREATE TRIGGER refuse_insert BEFORE INSERT ON note BEGIN SELECT RAISE(FAIL, 'index unavailable'); END;").unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                core: Mutex::new(Core {
-                    index_dirty: Default::default(),
-                    notes_dir: directory.path().to_owned(),
-                    conn,
-                }),
+                library: Mutex::new(library),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -226,7 +220,7 @@ mod tests {
             sender
                 .send((
                     serde_json::from_str::<Value>(event.payload()).unwrap(),
-                    handle.state::<AppState>().core.try_lock().is_ok(),
+                    handle.state::<AppState>().library.try_lock().is_ok(),
                 ))
                 .unwrap();
         });
@@ -246,11 +240,7 @@ mod tests {
             "a captured thought"
         );
         assert!(invoke(&capture, "list_notes", json!({"filters": {}})).is_err());
-        app.state::<AppState>()
-            .core()
-            .conn
-            .execute_batch("PRAGMA query_only = OFF")
-            .unwrap();
+        conn.execute_batch("DROP TRIGGER refuse_insert").unwrap();
         let notes = invoke(&capture, "list_notes", json!({"filters": {}})).unwrap();
         assert_eq!(notes.as_array().unwrap().len(), 1);
         assert_eq!(notes[0]["path"], "inbox/untitled.md");
@@ -264,11 +254,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                core: Mutex::new(Core {
-                    index_dirty: Default::default(),
-                    notes_dir: directory.path().to_owned(),
-                    conn: index::open(directory.path()).unwrap(),
-                }),
+                library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -319,11 +305,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                core: Mutex::new(Core {
-                    index_dirty: Default::default(),
-                    notes_dir: directory.path().to_owned(),
-                    conn: index::open(directory.path()).unwrap(),
-                }),
+                library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -363,11 +345,7 @@ mod tests {
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
-                core: Mutex::new(Core {
-                    index_dirty: Default::default(),
-                    notes_dir: initial.clone(),
-                    conn: index::open(&initial).unwrap(),
-                }),
+                library: Mutex::new(Library::open(initial.clone()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -428,16 +406,12 @@ mod tests {
             "---\ntags: [work]\n---\n# Source\nAtlas in prose",
         )
         .unwrap();
-        let conn = index::open(directory.path()).unwrap();
-        index::scan_complete(&conn, directory.path()).unwrap();
+        let library = Library::open(directory.path().to_owned()).unwrap();
+        library.scan_complete().unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                core: Mutex::new(Core {
-                    notes_dir: directory.path().to_owned(),
-                    conn,
-                    index_dirty: Default::default(),
-                }),
+                library: Mutex::new(library),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),

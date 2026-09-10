@@ -10,7 +10,7 @@
     "build": "tauri build",
     "build:web": "vite build",
     "check": "ultracite check",
-    "clean": "rm -rf dist src-tauri/target",
+    "clean": "rm -rf dist target",
     "coverage": "vitest run --coverage",
     "dev": "tauri dev",
     "dev:web": "vite",

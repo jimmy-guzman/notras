@@ -1,16 +1,10 @@
-mod application;
 mod bindings;
 mod clipboard;
-mod frontmatter;
-mod index;
 mod notes;
-mod queries;
-mod relationships;
 mod state;
 mod watcher;
 mod windows;
 
-use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -25,9 +19,9 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_store::StoreExt;
 
-use crate::application::Core;
 use crate::bindings::NotesChanged;
 use crate::state::AppState;
+use notras_core::Library;
 use tauri_specta::Event;
 
 /// `--background` from `src/styles.css`, restated because the window layer is
@@ -170,20 +164,15 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         Some(dir) => dir,
         None => app.path().home_dir()?.join("notras"),
     };
-    fs::create_dir_all(notes_dir.join(".notras"))?;
+
+    let library = Library::open(notes_dir.clone())?;
 
     // Images are rendered through the asset protocol; the scope follows the
     // notes dir at runtime rather than blanketing $HOME in the config.
     allow_assets(app.handle(), &notes_dir);
 
-    let conn = index::open(&notes_dir)?;
-
     app.manage(AppState {
-        core: Mutex::new(Core {
-            index_dirty: Default::default(),
-            notes_dir: notes_dir.clone(),
-            conn,
-        }),
+        library: Mutex::new(library),
         watcher: Mutex::new(None),
         pending_open: Mutex::new(Vec::new()),
         quitting: AtomicBool::new(false),
@@ -193,12 +182,10 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let scan_app = app.handle().clone();
     std::thread::spawn(move || {
         let state = scan_app.state::<AppState>();
-        let core = state.core();
-        match index::scan_all(&core.conn, &core.notes_dir) {
-            Ok(report) => {
-                core.index_dirty.set(!report.failures.is_empty());
-                let changed = report.changed;
-                drop(core);
+        let library = state.library();
+        match library.scan() {
+            Ok(changed) => {
+                drop(library);
                 if !changed.is_empty() {
                     if let Err(error) = (NotesChanged { paths: changed }).emit(&scan_app) {
                         log::error!("could not emit {}: {error}", "notes-changed");
@@ -206,7 +193,6 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Err(error) => {
-                core.index_dirty.set(true);
                 log::error!("startup scan failed: {error}");
             }
         }

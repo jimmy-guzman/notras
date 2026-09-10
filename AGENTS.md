@@ -64,7 +64,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Boundaries between units
 
-- **Depend on abstractions you pass in, not concretions you reach for.** Keep platform access at the boundaries described in `ARCHITECTURE.md`. Native application functions receive `Core`; frontend data functions use the generated command client. Test native behavior with real files and SQLite, and frontend behavior at the IPC boundary.
+- **Depend on abstractions you pass in, not concretions you reach for.** Keep platform access at the boundaries described in `ARCHITECTURE.md`. Native handlers call `Library` operations; frontend data functions use the generated command client. Test native behavior with real files and SQLite, and frontend behavior at the IPC boundary.
 
 - **Hide what varies behind a stable surface.** Keep implementation details, data shapes, and library choices private to their module. Expose the narrowest interface callers need.
 
@@ -135,13 +135,13 @@ pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
 pnpm build:web        # 4. web bundle build
 ```
 
-When Rust sources or gate configuration change, also run these commands from `src-tauri/` in this order:
+When Rust sources or gate configuration change, also run these commands from the repository root in this order:
 
 ```txt
 cargo machete
 cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+cargo clippy --workspace --locked --all-targets -- -D warnings
+cargo test --workspace --locked
 ```
 
 CI checks native binding drift on Linux before starting the TypeScript job. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
@@ -268,6 +268,6 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **`## Why` also says what happens when the change is wrong and how someone finds out.** The section carries the problem the change addresses. Two more sentences make it answerable: the risk someone accepted, and the signal that fires when the risk lands.
 
-- **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated `Cargo.lock` beside it, which is what `cargo test --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
+- **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
 
 - **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs rot as soon as the code moves without them. Catching the update at the point of change is when it reliably happens at all.

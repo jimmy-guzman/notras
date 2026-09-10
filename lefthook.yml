@@ -15,9 +15,10 @@ pre-commit:
       glob:
         - "src-tauri/*.rs"
         - "src-tauri/**/*.rs"
+        - "crates/**/*.rs"
         - "rustfmt.toml"
         - ".rustfmt.toml"
         - "src-tauri/rustfmt.toml"
         - "src-tauri/.rustfmt.toml"
-        - "src-tauri/rust-toolchain.toml"
-      run: cd src-tauri && cargo fmt --all -- --check
+        - "rust-toolchain.toml"
+      run: cargo fmt --all -- --check

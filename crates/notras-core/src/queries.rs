@@ -5,14 +5,16 @@ use regex::Regex;
 use rusqlite::{named_params, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::application::{ensure_index, CommandError, Core};
+use crate::application::CommandError;
 use crate::relationships::{self, Graph, Hub, HubPill, Mention, NoteLink, RingMember};
+use crate::Library;
 use crate::{frontmatter, index};
 
-#[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteMeta {
-    #[specta(type = f64)]
+    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub created_at: i64,
     pub folder: String,
     pub path: String,
@@ -20,11 +22,12 @@ pub struct NoteMeta {
     pub snippet: Option<String>,
     pub tags: Vec<String>,
     pub title: String,
-    #[specta(type = f64)]
+    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
 }
 
-#[derive(Default, Deserialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteFilters {
     pub folder: Option<String>,
@@ -35,13 +38,15 @@ pub struct NoteFilters {
     pub tag: Option<String>,
 }
 
-#[derive(Deserialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NoteSort {
     Updated,
 }
 
-#[derive(Deserialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum SearchFilter {
     Folder(String),
@@ -52,27 +57,31 @@ pub enum SearchFilter {
     To(String),
 }
 
-#[derive(Deserialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Deserialize)]
 pub struct NoteSearch {
     pub filters: Vec<SearchFilter>,
     pub incomplete: bool,
     pub query: String,
 }
 
-#[derive(Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Serialize)]
 pub struct CountedTag {
     pub count: u32,
     pub tag: String,
 }
 
-#[derive(Deserialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum GraphTarget {
     Note { path: String },
     Hub { hub: Hub },
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Picture {
     Note {
@@ -85,7 +94,8 @@ pub enum Picture {
     },
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphResult {
     pub picture: Option<Picture>,
@@ -156,7 +166,10 @@ fn select_links(conn: &Connection, destinations: bool) -> Result<Vec<NoteLink>, 
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-fn bare_mentions(core: &Core, target: &NoteMeta) -> Result<Vec<index::BareMention>, CommandError> {
+fn bare_mentions(
+    core: &Library,
+    target: &NoteMeta,
+) -> Result<Vec<index::BareMention>, CommandError> {
     let candidates = index::mention_candidates(&core.conn, &target.path, &target.title)?;
     Ok(index::scan_mentions(
         &core.notes_dir,
@@ -166,7 +179,7 @@ fn bare_mentions(core: &Core, target: &NoteMeta) -> Result<Vec<index::BareMentio
 }
 
 fn filter_matches(
-    core: &Core,
+    core: &Library,
     filter: &SearchFilter,
     notes: &[NoteMeta],
     links: &[NoteLink],
@@ -241,114 +254,116 @@ fn filter_matches(
     }
 }
 
-pub fn list_notes(core: &Core, filters: NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
-    ensure_index(core)?;
-    select_notes(&core.conn, &filters)
-}
+impl Library {
+    pub fn list_notes(&self, filters: NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
+        self.ensure_index()?;
+        select_notes(&self.conn, &filters)
+    }
 
-pub fn list_tags(core: &Core) -> Result<Vec<CountedTag>, CommandError> {
-    ensure_index(core)?;
-    let mut statement = core
-        .conn
-        .prepare("SELECT count(*), tag FROM note_tag GROUP BY tag ORDER BY tag")?;
-    let rows = statement.query_map([], |row| {
-        Ok(CountedTag {
-            count: row.get(0)?,
-            tag: row.get(1)?,
-        })
-    })?;
-    Ok(rows.collect::<rusqlite::Result<_>>()?)
-}
-
-pub fn find_mentions(core: &Core, path: &str) -> Result<Vec<Mention>, CommandError> {
-    ensure_index(core)?;
-    let notes = select_notes(&core.conn, &NoteFilters::default())?;
-    let Some(target) = notes.iter().find(|note| note.path == path) else {
-        return Ok(Vec::new());
-    };
-    let links = select_links(&core.conn, false)?;
-    let bare = bare_mentions(core, target)?;
-    Ok(relationships::mentions(path, &links, &notes, &bare))
-}
-
-pub fn read_graph(core: &Core, target: GraphTarget) -> Result<GraphResult, CommandError> {
-    ensure_index(core)?;
-    let notes = select_notes(&core.conn, &NoteFilters::default())?;
-    match target {
-        GraphTarget::Hub { hub } => Ok(GraphResult {
-            picture: Some(Picture::Hub {
-                hub: relationships::hub_pill(&hub, &notes),
-                members: relationships::hub_ring(&hub, &notes),
-            }),
-            mentions_error: None,
-        }),
-        GraphTarget::Note { path } => {
-            let Some(note) = notes.iter().find(|note| note.path == path) else {
-                return Ok(GraphResult {
-                    picture: None,
-                    mentions_error: None,
-                });
-            };
-            let links = select_links(&core.conn, false)?;
-            let (bare, mentions_error) = match bare_mentions(core, note) {
-                Ok(bare) => (bare, None),
-                Err(error) => (Vec::new(), Some(error)),
-            };
-            Ok(GraphResult {
-                picture: Some(Picture::Note {
-                    note: note.clone(),
-                    graph: relationships::graph(&path, &links, &notes, &bare),
-                }),
-                mentions_error,
+    pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
+        self.ensure_index()?;
+        let mut statement = self
+            .conn
+            .prepare("SELECT count(*), tag FROM note_tag GROUP BY tag ORDER BY tag")?;
+        let rows = statement.query_map([], |row| {
+            Ok(CountedTag {
+                count: row.get(0)?,
+                tag: row.get(1)?,
             })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn find_mentions(&self, path: &str) -> Result<Vec<Mention>, CommandError> {
+        self.ensure_index()?;
+        let notes = select_notes(&self.conn, &NoteFilters::default())?;
+        let Some(target) = notes.iter().find(|note| note.path == path) else {
+            return Ok(Vec::new());
+        };
+        let links = select_links(&self.conn, false)?;
+        let bare = bare_mentions(self, target)?;
+        Ok(relationships::mentions(path, &links, &notes, &bare))
+    }
+
+    pub fn read_graph(&self, target: GraphTarget) -> Result<GraphResult, CommandError> {
+        self.ensure_index()?;
+        let notes = select_notes(&self.conn, &NoteFilters::default())?;
+        match target {
+            GraphTarget::Hub { hub } => Ok(GraphResult {
+                picture: Some(Picture::Hub {
+                    hub: relationships::hub_pill(&hub, &notes),
+                    members: relationships::hub_ring(&hub, &notes),
+                }),
+                mentions_error: None,
+            }),
+            GraphTarget::Note { path } => {
+                let Some(note) = notes.iter().find(|note| note.path == path) else {
+                    return Ok(GraphResult {
+                        picture: None,
+                        mentions_error: None,
+                    });
+                };
+                let links = select_links(&self.conn, false)?;
+                let (bare, mentions_error) = match bare_mentions(self, note) {
+                    Ok(bare) => (bare, None),
+                    Err(error) => (Vec::new(), Some(error)),
+                };
+                Ok(GraphResult {
+                    picture: Some(Picture::Note {
+                        note: note.clone(),
+                        graph: relationships::graph(&path, &links, &notes, &bare),
+                    }),
+                    mentions_error,
+                })
+            }
         }
     }
-}
 
-pub fn search_notes(core: &Core, search: NoteSearch) -> Result<Vec<NoteMeta>, CommandError> {
-    if search.incomplete {
-        return Ok(Vec::new());
+    pub fn search_notes(&self, search: NoteSearch) -> Result<Vec<NoteMeta>, CommandError> {
+        if search.incomplete {
+            return Ok(Vec::new());
+        }
+        self.ensure_index()?;
+        let candidates = select_notes(
+            &self.conn,
+            &NoteFilters {
+                query: Some(search.query),
+                ..Default::default()
+            },
+        )?;
+        if search.filters.is_empty() {
+            return Ok(candidates.into_iter().take(30).collect());
+        }
+        let notes = select_notes(&self.conn, &NoteFilters::default())?;
+        let links = if search.filters.iter().any(|filter| {
+            matches!(
+                filter,
+                SearchFilter::Link(_) | SearchFilter::To(_) | SearchFilter::From(_)
+            )
+        }) {
+            select_links(&self.conn, true)?
+        } else {
+            Vec::new()
+        };
+        let matches = search
+            .filters
+            .iter()
+            .map(|filter| filter_matches(self, filter, &notes, &links))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(candidates
+            .into_iter()
+            .filter(|note| matches.iter().all(|found| found.contains_key(&note.path)))
+            .take(30)
+            .map(|mut note| {
+                if note.snippet.is_none() {
+                    note.snippet = matches
+                        .iter()
+                        .find_map(|found| found.get(&note.path).cloned().flatten());
+                }
+                note
+            })
+            .collect())
     }
-    ensure_index(core)?;
-    let candidates = select_notes(
-        &core.conn,
-        &NoteFilters {
-            query: Some(search.query),
-            ..Default::default()
-        },
-    )?;
-    if search.filters.is_empty() {
-        return Ok(candidates.into_iter().take(30).collect());
-    }
-    let notes = select_notes(&core.conn, &NoteFilters::default())?;
-    let links = if search.filters.iter().any(|filter| {
-        matches!(
-            filter,
-            SearchFilter::Link(_) | SearchFilter::To(_) | SearchFilter::From(_)
-        )
-    }) {
-        select_links(&core.conn, true)?
-    } else {
-        Vec::new()
-    };
-    let matches = search
-        .filters
-        .iter()
-        .map(|filter| filter_matches(core, filter, &notes, &links))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(candidates
-        .into_iter()
-        .filter(|note| matches.iter().all(|found| found.contains_key(&note.path)))
-        .take(30)
-        .map(|mut note| {
-            if note.snippet.is_none() {
-                note.snippet = matches
-                    .iter()
-                    .find_map(|found| found.get(&note.path).cloned().flatten());
-            }
-            note
-        })
-        .collect())
 }
 
 #[cfg(test)]
@@ -357,11 +372,11 @@ mod tests {
     use serde_json::{json, Value};
     use std::fs;
 
-    fn library() -> (tempfile::TempDir, Core) {
+    fn library() -> (tempfile::TempDir, Library) {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
         let conn = index::open(directory.path()).unwrap();
-        let core = Core {
+        let core = Library {
             notes_dir: directory.path().to_owned(),
             conn,
             index_dirty: Default::default(),
@@ -369,7 +384,7 @@ mod tests {
         (directory, core)
     }
 
-    fn save(core: &Core, path: &str, content: &str, updated_at: i64) {
+    fn save(core: &Library, path: &str, content: &str, updated_at: i64) {
         let absolute = core.notes_dir.join(path);
         fs::create_dir_all(absolute.parent().unwrap()).unwrap();
         fs::write(absolute, content).unwrap();
@@ -407,13 +422,11 @@ mod tests {
             }
         }
         core.conn.execute_batch("COMMIT").unwrap();
-        let result = read_graph(
-            &core,
-            GraphTarget::Note {
+        let result = core
+            .read_graph(GraphTarget::Note {
                 path: "note-0.md".into(),
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         let Some(Picture::Note { graph, .. }) = result.picture else {
             panic!()
         };
@@ -432,14 +445,12 @@ mod tests {
         );
         save(&core, "work/new.md", "---\ntags: [a]\n---\n# New", 3);
         save(&core, "work/deep/other.md", "# Other", 4);
-        let notes = list_notes(
-            &core,
-            NoteFilters {
+        let notes = core
+            .list_notes(NoteFilters {
                 folder: Some("work".into()),
                 ..Default::default()
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(
             notes
                 .iter()
@@ -448,40 +459,34 @@ mod tests {
             ["work/pinned.md", "work/new.md"]
         );
         assert_eq!(notes[0].tags, ["z", "a"]);
-        let recent = list_notes(
-            &core,
-            NoteFilters {
+        let recent = core
+            .list_notes(NoteFilters {
                 sort: Some(NoteSort::Updated),
                 limit: Some(1),
                 ..Default::default()
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(recent[0].path, "work/deep/other.md");
-        let tagged = list_notes(
-            &core,
-            NoteFilters {
+        let tagged = core
+            .list_notes(NoteFilters {
                 tag: Some("a".into()),
                 pinned_only: Some(true),
                 ..Default::default()
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(tagged.len(), 1);
         assert_eq!(tagged[0].path, "work/pinned.md");
         assert_eq!(
-            json!(list_tags(&core).unwrap()),
+            json!(core.list_tags().unwrap()),
             json!([{"count":2,"tag":"a"},{"count":1,"tag":"z"}])
         );
-        assert!(list_notes(
-            &core,
-            NoteFilters {
+        assert!(core
+            .list_notes(NoteFilters {
                 limit: Some(0),
                 ..Default::default()
-            }
-        )
-        .unwrap()
-        .is_empty());
+            })
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -489,15 +494,13 @@ mod tests {
         let (_directory, core) = library();
         fs::write(core.notes_dir.join("unreadable.md"), [0xff]).unwrap();
         core.index_dirty.set(true);
-        let result = search_notes(
-            &core,
-            NoteSearch {
+        let result = core
+            .search_notes(NoteSearch {
                 query: "needle".into(),
                 filters: vec![],
                 incomplete: true,
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert!(result.is_empty());
         assert!(core.index_dirty.get());
     }
@@ -522,9 +525,8 @@ mod tests {
             let folder = if i < 40 { "other" } else { "work/2026" };
             save(&core, &format!("{folder}/{i}.md"), "---\ntags: [work, review]\n---\n# Budget\nneedle [code](https://GitHub.com/notras)", i);
         }
-        let result = search_notes(
-            &core,
-            NoteSearch {
+        let result = core
+            .search_notes(NoteSearch {
                 query: "needle".into(),
                 incomplete: false,
                 filters: vec![
@@ -533,9 +535,8 @@ mod tests {
                     SearchFilter::Tag("review".into()),
                     SearchFilter::Tag("work".into()),
                 ],
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(result.len(), 30);
         assert_eq!(result[0].path, "work/2026/79.md");
         assert_eq!(result[29].path, "work/2026/50.md");
@@ -544,16 +545,14 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("[[hl]]needle[[/hl]]")));
-        assert!(search_notes(
-            &core,
-            NoteSearch {
+        assert!(core
+            .search_notes(NoteSearch {
                 query: "needle".into(),
                 filters: vec![],
                 incomplete: true
-            }
-        )
-        .unwrap()
-        .is_empty());
+            })
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -574,14 +573,12 @@ mod tests {
             "# Other\nneedle lots of additional content that lowers the relevance of this match",
             100,
         );
-        let notes = list_notes(
-            &core,
-            NoteFilters {
+        let notes = core
+            .list_notes(NoteFilters {
                 query: Some("need".into()),
                 ..Default::default()
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(
             notes
                 .iter()
@@ -589,15 +586,13 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["pinned.md", "a.md", "b.md", "old.md", "verbose.md"]
         );
-        assert!(list_notes(
-            &core,
-            NoteFilters {
+        assert!(core
+            .list_notes(NoteFilters {
                 query: Some("needle absent".into()),
                 ..Default::default()
-            }
-        )
-        .unwrap()
-        .is_empty());
+            })
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -637,15 +632,13 @@ mod tests {
             ),
             ("", vec![SearchFilter::From("missing.md".into())], vec![]),
         ] {
-            let result = search_notes(
-                &core,
-                NoteSearch {
+            let result = core
+                .search_notes(NoteSearch {
                     query: query.into(),
                     filters,
                     incomplete: false,
-                },
-            )
-            .unwrap();
+                })
+                .unwrap();
             assert_eq!(
                 result
                     .iter()
@@ -666,7 +659,7 @@ mod tests {
             "---\ntags: [x]\n---\n# Source\nAtlas in prose\n[[Atlas]] and [map](atlas.md)\n`Atlas`",
             2,
         );
-        let mentions = find_mentions(&core, "atlas.md").unwrap();
+        let mentions = core.find_mentions("atlas.md").unwrap();
         assert_eq!(mentions.len(), 1);
         assert_eq!(mentions[0].note.path, "source.md");
         assert_eq!(
@@ -679,7 +672,7 @@ mod tests {
         );
         assert_eq!(mentions[0].lines[0].r#match, "Atlas");
         save(&core, "atlas.md", "# Earth", 3);
-        assert_eq!(find_mentions(&core, "atlas.md").unwrap()[0].lines.len(), 2);
+        assert_eq!(core.find_mentions("atlas.md").unwrap()[0].lines.len(), 2);
     }
 
     #[test]
@@ -691,31 +684,27 @@ mod tests {
             "# Source\nFirst phrase\n[site](https://example.test)\nFirst phrase later",
             1,
         );
-        let result = search_notes(
-            &core,
-            NoteSearch {
+        let result = core
+            .search_notes(NoteSearch {
                 query: "".into(),
                 incomplete: false,
                 filters: vec![
                     SearchFilter::Mention("First phrase".into()),
                     SearchFilter::Link("example.test".into()),
                 ],
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(result[0].snippet.as_deref(), Some("First phrase later"));
-        let result = search_notes(
-            &core,
-            NoteSearch {
+        let result = core
+            .search_notes(NoteSearch {
                 query: "".into(),
                 incomplete: false,
                 filters: vec![
                     SearchFilter::Link("example.test".into()),
                     SearchFilter::Mention("First phrase".into()),
                 ],
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(
             result[0].snippet.as_deref(),
             Some("[site](https://example.test)")
@@ -732,32 +721,28 @@ mod tests {
         .unwrap();
         core.index_dirty.set(true);
         assert_eq!(
-            list_notes(&core, NoteFilters::default()).unwrap()[0].title,
+            core.list_notes(NoteFilters::default()).unwrap()[0].title,
             "Fresh"
         );
         assert!(!core.index_dirty.get());
         fs::write(core.notes_dir.join("bad.md"), [0xff]).unwrap();
         core.index_dirty.set(true);
-        assert!(list_notes(&core, NoteFilters::default()).is_err());
-        assert!(list_tags(&core).is_err());
-        assert!(find_mentions(&core, "fresh.md").is_err());
-        assert!(read_graph(
-            &core,
-            GraphTarget::Note {
+        assert!(core.list_notes(NoteFilters::default()).is_err());
+        assert!(core.list_tags().is_err());
+        assert!(core.find_mentions("fresh.md").is_err());
+        assert!(core
+            .read_graph(GraphTarget::Note {
                 path: "fresh.md".into()
-            }
-        )
-        .is_err());
-        assert!(search_notes(
-            &core,
-            NoteSearch {
+            })
+            .is_err());
+        assert!(core
+            .search_notes(NoteSearch {
                 query: "".into(),
                 filters: vec![],
                 incomplete: false
-            }
-        )
-        .is_err());
-        let file = crate::application::read_note(&core, "fresh.md".into()).unwrap();
+            })
+            .is_err());
+        let file = core.read_note("fresh.md".into()).unwrap();
         assert_eq!(file.title, "Fresh");
         assert!(file.pinned);
         assert_eq!(file.tags, ["z", "a"]);
@@ -769,23 +754,19 @@ mod tests {
         save(&core, "atlas.md", "# Atlas\n[[Source]]", 1);
         save(&core, "source.md", "# Source\nAtlas", 2);
         fs::write(core.notes_dir.join("source.md"), [0xff]).unwrap();
-        assert!(find_mentions(&core, "atlas.md").is_err());
-        assert!(search_notes(
-            &core,
-            NoteSearch {
+        assert!(core.find_mentions("atlas.md").is_err());
+        assert!(core
+            .search_notes(NoteSearch {
                 query: "".into(),
                 filters: vec![SearchFilter::To("atlas.md".into())],
                 incomplete: false
-            }
-        )
-        .is_err());
-        let result = read_graph(
-            &core,
-            GraphTarget::Note {
+            })
+            .is_err());
+        let result = core
+            .read_graph(GraphTarget::Note {
                 path: "atlas.md".into(),
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert!(result.mentions_error.is_some());
         let Some(Picture::Note { graph, .. }) = result.picture else {
             panic!("expected note graph")
@@ -797,7 +778,7 @@ mod tests {
     #[test]
     fn should_preserve_the_recorded_search_filter_results() {
         let cases: Vec<Value> =
-            serde_json::from_str(include_str!("../../fixtures/search-queries.json")).unwrap();
+            serde_json::from_str(include_str!("../../../fixtures/search-queries.json")).unwrap();
         for case in cases {
             let (_directory, core) = library();
             let args = &case["args"];
@@ -845,8 +826,9 @@ mod tests {
                         (notes.len() - i) as i64,
                     );
                 }
-                let result =
-                    search_notes(&core, serde_json::from_value(args[1].clone()).unwrap()).unwrap();
+                let result = core
+                    .search_notes(serde_json::from_value(args[1].clone()).unwrap())
+                    .unwrap();
                 assert_eq!(
                     result
                         .iter()

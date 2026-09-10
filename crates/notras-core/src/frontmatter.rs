@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn strips_separators_from_tags() {
+    fn should_strip_separators_from_tags() {
         let parsed = parse("---\ntags:\n  - \"a,b\"\n---\nbody\n");
         assert_eq!(parsed.frontmatter.tags, vec!["ab"]);
     }

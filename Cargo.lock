@@ -2501,16 +2501,13 @@ dependencies = [
 name = "notras"
 version = "0.0.0"
 dependencies = [
- "base64 0.22.1",
  "log",
  "notify",
  "notify-debouncer-full",
+ "notras-core",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
- "proptest",
- "pulldown-cmark",
- "regex",
  "rusqlite",
  "serde",
  "serde_json",
@@ -2527,6 +2524,22 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tauri-specta",
+ "tempfile",
+]
+
+[[package]]
+name = "notras-core"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "proptest",
+ "pulldown-cmark",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "specta",
  "tempfile",
  "thiserror 2.0.20",
 ]

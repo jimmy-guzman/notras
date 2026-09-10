@@ -7,7 +7,6 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event;
 
 use crate::bindings::NotesChanged;
-use crate::index;
 use crate::state::AppState;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
@@ -45,61 +44,17 @@ pub fn start<R: Runtime>(
 
 fn handle<R: Runtime>(app: &AppHandle<R>, events: &[DebouncedEvent]) {
     let state = app.state::<AppState>();
-    let core = state.core();
-
-    let mut changed: Vec<String> = Vec::new();
-    let mut full_scan = false;
-
-    for event in events {
-        for path in &event.paths {
-            let Some(rel) = index::relative_path(&core.notes_dir, path) else {
-                continue;
-            };
-            if index::is_note_file(path) {
-                match index::index_file(&core.conn, &core.notes_dir, &rel) {
-                    Ok(true) => changed.push(rel),
-                    Ok(false) => {}
-                    Err(error) => {
-                        core.index_dirty.set(true);
-                        changed.push(rel.clone());
-                        log::error!("could not index {rel}: {error}");
-                    }
-                }
-            } else if path.is_dir() || !path.exists() {
-                // A directory changed (rename/move/delete) -- children events
-                // are not guaranteed, so reconcile everything. Attachments and
-                // other files that still exist cannot affect the index.
-                full_scan = true;
-            }
-        }
-    }
-
-    if full_scan {
-        match index::scan_all(&core.conn, &core.notes_dir) {
-            Ok(report) => {
-                if !report.failures.is_empty() {
-                    core.index_dirty.set(true);
-                }
-                changed.extend(report.changed);
-            }
-            Err(error) => {
-                core.index_dirty.set(true);
-                log::error!("could not rescan the notes dir: {error}");
-            }
-        }
-    }
-
-    changed.sort();
-    changed.dedup();
-
-    let dirty = core.index_dirty.get();
-    drop(core);
-    if dirty {
-        changed.clear();
-    }
-    if dirty || !changed.is_empty() {
-        if let Err(error) = (NotesChanged { paths: changed }).emit(app) {
-            log::error!("could not emit {}: {error}", "notes-changed");
+    let changed = {
+        let library = state.library();
+        library.reconcile_paths(
+            events
+                .iter()
+                .flat_map(|event| event.paths.iter().map(PathBuf::as_path)),
+        )
+    };
+    if let Some(paths) = changed {
+        if let Err(error) = (NotesChanged { paths }).emit(app) {
+            log::error!("could not emit notes-changed: {error}");
         }
     }
 }

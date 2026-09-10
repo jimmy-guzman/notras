@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{frontmatter, index, queries::NoteMeta};
+use crate::{frontmatter, index, markdown, queries::NoteMeta};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct NoteLink {
@@ -13,42 +13,48 @@ pub struct NoteLink {
     pub target: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MentionLine {
     pub context: String,
-    #[specta(type = f64)]
+    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub line: usize,
     pub r#match: String,
 }
 
-#[derive(Clone, Debug, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Clone, Debug, Serialize)]
 pub struct Mention {
     pub lines: Vec<MentionLine>,
     pub note: NoteMeta,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Hub {
     Folder { folder: String },
     Tag { tag: String },
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, Serialize)]
 pub struct HubPill {
-    #[specta(type = f64)]
+    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub count: usize,
     pub hub: Hub,
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum RingMember {
     Hub { pill: HubPill },
     Note { note: NoteMeta },
 }
 
-#[derive(Debug, Serialize, specta::Type)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, Serialize)]
 pub struct Graph {
     pub dangling: Vec<String>,
     pub hubs: Vec<HubPill>,
@@ -160,7 +166,7 @@ impl<'a> Resolver<'a> {
         let mut by_name: HashMap<String, Vec<&NoteMeta>> = HashMap::new();
         for note in notes {
             let title = note.title.to_lowercase();
-            let stem = index::title_of(&note.path).to_lowercase();
+            let stem = markdown::title_of(&note.path).to_lowercase();
             if stem != title {
                 by_name.entry(stem).or_default().push(note);
             }
@@ -395,8 +401,8 @@ mod tests {
     #[test]
     fn should_preserve_the_existing_graph_and_mention_contracts() {
         for source in [
-            include_str!("../../fixtures/graph-queries.json"),
-            include_str!("../../fixtures/links-queries.json"),
+            include_str!("../../../fixtures/graph-queries.json"),
+            include_str!("../../../fixtures/links-queries.json"),
         ] {
             let cases: Vec<Value> = serde_json::from_str(source).unwrap();
             for case in cases {
@@ -432,7 +438,7 @@ mod tests {
     #[test]
     fn should_choose_duplicate_titles_in_unicode_scalar_path_order() {
         let fixture: Value =
-            serde_json::from_str(include_str!("../../fixtures/note-queries.json")).unwrap();
+            serde_json::from_str(include_str!("../../../fixtures/note-queries.json")).unwrap();
         for case in fixture["titles"].as_array().unwrap() {
             let mut notes: Vec<NoteMeta> = case["notes"]
                 .as_array()
@@ -471,7 +477,7 @@ mod tests {
     #[test]
     fn should_decode_relative_paths_like_the_editor_including_malformed_escapes() {
         let fixture: Value =
-            serde_json::from_str(include_str!("../../fixtures/note-queries.json")).unwrap();
+            serde_json::from_str(include_str!("../../../fixtures/note-queries.json")).unwrap();
         for case in fixture["paths"].as_array().unwrap() {
             assert_eq!(
                 json!(resolve_path(
