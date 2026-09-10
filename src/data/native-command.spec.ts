@@ -8,7 +8,7 @@ import { saveNote } from "@/data/save-note";
 
 afterEach(clearMocks);
 
-describe("native mutation boundary", () => {
+describe("native command boundary", () => {
   it("should send a title to native creation and return its chosen path", async () => {
     mockIPC((command, args) => {
       expect(command).toBe("create_note");
@@ -112,11 +112,22 @@ describe("native mutation boundary", () => {
   });
 
   it("should report an unexpected defect without exposing its internals", async () => {
-    mockIPC(() => undefined);
+    const logged: unknown[] = [];
+    mockIPC((command, args) => {
+      logged.push({ args, command });
+    });
     await expect(
       nativeCommand(() => {
         throw new Error("internal invariant");
       })
     ).rejects.toThrow("an unexpected error");
+    expect(logged).toEqual([
+      {
+        args: expect.objectContaining({
+          message: expect.stringContaining("internal invariant"),
+        }),
+        command: "plugin:log|log",
+      },
+    ]);
   });
 });

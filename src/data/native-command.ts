@@ -17,12 +17,13 @@ export async function nativeCommand<T>(
       "message" in cause &&
       typeof cause.message === "string"
     ) {
-      // biome-ignore lint/style/useErrorCause: FileError is a schema constructor without ErrorOptions; the native kind and reason are preserved
-      throw new FileError({ kind: cause.kind, message: cause.message });
+      throw new FileError(
+        { kind: cause.kind, message: cause.message },
+        { cause }
+      );
     }
     if (typeof cause === "string") {
-      // biome-ignore lint/style/useErrorCause: FileError is a schema constructor without ErrorOptions; the native kind and reason are preserved
-      throw new FileError({ kind: "failed", message: cause });
+      throw new FileError({ kind: "failed", message: cause }, { cause });
     }
     try {
       await logError(

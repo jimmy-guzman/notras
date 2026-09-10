@@ -26,9 +26,6 @@ async cancelQuit() : Promise<void> {
 async classifyOpenPaths(paths: string[]) : Promise<PendingOpen[]> {
     return await TAURI_INVOKE("classify_open_paths", { paths });
 },
-async dbSelect(sql: string, params: JsonValue[]) : Promise<JsonValue[][]> {
-    return await TAURI_INVOKE("db_select", { sql, params });
-},
 async deleteNote(path: string) : Promise<DeleteReceipt> {
     return await TAURI_INVOKE("delete_note", { path });
 },
@@ -126,7 +123,6 @@ export type GraphResult = { picture: Picture | null; mentionsError: CommandError
 export type GraphTarget = { kind: "note"; path: string } | { kind: "hub"; hub: Hub }
 export type Hub = { kind: "folder"; folder: string } | { kind: "tag"; tag: string }
 export type HubPill = { count: number; hub: Hub }
-export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type Mention = { lines: MentionLine[]; note: NoteMeta }
 export type MentionLine = { context: string; line: number; match: string }
 export type MutationReceipt = { path: string; updatedAt: number; warnings: MutationWarning[] }

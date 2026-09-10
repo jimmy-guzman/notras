@@ -26,7 +26,6 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::attach_image::<tauri::Wry>,
             notes::cancel_quit,
             notes::classify_open_paths::<tauri::Wry>,
-            notes::db_select::<tauri::Wry>,
             notes::delete_note::<tauri::Wry>,
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir,
@@ -148,17 +147,10 @@ mod tests {
             changes.recv().unwrap(),
             (json!({"paths": ["ideas/a.md"]}), true)
         );
-        assert_eq!(
-            invoke(
-                &window,
-                "db_select",
-                json!({
-                    "sql": "SELECT path, title FROM note WHERE path = ?", "params": ["ideas/a.md"]
-                })
-            )
-            .unwrap(),
-            json!([["ideas/a.md", "first"]])
-        );
+        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(notes[0]["path"], "ideas/a.md");
+        assert_eq!(notes[0]["title"], "first");
 
         invoke(
             &window,
@@ -186,17 +178,10 @@ mod tests {
             fs::read_to_string(directory.path().join("a.md")).unwrap(),
             "# second"
         );
-        assert_eq!(
-            invoke(
-                &window,
-                "db_select",
-                json!({
-                    "sql": "SELECT path, title FROM note", "params": []
-                })
-            )
-            .unwrap(),
-            json!([["a.md", "second"]])
-        );
+        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(notes[0]["path"], "a.md");
+        assert_eq!(notes[0]["title"], "second");
         assert_eq!(
             invoke(&window, "delete_note", json!({"path": "a.md"})).unwrap(),
             json!({"path": "a.md", "warnings": []})
@@ -204,14 +189,7 @@ mod tests {
         assert_eq!(changes.recv().unwrap(), (json!({"paths": ["a.md"]}), true));
         assert!(!directory.path().join("a.md").exists());
         assert_eq!(
-            invoke(
-                &window,
-                "db_select",
-                json!({
-                    "sql": "SELECT path FROM note", "params": []
-                })
-            )
-            .unwrap(),
+            invoke(&window, "list_notes", json!({"filters": {}})).unwrap(),
             json!([])
         );
         app.unlisten(listener);
@@ -267,26 +245,15 @@ mod tests {
             invoke(&capture, "read_note", json!({"path": receipt["path"]})).unwrap()["content"],
             "a captured thought"
         );
-        assert!(invoke(
-            &capture,
-            "db_select",
-            json!({"sql": "SELECT path FROM note", "params": []})
-        )
-        .is_err());
+        assert!(invoke(&capture, "list_notes", json!({"filters": {}})).is_err());
         app.state::<AppState>()
             .core()
             .conn
             .execute_batch("PRAGMA query_only = OFF")
             .unwrap();
-        assert_eq!(
-            invoke(
-                &capture,
-                "db_select",
-                json!({"sql": "SELECT path FROM note", "params": []})
-            )
-            .unwrap(),
-            json!([["inbox/untitled.md"]])
-        );
+        let notes = invoke(&capture, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(notes[0]["path"], "inbox/untitled.md");
     }
 
     #[test]
@@ -346,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn should_decode_camel_case_arguments_and_round_trip_json_query_values() {
+    fn should_decode_camel_case_attachment_arguments() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
@@ -374,28 +341,6 @@ mod tests {
         assert_eq!(
             fs::read(directory.path().join(attachment.as_str().unwrap())).unwrap(),
             b"hello"
-        );
-        assert_eq!(
-            invoke(
-                &window,
-                "db_select",
-                json!({
-                    "sql": "SELECT ?, ?, ?, ?, ?", "params": [null, true, 42, 1.5, "text"]
-                })
-            )
-            .unwrap(),
-            json!([[null, 1, 42, 1.5, "text"]])
-        );
-        assert_eq!(
-            invoke(
-                &window,
-                "db_select",
-                json!({
-                    "sql": "SELECT json_extract(?, '$[1]')", "params": ["[1,2]"]
-                })
-            )
-            .unwrap(),
-            json!([[2]])
         );
     }
 
@@ -466,17 +411,10 @@ mod tests {
                 .unwrap(),
             json!({"paths": ["external.md"]})
         );
-        assert_eq!(
-            invoke(
-                &window,
-                "db_select",
-                json!({
-                    "sql": "SELECT path, title FROM note", "params": []
-                })
-            )
-            .unwrap(),
-            json!([["external.md", "watched"]])
-        );
+        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(notes[0]["path"], "external.md");
+        assert_eq!(notes[0]["title"], "watched");
         *app.state::<AppState>().watcher() = None;
     }
 

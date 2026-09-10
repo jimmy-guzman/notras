@@ -1,8 +1,7 @@
-import { FileStore } from "@/core/file-store";
-
-import { run } from "./run";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
 /** Rebuild the derived index from the files on disk. */
-export function reindexAll() {
-  return run(FileStore.use((store) => store.reindexAll()));
+export async function reindexAll(): Promise<string[]> {
+  return await nativeCommand(commands.reindexAll);
 }

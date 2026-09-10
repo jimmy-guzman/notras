@@ -9,7 +9,6 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Shell           | Tauri 2 (Rust): file IO commands, FTS5 index, notify watcher, tray, global shortcuts                         |
 | Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR); TanStack Query caches every read (`D66`)            |
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
-| Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Rust `rusqlite`, typed operation commands                                                                      |
 | Native contract | Pinned Specta types and Tauri commands/events; Serde wire values and thiserror failures |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
@@ -30,7 +29,7 @@ flowchart TD
         Persistence --> Mutations[Typed mutation client]
         Query --> Data[src/data async fns]
         Data --> Reads[Typed query client]
-        Data --> FileStore[Effect FileStore: library settings and rebuilds]
+        Data --> Library[Typed library settings and rebuilds]
     end
 
     subgraph rust [Rust: single writer of the index]
@@ -41,14 +40,14 @@ flowchart TD
     end
 
     Mutations --> Commands
-    FileStore --> Commands
+    Library --> Commands
     Reads --> Commands
     Agents[any editor / git / AI agent] -.write markdown.-> Files
     Commands -. notes-changed event .-> UI
     Watcher -. notes-changed event .-> UI
 ```
 
-**Rust is the single writer of the index.** Rust publishes complete documents, allocates filenames without overwriting another note, and reconciles the index under the core lock. The editing session owns changes to the document. Committed bytes remain successful when index reconciliation fails. Commands emit affected paths after releasing the lock. The `db_select` command rejects statements SQLite reports as writable.
+**Rust is the single writer of the index.** Rust publishes complete documents, allocates filenames without overwriting another note, and reconciles the index under the core lock. The editing session owns changes to the document. Committed bytes remain successful when index reconciliation fails. Commands emit affected paths after releasing the lock.
 
 **External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: the root route listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
 
@@ -109,7 +108,6 @@ src/
   core/               # Isomorphic bottom layer (no platform imports)
     frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
     notes.ts          # NoteMeta, NoteFilters, path/title helpers
-    file-store.ts     # FileStore port (Context.Service)
     errors.ts         # FileError
     fts-markers.ts    # [[hl]] snippet markers shared with SQL
     links.ts          # editor link resolution and mention display types
@@ -117,13 +115,9 @@ src/
   data/               # Plain async fns the UI calls (ex-server-actions)
     queries.ts        # THE query keys and options, one factory (D66)
     native-command.ts # typed native failure normalization
-    run.ts            # Effect boundary for library settings and rebuilds
   server/
-    adapters/         # the only note IO and SQL path to @tauri-apps/*;
-                      # UI code reaches it for events, dialogs and windows
-      tauri-file-store.ts   # FileStore -> Rust commands
+    adapters/         # generated native IPC boundary
       bindings.ts          # GENERATED native commands, events and wire types
-    runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
     pending-flush.ts  # autosave flush registry read by the quit handshake
     prefs.ts          # focus mode, app-wide (D53)
@@ -168,20 +162,16 @@ scripts/
 Nothing enforces these. Lint held them until `D41` retired the ESLint config, and `D43` records why they were not ported to Biome. Review is the check now, and the fix for a violation is never to move the import.
 
 - **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or `@/data`. It runs in the webview and in any other runtime, which is what makes it testable without a window.
-- **Native query and application modules are window-free.** They receive `Core`, which owns the library directory and SQLite connection. `notes.rs` supplies the blocking task and core lock. The remaining Effect `FileStore` adapter handles library settings and rebuilds. Native bindings live in `src/server/adapters/**`.
-- **UI code** (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO and SQL go through `src/data`.
+- **Native query and application modules are window-free.** They receive `Core`, which owns the library directory and SQLite connection. `notes.rs` supplies the blocking task and core lock. Library settings and rebuilds use the same typed command boundary through `src/data`. Native bindings live in `src/server/adapters/**`.
+- **UI code** (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO and indexed reads go through `src/data`.
 
 ## Key patterns
 
 ### Data access
 
-The UI calls plain async functions in `src/data/`, one concern per file. Queries and mutations call generated operation commands through `nativeCommand`; Rust owns persisted metadata, filters and relationship resolution. Only library settings and reindexing still run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps a typed failure into the plain `Error` it is, so a caller can put its message in a toast. A defect is not unwrapped: its cause goes to the log through `tauri-plugin-log`, on both sides the one sink, and the caller sees "an unexpected error".
+The UI calls plain async functions in `src/data/`, one concern per file. Queries, mutations, library settings and reindexing call generated operation commands through `nativeCommand`; Rust owns persisted metadata, filters and relationship resolution. `nativeCommand` converts expected native rejections and Tauri argument-decoding strings into `FileError`, a plain `Error` subclass with a `failed` or `not-found` kind and the original cause. The caller supplies the action and displays the reason. Unexpected defects go to the log through `tauri-plugin-log`, and the caller sees "an unexpected error" even if logging fails.
 
 Reads reach those functions through TanStack Query. `src/data/queries.ts` owns note query keys. Open-note actions use the loaded session. The palette, pin control, and tag controls read its live snapshot. One persistence queue saves complete documents and orders folder moves; query results cannot acknowledge an edit.
-
-### Effect style
-
-`FileStore` remains a `Context.Service` for library settings and reindexing. `TauriFileStoreLive` supplies its native commands, and `AppRuntime` composes it with the logger. `FileError` remains a typed failure because its message reaches the user.
 
 ### Test seam
 
@@ -233,11 +223,11 @@ The controller accepts reads only for its committed path and after pending write
 
 ### Adding a Rust command
 
-Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted reads and mutations reach the generated client through `src/data`. Library settings and reindexing use the `FileStore` adapter; UI concerns call generated shell commands directly.
+Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted reads, mutations, library settings and reindexing reach the generated client through `src/data`. UI concerns call generated shell commands directly.
 
 The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. Biome excludes the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
 
-A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. The existing `db_select` bridge also retains its string errors. Indexed mutations attempt reconciliation before returning a committed receipt. Reconciliation failures mark the index dirty and add warnings. Index reads rebuild a dirty index first and fail if recovery is incomplete; direct file reads remain available. Main-window mutation warnings and the toaster live outside the workspace route, so a failed index loader cannot hide them. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
+A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. Indexed mutations attempt reconciliation before returning a committed receipt. Reconciliation failures mark the index dirty and add warnings. Index reads rebuild a dirty index first and fail if recovery is incomplete; direct file reads remain available. Main-window mutation warnings and the toaster live outside the workspace route, so a failed index loader cannot hide them. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
 
 ### The palette is the action surface
 
@@ -257,7 +247,7 @@ One component serves two doors. `find` and `actions` are the two root members of
 
 ### Preferences
 
-Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the `FileStore` port: `get_notes_dir` and `set_notes_dir` behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
+Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and the per-tab snapshots in another (`D70`). Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the generated `get_notes_dir` and `set_notes_dir` commands behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime.
 
 ### Snippet rendering
 
@@ -267,8 +257,8 @@ FTS snippets carry `[[hl]]` and `[[/hl]]` markers from native SQL. `src/core/fts
 
 Each of these holds a property the architecture depends on. Breaking one is a design change, not a refactor.
 
-- **TypeScript never writes the index.** Typed query commands return saved results. The unused `db_select` compatibility command remains read-only until the final migration cleanup. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
-- **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/server/runtime.ts`, `src/data/native-command.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
+- **TypeScript never writes the index.** Typed query commands return saved results. There is no generic SQL command. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
+- **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/data/native-command.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `src-tauri/src/index.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.
 - **Every editor node defines its markdown form and appears in the round-trip spec.** A node without one silently drops content from externally authored files.

@@ -28,11 +28,7 @@ interface SettingsDialogProps {
   open: boolean;
 }
 
-/**
- * Launch at login, owned by the OS rather than the index, so it is keyed here
- * rather than in `src/data/queries.ts` alongside the reads that go through the
- * Effect runtime.
- */
+// Autostart belongs to the OS and must not be invalidated by index changes.
 const autostartQuery = queryOptions({
   queryFn: isEnabled,
   queryKey: ["autostart"] as const,

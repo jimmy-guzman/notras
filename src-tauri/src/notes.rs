@@ -90,22 +90,6 @@ pub async fn attach_image<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn db_select<R: Runtime>(
-    app: AppHandle<R>,
-    sql: String,
-    params: Vec<Value>,
-) -> Result<Vec<Vec<Value>>, String> {
-    run_blocking(move || {
-        let state = app.state::<AppState>();
-        let core = state.core();
-        application::db_select(&core, sql, params).map_err(CommandError::from)
-    })
-    .await
-    .map_err(|error| error.message)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn find_mentions<R: Runtime>(
     app: AppHandle<R>,
     path: String,

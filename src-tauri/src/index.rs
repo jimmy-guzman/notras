@@ -5,11 +5,8 @@ use std::time::UNIX_EPOCH;
 use std::{fs, io};
 
 use pulldown_cmark::{Event, Options, Parser, Tag};
-use rusqlite::functions::FunctionFlags;
-use rusqlite::types::ValueRef;
 use rusqlite::Connection;
 use serde::Serialize;
-use serde_json::{json, Value};
 
 use crate::frontmatter;
 
@@ -51,108 +48,15 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 /// every unedited note on the old derivation until someone ran "reindex".
 const SCHEMA_VERSION: i64 = 5;
 
-fn relationship_key(kind: &str, target: &str, source: &str) -> Option<String> {
-    if kind == "wikilink" {
-        return Some(
-            target
-                .trim_matches(|ch| {
-                    matches!(
-                        ch,
-                        '\t' | '\n'
-                            | '\u{b}'
-                            | '\u{c}'
-                            | '\r'
-                            | ' '
-                            | '\u{a0}'
-                            | '\u{1680}'
-                            | '\u{2000}'
-                            ..='\u{200a}'
-                                | '\u{2028}'
-                                | '\u{2029}'
-                                | '\u{202f}'
-                                | '\u{205f}'
-                                | '\u{3000}'
-                                | '\u{feff}'
-                    )
-                })
-                .to_lowercase(),
-        );
-    }
-    let bare = target.split(['#', '?']).next()?;
-    let mut decoded = Vec::new();
-    let bytes = bare.as_bytes();
-    let mut at = 0;
-    while at < bytes.len() {
-        let hex = bytes.get(at + 1..at + 3).and_then(|pair| {
-            Some((pair[0] as char).to_digit(16)? * 16 + (pair[1] as char).to_digit(16)?)
-        });
-        if let Some(value) = hex.filter(|_| bytes[at] == b'%') {
-            let byte = value as u8;
-            // mdurl preserves reserved escapes, uppercasing their hex digits.
-            if b";/?:@&=+$,#".contains(&byte) {
-                decoded.extend(format!("%{byte:02X}").bytes());
-            } else {
-                decoded.push(byte);
-            }
-            at += 3;
-        } else {
-            decoded.push(bytes[at]);
-            at += 1;
-        }
-    }
-    // Malformed UTF-8 stays a candidate: mdurl's replacement rules differ
-    // from Rust's, so only the core resolver can decide its final target.
-    let decoded = String::from_utf8(decoded).ok()?;
-    let folder = source.rsplit_once('/').map_or("", |(folder, _)| folder);
-    let mut segments = Vec::new();
-    for segment in folder.split('/').chain(decoded.split('/')) {
-        match segment {
-            "" | "." => (),
-            ".." => {
-                segments.pop()?;
-            }
-            segment => segments.push(segment),
-        }
-    }
-    Some(segments.join("/").to_lowercase())
-}
-
-fn register_relationship_functions(conn: &Connection) -> rusqlite::Result<()> {
-    let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
-    conn.create_scalar_function("notras_lower", 1, flags, |ctx| {
-        Ok(ctx.get::<String>(0)?.to_lowercase())
-    })?;
-    conn.create_scalar_function("notras_note_name", 1, flags, |ctx| {
-        let path = ctx.get::<String>(0)?;
-        let name = path.rsplit('/').next().unwrap_or(&path);
-        let extension = if name.to_ascii_lowercase().ends_with(".markdown") {
-            9
-        } else if name.to_ascii_lowercase().ends_with(".md") {
-            3
-        } else {
-            0
-        };
-        Ok(name[..name.len() - extension].to_lowercase())
-    })?;
-    conn.create_scalar_function("notras_link_key", 3, flags, |ctx| {
-        Ok(relationship_key(
-            &ctx.get::<String>(0)?,
-            &ctx.get::<String>(1)?,
-            &ctx.get::<String>(2)?,
-        ))
-    })
-}
-
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
-/// Rust is the single writer -- the webview only ever issues SELECTs.
+/// Rust owns both reads and writes.
 ///
 /// `note_link` holds one row per wikilink occurrence rather than one per pair
 /// of notes, and `target` is the text as written rather than a resolved path:
-/// the webview resolves it on read, so a note created or retitled later is
+/// native queries resolve it on read, so a note created or retitled later is
 /// found by links written before it existed.
 pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
-    register_relationship_functions(conn)?;
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
          CREATE TABLE IF NOT EXISTS note (
@@ -1189,117 +1093,39 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
     Ok(ScanReport { changed, failures })
 }
 
-fn bind_value(value: &Value) -> rusqlite::types::Value {
-    use rusqlite::types::Value as SqlValue;
-    match value {
-        Value::Null => SqlValue::Null,
-        Value::Bool(b) => SqlValue::Integer(i64::from(*b)),
-        Value::Number(n) => n.as_i64().map_or_else(
-            || SqlValue::Real(n.as_f64().unwrap_or_default()),
-            SqlValue::Integer,
-        ),
-        other => SqlValue::Text(match other {
-            Value::String(s) => s.clone(),
-            _ => other.to_string(),
-        }),
-    }
-}
-
-fn column_value(value: ValueRef<'_>) -> Value {
-    match value {
-        ValueRef::Null => Value::Null,
-        ValueRef::Integer(i) => json!(i),
-        ValueRef::Real(f) => json!(f),
-        ValueRef::Text(t) => json!(String::from_utf8_lossy(t)),
-        ValueRef::Blob(_) => Value::Null,
-    }
-}
-
-/// Read-only query surface for the webview (Drizzle's sqlite-proxy driver).
-/// Returns positional row arrays. Anything that isn't a SELECT is rejected --
-/// the index has exactly one writer, and it is not the webview.
-///
-/// The gate is SQLite's own `sqlite3_stmt_readonly` rather than a prefix test:
-/// a `WITH ... DELETE`/`UPDATE`/`INSERT` CTE starts with `with` but writes.
-pub fn select(conn: &Connection, sql: &str, params: &[Value]) -> Result<Vec<Vec<Value>>, String> {
-    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
-    if !stmt.readonly() {
-        return Err("only SELECT statements are allowed".into());
-    }
-
-    let column_count = stmt.column_count();
-
-    let bound: Vec<rusqlite::types::Value> = params.iter().map(bind_value).collect();
-    let mut rows = stmt
-        .query(rusqlite::params_from_iter(bound))
-        .map_err(|e| e.to_string())?;
-
-    let mut out = Vec::new();
-    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
-        let mut values = Vec::with_capacity(column_count);
-        for i in 0..column_count {
-            values.push(column_value(row.get_ref(i).map_err(|e| e.to_string())?));
-        }
-        out.push(values);
-    }
-    Ok(out)
-}
-
 #[cfg(test)]
 mod tests {
+    use rusqlite::{types::ValueRef, ToSql};
+    use serde_json::{json, Value};
+
     use super::*;
+
+    fn select(
+        conn: &Connection,
+        sql: &str,
+        params: &[&dyn ToSql],
+    ) -> rusqlite::Result<Vec<Vec<Value>>> {
+        let mut statement = conn.prepare(sql)?;
+        let column_count = statement.column_count();
+        let rows = statement.query_map(params, |row| {
+            (0..column_count)
+                .map(|column| {
+                    Ok(match row.get_ref(column)? {
+                        ValueRef::Integer(value) => json!(value),
+                        ValueRef::Text(value) => json!(std::str::from_utf8(value).unwrap()),
+                        value => panic!("unexpected indexed test value: {value:?}"),
+                    })
+                })
+                .collect()
+        })?;
+        rows.collect()
+    }
 
     fn temp_notes_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("notras-test-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
-    }
-
-    #[test]
-    fn should_normalize_relationship_query_keys_without_resolving_titles() {
-        let conn = Connection::open_in_memory().unwrap();
-        ensure_schema(&conn).unwrap();
-        assert_eq!(
-            select(
-                &conn,
-                "SELECT notras_lower('ÉXAMPLE'), notras_note_name('work/Atlas.MARKDOWN')",
-                &[]
-            )
-            .unwrap(),
-            vec![vec![json!("éxample"), json!("atlas")]]
-        );
-        for (kind, target, source, expected) in [
-            (
-                "wikilink",
-                "\u{feff} BUDGET \u{a0}",
-                "work/a.md",
-                Some("budget"),
-            ),
-            ("link", "../b%20c.md#heading", "work/a.md", Some("b c.md")),
-            ("link", "../b%2fc.md?query", "work/a.md", Some("b%2fc.md")),
-            ("link", "./%C3%89.md", "work/a.md", Some("work/é.md")),
-            ("link", "../../b.md", "work/a.md", None),
-            ("link", "%ff.md", "work/a.md", None),
-        ] {
-            let rows = select(
-                &conn,
-                "SELECT notras_link_key(?1, ?2, ?3)",
-                &[json!(kind), json!(target), json!(source)],
-            )
-            .unwrap();
-            assert_eq!(rows, vec![vec![json!(expected)]], "{target}");
-        }
-    }
-
-    #[test]
-    fn should_fold_filename_stems_after_removing_the_extension() {
-        let conn = Connection::open_in_memory().unwrap();
-        ensure_schema(&conn).unwrap();
-        assert_eq!(
-            select(&conn, "SELECT notras_note_name('ΟΣ.md')", &[]).unwrap(),
-            vec![vec![json!("ος")]]
-        );
     }
 
     /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
@@ -1391,7 +1217,7 @@ mod tests {
         let hits = select(
             &conn,
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1",
-            &[json!("claude")],
+            &[&"claude"],
         )
         .unwrap();
         assert_eq!(hits.len(), 1);
@@ -1464,14 +1290,14 @@ mod tests {
         let hits = select(
             &conn,
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1",
-            &[json!("notes")],
+            &[&"notes"],
         )
         .unwrap();
         assert_eq!(hits.len(), 1);
         let no_hits = select(
             &conn,
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1",
-            &[json!("standup")],
+            &[&"standup"],
         )
         .unwrap();
         assert!(no_hits.is_empty());
@@ -1524,28 +1350,12 @@ mod tests {
         let rows = select(
             &conn,
             "SELECT path FROM note WHERE path = ?1",
-            &[json!("linked.md")],
+            &[&"linked.md"],
         )
         .unwrap();
         assert!(rows.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn select_rejects_writes() {
-        let conn = Connection::open_in_memory().unwrap();
-        ensure_schema(&conn).unwrap();
-        assert!(select(&conn, "DELETE FROM note", &[]).is_err());
-        // A writable CTE starts with "with" but is not read-only.
-        assert!(select(
-            &conn,
-            "WITH doomed AS (SELECT path FROM note) DELETE FROM note",
-            &[],
-        )
-        .is_err());
-        assert!(select(&conn, "  select 1", &[]).is_ok());
-        assert!(select(&conn, "WITH one AS (SELECT 1) SELECT * FROM one", &[]).is_ok());
     }
 
     /// The wikilink parity table. `src/components/editor/wikilink.spec.ts`

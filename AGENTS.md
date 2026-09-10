@@ -28,14 +28,6 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Cite IDs, never restate, and never in code.** Write `D7` in commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now. A comment has to stand on its own instead: a reader in the file cannot follow the citation, and `DECISIONS.md` records what was decided once rather than what the code does now.
 
-## Learning more about Effect
-
-This repository uses the Effect TypeScript library.
-
-Before writing any Effect code, read `node_modules/effect/AGENTS.md` in full and follow the links in the file when required.
-
-If you need to learn more about particular Effect APIs and concepts that the guide does not cover, search through the source code in `node_modules/effect/src`.
-
 ## Naming and layout
 
 - **Files read bottom-up: helpers at the top, main exported symbol at the bottom.** Scrolling to the end shows the file's public API. Implementation details sit above it in the order you would compose them. Route files are the exception: `export const Route` sits at the top, with components as function declarations below, which hoisting makes lint-clean.
@@ -72,7 +64,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 ## Boundaries between units
 
-- **Depend on abstractions you pass in, not concretions you reach for.** This repo already names its ports: `FileStore` in `src/core`, `Database` in `src/server/db`. A service that reaches for a Tauri command directly cannot be tested. Nothing enforces this since `D43`, so `ARCHITECTURE.md` records the boundaries and a reviewer holds them.
+- **Depend on abstractions you pass in, not concretions you reach for.** Keep platform access at the boundaries described in `ARCHITECTURE.md`. Native application functions receive `Core`; frontend data functions use the generated command client. Test native behavior with real files and SQLite, and frontend behavior at the IPC boundary.
 
 - **Hide what varies behind a stable surface.** Keep implementation details, data shapes, and library choices private to their module. Expose the narrowest interface callers need.
 
@@ -94,9 +86,9 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 - **Where TypeScript infers return types, do not annotate internal functions.** That covers unexported functions, local closures, and inline callbacks. Exported functions and interface method signatures are the exception, since their return type is part of the public contract.
 
-- **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validate at the owning boundary described in `ARCHITECTURE.md`; persisted mutation inputs are validated in Rust. Use Effect Schema for remaining Effect boundaries, not zod.
+- **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validate at the owning boundary described in `ARCHITECTURE.md`; persisted mutation inputs are validated in Rust.
 
-- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `run()` gets it to a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
+- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `nativeCommand()` preserves it for a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
 
 - **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 

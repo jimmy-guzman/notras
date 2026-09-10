@@ -5,7 +5,6 @@ use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tempfile::{Builder, NamedTempFile};
 
 use crate::{frontmatter, index};
@@ -366,11 +365,6 @@ pub fn ensure_index(core: &Core) -> Result<(), CommandError> {
         reindex_all(core)?;
     }
     Ok(())
-}
-
-pub fn db_select(core: &Core, sql: String, params: Vec<Value>) -> Result<Vec<Vec<Value>>, String> {
-    ensure_index(core).map_err(|error| error.message)?;
-    index::select(&core.conn, &sql, &params)
 }
 
 pub fn read_note(core: &Core, path: String) -> Result<SavedNote, CommandError> {
@@ -745,7 +739,9 @@ pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::queries;
     use proptest::prelude::*;
+    use serde_json::Value;
 
     #[test]
     fn should_recompute_collision_suffixes_and_exclude_the_current_file() {
@@ -793,8 +789,12 @@ mod tests {
         assert_eq!(third.path, "weekend-errands.md");
         assert!(!directory.path().join("weekend-errands-2.md").exists());
         assert_eq!(
-            db_select(&core, "SELECT path FROM note".into(), vec![]).unwrap(),
-            vec![vec![Value::from("weekend-errands.md")]]
+            queries::list_notes(&core, Default::default())
+                .unwrap()
+                .into_iter()
+                .map(|note| note.path)
+                .collect::<Vec<_>>(),
+            vec!["weekend-errands.md"]
         );
     }
 
@@ -988,7 +988,7 @@ mod tests {
         };
         fs::write(directory.path().join("good.md"), "readable").unwrap();
         fs::write(directory.path().join("bad.md"), [0xff]).unwrap();
-        assert!(db_select(&core, "SELECT path FROM note".into(), vec![]).is_err());
+        assert!(queries::list_notes(&core, Default::default()).is_err());
         assert!(core.index_dirty.get());
         assert_eq!(
             read_note(&core, "good.md".into()).unwrap().content,
@@ -996,8 +996,10 @@ mod tests {
         );
         fs::write(directory.path().join("bad.md"), "fixed").unwrap();
         assert_eq!(
-            db_select(&core, "SELECT count(*) FROM note".into(), vec![]).unwrap(),
-            vec![vec![Value::from(2)]]
+            queries::list_notes(&core, Default::default())
+                .unwrap()
+                .len(),
+            2
         );
     }
 
@@ -1028,11 +1030,15 @@ mod tests {
             matches!(receipt.warnings.as_slice(), [MutationWarning::Index { path, .. }] if path == "a.md")
         );
         assert_eq!(read_note(&core, "a.md".into()).unwrap().content, "# saved");
-        assert!(db_select(&core, "SELECT title FROM note".into(), vec![]).is_err());
+        assert!(queries::list_notes(&core, Default::default()).is_err());
         core.conn.execute_batch("PRAGMA query_only = OFF").unwrap();
         assert_eq!(
-            db_select(&core, "SELECT title FROM note".into(), vec![]).unwrap(),
-            vec![vec![Value::from("saved")]]
+            queries::list_notes(&core, Default::default())
+                .unwrap()
+                .into_iter()
+                .map(|note| note.title)
+                .collect::<Vec<_>>(),
+            vec!["saved"]
         );
         assert!(!core.index_dirty.get());
     }
@@ -1097,11 +1103,12 @@ mod tests {
         assert_eq!(read.content, "# title\nbody");
         assert_eq!(read.updated_at, receipt.updated_at);
         assert_eq!(
-            db_select(&core, "SELECT path, title FROM note".into(), vec![]).unwrap(),
-            vec![vec![
-                Value::String("a.md".into()),
-                Value::String("title".into())
-            ]]
+            queries::list_notes(&core, Default::default())
+                .unwrap()
+                .into_iter()
+                .map(|note| (note.path, note.title))
+                .collect::<Vec<_>>(),
+            vec![("a.md".into(), "title".into())]
         );
     }
 
