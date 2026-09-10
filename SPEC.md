@@ -21,10 +21,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
 - First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
 - A note is a file whose extension is `md` or `markdown`, matched without regard to case, so `NOTE.MD` is a note.
-- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed, and a note that became one after indexing is not read for mentions.
+- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Scans skip symlinked files and directories, including a note whose parent became a symlink after indexing. Such notes are not read for mentions.
+- The selected notes root may be a symlink. The app resolves it before reading, watching or granting attachment access. Existing symlinked paths beneath that root are refused for direct note operations and attachment writes. A symlinked index directory or database path prevents opening the library. Explicit external-file operations remain available.
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
-- A path segment carries no `/`, `\` or `:`, is not blank, and does not start with a dot. A folder name is at most 120 characters.
+- A library path uses `/` separators with no empty, `.` or `..` components. A segment carries no `\`, `:` or null character, is not blank, and does not start with a dot. A folder name is at most 120 characters. Library mutation receipts use `/` separators on every platform.
 - The title resolves from the leading `#` heading, then an imported frontmatter `title:`, then the filename stem. Existing frontmatter titles remain unchanged.
 - Only the first non-blank line can be that heading, and it takes CommonMark's ATX shape: up to three spaces of indent, one `#`, then a space, a tab, or the end of the line. `##` never matches, and `# C#` keeps its trailing `#`.
 - "rename note..." accepts a readable name and sets the leading heading, introducing it when absent. The filename is lowercased, with whitespace and invalid filename characters collapsed to hyphens, and truncated to 120 UTF-16 code units without splitting a Unicode character.
@@ -49,6 +50,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Writes and folder moves are serialized per session. Rename changes the heading immediately; saving publishes the resulting content and filename. Further rename and move actions remain available while earlier work is pending. Later saves use the committed path.
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
 - A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
+- Direct reads and indexing obtain content and timestamps from the same opened file. An atomic replacement during a read cannot mix two files; concurrent in-place writes are not isolated. An invalid or unavailable modification time reports a failure instead of indexing zero.
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read attempts a complete rebuild and reports a failure if recovery is incomplete. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
 - Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.

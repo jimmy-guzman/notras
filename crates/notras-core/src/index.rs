@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 use std::{fs, io};
 
 use rusqlite::{Connection, OptionalExtension};
@@ -11,6 +10,8 @@ use crate::{
     markdown::{
         bare_mentions, destinations, is_note_path, leading_heading, resolve_title, wikilinks,
     },
+    note_file::{timestamp_millis, OpenedNote},
+    relative_path::{reject_symlink, RelativePath},
 };
 
 /// What an index operation can fail on: the note's file, or the database.
@@ -26,6 +27,10 @@ pub enum IndexError {
 /// there cannot be opened or holds no usable schema. The files are the source
 /// of truth, so a database the app cannot read is one it can throw away.
 pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
+    reject_symlink(&notes_dir.join(".notras"))?;
+    for suffix in ["", "-wal", "-shm", "-journal"] {
+        reject_symlink(&notes_dir.join(format!(".notras/index.db{suffix}")))?;
+    }
     let path = notes_dir.join(".notras/index.db");
     let opened = Connection::open(&path).and_then(|conn| ensure_schema(&conn).map(|()| conn));
     let error = match opened {
@@ -105,11 +110,6 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn timestamp_millis(time: std::io::Result<std::time::SystemTime>) -> Option<i64> {
-    let duration = time.ok()?.duration_since(UNIX_EPOCH).ok()?;
-    i64::try_from(duration.as_millis()).ok()
-}
-
 pub fn is_note_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
@@ -122,16 +122,12 @@ fn is_hidden(component: &std::ffi::OsStr) -> bool {
 
 /// Relative path (unix separators) for a note file inside the notes dir.
 pub fn relative_path(notes_dir: &Path, path: &Path) -> Option<String> {
-    let rel = path.strip_prefix(notes_dir).ok()?;
-    if rel.components().any(|c| is_hidden(c.as_os_str())) {
-        return None;
+    if path == notes_dir {
+        return Some(String::new());
     }
-    Some(
-        rel.components()
-            .map(|c| c.as_os_str().to_string_lossy())
-            .collect::<Vec<_>>()
-            .join("/"),
-    )
+    RelativePath::from_host(notes_dir, path)
+        .ok()
+        .map(RelativePath::into_string)
 }
 
 fn folder_of(rel_path: &str) -> String {
@@ -216,7 +212,10 @@ pub fn scan_prose(
     let mut found = Vec::new();
 
     for candidate in candidates {
-        let abs = notes_dir.join(&candidate);
+        let candidate_path = RelativePath::parse(&candidate)?;
+        let Some(abs) = candidate_path.resolve_for_scan(notes_dir)? else {
+            continue;
+        };
         // The refusal `index_file` makes: a note swapped for a symlink since it
         // was indexed reads nothing, and the watcher drops its row.
         match fs::symlink_metadata(&abs) {
@@ -225,7 +224,7 @@ pub fn scan_prose(
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error.into()),
         }
-        let content = match fs::read_to_string(&abs) {
+        let content = match OpenedNote::open(&abs).and_then(OpenedNote::read) {
             Ok(content) => content,
             // The index runs behind the folder, and the watcher drops the row.
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
@@ -298,7 +297,11 @@ fn index_note(
     rel_path: &str,
     force: bool,
 ) -> Result<bool, IndexError> {
-    let abs = notes_dir.join(rel_path);
+    let relative = RelativePath::parse(rel_path)?;
+    let Some(abs) = relative.resolve_for_scan(notes_dir)? else {
+        remove(conn, relative.as_str())?;
+        return Ok(true);
+    };
 
     // `symlink_metadata` does not follow the link, so a note symlinked to
     // something outside the vault never gets its contents into the index.
@@ -315,7 +318,16 @@ fn index_note(
         return Ok(true);
     }
 
-    let updated_at = timestamp_millis(meta.modified()).unwrap_or_default();
+    let file = match OpenedNote::open(&abs) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            remove(conn, rel_path)?;
+            return Ok(true);
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let meta = file.metadata()?;
+    let updated_at = timestamp_millis(meta.modified())?;
     let stored: Option<i64> = conn
         .query_row(
             "SELECT updated_at FROM note WHERE path = ?1",
@@ -327,14 +339,7 @@ fn index_note(
         return Ok(false);
     }
 
-    let content = match fs::read_to_string(&abs) {
-        Ok(content) => content,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            remove(conn, rel_path)?;
-            return Ok(true);
-        }
-        Err(error) => return Err(error.into()),
-    };
+    let content = file.read()?;
 
     let parsed = frontmatter::parse(&content);
     // The body is a suffix of the file, so what precedes it is the frontmatter,
@@ -504,9 +509,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
     let mut changed = Vec::new();
 
     for file in files {
-        let Some(rel) = relative_path(notes_dir, &file) else {
-            continue;
-        };
+        let rel = RelativePath::from_host(notes_dir, &file)?.into_string();
         match index_file(conn, notes_dir, &rel) {
             Ok(true) => changed.push(rel.clone()),
             Ok(false) => {}
@@ -544,6 +547,7 @@ mod tests {
     use crate::markdown::markdown_links;
     use rusqlite::{types::ValueRef, ToSql};
     use serde_json::{json, Value};
+    use std::time::UNIX_EPOCH;
 
     use super::*;
 

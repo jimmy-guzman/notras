@@ -165,7 +165,8 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         None => app.path().home_dir()?.join("notras"),
     };
 
-    let library = Library::open(notes_dir.clone())?;
+    let library = Library::open(notes_dir)?;
+    let notes_dir = library.directory().to_owned();
 
     // Images are rendered through the asset protocol; the scope follows the
     // notes dir at runtime rather than blanketing $HOME in the config.

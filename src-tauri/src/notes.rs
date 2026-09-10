@@ -304,7 +304,8 @@ pub async fn set_notes_dir<R: Runtime>(
         // library swap and watcher replacement in the same order.
         let mut watcher = state.watcher();
         let notes_dir = PathBuf::from(&path);
-        let library = Library::open(notes_dir.clone())?;
+        let library = Library::open(notes_dir)?;
+        let notes_dir = library.directory().to_owned();
         library.scan_complete()?;
         // Started first: a folder the app cannot watch is refused whole.
         let fresh = watcher::start(app.clone(), notes_dir.clone())

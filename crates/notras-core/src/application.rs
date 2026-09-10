@@ -1,12 +1,17 @@
 use std::fs;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use serde::{Deserialize, Serialize};
 use tempfile::{Builder, NamedTempFile};
 
-use crate::{frontmatter, index, markdown, note_file::OpenedNote, Library};
+use crate::{
+    frontmatter, index, markdown,
+    note_file::{timestamp_millis, OpenedNote},
+    relative_path::RelativePath,
+    Library,
+};
 
 /// Why a command failed. A webview tab has to tell a file that is gone from a
 /// read it should retry or report, and a message string cannot carry that.
@@ -113,20 +118,6 @@ pub struct SavedNote {
     pub title: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
-}
-
-/// Resolve a relative note path against the notes dir, rejecting anything
-/// that escapes it or touches hidden files/directories.
-fn resolve(core: &Library, rel: &str) -> Result<PathBuf, String> {
-    let path = Path::new(rel);
-    let escapes = path.is_absolute()
-        || path.components().any(|component| {
-            !matches!(&component, Component::Normal(name) if !name.to_string_lossy().starts_with('.'))
-        });
-    if rel.is_empty() || escapes {
-        return Err(format!("invalid note path: {rel}"));
-    }
-    Ok(core.notes_dir.join(path))
 }
 
 fn is_markdown(path: &Path) -> bool {
@@ -328,14 +319,7 @@ fn note_path(folder: &str, filename: &str) -> String {
 }
 
 fn checked_mtime(file: &fs::File) -> Result<i64, CommandError> {
-    timestamp_millis(file.metadata()?.modified())
-}
-
-fn timestamp_millis(time: io::Result<std::time::SystemTime>) -> Result<i64, CommandError> {
-    let time = time?
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| "the file timestamp precedes the epoch")?;
-    i64::try_from(time.as_millis()).map_err(|_| "the file timestamp is too large".into())
+    Ok(timestamp_millis(file.metadata()?.modified())?)
 }
 
 /// Publish an existing note's replacement and obtain the receipt timestamp before publication.
@@ -365,34 +349,30 @@ fn reconcile(core: &Library, paths: &[&str]) -> Vec<MutationWarning> {
     warnings
 }
 
-fn publish_path_change(
+fn publish_move(
     core: &Library,
-    from: String,
-    to: String,
-    original: NoteFile,
+    from: &RelativePath,
+    to: &RelativePath,
     content: String,
-    title: Option<String>,
+    metadata: fs::Metadata,
 ) -> Result<PathMutationReceipt, CommandError> {
-    let source = resolve(core, &from)?;
-    let target = resolve(core, &to)?;
+    let source = from.resolve(&core.notes_dir)?;
+    let target = to.resolve(&core.notes_dir)?;
     if target.try_exists()? {
-        return Err(collision(&to));
+        return Err(collision(to.as_str()));
     }
     let parent = target.parent().ok_or("a note outside any folder")?;
     fs::create_dir_all(parent)?;
-    let metadata = fs::metadata(&source)?;
     let mut temp = Builder::new().suffix(".tmp").tempfile_in(parent)?;
     fs::set_permissions(temp.path(), metadata.permissions())?;
     write_temp(&mut temp, &content)?;
-    if content == original.content {
-        temp.as_file()
-            .set_times(fs::FileTimes::new().set_modified(metadata.modified()?))?;
-        temp.as_file().sync_all()?;
-    }
+    temp.as_file()
+        .set_times(fs::FileTimes::new().set_modified(metadata.modified()?))?;
+    temp.as_file().sync_all()?;
     let updated_at = checked_mtime(temp.as_file())?;
     temp.persist_noclobber(&target).map_err(|error| {
         if error.error.kind() == io::ErrorKind::AlreadyExists {
-            collision(&to)
+            collision(to.as_str())
         } else {
             error.error.into()
         }
@@ -401,40 +381,49 @@ fn publish_path_change(
     let remaining_source = match fs::remove_file(&source) {
         Ok(()) => None,
         Err(error) => {
-            log::error!("committed {to}, but could not remove {from}: {error}");
+            log::error!(
+                "committed {}, but could not remove {}: {error}",
+                to.as_str(),
+                from.as_str()
+            );
             warnings.push(MutationWarning::Cleanup {
-                path: from.clone(),
+                path: from.as_str().to_owned(),
                 message: io_reason(&error),
             });
-            Some(from.clone())
+            Some(from.as_str().to_owned())
         }
     };
-    warnings.extend(reconcile(core, &[&from, &to]));
+    warnings.extend(reconcile(core, &[from.as_str(), to.as_str()]));
     Ok(PathMutationReceipt {
-        path: to,
+        path: to.as_str().to_owned(),
         file: NoteFile {
             content,
             updated_at,
         },
         remaining_source,
-        title,
+        title: None,
         warnings,
     })
 }
 
+struct FileCommit {
+    path: PathBuf,
+    updated_at: i64,
+    warnings: Vec<MutationWarning>,
+}
+
 /// Publish one complete document and its filename without overwriting another note.
 fn save_file(
-    path: String,
-    content: String,
+    source: &Path,
+    content: &str,
     name: Option<SaveName>,
-) -> Result<MutationReceipt, CommandError> {
-    let source = PathBuf::from(&path);
-    if !is_markdown(&source) {
+) -> Result<FileCommit, CommandError> {
+    if !is_markdown(source) {
         return Err("notes must be markdown files".into());
     }
-    let metadata = fs::metadata(&source)?;
+    let metadata = fs::metadata(source)?;
     let filename = match name {
-        Some(SaveName::Heading) => markdown::leading_heading(frontmatter::parse(&content).body)
+        Some(SaveName::Heading) => markdown::leading_heading(frontmatter::parse(content).body)
             .map(|heading| format!("{}.md", filename_from_title(&heading))),
         Some(SaveName::Filename(filename)) => {
             if !valid_segment(&filename) || !is_markdown(Path::new(&filename)) {
@@ -445,9 +434,9 @@ fn save_file(
         None => None,
     };
     let Some(filename) = filename else {
-        return Ok(MutationReceipt {
-            path,
-            updated_at: replace(&source, &content)?,
+        return Ok(FileCommit {
+            path: source.to_owned(),
+            updated_at: replace(source, content)?,
             warnings: vec![],
         });
     };
@@ -462,7 +451,7 @@ fn save_file(
         .ok_or("invalid filename")?;
     let mut temp = Builder::new().suffix(".tmp").tempfile_in(folder)?;
     fs::set_permissions(temp.path(), metadata.permissions())?;
-    write_temp(&mut temp, &content)?;
+    write_temp(&mut temp, content)?;
     let updated_at = checked_mtime(temp.as_file())?;
     let original = source.canonicalize()?;
     let mut counter = 1;
@@ -481,23 +470,23 @@ fn save_file(
             };
         if same {
             temp.persist(&target).map_err(|error| error.error)?;
-            return Ok(MutationReceipt {
-                path: target.to_string_lossy().into_owned(),
+            return Ok(FileCommit {
+                path: target,
                 updated_at,
                 warnings: vec![],
             });
         }
         match temp.persist_noclobber(&target) {
             Ok(_) => {
-                let warnings = match fs::remove_file(&source) {
+                let warnings = match fs::remove_file(source) {
                     Ok(()) => vec![],
                     Err(error) => vec![MutationWarning::Cleanup {
-                        path: path.clone(),
+                        path: source.to_string_lossy().into_owned(),
                         message: io_reason(&error),
                     }],
                 };
-                return Ok(MutationReceipt {
-                    path: target.to_string_lossy().into_owned(),
+                return Ok(FileCommit {
+                    path: target,
                     updated_at,
                     warnings,
                 });
@@ -516,10 +505,11 @@ pub fn read_external(path: String) -> Result<NoteFile, CommandError> {
     if !is_markdown(&abs) {
         return Err("only markdown files can be opened".into());
     }
-    let content = fs::read_to_string(&abs)?;
+    let file = OpenedNote::open(&abs)?;
+    let updated_at = timestamp_millis(file.metadata()?.modified())?;
     Ok(NoteFile {
-        content,
-        updated_at: checked_mtime(&fs::File::open(&abs)?)?,
+        content: file.read()?,
+        updated_at,
     })
 }
 
@@ -528,7 +518,16 @@ pub fn write_external(
     content: String,
     name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
-    save_file(path, content, name)
+    let result = save_file(Path::new(&path), &content, name)?;
+    Ok(MutationReceipt {
+        path: result
+            .path
+            .to_str()
+            .ok_or("the path is not valid unicode")?
+            .to_owned(),
+        updated_at: result.updated_at,
+        warnings: result.warnings,
+    })
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -579,7 +578,8 @@ impl Library {
     }
 
     pub fn read_note(&self, path: String) -> Result<SavedNote, CommandError> {
-        let abs = resolve(self, &path)?;
+        let relative = RelativePath::parse(&path)?;
+        let abs = relative.resolve(&self.notes_dir)?;
         let file = OpenedNote::open(&abs)?;
         let metadata = file.metadata()?;
         let content = file.read()?;
@@ -602,19 +602,31 @@ impl Library {
             Some(NoteName::Title(title)) => filename_from_title(&validate_title(&title)?),
             None => "untitled".to_owned(),
         };
-        let mut path = note_path(&folder, &base);
+        let mut path = RelativePath::parse(&note_path(&folder, &base))?;
+        let parent = if folder.is_empty() {
+            self.notes_dir.clone()
+        } else {
+            RelativePath::parse(&folder)?.resolve(&self.notes_dir)?
+        };
+        fs::create_dir_all(&parent)?;
         let mut counter = 1;
-        while resolve(self, &path)?.try_exists()? {
+        while match fs::symlink_metadata(self.notes_dir.join(path.as_str())) {
+            Ok(_) => true,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        } {
             counter += 1;
-            path = note_path(&folder, &suffixed_filename(&base, counter));
+            path = RelativePath::parse(&note_path(&folder, &suffixed_filename(&base, counter)))?;
         }
-        let abs = resolve(self, &path)?;
-        let parent = abs.parent().ok_or("a note outside any folder")?;
-        fs::create_dir_all(parent)?;
-        let updated_at = create_file(&abs, &path, options.content.as_deref().unwrap_or(""))?;
-        let warnings = reconcile(self, &[&path]);
+        let abs = path.resolve(&self.notes_dir)?;
+        let updated_at = create_file(
+            &abs,
+            path.as_str(),
+            options.content.as_deref().unwrap_or(""),
+        )?;
+        let warnings = reconcile(self, &[path.as_str()]);
         Ok(MutationReceipt {
-            path,
+            path: path.into_string(),
             updated_at,
             warnings,
         })
@@ -627,13 +639,14 @@ impl Library {
         content: String,
         name: Option<SaveName>,
     ) -> Result<MutationReceipt, CommandError> {
-        let source = resolve(self, &path)?;
-        let mut receipt = save_file(source.to_string_lossy().into_owned(), content, name)?;
-        receipt.path = Path::new(&receipt.path)
-            .strip_prefix(&self.notes_dir)
-            .map_err(|_| "a saved note escaped the library")?
-            .to_string_lossy()
-            .into_owned();
+        let relative = RelativePath::parse(&path)?;
+        let source = relative.resolve(&self.notes_dir)?;
+        let result = save_file(&source, &content, name)?;
+        let mut receipt = MutationReceipt {
+            path: RelativePath::from_host(&self.notes_dir, &result.path)?.into_string(),
+            updated_at: result.updated_at,
+            warnings: result.warnings,
+        };
         for warning in &mut receipt.warnings {
             if let MutationWarning::Cleanup {
                 path: remaining, ..
@@ -663,25 +676,29 @@ impl Library {
         } else {
             format!("{folder}/{name}")
         };
-        let saved = self.read_note(path.clone())?;
-        let file = NoteFile {
-            content: saved.content,
-            updated_at: saved.updated_at,
-        };
+        let from = RelativePath::parse(&path)?;
+        let to = RelativePath::parse(&target)?;
+        let opened = OpenedNote::open(&from.resolve(&self.notes_dir)?)?;
+        let metadata = opened.metadata()?;
+        let updated_at = timestamp_millis(metadata.modified())?;
+        let content = opened.read()?;
         if path == target {
             return Ok(PathMutationReceipt {
                 path,
-                file,
+                file: NoteFile {
+                    content,
+                    updated_at,
+                },
                 remaining_source: None,
                 title: None,
                 warnings: vec![],
             });
         }
-        publish_path_change(self, path, target, file.clone(), file.content, None)
+        publish_move(self, &from, &to, content, metadata)
     }
 
     pub fn delete_note(&self, path: String) -> Result<DeleteReceipt, CommandError> {
-        fs::remove_file(resolve(self, &path)?)?;
+        fs::remove_file(RelativePath::parse(&path)?.resolve(&self.notes_dir)?)?;
         let warnings = reconcile(self, &[&path]);
         Ok(DeleteReceipt { path, warnings })
     }
@@ -691,10 +708,12 @@ impl Library {
         let name = source
             .file_name()
             .ok_or("source has no file name")?
-            .to_string_lossy()
-            .to_string();
+            .to_str()
+            .ok_or("the path is not valid unicode")?
+            .to_owned();
 
-        let dir = self.notes_dir.join("attachments");
+        RelativePath::parse(&format!("attachments/{name}"))?;
+        let dir = RelativePath::parse("attachments")?.resolve(&self.notes_dir)?;
         fs::create_dir_all(&dir)?;
 
         let (stem, ext) = match name.rsplit_once('.') {
@@ -703,12 +722,17 @@ impl Library {
         };
         let mut candidate = name;
         let mut counter = 1;
-        while dir.join(&candidate).exists() {
+        while match fs::symlink_metadata(dir.join(&candidate)) {
+            Ok(_) => true,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        } {
             counter += 1;
             candidate = format!("{stem}-{counter}{ext}");
         }
 
-        fs::copy(&source, dir.join(&candidate))?;
+        let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
+        fs::copy(&source, relative.resolve(&self.notes_dir)?)?;
         Ok(format!("attachments/{candidate}"))
     }
 
@@ -719,7 +743,7 @@ impl Library {
             .decode(base64_data)
             .map_err(|_| "the pasted image is not valid")?;
 
-        let dir = self.notes_dir.join("attachments");
+        let dir = RelativePath::parse("attachments")?.resolve(&self.notes_dir)?;
         fs::create_dir_all(&dir)?;
 
         let stamp = std::time::SystemTime::now()
@@ -728,12 +752,17 @@ impl Library {
             .unwrap_or_default();
         let mut candidate = format!("pasted-{stamp}.png");
         let mut counter = 1;
-        while dir.join(&candidate).exists() {
+        while match fs::symlink_metadata(dir.join(&candidate)) {
+            Ok(_) => true,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        } {
             counter += 1;
             candidate = format!("pasted-{stamp}-{counter}.png");
         }
 
-        fs::write(dir.join(&candidate), bytes)?;
+        let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
+        fs::write(relative.resolve(&self.notes_dir)?, bytes)?;
         Ok(format!("attachments/{candidate}"))
     }
 

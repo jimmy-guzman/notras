@@ -1,18 +1,32 @@
-use std::fs::{self, File, Metadata};
-use std::io;
-use std::path::{Path, PathBuf};
+use std::fs::{File, Metadata};
+use std::io::{self, Read};
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> {
+    let duration = time?.duration_since(UNIX_EPOCH).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the file timestamp precedes the epoch",
+        )
+    })?;
+    i64::try_from(duration.as_millis()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the file timestamp is too large",
+        )
+    })
+}
 
 /// An opened note, retained while its content and metadata are read.
 pub(crate) struct OpenedNote {
     file: File,
-    path: PathBuf,
 }
 
 impl OpenedNote {
     pub(crate) fn open(path: &Path) -> io::Result<Self> {
         Ok(Self {
             file: File::open(path)?,
-            path: path.to_owned(),
         })
     }
 
@@ -20,13 +34,16 @@ impl OpenedNote {
         self.file.metadata()
     }
 
-    pub(crate) fn read(self) -> io::Result<String> {
-        fs::read_to_string(self.path)
+    pub(crate) fn read(mut self) -> io::Result<String> {
+        let mut content = String::new();
+        self.file.read_to_string(&mut content)?;
+        Ok(content)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::time::{Duration, UNIX_EPOCH};
 
     use super::*;

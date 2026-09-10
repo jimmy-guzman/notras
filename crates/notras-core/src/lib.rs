@@ -11,6 +11,7 @@ mod markdown;
 mod note_file;
 mod queries;
 mod relationships;
+mod relative_path;
 
 use std::cell::Cell;
 use std::fs;
@@ -38,6 +39,9 @@ impl Library {
     /// Open or rebuild the index schema. Scanning is a separate operation so the
     /// host can start it off its UI thread.
     pub fn open(notes_dir: PathBuf) -> Result<Self, CommandError> {
+        fs::create_dir_all(&notes_dir)?;
+        let notes_dir = notes_dir.canonicalize()?;
+        relative_path::reject_symlink(&notes_dir.join(".notras"))?;
         fs::create_dir_all(notes_dir.join(".notras"))?;
         let conn = index::open(&notes_dir)?;
         Ok(Self {
@@ -73,7 +77,7 @@ impl Library {
         Ok(())
     }
 
-    /// Reconcile observed host paths. `None` means no refresh; an empty list means
+    /// Reconcile host paths under the resolved `directory()`. `None` means no refresh; an empty list means
     /// the index needs recovery and the host must refresh all indexed queries.
     pub fn reconcile_paths<'a>(
         &self,
@@ -150,10 +154,10 @@ mod tests {
                 name: Some(NoteName::Filename("saved".into())),
             })
             .unwrap();
-        let saved_path = directory.path().join(saved.path);
+        let saved_path = library.directory().join(saved.path);
         assert_eq!(library.reconcile_paths([saved_path.as_path()]), None);
 
-        let external = directory.path().join("external.md");
+        let external = library.directory().join("external.md");
         fs::write(&external, "# external").unwrap();
         assert_eq!(
             library.reconcile_paths([external.as_path(), external.as_path()]),
@@ -167,8 +171,8 @@ mod tests {
     fn should_reconcile_children_when_only_the_folder_move_is_observed() {
         let directory = tempfile::tempdir().unwrap();
         let library = Library::open(directory.path().to_owned()).unwrap();
-        let source = directory.path().join("before");
-        let destination = directory.path().join("after");
+        let source = library.directory().join("before");
+        let destination = library.directory().join("after");
         fs::create_dir(&source).unwrap();
         fs::write(source.join("note.md"), "# note").unwrap();
         library.scan_complete().unwrap();
@@ -188,7 +192,7 @@ mod tests {
     fn should_request_full_refresh_after_an_observed_file_cannot_be_indexed() {
         let directory = tempfile::tempdir().unwrap();
         let library = Library::open(directory.path().to_owned()).unwrap();
-        let unreadable = directory.path().join("broken.md");
+        let unreadable = library.directory().join("broken.md");
         fs::write(&unreadable, [0xff]).unwrap();
 
         assert_eq!(
