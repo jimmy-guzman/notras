@@ -1,6 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 
+import { commands } from "@/server/adapters/bindings";
 import { schema } from "@/server/db";
 
 /**
@@ -11,7 +11,7 @@ import { schema } from "@/server/db";
 export function makeTauriDatabase() {
   return drizzle<typeof schema>(
     async (sql, params, method) => {
-      const rows = await invoke<unknown[][]>("db_select", { params, sql });
+      const rows = await commands.dbSelect(sql, params);
 
       return { rows: method === "get" ? (rows[0] ?? []) : rows };
     },

@@ -160,6 +160,8 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm build`     | build the desktop bundle            |
 | `pnpm dev:web`   | run only the web shell (Vite)       |
 | `pnpm build:web` | build only the web shell            |
+| `pnpm bindings` | regenerate the Rust command and event client |
+| `pnpm bindings:check` | fail if a temporary native binding export differs |
 | `pnpm check`     | lint and format check (Ultracite)   |
 | `pnpm fix`       | lint and format, auto-fixing        |
 | `pnpm typecheck` | type check (tsc)                    |
@@ -189,7 +191,9 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo test --locked` | Rust tests, including doctests |
 | `../scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-CI runs Clippy and tests on macOS, Linux, and Windows. Dependency and formatting checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. Coverage includes application and shell code and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes application and shell code and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+
+Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
 
 ## Technologies
 

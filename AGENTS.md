@@ -134,6 +134,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 ```txt
 pnpm knip             # 0. unused code/deps (fix before proceeding)
+pnpm bindings:check   # native contract drift, before checking its callers
 pnpm typecheck        # 1. types
 pnpm check            # 2. lint + format
 pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
@@ -149,7 +150,9 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
+CI checks native binding drift on Linux before starting the TypeScript job. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
+
+Regenerate `src/server/adapters/bindings.ts` with `pnpm bindings`; do not edit its generated command signatures or runtime by hand. Change the native registry or export configuration in Rust. `ARCHITECTURE.md` describes the contract and test boundary.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. Nothing automated covers it, which `D21` records. Say which claims you checked and which you took from the code alone.
 

@@ -3,17 +3,18 @@ use std::time::Duration;
 
 use notify::RecursiveMode;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, DebouncedEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager, Runtime};
+use tauri_specta::Event;
 
+use crate::bindings::NotesChanged;
 use crate::index;
 use crate::state::AppState;
-use crate::NotesChanged;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
 /// Our own writes are indexed synchronously by the commands; the mtime skip in
 /// `index_file` keeps those from echoing back out as change events.
-pub fn start(
-    app: AppHandle,
+pub fn start<R: Runtime>(
+    app: AppHandle<R>,
     notes_dir: PathBuf,
 ) -> Result<
     notify_debouncer_full::Debouncer<
@@ -42,7 +43,7 @@ pub fn start(
     Ok(debouncer)
 }
 
-fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
+fn handle<R: Runtime>(app: &AppHandle<R>, events: &[DebouncedEvent]) {
     let state = app.state::<AppState>();
     let core = state.core();
 
@@ -79,8 +80,9 @@ fn handle(app: &AppHandle, events: &[DebouncedEvent]) {
     changed.sort();
     changed.dedup();
 
+    drop(core);
     if !changed.is_empty() {
-        if let Err(error) = app.emit("notes-changed", NotesChanged { paths: changed }) {
+        if let Err(error) = (NotesChanged { paths: changed }).emit(app) {
             log::error!("could not emit {}: {error}", "notes-changed");
         }
     }

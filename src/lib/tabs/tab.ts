@@ -14,12 +14,6 @@ export interface Tab {
   path: string;
 }
 
-/** A queued or restored path with the tab kind Rust chose for it. */
-export interface PendingOpen {
-  kind: Tab["kind"];
-  path: string;
-}
-
 /** The open set and which one is showing. An empty `activeId` means no tabs. */
 export interface TabState {
   activeId: string;

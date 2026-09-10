@@ -1,8 +1,8 @@
 use serde::Serialize;
 
-use crate::notes::CommandError;
+use crate::application::CommandError;
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, specta::Type)]
 pub struct CodeClipboard {
     language: Option<String>,
 }
@@ -193,6 +193,7 @@ mod tests {
 
 /// Read code editor metadata only when the native clipboard still matches the pasted text.
 #[tauri::command]
+#[specta::specta]
 pub fn read_code_clipboard(text: String) -> Result<Option<CodeClipboard>, CommandError> {
     #[cfg(target_os = "macos")]
     {

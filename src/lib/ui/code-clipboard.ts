@@ -1,8 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { type CodeClipboard, commands } from "@/server/adapters/bindings";
 
-export interface CodeClipboard {
-  language: string | null;
-}
+export type { CodeClipboard } from "@/server/adapters/bindings";
 
 export type ReadCodeClipboard = (text: string) => Promise<CodeClipboard | null>;
 
@@ -11,7 +9,7 @@ export async function readCodeClipboard(
   text: string
 ): Promise<CodeClipboard | null> {
   try {
-    return await invoke<CodeClipboard | null>("read_code_clipboard", { text });
+    return await commands.readCodeClipboard(text);
   } catch (error) {
     if (
       typeof error === "object" &&

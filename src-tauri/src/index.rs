@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
-use std::{fmt, fs, io};
+use std::{fs, io};
 
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use rusqlite::functions::FunctionFlags;
@@ -14,34 +14,13 @@ use serde_json::{json, Value};
 use crate::frontmatter;
 
 /// What an index operation can fail on: the note's file, or the database.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum IndexError {
-    Io(io::Error),
-    Db(rusqlite::Error),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    Db(#[from] rusqlite::Error),
 }
-
-impl From<io::Error> for IndexError {
-    fn from(error: io::Error) -> Self {
-        Self::Io(error)
-    }
-}
-
-impl From<rusqlite::Error> for IndexError {
-    fn from(error: rusqlite::Error) -> Self {
-        Self::Db(error)
-    }
-}
-
-impl fmt::Display for IndexError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Io(error) => error.fmt(f),
-            Self::Db(error) => error.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for IndexError {}
 
 /// Open the index under `notes_dir`, rebuilding it from nothing when what is
 /// there cannot be opened or holds no usable schema. The files are the source
@@ -743,9 +722,10 @@ fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
 }
 
 /// A title written without brackets in another note's prose.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 pub struct BareMention {
     pub context: String,
+    #[specta(type = f64)]
     pub line: usize,
     pub path: String,
 }

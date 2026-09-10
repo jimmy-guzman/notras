@@ -1,8 +1,8 @@
 import { batch, createStore, useSelector } from "@tanstack/react-store";
-
 import type { SaveStatus } from "@/components/editor/use-autosave";
+import type { PendingOpen } from "@/server/adapters/bindings";
 
-import type { ClosedTab, PendingOpen, Tab, TabState } from "./tab";
+import type { ClosedTab, Tab, TabState } from "./tab";
 
 import {
   adoptNote,

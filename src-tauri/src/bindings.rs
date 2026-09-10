@@ -1,0 +1,424 @@
+use serde::{Deserialize, Serialize};
+use tauri::Runtime;
+
+use crate::{clipboard, notes, windows};
+
+/// Relative paths whose saved content or index rows changed; empty means the library.
+#[derive(Clone, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
+pub struct NotesChanged {
+    pub paths: Vec<String>,
+}
+
+pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
+    tauri_specta::Builder::new()
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        // Specta collects metadata in a nested function, which needs a concrete
+        // runtime. Tauri infers the actual handler runtime independently.
+        .commands(tauri_specta::collect_commands![
+            clipboard::read_code_clipboard,
+            notes::attach_file::<tauri::Wry>,
+            notes::attach_image::<tauri::Wry>,
+            notes::cancel_quit,
+            notes::classify_open_paths::<tauri::Wry>,
+            notes::db_select::<tauri::Wry>,
+            notes::delete_note::<tauri::Wry>,
+            notes::find_mentions::<tauri::Wry>,
+            notes::get_notes_dir,
+            notes::note_exists::<tauri::Wry>,
+            notes::pending_open_files::<tauri::Wry>,
+            notes::quit_app::<tauri::Wry>,
+            notes::read_external,
+            notes::read_note::<tauri::Wry>,
+            notes::reindex_all::<tauri::Wry>,
+            notes::rename_note::<tauri::Wry>,
+            notes::set_notes_dir::<tauri::Wry>,
+            notes::write_external,
+            notes::write_note::<tauri::Wry>,
+            windows::show_capture::<tauri::Wry>,
+        ])
+        .events(tauri_specta::collect_events![NotesChanged])
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::sync::{atomic::AtomicBool, mpsc, Mutex};
+
+    use serde_json::{json, Value};
+    use tauri::{Listener, Manager};
+
+    use crate::{application::Core, index, state::AppState};
+
+    use super::*;
+
+    fn invoke(
+        window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        command: &str,
+        args: Value,
+    ) -> Result<Value, Value> {
+        tauri::test::get_ipc_response(
+            window,
+            tauri::webview::InvokeRequest {
+                cmd: command.into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: if cfg!(windows) {
+                    "http://tauri.localhost"
+                } else {
+                    "tauri://localhost"
+                }
+                .parse()
+                .unwrap(),
+                body: tauri::ipc::InvokeBody::Json(args),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.into(),
+            },
+        )
+        .map(|body| body.deserialize().unwrap())
+    }
+
+    #[test]
+    fn should_commit_notes_and_emit_serialized_changes_after_releasing_the_lock() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                core: Mutex::new(Core {
+                    notes_dir: directory.path().to_owned(),
+                    conn: index::open(directory.path()).unwrap(),
+                }),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        let handle = app.handle().clone();
+        let listener = app.listen("notes-changed", move |event| {
+            let available = handle.state::<AppState>().core.try_lock().is_ok();
+            sender
+                .send((
+                    serde_json::from_str::<Value>(event.payload()).unwrap(),
+                    available,
+                ))
+                .unwrap();
+        });
+
+        let receipt = invoke(
+            &window,
+            "write_note",
+            json!({
+                "path": "ideas/a.md", "content": "# first\nbody", "create": true
+            }),
+        )
+        .unwrap();
+        assert_eq!(receipt["path"], "ideas/a.md");
+        assert!(receipt["updatedAt"].as_i64().unwrap() > 0);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("ideas/a.md")).unwrap(),
+            "# first\nbody"
+        );
+        assert_eq!(
+            invoke(&window, "read_note", json!({"path": "ideas/a.md"})).unwrap(),
+            json!({
+                "content": "# first\nbody", "updatedAt": receipt["updatedAt"]
+            })
+        );
+        assert_eq!(
+            changes.recv().unwrap(),
+            (json!({"paths": ["ideas/a.md"]}), true)
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "db_select",
+                json!({
+                    "sql": "SELECT path, title FROM note WHERE path = ?", "params": ["ideas/a.md"]
+                })
+            )
+            .unwrap(),
+            json!([["ideas/a.md", "first"]])
+        );
+
+        invoke(
+            &window,
+            "write_note",
+            json!({
+                "path": "ideas/a.md", "content": "# second", "create": false
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            changes.recv().unwrap(),
+            (json!({"paths": ["ideas/a.md"]}), true)
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "rename_note",
+                json!({"from": "ideas/a.md", "to": "b.md"})
+            )
+            .unwrap(),
+            Value::Null
+        );
+        assert_eq!(
+            changes.recv().unwrap(),
+            (json!({"paths": ["ideas/a.md", "b.md"]}), true)
+        );
+        assert!(!directory.path().join("ideas/a.md").exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("b.md")).unwrap(),
+            "# second"
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "db_select",
+                json!({
+                    "sql": "SELECT path, title FROM note", "params": []
+                })
+            )
+            .unwrap(),
+            json!([["b.md", "second"]])
+        );
+        assert_eq!(
+            invoke(&window, "delete_note", json!({"path": "b.md"})).unwrap(),
+            Value::Null
+        );
+        assert_eq!(changes.recv().unwrap(), (json!({"paths": ["b.md"]}), true));
+        assert!(!directory.path().join("b.md").exists());
+        assert_eq!(
+            invoke(
+                &window,
+                "db_select",
+                json!({
+                    "sql": "SELECT path FROM note", "params": []
+                })
+            )
+            .unwrap(),
+            json!([])
+        );
+        app.unlisten(listener);
+    }
+
+    #[test]
+    fn should_reject_invalid_arguments_and_preserve_existing_files_on_expected_failures() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        fs::write(directory.path().join("kept.md"), "original").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                core: Mutex::new(Core {
+                    notes_dir: directory.path().to_owned(),
+                    conn: index::open(directory.path()).unwrap(),
+                }),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        app.listen("notes-changed", move |event| {
+            sender.send(event.payload().to_owned()).unwrap();
+        });
+
+        assert_eq!(
+            invoke(&window, "read_note", json!({"path": "missing.md"})).unwrap_err(),
+            json!({
+                "kind": "not-found", "message": "no such file"
+            })
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "write_note",
+                json!({
+                    "path": "kept.md", "content": "replacement", "create": true
+                })
+            )
+            .unwrap_err(),
+            json!({
+                "kind": "failed", "message": "a note named kept already exists in the notes root"
+            })
+        );
+        assert_eq!(
+            invoke(&window, "read_note", json!({"path": "../outside.md"})).unwrap_err(),
+            json!({
+                "kind": "failed", "message": "invalid note path: ../outside.md"
+            })
+        );
+        let failure = invoke(
+            &window,
+            "write_note",
+            json!({"path": "new.md", "create": true}),
+        )
+        .unwrap_err();
+        assert!(failure.as_str().unwrap().contains("content"));
+        assert!(!directory.path().join("new.md").exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("kept.md")).unwrap(),
+            "original"
+        );
+        assert!(changes.try_recv().is_err());
+    }
+
+    #[test]
+    fn should_decode_camel_case_arguments_and_round_trip_json_query_values() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                core: Mutex::new(Core {
+                    notes_dir: directory.path().to_owned(),
+                    conn: index::open(directory.path()).unwrap(),
+                }),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let attachment =
+            invoke(&window, "attach_image", json!({"base64Data": "aGVsbG8="})).unwrap();
+        assert_eq!(
+            fs::read(directory.path().join(attachment.as_str().unwrap())).unwrap(),
+            b"hello"
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "db_select",
+                json!({
+                    "sql": "SELECT ?, ?, ?, ?, ?", "params": [null, true, 42, 1.5, "text"]
+                })
+            )
+            .unwrap(),
+            json!([[null, 1, 42, 1.5, "text"]])
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "db_select",
+                json!({
+                    "sql": "SELECT json_extract(?, '$[1]')", "params": ["[1,2]"]
+                })
+            )
+            .unwrap(),
+            json!([[2]])
+        );
+    }
+
+    #[test]
+    fn should_keep_concurrent_library_switches_and_the_watcher_on_the_same_directory() {
+        let directory = tempfile::tempdir().unwrap();
+        // macOS reports canonical paths in FSEvents; the temporary root may
+        // otherwise use the /var symlink while events arrive under /private/var.
+        let root = directory.path().canonicalize().unwrap();
+        let initial = root.join("initial");
+        let first = root.join("first");
+        let second = root.join("second");
+        fs::create_dir_all(initial.join(".notras")).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        // The mock context has no bundle validation. An absolute identifier keeps
+        // the store plugin's app-data resolution inside this test's directory.
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(AppState {
+                core: Mutex::new(Core {
+                    notes_dir: initial.clone(),
+                    conn: index::open(&initial).unwrap(),
+                }),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other_window = window.clone();
+        let other_path = second.clone();
+        let pending = std::thread::spawn(move || {
+            invoke(&other_window, "set_notes_dir", json!({"path": other_path})).unwrap();
+        });
+        invoke(&window, "set_notes_dir", json!({"path": first})).unwrap();
+        pending.join().unwrap();
+
+        let active = invoke(&window, "get_notes_dir", json!({})).unwrap();
+        let settings: Value = serde_json::from_slice(
+            &fs::read(directory.path().join("settings/settings.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(settings["notesDir"], active);
+        assert!(active == json!(first) || active == json!(second));
+        let (sender, changes) = mpsc::channel();
+        app.listen("notes-changed", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+        fs::write(
+            std::path::Path::new(active.as_str().unwrap()).join("external.md"),
+            "# watched",
+        )
+        .unwrap();
+        assert_eq!(
+            changes
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap(),
+            json!({"paths": ["external.md"]})
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "db_select",
+                json!({
+                    "sql": "SELECT path, title FROM note", "params": []
+                })
+            )
+            .unwrap(),
+            json!([["external.md", "watched"]])
+        );
+        *app.state::<AppState>().watcher() = None;
+    }
+
+    #[test]
+    fn should_export_the_native_contract() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = std::env::var_os("NOTRAS_BINDINGS_PATH")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| directory.path().join("bindings.ts"));
+        let contract = builder::<tauri::test::MockRuntime>();
+        contract
+            .export(specta_typescript::Typescript::default(), &path)
+            .unwrap();
+        assert!(!std::fs::read_to_string(path).unwrap().is_empty());
+    }
+}

@@ -31,6 +31,7 @@ permissions: {}
 
 jobs:
   typescript:
+    needs: rust
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -114,6 +115,16 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: src-tauri
         run: cargo fmt --all -- --check
+
+      - name: Setup Node for bindings
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/setup-node
+        with:
+          save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
+
+      - name: Check native binding drift
+        if: runner.os == 'Linux'
+        run: pnpm bindings:check
 
       - name: Clippy
         working-directory: src-tauri

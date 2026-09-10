@@ -5,6 +5,8 @@
   "description": "Write another note.",
   "type": "module",
   "scripts": {
+    "bindings": "bash scripts/bindings.sh",
+    "bindings:check": "bash scripts/bindings.sh --check",
     "build": "tauri build",
     "build:web": "vite build",
     "check": "ultracite check",

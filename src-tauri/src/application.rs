@@ -1,0 +1,694 @@
+use std::fs;
+use std::io;
+use std::path::{Component, Path, PathBuf};
+use std::time::UNIX_EPOCH;
+
+use serde::Serialize;
+use serde_json::Value;
+use tempfile::{Builder, NamedTempFile};
+
+use crate::index;
+
+/// The notes directory and its derived index, held under the same operation lock.
+pub struct Core {
+    pub notes_dir: PathBuf,
+    pub conn: rusqlite::Connection,
+}
+
+/// Why a command failed. A webview tab has to tell a file that is gone from a
+/// read it should retry or report, and a message string cannot carry that.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum ErrorKind {
+    Failed,
+    NotFound,
+}
+
+/// A command failure: the kind the caller branches on, and the message it shows.
+#[derive(Debug, Serialize, specta::Type, thiserror::Error)]
+#[error("{message}")]
+pub struct CommandError {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+/// The reason a syscall gives, in the app's voice: lowercase, no errno.
+fn io_reason(error: &io::Error) -> String {
+    match error.kind() {
+        io::ErrorKind::NotFound => "no such file".to_string(),
+        io::ErrorKind::PermissionDenied => "permission denied".to_string(),
+        io::ErrorKind::IsADirectory => "that path is a folder".to_string(),
+        io::ErrorKind::ReadOnlyFilesystem => "the volume is read-only".to_string(),
+        io::ErrorKind::StorageFull => "the disk is full".to_string(),
+        _ => {
+            let text = error.to_string();
+            let text = text.split(" (os error ").next().unwrap_or(&text);
+            let mut chars = text.chars();
+            chars.next().map_or_else(String::new, |first| {
+                first.to_lowercase().chain(chars).collect()
+            })
+        }
+    }
+}
+
+/// A missing file is the one failure a tab treats as a deletion; every other
+/// syscall failure leaves the note where it was.
+impl From<io::Error> for CommandError {
+    fn from(error: io::Error) -> Self {
+        Self {
+            kind: if error.kind() == io::ErrorKind::NotFound {
+                ErrorKind::NotFound
+            } else {
+                ErrorKind::Failed
+            },
+            message: io_reason(&error),
+        }
+    }
+}
+
+impl From<rusqlite::Error> for CommandError {
+    fn from(error: rusqlite::Error) -> Self {
+        format!("index: {error}").into()
+    }
+}
+
+impl From<index::IndexError> for CommandError {
+    fn from(error: index::IndexError) -> Self {
+        match error {
+            index::IndexError::Io(error) => error.into(),
+            index::IndexError::Db(error) => error.into(),
+        }
+    }
+}
+
+/// Every `?` on a `Result<_, String>` lands here, so a command that has nothing
+/// to say about the kind keeps its body unchanged.
+impl From<String> for CommandError {
+    fn from(message: String) -> Self {
+        Self {
+            kind: ErrorKind::Failed,
+            message,
+        }
+    }
+}
+
+impl From<&str> for CommandError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteFile {
+    pub content: String,
+    #[specta(type = f64)]
+    pub updated_at: i64,
+}
+
+fn mtime_millis(path: &Path) -> i64 {
+    fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .and_then(|duration| i64::try_from(duration.as_millis()).ok())
+        .unwrap_or_default()
+}
+
+/// Resolve a relative note path against the notes dir, rejecting anything
+/// that escapes it or touches hidden files/directories.
+fn resolve(core: &Core, rel: &str) -> Result<PathBuf, String> {
+    let path = Path::new(rel);
+    let escapes = path.is_absolute()
+        || path.components().any(|component| {
+            !matches!(&component, Component::Normal(name) if !name.to_string_lossy().starts_with('.'))
+        });
+    if rel.is_empty() || escapes {
+        return Err(format!("invalid note path: {rel}"));
+    }
+    Ok(core.notes_dir.join(path))
+}
+
+fn is_markdown(path: &Path) -> bool {
+    index::is_note_file(path)
+}
+
+/// Write a file that is not there yet, never truncating one that is.
+///
+/// `create_new` is atomic where a prior `exists()` is not: `NoteService.create`
+/// picks a free filename by asking, and anything landing on that path in the
+/// gap would be destroyed by `fs::write`.
+fn create_file(path: &Path, rel: &str, content: &str) -> Result<(), CommandError> {
+    use std::io::Write as _;
+
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .map_err(|error| {
+            if error.kind() == io::ErrorKind::AlreadyExists {
+                let path = Path::new(rel);
+                let name = path
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or(rel);
+                let folder = path
+                    .parent()
+                    .and_then(|folder| folder.to_str())
+                    .filter(|folder| !folder.is_empty())
+                    .unwrap_or("the notes root");
+                CommandError::from(format!("a note named {name} already exists in {folder}"))
+            } else {
+                CommandError::from(error)
+            }
+        })?;
+
+    // `create_new` succeeding is the proof this call made the file, so a half
+    // written note is this call's to remove and cannot be someone else's.
+    if let Err(error) = file.write_all(content.as_bytes()) {
+        drop(file);
+        let _ = fs::remove_file(path);
+
+        return Err(error.into());
+    }
+
+    Ok(())
+}
+
+fn write_temp(temp: &mut NamedTempFile, content: &str) -> io::Result<()> {
+    use std::io::Write as _;
+
+    temp.write_all(content.as_bytes())?;
+    // `persist` synchronizes neither the bytes nor the directory, so without
+    // this the rename can reach disk first and a power cut leaves the empty
+    // file this whole dance exists to prevent.
+    temp.as_file().sync_all()
+}
+
+/// Put `content` at `path` by filling a sibling and renaming over it, so a
+/// write that fails or is interrupted leaves the note's old bytes rather than a
+/// truncated file.
+///
+/// The sibling shares the directory because `rename` is only atomic inside one
+/// filesystem, and ends in `.tmp` so neither the watcher nor a scan takes it
+/// for a note (`is_note_file`). `tempfile` names it randomly and drops it on
+/// every failure path, so a name left by a crash cannot collide with a later
+/// save and nothing here has to remove one by hand.
+fn commit(path: &Path, content: &str) -> Result<(), CommandError> {
+    let folder = path.parent().ok_or("a note outside any folder")?;
+
+    let mut temp = Builder::new().suffix(".tmp").tempfile_in(folder)?;
+
+    // A temp is private by default, so the note's own mode is carried over
+    // rather than narrowed to owner-only by the rename.
+    write_temp(&mut temp, content)
+        .and_then(|()| fs::metadata(path))
+        .and_then(|meta| fs::set_permissions(temp.path(), meta.permissions()))?;
+
+    temp.persist(path).map_err(|error| error.error)?;
+
+    Ok(())
+}
+
+/// Overwrite a file that is already there, never creating one.
+///
+/// Opening without `create` is what refuses a note that has been deleted, so a
+/// save still in flight when it goes cannot put the file back. The check is one
+/// syscall ahead of the rename rather than fused with it: no portable rename
+/// refuses a destination that is absent, and `commit` buys crash safety for
+/// every save in exchange for that window.
+fn replace(path: &Path, content: &str) -> Result<(), CommandError> {
+    fs::OpenOptions::new().write(true).open(path)?;
+
+    commit(path, content)
+}
+
+/// The file committed by a successful write, with its timestamp in milliseconds.
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MutationReceipt {
+    pub path: String,
+    #[specta(type = f64)]
+    pub updated_at: i64,
+}
+
+pub fn db_select(core: &Core, sql: String, params: Vec<Value>) -> Result<Vec<Vec<Value>>, String> {
+    index::select(&core.conn, &sql, &params)
+}
+
+pub fn note_exists(core: &Core, path: String) -> Result<bool, CommandError> {
+    Ok(resolve(core, &path)?.exists())
+}
+
+pub fn read_note(core: &Core, path: String) -> Result<NoteFile, CommandError> {
+    let abs = resolve(core, &path)?;
+    let content = fs::read_to_string(&abs)?;
+    Ok(NoteFile {
+        content,
+        updated_at: mtime_millis(&abs),
+    })
+}
+
+pub fn write_note(
+    core: &Core,
+    path: String,
+    content: String,
+    create: bool,
+) -> Result<MutationReceipt, CommandError> {
+    let abs = resolve(core, &path)?;
+    if !is_markdown(&abs) {
+        return Err("notes must be markdown files".into());
+    }
+    if create {
+        if let Some(parent) = abs.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        create_file(&abs, &path, &content)?;
+    } else {
+        replace(&abs, &content)?;
+    }
+    index::index_file(&core.conn, &core.notes_dir, &path)?;
+    Ok(MutationReceipt {
+        path,
+        updated_at: mtime_millis(&abs),
+    })
+}
+
+pub fn rename_note(core: &Core, from: String, to: String) -> Result<(), CommandError> {
+    let source = resolve(core, &from)?;
+    let target = resolve(core, &to)?;
+    if !is_markdown(&target) {
+        return Err("notes must be markdown files".into());
+    }
+    if target.exists() {
+        let path = Path::new(&to);
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(&to);
+        let folder = path
+            .parent()
+            .and_then(|folder| folder.to_str())
+            .filter(|folder| !folder.is_empty())
+            .unwrap_or("the notes root");
+        return Err(format!("a note named {name} already exists in {folder}").into());
+    }
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::rename(&source, &target)?;
+    index::remove(&core.conn, &from)?;
+    index::index_file(&core.conn, &core.notes_dir, &to)?;
+    Ok(())
+}
+
+pub fn delete_note(core: &Core, path: String) -> Result<(), CommandError> {
+    let abs = resolve(core, &path)?;
+    fs::remove_file(&abs)?;
+    index::remove(&core.conn, &path)?;
+    Ok(())
+}
+
+pub fn attach_file(core: &Core, source: String) -> Result<String, CommandError> {
+    let source = PathBuf::from(source);
+    let name = source
+        .file_name()
+        .ok_or("source has no file name")?
+        .to_string_lossy()
+        .to_string();
+
+    let dir = core.notes_dir.join("attachments");
+    fs::create_dir_all(&dir)?;
+
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((stem, ext)) => (stem.to_string(), format!(".{ext}")),
+        None => (name.clone(), String::new()),
+    };
+    let mut candidate = name;
+    let mut counter = 1;
+    while dir.join(&candidate).exists() {
+        counter += 1;
+        candidate = format!("{stem}-{counter}{ext}");
+    }
+
+    fs::copy(&source, dir.join(&candidate))?;
+    Ok(format!("attachments/{candidate}"))
+}
+
+pub fn attach_image(core: &Core, base64_data: String) -> Result<String, CommandError> {
+    use base64::Engine as _;
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|_| "the pasted image is not valid")?;
+
+    let dir = core.notes_dir.join("attachments");
+    fs::create_dir_all(&dir)?;
+
+    let stamp = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+    let mut candidate = format!("pasted-{stamp}.png");
+    let mut counter = 1;
+    while dir.join(&candidate).exists() {
+        counter += 1;
+        candidate = format!("pasted-{stamp}-{counter}.png");
+    }
+
+    fs::write(dir.join(&candidate), bytes)?;
+    Ok(format!("attachments/{candidate}"))
+}
+
+pub fn read_external(path: String) -> Result<NoteFile, CommandError> {
+    let abs = PathBuf::from(&path);
+    if !is_markdown(&abs) {
+        return Err("only markdown files can be opened".into());
+    }
+    let content = fs::read_to_string(&abs)?;
+    Ok(NoteFile {
+        content,
+        updated_at: mtime_millis(&abs),
+    })
+}
+
+pub fn write_external(path: String, content: String) -> Result<MutationReceipt, CommandError> {
+    let abs = PathBuf::from(&path);
+    if !is_markdown(&abs) {
+        return Err("only markdown files can be written".into());
+    }
+    // Nothing creates an external file: it arrives from "Open With".
+    replace(&abs, &content)?;
+    Ok(MutationReceipt {
+        path,
+        updated_at: mtime_millis(&abs),
+    })
+}
+
+pub fn reindex_all(core: &Core) -> Result<Vec<String>, CommandError> {
+    index::clear(&core.conn)?;
+    let changed = index::scan_all(&core.conn, &core.notes_dir)?;
+    Ok(changed)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum OpenKind {
+    External,
+    Note,
+}
+
+/// A queued "Open With" path, classified so the webview opens it as the tab
+/// kind the file already is: a note inside the notes dir, external otherwise.
+#[derive(Debug, PartialEq, Serialize, specta::Type)]
+pub struct PendingOpen {
+    pub kind: OpenKind,
+    pub path: String,
+}
+
+fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
+    let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
+    match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
+        Some(rel) => PendingOpen {
+            kind: OpenKind::Note,
+            path: rel,
+        },
+        None => PendingOpen {
+            kind: OpenKind::External,
+            path,
+        },
+    }
+}
+
+pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
+    let notes_dir = fs::canonicalize(notes_dir).unwrap_or_else(|_| notes_dir.to_path_buf());
+    paths
+        .into_iter()
+        .map(|path| classify_open(&notes_dir, path))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_save_and_read_indexed_notes_without_a_native_runtime() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        let core = Core {
+            notes_dir: directory.path().to_owned(),
+            conn: index::open(directory.path()).unwrap(),
+        };
+
+        let receipt = write_note(&core, "a.md".into(), "# title\nbody".into(), true).unwrap();
+        let read = read_note(&core, "a.md".into()).unwrap();
+
+        assert_eq!(receipt.path, "a.md");
+        assert_eq!(read.content, "# title\nbody");
+        assert_eq!(read.updated_at, receipt.updated_at);
+        assert_eq!(
+            db_select(&core, "SELECT path, title FROM note".into(), vec![]).unwrap(),
+            vec![vec![
+                Value::String("a.md".into()),
+                Value::String("title".into())
+            ]]
+        );
+    }
+
+    /// A directory of this test's own, so a shared `/tmp` cannot hand two runs
+    /// the same path and nothing here follows a symlink someone else planted.
+    /// Wiped on the way in rather than out, so a panicking test still leaves
+    /// the next run clean. `index.rs` carries the same helper for its own dirs.
+    fn scratch_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("notras-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn missing_file_reads_as_not_found() {
+        let error = fs::read_to_string("/notras-does-not-exist/missing.md").unwrap_err();
+
+        assert_eq!(CommandError::from(error).kind, ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn unreadable_file_reads_as_failed() {
+        // A directory opens and then refuses the read on both macOS and Linux,
+        // which is the cheapest non-NotFound io error to raise on either.
+        let error = fs::read_to_string(scratch_dir("unreadable")).unwrap_err();
+
+        assert_eq!(CommandError::from(error).kind, ErrorKind::Failed);
+    }
+
+    #[test]
+    fn replace_refuses_a_file_that_is_not_there() {
+        let missing = scratch_dir("replace-missing").join("gone.md");
+
+        let error = replace(&missing, "recreated").unwrap_err();
+
+        assert_eq!(error.kind, ErrorKind::NotFound);
+        assert!(!missing.exists());
+    }
+
+    /// A read-only directory blocks the sibling `commit` writes, which is the
+    /// cheapest way to fail a write after the destination has been proven to
+    /// exist. Root ignores the mode, so the assertions only run where it bites.
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_replace_leaves_the_original_bytes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch_dir("replace-failure");
+        let note = dir.join("note.md");
+        fs::write(&note, "the original bytes").unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
+
+        if fs::File::create(dir.join("probe")).is_err() {
+            assert!(replace(&note, "replacement").is_err());
+            assert_eq!(fs::read_to_string(&note).unwrap(), "the original bytes");
+        }
+
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_keeps_the_note_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Neither `tempfile`'s owner-only default nor the usual umask result,
+        // so a mode that survives can only have been carried over.
+        let note = scratch_dir("replace-mode").join("note.md");
+        fs::write(&note, "before").unwrap();
+        fs::set_permissions(&note, fs::Permissions::from_mode(0o640)).unwrap();
+
+        replace(&note, "after").unwrap();
+
+        let mode = fs::metadata(&note).unwrap().permissions().mode();
+
+        assert_eq!(mode & 0o777, 0o640);
+    }
+
+    #[test]
+    fn replace_leaves_no_temporary_behind() {
+        let dir = scratch_dir("replace-temp");
+        let note = dir.join("note.md");
+        fs::write(&note, "before").unwrap();
+
+        replace(&note, "after").unwrap();
+
+        let left: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+
+        assert_eq!(left, vec![std::ffi::OsString::from("note.md")]);
+    }
+
+    #[test]
+    fn create_refuses_a_path_that_is_taken() {
+        let taken = scratch_dir("create-taken").join("taken.md");
+        fs::write(&taken, "someone else's note").unwrap();
+
+        let error = create_file(&taken, "taken.md", "clobbered").unwrap_err();
+
+        assert_eq!(
+            error.message,
+            "a note named taken already exists in the notes root"
+        );
+        assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
+    }
+
+    #[test]
+    fn replace_overwrites_a_file_that_is_there() {
+        let existing = scratch_dir("replace-existing").join("note.md");
+        fs::write(&existing, "before").unwrap();
+
+        replace(&existing, "after").unwrap();
+
+        assert_eq!(fs::read_to_string(&existing).unwrap(), "after");
+    }
+
+    #[test]
+    fn a_message_without_a_kind_is_a_failure() {
+        let error: CommandError = "invalid note path: ../escape".into();
+
+        assert_eq!(error.kind, ErrorKind::Failed);
+        assert_eq!(error.message, "invalid note path: ../escape");
+    }
+    #[test]
+    fn classifies_a_vault_file_as_a_note() {
+        let open = classify_open(Path::new("/vault"), "/vault/work/a.md".into());
+
+        assert_eq!(
+            open,
+            PendingOpen {
+                kind: OpenKind::Note,
+                path: "work/a.md".into()
+            }
+        );
+    }
+
+    #[test]
+    fn classifies_a_file_outside_the_vault_as_external() {
+        let open = classify_open(Path::new("/vault"), "/elsewhere/a.md".into());
+
+        assert_eq!(
+            open,
+            PendingOpen {
+                kind: OpenKind::External,
+                path: "/elsewhere/a.md".into()
+            }
+        );
+    }
+
+    #[test]
+    fn a_sibling_dir_sharing_the_prefix_is_outside_the_vault() {
+        let open = classify_open(Path::new("/vault"), "/vault-archive/a.md".into());
+
+        assert_eq!(open.kind, OpenKind::External);
+    }
+
+    #[test]
+    fn a_hidden_segment_inside_the_vault_is_external() {
+        let open = classify_open(Path::new("/vault"), "/vault/.drafts/a.md".into());
+
+        assert_eq!(open.kind, OpenKind::External);
+    }
+
+    #[test]
+    fn a_non_markdown_file_inside_the_vault_is_external() {
+        let open = classify_open(Path::new("/vault"), "/vault/a.txt".into());
+
+        assert_eq!(open.kind, OpenKind::External);
+    }
+
+    #[test]
+    fn an_uppercase_extension_inside_the_vault_is_a_note() {
+        let open = classify_open(Path::new("/vault"), "/vault/NOTE.MD".into());
+
+        assert_eq!(
+            open,
+            PendingOpen {
+                kind: OpenKind::Note,
+                path: "NOTE.MD".into()
+            }
+        );
+    }
+    #[test]
+    #[cfg(unix)]
+    fn classifies_through_a_symlinked_notes_dir() {
+        let real = scratch_dir("symlink-real");
+        fs::write(real.join("a.md"), "").unwrap();
+        let link =
+            std::env::temp_dir().join(format!("notras-test-symlink-link-{}", std::process::id()));
+        let _ = fs::remove_file(&link);
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let through_link =
+            classify_opens(&link, vec![real.join("a.md").to_string_lossy().to_string()]);
+        let through_real =
+            classify_opens(&real, vec![link.join("a.md").to_string_lossy().to_string()]);
+
+        assert_eq!(
+            through_link,
+            vec![PendingOpen {
+                kind: OpenKind::Note,
+                path: "a.md".into()
+            }]
+        );
+        assert_eq!(
+            through_real,
+            vec![PendingOpen {
+                kind: OpenKind::Note,
+                path: "a.md".into()
+            }]
+        );
+
+        let _ = fs::remove_file(&link);
+        let _ = fs::remove_dir_all(&real);
+    }
+    #[test]
+    fn a_syscall_failure_reads_as_a_lowercase_reason() {
+        let denied = CommandError::from(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "Permission denied (os error 13)",
+        ));
+        let missing = CommandError::from(io::Error::from(io::ErrorKind::NotFound));
+
+        assert_eq!(denied.kind, ErrorKind::Failed);
+        assert_eq!(denied.message, "permission denied");
+        assert_eq!(missing.kind, ErrorKind::NotFound);
+        assert_eq!(missing.message, "no such file");
+    }
+
+    #[test]
+    fn an_unmapped_syscall_failure_keeps_its_text_without_the_errno() {
+        let error = CommandError::from(io::Error::other("Too many open files (os error 24)"));
+
+        assert_eq!(error.message, "too many open files");
+    }
+}

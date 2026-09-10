@@ -11,6 +11,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
 | Effect          | Effect 4 (`4.0.0-rc.x`, pinned exactly): typed errors, Layer/DI, `Context.Service`, ManagedRuntime           |
 | Index queries   | Drizzle ORM `sqlite-proxy`, SELECT-only                                                                      |
+| Native contract | Pinned Specta types and Tauri commands/events; Serde wire values and thiserror failures |
 | UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
 | Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
 | Lint + format   | Ultracite (Biome preset) for JS/TS; rustfmt and Clippy for Rust; TipTap's markdown serializer is the runtime canonical form |
@@ -119,6 +120,7 @@ src/
                       # UI code reaches it for events, dialogs and windows
       tauri-file-store.ts   # FileStore -> Rust commands
       tauri-database.ts     # drizzle sqlite-proxy -> db_select command
+      bindings.ts          # GENERATED native commands, events and wire types
     db/               # Database service, index schema mirror, fts-query helpers
     repositories/     # note-repository: SELECTs against the index
     schemas/          # Effect Schema validation (titles, folder names)
@@ -138,8 +140,9 @@ src/
     utils/            # fts-snippet, word-count
 src-tauri/
   src/lib.rs          # setup: notes dir, index, watcher, tray, shortcuts
-  src/notes.rs        # note IO commands (write/rename/delete/attach/external)
-                      # and db_select
+  src/application.rs  # platform-free file operations, Core and wire results
+  src/bindings.rs     # shared command/event registry, export and IPC tests
+  src/notes.rs        # Tauri handlers: blocking dispatch, locks and events
   src/index.rs        # index schema, indexer, scan, read-only select
   src/frontmatter.rs  # Rust twin of src/core/frontmatter.ts
   src/watcher.rs      # debounced notify watcher -> reindex -> event
@@ -151,6 +154,7 @@ assets/               # Canonical icon geometry (D74), plus the GENERATED hero
   icon.svg            # two sheets and fold; colors resolved from styles.css
 public/               # GENERATED favicons and dark/light welcome marks
 scripts/
+  bindings.sh         # generate native bindings, or compare a temporary export
   icons.sh            # SVG + styles.css -> desktop, web and hero art (macOS only)
   update-shadcn.sh    # regenerate every installed Shadcn component
   update-typeset.sh   # re-fetch src/typeset.css from upstream (D40)
@@ -182,6 +186,10 @@ Services are `Context.Service<Self, IShape>()("notras/...")` classes carrying th
 ### Test seam
 
 A service whose layer bakes in dependencies also exposes `layerNoDeps`, as `NoteService` does, so specs can provide stubs. `note-service.spec.ts` wires it with an in-memory `FileStore` and a stub `NoteRepository`. Its relationship integration cases also inject a real Node SQLite database through the repository layer and assert which rows cross the database boundary. Native SQL functions use core-equivalent callbacks in these cases; Rust tests cover their normalization contract.
+
+Rust application functions take `Core`, which pairs the notes directory with its SQLite connection, without an `AppHandle` or window. Tauri handlers run blocking work through `spawn_blocking` and take the core lock inside that task. A guard never crosses an `await`. Successful indexed mutations release the core lock before emitting `NotesChanged`. Library switches hold the watcher lock across preparation, settings persistence and replacement, and release the core lock before dropping the old watcher.
+
+The IPC tests use Tauri's test runtime with the production command registry, temporary directories and real SQLite. They send JSON requests through Tauri's argument decoder and check serialized receipts, failures and events. They do not exercise an OS webview, tray or clipboard. Write receipts contain `path` and `updatedAt` in milliseconds; the FileStore adapter extracts the timestamp for existing autosave callers.
 
 ### Routes
 
@@ -225,7 +233,11 @@ A re-read replaces the buffer only when the buffer is clean and the file's mtime
 
 ### Adding a Rust command
 
-Define it in `src-tauri/src/notes.rs` or another module, never in `lib.rs`: `generate_handler!` re-imports a command's generated macros into the module that invokes it, so a command defined beside it fails to compile on a duplicate name. `windows.rs` exists for that reason, holding `show_capture` over `open_capture` next door. Register it in `generate_handler!` in `lib.rs`, and expose it through the `FileStore` port plus the `tauri-file-store.ts` adapter if it is note IO. A command that can fail returns `Result<T, CommandError>` and lets its failures arrive through `?`: the `From` impls on `CommandError` turn an `io::Error`, a `rusqlite::Error`, or an `IndexError` into a lowercase reason with no error number, and a literal message is a reason too, never the action, which the frontend names. Log with the `log` macros; `tauri-plugin-log` carries them to the app's log dir and to stdout under `pnpm dev`. A command that mutates an indexed note must index synchronously and call `emit_changed`. The five that do neither write nothing the index covers: `attach_file` and `attach_image` copy into `attachments/`, `write_external` writes outside the notes dir, `show_capture` opens a window, and `find_mentions` reads the notes FTS names and scans them for a bare title.
+Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Note IO still reaches the client through the `FileStore` adapter; UI concerns can call generated shell commands directly.
+
+The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. Biome excludes the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
+
+A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. The existing `db_select` bridge also retains its string errors. Indexed mutations update the index before returning success and emit affected paths after releasing the lock. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
 
 ### The palette is the action surface
 

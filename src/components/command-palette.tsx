@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
@@ -77,6 +76,7 @@ import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
+import { commands } from "@/server/adapters/bindings";
 
 function toggleActionText(enabled: boolean, mode: string) {
   return `${enabled ? "turn off" : "turn on"} ${mode}`;
@@ -473,7 +473,7 @@ export function CommandPalette({
   }, [activeId, close]);
 
   const quickCapture = useCallback(() => {
-    runAction("could not open quick capture", () => invoke("show_capture"));
+    runAction("could not open quick capture", commands.showCapture);
   }, [runAction]);
 
   const reindex = useCallback(() => {

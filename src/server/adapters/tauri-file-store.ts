@@ -1,13 +1,15 @@
-import { invoke } from "@tauri-apps/api/core";
 import { Effect, Layer, Option, Schema } from "effect";
 import { FileError, FileErrorKind } from "@/core/errors";
-import type { IFileStore, NoteFileContent } from "@/core/file-store";
+import type { IFileStore } from "@/core/file-store";
 import { FileStore } from "@/core/file-store";
-import type { BareMention } from "@/core/links";
+import { type CommandError, commands } from "@/server/adapters/bindings";
 
-/** What a rejecting command sends back (`src-tauri/src/notes.rs`, `D55`). */
+/** Decode native failures while retaining Tauri's pre-handler string errors. */
 const decodeFailure = Schema.decodeUnknownOption(
-  Schema.Struct({ kind: FileErrorKind, message: Schema.String })
+  Schema.Struct({
+    kind: FileErrorKind,
+    message: Schema.String,
+  }) satisfies Schema.Schema<CommandError>
 );
 
 function toFileError(cause: unknown) {
@@ -19,35 +21,41 @@ function toFileError(cause: unknown) {
   });
 }
 
-function command<T>(name: string, args?: Record<string, unknown>) {
+function command<T>(operation: () => Promise<T>) {
   return Effect.tryPromise({
     catch: toFileError,
-    try: () => invoke<T>(name, args),
+    try: operation,
   });
 }
 
 const fileStore: IFileStore = {
-  attach: (sourcePath) =>
-    command<string>("attach_file", { source: sourcePath }),
-  attachImage: (base64Data) => command<string>("attach_image", { base64Data }),
+  attach: (sourcePath) => command(() => commands.attachFile(sourcePath)),
+  attachImage: (base64Data) => command(() => commands.attachImage(base64Data)),
   create: (path, content) =>
-    command<number>("write_note", { content, create: true, path }),
-  delete: (path) => command<null>("delete_note", { path }).pipe(Effect.asVoid),
-  exists: (path) => command<boolean>("note_exists", { path }),
+    command(() => commands.writeNote(path, content, true)).pipe(
+      Effect.map((receipt) => receipt.updatedAt)
+    ),
+  delete: (path) =>
+    command(() => commands.deleteNote(path)).pipe(Effect.asVoid),
+  exists: (path) => command(() => commands.noteExists(path)),
   findMentions: (path, title) =>
-    command<BareMention[]>("find_mentions", { path: path ?? null, title }),
-  getNotesDir: () => command<string>("get_notes_dir"),
-  read: (path) => command<NoteFileContent>("read_note", { path }),
-  readExternal: (path) => command<NoteFileContent>("read_external", { path }),
-  reindexAll: () => command<string[]>("reindex_all"),
+    command(() => commands.findMentions(path ?? null, title)),
+  getNotesDir: () => command(commands.getNotesDir),
+  read: (path) => command(() => commands.readNote(path)),
+  readExternal: (path) => command(() => commands.readExternal(path)),
+  reindexAll: () => command(commands.reindexAll),
   rename: (from, to) =>
-    command<null>("rename_note", { from, to }).pipe(Effect.asVoid),
+    command(() => commands.renameNote(from, to)).pipe(Effect.asVoid),
   setNotesDir: (path) =>
-    command<null>("set_notes_dir", { path }).pipe(Effect.asVoid),
+    command(() => commands.setNotesDir(path)).pipe(Effect.asVoid),
   write: (path, content) =>
-    command<number>("write_note", { content, create: false, path }),
+    command(() => commands.writeNote(path, content, false)).pipe(
+      Effect.map((receipt) => receipt.updatedAt)
+    ),
   writeExternal: (path, content) =>
-    command<number>("write_external", { content, path }),
+    command(() => commands.writeExternal(path, content)).pipe(
+      Effect.map((receipt) => receipt.updatedAt)
+    ),
 };
 
 /**

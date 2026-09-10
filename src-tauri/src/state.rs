@@ -1,15 +1,9 @@
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
+use crate::application::Core;
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
-use rusqlite::Connection;
-
-pub struct Core {
-    pub notes_dir: PathBuf,
-    pub conn: Connection,
-}
 
 pub struct AppState {
     pub core: Mutex<Core>,

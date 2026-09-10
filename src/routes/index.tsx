@@ -1,6 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect } from "react";
@@ -33,13 +32,14 @@ import {
   useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
-import type { PendingOpen, Tab } from "@/lib/tabs/tab";
+import type { Tab } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { attachmentLink } from "@/lib/utils/attachments";
+import { commands } from "@/server/adapters/bindings";
 
 /**
  * Restoring is a launch behaviour. Anything that re-runs the loader afterwards
@@ -57,9 +57,7 @@ export const Route = createFileRoute("/")({
     // A restored path that no longer reads closes its own tab, so nothing is
     // checked against disk here.
     if (restoreTabs()) {
-      await adoptVaultNotes((paths) =>
-        invoke<PendingOpen[]>("classify_open_paths", { paths })
-      );
+      await adoptVaultNotes(commands.classifyOpenPaths);
     } else {
       const [latest] = await getNotes({ limit: 1, sort: "updated" });
 
