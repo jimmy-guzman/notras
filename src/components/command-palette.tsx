@@ -47,24 +47,21 @@ import {
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
-import { filenameFromTitle, type NoteMeta } from "@/core/notes";
+import type { NoteMeta } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
-import { moveNote } from "@/data/move-note";
-import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
-import { retitleNote } from "@/data/retitle-note";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
+  changeNoteMetadata,
   closeNoteTab,
   closeOtherTabs,
   closeTab,
   closeTabsAfter,
   getTabHandles,
   openNote as openInTab,
-  renameTab,
   reopenTab,
   useTabSnapshot,
   useTabState,
@@ -144,7 +141,15 @@ export function CommandPalette({
   const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
-  const currentNote = notes.find((note) => note.path === currentPath);
+  const currentNote =
+    currentPath === undefined || activeSnapshot === undefined
+      ? undefined
+      : {
+          path: currentPath,
+          pinned: activeSnapshot.pinned,
+          tags: activeSnapshot.tags,
+          title: activeSnapshot.title,
+        };
   // cmdk's `onSelect` carries no event, so the modifier is read off the
   // gesture that triggered it, in the capture phase to beat cmdk's own handler.
   const newTabRef = useRef(false);
@@ -312,12 +317,14 @@ export function CommandPalette({
       }
 
       runAction("could not move note", async () => {
-        const next = await moveNote(currentNote.path, folder);
-
-        renameTab(currentNote.path, next);
+        const session = getTabHandles(activeId);
+        if (session?.changePath === undefined) {
+          throw new Error("the note is still opening");
+        }
+        await session.changePath({ folder, kind: "move" });
       });
     },
-    [currentNote, runAction]
+    [activeId, currentNote, runAction]
   );
 
   const moveToNewFolder = useCallback(() => {
@@ -330,11 +337,13 @@ export function CommandPalette({
     }
 
     runAction("could not rename note", async () => {
-      const next = await retitleNote(currentNote.path, query.trim());
-
-      renameTab(currentNote.path, next);
+      const session = getTabHandles(activeId);
+      if (session?.changePath === undefined) {
+        throw new Error("the note is still opening");
+      }
+      await session.changePath({ kind: "retitle", title: query.trim() });
     });
-  }, [currentNote, query, runAction]);
+  }, [activeId, currentNote, query, runAction]);
 
   const toggleTag = useCallback(
     (name: string, attached: boolean) => {
@@ -366,7 +375,7 @@ export function CommandPalette({
     const title = query.trim();
 
     runAction("could not create note", async () => {
-      const path = await createNote({ filename: filenameFromTitle(title) });
+      const path = await createNote({ title });
 
       openInTab(path, true);
     });
@@ -378,7 +387,7 @@ export function CommandPalette({
     }
 
     runAction("could not update pin", () =>
-      setNotePinned(currentNote.path, !currentNote.pinned)
+      changeNoteMetadata(currentNote.path, { pinned: !currentNote.pinned })
     );
   }, [currentNote, runAction]);
 

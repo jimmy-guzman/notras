@@ -1,3 +1,4 @@
+import { Editor as TiptapEditor } from "@tiptap/core";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -50,6 +51,60 @@ const mountBeside = async (focusOnMount: boolean) => {
 };
 
 describe("source editor focus", () => {
+  it("should patch both title fields without replacing source selection or undo history", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const source = "---\ntitle: old\n---\n# old\nbody";
+    const handles: SourceEditorHandle[] = [];
+    await act(() => {
+      root.render(
+        createElement(SourceEditor, {
+          initialCursor: source.length,
+          initialValue: source,
+          onChange: () => undefined,
+          onReady: (ready) => handles.push(ready),
+        })
+      );
+    });
+    teardown = () => {
+      act(() => root.unmount());
+      host.remove();
+    };
+    await act(async () => {
+      await vi.waitFor(() => expect(handles.length).toBe(1));
+    });
+    const [handle] = handles;
+    const surface = host.querySelector(".ProseMirror");
+    if (
+      handle === undefined ||
+      surface === null ||
+      !("editor" in surface) ||
+      !(surface.editor instanceof TiptapEditor)
+    ) {
+      throw new Error("the source editor did not mount");
+    }
+    const { editor } = surface;
+    act(() => {
+      handle.insertText(" plus typing");
+    });
+    act(() => {
+      handle.replaceContent(
+        "---\ntitle: longer title\n---\n# longer title\nbody plus typing"
+      );
+    });
+    const expected =
+      "---\ntitle: longer title\n---\n# longer title\nbody plus typing";
+    expect(surface.textContent).toBe(expected);
+    expect(handle.getCursorOffset()).toBe(expected.length);
+    expect(host.querySelector(".ProseMirror")).toBe(surface);
+    act(() => {
+      editor.commands.undo();
+    });
+    expect(surface.textContent).toBe(
+      "---\ntitle: longer title\n---\n# longer title\nbody"
+    );
+  });
   it("should leave focus alone when it is not the active surface", async () => {
     const { button } = await mountBeside(false);
 

@@ -178,6 +178,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     app.manage(AppState {
         core: Mutex::new(Core {
+            index_dirty: Default::default(),
             notes_dir: notes_dir.clone(),
             conn,
         }),
@@ -192,7 +193,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let state = scan_app.state::<AppState>();
         let core = state.core();
         match index::scan_all(&core.conn, &core.notes_dir) {
-            Ok(changed) => {
+            Ok(report) => {
+                core.index_dirty.set(!report.failures.is_empty());
+                let changed = report.changed;
                 drop(core);
                 if !changed.is_empty() {
                     if let Err(error) = (NotesChanged { paths: changed }).emit(&scan_app) {
@@ -200,7 +203,10 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Err(error) => log::error!("startup scan failed: {error}"),
+            Err(error) => {
+                core.index_dirty.set(true);
+                log::error!("startup scan failed: {error}");
+            }
         }
     });
 

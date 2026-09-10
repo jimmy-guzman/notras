@@ -29,33 +29,13 @@ function command<T>(operation: () => Promise<T>) {
 }
 
 const fileStore: IFileStore = {
-  attach: (sourcePath) => command(() => commands.attachFile(sourcePath)),
-  attachImage: (base64Data) => command(() => commands.attachImage(base64Data)),
-  create: (path, content) =>
-    command(() => commands.writeNote(path, content, true)).pipe(
-      Effect.map((receipt) => receipt.updatedAt)
-    ),
-  delete: (path) =>
-    command(() => commands.deleteNote(path)).pipe(Effect.asVoid),
-  exists: (path) => command(() => commands.noteExists(path)),
   findMentions: (path, title) =>
     command(() => commands.findMentions(path ?? null, title)),
   getNotesDir: () => command(commands.getNotesDir),
   read: (path) => command(() => commands.readNote(path)),
-  readExternal: (path) => command(() => commands.readExternal(path)),
   reindexAll: () => command(commands.reindexAll),
-  rename: (from, to) =>
-    command(() => commands.renameNote(from, to)).pipe(Effect.asVoid),
   setNotesDir: (path) =>
     command(() => commands.setNotesDir(path)).pipe(Effect.asVoid),
-  write: (path, content) =>
-    command(() => commands.writeNote(path, content, false)).pipe(
-      Effect.map((receipt) => receipt.updatedAt)
-    ),
-  writeExternal: (path, content) =>
-    command(() => commands.writeExternal(path, content)).pipe(
-      Effect.map((receipt) => receipt.updatedAt)
-    ),
 };
 
 /**

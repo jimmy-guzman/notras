@@ -54,7 +54,8 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 ### Tabs
 
 - several notes open at once, in the title bar
-- each tab keeps its own undo history and caret
+- each tab keeps its own undo history across rich and source mode
+- editing the heading names the file; rename accepts a readable name, and one undo restores both
 - the open set comes back when you relaunch
 
 ### Files and the system
@@ -194,6 +195,8 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes application and shell code and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
 
 Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
+
+Mutation tests cover native file and index outcomes, shared normalization fixtures, and session persistence with delayed writes and path changes. A file that committed remains saved when indexing fails. The main window reports the warning, and the next index read attempts recovery.
 
 ## Technologies
 

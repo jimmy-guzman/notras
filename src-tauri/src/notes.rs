@@ -7,8 +7,11 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
-use crate::application::{self, CommandError, MutationReceipt, NoteFile, PendingOpen};
-use crate::bindings::NotesChanged;
+use crate::application::{
+    self, CommandError, CreateNote, DeleteReceipt, MutationReceipt, MutationWarning, NoteFile,
+    PathMutationReceipt, PendingOpen, SaveName,
+};
+use crate::bindings::{MutationWarnings, NotesChanged};
 use crate::index;
 use crate::state::AppState;
 use crate::watcher;
@@ -24,24 +27,22 @@ async fn run_blocking<T: Send + 'static>(
         })?
 }
 
+fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
+    if !warnings.is_empty() {
+        if let Err(error) = (MutationWarnings {
+            warnings: warnings.to_vec(),
+        })
+        .emit(app)
+        {
+            log::error!("could not emit mutation warnings: {error}");
+        }
+    }
+}
+
 fn emit_changed<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) {
     if let Err(error) = (NotesChanged { paths }).emit(app) {
         log::error!("could not emit notes-changed: {error}");
     }
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn note_exists<R: Runtime>(
-    app: AppHandle<R>,
-    path: String,
-) -> Result<bool, CommandError> {
-    run_blocking(move || {
-        let state = app.state::<AppState>();
-        let core = state.core();
-        application::note_exists(&core, path)
-    })
-    .await
 }
 
 #[tauri::command]
@@ -114,6 +115,7 @@ pub async fn find_mentions<R: Runtime>(
 
         let (notes_dir, candidates) = {
             let core = state.core();
+            application::ensure_index(&core)?;
             let candidates = if let Some(path) = &path {
                 index::mention_candidates(&core.conn, path, &title)?
             } else {
@@ -133,19 +135,18 @@ pub async fn find_mentions<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn write_note<R: Runtime>(
+pub async fn create_note<R: Runtime>(
     app: AppHandle<R>,
-    path: String,
-    content: String,
-    create: bool,
+    options: CreateNote,
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = {
             let core = state.core();
-            application::write_note(&core, path.clone(), content, create)?
+            application::create_note(&core, options)?
         };
-        emit_changed(&app, vec![path]);
+        emit_warnings(&app, &result.warnings);
+        emit_changed(&app, vec![result.path.clone()]);
         Ok(result)
     })
     .await
@@ -153,34 +154,74 @@ pub async fn write_note<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn rename_note<R: Runtime>(
+pub async fn save_note<R: Runtime>(
     app: AppHandle<R>,
-    from: String,
-    to: String,
-) -> Result<(), CommandError> {
+    path: String,
+    content: String,
+    name: Option<SaveName>,
+) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        {
+        let result = {
             let core = state.core();
-            application::rename_note(&core, from.clone(), to.clone())?;
-        }
-        emit_changed(&app, vec![from, to]);
-        Ok(())
+            application::save_note(&core, path.clone(), content, name)?
+        };
+        emit_warnings(&app, &result.warnings);
+        emit_changed(
+            &app,
+            if path == result.path {
+                vec![path]
+            } else {
+                vec![path, result.path.clone()]
+            },
+        );
+        Ok(result)
     })
     .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_note<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), CommandError> {
+pub async fn move_note<R: Runtime>(
+    app: AppHandle<R>,
+    path: String,
+    folder: String,
+) -> Result<PathMutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        {
+        let result = {
             let core = state.core();
-            application::delete_note(&core, path.clone())?;
-        }
-        emit_changed(&app, vec![path]);
-        Ok(())
+            application::move_note(&core, path.clone(), folder)?
+        };
+        emit_warnings(&app, &result.warnings);
+        emit_changed(
+            &app,
+            if path == result.path {
+                vec![path]
+            } else {
+                vec![path, result.path.clone()]
+            },
+        );
+        Ok(result)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_note<R: Runtime>(
+    app: AppHandle<R>,
+    path: String,
+) -> Result<DeleteReceipt, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        let result = {
+            let core = state.core();
+            application::delete_note(&core, path)?
+        };
+        emit_warnings(&app, &result.warnings);
+        emit_changed(&app, vec![result.path.clone()]);
+        Ok(result)
     })
     .await
 }
@@ -208,11 +249,18 @@ pub async fn read_external(path: String) -> Result<NoteFile, CommandError> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn write_external(
+pub async fn write_external<R: Runtime>(
+    app: AppHandle<R>,
     path: String,
     content: String,
+    name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
-    run_blocking(move || application::write_external(path, content)).await
+    run_blocking(move || {
+        let result = application::write_external(path, content, name)?;
+        emit_warnings(&app, &result.warnings);
+        Ok(result)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -236,7 +284,7 @@ pub async fn set_notes_dir<R: Runtime>(
         let notes_dir = PathBuf::from(&path);
         fs::create_dir_all(notes_dir.join(".notras"))?;
         let conn = index::open(&notes_dir)?;
-        index::scan_all(&conn, &notes_dir)?;
+        index::scan_complete(&conn, &notes_dir)?;
         // Started first: a folder the app cannot watch is refused whole.
         let fresh = watcher::start(app.clone(), notes_dir.clone())
             .map_err(|error| format!("could not watch the folder: {error}"))?;
@@ -257,6 +305,7 @@ pub async fn set_notes_dir<R: Runtime>(
             let mut core = state.core();
             core.notes_dir = notes_dir;
             core.conn = conn;
+            core.index_dirty.set(false);
         }
 
         // Swap the watcher only after the core lock is released -- dropping the

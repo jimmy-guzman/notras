@@ -10,16 +10,9 @@ interface Frontmatter {
   pinned: boolean;
   tags: string[];
   /**
-   * Read-only. notras resolves a title from this key but never authors it, so
-   * it stays a foreign line and round-trips through `updateFrontmatter`.
+   * Imported metadata, preserved verbatim; the heading supplies the name when present.
    */
   title: string | undefined;
-}
-
-/** The keys `updateFrontmatter` writes. `title` is deliberately absent. */
-interface FrontmatterPatch {
-  pinned?: boolean;
-  tags?: string[];
 }
 
 /** A frontmatter block as it was read, so `composeNote` can put it back. */
@@ -58,16 +51,7 @@ function cleanTag(raw: string) {
   return tag.length > 0 ? tag : undefined;
 }
 
-/**
- * A `title:` value with its quoting undone. An empty value counts as absent so
- * title resolution falls through to the next source.
- *
- * A single-quoted scalar has one escape, `''` for a literal quote, which is what
- * `serializeTitle` writes. A double-quoted one is only unwrapped: notras never
- * writes that form, and decoding YAML's backslash escapes would widen a dialect
- * `D6` keeps deliberately small. Kept in parity with `clean_title` in
- * `src-tauri/src/frontmatter.rs`.
- */
+/** Decode the imported title's supported quoting; an empty value is absent. */
 function unquoteTitle(value: string) {
   const quote = value.length > 1 ? value.at(0) : undefined;
 
@@ -84,21 +68,6 @@ function cleanTitle(raw: string) {
   const title = unquoteTitle(raw.trim());
 
   return title.length > 0 ? title : undefined;
-}
-
-/**
- * A title as a frontmatter value, quoted whenever plain YAML would misread it.
- *
- * Single quotes are the safe form for prose: the only escape inside one is `''`,
- * so a title carrying a backslash or a double quote needs no further handling,
- * where the double-quoted form would treat `\` as an escape introducer.
- */
-const BARE_YAML_TITLE = /^[\p{L}\p{N}][\p{L}\p{N} \-._]*$/u;
-
-function serializeTitle(title: string) {
-  return BARE_YAML_TITLE.test(title)
-    ? title
-    : `'${title.replaceAll("'", "''")}'`;
 }
 
 const LEADING_BRACKETS = /^\[+/;
@@ -134,6 +103,9 @@ function readTagListItem(frontmatter: Frontmatter, line: string) {
 
 /** True when the line opened a block tag list, so the next lines are items. */
 function readKeyLine(frontmatter: Frontmatter, line: string) {
+  if (line.trimStart() !== line) {
+    return false;
+  }
   const separator = line.indexOf(":");
 
   if (separator === -1) {
@@ -167,6 +139,45 @@ function readKeyLine(frontmatter: Frontmatter, line: string) {
       return false;
     }
   }
+}
+
+function withoutOwnKeys(rawLines: string[]) {
+  let inTagsList = false;
+
+  return rawLines.filter((line) => {
+    const trimmed = line.trimEnd();
+
+    if (inTagsList) {
+      if (trimmed.trimStart().startsWith("- ")) {
+        return false;
+      }
+
+      inTagsList = false;
+    }
+
+    if (trimmed.trimStart() !== trimmed) {
+      return true;
+    }
+    const separator = trimmed.indexOf(":");
+
+    if (separator === -1) {
+      return true;
+    }
+
+    const key = trimmed.slice(0, separator).trim();
+
+    if (key === "pinned") {
+      return false;
+    }
+
+    if (key === "tags") {
+      inTagsList = trimmed.slice(separator + 1).trim() === "";
+
+      return false;
+    }
+
+    return true;
+  });
 }
 
 export function parseNote(content: string): ParsedNote {
@@ -222,75 +233,6 @@ export function parseNote(content: string): ParsedNote {
   return { body, frontmatter, raw: { close, lines: rawLines } };
 }
 
-/** Drops the `pinned`/`tags` lines (and tag list items) from a raw block. */
-function withoutOwnKeys(rawLines: string[]) {
-  let inTagsList = false;
-
-  return rawLines.filter((line) => {
-    const trimmed = line.trimEnd();
-
-    if (inTagsList) {
-      if (trimmed.trimStart().startsWith("- ")) {
-        return false;
-      }
-
-      inTagsList = false;
-    }
-
-    const separator = trimmed.indexOf(":");
-
-    if (separator === -1) {
-      return true;
-    }
-
-    const key = trimmed.slice(0, separator).trim();
-
-    if (key === "pinned") {
-      return false;
-    }
-
-    if (key === "tags") {
-      inTagsList = trimmed.slice(separator + 1).trim() === "";
-
-      return false;
-    }
-
-    return true;
-  });
-}
-
-/**
- * Rewrite an existing `title:` line in place, keeping its position in the block
- * and its indentation, or return `rawLines` unchanged when there is no such
- * key. notras updates a title key but never introduces one.
- *
- * The key is matched the way `parseNote` reads it, and the last match wins for
- * the same reason: a duplicated key is invalid YAML, and the two must agree
- * about which one is live. `serializeTitle` decides the quoting, so a title
- * carrying a colon, a quote, or a backslash stays valid YAML for the other tools
- * reading the file.
- */
-export function retitleFrontmatter(rawLines: string[], title: string) {
-  const index = rawLines.findLastIndex((line) => {
-    const trimmed = line.trimEnd();
-    const separator = trimmed.indexOf(":");
-
-    return separator !== -1 && trimmed.slice(0, separator).trim() === "title";
-  });
-
-  if (index === -1) {
-    return rawLines;
-  }
-
-  const existing = rawLines[index] ?? "";
-  const indent = existing.slice(
-    0,
-    existing.length - existing.trimStart().length
-  );
-
-  return rawLines.with(index, `${indent}title: ${serializeTitle(title)}`);
-}
-
 /**
  * Reassemble a full note file: the inverse of `parseNote`. A file with no block
  * is body alone, and an empty block is still a block.
@@ -303,6 +245,11 @@ export function composeNote(raw: RawBlock | undefined, body: string) {
   const block = raw.lines.map((line) => `${line}\n`).join("");
 
   return `---\n${block}${raw.close}\n${body}`;
+}
+
+export interface FrontmatterPatch {
+  pinned?: boolean;
+  tags?: string[];
 }
 
 /**

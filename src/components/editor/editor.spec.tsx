@@ -75,6 +75,35 @@ const mount = async (modes: {
 };
 
 describe("focus mode reading state", () => {
+  it("should apply a document observation without losing selection or existing undo", async () => {
+    const { handle, scroller } = await mount({
+      initialContent: "# old\n\nbody",
+    });
+    const surface = scroller.querySelector(".ProseMirror");
+    if (
+      surface === null ||
+      !("editor" in surface) ||
+      !(surface.editor instanceof TiptapEditor)
+    ) {
+      throw new Error("the editor did not mount");
+    }
+    const { editor } = surface;
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      editor.commands.insertContent(" plus typing");
+    });
+    const offset = editor.state.selection.$from.parentOffset;
+    act(() => handle.replaceContent("# a longer title\n\nbody plus typing"));
+    expect(scroller.querySelector(".ProseMirror")).toBe(surface);
+    expect(handle.getContent()).toContain("# a longer title");
+    expect(handle.getContent()).toContain("body plus typing");
+    expect(editor.state.selection.$from.parentOffset).toBe(offset);
+    act(() => {
+      editor.commands.undo();
+    });
+    expect(handle.getContent()).toContain("# a longer title");
+    expect(handle.getContent()).not.toContain("plus typing");
+  });
   it("should lift the dim while scrolling", async () => {
     const { scroller } = await mount({ focusModeEnabled: true });
 

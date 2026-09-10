@@ -6,7 +6,7 @@ import { CommandPalette } from "@/components/command-palette";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
-import { getTabState, openNote } from "@/lib/tabs/store";
+import { getTabState, openNote, publishTabSnapshot } from "@/lib/tabs/store";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -291,15 +291,24 @@ describe("command palette keyboard", () => {
     onTestFinished,
   }) => {
     openNote("projects/atlas.md");
+    publishTabSnapshot(getTabState().activeId, {
+      pinned: true,
+      reason: undefined,
+      sourceMode: false,
+      status: "dirty",
+      tags: ["work"],
+      title: "Atlas",
+      words: 1,
+    });
     const palette = await mount("actions", [
       {
         createdAt: new Date(0),
         folder: "projects",
         path: "projects/atlas.md",
-        pinned: true,
+        pinned: false,
         snippet: null,
         tags: ["work"],
-        title: "Atlas",
+        title: "outdated indexed title",
         updatedAt: new Date(0),
       },
     ]);

@@ -145,14 +145,14 @@ export function replaceNotePath(
   from: string,
   to: string
 ): TabState {
-  const index = indexOfFile(state.tabs, "note", from);
+  const index = state.tabs.findIndex((tab) => tab.path === from);
   const moved = state.tabs[index];
 
   if (moved === undefined || from === to) {
     return state;
   }
 
-  const existing = state.tabs[indexOfFile(state.tabs, "note", to)];
+  const existing = state.tabs[indexOfFile(state.tabs, moved.kind, to)];
 
   if (existing !== undefined) {
     return {

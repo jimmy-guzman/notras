@@ -1,10 +1,19 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "cn";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import type { FindHandle } from "@/components/editor/find";
+import type { DocumentEdit } from "@/components/editor/note-document";
+import { createNotePersistence } from "@/components/editor/note-persistence";
 import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
@@ -24,6 +33,7 @@ import { composeNote, parseNote } from "@/core/frontmatter";
 import { linkResolver } from "@/core/links";
 import { resolveTitle } from "@/core/notes";
 import { writeExternalNote } from "@/data/external-note";
+import { moveNote } from "@/data/move-note";
 import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { saveNote } from "@/data/save-note";
@@ -34,6 +44,7 @@ import {
   openNote,
   publishTabSnapshot,
   registerTabHandles,
+  renameTab,
   restoredCaret,
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
@@ -49,6 +60,7 @@ interface SessionBufferProps {
   file: SessionFile;
   /** The file behind this buffer has gone; what is on screen is all there is. */
   missing: boolean;
+  readFile: SessionFile | undefined;
   tab: Tab;
 }
 
@@ -58,7 +70,13 @@ interface SessionBufferProps {
  * Several are alive at once, so nothing here may register a window listener or
  * a hotkey: those belong to the workspace, and `D53` says why.
  */
-function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
+function SessionBuffer({
+  active,
+  file,
+  missing: readMissing,
+  readFile,
+  tab,
+}: SessionBufferProps) {
   const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const resolveLinks = useMemo(() => linkResolver(notes), [notes]);
@@ -76,44 +94,70 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
-
-  // The rich editor owns the BODY; frontmatter rides along from the latest
-  // read so pin/tag toggles are never clobbered by a body save.
-  const [frontmatterBlock, setFrontmatterLines] = useState(
-    () => parseNote(file.content).raw
+  const sourceModeRef = useRef(false);
+  const [persistence] = useState(() =>
+    createNotePersistence(
+      { ...file, kind: tab.kind, path: tab.path },
+      {
+        changePath: async (path, change) => await moveNote(path, change.folder),
+        onDocumentChanged: (content, selection) => {
+          // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
+          if (sourceModeRef.current) {
+            sourceRef.current?.replaceContent(content, selection);
+          } else {
+            const currentBody = parseNote(content).body;
+            const prefix = content.length - currentBody.length;
+            editorRef.current?.replaceContent(
+              currentBody,
+              selection === undefined
+                ? undefined
+                : {
+                    anchor: Math.max(0, selection.anchor - prefix),
+                    head: Math.max(0, selection.head - prefix),
+                  }
+            );
+          }
+        },
+        onPathChanged: renameTab,
+        write: async (path, content, name) =>
+          tab.kind === "external"
+            ? await writeExternalNote(path, content, name)
+            : await saveNote(path, content, name),
+      }
+    )
   );
-  // Frontmatter follows the file (adjust-during-render pattern): a pin or tag
-  // toggle rewrites it, and the next body save must compose with that fresh
-  // block, not the one captured at mount.
-  const [syncedContent, setSyncedContent] = useState(file.content);
-
-  if (syncedContent !== file.content) {
-    setSyncedContent(file.content);
-
-    const fresh = parseNote(file.content).raw;
-
-    // Compare what the block serializes to, so a delimiter change counts.
-    if (composeNote(fresh, "") !== composeNote(frontmatterBlock, "")) {
-      setFrontmatterLines(fresh);
-    }
-  }
-
-  const [body, setBody] = useState(() => parseNote(file.content).body);
-  const [words, setWords] = useState(() => countWords(file.content));
-  const [reloadKey, setReloadKey] = useState(0);
+  const autosave = useAutosave(persistence);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: replay deferred observations when a write or path operation finishes
+  useLayoutEffect(() => {
+    persistence.receiveFile(tab.path, readFile, readMissing);
+  }, [
+    autosave.path,
+    autosave.pendingPaths,
+    autosave.status,
+    autosave.writing,
+    persistence,
+    readFile,
+    readMissing,
+    tab.path,
+  ]);
+  const { body, raw: frontmatterBlock } = parseNote(autosave.content);
+  const words = countWords(autosave.content);
+  const { missing } = autosave;
   const [sourceMode, setSourceMode] = useState(false);
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source mode,
   // and at mount for a tab restored from the last session); the rich editor
   // strips it after mount and places the caret.
-  const [sentineledBody, setSentineledBody] = useState<null | string>(() => {
-    const caret = restoredCaret(id);
+  const [sentineledBody, setSentineledBody] = useState<string | undefined>(
+    () => {
+      const caret = restoredCaret(id);
 
-    return caret === undefined
-      ? null
-      : insertSentinel(parseNote(file.content).body, caret);
-  });
+      return caret === undefined
+        ? undefined
+        : insertSentinel(parseNote(file.content).body, caret);
+    }
+  );
 
   useEffect(() => {
     clearRestoredCaret(id);
@@ -121,45 +165,22 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
 
   const focusModeEnabled = useFocusMode();
 
-  // Tracks the mtime of our own writes so a re-read can tell an external edit
-  // from a stale snapshot of something we just saved.
-  const lastSavedAtRef = useRef(file.updatedAt);
-
-  // Nothing flushes on the way back: a file can be recreated with different
-  // content, and the reconcile below will not adopt it while the buffer is
-  // dirty, so a write fired the moment a watcher event lands would clobber it.
-  // The next keystroke or blur carries the buffer instead.
-  const autosave = useAutosave(tab.path, {
-    enabled: !missing,
-    onSaved: (updatedAt) => {
-      lastSavedAtRef.current = updatedAt;
-    },
-    write: tab.kind === "external" ? writeExternalNote : saveNote,
-  });
   // Stable across renders, unlike `autosave` itself (a fresh object every
   // render, since `status` changes on every keystroke).
-  const { onChange } = autosave;
+  const { onChange, onHistory } = autosave;
 
   // The editor freezes its props at mount, so its callbacks read live values
   // through this rather than through closures over render state. Declared
   // ahead of every effect that reads it, since effects run in order.
   const live = useRef({
-    body,
-    frontmatter: frontmatterBlock,
     notes,
     resolveLinks,
-    sourceMode,
-    status: autosave.status,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     live.current = {
-      body,
-      frontmatter: frontmatterBlock,
       notes,
       resolveLinks,
-      sourceMode,
-      status: autosave.status,
     };
   });
   // `D32`'s chain, resolved off the live buffer rather than the last read, so
@@ -229,45 +250,41 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
     [tab.path]
   );
 
-  // External edits (AI agents, other editors) arrive as a re-read. Frontmatter
-  // always follows the file; the body buffer reloads only when it is clean AND
-  // the file on disk is newer than our own last write -- a stale read of a
-  // just-saved note must never clobber the buffer.
-  useEffect(() => {
-    const parsed = parseNote(file.content);
-    const isExternal =
-      file.updatedAt.getTime() > lastSavedAtRef.current.getTime();
-
-    if (autosave.status === "saved" && isExternal && parsed.body !== body) {
-      lastSavedAtRef.current = file.updatedAt;
-      setBody(parsed.body);
-      setWords(countWords(file.content));
-      setSentineledBody(null);
-      setReloadKey((key) => key + 1);
-    }
-  }, [autosave.status, body, file.content, file.updatedAt]);
-
   const handleBodyChange = useCallback(
-    (nextBody: string) => {
-      const full = composeNote(live.current.frontmatter, nextBody);
+    (content: string, edit: DocumentEdit) => {
+      const raw = persistence.store.state.content;
+      const prefix = raw.length - parseNote(raw).body.length;
+      onChange(
+        { content, mode: "body" },
+        {
+          ...edit,
+          selection:
+            edit.selection === undefined
+              ? undefined
+              : {
+                  anchor: edit.selection.anchor + prefix,
+                  head: edit.selection.head + prefix,
+                },
+        }
+      );
+    },
+    [onChange, persistence]
+  );
 
-      setBody(nextBody);
-      setWords(countWords(full));
-      onChange(full);
+  const handleSourceChange = useCallback(
+    (content: string, edit: DocumentEdit) => {
+      onChange({ content, mode: "document" }, edit);
     },
     [onChange]
   );
 
-  const handleSourceChange = useCallback(
-    (raw: string) => {
-      const parsed = parseNote(raw);
-
-      setFrontmatterLines(parsed.raw);
-      setBody(parsed.body);
-      setWords(countWords(raw));
-      onChange(raw);
+  const selectBody = useCallback(
+    (anchor: number, head: number) => {
+      const raw = persistence.store.state.content;
+      const prefix = raw.length - parseNote(raw).body.length;
+      persistence.select(anchor + prefix, head + prefix);
     },
-    [onChange]
+    [persistence]
   );
 
   const attachSourceEditor = useCallback((handle: SourceEditorHandle) => {
@@ -285,7 +302,8 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // Body-relative, so source mode has to shed the frontmatter prefix the way
   // `toggleSource` does.
   const getCaret = useCallback(() => {
-    if (!live.current.sourceMode) {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
+    if (!sourceModeRef.current) {
       return editorRef.current?.getCaretSourceOffset() ?? -1;
     }
 
@@ -295,19 +313,18 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       return -1;
     }
 
-    const raw = composeNote(live.current.frontmatter, live.current.body);
+    const raw = persistence.store.state.content;
+    const currentBody = parseNote(raw).body;
 
     return Math.max(
       0,
-      Math.min(
-        offset - (raw.length - live.current.body.length),
-        live.current.body.length
-      )
+      Math.min(offset - (raw.length - currentBody.length), currentBody.length)
     );
-  }, []);
+  }, [persistence]);
 
   const insertText = useCallback((text: string) => {
-    const target = live.current.sourceMode
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
+    const target = sourceModeRef.current
       ? sourceRef.current
       : editorRef.current;
 
@@ -325,49 +342,67 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // comes off a ref, since the snapshot the chrome calls this through has to
   // stay stable.
   const toggleSource = useCallback(() => {
-    const raw = composeNote(live.current.frontmatter, live.current.body);
-    const prefixLength = raw.length - live.current.body.length;
-    const wasSource = live.current.sourceMode;
+    const raw = persistence.store.state.content;
+    const currentBody = parseNote(raw).body;
+    const prefixLength = raw.length - currentBody.length;
+    const wasSource = sourceModeRef.current;
 
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
     if (wasSource) {
       const offset = sourceRef.current?.getCursorOffset() ?? 0;
       const bodyOffset = Math.max(
         0,
-        Math.min(offset - prefixLength, live.current.body.length)
+        Math.min(offset - prefixLength, currentBody.length)
       );
 
-      setSentineledBody(insertSentinel(live.current.body, bodyOffset));
-      setReloadKey((key) => key + 1);
+      setSentineledBody(insertSentinel(currentBody, bodyOffset));
     } else {
       const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
 
       setSourceCursor(offset === -1 ? raw.length : prefixLength + offset);
     }
 
+    sourceModeRef.current = !wasSource;
     setSourceMode(!wasSource);
-  }, []);
+  }, [persistence]);
+
+  const { changePath } = autosave;
 
   useEffect(() => {
-    registerTabHandles(id, { getCaret, insertText, toggleSource });
-  }, [getCaret, id, insertText, toggleSource]);
+    registerTabHandles(id, {
+      changePath: tab.kind === "note" ? changePath : undefined,
+      editMetadata: tab.kind === "note" ? persistence.editMetadata : undefined,
+      getCaret,
+      insertText,
+      toggleSource,
+    });
+  }, [
+    changePath,
+    getCaret,
+    id,
+    insertText,
+    persistence,
+    tab.kind,
+    toggleSource,
+  ]);
 
   // The chrome renders once above every session, so what it draws travels up
   // through the store rather than down through props.
   useEffect(() => {
+    const { frontmatter } = parseNote(autosave.content);
     publishTabSnapshot(id, {
-      pinned: file.pinned,
+      pinned: frontmatter.pinned,
       reason: autosave.reason,
       sourceMode,
       status: autosave.status,
-      tags: file.tags,
+      tags: frontmatter.tags,
       title,
       words,
     });
   }, [
     autosave.reason,
     autosave.status,
-    file.pinned,
-    file.tags,
+    autosave.content,
     id,
     sourceMode,
     title,
@@ -383,10 +418,10 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
   // resolved and reported `saved`, throwing away the buffer this exists to
   // keep.
   useEffect(() => {
-    if (missing && live.current.status === "saved") {
+    if (missing && persistence.store.state.status === "saved") {
       closeTab(id);
     }
-  }, [missing, id]);
+  }, [missing, id, persistence]);
 
   // A tab mounted in the background never took focus, so it takes it on the
   // way in. ⌘P decides which surface owns the caret; the other one's handle
@@ -396,7 +431,8 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
       return;
     }
 
-    if (live.current.sourceMode) {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
+    if (sourceModeRef.current) {
       sourceRef.current?.focus();
     } else {
       editorRef.current?.focus();
@@ -431,9 +467,10 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
           focusOnMount={focusOnMount}
           initialCursor={sourceCursor}
           initialValue={composeNote(frontmatterBlock, body)}
-          key={`${reloadKey}:source`}
           onChange={handleSourceChange}
+          onHistory={onHistory}
           onReady={attachSourceEditor}
+          onSelect={persistence.select}
         />
       ) : (
         <Editor
@@ -441,14 +478,15 @@ function SessionBuffer({ active, file, missing, tab }: SessionBufferProps) {
           focusModeEnabled={focusModeEnabled}
           focusOnMount={focusOnMount}
           initialContent={sentineledBody ?? body}
-          key={reloadKey}
           onChange={handleBodyChange}
+          onHistory={onHistory}
           onNoteLinkClick={tab.kind === "note" ? openNoteLink : undefined}
           onReady={attachEditor}
+          onSelect={selectBody}
           onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
           resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}
           resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
-          stripSentinel={sentineledBody !== null}
+          stripSentinel={sentineledBody !== undefined}
           titles={getTitles}
         />
       )}
@@ -558,5 +596,13 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
     ) : null;
   }
 
-  return <SessionBuffer active={active} file={file} missing={gone} tab={tab} />;
+  return (
+    <SessionBuffer
+      active={active}
+      file={file}
+      missing={gone}
+      readFile={data}
+      tab={tab}
+    />
+  );
 }

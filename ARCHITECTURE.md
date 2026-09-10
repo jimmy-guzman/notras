@@ -26,6 +26,8 @@ Notes are `.md` or `.markdown` files under the notes dir (default `~/notras`). F
 flowchart TD
     subgraph webview [Tauri webview]
         UI[React + TanStack Router] --> Query[TanStack Query cache]
+        UI --> Persistence[Session persistence controller]
+        Persistence --> Mutations[Typed mutation client]
         Query --> Data[src/data async fns]
         Data --> Services[Effect services]
         Services --> FileStore[FileStore port]
@@ -39,6 +41,7 @@ flowchart TD
         Files -.external edits.-> Watcher
     end
 
+    Mutations --> Commands
     FileStore --> Commands
     Index --> Commands
     Agents[any editor / git / AI agent] -.write markdown.-> Files
@@ -46,7 +49,7 @@ flowchart TD
     Watcher -. notes-changed event .-> UI
 ```
 
-**Rust is the single writer of the index.** Every TypeScript mutation goes through a Rust command (`write_note`, `rename_note`, `delete_note`, and the rest) that writes the file and updates the index in the same call, then emits `notes-changed`. The `db_select` command rejects anything that is not SELECT/WITH, gated on SQLite's own `sqlite3_stmt_readonly` so a writable `WITH ... DELETE` CTE cannot pass the prefix test. There is no index write path from TypeScript.
+**Rust is the single writer of the index.** Rust publishes complete documents, allocates filenames without overwriting another note, and reconciles the index under the core lock. The editing session owns changes to the document. Committed bytes remain successful when index reconciliation fails. Commands emit affected paths after releasing the lock. The `db_select` command rejects statements SQLite reports as writable.
 
 **External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: the root route listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
 
@@ -56,11 +59,11 @@ flowchart TD
 
 **Note identity is the relative path.** Renames are delete plus create in the index. Wikilinks resolve by title and then by filename stem, so a retitle can dangle links, a consequence `D5` accepts. `D32` added the stem fallback and the tie-break that orders duplicate titles. That resolution is `wikilinkResolver` in `src/core/links.ts`, and it serves a click on a pill and the mentions count alike.
 
-**The title is resolved, not stored.** Frontmatter `title:`, else the leading `#` heading, else the filename stem. `resolve_title` in `src-tauri/src/index.rs` fills the index column and `resolveTitle` in `src/core/notes.ts` serves the open note.
+**The heading supplies the name.** The leading `#` heading takes precedence over an imported frontmatter `title:`, with the filename stem as the last fallback. TypeScript and Rust use the same resolution order. Existing frontmatter titles remain verbatim.
 
-**Retitling is the one act that writes a title.** `NoteService.retitle` rewrites an existing leading heading and an existing `title:` key, then renames the file to `filenameFromTitle` of the title. Neither a heading nor a key is ever introduced, so a note carrying neither is only renamed, and nothing renames a file except that explicit action.
+**Only an in-app heading edit requests a derived filename.** Editor transactions report heading edits explicitly, including edits whose final text is unchanged. Rename edits the live heading and introduces it when absent. Rust recomputes the available filename for each naming request. Empty headings, reads, searches, and external observations do not request renaming. Undo restores the heading and the filename associated with its action; an occupied destination receives a suffix.
 
-**Frontmatter has two parsers.** `src/core/frontmatter.ts` and `src-tauri/src/frontmatter.rs` implement the same deliberately tiny dialect: `pinned: bool`, `tags` inline or block list, `title` read-only. Change one, change the other, and cover both with tests. The TypeScript serializer preserves unknown keys verbatim, so externally authored notes survive round-trips, and `title` is one of them.
+**Frontmatter has two parsers.** TypeScript parses and edits the live document; Rust parses persisted documents for indexing. Both interpret `pinned`, `tags`, and imported `title` values. Pin and tag controls update the session document, preserving unknown fields and the closing delimiter. They share its history and persistence with source edits.
 
 ## Index schema
 
@@ -114,7 +117,8 @@ src/
     graph.ts          # graphOf: what a note links to and what mentions it
   data/               # Plain async fns the UI calls (ex-server-actions)
     queries.ts        # THE query keys and options, one factory (D66)
-    run.ts            # THE Effect boundary: AppRuntime.runPromiseExit wrapper
+    native-command.ts # typed native failure normalization for mutations
+    run.ts            # Effect boundary for remaining reads
   server/
     adapters/         # the only note IO and SQL path to @tauri-apps/*;
                       # UI code reaches it for events, dialogs and windows
@@ -123,7 +127,6 @@ src/
       bindings.ts          # GENERATED native commands, events and wire types
     db/               # Database service, index schema mirror, fts-query helpers
     repositories/     # note-repository: SELECTs against the index
-    schemas/          # Effect Schema validation (titles, folder names)
     services/         # note-service, app-layer
     runtime.ts        # AppRuntime (ManagedRuntime), wires the adapters
   lib/                # Client utilities
@@ -168,16 +171,16 @@ scripts/
 Nothing enforces these. Lint held them until `D41` retired the ESLint config, and `D43` records why they were not ported to Biome. Review is the check now, and the fix for a violation is never to move the import.
 
 - **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or `@/data`. It runs in the webview and in any other runtime, which is what makes it testable without a window.
-- **`src/server/{db,repositories,schemas,services}/**` is platform-free.** No `@tauri-apps/*`, `react`, or `react-dom`, and no imports from `@/lib`, `@/components`, or `@/data`. Inject behavior through the ports instead: `FileStore` in `src/core`, `Database` in `src/server/db`. Only `src/server/adapters/**` and `src/server/runtime.ts` may import `@tauri-apps/*`.
+- **`src/server/{db,repositories,services}/**` is platform-free.** No `@tauri-apps/*`, `react`, or `react-dom`, and no imports from `@/lib`, `@/components`, or `@/data`. Inject behavior through the ports instead: `FileStore` in `src/core`, `Database` in `src/server/db`. Native bindings live in `src/server/adapters/**`; `src/data/native-command.ts` also imports the log plugin for mutation defects.
 - **UI code** (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO and SQL go through `src/data`.
 
 ## Key patterns
 
 ### Data access
 
-The UI calls plain async functions in `src/data/`, one concern per file. They validate with Effect Schema where the input is user-shaped, and run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps a typed failure into the plain `Error` it is, so a caller can put its message in a toast. A defect is not unwrapped: its cause goes to the log through `tauri-plugin-log`, on both sides the one sink, and the caller sees "an unexpected error".
+The UI calls plain async functions in `src/data/`, one concern per file. Mutations call generated operation commands through `nativeCommand`; Rust validates user input. Query callers still run effects via `run()` from `src/data/run.ts`, the only place `AppRuntime` is executed. `run()` unwraps a typed failure into the plain `Error` it is, so a caller can put its message in a toast. A defect is not unwrapped: its cause goes to the log through `tauri-plugin-log`, on both sides the one sink, and the caller sees "an unexpected error".
 
-Reads reach those functions through TanStack Query. `src/data/queries.ts` is the only place a key over `src/data` is written: `noteQueries` for everything a note write can affect, `notesDirQuery` for the folder that settings owns. A query over something else, such as the launch-at-login switch the OS owns, is keyed beside the component that shows it. Its keys run generic to specific, so every invalidation the app performs is one prefix, and `D66` carries the rest. Writes stay direct calls, with one exception: `useNoteTags` goes through a mutation whose scope is the note's path, which is what serializes the two surfaces `D31` allows (`D67`). `useAutosave` keeps its own chain (`D54`).
+Reads reach those functions through TanStack Query. `src/data/queries.ts` owns note query keys. Open-note actions use the loaded session. The palette, pin control, and tag controls read its live snapshot. One persistence queue saves complete documents and orders folder moves; query results cannot acknowledge an edit.
 
 ### Effect style
 
@@ -189,23 +192,23 @@ A service whose layer bakes in dependencies also exposes `layerNoDeps`, as `Note
 
 Rust application functions take `Core`, which pairs the notes directory with its SQLite connection, without an `AppHandle` or window. Tauri handlers run blocking work through `spawn_blocking` and take the core lock inside that task. A guard never crosses an `await`. Successful indexed mutations release the core lock before emitting `NotesChanged`. Library switches hold the watcher lock across preparation, settings persistence and replacement, and release the core lock before dropping the old watcher.
 
-The IPC tests use Tauri's test runtime with the production command registry, temporary directories and real SQLite. They send JSON requests through Tauri's argument decoder and check serialized receipts, failures and events. They do not exercise an OS webview, tray or clipboard. Write receipts contain `path` and `updatedAt` in milliseconds; the FileStore adapter extracts the timestamp for existing autosave callers.
+The IPC tests use Tauri's test runtime with the production command registry, temporary directories and real SQLite. They send JSON requests through Tauri's argument decoder and check serialized receipts, failures and events. They do not exercise an OS webview, tray or clipboard. Mutation receipts carry the committed path, timestamp and warnings. Path receipts also carry committed content and any remaining source. Data functions convert timestamps to `Date`. Controller tests supply persistence functions; mounted session tests exercise the real editor, tab store and query cache over the IPC boundary.
 
 ### Routes
 
 TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option objects are left unsorted: `ultracite/biome/tanstack` turns the `useSortedKeys` assist off under `src/routes/**` because the option types infer in declaration order. Nothing checks the order itself.
 
-### The editor owns its buffer
+### The session owns the document
 
-`Editor`, the TipTap wrapper, freezes all props except `focusModeEnabled` and `findOpen` at mount through a `useState` initializer. Loading different content means remounting via `key`. Callbacks passed to it must be freeze-safe: read live values through refs or stable getters, never through closures over render state.
+`note-document.ts` owns the complete Markdown document and ProseMirror history. Rich and source editors project that document and delegate undo and redo to it. Rename and metadata actions enter the same history. A filename history entry identifies the result of its action, including a native collision suffix; a new heading edit creates a fresh naming request. Editor callbacks are fixed at mount and read current session values through stable functions.
 
 Both editor handles expose a `FindHandle` backed by the shared Tiptap `Find` extension. The extension maps text-block character offsets to ProseMirror positions, including atomic wikilink titles, and decorates matches without document changes or undo entries. A selection bookmark tracks the prior caret through edits.
 
 `createFindController` binds one active editor handle and releases its subscription and highlights on handoff. The workspace owns one controller, and capture owns another. Their query and open state remain in memory. Sessions bind handles; the window owns shortcuts and the floating `FindBar`. A hidden or destroyed editor cannot receive navigation.
 
-### Body-only editing
+### Rich and source editing
 
-The editor holds the note body as markdown. Frontmatter is parsed off at load with `parseNote` and reattached at save with `composeNote`, always from the session's latest read, so a body save never clobbers a pin or tag toggle. ⌘E is a raw-source view over the whole file.
+The rich editor projects the body; source mode projects the complete Markdown. Both update one session document, and every save sends that complete document. The session retains only the sent revision until acknowledgement, so newer edits remain dirty. A receipt updates the committed path and timestamp without replacing live text. There are no field-specific revisions or title reconciliation patches.
 
 ### Markdown round-trip contract
 
@@ -223,21 +226,21 @@ The editor holds the note body as markdown. Frontmatter is parsed off at load wi
 
 ### Editing session per tab
 
-The workspace renders one `NoteSession` per open tab, keyed by tab id, so autosave state cannot leak across notes. That id is minted when the tab opens and is opaque: a rename gives the tab a new `path` and the same id, so the session lives through the rename instead of remounting (`D56`). Finding the tab that holds a path is a lookup in `store.ts`, never a key someone rebuilds. Several are alive at once and only the active one is shown, which is what makes a switch lossless (`D53`). Autosave in `use-autosave.ts` debounces 800ms on a Pacer timer, serializes on a chain of its own so overlapping flushes cannot land out of order, and flushes on blur, unmount, and quit (`D68`). It takes the write as an argument, so a note and an external file share it (`D54`), and `pending-flush.ts` aggregates every live buffer. Rust holds `ExitRequested` until the webview reports back, and a failed flush cancels the quit through `cancel_quit`.
+The workspace renders one `NoteSession` per open tab, keyed by an opaque tab id that survives renaming. Each session owns its document, history, committed path, and ordered persistence queue. React subscribes to presentation state. `useAutosave` supplies the 800ms timer and blur, unmount, and quit flushes. `pending-flush.ts` retains a closing session until its final flush settles. External files use the same document and save flow without indexing. A clean external update patches the mounted editor and resets document history without issuing a save. A failed final flush cancels quit.
 
 An update restart is the exception. It reaches `ExitRequested` carrying `RESTART_EXIT_CODE`, which Tauri refuses to prevent, so `lib.rs` returns before the handshake rather than opening one it cannot honour. `installUpdate` in `src/lib/updater.ts` awaits `flushPendingWrites` itself between `downloadAndInstall` and `relaunch`. A failed flush leaves the app running the old version rather than restarting, and the bundle already downloaded applies the next time someone launches it.
 
 ### External-change reload guard
 
-A re-read replaces the buffer only when the buffer is clean and the file's mtime is newer than our own last write, tracked in `lastSavedAtRef`. A stale read of a just-saved note must never clobber the buffer. Do not simplify this check away.
+The controller accepts reads only for its committed path and after pending writes and folder moves settle. A re-read replaces the document only when it is clean and the file's mtime is newer than its acknowledged timestamp. Stale reads cannot replace newer local content.
 
 ### Adding a Rust command
 
-Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Note IO still reaches the client through the `FileStore` adapter; UI concerns can call generated shell commands directly.
+Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted mutations reach the generated client through `src/data`. The remaining reads and library settings use the `FileStore` adapter; UI concerns call generated shell commands directly.
 
 The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. Biome excludes the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
 
-A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. The existing `db_select` bridge also retains its string errors. Indexed mutations update the index before returning success and emit affected paths after releasing the lock. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
+A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. The existing `db_select` bridge also retains its string errors. Indexed mutations attempt reconciliation before returning a committed receipt. Reconciliation failures mark the index dirty and add warnings. Index reads rebuild a dirty index first and fail if recovery is incomplete; direct file reads remain available. Main-window mutation warnings and the toaster live outside the workspace route, so a failed index loader cannot hide them. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
 
 ### The palette is the action surface
 
@@ -268,7 +271,7 @@ FTS snippets carry `[[hl]]` and `[[/hl]]` markers, defined in `src/core/fts-mark
 Each of these holds a property the architecture depends on. Breaking one is a design change, not a refactor.
 
 - **TypeScript never writes the index.** No non-SELECT support in `db_select`, no SQL writes from a repository. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
-- **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/server/runtime.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
+- **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/server/runtime.ts`, `src/data/native-command.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `src-tauri/src/index.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.
 - **Every editor node defines its markdown form and appears in the round-trip spec.** A node without one silently drops content from externally authored files.

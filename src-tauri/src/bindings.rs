@@ -1,12 +1,18 @@
 use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 
+use crate::application::MutationWarning;
 use crate::{clipboard, notes, windows};
 
 /// Relative paths whose saved content or index rows changed; empty means the library.
 #[derive(Clone, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
 pub struct NotesChanged {
     pub paths: Vec<String>,
+}
+
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+pub struct MutationWarnings {
+    pub warnings: Vec<MutationWarning>,
 }
 
 pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
@@ -24,19 +30,22 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::delete_note::<tauri::Wry>,
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir,
-            notes::note_exists::<tauri::Wry>,
             notes::pending_open_files::<tauri::Wry>,
             notes::quit_app::<tauri::Wry>,
             notes::read_external,
             notes::read_note::<tauri::Wry>,
             notes::reindex_all::<tauri::Wry>,
-            notes::rename_note::<tauri::Wry>,
+            notes::create_note::<tauri::Wry>,
+            notes::move_note::<tauri::Wry>,
             notes::set_notes_dir::<tauri::Wry>,
-            notes::write_external,
-            notes::write_note::<tauri::Wry>,
+            notes::write_external::<tauri::Wry>,
+            notes::save_note::<tauri::Wry>,
             windows::show_capture::<tauri::Wry>,
         ])
-        .events(tauri_specta::collect_events![NotesChanged])
+        .events(tauri_specta::collect_events![
+            NotesChanged,
+            MutationWarnings
+        ])
 }
 
 #[cfg(test)]
@@ -85,6 +94,7 @@ mod tests {
         let app = tauri::test::mock_builder()
             .manage(AppState {
                 core: Mutex::new(Core {
+                    index_dirty: Default::default(),
                     notes_dir: directory.path().to_owned(),
                     conn: index::open(directory.path()).unwrap(),
                 }),
@@ -113,10 +123,8 @@ mod tests {
 
         let receipt = invoke(
             &window,
-            "write_note",
-            json!({
-                "path": "ideas/a.md", "content": "# first\nbody", "create": true
-            }),
+            "create_note",
+            json!({"options": {"folder": "ideas", "name": {"kind": "filename", "value": "a"}, "content": "# first\nbody"}}),
         )
         .unwrap();
         assert_eq!(receipt["path"], "ideas/a.md");
@@ -149,32 +157,28 @@ mod tests {
 
         invoke(
             &window,
-            "write_note",
-            json!({
-                "path": "ideas/a.md", "content": "# second", "create": false
-            }),
+            "save_note",
+            json!({"path": "ideas/a.md", "content": "# second"}),
         )
         .unwrap();
         assert_eq!(
             changes.recv().unwrap(),
             (json!({"paths": ["ideas/a.md"]}), true)
         );
-        assert_eq!(
-            invoke(
-                &window,
-                "rename_note",
-                json!({"from": "ideas/a.md", "to": "b.md"})
-            )
-            .unwrap(),
-            Value::Null
-        );
+        let moved = invoke(
+            &window,
+            "move_note",
+            json!({"path": "ideas/a.md", "folder": ""}),
+        )
+        .unwrap();
+        assert_eq!(moved["path"], "a.md");
         assert_eq!(
             changes.recv().unwrap(),
-            (json!({"paths": ["ideas/a.md", "b.md"]}), true)
+            (json!({"paths": ["ideas/a.md", "a.md"]}), true)
         );
         assert!(!directory.path().join("ideas/a.md").exists());
         assert_eq!(
-            fs::read_to_string(directory.path().join("b.md")).unwrap(),
+            fs::read_to_string(directory.path().join("a.md")).unwrap(),
             "# second"
         );
         assert_eq!(
@@ -186,14 +190,14 @@ mod tests {
                 })
             )
             .unwrap(),
-            json!([["b.md", "second"]])
+            json!([["a.md", "second"]])
         );
         assert_eq!(
-            invoke(&window, "delete_note", json!({"path": "b.md"})).unwrap(),
-            Value::Null
+            invoke(&window, "delete_note", json!({"path": "a.md"})).unwrap(),
+            json!({"path": "a.md", "warnings": []})
         );
-        assert_eq!(changes.recv().unwrap(), (json!({"paths": ["b.md"]}), true));
-        assert!(!directory.path().join("b.md").exists());
+        assert_eq!(changes.recv().unwrap(), (json!({"paths": ["a.md"]}), true));
+        assert!(!directory.path().join("a.md").exists());
         assert_eq!(
             invoke(
                 &window,
@@ -209,6 +213,78 @@ mod tests {
     }
 
     #[test]
+    fn should_report_committed_capture_warnings_after_unlocking_and_recover_reads() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        let conn = index::open(directory.path()).unwrap();
+        conn.execute_batch("PRAGMA query_only = ON").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                core: Mutex::new(Core {
+                    index_dirty: Default::default(),
+                    notes_dir: directory.path().to_owned(),
+                    conn,
+                }),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let capture = tauri::WebviewWindowBuilder::new(&app, "capture", Default::default())
+            .build()
+            .unwrap();
+        let (sender, warnings) = mpsc::channel();
+        let handle = app.handle().clone();
+        app.listen("mutation-warnings", move |event| {
+            sender
+                .send((
+                    serde_json::from_str::<Value>(event.payload()).unwrap(),
+                    handle.state::<AppState>().core.try_lock().is_ok(),
+                ))
+                .unwrap();
+        });
+        let receipt = invoke(
+            &capture,
+            "create_note",
+            json!({"options": {"folder": "inbox", "content": "a captured thought"}}),
+        )
+        .unwrap();
+        let (event, unlocked) = warnings.recv().unwrap();
+        assert!(unlocked);
+        assert_eq!(event["warnings"], receipt["warnings"]);
+        assert_eq!(receipt["warnings"][0]["kind"], "index");
+        assert_eq!(receipt["path"], "inbox/untitled.md");
+        assert_eq!(
+            invoke(&capture, "read_note", json!({"path": receipt["path"]})).unwrap()["content"],
+            "a captured thought"
+        );
+        assert!(invoke(
+            &capture,
+            "db_select",
+            json!({"sql": "SELECT path FROM note", "params": []})
+        )
+        .is_err());
+        app.state::<AppState>()
+            .core()
+            .conn
+            .execute_batch("PRAGMA query_only = OFF")
+            .unwrap();
+        assert_eq!(
+            invoke(
+                &capture,
+                "db_select",
+                json!({"sql": "SELECT path FROM note", "params": []})
+            )
+            .unwrap(),
+            json!([["inbox/untitled.md"]])
+        );
+    }
+
+    #[test]
     fn should_reject_invalid_arguments_and_preserve_existing_files_on_expected_failures() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
@@ -217,6 +293,7 @@ mod tests {
         let app = tauri::test::mock_builder()
             .manage(AppState {
                 core: Mutex::new(Core {
+                    index_dirty: Default::default(),
                     notes_dir: directory.path().to_owned(),
                     conn: index::open(directory.path()).unwrap(),
                 }),
@@ -243,19 +320,6 @@ mod tests {
             })
         );
         assert_eq!(
-            invoke(
-                &window,
-                "write_note",
-                json!({
-                    "path": "kept.md", "content": "replacement", "create": true
-                })
-            )
-            .unwrap_err(),
-            json!({
-                "kind": "failed", "message": "a note named kept already exists in the notes root"
-            })
-        );
-        assert_eq!(
             invoke(&window, "read_note", json!({"path": "../outside.md"})).unwrap_err(),
             json!({
                 "kind": "failed", "message": "invalid note path: ../outside.md"
@@ -263,7 +327,7 @@ mod tests {
         );
         let failure = invoke(
             &window,
-            "write_note",
+            "save_note",
             json!({"path": "new.md", "create": true}),
         )
         .unwrap_err();
@@ -284,6 +348,7 @@ mod tests {
         let app = tauri::test::mock_builder()
             .manage(AppState {
                 core: Mutex::new(Core {
+                    index_dirty: Default::default(),
                     notes_dir: directory.path().to_owned(),
                     conn: index::open(directory.path()).unwrap(),
                 }),
@@ -349,6 +414,7 @@ mod tests {
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
                 core: Mutex::new(Core {
+                    index_dirty: Default::default(),
                     notes_dir: initial.clone(),
                     conn: index::open(&initial).unwrap(),
                 }),

@@ -29,7 +29,7 @@ async classifyOpenPaths(paths: string[]) : Promise<PendingOpen[]> {
 async dbSelect(sql: string, params: JsonValue[]) : Promise<JsonValue[][]> {
     return await TAURI_INVOKE("db_select", { sql, params });
 },
-async deleteNote(path: string) : Promise<null> {
+async deleteNote(path: string) : Promise<DeleteReceipt> {
     return await TAURI_INVOKE("delete_note", { path });
 },
 async findMentions(path: string | null, title: string) : Promise<BareMention[]> {
@@ -37,9 +37,6 @@ async findMentions(path: string | null, title: string) : Promise<BareMention[]> 
 },
 async getNotesDir() : Promise<string> {
     return await TAURI_INVOKE("get_notes_dir");
-},
-async noteExists(path: string) : Promise<boolean> {
-    return await TAURI_INVOKE("note_exists", { path });
 },
 async pendingOpenFiles() : Promise<PendingOpen[]> {
     return await TAURI_INVOKE("pending_open_files");
@@ -59,17 +56,20 @@ async readNote(path: string) : Promise<NoteFile> {
 async reindexAll() : Promise<string[]> {
     return await TAURI_INVOKE("reindex_all");
 },
-async renameNote(from: string, to: string) : Promise<null> {
-    return await TAURI_INVOKE("rename_note", { from, to });
+async createNote(options: CreateNote) : Promise<MutationReceipt> {
+    return await TAURI_INVOKE("create_note", { options });
+},
+async moveNote(path: string, folder: string) : Promise<PathMutationReceipt> {
+    return await TAURI_INVOKE("move_note", { path, folder });
 },
 async setNotesDir(path: string) : Promise<null> {
     return await TAURI_INVOKE("set_notes_dir", { path });
 },
-async writeExternal(path: string, content: string) : Promise<MutationReceipt> {
-    return await TAURI_INVOKE("write_external", { path, content });
+async writeExternal(path: string, content: string, name: SaveName | null) : Promise<MutationReceipt> {
+    return await TAURI_INVOKE("write_external", { path, content, name });
 },
-async writeNote(path: string, content: string, create: boolean) : Promise<MutationReceipt> {
-    return await TAURI_INVOKE("write_note", { path, content, create });
+async saveNote(path: string, content: string, name: SaveName | null) : Promise<MutationReceipt> {
+    return await TAURI_INVOKE("save_note", { path, content, name });
 },
 /**
  * Open quick capture, or focus its existing window.
@@ -83,8 +83,10 @@ async showCapture() : Promise<void> {
 
 
 export const events = __makeEvents__<{
+mutationWarnings: MutationWarnings,
 notesChanged: NotesChanged
 }>({
+mutationWarnings: "mutation-warnings",
 notesChanged: "notes-changed"
 })
 
@@ -103,27 +105,34 @@ export type CodeClipboard = { language: string | null }
  * A command failure: the kind the caller branches on, and the message it shows.
  */
 export type CommandError = { kind: ErrorKind; message: string }
+export type CreateNote = { content: string | null; folder: string | null; name: NoteName | null }
+export type DeleteReceipt = { path: string; warnings: MutationWarning[] }
 /**
  * Why a command failed. A webview tab has to tell a file that is gone from a
  * read it should retry or report, and a message string cannot carry that.
  */
 export type ErrorKind = "failed" | "not-found"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type MutationReceipt = { path: string; updatedAt: number; warnings: MutationWarning[] }
 /**
- * The file committed by a successful write, with its timestamp in milliseconds.
+ * A committed file change whose derived index or source cleanup needs attention.
  */
-export type MutationReceipt = { path: string; updatedAt: number }
+export type MutationWarning = { kind: "index"; path: string; message: string } | { kind: "cleanup"; path: string; message: string }
+export type MutationWarnings = { warnings: MutationWarning[] }
 export type NoteFile = { content: string; updatedAt: number }
+export type NoteName = { kind: "filename"; value: string } | { kind: "title"; value: string }
 /**
  * Relative paths whose saved content or index rows changed; empty means the library.
  */
 export type NotesChanged = { paths: string[] }
 export type OpenKind = "external" | "note"
+export type PathMutationReceipt = { path: string; file: NoteFile; remainingSource: string | null; title: string | null; warnings: MutationWarning[] }
 /**
  * A queued "Open With" path, classified so the webview opens it as the tab
  * kind the file already is: a note inside the notes dir, external otherwise.
  */
 export type PendingOpen = { kind: OpenKind; path: string }
+export type SaveName = { kind: "heading" } | { kind: "filename"; value: string }
 
 /** tauri-specta globals **/
 

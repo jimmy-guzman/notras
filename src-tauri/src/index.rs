@@ -49,7 +49,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 fn relationship_key(kind: &str, target: &str, source: &str) -> Option<String> {
     if kind == "wikilink" {
@@ -262,7 +262,7 @@ fn title_of(rel_path: &str) -> String {
 /// Only the first non-blank line is considered, which is what lets this skip
 /// fenced code blocks without tracking them: a fence opener cannot match the
 /// pattern. Kept in parity with `leadingHeading` in `src/core/notes.ts`.
-fn leading_heading(body: &str) -> Option<String> {
+pub(crate) fn leading_heading(body: &str) -> Option<String> {
     let line = body.lines().find(|line| !line.trim().is_empty())?;
     let indent = line.len() - line.trim_start_matches(' ').len();
 
@@ -291,15 +291,12 @@ fn leading_heading(body: &str) -> Option<String> {
     }
 }
 
-/// A note's display title: frontmatter `title:`, then the leading `#` heading,
+/// A note's display title: the leading `#` heading, then imported frontmatter `title:`,
 /// then the filename stem. Kept in parity with `resolveTitle` in
 /// `src/core/notes.ts`.
 fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
-    parsed
-        .frontmatter
-        .title
-        .clone()
-        .or_else(|| leading_heading(parsed.body))
+    leading_heading(parsed.body)
+        .or_else(|| parsed.frontmatter.title.clone())
         .unwrap_or_else(|| title_of(rel_path))
 }
 
@@ -754,8 +751,7 @@ fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
 
 /// Inside `[[...]]` or a markdown link the title is a link and counted
 /// already, and on the heading that names the note it is the note's name. A
-/// note titled by its frontmatter has no such heading, so its first heading
-/// is prose like the rest.
+/// leading heading names the note even when imported frontmatter has a title.
 fn bare_mentions<'a>(
     body: &'a str,
     title: &str,
@@ -893,7 +889,7 @@ pub fn scan_prose(
             .matches('\n')
             .count();
 
-        let heading_names_note = !include_headings && parsed.frontmatter.title.is_none();
+        let heading_names_note = !include_headings && leading_heading(parsed.body).is_some();
 
         found.extend(
             bare_mentions(parsed.body, title, heading_names_note)
@@ -936,6 +932,24 @@ pub fn clear(conn: &Connection) -> rusqlite::Result<()> {
 /// whose mtime matches the stored row are skipped, which also suppresses
 /// watcher echo for writes that already indexed synchronously.
 pub fn index_file(conn: &Connection, notes_dir: &Path, rel_path: &str) -> Result<bool, IndexError> {
+    index_note(conn, notes_dir, rel_path, false)
+}
+
+/// Reconcile a known file mutation even when two writes share a timestamp.
+pub fn reindex_file(
+    conn: &Connection,
+    notes_dir: &Path,
+    rel_path: &str,
+) -> Result<bool, IndexError> {
+    index_note(conn, notes_dir, rel_path, true)
+}
+
+fn index_note(
+    conn: &Connection,
+    notes_dir: &Path,
+    rel_path: &str,
+    force: bool,
+) -> Result<bool, IndexError> {
     let abs = notes_dir.join(rel_path);
 
     // `symlink_metadata` does not follow the link, so a note symlinked to
@@ -961,7 +975,7 @@ pub fn index_file(conn: &Connection, notes_dir: &Path, rel_path: &str) -> Result
             |row| row.get(0),
         )
         .ok();
-    if stored == Some(updated_at) {
+    if !force && stored == Some(updated_at) {
         return Ok(false);
     }
 
@@ -1055,12 +1069,16 @@ pub fn index_file(conn: &Connection, notes_dir: &Path, rel_path: &str) -> Result
     Ok(true)
 }
 
-fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<PathBuf>) {
+fn collect_note_files(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+    unreadable: &mut Vec<(PathBuf, io::Error)>,
+) {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) => {
             log::warn!("could not list {}: {error}", dir.display());
-            unreadable.push(dir.to_path_buf());
+            unreadable.push((dir.to_path_buf(), error));
             return;
         }
     };
@@ -1069,7 +1087,7 @@ fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<P
             Ok(entry) => entry,
             Err(error) => {
                 log::warn!("could not list {}: {error}", dir.display());
-                unreadable.push(dir.to_path_buf());
+                unreadable.push((dir.to_path_buf(), error));
                 return;
             }
         };
@@ -1083,7 +1101,7 @@ fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<P
             Ok(file_type) => file_type,
             Err(error) => {
                 log::warn!("could not read {}: {error}", path.display());
-                unreadable.push(dir.to_path_buf());
+                unreadable.push((dir.to_path_buf(), error));
                 return;
             }
         };
@@ -1101,13 +1119,26 @@ fn collect_note_files(dir: &Path, out: &mut Vec<PathBuf>, unreadable: &mut Vec<P
 /// A file that is there but cannot be read keeps whatever row it has, and so
 /// does everything under a folder that cannot be listed: absence from the walk
 /// is only evidence of deletion where the walk could look.
-pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, IndexError> {
+pub struct ScanReport {
+    pub changed: Vec<String>,
+    pub failures: Vec<IndexError>,
+}
+
+pub fn scan_complete(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, IndexError> {
+    let report = scan_all(conn, notes_dir)?;
+    if let Some(error) = report.failures.into_iter().next() {
+        return Err(error);
+    }
+    Ok(report.changed)
+}
+
+pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, IndexError> {
     let mut files = Vec::new();
     let mut unreadable = Vec::new();
     collect_note_files(notes_dir, &mut files, &mut unreadable);
     let shadowed: Vec<String> = unreadable
         .iter()
-        .filter_map(|dir| relative_path(notes_dir, dir))
+        .filter_map(|(dir, _)| relative_path(notes_dir, dir))
         .map(|rel| {
             if rel.is_empty() {
                 rel
@@ -1117,6 +1148,10 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, Inde
         })
         .collect();
 
+    let mut failures: Vec<_> = unreadable
+        .into_iter()
+        .map(|(_, error)| IndexError::Io(error))
+        .collect();
     let mut seen = HashSet::with_capacity(files.len());
     let mut changed = Vec::new();
 
@@ -1127,7 +1162,10 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, Inde
         match index_file(conn, notes_dir, &rel) {
             Ok(true) => changed.push(rel.clone()),
             Ok(false) => {}
-            Err(IndexError::Io(error)) => log::warn!("could not read {rel}: {error}"),
+            Err(IndexError::Io(error)) => {
+                log::warn!("could not read {rel}: {error}");
+                failures.push(IndexError::Io(error));
+            }
             Err(error) => return Err(error),
         }
         seen.insert(rel);
@@ -1148,7 +1186,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, Inde
         changed.push(path);
     }
 
-    Ok(changed)
+    Ok(ScanReport { changed, failures })
 }
 
 fn bind_value(value: &Value) -> rusqlite::types::Value {
@@ -1267,13 +1305,12 @@ mod tests {
     /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
     /// same cases in the same order, so the two resolvers can be diffed by eye.
     #[test]
-    fn resolves_titles_from_frontmatter_then_heading_then_filename() {
+    fn should_resolve_heading_then_imported_title_then_filename() {
         // Held one-per-line against rustfmt so this table stays diffable by eye
         // against its twin in `src/core/notes.spec.ts`.
         #[rustfmt::skip]
         let cases: &[(&str, &str, &str)] = &[
-            // Frontmatter wins over a heading that disagrees.
-            ("---\ntitle: from frontmatter\n---\n# from heading\n", "note.md", "from frontmatter"),
+            ("---\ntitle: from frontmatter\n---\n# from heading\n", "note.md", "from heading"),
             ("---\ntitle: \"effect: a primer\"\n---\nbody\n", "note.md", "effect: a primer"),
             ("---\ntitle: effect: a primer\n---\nbody\n", "note.md", "effect: a primer"),
             // An empty title is absent, so the heading takes over.
@@ -1348,7 +1385,7 @@ mod tests {
 
         assert_eq!(rows[0][0], json!("agent-note.md"));
         assert_eq!(rows[0][1], json!("from claude"));
-        assert_eq!(rows[1][1], json!("effect: a primer"));
+        assert_eq!(rows[1][1], json!("ignored"));
 
         // The title is searchable even though it never appears in the filename.
         let hits = select(
@@ -1378,14 +1415,14 @@ mod tests {
         // the file, so the mtime skip is live.
         conn.execute("UPDATE note SET title = 'agent-note'", [])
             .unwrap();
-        assert!(scan_all(&conn, &dir).unwrap().is_empty());
+        assert!(scan_all(&conn, &dir).unwrap().changed.is_empty());
         let stale: String = conn
             .query_row("SELECT title FROM note", [], |row| row.get(0))
             .unwrap();
         assert_eq!(stale, "agent-note");
 
         clear(&conn).unwrap();
-        assert_eq!(scan_all(&conn, &dir).unwrap().len(), 1);
+        assert_eq!(scan_all(&conn, &dir).unwrap().changed.len(), 1);
         let fresh: String = conn
             .query_row("SELECT title FROM note", [], |row| row.get(0))
             .unwrap();
@@ -1408,7 +1445,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        let changed = scan_all(&conn, &dir).unwrap();
+        let changed = scan_all(&conn, &dir).unwrap().changed;
         assert_eq!(changed.len(), 2);
 
         let rows = select(
@@ -1440,11 +1477,11 @@ mod tests {
         assert!(no_hits.is_empty());
 
         // Re-scan is a no-op thanks to mtime skip.
-        assert!(scan_all(&conn, &dir).unwrap().is_empty());
+        assert!(scan_all(&conn, &dir).unwrap().changed.is_empty());
 
         // Deleting the file drops it from the index on the next scan.
         fs::remove_file(dir.join("ideas.md")).unwrap();
-        let changed = scan_all(&conn, &dir).unwrap();
+        let changed = scan_all(&conn, &dir).unwrap().changed;
         assert_eq!(changed, vec!["ideas.md".to_string()]);
 
         let _ = fs::remove_dir_all(&dir);
@@ -1458,7 +1495,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        assert_eq!(scan_all(&conn, &dir).unwrap().len(), 1);
+        assert_eq!(scan_all(&conn, &dir).unwrap().changed.len(), 1);
 
         let rows = select(&conn, "SELECT path, title FROM note", &[]).unwrap();
         assert_eq!(rows[0][0], json!("NOTE.MD"));
@@ -1693,7 +1730,7 @@ mod tests {
             .unwrap()
             .is_empty());
 
-        assert_eq!(scan_all(&conn, &dir).unwrap().len(), 1);
+        assert_eq!(scan_all(&conn, &dir).unwrap().changed.len(), 1);
         assert_eq!(
             select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
             vec![vec![json!("b")]]
@@ -1756,8 +1793,6 @@ mod tests {
                 ("a.md", 14, "see graph view twice, Graph View"),
                 ("a.md", 14, "see graph view twice, Graph View"),
                 ("b.md", 3, "see graph view here"),
-                // Titled by its frontmatter, so its heading is prose.
-                ("f.md", 4, "# graph view"),
             ]
         );
 

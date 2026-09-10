@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
+import fixtures from "../../fixtures/note-mutations.json";
 
 import { parseNote } from "./frontmatter";
 import {
   filenameFromTitle,
-  NOTE_SEGMENT_PATTERN,
   resolveTitle,
   retitleLeadingHeading,
-  suffixedFilename,
 } from "./notes";
 
 /**
@@ -14,12 +13,14 @@ import {
  * then_heading_then_filename` test in `src-tauri/src/index.rs` asserts the same
  * cases in the same order, so the two resolvers can be diffed by eye.
  */
+const VALID_FILENAME = /^(?!\.)[^/\\:]+$/;
+
 const cases: [content: string, path: string, expected: string][] = [
   // Frontmatter wins over a heading that disagrees.
   [
     "---\ntitle: from frontmatter\n---\n# from heading\n",
     "note.md",
-    "from frontmatter",
+    "from heading",
   ],
   [
     '---\ntitle: "effect: a primer"\n---\nbody\n',
@@ -120,6 +121,18 @@ describe("retitleLeadingHeading", () => {
 });
 
 describe("filenameFromTitle", () => {
+  it("should leave a whole Unicode character at the filename limit", () => {
+    expect(filenameFromTitle(`${"a".repeat(119)}😀`)).toBe("a".repeat(119));
+    expect(filenameFromTitle(`${"a".repeat(118)}😀`)).toBe(
+      `${"a".repeat(118)}😀`
+    );
+  });
+  it.each(fixtures.filenames)(
+    "should preserve the shared filename for $title",
+    ({ title, expected }) => {
+      expect(filenameFromTitle(title)).toBe(expected);
+    }
+  );
   it.each([
     ["team sync", "team-sync"],
     ["Effect: A Primer", "effect-a-primer"],
@@ -155,26 +168,7 @@ describe("filenameFromTitle", () => {
     ];
 
     for (const title of titles) {
-      expect(filenameFromTitle(title)).toMatch(NOTE_SEGMENT_PATTERN);
+      expect(filenameFromTitle(title)).toMatch(VALID_FILENAME);
     }
-  });
-});
-
-describe("suffixedFilename", () => {
-  it("should append the counter when the base has room", () => {
-    expect(suffixedFilename("untitled", 2)).toBe("untitled-2");
-  });
-
-  it("should cut the base so the suffix fits under the cap", () => {
-    const filename = suffixedFilename("a".repeat(120), 10);
-
-    expect(filename).toHaveLength(120);
-    expect(filename.endsWith("-10")).toBe(true);
-  });
-
-  it("should leave no separator run where the cut landed", () => {
-    const filename = suffixedFilename(`${"a".repeat(117)}-bc`, 2);
-
-    expect(filename).toBe(`${"a".repeat(117)}-2`);
   });
 });

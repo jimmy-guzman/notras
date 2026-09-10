@@ -1,9 +1,8 @@
-import { act, createElement } from "react";
+import { act, createElement, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { createNotePersistence } from "@/components/editor/note-persistence";
 import type { SaveStatus } from "./use-autosave";
-
 import { useAutosave } from "./use-autosave";
 
 const AUTOSAVE_DELAY_MS = 800;
@@ -36,17 +35,34 @@ function mountAutosave(
   };
 
   function Probe() {
-    const autosave = useAutosave("note.md", {
-      enabled,
-      onSaved: () => undefined,
-      write,
+    const [persistence] = useState(() =>
+      createNotePersistence(
+        { content: "", kind: "note", path: "note.md", updatedAt: new Date(0) },
+        {
+          changePath: () =>
+            Promise.reject(new Error("no path action requested")),
+          onPathChanged: () => undefined,
+          write: async (path, content) => ({
+            path,
+            updatedAt: await write(path, content),
+          }),
+        }
+      )
+    );
+    useLayoutEffect(() => {
+      persistence.receiveFile(
+        "note.md",
+        { content: "", updatedAt: new Date(0) },
+        !enabled
+      );
     });
+    const autosave = useAutosave(persistence);
 
     live = {
       flush: autosave.flush,
       reason: autosave.reason,
       status: autosave.status,
-      type: autosave.onChange,
+      type: (content) => autosave.onChange({ content, mode: "body" }),
     };
 
     return null;

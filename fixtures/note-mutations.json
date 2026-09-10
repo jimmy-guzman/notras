@@ -1,0 +1,339 @@
+{
+  "filenames": [
+    {
+      "title": "team sync",
+      "expected": "team-sync"
+    },
+    {
+      "title": "Effect: A Primer",
+      "expected": "effect-a-primer"
+    },
+    {
+      "title": "a/b\\c:d",
+      "expected": "a-b-c-d"
+    },
+    {
+      "title": "  padded  ",
+      "expected": "padded"
+    },
+    {
+      "title": "a -- b",
+      "expected": "a-b"
+    },
+    {
+      "title": ".hidden",
+      "expected": "hidden"
+    },
+    {
+      "title": "trailing...",
+      "expected": "trailing"
+    },
+    {
+      "title": "v1.2 notes",
+      "expected": "v1.2-notes"
+    },
+    {
+      "title": "///",
+      "expected": "untitled"
+    },
+    {
+      "title": "",
+      "expected": "untitled"
+    },
+    {
+      "title": "café notes",
+      "expected": "café-notes"
+    },
+    {
+      "title": "İstanbul ΟΣ",
+      "expected": "i̇stanbul-ος"
+    },
+    {
+      "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa tail",
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "title": "😀 notes",
+      "expected": "😀-notes"
+    },
+    {
+      "title": "﻿title﻿",
+      "expected": "title"
+    }
+  ],
+  "metadata": [
+    {
+      "content": "body\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\nbody\n"
+    },
+    {
+      "content": "body\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "body\n"
+    },
+    {
+      "content": "body\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\nbody\n"
+    },
+    {
+      "content": "---\n---\nbody\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\nbody\n"
+    },
+    {
+      "content": "---\n---\nbody\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\n---\nbody\n"
+    },
+    {
+      "content": "---\n---\nbody\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\nbody\n"
+    },
+    {
+      "content": "---\n...\nbody\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n...\nbody\n"
+    },
+    {
+      "content": "---\n...\nbody\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\n...\nbody\n"
+    },
+    {
+      "content": "---\n...\nbody\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n...\nbody\n"
+    },
+    {
+      "content": "---\ncustom: thing\npinned: true\nauthor: someone\n---\nbody\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\ncustom: thing\nauthor: someone\n---\nbody\n"
+    },
+    {
+      "content": "---\ncustom: thing\npinned: true\nauthor: someone\n---\nbody\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\ncustom: thing\nauthor: someone\n---\nbody\n"
+    },
+    {
+      "content": "---\ncustom: thing\npinned: true\nauthor: someone\n---\nbody\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\npinned: true\ntags: [fresh, ab, quoted]\ncustom: thing\nauthor: someone\n---\nbody\n"
+    },
+    {
+      "content": "---\ntags:\n  - old\n  - stale\nkeep: me\n...  \nbody\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\ntags: [old, stale]\nkeep: me\n...  \nbody\n"
+    },
+    {
+      "content": "---\ntags:\n  - old\n  - stale\nkeep: me\n...  \nbody\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\ntags: [old, stale]\nkeep: me\n...  \nbody\n"
+    },
+    {
+      "content": "---\ntags:\n  - old\n  - stale\nkeep: me\n...  \nbody\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\nkeep: me\n...  \nbody\n"
+    },
+    {
+      "content": "---\r\ntitle: old\r\ncustom: x\r\n---\r\n  # old\r\nbody\r\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\ntitle: old\ncustom: x\n---\n  # old\r\nbody\r\n"
+    },
+    {
+      "content": "---\r\ntitle: old\r\ncustom: x\r\n---\r\n  # old\r\nbody\r\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\ntitle: old\ncustom: x\n---\n  # old\r\nbody\r\n"
+    },
+    {
+      "content": "---\r\ntitle: old\r\ncustom: x\r\n---\r\n  # old\r\nbody\r\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\ntitle: old\ncustom: x\n---\n  # old\r\nbody\r\n"
+    },
+    {
+      "content": "---\ntitle: first\n  title: last\npinned: false\n---\n# old\nbody",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\ntitle: first\n  title: last\n---\n# old\nbody"
+    },
+    {
+      "content": "---\ntitle: first\n  title: last\npinned: false\n---\n# old\nbody",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\ntitle: first\n  title: last\n---\n# old\nbody"
+    },
+    {
+      "content": "---\ntitle: first\n  title: last\npinned: false\n---\n# old\nbody",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\ntitle: first\n  title: last\n---\n# old\nbody"
+    },
+    {
+      "content": "---\npinned: true\nno close",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\n---\npinned: true\nno close"
+    },
+    {
+      "content": "---\npinned: true\nno close",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "---\npinned: true\nno close"
+    },
+    {
+      "content": "---\npinned: true\nno close",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\n---\npinned: true\nno close"
+    },
+    {
+      "content": "\n\n# old ###\nbody",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\n\n\n# old ###\nbody"
+    },
+    {
+      "content": "\n\n# old ###\nbody",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "\n\n# old ###\nbody"
+    },
+    {
+      "content": "\n\n# old ###\nbody",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\n\n\n# old ###\nbody"
+    },
+    {
+      "content": "## section\nbody",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\n## section\nbody"
+    },
+    {
+      "content": "## section\nbody",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "## section\nbody"
+    },
+    {
+      "content": "## section\nbody",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\n## section\nbody"
+    },
+    {
+      "content": "```\n# code\n```\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\n```\n# code\n```\n"
+    },
+    {
+      "content": "```\n# code\n```\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "```\n# code\n```\n"
+    },
+    {
+      "content": "```\n# code\n```\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\n```\n# code\n```\n"
+    },
+    {
+      "content": "#\ttab\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\n#\ttab\n"
+    },
+    {
+      "content": "#\ttab\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "#\ttab\n"
+    },
+    {
+      "content": "#\ttab\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\n#\ttab\n"
+    },
+    {
+      "content": "    # code\n",
+      "patch": {
+        "pinned": true
+      },
+      "expected": "---\npinned: true\n---\n    # code\n"
+    },
+    {
+      "content": "    # code\n",
+      "patch": {
+        "pinned": false
+      },
+      "expected": "    # code\n"
+    },
+    {
+      "content": "    # code\n",
+      "patch": {
+        "tags": [" Fresh ", "a,b", "Fresh", "[quoted]", ""]
+      },
+      "expected": "---\ntags: [fresh, ab, quoted]\n---\n    # code\n"
+    }
+  ]
+}

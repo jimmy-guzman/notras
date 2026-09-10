@@ -1,15 +1,7 @@
 use std::collections::HashSet;
 
-/// Tolerant parser for the tiny frontmatter dialect notras cares about.
-///
-/// Only `pinned`, `tags` and `title` are interpreted; everything else is
-/// ignored (the TypeScript side preserves unknown keys verbatim when
-/// rewriting). Kept as a hand-rolled parser so Rust and TS stay in parity over
-/// a deliberately tiny format instead of dragging in a full YAML
-/// implementation.
-///
-/// `title` is read-only: notras resolves a title from it but never authors it,
-/// so it round-trips as a foreign key through the TypeScript serializer.
+/// Parsed values from the supported frontmatter dialect.
+/// Unknown keys remain in the raw block for lossless metadata rewrites.
 #[derive(Debug, Default, PartialEq)]
 pub struct Frontmatter {
     pub pinned: bool,
@@ -19,18 +11,30 @@ pub struct Frontmatter {
 
 pub struct Parsed<'a> {
     pub frontmatter: Frontmatter,
+    pub raw: Option<RawBlock>,
     /// The note body with the frontmatter block stripped.
     pub body: &'a str,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct RawBlock {
+    pub close: String,
+    pub lines: Vec<String>,
+}
+
+/// ECMAScript whitespace, shared with the live editor's string operations.
+pub fn is_space(c: char) -> bool {
+    matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+}
+
 fn clean_tag(raw: &str) -> Option<String> {
     let tag = raw
-        .trim()
+        .trim_matches(is_space)
         .trim_matches(|c| c == '"' || c == '\'')
         // Separators are dropped, never kept: a tag carrying one would
         // serialize into `tags: [a, b]` and re-parse as two tags.
         .replace([',', '[', ']'], "")
-        .trim()
+        .trim_matches(is_space)
         .to_lowercase();
 
     if tag.is_empty() {
@@ -49,7 +53,7 @@ fn clean_tag(raw: &str) -> Option<String> {
 /// dialect this parser keeps deliberately small. Kept in parity with
 /// `cleanTitle` in `src/core/frontmatter.ts`.
 fn clean_title(raw: &str) -> Option<String> {
-    let value = raw.trim();
+    let value = raw.trim_matches(is_space);
     let quote = value.chars().next().filter(|_| value.len() > 1);
     let title = match quote {
         Some('\'') if value.ends_with('\'') => value[1..value.len() - 1].replace("''", "'"),
@@ -66,7 +70,7 @@ fn clean_title(raw: &str) -> Option<String> {
 
 fn parse_inline_tags(value: &str) -> Vec<String> {
     value
-        .trim()
+        .trim_matches(is_space)
         .trim_start_matches('[')
         .trim_end_matches(']')
         .split(',')
@@ -78,6 +82,7 @@ pub fn parse(content: &str) -> Parsed<'_> {
     let mut parsed = Parsed {
         frontmatter: Frontmatter::default(),
         body: content,
+        raw: None,
     };
 
     let Some(rest) = content
@@ -91,7 +96,7 @@ pub fn parse(content: &str) -> Parsed<'_> {
     let mut close = None;
     let mut offset = 0;
     for line in rest.split_inclusive('\n') {
-        let trimmed = line.trim_end();
+        let trimmed = line.trim_end_matches(is_space);
         if trimmed == "---" || trimmed == "..." {
             close = Some((offset, offset + line.len()));
             break;
@@ -105,13 +110,23 @@ pub fn parse(content: &str) -> Parsed<'_> {
 
     let block = &rest[..block_end];
     parsed.body = &rest[body_start..];
+    parsed.raw = Some(RawBlock {
+        close: rest[block_end..body_start]
+            .trim_end_matches('\n')
+            .trim_end_matches('\r')
+            .to_owned(),
+        lines: block
+            .split_terminator('\n')
+            .map(|line| line.strip_suffix('\r').unwrap_or(line).to_owned())
+            .collect(),
+    });
 
     let mut in_tags_list = false;
     for line in block.lines() {
-        let trimmed = line.trim_end();
+        let trimmed = line.trim_end_matches(is_space);
 
         if in_tags_list {
-            if let Some(item) = trimmed.trim_start().strip_prefix("- ") {
+            if let Some(item) = trimmed.trim_start_matches(is_space).strip_prefix("- ") {
                 if let Some(tag) = clean_tag(item) {
                     parsed.frontmatter.tags.push(tag);
                 }
@@ -120,12 +135,15 @@ pub fn parse(content: &str) -> Parsed<'_> {
             in_tags_list = false;
         }
 
+        if trimmed.trim_start_matches(is_space) != trimmed {
+            continue;
+        }
         let Some((key, value)) = trimmed.split_once(':') else {
             continue;
         };
-        let value = value.trim();
+        let value = value.trim_matches(is_space);
 
-        match key.trim() {
+        match key.trim_matches(is_space) {
             "pinned" => {
                 parsed.frontmatter.pinned = value.eq_ignore_ascii_case("true");
             }
@@ -156,6 +174,14 @@ pub fn parse(content: &str) -> Parsed<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_ignore_nested_metadata_when_reading_note_fields() {
+        let parsed = parse(
+            "---\nplugin:\n  pinned: true\n  tags:\n    - nested\n  title: plugin title\n---\nbody",
+        );
+        assert_eq!(parsed.frontmatter, Frontmatter::default());
+    }
 
     #[test]
     fn no_frontmatter_returns_whole_body() {

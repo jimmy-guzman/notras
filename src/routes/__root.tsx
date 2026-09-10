@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CommandPalette, type PaletteMode } from "@/components/command-palette";
 import { RouteError } from "@/components/route-error";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { Toaster, toast } from "@/components/ui/toast";
+import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createNote } from "@/data/create-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
@@ -334,7 +334,6 @@ function RootLayout() {
         onOpenChange={setSettingsOpen}
         open={settingsOpen}
       />
-      <Toaster />
     </TooltipProvider>
   );
 }

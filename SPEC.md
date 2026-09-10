@@ -25,12 +25,13 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
 - A path segment carries no `/`, `\` or `:`, is not blank, and does not start with a dot. A folder name is at most 120 characters.
-- The title resolves from frontmatter `title:`, then the body's leading `#` heading, then the filename with its extension stripped.
+- The title resolves from the leading `#` heading, then an imported frontmatter `title:`, then the filename stem. Existing frontmatter titles remain unchanged.
 - Only the first non-blank line can be that heading, and it takes CommonMark's ATX shape: up to three spaces of indent, one `#`, then a space, a tab, or the end of the line. `##` never matches, and `# C#` keeps its trailing `#`.
-- "rename note..." derives a filename from the title: lowercased, with whitespace and `" * / : < > ? \ |` collapsed to `-`, truncated to 120 characters. It rewrites a leading heading the note already has and a `title:` key the note already has, then renames the file.
-- Nothing introduces a heading or a `title:` key, so a note carrying neither is only renamed. Nothing else in the app renames a file.
-- A rename onto a taken path is refused before the write, so the file is untouched.
-- Frontmatter reads three keys: `pinned`, `tags` as an inline or block list, and `title` as read-only. Every other key survives a rewrite verbatim, including its position, and so does the closing delimiter the file used.
+- "rename note..." accepts a readable name and sets the leading heading, introducing it when absent. The filename is lowercased, with whitespace and invalid filename characters collapsed to hyphens, and truncated to 120 UTF-16 code units without splitting a Unicode character.
+- Every heading edit inside notras requests a freshly derived filename, even when the edit restores the original text. An empty or removed heading leaves the filename alone. Opening, reading, searching, and external edits never request a rename.
+- A taken filename receives the first available numeric suffix, starting at `-2`. The current file does not collide with itself. Each new heading edit recomputes the suffix from scratch. One undo restores the heading and filename together; if that filename has since been taken, restoration also uses an available suffix.
+- Rename and move stage and sync a destination before publishing it without overwriting an existing file. A failed publication leaves the source unchanged. If source removal fails after publication, both files remain, the tab follows the destination, and the main window shows the source path and cleanup reason.
+- Frontmatter reads three top-level keys: `pinned`, `tags` as an inline or block list, and `title` as read-only. Nested keys remain foreign metadata. Every other key survives a rewrite verbatim, including its position, and so does the closing delimiter the file used.
 - A tag is trimmed, unquoted, stripped of `,`, `[` and `]`, and lowercased. Empty tags are dropped and duplicates collapse.
 - "move to folder..." keeps the filename rather than the title, creates the folder if it is missing, and refuses a target that is taken.
 - "delete note..." asks once, then removes the file. There is no trash.
@@ -42,10 +43,13 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - Typing starts a save 800ms after the last change.
 - Losing window focus, unmounting the session, and quitting each flush too.
-- The rich editor holds the body. Frontmatter from the last read is composed back around it on every write, so a pin or a tag set elsewhere survives a body save.
-- Source mode holds the whole file, frontmatter included, so frontmatter is editable there.
+- Rich mode edits the body of the session document; source mode edits the whole document. Rename, pin, and tags also edit that document. Every save writes its complete contents.
+- Switching editor modes preserves unsaved content and the shared undo history. Save completion cannot replace newer typing.
 - A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted.
-- Writes are serialized, so two flushes cannot land out of order. A keystroke during a write returns the state to unsaved.
+- Writes and folder moves are serialized per session. Rename changes the heading immediately; saving publishes the resulting content and filename. Further rename and move actions remain available while earlier work is pending. Later saves use the committed path.
+- Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
+- A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
+- A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read attempts a complete rebuild and reports a failure if recovery is incomplete. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
 
 ## External changes
@@ -53,8 +57,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The watcher debounces at 300ms, so a file written by anything else reaches the app within about a second. A note appears in the palette under its own title rather than its filename.
 - A change event names the files that changed, and only the tabs holding one of them re-read. An event naming nothing means the whole vault changed, and every tab re-reads.
 - An external file's path is never named by a change event, so an external tab re-reads when the window regains focus.
-- A buffer reloads only when it is clean, the file is newer than this tab's own last write, and the body differs. The reload remounts the editor, so the caret and the undo history go with it.
-- Frontmatter follows the file whether or not the buffer is clean.
+- A clean session adopts a newer external document without writing or renaming it. The mounted editor remains in place, its selection maps through the change, and undo history resets at that external version.
+- An external observation cannot replace unsaved work. Saves and folder moves defer file-read reconciliation, and results for a former path cannot replace the document.
 - A dirty buffer wins. An external edit to a note with unsaved changes is not shown, and the next flush overwrites it.
 - A tab whose file was deleted while its buffer was clean closes itself.
 - A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
@@ -88,7 +92,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
 - Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.
-- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render, its wikilinks do not navigate, and it counts no mentions. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
+- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved beside the original file, with in-app heading edits updating its filename, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render, its wikilinks do not navigate, and it counts no mentions. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
 - With nothing to restore, the most recently updated note opens.
@@ -139,7 +143,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
 - Clicking a pill resolves by title first, then by filename, preferring a note in the same folder, then by path. A link matching nothing says so and creates nothing.
 - The status strip counts the notes that mention the one showing, as `3 mentions` or `1 mention`, and shows nothing while none does. A mention is a wikilink or a markdown link in another note that resolves to this one the way a click would, or this note's title written there bare, so a note's links to itself and links that name no note count for nothing.
-- A bare title counts when it stands as a whole word, without regard to case, outside links, code, HTML, and the heading that names the other note. A letter, digit or underscore on either side makes it part of a longer word, and a note titled by its frontmatter has no naming heading, so its first heading is prose. The filename is not searched, and two notes sharing a title both count the same bare line.
+- A bare title counts when it stands as a whole word, without regard to case, outside links, code, HTML, and the heading that names the other note. A letter, digit or underscore on either side makes it part of a longer word, and a leading heading names the note even when imported frontmatter also has a title. The filename is not searched, and two notes sharing a title both count the same bare line.
 - The count, ⌘⇧L, and "show mentions" in the palette open one list: a row per note reading `title · folder`, the line that mentions it beneath, starting on a word a little before the link or the title, and `+1` on a note that mentions it more than once. ⏎ opens the note in the showing tab, ⌘⏎ opens it beside, and esc closes.
 - A link or a bare title written by anything else reaches the count within about a second.
 - A read of the mentions that fails leaves the count absent and toasts why once, under "could not read mentions".

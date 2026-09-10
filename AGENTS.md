@@ -20,9 +20,9 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Actionable future work belongs in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).** State the problem, the desired outcome, the evidence, and any unresolved prerequisite. Check for an existing issue before opening one. Speculative ideas need no backlog entry. What landed belongs in the commit, not in a second log.
 
-- **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out an option for a reason worth recording makes the choice a decision. Add a numbered entry with the rationale and what was rejected.
+- **`DECISIONS.md` is history, not a constraint.** Reassess an old choice against current behavior and evidence. Routine implementation details belong in code; current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. Add a decision entry only when the rationale needs a durable record beyond those sources. A rejected alternative alone does not require one.
 
-- **Breaking an invariant in `ARCHITECTURE.md` is a design change.** Each one holds a property the architecture depends on, so changing one is never a refactor and gets a `DECISIONS.md` entry of its own.
+- **Reassess architectural invariants when behavior changes.** Update `ARCHITECTURE.md` to describe the resulting system. An existing invariant can be wrong; its presence does not require preserving it or adding a decision entry.
 
 - **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at. Reusing an ID repoints every reference to it without any of them changing.
 
@@ -94,7 +94,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 - **Where TypeScript infers return types, do not annotate internal functions.** That covers unexported functions, local closures, and inline callbacks. Exported functions and interface method signatures are the exception, since their return type is part of the public contract.
 
-- **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validation is Effect Schema in `src/server/schemas/`, not zod.
+- **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validate at the owning boundary described in `ARCHITECTURE.md`; persisted mutation inputs are validated in Rust. Use Effect Schema for remaining Effect boundaries, not zod.
 
 - **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `run()` gets it to a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
 

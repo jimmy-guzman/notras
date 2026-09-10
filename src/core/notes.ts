@@ -19,10 +19,9 @@ export interface NoteFilters {
   tag?: string;
 }
 
-/** Valid path segment: no separators or colons, not hidden, not blank. */
-export const NOTE_SEGMENT_PATTERN = /^(?!\.)[^/\\:]+$/;
+const TRAILING_SURROGATE = /\p{Surrogate}$/u;
 
-export const NOTE_NAME_MAX_LENGTH = 120;
+const NOTE_NAME_MAX_LENGTH = 120;
 
 const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
 
@@ -62,7 +61,7 @@ function firstContentLine(lines: string[]) {
  * The body's leading `#` heading, when it has one. Kept in parity with
  * `leading_heading` in `src-tauri/src/index.rs`.
  */
-function leadingHeading(body: string) {
+export function leadingHeading(body: string) {
   const lines = body.split("\n");
   const index = firstContentLine(lines);
   const line =
@@ -88,9 +87,8 @@ function leadingHeading(body: string) {
  * byte-identical when there is none.
  *
  * The rule is deliberately narrow: an existing heading is rewritten, one is
- * never invented. A note opening with prose, a list, a quote, or a deeper
- * heading is left alone, so deleting the heading opts a note out of retitling
- * for good. Indentation and a CRLF ending are preserved.
+ * never invented by this helper. Prose, lists, quotes, and deeper headings
+ * are left alone. Indentation and a CRLF ending are preserved.
  */
 export function retitleLeadingHeading(body: string, title: string) {
   const lines = body.split("\n");
@@ -119,7 +117,7 @@ export function retitleLeadingHeading(body: string, title: string) {
  *
  * Illegal and control characters join whitespace as separators, so any run of
  * them collapses to one hyphen. The result always satisfies
- * `NOTE_SEGMENT_PATTERN`: no separators, no leading dot, never blank.
+ * the native filename validation: no separators, no leading dot, never blank.
  */
 const LEADING_DOTS_OR_HYPHENS = /^[.-]+/;
 
@@ -131,26 +129,15 @@ export function filenameFromTitle(title: string) {
     .replaceAll(/[\s"*/:<>?\\|\p{Cc}]+/gu, "-")
     .replaceAll(/-{2,}/g, "-")
     .slice(0, NOTE_NAME_MAX_LENGTH)
+    .replace(TRAILING_SURROGATE, "")
     .replace(LEADING_DOTS_OR_HYPHENS, "")
     .replace(TRAILING_DOTS_OR_HYPHENS, "");
 
   return slug === "" ? "untitled" : slug;
 }
 
-/** `base-counter`, cut to fit `NOTE_NAME_MAX_LENGTH`. */
-export function suffixedFilename(base: string, counter: number) {
-  const suffix = `-${counter}`;
-  const room = NOTE_NAME_MAX_LENGTH - suffix.length;
-  const stem =
-    base.length > room
-      ? base.slice(0, room).replace(TRAILING_DOTS_OR_HYPHENS, "")
-      : base;
-
-  return `${stem}${suffix}`;
-}
-
 /**
- * A note's display title: frontmatter `title:`, then the leading `#` heading,
+ * A note's display title: the leading `#` heading, then imported frontmatter `title:`,
  * then the filename stem. Kept in parity with `resolve_title` in
  * `src-tauri/src/index.rs`.
  */
@@ -159,15 +146,11 @@ export function resolveTitle(
   body: string,
   frontmatterTitle?: string
 ) {
-  return frontmatterTitle ?? leadingHeading(body) ?? noteTitle(path);
+  return leadingHeading(body) ?? frontmatterTitle ?? noteTitle(path);
 }
 
 export function noteFolder(path: string) {
   const index = path.lastIndexOf("/");
 
   return index === -1 ? "" : path.slice(0, index);
-}
-
-export function notePath(folder: string, filename: string) {
-  return folder === "" ? `${filename}.md` : `${folder}/${filename}.md`;
 }

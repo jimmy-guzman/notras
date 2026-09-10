@@ -1,8 +1,14 @@
-import { NoteService } from "@/server/services/note-service";
+import { nativeCommand } from "@/data/native-command";
+import { commands, type SaveName } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-/** Autosave path: write the buffer as-is. Formatting happens on blur. */
-export function saveNote(path: string, content: string) {
-  return run(NoteService.use((svc) => svc.write(path, content)));
+/** Save a complete session document and return its committed path. */
+export async function saveNote(
+  path: string,
+  content: string,
+  name: SaveName | null = null
+) {
+  const receipt = await nativeCommand(() =>
+    commands.saveNote(path, content, name)
+  );
+  return { ...receipt, updatedAt: new Date(receipt.updatedAt) };
 }

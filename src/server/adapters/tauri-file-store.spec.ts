@@ -9,54 +9,6 @@ afterEach(() => {
 });
 
 describe("Tauri file store", () => {
-  it("should return the committed timestamp when creating a note", async () => {
-    mockIPC((command, args) => {
-      expect(command).toBe("write_note");
-      expect(args).toEqual({ content: "# first", create: true, path: "a.md" });
-      return { path: "a.md", updatedAt: 1_720_000_000_000 };
-    });
-
-    const timestamp = await Effect.runPromise(
-      FileStore.use((store) => store.create("a.md", "# first")).pipe(
-        Effect.provide(TauriFileStoreLive)
-      )
-    );
-
-    expect(timestamp).toBe(1_720_000_000_000);
-  });
-
-  it("should return the committed timestamp when saving an existing note", async () => {
-    mockIPC((command, args) => {
-      expect(command).toBe("write_note");
-      expect(args).toEqual({ content: "# saved", create: false, path: "a.md" });
-      return { path: "a.md", updatedAt: 1_720_000_001_000 };
-    });
-
-    const timestamp = await Effect.runPromise(
-      FileStore.use((store) => store.write("a.md", "# saved")).pipe(
-        Effect.provide(TauriFileStoreLive)
-      )
-    );
-
-    expect(timestamp).toBe(1_720_000_001_000);
-  });
-
-  it("should return the committed timestamp when saving an external file", async () => {
-    mockIPC((command, args) => {
-      expect(command).toBe("write_external");
-      expect(args).toEqual({ content: "# external", path: "/outside/a.md" });
-      return { path: "/outside/a.md", updatedAt: 1_720_000_002_000 };
-    });
-
-    const timestamp = await Effect.runPromise(
-      FileStore.use((store) =>
-        store.writeExternal("/outside/a.md", "# external")
-      ).pipe(Effect.provide(TauriFileStoreLive))
-    );
-
-    expect(timestamp).toBe(1_720_000_002_000);
-  });
-
   it("should preserve a missing-file failure for callers that keep unsaved text", async () => {
     mockIPC(() =>
       Promise.reject({ kind: "not-found", message: "no such file" })
@@ -82,7 +34,7 @@ describe("Tauri file store", () => {
     );
 
     const failure = await Effect.runPromise(
-      FileStore.use((store) => store.write("a.md", "unsaved")).pipe(
+      FileStore.use((store) => store.read("a.md")).pipe(
         Effect.provide(TauriFileStoreLive),
         Effect.flip
       )

@@ -71,6 +71,7 @@ objc2-app-kit = { version = "0.3", features = [
 objc2-foundation = "0.3"
 
 [dev-dependencies]
+proptest = "1"
 tauri = { version = "2", features = ["test"] }
 
 [profile.release]

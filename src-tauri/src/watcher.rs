@@ -59,7 +59,11 @@ fn handle<R: Runtime>(app: &AppHandle<R>, events: &[DebouncedEvent]) {
                 match index::index_file(&core.conn, &core.notes_dir, &rel) {
                     Ok(true) => changed.push(rel),
                     Ok(false) => {}
-                    Err(error) => log::error!("could not index {rel}: {error}"),
+                    Err(error) => {
+                        core.index_dirty.set(true);
+                        changed.push(rel.clone());
+                        log::error!("could not index {rel}: {error}");
+                    }
                 }
             } else if path.is_dir() || !path.exists() {
                 // A directory changed (rename/move/delete) -- children events
@@ -72,16 +76,28 @@ fn handle<R: Runtime>(app: &AppHandle<R>, events: &[DebouncedEvent]) {
 
     if full_scan {
         match index::scan_all(&core.conn, &core.notes_dir) {
-            Ok(scanned) => changed.extend(scanned),
-            Err(error) => log::error!("could not rescan the notes dir: {error}"),
+            Ok(report) => {
+                if !report.failures.is_empty() {
+                    core.index_dirty.set(true);
+                }
+                changed.extend(report.changed);
+            }
+            Err(error) => {
+                core.index_dirty.set(true);
+                log::error!("could not rescan the notes dir: {error}");
+            }
         }
     }
 
     changed.sort();
     changed.dedup();
 
+    let dirty = core.index_dirty.get();
     drop(core);
-    if !changed.is_empty() {
+    if dirty {
+        changed.clear();
+    }
+    if dirty || !changed.is_empty() {
         if let Err(error) = (NotesChanged { paths: changed }).emit(app) {
             log::error!("could not emit {}: {error}", "notes-changed");
         }

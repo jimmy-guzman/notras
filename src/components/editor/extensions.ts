@@ -15,7 +15,7 @@ import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
-import { Focus, Placeholder } from "@tiptap/extensions";
+import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -37,6 +37,7 @@ import { Wikilink } from "./wikilink";
 
 export interface EditorExtensionOptions {
   getTitles?: () => string[];
+  onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   placeholderText?: string;
   readCodeClipboard?: ReadCodeClipboard;
   resolveImageSrc?: (src: string) => string;
@@ -406,7 +407,33 @@ export function createEditorExtensions(
       link: false,
       paragraph: false,
       strike: false,
+      undoRedo: options.onHistory === undefined ? undefined : false,
     }),
+    ...(options.onHistory === undefined
+      ? []
+      : [
+          UndoRedo.extend({
+            addCommands: () => ({
+              redo:
+                () =>
+                ({ dispatch, tr }: import("@tiptap/core").CommandProps) => {
+                  tr.setMeta("preventDispatch", true);
+                  return (
+                    options.onHistory?.("redo", dispatch !== undefined) ?? false
+                  );
+                },
+              undo:
+                () =>
+                ({ dispatch, tr }: import("@tiptap/core").CommandProps) => {
+                  tr.setMeta("preventDispatch", true);
+                  return (
+                    options.onHistory?.("undo", dispatch !== undefined) ?? false
+                  );
+                },
+            }),
+            addProseMirrorPlugins: () => [],
+          }),
+        ]),
     // Swapped with NoteCode, a text node carrying both marks serializes its
     // tildes inside the backticks and edits the file on open (`D59`).
     NoteStrike,

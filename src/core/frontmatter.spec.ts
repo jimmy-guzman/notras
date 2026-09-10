@@ -1,10 +1,40 @@
 import { describe, expect, it } from "vitest";
-import {
-  composeNote,
-  parseNote,
-  retitleFrontmatter,
-  updateFrontmatter,
-} from "./frontmatter";
+import fixtures from "../../fixtures/note-mutations.json";
+import { composeNote, parseNote, updateFrontmatter } from "./frontmatter";
+
+it("should preserve nested metadata when editing note-level pin and tags", () => {
+  const content =
+    "---\nplugin:\n  pinned: true\n  tags:\n    - nested\n  title: plugin title\n---\nbody";
+  expect(parseNote(content).frontmatter).toEqual({
+    pinned: false,
+    tags: [],
+    title: undefined,
+  });
+  expect(updateFrontmatter(content, { pinned: true, tags: ["note"] })).toBe(
+    "---\npinned: true\ntags: [note]\nplugin:\n  pinned: true\n  tags:\n    - nested\n  title: plugin title\n---\nbody"
+  );
+});
+
+describe("metadata changes", () => {
+  it("should remove the block when the last note-level value is cleared", () => {
+    const content = updateFrontmatter("---\npinned: true\n---\nbody\n", {
+      pinned: false,
+    });
+    expect(content).toBe("body\n");
+    expect(parseNote(content)).toEqual({
+      body: "body\n",
+      frontmatter: { pinned: false, tags: [], title: undefined },
+      raw: undefined,
+    });
+  });
+
+  it.each(fixtures.metadata)(
+    "should preserve the document while applying $patch",
+    ({ content, expected, patch }) => {
+      expect(updateFrontmatter(content, patch)).toBe(expected);
+    }
+  );
+});
 
 describe("parseNote", () => {
   it("should return the whole content as body when there is no frontmatter", () => {
@@ -81,83 +111,6 @@ describe("parseNote", () => {
   });
 });
 
-describe("updateFrontmatter", () => {
-  it("should add a block to a note without one", () => {
-    const next = updateFrontmatter("# hello\n", { pinned: true });
-
-    expect(next).toBe("---\npinned: true\n---\n# hello\n");
-  });
-
-  it("should remove the block when values return to defaults", () => {
-    const next = updateFrontmatter("---\npinned: true\n---\nbody\n", {
-      pinned: false,
-    });
-
-    expect(next).toBe("body\n");
-  });
-
-  it("should keep a block that was already empty", () => {
-    expect(updateFrontmatter("---\n---\nbody\n", { pinned: false })).toBe(
-      "---\n---\nbody\n"
-    );
-  });
-
-  it("should keep an already-empty block's ... delimiter", () => {
-    expect(updateFrontmatter("---\n...\nbody\n", { pinned: false })).toBe(
-      "---\n...\nbody\n"
-    );
-  });
-
-  it("should preserve unknown keys verbatim", () => {
-    const content =
-      "---\ncustom: thing\npinned: true\nauthor: someone\n---\nbody\n";
-    const next = updateFrontmatter(content, { tags: ["work"] });
-
-    expect(next).toBe(
-      "---\npinned: true\ntags: [work]\ncustom: thing\nauthor: someone\n---\nbody\n"
-    );
-  });
-
-  it("should preserve a title key through a pin toggle", () => {
-    const content = '---\ntitle: "effect: a primer"\n---\nbody\n';
-    const next = updateFrontmatter(content, { pinned: true });
-
-    expect(next).toBe(
-      '---\npinned: true\ntitle: "effect: a primer"\n---\nbody\n'
-    );
-    expect(parseNote(next).frontmatter.title).toBe("effect: a primer");
-  });
-
-  it("should replace block-list tags with the inline form", () => {
-    const content = "---\ntags:\n  - old\n  - stale\nkeep: me\n---\nbody\n";
-    const next = updateFrontmatter(content, { tags: ["fresh"] });
-
-    expect(next).toBe("---\ntags: [fresh]\nkeep: me\n---\nbody\n");
-  });
-
-  it("should not let a tag separator split into two tags", () => {
-    const next = updateFrontmatter("body\n", { tags: ["a,b"] });
-
-    expect(next).toBe("---\ntags: [ab]\n---\nbody\n");
-    expect(parseNote(next).frontmatter.tags).toStrictEqual(["ab"]);
-  });
-
-  it("should round-trip parse after update", () => {
-    const next = updateFrontmatter("body\n", {
-      pinned: true,
-      tags: ["a", "b"],
-    });
-    const parsed = parseNote(next);
-
-    expect(parsed.frontmatter).toStrictEqual({
-      pinned: true,
-      tags: ["a", "b"],
-      title: undefined,
-    });
-    expect(parsed.body).toBe("body\n");
-  });
-});
-
 describe("composeNote", () => {
   it("should return the body alone when there is no frontmatter", () => {
     expect(composeNote(undefined, "# hi\n")).toBe("# hi\n");
@@ -200,78 +153,5 @@ describe("composeNote", () => {
     const parsed = parseNote(original);
 
     expect(composeNote(parsed.raw, parsed.body)).toBe(original);
-  });
-});
-
-describe("retitleFrontmatter", () => {
-  it("should rewrite an existing key where it sits", () => {
-    expect(
-      retitleFrontmatter(["pinned: true", "title: old", "custom: x"], "new")
-    ).toStrictEqual(["pinned: true", "title: new", "custom: x"]);
-  });
-
-  it("should never introduce a key", () => {
-    const lines = ["pinned: true", "tags: [a]"];
-
-    expect(retitleFrontmatter(lines, "new")).toStrictEqual(lines);
-    expect(retitleFrontmatter([], "new")).toStrictEqual([]);
-  });
-
-  it("should quote a title carrying a colon so real yaml survives", () => {
-    expect(
-      retitleFrontmatter(["title: old"], "effect: a primer")
-    ).toStrictEqual(["title: 'effect: a primer'"]);
-  });
-
-  it("should leave a plain title unquoted", () => {
-    expect(retitleFrontmatter(["title: old"], "team sync 2")).toStrictEqual([
-      "title: team sync 2",
-    ]);
-  });
-
-  /**
-   * Single quotes are the safe form: their only escape is `''`, so a backslash
-   * and a double quote both stay literal, where the double-quoted form would
-   * read `\` as an escape introducer and emit invalid YAML.
-   */
-  it.each([
-    ["a double quote", 'he said "hi": ok', `'he said "hi": ok'`],
-    ["a backslash", String.raw`back\slash: x`, String.raw`'back\slash: x'`],
-    ["an apostrophe", "it's: mine", "'it''s: mine'"],
-    ["both", String.raw`a"b\c'd: e`, String.raw`'a"b\c''d: e'`],
-  ])("should escape %s", (_label, title, expected) => {
-    expect(retitleFrontmatter(["title: old"], title)).toStrictEqual([
-      `title: ${expected}`,
-    ]);
-  });
-
-  it.each([
-    ['he said "hi": ok'],
-    [String.raw`back\slash: x`],
-    ["it's: mine"],
-    [String.raw`a"b\c'd: e`],
-    ["effect: a primer"],
-    ["#hashtag"],
-    ["team sync 2"],
-  ])("should round-trip %j through parseNote", (title) => {
-    const lines = retitleFrontmatter(["title: old"], title);
-
-    expect(
-      parseNote(composeNote({ close: "---", lines }, "body")).frontmatter.title
-    ).toBe(title);
-  });
-
-  it("should preserve indentation", () => {
-    expect(retitleFrontmatter(["  title: old"], "new")).toStrictEqual([
-      "  title: new",
-    ]);
-  });
-
-  it("should round-trip a colon through parseNote", () => {
-    const lines = retitleFrontmatter(["title: old"], "effect: a primer");
-
-    expect(
-      parseNote(composeNote({ close: "---", lines }, "body")).frontmatter.title
-    ).toBe("effect: a primer");
   });
 });

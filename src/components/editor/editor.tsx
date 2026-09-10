@@ -2,7 +2,10 @@ import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension, getMarkRange } from "@tiptap/core";
-import type { EditorState } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { EditorState, Transaction } from "@tiptap/pm/state";
+import { TextSelection } from "@tiptap/pm/state";
+import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,6 +28,7 @@ import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
 import { LinkHover } from "./link-hover";
+import type { DocumentEdit } from "./note-document";
 import { findSentinel, SENTINEL } from "./sentinel";
 import {
   createTypewriter,
@@ -150,11 +154,84 @@ function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
   });
 }
 
-/**
- * Every method no-ops on a destroyed editor. ⌘P swaps the rich surface for the
- * source one, and the session's ref keeps pointing at the handle it was given,
- * so a handle outliving its instance is a state the design permits.
- */
+function firstHeading(doc: ProseMirrorNode) {
+  let result: { from: number; to: number; node: ProseMirrorNode } | undefined;
+  let found = false;
+  doc.forEach((node, offset) => {
+    if (
+      found ||
+      (node.type.name === "paragraph" && node.textContent.trim() === "")
+    ) {
+      return;
+    }
+    found = true;
+    if (node.type.name === "heading" && node.attrs.level === 1) {
+      result = {
+        from: offset,
+        node,
+        to: offset + node.nodeSize,
+      };
+    }
+  });
+  return result;
+}
+
+function touchesHeading(transaction: Transaction) {
+  const old = firstHeading(transaction.before);
+  const next = firstHeading(transaction.doc);
+  if (
+    (old === undefined) !== (next === undefined) ||
+    (old !== undefined && next !== undefined && !old.node.eq(next.node))
+  ) {
+    return true;
+  }
+  return transaction.steps.some((step, index) => {
+    const before = transaction.docs[index];
+    const range = before === undefined ? undefined : firstHeading(before);
+    if (range === undefined) {
+      return false;
+    }
+    // Mark steps have empty position maps even though they edit the heading.
+    if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
+      return step.from < range.to && step.to > range.from;
+    }
+    let touched = false;
+    step.getMap().forEach((from, to) => {
+      touched ||= from < range.to && to > range.from;
+    });
+    return touched;
+  });
+}
+
+function sourceOffset(editor: TiptapEditor, position: number) {
+  const manager = editor.markdown;
+  if (manager === undefined) {
+    throw new Error("the editor has no markdown converter");
+  }
+  const marked = editor.state.tr.insertText(SENTINEL, position);
+  return fileMarkdown(
+    manager,
+    normalizeMarkdown(manager.serialize(marked.doc.toJSON()))
+  ).indexOf(SENTINEL);
+}
+
+function positionInDocument(
+  editor: TiptapEditor,
+  content: string,
+  offset: number
+) {
+  const manager = editor.markdown;
+  if (manager === undefined) {
+    throw new Error("the editor has no markdown converter");
+  }
+  const at = Math.max(0, Math.min(offset, content.length));
+  const marked = editor.schema.nodeFromJSON(
+    manager.parse(content.slice(0, at) + SENTINEL + content.slice(at))
+  );
+  const clean = editor.schema.nodeFromJSON(manager.parse(content));
+  return Math.min(findSentinel(marked) ?? 1, clean.content.size);
+}
+
 export interface EditorHandle {
   find: FindHandle;
   focus: () => void;
@@ -166,6 +243,10 @@ export interface EditorHandle {
   getCaretSourceOffset: () => number;
   getContent: () => string;
   insertText: (text: string) => void;
+  replaceContent: (
+    content: string,
+    selection?: { anchor: number; head: number }
+  ) => void;
 }
 
 interface EditorProps {
@@ -175,10 +256,12 @@ interface EditorProps {
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
   onBlur?: () => void;
-  onChange: (content: string) => void;
+  onChange: (content: string, edit: DocumentEdit) => void;
+  onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   /** Navigate when a markdown link to a note is clicked. */
   onNoteLinkClick?: (href: string) => void;
   onReady?: (handle: EditorHandle) => void;
+  onSelect?: (anchor: number, head: number) => void;
   /** Navigate when a wikilink pill is clicked. */
   onWikilinkClick?: (title: string) => void;
   placeholderText?: string;
@@ -196,11 +279,9 @@ interface EditorProps {
 }
 
 /**
- * TipTap WYSIWYG markdown editor. All props except `focusModeEnabled` and `findOpen`
- * are frozen at mount: the editor owns the buffer, so remount (via `key`)
- * to load different content. Callbacks must therefore be safe to freeze --
- * read live values through refs, not closures. Content in/out is markdown
- * (`@tiptap/markdown`); the buffer is the note BODY, never frontmatter.
+ * Rich Markdown view of a note body. Mount props are frozen; live callbacks
+ * read through refs. The session applies document changes through the handle
+ * and owns history when `onHistory` is supplied. Frontmatter stays in the session.
  */
 export function Editor({
   findOpen = false,
@@ -466,6 +547,7 @@ export function Editor({
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
+        onHistory: config.onHistory,
         placeholderText: config.placeholderText,
         readCodeClipboard: isTauri() ? readCodeClipboard : undefined,
         resolveImageSrc: config.resolveImageSrc,
@@ -519,18 +601,77 @@ export function Editor({
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
         },
+        replaceContent: (content, selection) => {
+          if (instance.isDestroyed || instance.markdown === undefined) {
+            return;
+          }
+          const replacement = instance.schema.nodeFromJSON(
+            instance.markdown.parse(content)
+          );
+          const transaction = instance.state.tr;
+          const start = transaction.doc.content.findDiffStart(
+            replacement.content
+          );
+          const end = transaction.doc.content.findDiffEnd(replacement.content);
+          if (start !== null && end !== null) {
+            const overlap = Math.max(0, start - Math.min(end.a, end.b));
+            transaction.replace(
+              start,
+              end.a + overlap,
+              replacement.slice(start, end.b + overlap)
+            );
+          }
+          if (selection !== undefined) {
+            transaction.setSelection(
+              TextSelection.between(
+                transaction.doc.resolve(
+                  positionInDocument(instance, content, selection.anchor)
+                ),
+                transaction.doc.resolve(
+                  positionInDocument(instance, content, selection.head)
+                )
+              )
+            );
+          }
+          suppressChangeRef.current = true;
+          try {
+            instance.view.dispatch(transaction.setMeta("addToHistory", false));
+          } finally {
+            suppressChangeRef.current = false;
+          }
+        },
       });
     },
-    onSelectionUpdate: () => {
+    onSelectionUpdate: ({ editor: instance }) => {
       setReading(false);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
+      if (!suppressChangeRef.current && config.onSelect !== undefined) {
+        config.onSelect(
+          sourceOffset(instance, instance.state.selection.anchor),
+          sourceOffset(instance, instance.state.selection.head)
+        );
+      }
     },
-    onUpdate: ({ editor: instance }) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: biome narrows useRef(false) to the false literal; the replace path assigns true
-      if (suppressChangeRef.current) {
+    onTransaction: ({
+      editor: instance,
+      transaction,
+      appendedTransactions,
+    }) => {
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
+      if (suppressChangeRef.current || transaction.getMeta("preventUpdate")) {
         return;
       }
-
-      config.onChange(serializeMarkdown(instance));
+      const transactions = [transaction, ...appendedTransactions];
+      if (!transactions.some((entry) => entry.docChanged)) {
+        return;
+      }
+      config.onChange(serializeMarkdown(instance), {
+        headingEdited: transactions.some(touchesHeading),
+        selection: {
+          anchor: sourceOffset(instance, instance.state.selection.anchor),
+          head: sourceOffset(instance, instance.state.selection.head),
+        },
+      });
     },
   });
 

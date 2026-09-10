@@ -1,5 +1,6 @@
 import { batch, createStore, useSelector } from "@tanstack/react-store";
 import type { SaveStatus } from "@/components/editor/use-autosave";
+import type { FrontmatterPatch } from "@/core/frontmatter";
 import type { PendingOpen } from "@/server/adapters/bindings";
 
 import type { ClosedTab, Tab, TabState } from "./tab";
@@ -25,6 +26,13 @@ const STORAGE_KEY = "tabs";
  * use. Never rendered, so registering one notifies nobody.
  */
 export interface TabHandles {
+  /** Present when a loaded note session can flush and follow a native path change. */
+  changePath?: (
+    change:
+      | { kind: "move"; folder: string }
+      | { kind: "retitle"; title: string }
+  ) => Promise<void>;
+  editMetadata?: (patch: FrontmatterPatch) => Promise<void>;
   /** The caret's offset in this buffer's markdown, or -1. Read only when the set is persisted. */
   getCaret: () => number;
   /** Into whichever surface is live, since ⌘P swaps which one owns the caret. */
@@ -331,4 +339,20 @@ export function activateTab(id: string) {
 /** Follow a note that a rename or a folder move gave a new path. */
 export function renameTab(from: string, to: string) {
   setState(replaceNotePath(getTabState(), from, to));
+}
+
+/** Edit metadata through the note that owns the live document. */
+export async function changeNoteMetadata(
+  path: string,
+  patch: FrontmatterPatch
+): Promise<void> {
+  const tab = tabs.state.tabs.find(
+    (entry) => entry.path === path && entry.kind === "note"
+  );
+  const edit =
+    tab === undefined ? undefined : handles.get(tab.id)?.editMetadata;
+  if (edit === undefined) {
+    throw new Error("the note is still opening");
+  }
+  await edit(patch);
 }
