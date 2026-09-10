@@ -531,11 +531,13 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     })
 }
 
+/// Persist an external document, rejecting non-Unicode paths before file access.
 pub fn write_external(
     path: &Path,
     content: &str,
     name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
+    path.to_str().ok_or("the path is not valid unicode")?;
     let result = save_file(path, content, name)?;
     Ok(MutationReceipt {
         path: result
