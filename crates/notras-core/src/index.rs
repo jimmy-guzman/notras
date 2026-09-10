@@ -1130,4 +1130,100 @@ mod tests {
             vec!["a.md", "b.md"]
         );
     }
+
+    #[test]
+    fn should_keep_all_index_rows_when_deleting_one_table_fails() {
+        let directory = tempfile::tempdir().unwrap();
+        let note = directory.path().join("note.md");
+        fs::write(&note, "---\ntags: [work]\n---\n# note\n[[other]]").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        index_file(&conn, directory.path(), "note.md").unwrap();
+        conn.execute_batch(
+            "CREATE TRIGGER refuse_delete BEFORE DELETE ON note_link
+             BEGIN SELECT RAISE(FAIL, 'index unavailable'); END;",
+        )
+        .unwrap();
+        fs::remove_file(&note).unwrap();
+
+        assert!(index_file(&conn, directory.path(), "note.md").is_err());
+        assert_eq!(
+            select(
+                &conn,
+                "SELECT (SELECT count(*) FROM note),
+                        (SELECT count(*) FROM note_tag),
+                        (SELECT count(*) FROM note_link),
+                        (SELECT count(*) FROM note_fts)",
+                &[]
+            )
+            .unwrap(),
+            vec![vec![json!(1), json!(1), json!(1), json!(1)]]
+        );
+
+        conn.execute_batch("DROP TRIGGER refuse_delete").unwrap();
+        index_file(&conn, directory.path(), "note.md").unwrap();
+        assert_eq!(
+            select(
+                &conn,
+                "SELECT (SELECT count(*) FROM note),
+                        (SELECT count(*) FROM note_tag),
+                        (SELECT count(*) FROM note_link),
+                        (SELECT count(*) FROM note_fts)",
+                &[]
+            )
+            .unwrap(),
+            vec![vec![json!(0), json!(0), json!(0), json!(0)]]
+        );
+    }
+
+    #[test]
+    fn should_reject_an_unreadable_stored_timestamp_without_replacing_the_row() {
+        let directory = tempfile::tempdir().unwrap();
+        let note = directory.path().join("note.md");
+        fs::write(&note, "# original").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        index_file(&conn, directory.path(), "note.md").unwrap();
+        conn.execute(
+            "UPDATE note SET updated_at = 'invalid' WHERE path = 'note.md'",
+            [],
+        )
+        .unwrap();
+        fs::write(&note, "# changed").unwrap();
+
+        assert!(matches!(
+            index_file(&conn, directory.path(), "note.md"),
+            Err(IndexError::Db(rusqlite::Error::InvalidColumnType(..)))
+        ));
+        assert_eq!(
+            select(
+                &conn,
+                "SELECT title, updated_at FROM note WHERE path = 'note.md'",
+                &[]
+            )
+            .unwrap(),
+            vec![vec![json!("original"), json!("invalid")]]
+        );
+    }
+
+    #[test]
+    fn should_reject_an_unreadable_index_path_before_deleting_stale_rows() {
+        let directory = tempfile::tempdir().unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        conn.execute_batch(
+            "INSERT INTO note (path, title, created_at, updated_at)
+             VALUES ('stale.md', 'stale', 1, 1), (x'ff', 'invalid', 1, 1);",
+        )
+        .unwrap();
+
+        assert!(matches!(
+            scan_all(&conn, directory.path()),
+            Err(IndexError::Db(rusqlite::Error::InvalidColumnType(..)))
+        ));
+        assert_eq!(
+            select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
+            vec![vec![json!(2)]]
+        );
+    }
 }
