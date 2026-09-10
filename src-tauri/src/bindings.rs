@@ -97,7 +97,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
+                library: Mutex::new(Library::open(directory.path()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -196,7 +196,7 @@ mod tests {
     fn should_report_committed_capture_warnings_after_unlocking_and_recover_reads() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         let conn = rusqlite::Connection::open(directory.path().join(".notras/index.db")).unwrap();
         conn.execute_batch("CREATE TRIGGER refuse_insert BEFORE INSERT ON note BEGIN SELECT RAISE(FAIL, 'index unavailable'); END;").unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
@@ -254,7 +254,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
+                library: Mutex::new(Library::open(directory.path()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -305,7 +305,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
+                library: Mutex::new(Library::open(directory.path()).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -345,7 +345,7 @@ mod tests {
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
-                library: Mutex::new(Library::open(initial.clone()).unwrap()),
+                library: Mutex::new(Library::open(&initial).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -406,7 +406,7 @@ mod tests {
             "---\ntags: [work]\n---\n# Source\nAtlas in prose",
         )
         .unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         library.scan_complete().unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()

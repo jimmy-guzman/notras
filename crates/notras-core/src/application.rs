@@ -373,7 +373,7 @@ fn publish_move(
     from: &RelativePath,
     to: &RelativePath,
     content: String,
-    metadata: fs::Metadata,
+    metadata: &fs::Metadata,
 ) -> Result<PathMutationReceipt, CommandError> {
     let source = from.resolve(&core.notes_dir)?;
     let target = to.resolve(&core.notes_dir)?;
@@ -519,12 +519,11 @@ fn save_file(
     }
 }
 
-pub fn read_external(path: String) -> Result<NoteFile, CommandError> {
-    let abs = PathBuf::from(&path);
-    if !is_markdown(&abs) {
+pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
+    if !is_markdown(path) {
         return Err("only markdown files can be opened".into());
     }
-    let file = OpenedNote::open(&abs)?;
+    let file = OpenedNote::open(path)?;
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
     Ok(NoteFile {
         content: file.read()?,
@@ -533,11 +532,11 @@ pub fn read_external(path: String) -> Result<NoteFile, CommandError> {
 }
 
 pub fn write_external(
-    path: String,
-    content: String,
+    path: &Path,
+    content: &str,
     name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
-    let result = save_file(Path::new(&path), &content, name)?;
+    let result = save_file(path, content, name)?;
     Ok(MutationReceipt {
         path: result
             .path
@@ -614,11 +613,11 @@ impl Library {
         })
     }
 
-    pub fn create_note(&self, options: CreateNote) -> Result<MutationReceipt, CommandError> {
+    pub fn create_note(&self, options: &CreateNote) -> Result<MutationReceipt, CommandError> {
         let folder = validate_folder(options.folder.as_deref().unwrap_or(""))?;
-        let base = match options.name {
-            Some(NoteName::Filename(name)) => validate_filename(&name)?,
-            Some(NoteName::Title(title)) => filename_from_title(&validate_title(&title)?),
+        let base = match &options.name {
+            Some(NoteName::Filename(name)) => validate_filename(name)?,
+            Some(NoteName::Title(title)) => filename_from_title(&validate_title(title)?),
             None => "untitled".to_owned(),
         };
         let mut path = RelativePath::parse(&note_path(&folder, &base))?;
@@ -654,13 +653,13 @@ impl Library {
     /// Persist a live document; reads and watcher observations never request naming.
     pub fn save_note(
         &self,
-        path: String,
-        content: String,
+        path: &str,
+        content: &str,
         name: Option<SaveName>,
     ) -> Result<MutationReceipt, CommandError> {
-        let relative = RelativePath::parse(&path)?;
+        let relative = RelativePath::parse(path)?;
         let source = relative.resolve(&self.notes_dir)?;
-        let result = save_file(&source, &content, name)?;
+        let result = save_file(&source, content, name)?;
         let mut receipt = MutationReceipt {
             path: RelativePath::from_host(&self.notes_dir, &result.path)?.into_string(),
             updated_at: result.updated_at,
@@ -671,13 +670,13 @@ impl Library {
                 path: remaining, ..
             } = warning
             {
-                *remaining = path.clone();
+                *remaining = path.to_owned();
             }
         }
         let paths = if path == receipt.path {
-            vec![path.as_str()]
+            vec![path]
         } else {
-            vec![path.as_str(), receipt.path.as_str()]
+            vec![path, receipt.path.as_str()]
         };
         receipt.warnings.extend(reconcile(self, &paths));
         Ok(receipt)
@@ -686,9 +685,9 @@ impl Library {
     pub fn move_note(
         &self,
         path: String,
-        folder: String,
+        folder: &str,
     ) -> Result<PathMutationReceipt, CommandError> {
-        let folder = validate_folder(&folder)?;
+        let folder = validate_folder(folder)?;
         let name = path.rsplit('/').next().ok_or("a note without a filename")?;
         let target = if folder.is_empty() {
             name.to_owned()
@@ -713,7 +712,7 @@ impl Library {
                 warnings: vec![],
             });
         }
-        publish_move(self, &from, &to, content, metadata)
+        publish_move(self, &from, &to, content, &metadata)
     }
 
     pub fn delete_note(&self, path: String) -> Result<DeleteReceipt, CommandError> {
@@ -722,8 +721,7 @@ impl Library {
         Ok(DeleteReceipt { path, warnings })
     }
 
-    pub fn attach_file(&self, source: String) -> Result<String, CommandError> {
-        let source = PathBuf::from(source);
+    pub fn attach_file(&self, source: &Path) -> Result<String, CommandError> {
         let name = source
             .file_name()
             .ok_or("source has no file name")?
@@ -751,11 +749,11 @@ impl Library {
         }
 
         let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
-        fs::copy(&source, relative.resolve(&self.notes_dir)?)?;
+        fs::copy(source, relative.resolve(&self.notes_dir)?)?;
         Ok(format!("attachments/{candidate}"))
     }
 
-    pub fn attach_image(&self, base64_data: String) -> Result<String, CommandError> {
+    pub fn attach_image(&self, base64_data: &str) -> Result<String, CommandError> {
         use base64::Engine as _;
 
         let bytes = base64::engine::general_purpose::STANDARD
@@ -805,7 +803,7 @@ mod tests {
     fn should_preserve_missing_file_causes_without_changing_the_wire_error() {
         use std::error::Error as _;
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         let error = library.read_note("missing.md".into()).unwrap_err();
 
         assert_eq!(
@@ -820,9 +818,9 @@ mod tests {
     fn should_preserve_sqlite_causes_without_changing_the_wire_error() {
         use std::error::Error as _;
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         library.conn.execute_batch("DROP TABLE note").unwrap();
-        let error = library.list_notes(Default::default()).unwrap_err();
+        let error = library.list_notes(&Default::default()).unwrap_err();
 
         assert_eq!(
             serde_json::to_value(&error).unwrap(),
@@ -835,8 +833,8 @@ mod tests {
     fn should_preserve_invalid_image_causes_without_creating_an_attachment() {
         use std::error::Error as _;
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
-        let error = library.attach_image("%%%".into()).unwrap_err();
+        let library = Library::open(directory.path()).unwrap();
+        let error = library.attach_image("%%%").unwrap_err();
 
         assert_eq!(error.message, "the pasted image is not valid");
         assert!(error.source().unwrap().is::<base64::DecodeError>());
@@ -860,16 +858,16 @@ mod tests {
         .unwrap();
         let first = core
             .save_note(
-                "shopping.md".into(),
-                "# Weekend errands\n\nbody".into(),
+                "shopping.md",
+                "# Weekend errands\n\nbody",
                 Some(SaveName::Heading),
             )
             .unwrap();
         assert_eq!(first.path, "weekend-errands-2.md");
         let second = core
             .save_note(
-                first.path,
-                "# Weekend errands\n\nbody".into(),
+                &first.path,
+                "# Weekend errands\n\nbody",
                 Some(SaveName::Heading),
             )
             .unwrap();
@@ -881,15 +879,15 @@ mod tests {
         fs::remove_file(directory.path().join("weekend-errands.md")).unwrap();
         let third = core
             .save_note(
-                second.path,
-                "# Weekend errands\n\nbody".into(),
+                &second.path,
+                "# Weekend errands\n\nbody",
                 Some(SaveName::Heading),
             )
             .unwrap();
         assert_eq!(third.path, "weekend-errands.md");
         assert!(!directory.path().join("weekend-errands-2.md").exists());
         assert_eq!(
-            core.list_notes(Default::default())
+            core.list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| note.path)
@@ -912,11 +910,11 @@ mod tests {
         assert!(directory.path().join("shopping.md").exists());
         assert!(!directory.path().join("errands.md").exists());
         let body = core
-            .save_note("shopping.md".into(), "# Errands\n\nnew body".into(), None)
+            .save_note("shopping.md", "# Errands\n\nnew body", None)
             .unwrap();
         assert_eq!(body.path, "shopping.md");
         let empty = core
-            .save_note(body.path, "# \n\nbody".into(), Some(SaveName::Heading))
+            .save_note(&body.path, "# \n\nbody", Some(SaveName::Heading))
             .unwrap();
         assert_eq!(empty.path, "shopping.md");
     }
@@ -933,8 +931,8 @@ mod tests {
         fs::write(directory.path().join("weekend.md"), "# Weekend").unwrap();
         let restored = core
             .save_note(
-                "weekend.md".into(),
-                "# Errands".into(),
+                "weekend.md",
+                "# Errands",
                 Some(SaveName::Filename("shopping.md".into())),
             )
             .unwrap();
@@ -942,8 +940,8 @@ mod tests {
         fs::write(directory.path().join("weekend.md"), "# other").unwrap();
         let redo = core
             .save_note(
-                restored.path,
-                "# Weekend".into(),
+                &restored.path,
+                "# Weekend",
                 Some(SaveName::Filename("weekend.md".into())),
             )
             .unwrap();
@@ -962,12 +960,7 @@ mod tests {
         let link = directory.path().join("errands.md");
         fs::write(&source, "# imported").unwrap();
         std::os::unix::fs::symlink(&source, &link).unwrap();
-        let receipt = write_external(
-            source.to_string_lossy().into_owned(),
-            "# Errands".into(),
-            Some(SaveName::Heading),
-        )
-        .unwrap();
+        let receipt = write_external(&source, "# Errands", Some(SaveName::Heading)).unwrap();
         assert_eq!(
             Path::new(&receipt.path),
             directory.path().join("errands-2.md")
@@ -976,17 +969,46 @@ mod tests {
         assert!(!source.exists());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_non_unicode_external_paths_before_file_access() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory
+            .path()
+            .join(std::ffi::OsString::from_vec(b"note-\xff.md".to_vec()));
+
+        let error = write_external(&path, "# changed", None).unwrap_err();
+
+        assert_eq!(error.kind, ErrorKind::Failed);
+        assert_eq!(error.message, "the path is not valid unicode");
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn should_reject_non_unicode_external_paths_before_saving() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory
+            .path()
+            .join(std::ffi::OsString::from_vec(b"note-\xff.md".to_vec()));
+        fs::write(&path, "# original").unwrap();
+
+        let error = write_external(&path, "# changed", None).unwrap_err();
+
+        assert_eq!(error.message, "the path is not valid unicode");
+        assert_eq!(fs::read_to_string(path).unwrap(), "# original");
+    }
+
     #[test]
     fn should_save_external_heading_edits_without_an_index() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("shopping.md");
         fs::write(&path, "# Errands").unwrap();
-        let receipt = write_external(
-            path.to_string_lossy().into_owned(),
-            "# Weekend errands".into(),
-            Some(SaveName::Heading),
-        )
-        .unwrap();
+        let receipt = write_external(&path, "# Weekend errands", Some(SaveName::Heading)).unwrap();
         assert_eq!(
             Path::new(&receipt.path),
             directory.path().join("weekend-errands.md")
@@ -1031,14 +1053,14 @@ mod tests {
         };
         for name in ["", ".hidden", "a/b", "a\\b", "a:b"] {
             assert!(core
-                .create_note(CreateNote {
+                .create_note(&CreateNote {
                     name: Some(NoteName::Filename(name.into())),
                     ..Default::default()
                 })
                 .is_err());
         }
         assert!(core
-            .create_note(CreateNote {
+            .create_note(&CreateNote {
                 folder: Some("../outside".into()),
                 ..Default::default()
             })
@@ -1046,13 +1068,13 @@ mod tests {
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
         let base = "a".repeat(120);
         let first = core
-            .create_note(CreateNote {
+            .create_note(&CreateNote {
                 name: Some(NoteName::Filename(base.clone())),
                 ..Default::default()
             })
             .unwrap();
         let second = core
-            .create_note(CreateNote {
+            .create_note(&CreateNote {
                 name: Some(NoteName::Filename(base)),
                 ..Default::default()
             })
@@ -1072,14 +1094,14 @@ mod tests {
         };
         fs::write(directory.path().join("good.md"), "readable").unwrap();
         fs::write(directory.path().join("bad.md"), [0xff]).unwrap();
-        assert!(core.list_notes(Default::default()).is_err());
+        assert!(core.list_notes(&Default::default()).is_err());
         assert!(core.index_dirty.get());
         assert_eq!(
             core.read_note("good.md".into()).unwrap().content,
             "readable"
         );
         fs::write(directory.path().join("bad.md"), "fixed").unwrap();
-        assert_eq!(core.list_notes(Default::default()).unwrap().len(), 2);
+        assert_eq!(core.list_notes(&Default::default()).unwrap().len(), 2);
     }
 
     proptest! {
@@ -1104,17 +1126,15 @@ mod tests {
         fs::write(directory.path().join("a.md"), "# old").unwrap();
         index::index_file(&core.conn, &core.notes_dir, "a.md").unwrap();
         core.conn.execute_batch("PRAGMA query_only = ON").unwrap();
-        let receipt = core
-            .save_note("a.md".into(), "# saved".into(), None)
-            .unwrap();
+        let receipt = core.save_note("a.md", "# saved", None).unwrap();
         assert!(
             matches!(receipt.warnings.as_slice(), [MutationWarning::Index { path, .. }] if path == "a.md")
         );
         assert_eq!(core.read_note("a.md".into()).unwrap().content, "# saved");
-        assert!(core.list_notes(Default::default()).is_err());
+        assert!(core.list_notes(&Default::default()).is_err());
         core.conn.execute_batch("PRAGMA query_only = OFF").unwrap();
         assert_eq!(
-            core.list_notes(Default::default())
+            core.list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| note.title)
@@ -1140,9 +1160,7 @@ mod tests {
         let source = directory.path().join("source");
         fs::set_permissions(&source, fs::Permissions::from_mode(0o555)).unwrap();
         if fs::File::create(source.join("probe")).is_err() {
-            let receipt = core
-                .move_note("source/a.md".into(), "destination".into())
-                .unwrap();
+            let receipt = core.move_note("source/a.md".into(), "destination").unwrap();
             assert_eq!(receipt.path, "destination/a.md");
             assert_eq!(receipt.remaining_source.as_deref(), Some("source/a.md"));
             assert!(matches!(
@@ -1172,7 +1190,7 @@ mod tests {
         };
 
         let receipt = core
-            .create_note(CreateNote {
+            .create_note(&CreateNote {
                 content: Some("# title\nbody".into()),
                 name: Some(NoteName::Filename("a".into())),
                 folder: None,
@@ -1184,7 +1202,7 @@ mod tests {
         assert_eq!(read.content, "# title\nbody");
         assert_eq!(read.updated_at, receipt.updated_at);
         assert_eq!(
-            core.list_notes(Default::default())
+            core.list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| (note.path, note.title))
@@ -1425,7 +1443,7 @@ mod tests {
     #[test]
     fn should_reject_noncanonical_library_paths() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         fs::create_dir(directory.path().join("folder")).unwrap();
         fs::write(directory.path().join("folder/note.md"), "# note").unwrap();
         #[cfg(unix)]
@@ -1452,19 +1470,13 @@ mod tests {
             directory.path().join("note.md"),
         )
         .unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
 
         assert!(library.read_note("note.md".into()).is_err());
         assert_eq!(
-            read_external(
-                outside
-                    .path()
-                    .join("note.md")
-                    .to_string_lossy()
-                    .into_owned()
-            )
-            .unwrap()
-            .content,
+            read_external(&outside.path().join("note.md"))
+                .unwrap()
+                .content,
             "# outside"
         );
     }
@@ -1476,10 +1488,10 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("note.md"), "# outside").unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
 
         assert!(library
-            .save_note("linked/note.md".into(), "# changed".into(), None)
+            .save_note("linked/note.md", "# changed", None)
             .is_err());
         assert_eq!(
             fs::read_to_string(outside.path().join("note.md")).unwrap(),
@@ -1495,7 +1507,7 @@ mod tests {
         fs::write(outside.path().join("note.md"), "# outside").unwrap();
         let link = directory.path().join("note.md");
         std::os::unix::fs::symlink(outside.path().join("note.md"), &link).unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
 
         assert!(library.delete_note("note.md".into()).is_err());
         assert!(fs::symlink_metadata(link).unwrap().is_symlink());
@@ -1511,18 +1523,16 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         fs::write(directory.path().join("note.md"), "# source").unwrap();
 
         assert!(library
-            .create_note(CreateNote {
+            .create_note(&CreateNote {
                 folder: Some("linked".into()),
                 ..Default::default()
             })
             .is_err());
-        assert!(library
-            .move_note("note.md".into(), "linked".into())
-            .is_err());
+        assert!(library.move_note("note.md".into(), "linked").is_err());
         assert_eq!(
             fs::read_to_string(directory.path().join("note.md")).unwrap(),
             "# source"
@@ -1537,34 +1547,24 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("source.txt"), "attachment").unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("attachments")).unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
 
         assert!(library
-            .attach_file(
-                outside
-                    .path()
-                    .join("source.txt")
-                    .to_string_lossy()
-                    .into_owned()
-            )
+            .attach_file(&outside.path().join("source.txt"))
             .is_err());
-        assert!(library.attach_image("aW1hZ2U=".into()).is_err());
+        assert!(library.attach_image("aW1hZ2U=").is_err());
         assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 1);
     }
 
     #[test]
     fn should_return_slash_separated_paths_after_saving_in_a_folder() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         fs::create_dir(directory.path().join("folder")).unwrap();
         fs::write(directory.path().join("folder/note.md"), "# before").unwrap();
 
         let receipt = library
-            .save_note(
-                "folder/note.md".into(),
-                "# after".into(),
-                Some(SaveName::Heading),
-            )
+            .save_note("folder/note.md", "# after", Some(SaveName::Heading))
             .unwrap();
 
         assert_eq!(receipt.path, "folder/after.md");

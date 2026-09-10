@@ -196,7 +196,7 @@ React tests run through Testing Library in happy-dom. `vitest.setup.ts` register
 
 Query tests use real SQLite and temporary note directories. Recorded fixtures preserve the former TypeScript graph, mention and filter behavior. Shared resolver fixtures run in Rust and TypeScript, including malformed percent encodings and duplicate titles. React tests fake the IPC boundary while using the real query adapters and cache.
 
-Rust engine tests run independently with `cargo test -p notras-core --locked`. The engine exposes `Library` operations without an `AppHandle` or window dependency. Its optional `bindings` feature adds Specta metadata and is enabled by the shell. Tauri handlers run blocking work through `spawn_blocking` and take the library lock inside that task. A guard never crosses an `await`.
+Rust engine tests run independently with `cargo test -p notras-core --locked`. The engine exposes `Library` operations without an `AppHandle` or window dependency. Its optional `bindings` feature adds Specta metadata and is enabled by the shell. Tauri handlers run blocking work through `spawn_blocking` and take the library lock inside that task. A guard never crosses an `await`. Blocking tasks own decoded IPC inputs for their lifetime. Engine operations borrow paths, document text and options they only read, and retain ownership where values move into results or subsequent work.
 
 State access panics if its mutex is poisoned; it does not expose potentially interrupted state. Blocking-task panics resume unwinding with their original payload. Non-panic task failures remain command errors. Release builds abort on panic.
 

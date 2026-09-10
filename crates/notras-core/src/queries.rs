@@ -255,9 +255,9 @@ fn filter_matches(
 }
 
 impl Library {
-    pub fn list_notes(&self, filters: NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
+    pub fn list_notes(&self, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
         self.ensure_index()?;
-        select_notes(&self.conn, &filters)
+        select_notes(&self.conn, filters)
     }
 
     pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
@@ -285,19 +285,19 @@ impl Library {
         Ok(relationships::mentions(path, &links, &notes, &bare))
     }
 
-    pub fn read_graph(&self, target: GraphTarget) -> Result<GraphResult, CommandError> {
+    pub fn read_graph(&self, target: &GraphTarget) -> Result<GraphResult, CommandError> {
         self.ensure_index()?;
         let notes = select_notes(&self.conn, &NoteFilters::default())?;
         match target {
             GraphTarget::Hub { hub } => Ok(GraphResult {
                 picture: Some(Picture::Hub {
-                    hub: relationships::hub_pill(&hub, &notes),
-                    members: relationships::hub_ring(&hub, &notes),
+                    hub: relationships::hub_pill(hub, &notes),
+                    members: relationships::hub_ring(hub, &notes),
                 }),
                 mentions_error: None,
             }),
             GraphTarget::Note { path } => {
-                let Some(note) = notes.iter().find(|note| note.path == path) else {
+                let Some(note) = notes.iter().find(|note| note.path == *path) else {
                     return Ok(GraphResult {
                         picture: None,
                         mentions_error: None,
@@ -311,7 +311,7 @@ impl Library {
                 Ok(GraphResult {
                     picture: Some(Picture::Note {
                         note: note.clone(),
-                        graph: relationships::graph(&path, &links, &notes, &bare),
+                        graph: relationships::graph(path, &links, &notes, &bare),
                     }),
                     mentions_error,
                 })
@@ -423,7 +423,7 @@ mod tests {
         }
         core.conn.execute_batch("COMMIT").unwrap();
         let result = core
-            .read_graph(GraphTarget::Note {
+            .read_graph(&GraphTarget::Note {
                 path: "note-0.md".into(),
             })
             .unwrap();
@@ -446,7 +446,7 @@ mod tests {
         save(&core, "work/new.md", "---\ntags: [a]\n---\n# New", 3);
         save(&core, "work/deep/other.md", "# Other", 4);
         let notes = core
-            .list_notes(NoteFilters {
+            .list_notes(&NoteFilters {
                 folder: Some("work".into()),
                 ..Default::default()
             })
@@ -460,7 +460,7 @@ mod tests {
         );
         assert_eq!(notes[0].tags, ["z", "a"]);
         let recent = core
-            .list_notes(NoteFilters {
+            .list_notes(&NoteFilters {
                 sort: Some(NoteSort::Updated),
                 limit: Some(1),
                 ..Default::default()
@@ -468,7 +468,7 @@ mod tests {
             .unwrap();
         assert_eq!(recent[0].path, "work/deep/other.md");
         let tagged = core
-            .list_notes(NoteFilters {
+            .list_notes(&NoteFilters {
                 tag: Some("a".into()),
                 pinned_only: Some(true),
                 ..Default::default()
@@ -481,7 +481,7 @@ mod tests {
             json!([{"count":2,"tag":"a"},{"count":1,"tag":"z"}])
         );
         assert!(core
-            .list_notes(NoteFilters {
+            .list_notes(&NoteFilters {
                 limit: Some(0),
                 ..Default::default()
             })
@@ -574,7 +574,7 @@ mod tests {
             100,
         );
         let notes = core
-            .list_notes(NoteFilters {
+            .list_notes(&NoteFilters {
                 query: Some("need".into()),
                 ..Default::default()
             })
@@ -587,7 +587,7 @@ mod tests {
             ["pinned.md", "a.md", "b.md", "old.md", "verbose.md"]
         );
         assert!(core
-            .list_notes(NoteFilters {
+            .list_notes(&NoteFilters {
                 query: Some("needle absent".into()),
                 ..Default::default()
             })
@@ -721,17 +721,17 @@ mod tests {
         .unwrap();
         core.index_dirty.set(true);
         assert_eq!(
-            core.list_notes(NoteFilters::default()).unwrap()[0].title,
+            core.list_notes(&NoteFilters::default()).unwrap()[0].title,
             "Fresh"
         );
         assert!(!core.index_dirty.get());
         fs::write(core.notes_dir.join("bad.md"), [0xff]).unwrap();
         core.index_dirty.set(true);
-        assert!(core.list_notes(NoteFilters::default()).is_err());
+        assert!(core.list_notes(&NoteFilters::default()).is_err());
         assert!(core.list_tags().is_err());
         assert!(core.find_mentions("fresh.md").is_err());
         assert!(core
-            .read_graph(GraphTarget::Note {
+            .read_graph(&GraphTarget::Note {
                 path: "fresh.md".into()
             })
             .is_err());
@@ -763,7 +763,7 @@ mod tests {
             })
             .is_err());
         let result = core
-            .read_graph(GraphTarget::Note {
+            .read_graph(&GraphTarget::Note {
                 path: "atlas.md".into(),
             })
             .unwrap();

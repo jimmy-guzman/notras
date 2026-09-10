@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::atomic::Ordering;
 
 use serde_json::Value;
@@ -73,7 +73,7 @@ pub async fn attach_file<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let library = state.library();
-        library.attach_file(source)
+        library.attach_file(Path::new(&source))
     })
     .await
 }
@@ -87,7 +87,7 @@ pub async fn attach_image<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let library = state.library();
-        library.attach_image(base64_data)
+        library.attach_image(&base64_data)
     })
     .await
 }
@@ -115,7 +115,7 @@ pub async fn list_notes<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let library = state.library();
-        library.list_notes(filters)
+        library.list_notes(&filters)
     })
     .await
 }
@@ -154,7 +154,7 @@ pub async fn read_graph<R: Runtime>(
     run_blocking(move || {
         let state = app.state::<AppState>();
         let library = state.library();
-        library.read_graph(target)
+        library.read_graph(&target)
     })
     .await
 }
@@ -169,7 +169,7 @@ pub async fn create_note<R: Runtime>(
         let state = app.state::<AppState>();
         let result = {
             let library = state.library();
-            library.create_note(options)?
+            library.create_note(&options)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(&app, vec![result.path.clone()]);
@@ -190,7 +190,7 @@ pub async fn save_note<R: Runtime>(
         let state = app.state::<AppState>();
         let result = {
             let library = state.library();
-            library.save_note(path.clone(), content, name)?
+            library.save_note(&path, &content, name)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(
@@ -217,7 +217,7 @@ pub async fn move_note<R: Runtime>(
         let state = app.state::<AppState>();
         let result = {
             let library = state.library();
-            library.move_note(path.clone(), folder)?
+            library.move_note(path.clone(), &folder)?
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(
@@ -270,7 +270,7 @@ pub async fn reindex_all<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, C
 #[tauri::command]
 #[specta::specta]
 pub async fn read_external(path: String) -> Result<NoteFile, CommandError> {
-    run_blocking(move || notras_core::read_external(path)).await
+    run_blocking(move || notras_core::read_external(Path::new(&path))).await
 }
 
 #[tauri::command]
@@ -282,7 +282,7 @@ pub async fn write_external<R: Runtime>(
     name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
-        let result = notras_core::write_external(path, content, name)?;
+        let result = notras_core::write_external(Path::new(&path), &content, name)?;
         emit_warnings(&app, &result.warnings);
         Ok(result)
     })
@@ -307,8 +307,7 @@ pub async fn set_notes_dir<R: Runtime>(
         // Switches can run on different blocking workers. Keep their saved setting,
         // library swap and watcher replacement in the same order.
         let mut watcher = state.watcher();
-        let notes_dir = PathBuf::from(&path);
-        let library = Library::open(notes_dir)?;
+        let library = Library::open(Path::new(&path))?;
         let notes_dir = library.directory().to_owned();
         library.scan_complete()?;
         // Started first: a folder the app cannot watch is refused whole.

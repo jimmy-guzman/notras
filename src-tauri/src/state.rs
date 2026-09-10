@@ -45,7 +45,7 @@ mod tests {
     fn should_refuse_library_access_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
-            library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
+            library: Mutex::new(Library::open(directory.path()).unwrap()),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
             quitting: AtomicBool::new(false),
@@ -62,7 +62,7 @@ mod tests {
     fn should_refuse_watcher_access_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
-            library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
+            library: Mutex::new(Library::open(directory.path()).unwrap()),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
             quitting: AtomicBool::new(false),
@@ -79,7 +79,7 @@ mod tests {
     fn should_refuse_pending_opens_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
-            library: Mutex::new(Library::open(directory.path().to_owned()).unwrap()),
+            library: Mutex::new(Library::open(directory.path()).unwrap()),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
             quitting: AtomicBool::new(false),

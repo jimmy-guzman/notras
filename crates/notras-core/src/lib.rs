@@ -38,8 +38,8 @@ pub struct Library {
 impl Library {
     /// Open or rebuild the index schema. Scanning is a separate operation so the
     /// host can start it off its UI thread.
-    pub fn open(notes_dir: PathBuf) -> Result<Self, CommandError> {
-        fs::create_dir_all(&notes_dir)?;
+    pub fn open(notes_dir: &Path) -> Result<Self, CommandError> {
+        fs::create_dir_all(notes_dir)?;
         let notes_dir = notes_dir.canonicalize()?;
         relative_path::reject_symlink(&notes_dir.join(".notras"))?;
         fs::create_dir_all(notes_dir.join(".notras"))?;
@@ -146,9 +146,9 @@ mod tests {
     #[test]
     fn should_reconcile_external_files_without_echoing_saved_mutations() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         let saved = library
-            .create_note(CreateNote {
+            .create_note(&CreateNote {
                 content: Some("# saved".into()),
                 folder: None,
                 name: Some(NoteName::Filename("saved".into())),
@@ -163,14 +163,17 @@ mod tests {
             library.reconcile_paths([external.as_path(), external.as_path()]),
             Some(vec!["external.md".into()])
         );
-        assert_eq!(library.list_notes(NoteFilters::default()).unwrap().len(), 2);
+        assert_eq!(
+            library.list_notes(&NoteFilters::default()).unwrap().len(),
+            2
+        );
         assert_eq!(library.reconcile_paths([external.as_path()]), None);
     }
 
     #[test]
     fn should_reconcile_children_when_only_the_folder_move_is_observed() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         let source = library.directory().join("before");
         let destination = library.directory().join("after");
         fs::create_dir(&source).unwrap();
@@ -183,7 +186,7 @@ mod tests {
             library.reconcile_paths([source.as_path(), destination.as_path()]),
             Some(vec!["after/note.md".into(), "before/note.md".into()])
         );
-        let notes = library.list_notes(NoteFilters::default()).unwrap();
+        let notes = library.list_notes(&NoteFilters::default()).unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].path, "after/note.md");
     }
@@ -191,7 +194,7 @@ mod tests {
     #[test]
     fn should_request_full_refresh_after_an_observed_file_cannot_be_indexed() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path().to_owned()).unwrap();
+        let library = Library::open(directory.path()).unwrap();
         let unreadable = library.directory().join("broken.md");
         fs::write(&unreadable, [0xff]).unwrap();
 
@@ -199,10 +202,10 @@ mod tests {
             library.reconcile_paths([unreadable.as_path()]),
             Some(vec![])
         );
-        assert!(library.list_notes(NoteFilters::default()).is_err());
+        assert!(library.list_notes(&NoteFilters::default()).is_err());
 
         fs::write(&unreadable, "# readable").unwrap();
-        let notes = library.list_notes(NoteFilters::default()).unwrap();
+        let notes = library.list_notes(&NoteFilters::default()).unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, "readable");
         assert_eq!(library.reconcile_paths([unreadable.as_path()]), None);
@@ -216,7 +219,7 @@ mod tests {
         let link = directory.path().join("selected");
         fs::create_dir(&root).unwrap();
         std::os::unix::fs::symlink(&root, &link).unwrap();
-        let library = Library::open(link).unwrap();
+        let library = Library::open(&link).unwrap();
         let note = root.canonicalize().unwrap().join("note.md");
         fs::write(&note, "# note").unwrap();
 
@@ -237,7 +240,7 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join(".notras")).unwrap();
 
-        assert!(Library::open(directory.path().to_owned()).is_err());
+        assert!(Library::open(directory.path()).is_err());
         assert!(!outside.path().join("index.db").exists());
     }
 }
