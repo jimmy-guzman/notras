@@ -97,7 +97,9 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(Library::open(directory.path()).unwrap()),
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path()).unwrap(),
+                ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -112,7 +114,7 @@ mod tests {
         let (sender, changes) = mpsc::channel();
         let handle = app.handle().clone();
         let listener = app.listen("notes-changed", move |event| {
-            let available = handle.state::<AppState>().library.try_lock().is_ok();
+            let available = handle.state::<AppState>().library.try_read().is_some();
             sender
                 .send((
                     serde_json::from_str::<Value>(event.payload()).unwrap(),
@@ -202,7 +204,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(library),
+                library: crate::library::LibraryOwner::new(library),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -220,7 +222,7 @@ mod tests {
             sender
                 .send((
                     serde_json::from_str::<Value>(event.payload()).unwrap(),
-                    handle.state::<AppState>().library.try_lock().is_ok(),
+                    handle.state::<AppState>().library.try_read().is_some(),
                 ))
                 .unwrap();
         });
@@ -254,7 +256,9 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(Library::open(directory.path()).unwrap()),
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path()).unwrap(),
+                ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -305,7 +309,9 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(Library::open(directory.path()).unwrap()),
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path()).unwrap(),
+                ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -345,7 +351,7 @@ mod tests {
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
-                library: Mutex::new(Library::open(&initial).unwrap()),
+                library: crate::library::LibraryOwner::new(Library::open(&initial).unwrap()),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -393,6 +399,20 @@ mod tests {
         assert_eq!(notes.as_array().unwrap().len(), 1);
         assert_eq!(notes[0]["path"], "external.md");
         assert_eq!(notes[0]["title"], "watched");
+        let same_directory = std::path::Path::new(active.as_str().unwrap()).join(".");
+        invoke(&window, "set_notes_dir", json!({"path": same_directory})).unwrap();
+        assert!(changes.try_recv().is_err());
+        fs::write(
+            std::path::Path::new(active.as_str().unwrap()).join("after.md"),
+            "# still watched",
+        )
+        .unwrap();
+        assert_eq!(
+            changes
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap(),
+            json!({"paths": ["after.md"]})
+        );
         *app.state::<AppState>().watcher() = None;
     }
 
@@ -411,7 +431,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: Mutex::new(library),
+                library: crate::library::LibraryOwner::new(library),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),

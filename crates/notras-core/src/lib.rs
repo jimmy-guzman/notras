@@ -12,6 +12,7 @@ mod note_file;
 mod queries;
 mod relationships;
 mod relative_path;
+mod scan;
 
 use std::cell::Cell;
 use std::fs;
@@ -27,6 +28,7 @@ pub use queries::{
     SearchFilter,
 };
 pub use relationships::{Graph, Hub, HubPill, Mention, MentionLine, RingMember};
+pub use scan::Scan;
 
 /// A library directory and its disposable index, accessed under one host-owned lock.
 pub struct Library {
@@ -77,60 +79,78 @@ impl Library {
         Ok(())
     }
 
-    /// Reconcile host paths under the resolved `directory()`. `None` means no refresh; an empty list means
-    /// the index needs recovery and the host must refresh all indexed queries.
+    /// Reconcile host observations synchronously. Native hosts use the same scan
+    /// through `begin_observations` and `advance_scan` to interleave commands.
     pub fn reconcile_paths<'a>(
         &self,
         paths: impl IntoIterator<Item = &'a Path>,
     ) -> Option<Vec<String>> {
-        let mut changed: Vec<String> = Vec::new();
-        let mut full_scan = false;
-
-        for path in paths {
-            let Some(rel) = index::relative_path(&self.notes_dir, path) else {
-                continue;
-            };
-            if index::is_note_file(path) {
-                match index::index_file(&self.conn, &self.notes_dir, &rel) {
-                    Ok(true) => changed.push(rel),
-                    Ok(false) => {}
-                    Err(error) => {
-                        self.index_dirty.set(true);
-                        changed.push(rel.clone());
-                        log::error!("could not index {rel}: {error}");
-                    }
-                }
-            } else if path.is_dir() || !path.exists() {
-                // A directory changed (rename/move/delete) -- children events
-                // are not guaranteed, so reconcile everything. Attachments and
-                // other files that still exist cannot affect the index.
-                full_scan = true;
-            }
-        }
-
-        if full_scan {
-            match index::scan_all(&self.conn, &self.notes_dir) {
-                Ok(report) => {
-                    if !report.failures.is_empty() {
-                        self.index_dirty.set(true);
-                    }
-                    changed.extend(report.changed);
-                }
-                Err(error) => {
+        let scan = Scan::observed(
+            &self.notes_dir,
+            paths.into_iter().map(Path::to_owned).collect(),
+        );
+        match scan.run(&self.conn) {
+            Ok(report) => {
+                if !report.failures.is_empty() {
                     self.index_dirty.set(true);
-                    log::error!("could not rescan the notes dir: {error}");
+                }
+                let mut changed = report.changed;
+                changed.sort();
+                changed.dedup();
+                if self.index_dirty.get() {
+                    Some(Vec::new())
+                } else {
+                    (!changed.is_empty()).then_some(changed)
                 }
             }
+            Err(error) => {
+                self.index_dirty.set(true);
+                log::error!("could not reconcile observed paths: {error}");
+                Some(Vec::new())
+            }
         }
+    }
 
-        changed.sort();
-        changed.dedup();
+    /// Whether indexed reads require a successful forced scan.
+    pub fn index_needs_rebuild(&self) -> bool {
+        self.index_dirty.get()
+    }
 
-        let dirty = self.index_dirty.get();
-        if dirty {
-            changed.clear();
+    /// Begin a refresh without dropping usable rows. The host must defer indexed
+    /// reads until completion and serialize steps with other operations.
+    pub fn begin_scan(&self, force: bool) -> Scan {
+        self.index_dirty.set(false);
+        Scan::new(&self.notes_dir, force)
+    }
+
+    /// Begin a debounced observation batch, expanding folder changes to a full scan.
+    pub fn begin_observations(&self, paths: Vec<PathBuf>) -> Scan {
+        Scan::observed(&self.notes_dir, paths)
+    }
+
+    /// Process one traversal entry, note update or cleanup candidate. Returns
+    /// `true` when the host should consume the scan with `finish_scan`.
+    pub fn advance_scan(&self, scan: &mut Scan) -> Result<bool, CommandError> {
+        if scan.root != self.notes_dir {
+            return Err(std::io::Error::other("the selected library changed").into());
         }
-        (dirty || !changed.is_empty()).then_some(changed)
+        scan.step(&self.conn).map_err(|error| {
+            self.index_dirty.set(true);
+            error.into()
+        })
+    }
+
+    /// Finish a scan, preserving failures from mutations that ran between steps.
+    pub fn finish_scan(&self, scan: Scan) -> Result<Vec<String>, CommandError> {
+        let report = scan.finish();
+        if let Some(error) = report.failures.into_iter().next() {
+            self.index_dirty.set(true);
+            return Err(error.into());
+        }
+        if self.index_dirty.get() {
+            return Err(std::io::Error::other("the index is still incomplete").into());
+        }
+        Ok(report.changed)
     }
 
     /// Classify user-selected files as library notes or explicit external files.

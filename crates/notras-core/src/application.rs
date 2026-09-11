@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
 use serde::{Deserialize, Serialize};
@@ -25,14 +26,28 @@ pub enum ErrorKind {
 
 /// A command failure: the kind the caller branches on, and the message it shows.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Debug, Serialize, thiserror::Error)]
-#[error("{message}")]
+#[derive(Clone, Debug, Serialize)]
 pub struct CommandError {
     pub kind: ErrorKind,
     pub message: String,
     #[serde(skip)]
     #[cfg_attr(feature = "bindings", specta(skip))]
-    source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    source: Option<Arc<dyn std::error::Error + Send + Sync>>,
+}
+
+impl std::fmt::Display for CommandError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for CommandError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.source {
+            Some(source) => Some(source.as_ref()),
+            None => None,
+        }
+    }
 }
 
 impl CommandError {
@@ -44,7 +59,7 @@ impl CommandError {
         Self {
             kind: ErrorKind::Failed,
             message: message.into(),
-            source: Some(Box::new(source)),
+            source: Some(Arc::new(source)),
         }
     }
 }
@@ -79,7 +94,7 @@ impl From<io::Error> for CommandError {
                 ErrorKind::Failed
             },
             message: io_reason(&error),
-            source: Some(Box::new(error)),
+            source: Some(Arc::new(error)),
         }
     }
 }
@@ -794,11 +809,9 @@ impl Library {
     }
 
     pub fn reindex_all(&self) -> Result<Vec<String>, CommandError> {
-        self.index_dirty.set(true);
-        index::clear(&self.conn)?;
-        let changed = index::scan_complete(&self.conn, &self.notes_dir)?;
-        self.index_dirty.set(false);
-        Ok(changed)
+        let mut scan = self.begin_scan(true);
+        while !self.advance_scan(&mut scan)? {}
+        self.finish_scan(scan)
     }
 }
 

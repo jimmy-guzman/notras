@@ -52,7 +52,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
 - A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
 - Direct reads and indexing obtain content and timestamps from the same opened file. An atomic replacement during a read cannot mix two files; concurrent in-place writes are not isolated. An invalid or unavailable modification time reports a failure instead of indexing zero.
-- A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read attempts a complete rebuild and reports a failure if recovery is incomplete. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
+- A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read waits for a complete recovery scan and reports a failure if recovery is incomplete. Waiting readers share the scan; direct file reads and saves can run between its steps. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
 - A scan reports invalid file paths and continues indexing valid notes. Path-conversion failures defer stale-row deletion until a scan can convert all file paths. Indexed reads still reject an incomplete recovery.
 - Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
@@ -78,8 +78,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
 - The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
 - The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
-- Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" drops every row and rescans, which is what reaches notes nobody has edited.
-- An index a previous version built is dropped to rows on the first launch of a newer one and rebuilt by the startup scan, which the log records.
+- Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" refreshes every note, including unchanged files, while retaining indexed rows until each note is refreshed. Indexed reads wait until the scan completes while existing cached results stay visible. A partially indexed library cannot appear as empty, and a folder rescan cannot show both the old and new paths. File reads and saves can run between scan steps; one large file or an expensive query can still delay another operation.
+- An older index schema is recreated on the first launch of a newer one and rebuilt by the startup scan, which the log records.
 
 ## Tabs
 

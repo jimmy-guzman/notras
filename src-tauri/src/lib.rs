@@ -1,5 +1,6 @@
 mod bindings;
 mod clipboard;
+mod library;
 mod notes;
 mod state;
 mod watcher;
@@ -20,6 +21,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_store::StoreExt;
 
 use crate::bindings::NotesChanged;
+use crate::library::LibraryOwner;
 use crate::state::AppState;
 use notras_core::Library;
 use tauri_specta::Event;
@@ -181,7 +183,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     allow_assets(app.handle(), &notes_dir);
 
     app.manage(AppState {
-        library: Mutex::new(library),
+        library: LibraryOwner::new(library),
         watcher: Mutex::new(None),
         pending_open: Mutex::new(Vec::new()),
         quitting: AtomicBool::new(false),
@@ -191,15 +193,19 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let scan_app = app.handle().clone();
     std::thread::spawn(move || {
         let state = scan_app.state::<AppState>();
-        let library = state.library();
-        match library.scan() {
+        match state.library.scan() {
             Ok(changed) => {
-                drop(library);
-                if !changed.is_empty() {
-                    if let Err(error) = (NotesChanged { paths: changed }).emit(&scan_app) {
-                        log::error!("could not emit {}: {error}", "notes-changed");
+                state.library.publish(changed.generation, || {
+                    if !changed.paths.is_empty() {
+                        if let Err(error) = (NotesChanged {
+                            paths: changed.paths,
+                        })
+                        .emit(&scan_app)
+                        {
+                            log::error!("could not emit notes-changed: {error}");
+                        }
                     }
-                }
+                });
             }
             Err(error) => {
                 log::error!("startup scan failed: {error}");
@@ -208,7 +214,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let state = app.state::<AppState>();
-    *state.watcher() = match watcher::start(app.handle().clone(), notes_dir) {
+    *state.watcher() = match watcher::start(app.handle().clone(), notes_dir, 0) {
         Ok(watcher) => Some(watcher),
         Err(error) => {
             log::error!("could not watch the notes dir: {error}");

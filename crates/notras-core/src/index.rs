@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{fs, io};
 
 use rusqlite::{Connection, OptionalExtension};
@@ -124,10 +123,6 @@ pub fn is_note_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
-}
-
-fn is_hidden(component: &std::ffi::OsStr) -> bool {
-    component.to_str().is_some_and(|s| s.starts_with('.'))
 }
 
 /// Relative path (unix separators) for a note file inside the notes dir.
@@ -276,22 +271,6 @@ pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     )?;
     tx.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
     tx.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
-    tx.commit()
-}
-
-/// Empty the derived index so the next scan rebuilds every row.
-///
-/// `index_file` skips a file whose mtime matches its stored row, which makes a
-/// plain re-scan a no-op. Dropping the rows first is what lets a deliberate
-/// rebuild pick up a change in how a row is derived, such as `resolve_title`,
-/// on notes nobody has edited since.
-pub fn clear(conn: &Connection) -> rusqlite::Result<()> {
-    let tx = conn.unchecked_transaction()?;
-    tx.execute("DELETE FROM note", [])?;
-    tx.execute("DELETE FROM note_prose_fallback", [])?;
-    tx.execute("DELETE FROM note_tag", [])?;
-    tx.execute("DELETE FROM note_link", [])?;
-    tx.execute("DELETE FROM note_fts", [])?;
     tx.commit()
 }
 
@@ -457,50 +436,6 @@ fn index_note(
     Ok(true)
 }
 
-fn collect_note_files(
-    dir: &Path,
-    out: &mut Vec<PathBuf>,
-    unreadable: &mut Vec<(PathBuf, io::Error)>,
-) {
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(error) => {
-            log::warn!("could not list {}: {error}", dir.display());
-            unreadable.push((dir.to_path_buf(), error));
-            return;
-        }
-    };
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                log::warn!("could not list {}: {error}", dir.display());
-                unreadable.push((dir.to_path_buf(), error));
-                return;
-            }
-        };
-        let path = entry.path();
-        if path.file_name().is_some_and(is_hidden) {
-            continue;
-        }
-        // `file_type` does not follow symlinks, so a symlinked directory is
-        // neither recursed into nor mistaken for a note file.
-        let file_type = match entry.file_type() {
-            Ok(file_type) => file_type,
-            Err(error) => {
-                log::warn!("could not read {}: {error}", path.display());
-                unreadable.push((dir.to_path_buf(), error));
-                return;
-            }
-        };
-        if file_type.is_dir() {
-            collect_note_files(&path, out, unreadable);
-        } else if file_type.is_file() && is_note_file(&path) {
-            out.push(path);
-        }
-    }
-}
-
 /// Full scan: index every note file and drop rows for files that no longer
 /// exist. Cheap on re-runs thanks to the mtime skip in `index_file`.
 ///
@@ -521,74 +456,7 @@ pub fn scan_complete(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>,
 }
 
 pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, IndexError> {
-    let mut files = Vec::new();
-    let mut unreadable = Vec::new();
-    collect_note_files(notes_dir, &mut files, &mut unreadable);
-    let shadowed: Vec<String> = unreadable
-        .iter()
-        .filter_map(|(dir, _)| relative_path(notes_dir, dir))
-        .map(|rel| {
-            if rel.is_empty() {
-                rel
-            } else {
-                format!("{rel}/")
-            }
-        })
-        .collect();
-
-    let mut failures: Vec<_> = unreadable
-        .into_iter()
-        .map(|(_, error)| IndexError::Io(error))
-        .collect();
-    let mut paths_complete = true;
-    let mut seen = HashSet::with_capacity(files.len());
-    let mut changed = Vec::new();
-
-    for file in files {
-        let rel = match RelativePath::from_host(notes_dir, &file) {
-            Ok(relative) => relative.into_string(),
-            Err(error) => {
-                log::warn!("could not index {}: {error}", file.display());
-                paths_complete = false;
-                failures.push(IndexError::Io(error));
-                continue;
-            }
-        };
-        match index_file(conn, notes_dir, &rel) {
-            Ok(true) => changed.push(rel.clone()),
-            Ok(false) => {}
-            Err(IndexError::Io(error)) => {
-                log::warn!("could not read {rel}: {error}");
-                failures.push(IndexError::Io(error));
-            }
-            Err(error) => return Err(error),
-        }
-        seen.insert(rel);
-    }
-
-    // An unrepresentable file cannot be matched reliably to an indexed path.
-    if !paths_complete {
-        return Ok(ScanReport { changed, failures });
-    }
-
-    let stale = {
-        let mut stmt = conn.prepare("SELECT path FROM note")?;
-        let paths = stmt
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        paths
-            .into_iter()
-            .filter(|path| {
-                !seen.contains(path) && !shadowed.iter().any(|dir| path.starts_with(dir))
-            })
-            .collect::<Vec<_>>()
-    };
-    for path in stale {
-        remove(conn, &path)?;
-        changed.push(path);
-    }
-
-    Ok(ScanReport { changed, failures })
+    crate::Scan::new(notes_dir, false).run(conn)
 }
 
 #[cfg(test)]
@@ -748,11 +616,8 @@ mod tests {
         assert_eq!(hits.len(), 1);
     }
 
-    /// The mtime skip means a re-scan alone cannot pick up a change in how a
-    /// row is derived. `clear` is what makes `reindex_all` a real rebuild, so a
-    /// note nobody has edited still gets its title re-resolved.
     #[test]
-    fn should_refresh_an_untouched_note_after_clearing_the_index() {
+    fn should_refresh_an_untouched_note_during_a_forced_scan() {
         let dir_directory = tempfile::tempdir().unwrap();
         let dir = dir_directory.path().to_owned();
         fs::write(dir.join("agent-note.md"), "# from claude\n").unwrap();
@@ -771,8 +636,14 @@ mod tests {
             .unwrap();
         assert_eq!(stale, "agent-note");
 
-        clear(&conn).unwrap();
-        assert_eq!(scan_all(&conn, &dir).unwrap().changed.len(), 1);
+        assert_eq!(
+            crate::Scan::new(&dir, true)
+                .run(&conn)
+                .unwrap()
+                .changed
+                .len(),
+            1
+        );
         let fresh: String = conn
             .query_row("SELECT title FROM note", [], |row| row.get(0))
             .unwrap();

@@ -44,10 +44,12 @@ fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
     }
 }
 
-fn emit_changed<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) {
-    if let Err(error) = (NotesChanged { paths }).emit(app) {
-        log::error!("could not emit notes-changed: {error}");
-    }
+fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
+    app.state::<AppState>().library.publish(generation, || {
+        if let Err(error) = (NotesChanged { paths }).emit(app) {
+            log::error!("could not emit notes-changed: {error}");
+        }
+    });
 }
 
 #[tauri::command]
@@ -100,7 +102,7 @@ pub async fn find_mentions<R: Runtime>(
 ) -> Result<Vec<Mention>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.library();
+        let library = state.indexed_library()?;
         library.find_mentions(&path)
     })
     .await
@@ -114,7 +116,7 @@ pub async fn list_notes<R: Runtime>(
 ) -> Result<Vec<NoteMeta>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.library();
+        let library = state.indexed_library()?;
         library.list_notes(&filters)
     })
     .await
@@ -125,7 +127,7 @@ pub async fn list_notes<R: Runtime>(
 pub async fn list_tags<R: Runtime>(app: AppHandle<R>) -> Result<Vec<CountedTag>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.library();
+        let library = state.indexed_library()?;
         library.list_tags()
     })
     .await
@@ -139,7 +141,7 @@ pub async fn search_notes<R: Runtime>(
 ) -> Result<Vec<NoteMeta>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.library();
+        let library = state.indexed_library()?;
         library.search_notes(search)
     })
     .await
@@ -153,7 +155,7 @@ pub async fn read_graph<R: Runtime>(
 ) -> Result<GraphResult, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.library();
+        let library = state.indexed_library()?;
         library.read_graph(&target)
     })
     .await
@@ -167,12 +169,12 @@ pub async fn create_note<R: Runtime>(
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let result = {
+        let (generation, result) = {
             let library = state.library();
-            library.create_note(&options)?
+            (library.generation(), library.create_note(&options)?)
         };
         emit_warnings(&app, &result.warnings);
-        emit_changed(&app, vec![result.path.clone()]);
+        emit_changed(&app, generation, vec![result.path.clone()]);
         Ok(result)
     })
     .await
@@ -188,13 +190,17 @@ pub async fn save_note<R: Runtime>(
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let result = {
+        let (generation, result) = {
             let library = state.library();
-            library.save_note(&path, &content, name)?
+            (
+                library.generation(),
+                library.save_note(&path, &content, name)?,
+            )
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(
             &app,
+            generation,
             if path == result.path {
                 vec![path]
             } else {
@@ -215,13 +221,17 @@ pub async fn move_note<R: Runtime>(
 ) -> Result<PathMutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let result = {
+        let (generation, result) = {
             let library = state.library();
-            library.move_note(path.clone(), &folder)?
+            (
+                library.generation(),
+                library.move_note(path.clone(), &folder)?,
+            )
         };
         emit_warnings(&app, &result.warnings);
         emit_changed(
             &app,
+            generation,
             if path == result.path {
                 vec![path]
             } else {
@@ -241,12 +251,12 @@ pub async fn delete_note<R: Runtime>(
 ) -> Result<DeleteReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let result = {
+        let (generation, result) = {
             let library = state.library();
-            library.delete_note(path)?
+            (library.generation(), library.delete_note(path)?)
         };
         emit_warnings(&app, &result.warnings);
-        emit_changed(&app, vec![result.path.clone()]);
+        emit_changed(&app, generation, vec![result.path.clone()]);
         Ok(result)
     })
     .await
@@ -257,12 +267,9 @@ pub async fn delete_note<R: Runtime>(
 pub async fn reindex_all<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let result = {
-            let library = state.library();
-            library.reindex_all()?
-        };
-        emit_changed(&app, result.clone());
-        Ok(result)
+        let result = state.library.rebuild()?;
+        emit_changed(&app, result.generation, result.paths.clone());
+        Ok(result.paths)
     })
     .await
 }
@@ -312,13 +319,26 @@ pub async fn set_notes_dir<R: Runtime>(
         // Switches can run on different blocking workers. Keep their saved setting,
         // library swap and watcher replacement in the same order.
         let mut watcher = state.watcher();
-        let library = Library::open(Path::new(&path))?;
-        let notes_dir = library.directory().to_owned();
-        library.scan_complete()?;
-        // Started first: a folder the app cannot watch is refused whole.
-        let fresh = watcher::start(app.clone(), notes_dir.clone()).map_err(|error| {
-            CommandError::with_source(format!("could not watch the folder: {error}"), error)
-        })?;
+        let same_directory = match std::fs::canonicalize(&path) {
+            Ok(directory) => directory == state.library().directory(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        // Reopening the current database would create a second writer outside
+        // the coordinator while the original library can still save and scan.
+        let replacement = if same_directory {
+            None
+        } else {
+            let library = Library::open(Path::new(&path))?;
+            let notes_dir = library.directory().to_owned();
+            library.scan_complete()?;
+            let generation = state.library().generation() + 1;
+            let fresh =
+                watcher::start(app.clone(), notes_dir.clone(), generation).map_err(|error| {
+                    CommandError::with_source(format!("could not watch the folder: {error}"), error)
+                })?;
+            Some((library, notes_dir, fresh, generation))
+        };
 
         // Persisted before the swap: a folder the next launch cannot find again is
         // worse than one this launch never switched to.
@@ -330,19 +350,15 @@ pub async fn set_notes_dir<R: Runtime>(
             CommandError::with_source(format!("the setting could not be saved: {error}"), error)
         })?;
 
-        crate::allow_assets(&app, &notes_dir);
+        if let Some((library, notes_dir, fresh, generation)) = replacement {
+            crate::allow_assets(&app, &notes_dir);
+            state.library.replace_scanned(library);
 
-        {
-            let mut current = state.library();
-            *current = library;
+            // Dropping the old watcher may join a callback waiting for the library.
+            *watcher = Some(fresh);
+            drop(watcher);
+            emit_changed(&app, generation, vec![]);
         }
-
-        // Swap the watcher only after the library lock is released -- dropping the
-        // old debouncer joins its thread, which may be waiting on that lock.
-        *watcher = Some(fresh);
-        drop(watcher);
-
-        emit_changed(&app, vec![]);
         Ok(())
     })
     .await

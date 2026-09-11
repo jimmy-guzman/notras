@@ -1,12 +1,13 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, MutexGuard};
 
+use crate::library::{LibraryGuard, LibraryOwner};
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
-use notras_core::Library;
+use notras_core::CommandError;
 
 pub struct AppState {
-    pub library: Mutex<Library>,
+    pub library: LibraryOwner,
     /// Kept outside `library` so replacing the watcher never happens while the
     /// library lock is held (the watcher callback takes that lock).
     pub watcher: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
@@ -19,8 +20,12 @@ pub struct AppState {
 
 /// Access panics if a prior operation poisoned the requested state.
 impl AppState {
-    pub fn library(&self) -> MutexGuard<'_, Library> {
-        self.library.lock().expect("library state was poisoned")
+    pub fn library(&self) -> LibraryGuard<'_> {
+        self.library.read()
+    }
+
+    pub fn indexed_library(&self) -> Result<LibraryGuard<'_>, CommandError> {
+        self.library.read_index()
     }
 
     pub fn watcher(
@@ -39,13 +44,14 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use notras_core::Library;
     use std::panic::{catch_unwind, AssertUnwindSafe};
 
     #[test]
     fn should_refuse_library_access_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
-            library: Mutex::new(Library::open(directory.path()).unwrap()),
+            library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
             quitting: AtomicBool::new(false),
@@ -62,7 +68,7 @@ mod tests {
     fn should_refuse_watcher_access_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
-            library: Mutex::new(Library::open(directory.path()).unwrap()),
+            library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
             quitting: AtomicBool::new(false),
@@ -79,7 +85,7 @@ mod tests {
     fn should_refuse_pending_opens_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
-            library: Mutex::new(Library::open(directory.path()).unwrap()),
+            library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
             quitting: AtomicBool::new(false),
