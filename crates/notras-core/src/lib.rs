@@ -25,7 +25,7 @@ pub use application::{
 };
 pub use queries::{
     CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch, NoteSort, Picture,
-    SearchFilter,
+    ReadView, SearchFilter,
 };
 pub use relationships::{Graph, Hub, HubPill, Mention, MentionLine, RingMember};
 pub use scan::Scan;

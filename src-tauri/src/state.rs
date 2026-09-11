@@ -4,7 +4,6 @@ use std::sync::{Mutex, MutexGuard};
 use crate::library::{LibraryGuard, LibraryOwner};
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
-use notras_core::CommandError;
 
 pub struct AppState {
     pub library: LibraryOwner,
@@ -22,10 +21,6 @@ pub struct AppState {
 impl AppState {
     pub fn library(&self) -> LibraryGuard<'_> {
         self.library.read()
-    }
-
-    pub fn indexed_library(&self) -> Result<LibraryGuard<'_>, CommandError> {
-        self.library.read_index()
     }
 
     pub fn watcher(

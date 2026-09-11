@@ -53,7 +53,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -85,7 +85,8 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
            folder TEXT NOT NULL DEFAULT '',
            pinned INTEGER NOT NULL DEFAULT 0,
            created_at INTEGER NOT NULL,
-           updated_at INTEGER NOT NULL
+           updated_at INTEGER NOT NULL,
+           body_line_offset INTEGER NOT NULL DEFAULT 0
          );
          CREATE TABLE IF NOT EXISTS note_prose_fallback (
            path TEXT PRIMARY KEY
@@ -201,51 +202,38 @@ pub fn mention_candidates(
 
 /// Found on read rather than kept as rows: a row would depend on another
 /// note's title and go stale the moment that note was created or retitled,
-/// which the mtime skip never revisits. Reads candidate files under the same library operation as the index lookup.
+/// which the mtime skip never revisits. Candidate bodies come from the same index snapshot as their metadata.
 pub fn scan_mentions(
-    notes_dir: &Path,
+    conn: &Connection,
     candidates: Vec<String>,
     title: &str,
 ) -> Result<Vec<BareMention>, IndexError> {
-    scan_prose(notes_dir, candidates, title, false)
+    scan_prose(conn, candidates, title, false)
 }
 
 pub fn scan_prose(
-    notes_dir: &Path,
+    conn: &Connection,
     candidates: Vec<String>,
     title: &str,
     include_headings: bool,
 ) -> Result<Vec<BareMention>, IndexError> {
     let mut found = Vec::new();
-
+    let mut statement = conn.prepare(
+        "SELECT note_fts.content, note.body_line_offset FROM note
+         LEFT JOIN note_fts ON note_fts.rowid = note.id WHERE note.path = ?1",
+    )?;
     for candidate in candidates {
-        let candidate_path = RelativePath::parse(&candidate)?;
-        let Some(abs) = candidate_path.resolve_for_scan(notes_dir)? else {
+        let row = statement
+            .query_row([&candidate], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, usize>(1)?))
+            })
+            .optional()?;
+        let Some((body, body_line_offset)) = row else {
             continue;
         };
-        // The refusal `index_file` makes: a note swapped for a symlink since it
-        // was indexed reads nothing, and the watcher drops its row.
-        match fs::symlink_metadata(&abs) {
-            Ok(meta) if meta.is_file() => {}
-            Ok(_) => continue,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
-        }
-        let content = match OpenedNote::open(&abs).and_then(OpenedNote::read) {
-            Ok(content) => content,
-            // The index runs behind the folder, and the watcher drops the row.
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
-        };
-        let parsed = frontmatter::parse(&content);
-        let body_line_offset = content[..content.len() - parsed.body.len()]
-            .matches('\n')
-            .count();
-
-        let heading_names_note = !include_headings && leading_heading(parsed.body).is_some();
-
+        let heading_names_note = !include_headings && leading_heading(&body).is_some();
         found.extend(
-            bare_mentions(parsed.body, title, heading_names_note)
+            bare_mentions(&body, title, heading_names_note)
                 .into_iter()
                 .map(|(line, context)| BareMention {
                     context: context.to_string(),
@@ -254,7 +242,6 @@ pub fn scan_prose(
                 }),
         );
     }
-
     Ok(found)
 }
 
@@ -353,13 +340,14 @@ fn index_note(
     let tx = conn.unchecked_transaction()?;
 
     tx.execute(
-        "INSERT INTO note (path, title, folder, pinned, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO note (path, title, folder, pinned, created_at, updated_at, body_line_offset)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(path) DO UPDATE SET
            title = excluded.title,
            folder = excluded.folder,
            pinned = excluded.pinned,
-           updated_at = excluded.updated_at",
+           updated_at = excluded.updated_at,
+           body_line_offset = excluded.body_line_offset",
         rusqlite::params![
             rel_path,
             title,
@@ -367,6 +355,7 @@ fn index_note(
             parsed.frontmatter.pinned,
             created_at,
             updated_at,
+            body_line_offset,
         ],
     )?;
 
@@ -834,6 +823,34 @@ mod tests {
     }
 
     #[test]
+    fn should_rebuild_version_seven_with_original_prose_line_numbers() {
+        let directory = tempfile::tempdir().unwrap();
+        let content = "---\ntags: [work]\n---\n# Source\nAda wrote this.";
+        fs::write(directory.path().join("source.md"), content).unwrap();
+        {
+            let library = crate::Library::open(directory.path()).unwrap();
+            library.scan_complete().unwrap();
+            library
+                .conn
+                .execute_batch(
+                    "ALTER TABLE note DROP COLUMN body_line_offset; PRAGMA user_version = 7;",
+                )
+                .unwrap();
+        }
+
+        let library = crate::Library::open(directory.path()).unwrap();
+        library.scan_complete().unwrap();
+
+        let found = scan_prose(&library.conn, vec!["source.md".into()], "Ada", true).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].line, 5);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("source.md")).unwrap(),
+            content
+        );
+    }
+
+    #[test]
     fn should_rebuild_version_six_search_rows_from_unchanged_files() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
@@ -931,7 +948,12 @@ mod tests {
         scan_all(&conn, &dir).unwrap();
 
         let find = |path: &str, title: &str| {
-            scan_mentions(&dir, mention_candidates(&conn, path, title).unwrap(), title).unwrap()
+            scan_mentions(
+                &conn,
+                mention_candidates(&conn, path, title).unwrap(),
+                title,
+            )
+            .unwrap()
         };
 
         let rows = find("graph view.md", "graph view");
@@ -974,8 +996,6 @@ mod tests {
         );
     }
 
-    /// The state a swap leaves between the index vouching for a file and the
-    /// watcher noticing: the row still names it, and it is a symlink.
     #[test]
     #[cfg(unix)]
     fn should_skip_a_candidate_swapped_for_a_symlink() {
@@ -996,7 +1016,8 @@ mod tests {
 
         let candidates = mention_candidates(&conn, "graph view.md", "graph view").unwrap();
         assert_eq!(candidates, vec!["s.md".to_string()]);
-        assert!(scan_mentions(&dir, candidates, "graph view")
+        scan_all(&conn, &dir).unwrap();
+        assert!(scan_mentions(&conn, candidates, "graph view")
             .unwrap()
             .is_empty());
     }
@@ -1076,13 +1097,16 @@ mod tests {
         let dir_directory = tempfile::tempdir().unwrap();
         let dir = dir_directory.path().to_owned();
         fs::write(dir.join("a.md"), "---\ntitle: Ada Lovelace\n---\n# Ada Lovelace\n\nada lovelace wrote this.\n\n`Ada Lovelace` [Ada Lovelace](a.md) <span>Ada Lovelace</span>\n\nLovelaces and xAda Lovelace are different.\n\nA +++ phrase.\n").unwrap();
-        let mentions = scan_prose(&dir, vec!["a.md".into()], "Ada Lovelace", true).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &dir).unwrap();
+        let mentions = scan_prose(&conn, vec!["a.md".into()], "Ada Lovelace", true).unwrap();
         assert_eq!(
             mentions.iter().map(|row| row.line).collect::<Vec<_>>(),
             vec![4, 6]
         );
         assert_eq!(
-            scan_prose(&dir, vec!["a.md".into()], "+++", true)
+            scan_prose(&conn, vec!["a.md".into()], "+++", true)
                 .unwrap()
                 .len(),
             1
@@ -1132,7 +1156,7 @@ mod tests {
         scan_all(&conn, &dir).unwrap();
         let candidates = phrase_candidates(&conn, "Ada Lovelace").unwrap();
         assert_eq!(candidates, vec!["a.md", "b.md"]);
-        let found = scan_prose(&dir, candidates, "Ada Lovelace", true).unwrap();
+        let found = scan_prose(&conn, candidates, "Ada Lovelace", true).unwrap();
         assert_eq!(
             found
                 .iter()
@@ -1153,7 +1177,7 @@ mod tests {
         scan_all(&conn, &dir).unwrap();
         let candidates = phrase_candidates(&conn, "!!!").unwrap();
         assert_eq!(candidates, vec!["a.md", "b.md"]);
-        let found = scan_prose(&dir, candidates, "!!!", true).unwrap();
+        let found = scan_prose(&conn, candidates, "!!!", true).unwrap();
         assert_eq!(
             found
                 .iter()
@@ -1177,7 +1201,7 @@ mod tests {
 
         let candidates = mention_candidates(&conn, "ada.md", "Ada").unwrap();
         assert_eq!(candidates, ["fallback.md", "fts.md"]);
-        let found = scan_mentions(dir, candidates, "Ada").unwrap();
+        let found = scan_mentions(&conn, candidates, "Ada").unwrap();
         assert_eq!(
             found
                 .iter()
@@ -1198,7 +1222,7 @@ mod tests {
         ensure_schema(&conn).unwrap();
         scan_all(&conn, &dir).unwrap();
         let found =
-            scan_prose(&dir, phrase_candidates(&conn, "Ada").unwrap(), "Ada", true).unwrap();
+            scan_prose(&conn, phrase_candidates(&conn, "Ada").unwrap(), "Ada", true).unwrap();
         assert_eq!(
             found
                 .iter()
@@ -1218,7 +1242,7 @@ mod tests {
         ensure_schema(&conn).unwrap();
         scan_all(&conn, &dir).unwrap();
         let found = scan_prose(
-            &dir,
+            &conn,
             phrase_candidates(&conn, "foo Ა bar").unwrap(),
             "foo Ა bar",
             true,
@@ -1359,14 +1383,14 @@ mod tests {
         fs::write(outside.path().join("note.md"), "a phrase in prose").unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("folder")).unwrap();
 
-        assert!(scan_prose(
-            directory.path(),
-            vec!["folder/note.md".into()],
-            "phrase",
-            true
-        )
-        .unwrap()
-        .is_empty());
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, directory.path()).unwrap();
+        assert!(
+            scan_prose(&conn, vec!["folder/note.md".into()], "phrase", true)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

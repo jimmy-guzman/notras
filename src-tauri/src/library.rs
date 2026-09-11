@@ -3,12 +3,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock};
 
-use notras_core::{CommandError, Library, Scan};
+use notras_core::{CommandError, Library, ReadView, Scan};
 
 type Completion = Arc<OnceLock<Result<(), CommandError>>>;
 
 struct ActiveScan {
     completion: Completion,
+    view: Option<Arc<Mutex<ReadView>>>,
+    changed: Vec<String>,
 }
 
 struct OwnedLibrary {
@@ -120,17 +122,16 @@ impl LibraryOwner {
         })
     }
 
-    pub fn read_index(&self) -> Result<LibraryGuard<'_>, CommandError> {
+    fn read_index(&self) -> Result<(u64, Arc<Mutex<ReadView>>), CommandError> {
         loop {
             let mut state = self.foreground();
-            if state.initialized && !state.library.index_needs_rebuild() && state.active.is_none() {
-                return Ok(LibraryGuard {
-                    state,
-                    changed: &self.changed,
-                });
-            }
             let generation = state.generation;
             if let Some(scan) = &state.active {
+                if !state.library.index_needs_rebuild() {
+                    if let Some(view) = &scan.view {
+                        return Ok((generation, view.clone()));
+                    }
+                }
                 let completion = scan.completion.clone();
                 while generation == state.generation && completion.get().is_none() {
                     state = self
@@ -146,9 +147,26 @@ impl LibraryOwner {
                 }
                 continue;
             }
+            if state.initialized && !state.library.index_needs_rebuild() {
+                return Ok((generation, Arc::new(Mutex::new(state.library.read_view()?))));
+            }
             drop(state);
             self.run_scan(ScanKind::Recovery, Some(generation))?;
         }
+    }
+
+    /// Run an indexed query without the operation guard. Reject a result if its
+    /// library was replaced while the query was running.
+    pub fn query<T>(
+        &self,
+        operation: impl FnOnce(&ReadView) -> Result<T, CommandError>,
+    ) -> Result<T, CommandError> {
+        let (generation, view) = self.read_index()?;
+        let result = operation(&view.lock().expect("index reader was poisoned"));
+        if self.read().generation() != generation {
+            return Err(std::io::Error::other("the selected library changed").into());
+        }
+        result
     }
 
     fn run_scan(&self, kind: ScanKind, expected: Option<u64>) -> Result<ScanChanges, CommandError> {
@@ -179,6 +197,11 @@ impl LibraryOwner {
             });
         }
         let dirty = state.library.index_needs_rebuild();
+        let view = if state.initialized && !dirty {
+            Some(Arc::new(Mutex::new(state.library.read_view()?)))
+        } else {
+            None
+        };
         let scan = match kind {
             ScanKind::Observed(paths) if state.initialized => {
                 state.library.begin_observations(paths)
@@ -190,6 +213,8 @@ impl LibraryOwner {
         let completion = Arc::new(OnceLock::new());
         state.active = Some(ActiveScan {
             completion: completion.clone(),
+            view,
+            changed: Vec::new(),
         });
         drop(state);
         self.run_steps(generation, completion, scan)
@@ -219,10 +244,11 @@ impl LibraryOwner {
             completion
                 .set(result.as_ref().map(|_| ()).map_err(Clone::clone))
                 .expect("a scan completes once");
-            state.active = None;
+            let active = state.active.take().expect("a running scan has an owner");
             self.changed.notify_all();
             drop(state);
             return result.map(|mut paths| {
+                paths.extend(active.changed);
                 paths.sort();
                 paths.dedup();
                 ScanChanges { generation, paths }
@@ -244,6 +270,17 @@ impl LibraryOwner {
         paths: Vec<PathBuf>,
     ) -> Result<ScanChanges, CommandError> {
         self.run_scan(ScanKind::Observed(paths), Some(generation))
+    }
+
+    /// Repeat mutation invalidations at scan completion: a query responding to
+    /// the first event may still have read the version from before the scan.
+    pub fn record_changes(&self, generation: u64, paths: &[String]) {
+        let mut state = self.foreground();
+        if state.generation == generation {
+            if let Some(scan) = &mut state.active {
+                scan.changed.extend_from_slice(paths);
+            }
+        }
     }
 
     /// The caller has scanned the replacement completely and can persist its selection.
@@ -340,13 +377,102 @@ mod tests {
         owner.observe(0, vec![observed]).unwrap();
 
         let notes = owner
-            .read_index()
-            .unwrap()
-            .list_notes(&Default::default())
+            .query(|view| view.list_notes(&Default::default()))
             .unwrap();
         assert_eq!(notes.len(), 2);
         assert!(notes.iter().any(|note| note.path == "observed.md"));
         assert!(notes.iter().any(|note| note.path == "untouched.md"));
+    }
+
+    #[test]
+    fn should_repeat_a_save_invalidation_when_the_scan_finishes() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Before").unwrap();
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
+        owner.scan().unwrap();
+        let completion = Arc::new(OnceLock::new());
+        let scan = {
+            let mut state = owner.foreground();
+            state.active = Some(ActiveScan {
+                completion: completion.clone(),
+                view: Some(Arc::new(Mutex::new(state.library.read_view().unwrap()))),
+                changed: Vec::new(),
+            });
+            state.library.begin_scan(false)
+        };
+        owner.read().save_note("note.md", "# After", None).unwrap();
+        owner.record_changes(0, &["note.md".into()]);
+        assert_eq!(
+            owner
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()[0]
+                .title,
+            "Before"
+        );
+
+        let changes = owner.run_steps(0, completion, scan).unwrap();
+
+        assert_eq!(changes.paths, ["note.md"]);
+        assert_eq!(
+            owner
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()[0]
+                .title,
+            "After"
+        );
+    }
+
+    #[test]
+    fn should_allow_a_save_while_a_query_retains_its_read_view() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Before").unwrap();
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
+        owner.scan().unwrap();
+
+        let notes = owner
+            .query(|view| {
+                assert!(owner.try_read().is_some(), "query held the operation guard");
+                owner.read().save_note("note.md", "# After", None)?;
+                assert_eq!(owner.read().read_note("note.md".into())?.content, "# After");
+                view.list_notes(&Default::default())
+            })
+            .unwrap();
+
+        assert_eq!(notes[0].title, "Before");
+        assert_eq!(
+            owner
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()[0]
+                .title,
+            "After"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_query_result_after_its_library_is_replaced() {
+        let old = tempfile::tempdir().unwrap();
+        fs::write(old.path().join("old.md"), "# Old").unwrap();
+        let owner = LibraryOwner::new(Library::open(old.path()).unwrap());
+        owner.scan().unwrap();
+        let fresh = tempfile::tempdir().unwrap();
+        fs::write(fresh.path().join("new.md"), "# New").unwrap();
+        let replacement = Library::open(fresh.path()).unwrap();
+        replacement.scan_complete().unwrap();
+
+        let result = owner.query(|view| {
+            assert!(owner.try_read().is_some());
+            owner.replace_scanned(replacement);
+            view.list_notes(&Default::default())
+        });
+
+        assert_eq!(result.unwrap_err().message, "the selected library changed");
+        assert_eq!(
+            owner
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()[0]
+                .path,
+            "new.md"
+        );
     }
 
     #[test]
@@ -355,16 +481,17 @@ mod tests {
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
         fs::write(directory.path().join("broken.md"), [0xff]).unwrap();
         let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
-        assert!(owner.read_index().is_err());
+        assert!(owner.query(|view| view.list_tags()).is_err());
         owner.read().save_note("note.md", "# After", None).unwrap();
         assert_eq!(
             owner.read().read_note("note.md".into()).unwrap().content,
             "# After"
         );
-        assert!(owner.read_index().is_err());
+        assert!(owner.query(|view| view.list_tags()).is_err());
         fs::write(directory.path().join("broken.md"), "# Repaired").unwrap();
-        let library = owner.read_index().unwrap();
-        let notes = library.list_notes(&Default::default()).unwrap();
+        let notes = owner
+            .query(|view| view.list_notes(&Default::default()))
+            .unwrap();
         assert_eq!(notes.len(), 2);
         assert!(notes.iter().any(|note| note.title == "After"));
         assert!(notes.iter().any(|note| note.title == "Repaired"));
@@ -380,6 +507,8 @@ mod tests {
             let mut state = owner.foreground();
             state.active = Some(ActiveScan {
                 completion: completion.clone(),
+                view: None,
+                changed: Vec::new(),
             });
             state.library.begin_scan(false)
         };
@@ -400,9 +529,7 @@ mod tests {
             .paths
             .is_empty());
         let notes = owner
-            .read_index()
-            .unwrap()
-            .list_notes(&Default::default())
+            .query(|view| view.list_notes(&Default::default()))
             .unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].path, "new.md");
@@ -410,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn should_wait_for_complete_paths_during_a_folder_rescan() {
+    fn should_keep_complete_paths_visible_during_a_folder_rescan() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join("before")).unwrap();
         fs::write(directory.path().join("before/note.md"), "# Note").unwrap();
@@ -426,6 +553,8 @@ mod tests {
             let mut state = owner.foreground();
             state.active = Some(ActiveScan {
                 completion: completion.clone(),
+                view: Some(Arc::new(Mutex::new(state.library.read_view().unwrap()))),
+                changed: Vec::new(),
             });
             state
                 .library
@@ -437,26 +566,16 @@ mod tests {
                 assert!(!library.advance_scan(&mut scan).unwrap());
             }
         }
-        let (send, receive) = std::sync::mpsc::channel();
-        let reader = owner.clone();
-        let query = thread::spawn(move || {
-            send.send(
-                reader
-                    .read_index()
-                    .unwrap()
-                    .list_notes(&Default::default())
-                    .unwrap(),
-            )
+        let previous = owner
+            .query(|view| view.list_notes(&Default::default()))
             .unwrap();
-        });
-        assert!(
-            receive.recv_timeout(Duration::from_millis(50)).is_err(),
-            "an indexed read exposed the folder rename before cleanup finished"
-        );
+        assert_eq!(previous.len(), 1);
+        assert_eq!(previous[0].path, "before/note.md");
         owner.run_steps(0, completion, scan).unwrap();
-        let notes = receive.recv_timeout(Duration::from_secs(5)).unwrap();
+        let notes = owner
+            .query(|view| view.list_notes(&Default::default()))
+            .unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].path, "after/note.md");
-        query.join().unwrap();
     }
 }

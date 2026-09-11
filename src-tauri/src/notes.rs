@@ -45,6 +45,9 @@ fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
 }
 
 fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
+    app.state::<AppState>()
+        .library
+        .record_changes(generation, &paths);
     app.state::<AppState>().library.publish(generation, || {
         if let Err(error) = (NotesChanged { paths }).emit(app) {
             log::error!("could not emit notes-changed: {error}");
@@ -102,8 +105,7 @@ pub async fn find_mentions<R: Runtime>(
 ) -> Result<Vec<Mention>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.indexed_library()?;
-        library.find_mentions(&path)
+        state.library.query(|view| view.find_mentions(&path))
     })
     .await
 }
@@ -116,8 +118,7 @@ pub async fn list_notes<R: Runtime>(
 ) -> Result<Vec<NoteMeta>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.indexed_library()?;
-        library.list_notes(&filters)
+        state.library.query(|view| view.list_notes(&filters))
     })
     .await
 }
@@ -127,8 +128,7 @@ pub async fn list_notes<R: Runtime>(
 pub async fn list_tags<R: Runtime>(app: AppHandle<R>) -> Result<Vec<CountedTag>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.indexed_library()?;
-        library.list_tags()
+        state.library.query(|view| view.list_tags())
     })
     .await
 }
@@ -141,8 +141,7 @@ pub async fn search_notes<R: Runtime>(
 ) -> Result<Vec<NoteMeta>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.indexed_library()?;
-        library.search_notes(search)
+        state.library.query(|view| view.search_notes(search))
     })
     .await
 }
@@ -155,8 +154,7 @@ pub async fn read_graph<R: Runtime>(
 ) -> Result<GraphResult, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let library = state.indexed_library()?;
-        library.read_graph(&target)
+        state.library.query(|view| view.read_graph(&target))
     })
     .await
 }

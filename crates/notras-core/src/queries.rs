@@ -2,13 +2,73 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use regex::Regex;
-use rusqlite::{named_params, Connection};
+use rusqlite::{named_params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 
 use crate::application::CommandError;
 use crate::relationships::{self, Graph, Hub, HubPill, Mention, NoteLink, RingMember};
 use crate::Library;
 use crate::{frontmatter, index};
+
+/// A read-only transaction containing one complete indexed library version.
+/// Its connection is independent of the writer and is released when dropped.
+pub struct ReadView {
+    conn: Connection,
+}
+
+impl Library {
+    /// Capture the current healthy index. The host must prevent a scan step or
+    /// mutation until this method returns, and must not expose partial scans.
+    pub fn read_view(&self) -> Result<ReadView, CommandError> {
+        if self.index_needs_rebuild() {
+            return Err(std::io::Error::other("the index is still incomplete").into());
+        }
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            crate::relative_path::reject_symlink(
+                &self.notes_dir.join(format!(".notras/index.db{suffix}")),
+            )?;
+        }
+        crate::relative_path::reject_symlink(&self.notes_dir.join(".notras"))?;
+        let conn = Connection::open_with_flags(
+            self.notes_dir.join(".notras/index.db"),
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        conn.execute_batch("BEGIN DEFERRED")?;
+        // BEGIN alone does not establish a WAL snapshot; the first read does.
+        conn.query_row("SELECT count(*) FROM sqlite_schema", [], |row| {
+            row.get::<_, i64>(0)
+        })?;
+        Ok(ReadView { conn })
+    }
+
+    pub fn list_notes(&self, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
+        self.ensure_index()?;
+        self.read_view()?.list_notes(filters)
+    }
+
+    pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
+        self.ensure_index()?;
+        self.read_view()?.list_tags()
+    }
+
+    pub fn find_mentions(&self, path: &str) -> Result<Vec<Mention>, CommandError> {
+        self.ensure_index()?;
+        self.read_view()?.find_mentions(path)
+    }
+
+    pub fn read_graph(&self, target: &GraphTarget) -> Result<GraphResult, CommandError> {
+        self.ensure_index()?;
+        self.read_view()?.read_graph(target)
+    }
+
+    pub fn search_notes(&self, search: NoteSearch) -> Result<Vec<NoteMeta>, CommandError> {
+        if search.incomplete {
+            return Ok(Vec::new());
+        }
+        self.ensure_index()?;
+        self.read_view()?.search_notes(search)
+    }
+}
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -208,19 +268,15 @@ fn select_links(conn: &Connection, destinations: bool) -> Result<Vec<NoteLink>, 
 }
 
 fn bare_mentions(
-    core: &Library,
+    core: &ReadView,
     target: &NoteMeta,
 ) -> Result<Vec<index::BareMention>, CommandError> {
     let candidates = index::mention_candidates(&core.conn, &target.path, &target.title)?;
-    Ok(index::scan_mentions(
-        &core.notes_dir,
-        candidates,
-        &target.title,
-    )?)
+    Ok(index::scan_mentions(&core.conn, candidates, &target.title)?)
 }
 
 fn filter_matches(
-    core: &Library,
+    core: &ReadView,
     filter: &SearchFilter,
     notes: &[NoteMeta],
     links: &[NoteLink],
@@ -242,7 +298,7 @@ fn filter_matches(
             .collect()),
         SearchFilter::Mention(value) => {
             let candidates = index::phrase_candidates(&core.conn, value)?;
-            Ok(index::scan_prose(&core.notes_dir, candidates, value, true)?
+            Ok(index::scan_prose(&core.conn, candidates, value, true)?
                 .into_iter()
                 .map(|row| (row.path, Some(row.context)))
                 .collect())
@@ -295,14 +351,12 @@ fn filter_matches(
     }
 }
 
-impl Library {
+impl ReadView {
     pub fn list_notes(&self, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
-        self.ensure_index()?;
         select_notes(&self.conn, filters, &[])
     }
 
     pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
-        self.ensure_index()?;
         let mut statement = self
             .conn
             .prepare("SELECT count(*), tag FROM note_tag GROUP BY tag ORDER BY tag")?;
@@ -316,7 +370,6 @@ impl Library {
     }
 
     pub fn find_mentions(&self, path: &str) -> Result<Vec<Mention>, CommandError> {
-        self.ensure_index()?;
         let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
         let Some(target) = notes.iter().find(|note| note.path == path) else {
             return Ok(Vec::new());
@@ -327,7 +380,6 @@ impl Library {
     }
 
     pub fn read_graph(&self, target: &GraphTarget) -> Result<GraphResult, CommandError> {
-        self.ensure_index()?;
         let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
         match target {
             GraphTarget::Hub { hub } => Ok(GraphResult {
@@ -364,7 +416,6 @@ impl Library {
         if search.incomplete {
             return Ok(Vec::new());
         }
-        self.ensure_index()?;
         let filters = NoteFilters {
             query: Some(search.query),
             limit: Some(30),
@@ -422,6 +473,61 @@ mod tests {
                 (updated_at, path),
             )
             .unwrap();
+    }
+
+    #[test]
+    fn should_keep_metadata_links_and_prose_in_one_read_view() {
+        let (_directory, core) = library();
+        save(&core, "ada.md", "# Ada", 1);
+        save(&core, "grace.md", "# Grace", 2);
+        save(
+            &core,
+            "source.md",
+            "---\ntags: [old]\n---\n# Source\n[[Ada]]\nAda wrote this.",
+            3,
+        );
+        let view = core.read_view().unwrap();
+
+        core.save_note("source.md", "# Changed\n[[Grace]]\nGrace wrote this.", None)
+            .unwrap();
+
+        assert!(view.conn.execute("DELETE FROM note", []).is_err());
+        let mentions = view.find_mentions("ada.md").unwrap();
+        assert_eq!(mentions.len(), 1);
+        assert_eq!(mentions[0].note.title, "Source");
+        assert_eq!(mentions[0].note.tags, ["old"]);
+        assert_eq!(
+            mentions[0]
+                .lines
+                .iter()
+                .map(|line| line.line)
+                .collect::<Vec<_>>(),
+            [5, 6]
+        );
+        assert_eq!(view.list_tags().unwrap()[0].tag, "old");
+        assert!(core.find_mentions("ada.md").unwrap().is_empty());
+        assert_eq!(
+            core.find_mentions("grace.md").unwrap()[0].note.title,
+            "Changed"
+        );
+        assert!(core.list_tags().unwrap().is_empty());
+    }
+
+    #[test]
+    fn should_keep_saved_prose_until_external_changes_are_indexed() {
+        let (directory, core) = library();
+        save(&core, "ada.md", "# Ada", 1);
+        save(&core, "source.md", "# Source\nAda wrote this.", 2);
+
+        fs::write(
+            directory.path().join("source.md"),
+            "# Source\nSomething else.",
+        )
+        .unwrap();
+
+        assert_eq!(core.find_mentions("ada.md").unwrap().len(), 1);
+        core.reindex_all().unwrap();
+        assert!(core.find_mentions("ada.md").unwrap().is_empty());
     }
 
     #[test]
@@ -873,7 +979,12 @@ mod tests {
         let (_directory, core) = library();
         save(&core, "atlas.md", "# Atlas\n[[Source]]", 1);
         save(&core, "source.md", "# Source\nAtlas", 2);
-        fs::write(core.notes_dir.join("source.md"), [0xff]).unwrap();
+        core.conn
+            .execute(
+                "UPDATE note SET body_line_offset = -1 WHERE path = 'source.md'",
+                [],
+            )
+            .unwrap();
         assert!(core.find_mentions("atlas.md").is_err());
         assert!(core
             .search_notes(NoteSearch {
@@ -931,7 +1042,7 @@ mod tests {
                     .into_iter()
                     .collect();
                 assert_eq!(
-                    filter_matches(&core, &filter, &notes, &links).unwrap(),
+                    filter_matches(&core.read_view().unwrap(), &filter, &notes, &links).unwrap(),
                     expected,
                     "{case}"
                 );
