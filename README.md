@@ -195,6 +195,8 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 
 Both crates inherit checks requiring explicit unsafe operations, safety comments on unsafe blocks, and reasons for lint allowances. CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes both workspace crates and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
 
+On Windows MSVC, `src-tauri/build.rs` embeds `windows_manifest.xml` through the linker for both the application and shell test executables. It declares the Common Controls v6 dependency required by Tauri. Without that manifest, Windows can reject the test executable with `STATUS_ENTRYPOINT_NOT_FOUND` before any tests run.
+
 Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
 
 Mutation tests cover native file and index outcomes, shared normalization fixtures, and session persistence with delayed writes and path changes. A file that committed remains saved when indexing fails. The main window reports the warning, and the next index read attempts recovery.
