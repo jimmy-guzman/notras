@@ -54,7 +54,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -65,10 +65,23 @@ const SCHEMA_VERSION: i64 = 6;
 /// native queries resolve it on read, so a note created or retitled later is
 /// found by links written before it existed.
 pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
-    conn.execute_batch(
-        "PRAGMA journal_mode = WAL;
-         CREATE TABLE IF NOT EXISTS note (
-           path TEXT PRIMARY KEY,
+    conn.execute_batch("PRAGMA journal_mode = WAL;")?;
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let tx = conn.unchecked_transaction()?;
+    if version < SCHEMA_VERSION {
+        log::info!("index schema {version} is behind {SCHEMA_VERSION}, rebuilding for the rescan");
+        tx.execute_batch(
+            "DROP TABLE IF EXISTS note_fts;
+             DROP TABLE IF EXISTS note_link;
+             DROP TABLE IF EXISTS note_tag;
+             DROP TABLE IF EXISTS note_prose_fallback;
+             DROP TABLE IF EXISTS note;",
+        )?;
+    }
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS note (
+           id INTEGER PRIMARY KEY,
+           path TEXT NOT NULL UNIQUE,
            title TEXT NOT NULL,
            folder TEXT NOT NULL DEFAULT '',
            pinned INTEGER NOT NULL DEFAULT 0,
@@ -101,16 +114,10 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
          );",
     )?;
 
-    let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version < SCHEMA_VERSION {
-        log::info!(
-            "index schema {version} is behind {SCHEMA_VERSION}, dropping rows for the rescan"
-        );
-        clear(conn)?;
-        conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
-
-    Ok(())
+    tx.commit()
 }
 
 pub fn is_note_file(path: &Path) -> bool {
@@ -258,6 +265,10 @@ pub fn scan_prose(
 
 pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "DELETE FROM note_fts WHERE rowid = (SELECT id FROM note WHERE path = ?1)",
+        [rel_path],
+    )?;
     tx.execute("DELETE FROM note WHERE path = ?1", [rel_path])?;
     tx.execute(
         "DELETE FROM note_prose_fallback WHERE path = ?1",
@@ -265,7 +276,6 @@ pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     )?;
     tx.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
     tx.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
-    tx.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
     tx.commit()
 }
 
@@ -360,7 +370,7 @@ fn index_note(
     let created_at = timestamp_millis(meta.created()).unwrap_or(updated_at);
     let title = resolve_title(&parsed, rel_path);
 
-    // One note, one transaction: the three tables must never drift apart.
+    // Metadata and search entries must describe the same saved document.
     let tx = conn.unchecked_transaction()?;
 
     tx.execute(
@@ -432,9 +442,13 @@ fn index_note(
         )?;
     }
 
-    tx.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
     tx.execute(
-        "INSERT INTO note_fts (path, title, content) VALUES (?1, ?2, ?3)",
+        "DELETE FROM note_fts WHERE rowid = (SELECT id FROM note WHERE path = ?1)",
+        [rel_path],
+    )?;
+    tx.execute(
+        "INSERT INTO note_fts (rowid, path, title, content)
+         SELECT id, path, ?2, ?3 FROM note WHERE path = ?1",
         rusqlite::params![rel_path, title, parsed.body],
     )?;
 
@@ -945,6 +959,64 @@ mod tests {
         assert_eq!(
             select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
             vec![vec![json!("b")]]
+        );
+    }
+
+    #[test]
+    fn should_rebuild_version_six_search_rows_from_unchanged_files() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".notras")).unwrap();
+        let content = "---\ntags: [z, a]\n---\n# Current\nfresh [[Other]]";
+        fs::write(directory.path().join("note.md"), content).unwrap();
+        let modified = timestamp_millis(
+            fs::metadata(directory.path().join("note.md"))
+                .unwrap()
+                .modified(),
+        )
+        .unwrap();
+        let conn = Connection::open(directory.path().join(".notras/index.db")).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE note (path TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content, tokenize='unicode61');
+             INSERT INTO note_fts (rowid, path, title, content) VALUES (99, 'note.md', 'Old', 'stale');
+             PRAGMA user_version = 6;"
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO note VALUES ('note.md', 'Old', '', 0, 0, ?1)",
+            [modified],
+        )
+        .unwrap();
+        drop(conn);
+
+        let core = crate::Library::open(directory.path()).unwrap();
+        assert_eq!(core.scan().unwrap(), ["note.md"]);
+        let notes = core
+            .list_notes(&crate::NoteFilters {
+                query: Some("fresh".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].title, "Current");
+        assert_eq!(notes[0].tags, ["z", "a"]);
+        assert_eq!(
+            notes[0].snippet.as_deref(),
+            Some("# Current\n[[hl]]fresh[[/hl]] [[Other]]")
+        );
+        assert!(core
+            .list_notes(&crate::NoteFilters {
+                query: Some("stale".into()),
+                ..Default::default()
+            })
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            select(&core.conn, "SELECT target FROM note_link", &[]).unwrap(),
+            vec![vec![json!("Other")]]
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            content
         );
     }
 

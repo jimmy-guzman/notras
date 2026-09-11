@@ -114,39 +114,80 @@ fn fts_match(query: &str) -> Option<String> {
     (!terms.is_empty()).then(|| terms.join(" AND "))
 }
 
-fn select_notes(conn: &Connection, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
+fn select_notes(
+    conn: &Connection,
+    filters: &NoteFilters,
+    matches: &[HashMap<String, Option<String>>],
+) -> Result<Vec<NoteMeta>, CommandError> {
     let matched = filters.query.as_deref().and_then(fts_match);
+    let (source, condition) = if matched.is_some() {
+        (
+            "note JOIN note_fts ON note_fts.rowid = note.id",
+            "note_fts MATCH :query",
+        )
+    } else {
+        ("note", ":query IS NULL")
+    };
     let order = if matched.is_some() {
-        "note.pinned DESC, (SELECT bm25(note_fts) FROM note_fts WHERE note_fts.path = note.path AND note_fts MATCH :query), note.updated_at DESC, note.path"
+        "note.pinned DESC, bm25(note_fts), note.updated_at DESC, note.path"
     } else if filters.sort.is_some() {
         "note.updated_at DESC"
     } else {
         "note.pinned DESC, note.updated_at DESC"
     };
     let sql = format!(
-        "SELECT note.created_at, note.folder, note.path, note.pinned,
-          CASE WHEN :query IS NULL THEN NULL ELSE
-            (SELECT snippet(note_fts, 2, '[[hl]]', '[[/hl]]', '...', 24)
-             FROM note_fts WHERE note_fts.path = note.path AND note_fts MATCH :query) END,
-          note.title, note.updated_at
-         FROM note WHERE (:folder IS NULL OR note.folder = :folder)
+        "SELECT note.id, note.path FROM {source}
+         WHERE (:folder IS NULL OR note.folder = :folder)
          AND (:pinned = 0 OR note.pinned = 1)
          AND (:tag IS NULL OR note.path IN (SELECT path FROM note_tag WHERE tag = :tag))
-         AND (:query IS NULL OR note.path IN (SELECT path FROM note_fts WHERE note_fts MATCH :query))
+         AND {condition}
          ORDER BY {order} LIMIT :limit"
     );
     let mut statement = conn.prepare(&sql)?;
+    let mut metadata = conn.prepare(
+        "SELECT created_at, folder, path, pinned, title, updated_at FROM note WHERE id = ?1",
+    )?;
     let mut tags = conn.prepare("SELECT tag FROM note_tag WHERE path = ?1 ORDER BY rowid")?;
+    let mut snippet = conn.prepare(
+        "SELECT snippet(note_fts, 2, '[[hl]]', '[[/hl]]', '...', 24)
+         FROM note_fts WHERE note_fts MATCH ?1 AND rowid = ?2",
+    )?;
     let rows = statement.query_map(named_params! {
         ":query": matched, ":folder": filters.folder, ":pinned": filters.pinned_only.unwrap_or(false),
-        ":tag": filters.tag, ":limit": filters.limit.map(i64::from).unwrap_or(-1),
-    }, |row| {
-        let path: String = row.get(2)?;
-        let note_tags = tags.query_map([&path], |row| row.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
-        Ok(NoteMeta { created_at: row.get(0)?, folder: row.get(1)?, path, pinned: row.get(3)?, snippet: row.get(4)?,
-            tags: note_tags, title: row.get(5)?, updated_at: row.get(6)? })
-    })?;
-    Ok(rows.collect::<rusqlite::Result<_>>()?)
+        ":tag": filters.tag,
+        ":limit": if matches.is_empty() { filters.limit.map(i64::from).unwrap_or(-1) } else { -1 },
+    }, |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+    rows.filter(|row| match row {
+        Ok((_, path)) => matches.iter().all(|found| found.contains_key(path)),
+        Err(_) => true,
+    })
+    .take(filters.limit.map_or(usize::MAX, |limit| limit as usize))
+    .map(|row| {
+        let (id, path) = row?;
+        let context = match &matched {
+            Some(query) => snippet.query_row((query, id), |row| row.get(0))?,
+            None => matches
+                .iter()
+                .find_map(|found| found.get(&path).cloned().flatten()),
+        };
+        let note_tags = tags
+            .query_map([&path], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        metadata.query_row([id], |row| {
+            Ok(NoteMeta {
+                created_at: row.get(0)?,
+                folder: row.get(1)?,
+                path: row.get(2)?,
+                pinned: row.get(3)?,
+                snippet: context,
+                tags: note_tags,
+                title: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })
+    })
+    .collect::<rusqlite::Result<_>>()
+    .map_err(CommandError::from)
 }
 
 fn select_links(conn: &Connection, destinations: bool) -> Result<Vec<NoteLink>, CommandError> {
@@ -257,7 +298,7 @@ fn filter_matches(
 impl Library {
     pub fn list_notes(&self, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
         self.ensure_index()?;
-        select_notes(&self.conn, filters)
+        select_notes(&self.conn, filters, &[])
     }
 
     pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
@@ -276,7 +317,7 @@ impl Library {
 
     pub fn find_mentions(&self, path: &str) -> Result<Vec<Mention>, CommandError> {
         self.ensure_index()?;
-        let notes = select_notes(&self.conn, &NoteFilters::default())?;
+        let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
         let Some(target) = notes.iter().find(|note| note.path == path) else {
             return Ok(Vec::new());
         };
@@ -287,7 +328,7 @@ impl Library {
 
     pub fn read_graph(&self, target: &GraphTarget) -> Result<GraphResult, CommandError> {
         self.ensure_index()?;
-        let notes = select_notes(&self.conn, &NoteFilters::default())?;
+        let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
         match target {
             GraphTarget::Hub { hub } => Ok(GraphResult {
                 picture: Some(Picture::Hub {
@@ -324,17 +365,15 @@ impl Library {
             return Ok(Vec::new());
         }
         self.ensure_index()?;
-        let candidates = select_notes(
-            &self.conn,
-            &NoteFilters {
-                query: Some(search.query),
-                ..Default::default()
-            },
-        )?;
+        let filters = NoteFilters {
+            query: Some(search.query),
+            limit: Some(30),
+            ..Default::default()
+        };
         if search.filters.is_empty() {
-            return Ok(candidates.into_iter().take(30).collect());
+            return select_notes(&self.conn, &filters, &[]);
         }
-        let notes = select_notes(&self.conn, &NoteFilters::default())?;
+        let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
         let links = if search.filters.iter().any(|filter| {
             matches!(
                 filter,
@@ -350,19 +389,7 @@ impl Library {
             .iter()
             .map(|filter| filter_matches(self, filter, &notes, &links))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(candidates
-            .into_iter()
-            .filter(|note| matches.iter().all(|found| found.contains_key(&note.path)))
-            .take(30)
-            .map(|mut note| {
-                if note.snippet.is_none() {
-                    note.snippet = matches
-                        .iter()
-                        .find_map(|found| found.get(&note.path).cloned().flatten());
-                }
-                note
-            })
-            .collect())
+        select_notes(&self.conn, &filters, &matches)
     }
 }
 
@@ -404,7 +431,7 @@ mod tests {
         for i in 0..1000 {
             core.conn
                 .execute(
-                    "INSERT INTO note VALUES (?1, ?2, '', 0, 0, ?3)",
+                    "INSERT INTO note (path, title, folder, pinned, created_at, updated_at) VALUES (?1, ?2, '', 0, 0, ?3)",
                     (format!("note-{i}.md"), format!("Note {i}"), i),
                 )
                 .unwrap();
@@ -553,6 +580,99 @@ mod tests {
             })
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn should_fill_the_cap_when_higher_ranked_notes_fail_each_filter() {
+        let (_directory, core) = library();
+        let destinations = (0..40)
+            .map(|i| format!("[note](work/{i}.md)"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        save(&core, "source.md", &format!("# Source\n{destinations}"), 0);
+        save(&core, "target.md", "# Atlas", 0);
+        for i in 0..80 {
+            if i < 40 {
+                save(&core, &format!("work/{i}.md"), "---\ntags: [z, review]\n---\n# Note\nneedle Atlas [site](https://example.test)", i);
+            } else {
+                save(&core, &format!("other/{i}.md"), "# Note\nneedle", i);
+            }
+        }
+        for filter in [
+            SearchFilter::Folder("work".into()),
+            SearchFilter::Tag("review".into()),
+            SearchFilter::Mention("Atlas".into()),
+            SearchFilter::Link("example.test".into()),
+            SearchFilter::From("source.md".into()),
+            SearchFilter::To("target.md".into()),
+        ] {
+            let notes = core
+                .search_notes(NoteSearch {
+                    query: "needle".into(),
+                    filters: vec![filter],
+                    incomplete: false,
+                })
+                .unwrap();
+            assert_eq!(
+                notes
+                    .iter()
+                    .map(|note| note.path.clone())
+                    .collect::<Vec<_>>(),
+                (10..40)
+                    .rev()
+                    .map(|i| format!("work/{i}.md"))
+                    .collect::<Vec<_>>()
+            );
+            assert!(notes.iter().all(|note| note.tags == ["z", "review"]
+                && note.snippet.as_deref()
+                    == Some("# Note\n[[hl]]needle[[/hl]] Atlas [site](https://example.test)")));
+        }
+    }
+
+    #[test]
+    fn should_keep_search_results_current_after_edits_deletion_and_reopening() {
+        let (directory, core) = library();
+        save(&core, "removed.md", "# Removed\nobsolete", 1);
+        save(
+            &core,
+            "kept.md",
+            "---\ntags: [z, a]\n---\n# Kept\noriginal",
+            2,
+        );
+        fs::write(
+            directory.path().join("kept.md"),
+            "---\ntags: [z, a]\n---\n# Kept\nreplacement",
+        )
+        .unwrap();
+        index::reindex_file(&core.conn, directory.path(), "kept.md").unwrap();
+        fs::remove_file(directory.path().join("removed.md")).unwrap();
+        core.scan_complete().unwrap();
+        core.conn.execute_batch("VACUUM").unwrap();
+        drop(core);
+        let core = Library::open(directory.path()).unwrap();
+        assert!(core.scan().unwrap().is_empty());
+        for query in ["obsolete", "original"] {
+            assert!(core
+                .list_notes(&NoteFilters {
+                    query: Some(query.into()),
+                    ..Default::default()
+                })
+                .unwrap()
+                .is_empty());
+        }
+        let notes = core
+            .list_notes(&NoteFilters {
+                query: Some("replacement".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].path, "kept.md");
+        assert_eq!(notes[0].tags, ["z", "a"]);
+        assert_eq!(
+            notes[0].snippet.as_deref(),
+            Some("# Kept\n[[hl]]replacement[[/hl]]")
+        );
     }
 
     #[test]
