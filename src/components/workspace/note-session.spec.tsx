@@ -20,9 +20,11 @@ import { getNote } from "@/data/get-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import {
+  activateTab,
   closeTab,
   getTabHandles,
   getTabState,
+  moveTab,
   openNote,
 } from "@/lib/tabs/store";
 import { tabPanelId } from "@/lib/tabs/tab";
@@ -130,6 +132,7 @@ describe("NoteSession", () => {
         writes.push(args);
         return { path: "a.md", updatedAt: 2, warnings: [] };
       }
+      throw new Error(`unexpected command: ${command}`);
     });
     const client = new QueryClient({
       defaultOptions: {
@@ -226,6 +229,8 @@ describe("NoteSession", () => {
   it.each([
     { change: "switching tabs", completion: "resolve" },
     { change: "switching tabs", completion: "reject" },
+    { change: "switching away and back", completion: "resolve" },
+    { change: "switching away and back", completion: "reject" },
     { change: "closing the session", completion: "resolve" },
     { change: "closing the session", completion: "reject" },
   ])(
@@ -273,6 +278,23 @@ describe("NoteSession", () => {
         await act(() => {
           openNote("chosen.md");
         });
+      } else if (change === "switching away and back") {
+        await act(() => {
+          openNote("chosen.md");
+        });
+        session.rerender(
+          <QueryClientProvider client={client}>
+            <NoteSession active={false} tab={tab} />
+          </QueryClientProvider>
+        );
+        await act(() => {
+          closeTab(getTabState().activeId);
+        });
+        session.rerender(
+          <QueryClientProvider client={client}>
+            <NoteSession active tab={tab} />
+          </QueryClientProvider>
+        );
       } else {
         session.unmount();
       }
@@ -298,6 +320,109 @@ describe("NoteSession", () => {
         change === "switching tabs" ? ["chosen.md"] : []
       );
       expect(screen.queryByText("lookup unavailable")).not.toBeInTheDocument();
+    }
+  );
+
+  it.each([
+    { change: "closing a background tab", completion: "resolve" },
+    { change: "closing a background tab", completion: "reject" },
+    { change: "reordering tabs", completion: "resolve" },
+    { change: "reordering tabs", completion: "reject" },
+    {
+      change: "opening a tab while keeping the origin active",
+      completion: "resolve",
+    },
+    {
+      change: "opening a tab while keeping the origin active",
+      completion: "reject",
+    },
+  ])(
+    "should retain a pending link $completion after $change",
+    async ({ change, completion }) => {
+      openNote("background.md", true);
+      const background = getTabState().activeId;
+      openNote("a.md", true);
+      const origin = getTabState().tabs.find(
+        (entry) => entry.id === getTabState().activeId
+      );
+      if (origin === undefined) {
+        throw new Error("the originating tab did not open");
+      }
+      const listed = Promise.withResolvers<unknown[]>();
+      mockIPC((command) => {
+        if (command === "list_notes") {
+          return listed.promise;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      client.setQueryData(notesDirQuery.queryKey, "/notes");
+      client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+        content: "# Available\n\n[Target](target.md)",
+        pinned: false,
+        tags: [],
+        updatedAt: new Date(1),
+      });
+      onTestFinished(async () => {
+        await act(() => {
+          listed.resolve([]);
+        });
+        client.clear();
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <NoteSession active tab={origin} />
+          <Toaster />
+        </QueryClientProvider>
+      );
+      const liveEditor = await editor(origin.id);
+      await act(() => {
+        liveEditor.commands.setTextSelection(
+          liveEditor.state.doc.content.size - 2
+        );
+        liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+      });
+      await act(() => {
+        if (change === "closing a background tab") {
+          closeTab(background);
+        } else if (change === "reordering tabs") {
+          moveTab(background, 1);
+        } else {
+          openNote("another.md", true);
+          activateTab(origin.id);
+        }
+      });
+      await act(() => {
+        if (completion === "reject") {
+          listed.reject({ kind: "failed", message: "lookup unavailable" });
+        } else {
+          listed.resolve([
+            {
+              createdAt: 1,
+              folder: "",
+              path: "target.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Target",
+              updatedAt: 1,
+            },
+          ]);
+        }
+      });
+      expect(
+        getTabState().tabs.find((entry) => entry.id === getTabState().activeId)
+          ?.path
+      ).toBe(completion === "resolve" ? "target.md" : "a.md");
+      if (completion === "reject") {
+        expect(
+          await screen.findByText("lookup unavailable")
+        ).toBeInTheDocument();
+      }
     }
   );
 

@@ -45,9 +45,6 @@ fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
 }
 
 fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
-    app.state::<AppState>()
-        .library
-        .record_changes(generation, &paths);
     app.state::<AppState>().library.publish(generation, || {
         if let Err(error) = (NotesChanged { paths }).emit(app) {
             log::error!("could not emit notes-changed: {error}");
@@ -167,12 +164,13 @@ pub async fn create_note<R: Runtime>(
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let (generation, result) = {
-            let library = state.library();
-            (library.generation(), library.create_note(&options)?)
-        };
+        let (result, changed) = state.library.mutate(|library| {
+            let result = library.create_note(&options)?;
+            let paths = vec![result.path.clone()];
+            Ok((result, paths))
+        })?;
         emit_warnings(&app, &result.warnings);
-        emit_changed(&app, generation, vec![result.path.clone()]);
+        emit_changed(&app, changed.generation, changed.paths);
         Ok(result)
     })
     .await
@@ -188,23 +186,17 @@ pub async fn save_note<R: Runtime>(
 ) -> Result<MutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let (generation, result) = {
-            let library = state.library();
-            (
-                library.generation(),
-                library.save_note(&path, &content, name)?,
-            )
-        };
-        emit_warnings(&app, &result.warnings);
-        emit_changed(
-            &app,
-            generation,
-            if path == result.path {
+        let (result, changed) = state.library.mutate(|library| {
+            let result = library.save_note(&path, &content, name)?;
+            let paths = if path == result.path {
                 vec![path]
             } else {
                 vec![path, result.path.clone()]
-            },
-        );
+            };
+            Ok((result, paths))
+        })?;
+        emit_warnings(&app, &result.warnings);
+        emit_changed(&app, changed.generation, changed.paths);
         Ok(result)
     })
     .await
@@ -219,23 +211,17 @@ pub async fn move_note<R: Runtime>(
 ) -> Result<PathMutationReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let (generation, result) = {
-            let library = state.library();
-            (
-                library.generation(),
-                library.move_note(path.clone(), &folder)?,
-            )
-        };
-        emit_warnings(&app, &result.warnings);
-        emit_changed(
-            &app,
-            generation,
-            if path == result.path {
+        let (result, changed) = state.library.mutate(|library| {
+            let result = library.move_note(path.clone(), &folder)?;
+            let paths = if path == result.path {
                 vec![path]
             } else {
                 vec![path, result.path.clone()]
-            },
-        );
+            };
+            Ok((result, paths))
+        })?;
+        emit_warnings(&app, &result.warnings);
+        emit_changed(&app, changed.generation, changed.paths);
         Ok(result)
     })
     .await
@@ -249,12 +235,13 @@ pub async fn delete_note<R: Runtime>(
 ) -> Result<DeleteReceipt, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
-        let (generation, result) = {
-            let library = state.library();
-            (library.generation(), library.delete_note(path)?)
-        };
+        let (result, changed) = state.library.mutate(|library| {
+            let result = library.delete_note(path)?;
+            let paths = vec![result.path.clone()];
+            Ok((result, paths))
+        })?;
         emit_warnings(&app, &result.warnings);
-        emit_changed(&app, generation, vec![result.path.clone()]);
+        emit_changed(&app, changed.generation, changed.paths);
         Ok(result)
     })
     .await

@@ -49,6 +49,12 @@ impl LibraryGuard<'_> {
     pub fn generation(&self) -> u64 {
         self.state.generation
     }
+
+    fn record_changes(&mut self, paths: &[String]) {
+        if let Some(scan) = &mut self.state.active {
+            scan.changed.extend_from_slice(paths);
+        }
+    }
 }
 
 impl Deref for LibraryGuard<'_> {
@@ -112,6 +118,24 @@ impl LibraryOwner {
             state: self.foreground(),
             changed: &self.changed,
         }
+    }
+
+    /// Commit a mutation and record its paths before a scan can advance. The
+    /// returned changes can be published after releasing the operation guard.
+    pub fn mutate<T>(
+        &self,
+        operation: impl FnOnce(&Library) -> Result<(T, Vec<String>), CommandError>,
+    ) -> Result<(T, ScanChanges), CommandError> {
+        let mut library = self.read();
+        let (result, paths) = operation(&library)?;
+        library.record_changes(&paths);
+        Ok((
+            result,
+            ScanChanges {
+                generation: library.generation(),
+                paths,
+            },
+        ))
     }
 
     #[cfg(test)]
@@ -272,17 +296,6 @@ impl LibraryOwner {
         self.run_scan(ScanKind::Observed(paths), Some(generation))
     }
 
-    /// Repeat mutation invalidations at scan completion: a query responding to
-    /// the first event may still have read the version from before the scan.
-    pub fn record_changes(&self, generation: u64, paths: &[String]) {
-        let mut state = self.foreground();
-        if state.generation == generation {
-            if let Some(scan) = &mut state.active {
-                scan.changed.extend_from_slice(paths);
-            }
-        }
-    }
-
     /// The caller has scanned the replacement completely and can persist its selection.
     pub fn replace_scanned(&self, library: Library) {
         let _publication = self
@@ -400,8 +413,17 @@ mod tests {
             });
             state.library.begin_scan(false)
         };
-        owner.read().save_note("note.md", "# After", None).unwrap();
-        owner.record_changes(0, &["note.md".into()]);
+        let (_, saved) = owner
+            .mutate(|library| {
+                assert!(owner.try_read().is_none());
+                let result = library.save_note("note.md", "# After", None)?;
+                let paths = vec![result.path.clone()];
+                Ok((result, paths))
+            })
+            .unwrap();
+        owner.publish(saved.generation, || {
+            assert!(owner.try_read().is_some());
+        });
         assert_eq!(
             owner
                 .query(|view| view.list_notes(&Default::default()))

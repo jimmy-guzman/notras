@@ -205,15 +205,20 @@ function SessionBuffer({
 
   const navigation = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => navigation.current?.abort(), []);
+  useLayoutEffect(() => {
+    if (!active) {
+      navigation.current?.abort();
+    }
+  }, [active]);
 
   const followNote = useCallback(
     async (kind: "title" | "path", value: string) => {
       navigation.current?.abort();
       const request = new AbortController();
       navigation.current = request;
-      const origin = getTabState();
+      const origin = getTabState().activeId;
       const isCurrent = () =>
-        !request.signal.aborted && getTabState() === origin;
+        !request.signal.aborted && getTabState().activeId === origin;
       try {
         const resolver =
           live.current.resolveLinks ??

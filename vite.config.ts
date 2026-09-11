@@ -29,6 +29,13 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    warmup: {
+      clientFiles: [
+        "./src/main.tsx",
+        "./src/routes/__root.tsx",
+        "./src/routes/index.tsx",
+      ],
+    },
     watch: {
       ignored: ["**/src-tauri/**"],
     },

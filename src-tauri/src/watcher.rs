@@ -57,7 +57,7 @@ fn handle<R: Runtime>(app: &AppHandle<R>, generation: u64, events: &[DebouncedEv
         Ok(changed) => changed.paths,
         Err(error) => {
             log::error!("could not reconcile observed paths: {error}");
-            Vec::new()
+            return;
         }
     };
     state.library.publish(generation, || {
@@ -65,4 +65,54 @@ fn handle<R: Runtime>(app: &AppHandle<R>, generation: u64, events: &[DebouncedEv
             log::error!("could not emit notes-changed: {error}");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::library::LibraryOwner;
+    use notras_core::Library;
+    use std::fs;
+    use std::sync::{atomic::AtomicBool, mpsc, Mutex};
+    use std::time::Instant;
+    use tauri::Listener;
+
+    #[test]
+    fn should_emit_changes_only_after_successful_observations() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, [0xff]).unwrap();
+        let contract = crate::bindings::builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(Vec::new()),
+                quitting: AtomicBool::new(false),
+            })
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let (sender, events) = mpsc::channel();
+        app.listen("notes-changed", move |event| {
+            sender.send(event.payload().to_owned()).unwrap();
+        });
+        let changed = DebouncedEvent::new(
+            notify::Event::new(notify::EventKind::Modify(notify::event::ModifyKind::Any))
+                .add_path(path.clone()),
+            Instant::now(),
+        );
+
+        handle(app.handle(), 0, std::slice::from_ref(&changed));
+
+        assert!(events.try_recv().is_err());
+
+        fs::write(&path, "# Repaired").unwrap();
+        handle(app.handle(), 0, std::slice::from_ref(&changed));
+        let event: NotesChanged = serde_json::from_str(&events.try_recv().unwrap()).unwrap();
+        assert_eq!(event.paths, ["note.md"]);
+
+        handle(app.handle(), 0, &[changed]);
+        assert!(events.try_recv().is_err());
+    }
 }
