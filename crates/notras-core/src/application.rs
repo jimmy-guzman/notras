@@ -8,7 +8,7 @@ use tempfile::{Builder, NamedTempFile};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{timestamp_millis, OpenedNote},
+    note_file::{persist_replacement, timestamp_millis, OpenedNote},
     relative_path::RelativePath,
     Library,
 };
@@ -349,7 +349,7 @@ fn replace(path: &Path, content: &str) -> Result<i64, CommandError> {
     fs::set_permissions(temp.path(), original.metadata()?.permissions())?;
     write_temp(&mut temp, content)?;
     let updated_at = checked_mtime(temp.as_file())?;
-    temp.persist(path).map_err(|error| error.error)?;
+    persist_replacement(temp, path)?;
     Ok(updated_at)
 }
 
@@ -488,7 +488,7 @@ fn save_file(
                 Err(error) => return Err(error.into()),
             };
         if same {
-            temp.persist(&target).map_err(|error| error.error)?;
+            persist_replacement(temp, &target)?;
             return Ok(FileCommit {
                 path: target,
                 updated_at,
@@ -808,6 +808,31 @@ mod tests {
     use proptest::prelude::*;
     use serde_json::Value;
     use std::cell::Cell;
+
+    #[test]
+    fn should_save_a_same_filename_heading_while_a_reader_holds_the_original() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path()).unwrap();
+        let path = directory.path().join("errands.md");
+        fs::write(&path, "# Errands\n\noriginal").unwrap();
+        let reader = OpenedNote::open(&path).unwrap();
+
+        let receipt = core
+            .save_note(
+                "errands.md",
+                "# Errands\n\nreplacement",
+                Some(SaveName::Heading),
+            )
+            .unwrap();
+
+        assert_eq!(receipt.path, "errands.md");
+        assert!(receipt.warnings.is_empty());
+        assert_eq!(reader.read().unwrap(), "# Errands\n\noriginal");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# Errands\n\nreplacement"
+        );
+    }
 
     #[test]
     fn should_create_explicit_filenames_with_one_markdown_extension() {

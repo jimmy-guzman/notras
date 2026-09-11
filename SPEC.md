@@ -47,7 +47,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Losing window focus, unmounting the session, and quitting each flush too.
 - Rich mode edits the body of the session document; source mode edits the whole document. Rename, pin, and tags also edit that document. Every save writes its complete contents.
 - Switching editor modes preserves unsaved content, including source spelling that renders identically, and the shared undo history. Save completion cannot replace newer typing.
-- A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted.
+- A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted. Replacement supports open readers whose sharing permissions allow it, including on Windows. Existing readers retain the original file; subsequent reads see the replacement. Failed publication cleans up its temporary file.
 - Writes and folder moves are serialized per session. Rename changes the heading immediately; saving publishes the resulting content and filename. Further rename and move actions remain available while earlier work is pending. Later saves use the committed path.
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
 - A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
