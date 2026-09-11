@@ -186,7 +186,9 @@ pub fn mention_candidates(
 
     let phrase = format!("\"{}\"", title.replace('"', "\"\""));
     let mut stmt = conn.prepare(
-        "SELECT path FROM note_fts WHERE note_fts MATCH ?1 AND path != ?2 ORDER BY path",
+        "SELECT path FROM note_fts WHERE note_fts MATCH ?1 AND path != ?2
+         UNION SELECT path FROM note_prose_fallback WHERE path != ?2
+         ORDER BY path",
     )?;
     let candidates = stmt
         .query_map([&phrase, path], |row| row.get::<_, String>(0))?
@@ -524,6 +526,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
         .into_iter()
         .map(|(_, error)| IndexError::Io(error))
         .collect();
+    let mut paths_complete = true;
     let mut seen = HashSet::with_capacity(files.len());
     let mut changed = Vec::new();
 
@@ -532,6 +535,7 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
             Ok(relative) => relative.into_string(),
             Err(error) => {
                 log::warn!("could not index {}: {error}", file.display());
+                paths_complete = false;
                 failures.push(IndexError::Io(error));
                 continue;
             }
@@ -546,6 +550,11 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
             Err(error) => return Err(error),
         }
         seen.insert(rel);
+    }
+
+    // An unrepresentable file cannot be matched reliably to an indexed path.
+    if !paths_complete {
+        return Ok(ScanReport { changed, failures });
     }
 
     let stale = {
@@ -654,7 +663,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn should_report_invalid_file_paths_and_finish_scanning_valid_notes() {
+    fn should_defer_stale_cleanup_until_file_paths_can_be_converted() {
         let directory = tempfile::tempdir().unwrap();
         let dir = directory.path();
         let conn = Connection::open_in_memory().unwrap();
@@ -664,14 +673,31 @@ mod tests {
         fs::remove_file(dir.join("deleted.md")).unwrap();
         fs::write(dir.join("invalid:name.md"), "invalid").unwrap();
         fs::write(dir.join("valid.md"), "readable").unwrap();
+        conn.execute("INSERT INTO note(path, title, created_at, updated_at) VALUES ('invalid:name.md', 'indexed', 0, 0)", []).unwrap();
 
         let report = scan_all(&conn, dir).unwrap();
         assert_eq!(report.failures.len(), 1);
         assert!(report.failures[0].to_string().contains("invalid:name.md"));
-        assert!(report.changed.contains(&"valid.md".to_string()));
-        assert!(report.changed.contains(&"deleted.md".to_string()));
-        let rows = select(&conn, "SELECT path FROM note", &[]).unwrap();
-        assert_eq!(rows, vec![vec![json!("valid.md")]]);
+        assert_eq!(report.changed, ["valid.md"]);
+        let rows = select(&conn, "SELECT path FROM note ORDER BY path", &[]).unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                vec![json!("deleted.md")],
+                vec![json!("invalid:name.md")],
+                vec![json!("valid.md")]
+            ]
+        );
+
+        fs::remove_file(dir.join("invalid:name.md")).unwrap();
+        let complete = scan_all(&conn, dir).unwrap();
+        assert!(complete.failures.is_empty());
+        assert!(complete.changed.contains(&"deleted.md".to_string()));
+        assert!(complete.changed.contains(&"invalid:name.md".to_string()));
+        assert_eq!(
+            select(&conn, "SELECT path FROM note", &[]).unwrap(),
+            vec![vec![json!("valid.md")]]
+        );
     }
 
     /// A file written from a terminal states its own title, and the index reads
@@ -1191,6 +1217,30 @@ mod tests {
                 .map(|row| row.path.as_str())
                 .collect::<Vec<_>>(),
             vec!["a.md"]
+        );
+    }
+
+    #[test]
+    fn should_keep_unicode_mention_candidates_and_exclude_the_current_note() {
+        let directory = tempfile::tempdir().unwrap();
+        let dir = directory.path();
+        fs::write(dir.join("ada.md"), "# Ada\n\nAda\u{e000}").unwrap();
+        fs::write(dir.join("fallback.md"), "Ada\u{e000}\n").unwrap();
+        fs::write(dir.join("fts.md"), "Ada\n").unwrap();
+        fs::write(dir.join("unrelated.md"), "ordinary prose").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, dir).unwrap();
+
+        let candidates = mention_candidates(&conn, "ada.md", "Ada").unwrap();
+        assert_eq!(candidates, ["fallback.md", "fts.md"]);
+        let found = scan_mentions(dir, candidates, "Ada").unwrap();
+        assert_eq!(
+            found
+                .iter()
+                .map(|mention| mention.path.as_str())
+                .collect::<Vec<_>>(),
+            ["fallback.md", "fts.md"]
         );
     }
 

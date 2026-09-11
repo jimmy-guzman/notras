@@ -139,7 +139,7 @@ export function filenameFromTitle(title: string) {
 /**
  * A note's display title: the leading `#` heading, then imported frontmatter `title:`,
  * then the filename stem. Kept in parity with `resolve_title` in
- * `src-tauri/src/index.rs`.
+ * `crates/notras-core/src/markdown.rs`.
  */
 export function resolveTitle(
   path: string,

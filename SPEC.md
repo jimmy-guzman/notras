@@ -53,7 +53,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
 - Direct reads and indexing obtain content and timestamps from the same opened file. An atomic replacement during a read cannot mix two files; concurrent in-place writes are not isolated. An invalid or unavailable modification time reports a failure instead of indexing zero.
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read attempts a complete rebuild and reports a failure if recovery is incomplete. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
-- A scan reports invalid file paths and continues indexing valid notes and removing stale rows. Indexed reads still reject an incomplete recovery.
+- A scan reports invalid file paths and continues indexing valid notes. Path-conversion failures defer stale-row deletion until a scan can convert all file paths. Indexed reads still reject an incomplete recovery.
 - Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
 
