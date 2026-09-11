@@ -188,7 +188,10 @@ function useSearchResults(query: string, showPicker: boolean) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
   const idle = query.trim() === "";
-  const recent = useQuery({ ...noteQueries.list(), enabled: idle });
+  const recent = useQuery({
+    ...noteQueries.list({ limit: 20, sort: "updated" }),
+    enabled: idle,
+  });
   const searched = useQuery({
     ...noteQueries.search(parseSearch(debounced)),
     enabled: !(idle || search.incomplete || showPicker) && debounced === query,

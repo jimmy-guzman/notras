@@ -1,3 +1,5 @@
+import { createStore } from "@tanstack/react-store";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -9,13 +11,46 @@ import {
   getTabState,
   openNote,
   registerTabHandles,
+  registerTabSnapshot,
   reopenTab,
   restoredCaret,
   restoreTabs,
+  type TabSnapshot,
+  useTabSnapshot,
 } from "./store";
 import { parseTabs, serializeTabs } from "./tab";
 
 const STORAGE_KEY = "tabs";
+
+it("should receive snapshots registered after the consumer mounts", ({
+  onTestFinished,
+}) => {
+  openNote("late-snapshot.md");
+  const id = getTabState().activeId;
+  onTestFinished(() => closeTab(id));
+  const { result } = renderHook(() => useTabSnapshot(id));
+  expect(result.current).toBeUndefined();
+  const snapshot = createStore<TabSnapshot>({
+    pinned: false,
+    reason: undefined,
+    sourceMode: false,
+    status: "saved",
+    tags: [],
+    title: "Loaded",
+    words: 1,
+  });
+  act(() => {
+    onTestFinished(
+      registerTabSnapshot(
+        id,
+        createStore(() => snapshot.get())
+      )
+    );
+  });
+  expect(result.current?.title).toBe("Loaded");
+  act(() => snapshot.setState((state) => ({ ...state, title: "Edited" })));
+  expect(result.current?.title).toBe("Edited");
+});
 
 /** A store as versions before `D56` wrote it: no ids, keys are `kind:path`. */
 function writeLegacyStore() {

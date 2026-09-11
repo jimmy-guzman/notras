@@ -44,7 +44,7 @@ interface TagChoiceItemProps {
   attached: boolean;
   count: number | undefined;
   name: string;
-  onToggle: (name: string, attached: boolean) => void;
+  onToggle: (name: string) => void;
 }
 
 function TagChoiceItem({
@@ -54,8 +54,8 @@ function TagChoiceItem({
   onToggle,
 }: TagChoiceItemProps) {
   const toggle = useCallback(() => {
-    onToggle(name, attached);
-  }, [attached, name, onToggle]);
+    onToggle(name);
+  }, [name, onToggle]);
 
   return (
     <CommandItem
@@ -223,17 +223,19 @@ export function TagsView({
     .toSorted()
     .filter((name) => name.includes(draftTag));
   const toggle = useCallback(
-    async (name: string, selected: boolean) => {
-      await changeTags(
-        selected ? attached.filter((tag) => tag !== name) : [...attached, name]
+    async (name: string) => {
+      await changeTags((current) =>
+        current.includes(name)
+          ? current.filter((tag) => tag !== name)
+          : [...current, name]
       );
     },
-    [attached, changeTags]
+    [changeTags]
   );
   const add = useCallback(async () => {
     onQueryChange("");
-    await changeTags([...attached, draftTag]);
-  }, [attached, changeTags, draftTag, onQueryChange]);
+    await changeTags((current) => [...current, draftTag]);
+  }, [changeTags, draftTag, onQueryChange]);
   const retry = useCallback(async () => {
     await vocabulary.refetch();
   }, [vocabulary]);

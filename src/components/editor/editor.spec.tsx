@@ -228,6 +228,53 @@ describe("code block clipboard", () => {
 });
 
 describe("document selection mapping", () => {
+  it("should replace the document when restoring its source selection fails", async () => {
+    const { handle, scroller } = await mount({ initialContent: "old body" });
+    const surface = scroller.querySelector(".ProseMirror");
+    if (
+      surface === null ||
+      !("editor" in surface) ||
+      !(surface.editor instanceof TiptapEditor)
+    ) {
+      throw new Error("the editor did not mount");
+    }
+    const manager = surface.editor.markdown;
+    if (manager === undefined) {
+      throw new Error("the editor has no markdown converter");
+    }
+    const parse = manager.parse.bind(manager);
+    const failing = vi.spyOn(manager, "parse").mockImplementation((content) => {
+      if (content.includes(SENTINEL)) {
+        throw new Error("cannot map the selection");
+      }
+      return parse(content);
+    });
+    onTestFinished(() => failing.mockRestore());
+
+    act(() => handle.replaceContent("new body", { anchor: 2, head: 5 }));
+
+    expect(handle.getContent().trimEnd()).toBe("new body");
+    expect(scroller.querySelector(".ProseMirror")).toBe(surface);
+    failing.mockRestore();
+    act(() => handle.replaceContent("latest body", { anchor: 1, head: 4 }));
+    expect(
+      surface.editor.state.doc.textBetween(
+        surface.editor.state.selection.from,
+        surface.editor.state.selection.to
+      )
+    ).toBe("ate");
+
+    const invalid = vi.spyOn(manager, "parse").mockImplementation(() => {
+      throw new Error("cannot parse the document");
+    });
+    onTestFinished(() => invalid.mockRestore());
+    expect(() =>
+      handle.replaceContent("unreadable", { anchor: 0, head: 0 })
+    ).toThrow("cannot parse the document");
+    invalid.mockRestore();
+    expect(handle.getContent().trimEnd()).toBe("latest body");
+  });
+
   it("should deliver document edits without a selection when source mapping fails", async () => {
     const onChange = vi.fn();
     const onSelect = vi.fn();

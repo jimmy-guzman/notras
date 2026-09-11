@@ -626,16 +626,20 @@ export function Editor({
             );
           }
           if (selection !== undefined) {
-            transaction.setSelection(
-              TextSelection.between(
-                transaction.doc.resolve(
-                  positionInDocument(instance, content, selection.anchor)
-                ),
-                transaction.doc.resolve(
-                  positionInDocument(instance, content, selection.head)
+            try {
+              transaction.setSelection(
+                TextSelection.between(
+                  transaction.doc.resolve(
+                    positionInDocument(instance, content, selection.anchor)
+                  ),
+                  transaction.doc.resolve(
+                    positionInDocument(instance, content, selection.head)
+                  )
                 )
-              )
-            );
+              );
+            } catch {
+              // Selection mapping is optional; the replacement must still reach the view.
+            }
           }
           suppressChangeRef.current = true;
           try {

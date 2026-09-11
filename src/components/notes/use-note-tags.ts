@@ -6,9 +6,9 @@ import { reasonOf } from "@/lib/ui/failure";
 /** Both tag controls read and edit the session's document. */
 export function useNoteTags(path: string, tags: string[]) {
   const changeTags = useCallback(
-    async (nextTags: string[]) => {
+    async (update: (current: string[]) => string[]) => {
       try {
-        await changeNoteMetadata(path, { tags: nextTags });
+        await changeNoteMetadata(path, { tags: update });
       } catch (error) {
         toast.add({
           description: reasonOf(error),

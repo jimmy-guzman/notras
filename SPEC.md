@@ -45,8 +45,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - Typing starts a save 800ms after the last change.
 - Losing window focus, unmounting the session, and quitting each flush too.
-- Rich mode edits the body of the session document; source mode edits the whole document. Rename, pin, and tags also edit that document. Every save writes its complete contents.
-- Switching editor modes preserves unsaved content, including source spelling that renders identically, and the shared undo history. Save completion cannot replace newer typing.
+- Rich mode edits the body of the session document; source mode edits the whole document. Rename, pin, and tags also edit that document. Rapid tag additions and removals apply to the current document, retaining other tag edits made before the controls refresh or saving completes. Every save writes its complete contents.
+- Switching editor modes preserves unsaved content, including source spelling that renders identically, and the shared undo history. Save completion cannot replace newer typing. A failed selection mapping does not prevent a valid document replacement from reaching the rich editor; the editor retains its transaction-mapped selection instead.
 - A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted. Replacement supports open readers whose sharing permissions allow it, including on Windows. Existing readers retain the original file; subsequent reads see the replacement. Failed publication cleans up its temporary file.
 - Writes and folder moves are serialized per session. Rename changes the heading immediately; saving publishes the resulting content and filename. Further rename and move actions remain available while earlier work is pending. Later saves use the committed path.
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
@@ -106,7 +106,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing.
 - Find mode lists notes and never actions. Actions mode lists actions and never notes.
-- Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes pinned first.
+- Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes by most recently updated, without prioritizing pins.
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
 - A hit carries a snippet of at most 24 tokens with the matched text highlighted.
 - Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.

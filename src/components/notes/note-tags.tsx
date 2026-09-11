@@ -77,9 +77,17 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const commitTags = useCallback(
     (nextTags: string[]) => {
       setQuery("");
-      changeTags(nextTags);
+      // The combobox reports a replacement for its rendered value, so recover the toggled items here.
+      const toggled = [
+        ...nextTags.filter((tag) => !optimisticTags.includes(tag)),
+        ...optimisticTags.filter((tag) => !nextTags.includes(tag)),
+      ];
+      changeTags((current) => [
+        ...current.filter((tag) => !toggled.includes(tag)),
+        ...toggled.filter((tag) => !current.includes(tag)),
+      ]);
     },
-    [changeTags]
+    [changeTags, optimisticTags]
   );
 
   const retry = useCallback(async () => {

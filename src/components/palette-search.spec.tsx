@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { PaletteSearch } from "@/components/palette-search";
 import { Command, CommandList } from "@/components/ui/command";
 import type { NoteMeta } from "@/core/notes";
@@ -52,6 +53,43 @@ function mount(query: string, error?: Error) {
 }
 
 describe("palette search states", () => {
+  it("should request the twenty most recently updated notes while idle", async () => {
+    const list = vi.fn((_payload: unknown) => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "recent.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Recent",
+        updatedAt: 1,
+      },
+    ]);
+    mockIPC((command, payload) => {
+      if (command === "list_notes") {
+        return list(payload);
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(clearMocks);
+    mount("");
+
+    expect(
+      await screen.findByRole("option", { name: "Recent" })
+    ).toBeInTheDocument();
+    expect(list).toHaveBeenCalledWith({
+      filters: {
+        folder: null,
+        limit: 20,
+        pinnedOnly: null,
+        query: null,
+        sort: "updated",
+        tag: null,
+      },
+    });
+  });
+
   it("should offer creation only for a completed unfiltered empty result", () => {
     const { host, rerender } = mount("budget");
     expect(host.textContent).toContain('create "budget"');

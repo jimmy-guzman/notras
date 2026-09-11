@@ -249,7 +249,8 @@ export function composeNote(raw: RawBlock | undefined, body: string) {
 
 export interface FrontmatterPatch {
   pinned?: boolean;
-  tags?: string[];
+  /** A function edits the tags in the supplied document instead of replacing a rendered list. */
+  tags?: string[] | ((current: string[]) => string[]);
 }
 
 /**
@@ -267,7 +268,10 @@ export function updateFrontmatter(
   const parsed = parseNote(content);
   const next = {
     pinned: patch.pinned ?? parsed.frontmatter.pinned,
-    tags: patch.tags ?? parsed.frontmatter.tags,
+    tags:
+      typeof patch.tags === "function"
+        ? patch.tags(parsed.frontmatter.tags)
+        : (patch.tags ?? parsed.frontmatter.tags),
   };
 
   const foreignLines = withoutOwnKeys(parsed.raw?.lines ?? []);
