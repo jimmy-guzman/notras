@@ -9,7 +9,7 @@ use crate::relative_path::RelativePath;
 
 enum Entry {
     Directory(PathBuf),
-    Entries(PathBuf, ReadDir),
+    Entries(PathBuf, Box<ReadDir>),
     Observed(PathBuf),
 }
 
@@ -108,7 +108,7 @@ impl Scan {
         if let Some(entry) = self.entries.pop() {
             match entry {
                 Entry::Directory(path) => match fs::read_dir(&path) {
-                    Ok(entries) => self.entries.push(Entry::Entries(path, entries)),
+                    Ok(entries) => self.entries.push(Entry::Entries(path, Box::new(entries))),
                     Err(error) => self.unreadable(&path, error),
                 },
                 Entry::Entries(dir, mut entries) => match entries.next() {
