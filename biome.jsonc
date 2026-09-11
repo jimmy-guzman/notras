@@ -8,8 +8,13 @@
   ],
   "files": {
     // `src/typeset.css` is vendored byte for byte (D40) and `assets/` holds the
-    // icon sources for `scripts/icons.sh`, which never reach a DOM.
-    "includes": ["!!src/typeset.css", "!!assets"]
+    // icon sources for `scripts/icons.sh`, which never reach a DOM. Specta's
+    // bindings stay byte for byte so drift checks compare the generator's output.
+    "includes": [
+      "!!src/typeset.css",
+      "!!assets",
+      "!!src/server/adapters/bindings.ts"
+    ]
   },
   "overrides": [
     {

@@ -1,0 +1,586 @@
+[
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "b.md",
+      [
+        {
+          "context": "see [there](b.md)",
+          "kind": "link",
+          "line": 4,
+          "path": "a.md",
+          "target": "b.md"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": [
+      {
+        "lines": [
+          {
+            "context": "see [there](b.md)",
+            "line": 4,
+            "match": "b.md"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "b.md",
+      [
+        {
+          "context": "see [[b]]",
+          "kind": "wikilink",
+          "line": 3,
+          "path": "a.md",
+          "target": "b"
+        },
+        {
+          "context": "see [[b]]",
+          "kind": "wikilink",
+          "line": 9,
+          "path": "a.md",
+          "target": "b"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": [
+      {
+        "lines": [
+          {
+            "context": "see [[b]]",
+            "line": 3,
+            "match": "[[b]]"
+          },
+          {
+            "context": "see [[b]]",
+            "line": 9,
+            "match": "[[b]]"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "a"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": []
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "b.md",
+      [
+        {
+          "context": "see [[c]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "c"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": []
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "b.md",
+      [
+        {
+          "context": "see [[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "missing"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": []
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "x/todo.md",
+      [
+        {
+          "context": "see [[todo]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "x/index.md",
+          "target": "todo"
+        },
+        {
+          "context": "see [[todo]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "y/index.md",
+          "target": "todo"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "x",
+          "path": "x/todo.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "todo",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "y",
+          "path": "y/todo.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "todo",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "x",
+          "path": "x/index.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "index",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "y",
+          "path": "y/index.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "index",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": [
+      {
+        "lines": [
+          {
+            "context": "see [[todo]]",
+            "line": 1,
+            "match": "[[todo]]"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "x",
+          "path": "x/index.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "index",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "c.md",
+          "target": "a"
+        },
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "b.md",
+          "target": "a"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "c",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": [
+      {
+        "lines": [
+          {
+            "context": "see [[a]]",
+            "line": 1,
+            "match": "[[a]]"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b",
+          "updatedAt": 0
+        }
+      },
+      {
+        "lines": [
+          {
+            "context": "see [[a]]",
+            "line": 1,
+            "match": "[[a]]"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "c",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "a.md",
+      [
+        {
+          "context": "see [[a]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "gone.md",
+          "target": "a"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      ],
+      []
+    ],
+    "expected": []
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "b.md",
+      [],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "graph view",
+          "updatedAt": 0
+        }
+      ],
+      [
+        {
+          "context": "the graph view is next",
+          "line": 2,
+          "path": "a.md"
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "lines": [
+          {
+            "context": "the graph view is next",
+            "line": 2,
+            "match": "graph view"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      }
+    ]
+  },
+  {
+    "operation": "mentionsOf",
+    "args": [
+      "b.md",
+      [
+        {
+          "context": "see [[graph view]]",
+          "kind": "wikilink",
+          "line": 5,
+          "path": "a.md",
+          "target": "graph view"
+        }
+      ],
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "graph view",
+          "updatedAt": 0
+        }
+      ],
+      [
+        {
+          "context": "the graph view is next",
+          "line": 2,
+          "path": "a.md"
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "lines": [
+          {
+            "context": "the graph view is next",
+            "line": 2,
+            "match": "graph view"
+          },
+          {
+            "context": "see [[graph view]]",
+            "line": 5,
+            "match": "[[graph view]]"
+          }
+        ],
+        "note": {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a",
+          "updatedAt": 0
+        }
+      }
+    ]
+  }
+]

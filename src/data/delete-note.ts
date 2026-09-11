@@ -1,7 +1,6 @@
-import { NoteService } from "@/server/services/note-service";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-export function deleteNote(path: string) {
-  return run(NoteService.use((svc) => svc.delete(path)));
+export async function deleteNote(path: string): Promise<void> {
+  await nativeCommand(() => commands.deleteNote(path));
 }

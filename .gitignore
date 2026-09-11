@@ -5,6 +5,7 @@
 
 # build output
 /dist
+/target
 
 # testing
 /coverage

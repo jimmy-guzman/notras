@@ -1,20 +1,14 @@
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard};
 
+use crate::library::{LibraryGuard, LibraryOwner};
 use notify::RecommendedWatcher;
 use notify_debouncer_full::{Debouncer, RecommendedCache};
-use rusqlite::Connection;
-
-pub struct Core {
-    pub notes_dir: PathBuf,
-    pub conn: Connection,
-}
 
 pub struct AppState {
-    pub core: Mutex<Core>,
-    /// Kept outside `core` so replacing the watcher never happens while the
-    /// core lock is held (the watcher callback takes that lock).
+    pub library: LibraryOwner,
+    /// Kept outside `library` so replacing the watcher never happens while the
+    /// library lock is held (the watcher callback takes that lock).
     pub watcher: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
     /// Files handed to us by "Open With" before the frontend was listening.
     pub pending_open: Mutex<Vec<String>>,
@@ -23,22 +17,80 @@ pub struct AppState {
     pub quitting: AtomicBool,
 }
 
-/// A poisoned lock means a panic elsewhere already did its damage; recovering
-/// the state behind it keeps one panic from becoming one per command.
+/// Access panics if a prior operation poisoned the requested state.
 impl AppState {
-    pub fn core(&self) -> MutexGuard<'_, Core> {
-        self.core.lock().unwrap_or_else(PoisonError::into_inner)
+    pub fn library(&self) -> LibraryGuard<'_> {
+        self.library.read()
     }
 
     pub fn watcher(
         &self,
     ) -> MutexGuard<'_, Option<Debouncer<RecommendedWatcher, RecommendedCache>>> {
-        self.watcher.lock().unwrap_or_else(PoisonError::into_inner)
+        self.watcher.lock().expect("watcher state was poisoned")
     }
 
     pub fn pending_open(&self) -> MutexGuard<'_, Vec<String>> {
         self.pending_open
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .expect("pending opens were poisoned")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notras_core::Library;
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    #[test]
+    fn should_refuse_library_access_after_a_panic() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState {
+            library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
+            watcher: Mutex::new(None),
+            pending_open: Mutex::new(vec![]),
+            quitting: AtomicBool::new(false),
+        };
+        assert!(catch_unwind(AssertUnwindSafe(|| {
+            let _library = state.library();
+            panic!("interrupted library operation");
+        }))
+        .is_err());
+        assert!(catch_unwind(AssertUnwindSafe(|| drop(state.library()))).is_err());
+    }
+
+    #[test]
+    fn should_refuse_watcher_access_after_a_panic() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState {
+            library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
+            watcher: Mutex::new(None),
+            pending_open: Mutex::new(vec![]),
+            quitting: AtomicBool::new(false),
+        };
+        assert!(catch_unwind(AssertUnwindSafe(|| {
+            let _watcher = state.watcher();
+            panic!("interrupted watcher replacement");
+        }))
+        .is_err());
+        assert!(catch_unwind(AssertUnwindSafe(|| drop(state.watcher()))).is_err());
+    }
+
+    #[test]
+    fn should_refuse_pending_opens_after_a_panic() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState {
+            library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
+            watcher: Mutex::new(None),
+            pending_open: Mutex::new(vec![]),
+            quitting: AtomicBool::new(false),
+        };
+        assert!(catch_unwind(AssertUnwindSafe(|| {
+            let mut pending = state.pending_open();
+            pending.push("unfinished.md".into());
+            panic!("interrupted pending opens");
+        }))
+        .is_err());
+        assert!(catch_unwind(AssertUnwindSafe(|| drop(state.pending_open()))).is_err());
     }
 }

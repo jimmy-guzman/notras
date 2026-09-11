@@ -1,0 +1,2479 @@
+[
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "folder",
+            "value": ""
+          }
+        ],
+        "incomplete": true,
+        "query": ""
+      }
+    ],
+    "expected": []
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "folder",
+            "value": "work"
+          }
+        ],
+        "incomplete": true,
+        "query": ""
+      }
+    ],
+    "expected": []
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "tag",
+            "value": ""
+          }
+        ],
+        "incomplete": true,
+        "query": ""
+      }
+    ],
+    "expected": []
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "folder",
+            "value": ""
+          }
+        ],
+        "incomplete": true,
+        "query": ""
+      }
+    ],
+    "expected": []
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/0.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/0.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/1.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/1.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/2.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/2.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/3.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/3.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/4.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/4.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/5.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/5.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/6.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/6.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/7.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/7.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/8.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/8.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/9.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/9.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/10.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/10.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/11.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/11.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/12.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/12.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/13.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/13.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/14.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/14.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/15.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/15.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/16.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/16.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/17.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/17.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/18.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/18.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/19.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/19.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/20.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/20.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/21.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/21.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/22.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/22.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/23.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/23.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/24.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/24.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/25.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/25.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/26.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/26.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/27.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/27.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/28.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/28.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/29.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/29.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/30.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/30.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/31.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/31.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/32.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/32.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/33.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/33.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/34.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/34.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/35.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/35.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/36.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/36.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/37.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/37.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/38.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/38.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/39.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/39.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "work/a.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/2026",
+          "path": "work/2026/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "work/2026/b.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "workbench",
+          "path": "workbench/c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "workbench/c.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "folder",
+            "value": "work"
+          },
+          {
+            "kind": "tag",
+            "value": "work"
+          },
+          {
+            "kind": "tag",
+            "value": "review"
+          }
+        ],
+        "incomplete": false,
+        "query": ""
+      }
+    ],
+    "expected": [
+      {
+        "createdAt": 0,
+        "folder": "work/2026",
+        "path": "work/2026/b.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work", "review"],
+        "title": "work/2026/b.md",
+        "updatedAt": 0
+      }
+    ]
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/0.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/0.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/1.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/1.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/2.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/2.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/3.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/3.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/4.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/4.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/5.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/5.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/6.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/6.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/7.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/7.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/8.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/8.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/9.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/9.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/10.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/10.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/11.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/11.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/12.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/12.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/13.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/13.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/14.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/14.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/15.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/15.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/16.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/16.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/17.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/17.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/18.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/18.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/19.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/19.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/20.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/20.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/21.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/21.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/22.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/22.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/23.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/23.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/24.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/24.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/25.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/25.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/26.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/26.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/27.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/27.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/28.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/28.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/29.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/29.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/30.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/30.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/31.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/31.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/32.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/32.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/33.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/33.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/34.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/34.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/35.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/35.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/36.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/36.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/37.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/37.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/38.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/38.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/39.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/39.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "work/a.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/2026",
+          "path": "work/2026/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "work/2026/b.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "workbench",
+          "path": "workbench/c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "workbench/c.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "folder",
+            "value": "/"
+          }
+        ],
+        "incomplete": false,
+        "query": ""
+      }
+    ],
+    "expected": [
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/0.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/0.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/1.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/1.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/2.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/2.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/3.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/3.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/4.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/4.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/5.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/5.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/6.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/6.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/7.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/7.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/8.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/8.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/9.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/9.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/10.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/10.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/11.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/11.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/12.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/12.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/13.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/13.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/14.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/14.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/15.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/15.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/16.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/16.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/17.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/17.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/18.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/18.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/19.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/19.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/20.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/20.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/21.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/21.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/22.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/22.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/23.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/23.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/24.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/24.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/25.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/25.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/26.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/26.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/27.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/27.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/28.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/28.md",
+        "updatedAt": 0
+      },
+      {
+        "createdAt": 0,
+        "folder": "other",
+        "path": "other/29.md",
+        "pinned": false,
+        "snippet": null,
+        "tags": ["work"],
+        "title": "other/29.md",
+        "updatedAt": 0
+      }
+    ]
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/0.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/0.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/1.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/1.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/2.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/2.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/3.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/3.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/4.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/4.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/5.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/5.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/6.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/6.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/7.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/7.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/8.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/8.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/9.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/9.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/10.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/10.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/11.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/11.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/12.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/12.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/13.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/13.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/14.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/14.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/15.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/15.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/16.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/16.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/17.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/17.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/18.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/18.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/19.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/19.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/20.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/20.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/21.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/21.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/22.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/22.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/23.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/23.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/24.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/24.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/25.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/25.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/26.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/26.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/27.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/27.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/28.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/28.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/29.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/29.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/30.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/30.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/31.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/31.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/32.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/32.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/33.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/33.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/34.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/34.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/35.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/35.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/36.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/36.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/37.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/37.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/38.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/38.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/39.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/39.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "work/a.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/2026",
+          "path": "work/2026/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "work/2026/b.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "workbench",
+          "path": "workbench/c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "workbench/c.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "folder",
+            "value": "missing"
+          }
+        ],
+        "incomplete": false,
+        "query": ""
+      }
+    ],
+    "expected": []
+  },
+  {
+    "operation": "filterSearchNotes",
+    "args": [
+      [
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/0.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/0.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/1.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/1.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/2.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/2.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/3.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/3.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/4.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/4.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/5.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/5.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/6.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/6.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/7.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/7.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/8.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/8.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/9.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/9.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/10.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/10.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/11.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/11.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/12.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/12.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/13.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/13.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/14.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/14.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/15.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/15.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/16.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/16.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/17.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/17.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/18.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/18.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/19.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/19.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/20.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/20.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/21.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/21.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/22.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/22.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/23.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/23.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/24.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/24.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/25.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/25.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/26.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/26.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/27.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/27.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/28.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/28.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/29.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/29.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/30.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/30.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/31.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/31.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/32.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/32.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/33.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/33.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/34.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/34.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/35.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/35.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/36.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/36.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/37.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/37.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/38.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/38.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "other",
+          "path": "other/39.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "other/39.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work",
+          "path": "work/a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work"],
+          "title": "work/a.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "work/2026",
+          "path": "work/2026/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "work/2026/b.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "workbench",
+          "path": "workbench/c.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": ["work", "review"],
+          "title": "workbench/c.md",
+          "updatedAt": 0
+        }
+      ],
+      {
+        "filters": [
+          {
+            "kind": "tag",
+            "value": "missing"
+          }
+        ],
+        "incomplete": false,
+        "query": ""
+      }
+    ],
+    "expected": []
+  },
+  {
+    "operation": "searchFilterMatches",
+    "args": [
+      {
+        "kind": "from",
+        "value": "projects/atlas.md"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "projects",
+          "path": "projects/atlas.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "Atlas",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "projects",
+          "path": "projects/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "B",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "else",
+          "path": "else/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "B",
+          "updatedAt": 0
+        }
+      ],
+      [
+        {
+          "context": "see [[B]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "projects/atlas.md",
+          "target": "B"
+        },
+        {
+          "context": "see [[Atlas]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "projects/atlas.md",
+          "target": "Atlas"
+        },
+        {
+          "context": "see [[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "projects/atlas.md",
+          "target": "missing"
+        }
+      ],
+      []
+    ],
+    "expected": [["projects/b.md", "Atlas (projects/atlas.md): see [[B]]"]]
+  },
+  {
+    "operation": "searchFilterMatches",
+    "args": [
+      {
+        "kind": "from",
+        "value": "absent.md"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "projects",
+          "path": "projects/atlas.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "Atlas",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "projects",
+          "path": "projects/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "B",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "else",
+          "path": "else/b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "B",
+          "updatedAt": 0
+        }
+      ],
+      [
+        {
+          "context": "see [[B]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "projects/atlas.md",
+          "target": "B"
+        },
+        {
+          "context": "see [[Atlas]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "projects/atlas.md",
+          "target": "Atlas"
+        },
+        {
+          "context": "see [[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "projects/atlas.md",
+          "target": "missing"
+        }
+      ],
+      []
+    ],
+    "expected": []
+  },
+  {
+    "operation": "searchFilterMatches",
+    "args": [
+      {
+        "kind": "to",
+        "value": "atlas.md"
+      },
+      [
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "atlas.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "Atlas",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "a.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "a.md",
+          "updatedAt": 0
+        },
+        {
+          "createdAt": 0,
+          "folder": "",
+          "path": "b.md",
+          "pinned": false,
+          "snippet": null,
+          "tags": [],
+          "title": "b.md",
+          "updatedAt": 0
+        }
+      ],
+      [
+        {
+          "context": "see [[Atlas]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "a.md",
+          "target": "Atlas"
+        },
+        {
+          "context": "[[Atlas]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "atlas.md",
+          "target": "Atlas"
+        }
+      ],
+      [
+        {
+          "context": "Atlas here",
+          "line": 2,
+          "path": "b.md"
+        }
+      ]
+    ],
+    "expected": [["a.md", "see [[Atlas]]"], ["b.md", "Atlas here"]]
+  },
+  {
+    "operation": "searchFilterMatches",
+    "args": [
+      {
+        "kind": "link",
+        "value": "github.com"
+      },
+      [],
+      [
+        {
+          "context": "[code](https://GitHub.com/a)",
+          "kind": "destination",
+          "line": 1,
+          "path": "a.md",
+          "target": "https://GitHub.com/a"
+        },
+        {
+          "context": "[[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "b.md",
+          "target": "missing"
+        }
+      ],
+      []
+    ],
+    "expected": [["a.md", "[code](https://GitHub.com/a)"]]
+  },
+  {
+    "operation": "searchFilterMatches",
+    "args": [
+      {
+        "kind": "link",
+        "value": "missing"
+      },
+      [],
+      [
+        {
+          "context": "[code](https://GitHub.com/a)",
+          "kind": "destination",
+          "line": 1,
+          "path": "a.md",
+          "target": "https://GitHub.com/a"
+        },
+        {
+          "context": "[[missing]]",
+          "kind": "wikilink",
+          "line": 1,
+          "path": "b.md",
+          "target": "missing"
+        }
+      ],
+      []
+    ],
+    "expected": [["b.md", "[[missing]]"]]
+  }
+]

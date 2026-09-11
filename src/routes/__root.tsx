@@ -8,23 +8,22 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect, useState } from "react";
 import { CommandPalette, type PaletteMode } from "@/components/command-palette";
 import { RouteError } from "@/components/route-error";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { Toaster, toast } from "@/components/ui/toast";
+import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createNote } from "@/data/create-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
-import type { PendingOpen } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
+import { commands, events } from "@/server/adapters/bindings";
 
 /** Cached data answers the loader; only a cold key fetches. */
 const STATIC = "static" as const;
@@ -46,12 +45,7 @@ export const Route = createRootRouteWithContext<{
     typeof search.tag === "string" ? { tag: search.tag } : {},
   // Priming only: an inactive query is one invalidation cannot reach.
   loader: async ({ context }) => {
-    await Promise.all([
-      context.queryClient.query({ ...noteQueries.links(), staleTime: STATIC }),
-      context.queryClient.query({ ...noteQueries.list(), staleTime: STATIC }),
-      context.queryClient.query({ ...noteQueries.tags(), staleTime: STATIC }),
-      context.queryClient.query({ ...notesDirQuery, staleTime: STATIC }),
-    ]);
+    await context.queryClient.query({ ...notesDirQuery, staleTime: STATIC });
   },
 });
 
@@ -77,9 +71,7 @@ function disposeLater(...pending: Promise<() => void>[]) {
 }
 
 function RootLayout() {
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const { data: tags } = useSuspenseQuery(noteQueries.tags());
   const { tag } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -165,7 +157,7 @@ function RootLayout() {
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   // No paths means the whole vault.
   useEffect(() => {
-    const unlisten = listen<{ paths: string[] }>("notes-changed", (event) => {
+    const unlisten = events.notesChanged.listen((event) => {
       const { paths } = event.payload;
 
       if (paths.length === 0) {
@@ -193,7 +185,7 @@ function RootLayout() {
     // lands in its own tab rather than replacing what is open (`D54`).
     const drainPendingOpens = async () => {
       try {
-        const opens = await invoke<PendingOpen[]>("pending_open_files");
+        const opens = await commands.pendingOpenFiles();
 
         for (const { kind, path } of opens) {
           openTab(kind, path, true);
@@ -251,7 +243,7 @@ function RootLayout() {
         // it cannot hear is still safe, and a log line would travel the channel
         // that just failed.
         try {
-          await invoke("quit_app");
+          await commands.quitApp();
         } catch {
           // See above.
         }
@@ -268,7 +260,7 @@ function RootLayout() {
       // A cancel Rust cannot hear ends in its backstop exiting with the buffer
       // unsaved, so this one failure is said out loud.
       try {
-        await invoke("cancel_quit");
+        await commands.cancelQuit();
       } catch (error) {
         toast.add({
           description: reasonOf(error),
@@ -319,10 +311,8 @@ function RootLayout() {
         <Outlet />
       </div>
       <CommandPalette
-        allTags={tags}
         key={`${tag ?? ""}:${paletteView}:${paletteSession}`}
         mode={paletteView}
-        notes={notes}
         notesDir={notesDir}
         onOpenChange={handlePaletteOpenChange}
         onOpenSettings={openSettings}
@@ -335,7 +325,6 @@ function RootLayout() {
         onOpenChange={setSettingsOpen}
         open={settingsOpen}
       />
-      <Toaster />
     </TooltipProvider>
   );
 }

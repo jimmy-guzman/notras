@@ -1,12 +1,10 @@
-import { Schema } from "effect";
-
-import { folderNameSchema } from "@/server/schemas/note-schemas";
-import { NoteService } from "@/server/services/note-service";
-
-import { run } from "./run";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
 export async function moveNote(path: string, folder: string) {
-  const validFolder = await Schema.decodePromise(folderNameSchema)(folder);
-
-  return run(NoteService.use((svc) => svc.move(path, validFolder)));
+  const receipt = await nativeCommand(() => commands.moveNote(path, folder));
+  return {
+    ...receipt,
+    file: { ...receipt.file, updatedAt: new Date(receipt.file.updatedAt) },
+  };
 }

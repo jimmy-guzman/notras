@@ -1,20 +1,13 @@
-import { Schema } from "effect";
+/** A file failure that distinguishes deletion from an unavailable file. */
+export class FileError extends Error {
+  readonly kind: "failed" | "not-found";
 
-export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
-  "DatabaseError",
-  {
-    cause: Schema.Defect(),
+  constructor(
+    failure: { kind: "failed" | "not-found"; message: string },
+    options?: ErrorOptions
+  ) {
+    super(failure.message, options);
+    this.name = "FileError";
+    this.kind = failure.kind;
   }
-) {}
-
-/**
- * Whether the file was not there, or the operation failed for some other
- * reason. A tab treats the first as a deletion and keeps its buffer through the
- * second, so the two cannot share one shape (`D55`).
- */
-export const FileErrorKind = Schema.Literals(["failed", "not-found"]);
-
-export class FileError extends Schema.TaggedError<FileError>()("FileError", {
-  kind: FileErrorKind,
-  message: Schema.String,
-}) {}
+}

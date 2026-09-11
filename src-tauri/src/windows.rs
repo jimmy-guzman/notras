@@ -1,12 +1,8 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Runtime};
 
-/// The palette's door onto quick capture. The tray and the global shortcut call
-/// `open_capture` directly; the webview needs a command.
-///
-/// It lives here rather than beside `open_capture` because `generate_handler!`
-/// re-imports a command's generated macros into its own module, which collides
-/// with the definition when both sit in `lib.rs`.
+/// Open quick capture, or focus its existing window.
 #[tauri::command]
-pub fn show_capture(app: AppHandle) {
+#[specta::specta]
+pub fn show_capture<R: Runtime>(app: AppHandle<R>) {
     crate::open_capture(&app);
 }

@@ -18,18 +18,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-base64 = "0.22"
-log = "0.4"
+log.workspace = true
 notify = "8"
 notify-debouncer-full = "0.5"
-# Decides what is code, HTML or a link destination when the indexer scans for
-# `[[wikilinks]]`, so the index and the editor agree. Hand-rolling that meant
-# re-deriving CommonMark's block rules, which is where the two would drift.
-# Parser only: no HTML output, no CLI.
-pulldown-cmark = { version = "0.13.4", default-features = false }
-rusqlite = { version = "0.37", features = ["bundled", "functions"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+notras-core = { path = "../crates/notras-core", features = ["bindings"] }
+serde.workspace = true
+serde_json.workspace = true
+specta.workspace = true
+specta-typescript = "=0.0.9"
 tauri = { version = "2", features = [
   "image-png",
   "protocol-asset",
@@ -39,11 +35,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
-# Already in the tree through tauri-plugin-updater; named here for
-# `NamedTempFile`, which is what makes a note save atomic. Preferred over
-# `atomic-write-file`, which is purpose-built but would be a genuinely new
-# crate, unproven against the `1.98.0` pin, and pre-1.0.
-tempfile = "3"
+tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
@@ -66,9 +58,10 @@ objc2-app-kit = { version = "0.3", features = [
 ] }
 objc2-foundation = "0.3"
 
-[profile.release]
-codegen-units = 1
-lto = true
-opt-level = "s"
-panic = "abort"
-strip = true
+[dev-dependencies]
+rusqlite.workspace = true
+tempfile.workspace = true
+tauri = { version = "2", features = ["test"] }
+
+[lints]
+workspace = true

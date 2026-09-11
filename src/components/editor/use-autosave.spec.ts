@@ -1,129 +1,92 @@
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { SaveStatus } from "./use-autosave";
-
+import { createNotePersistence } from "@/components/editor/note-persistence";
 import { useAutosave } from "./use-autosave";
 
 const AUTOSAVE_DELAY_MS = 800;
 
-// `act` refuses to run without this, and no setup file exists to set it.
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
-interface Live {
-  flush: () => Promise<boolean>;
-  reason: string | undefined;
-  status: SaveStatus;
-  type: (content: string) => void;
-}
-
-/**
- * Drive the real hook in a real root, so what is under test is the hook a tab
- * uses. `@testing-library/react` does this too, and is a dependency this repo
- * does not carry for one spec.
- */
 function mountAutosave(
   write: (path: string, content: string) => Promise<Date>
 ) {
-  const root = createRoot(document.createElement("div"));
-  let enabled = true;
-  let live: Live = {
-    flush: () => Promise.reject(new Error("the probe never rendered")),
-    reason: undefined,
-    status: "saved",
-    type: () => undefined,
+  const initialProps: { enabled: boolean; duringCommit?: () => void } = {
+    enabled: true,
   };
-
-  function Probe() {
-    const autosave = useAutosave("note.md", {
+  const { result, rerender } = renderHook(
+    ({
       enabled,
-      onSaved: () => undefined,
-      write,
-    });
-
-    live = {
-      flush: autosave.flush,
-      reason: autosave.reason,
-      status: autosave.status,
-      type: autosave.onChange,
-    };
-
-    return null;
-  }
-
-  const render = () => {
-    act(() => {
-      root.render(createElement(Probe));
-    });
-  };
-
-  render();
+      duringCommit,
+    }: {
+      enabled: boolean;
+      duringCommit?: () => void;
+    }) => {
+      const [persistence] = useState(() =>
+        createNotePersistence(
+          {
+            content: "",
+            kind: "note",
+            path: "note.md",
+            updatedAt: new Date(0),
+          },
+          {
+            changePath: () =>
+              Promise.reject(new Error("no path action requested")),
+            onPathChanged: () => undefined,
+            write: async (path, content) => ({
+              path,
+              updatedAt: await write(path, content),
+            }),
+          }
+        )
+      );
+      useLayoutEffect(() => {
+        persistence.receiveFile(
+          "note.md",
+          { content: "", updatedAt: new Date(0) },
+          !enabled
+        );
+        duringCommit?.();
+      }, [duringCommit, enabled, persistence]);
+      return useAutosave(persistence);
+    },
+    { initialProps }
+  );
 
   return {
     async flush() {
       let landed = false;
-
       await act(async () => {
-        landed = await live.flush();
+        landed = await result.current.flush();
       });
-
       return landed;
     },
     get reason() {
-      return live.reason;
+      return result.current.reason;
     },
-    setEnabled(next: boolean) {
-      enabled = next;
-      render();
+    setEnabled(enabled: boolean) {
+      rerender({ enabled });
     },
-    /**
-     * Re-render without letting passive effects flush, which is the window a
-     * debounce timer can fire in: React commits, then schedules its passive
-     * work as a separate task.
-     */
-    async setEnabledMidCommit(next: boolean) {
-      enabled = next;
-      root.render(createElement(Probe));
+    async setEnabledMidCommit(enabled: boolean) {
+      // A layout effect lets the timer fire before passive effects, even though renderHook flushes both.
+      rerender({
+        duringCommit: () => vi.advanceTimersByTime(AUTOSAVE_DELAY_MS),
+        enabled,
+      });
       await Promise.resolve();
     },
-    /** Let the 800ms debounce elapse and any write it starts settle. */
     async settle() {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
       });
     },
-    /**
-     * Start a flush and hand its promise back, so a second flush can be
-     * started while the first write is still in flight. Deliberately not
-     * `async`: an async method would adopt the promise it returns and wait for
-     * the write, which is the opposite of what a caller wants here.
-     */
     startFlush() {
-      let pending: Promise<boolean> | undefined;
-
-      act(() => {
-        pending = live.flush();
-      });
-
-      if (pending === undefined) {
-        throw new Error("the flush never started");
-      }
-
-      return pending;
+      return result.current.flush();
     },
     get status() {
-      return live.status;
+      return result.current.status;
     },
     type(content: string) {
-      act(() => {
-        live.type(content);
-      });
-    },
-    unmount() {
-      act(() => {
-        root.unmount();
-      });
+      act(() => result.current.onChange({ content, mode: "body" }));
     },
   };
 }
@@ -134,6 +97,7 @@ describe("useAutosave", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
@@ -150,8 +114,6 @@ describe("useAutosave", () => {
 
     expect(written).toStrictEqual(["hello"]);
     expect(harness.status).toBe("saved");
-
-    harness.unmount();
   });
 
   it("should not write while disabled", async () => {
@@ -167,8 +129,6 @@ describe("useAutosave", () => {
     await harness.settle();
 
     expect(written).toStrictEqual([]);
-
-    harness.unmount();
   });
 
   it("should report the buffer safe to quit while holding text it cannot write", async () => {
@@ -186,8 +146,6 @@ describe("useAutosave", () => {
     // while the tab is open, so the buffer is abandoned rather than blocking.
     await expect(harness.flush()).resolves.toBe(true);
     expect(written).toStrictEqual([]);
-
-    harness.unmount();
   });
 
   it("should not write through a timer that fires before effects flush", async () => {
@@ -203,8 +161,6 @@ describe("useAutosave", () => {
     await harness.settle();
 
     expect(written).toStrictEqual([]);
-
-    harness.unmount();
   });
 
   it("should write what is on screen after being re-enabled", async () => {
@@ -227,8 +183,6 @@ describe("useAutosave", () => {
       "first",
       "first, plus everything typed while the file was gone",
     ]);
-
-    harness.unmount();
   });
 
   it("should land overlapping writes in the order they were flushed", async () => {
@@ -288,8 +242,6 @@ describe("useAutosave", () => {
     await expect(firstFlush).resolves.toBe(true);
     await expect(secondFlush).resolves.toBe(true);
     expect(harness.status).toBe("saved");
-
-    harness.unmount();
   });
 
   it("should write again after a write fails", async () => {
@@ -317,8 +269,6 @@ describe("useAutosave", () => {
     await expect(harness.flush()).resolves.toBe(true);
     expect(written).toStrictEqual(["hello", "hello"]);
     expect(harness.status).toBe("saved");
-
-    harness.unmount();
   });
 
   it("should say why the write failed while it is failed", async () => {
@@ -341,8 +291,6 @@ describe("useAutosave", () => {
 
     await expect(harness.flush()).resolves.toBe(true);
     expect(harness.reason).toBeUndefined();
-
-    harness.unmount();
   });
 
   it("should report the buffer unsafe to quit when its write fails", async () => {
@@ -355,7 +303,5 @@ describe("useAutosave", () => {
     // This false is what cancels a quit, unlike the one a gone file reports.
     await expect(harness.flush()).resolves.toBe(false);
     expect(harness.status).toBe("failed");
-
-    harness.unmount();
   });
 });

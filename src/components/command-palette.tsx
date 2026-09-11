@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
@@ -25,7 +24,6 @@ import {
   XIcon,
 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   ActionsView,
   type PaletteAction,
@@ -48,24 +46,19 @@ import {
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
-import { filenameFromTitle, type NoteMeta } from "@/core/notes";
-import { searchFolders } from "@/core/search";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
-import { moveNote } from "@/data/move-note";
-import { setNotePinned } from "@/data/pin-note";
 import { reindexAll } from "@/data/reindex";
-import { retitleNote } from "@/data/retitle-note";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
+  changeNoteMetadata,
   closeNoteTab,
   closeOtherTabs,
   closeTab,
   closeTabsAfter,
   getTabHandles,
   openNote as openInTab,
-  renameTab,
   reopenTab,
   useTabSnapshot,
   useTabState,
@@ -77,6 +70,7 @@ import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
+import { commands } from "@/server/adapters/bindings";
 
 function toggleActionText(enabled: boolean, mode: string) {
   return `${enabled ? "turn off" : "turn on"} ${mode}`;
@@ -116,9 +110,7 @@ function PaletteFooter({
 }
 
 interface CommandPaletteProps {
-  allTags: { count: number; tag: string }[];
   mode: PaletteMode;
-  notes: NoteMeta[];
   notesDir: string;
   onOpenChange: (open: boolean) => void;
   onOpenSettings: () => void;
@@ -127,9 +119,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({
-  allTags,
   mode,
-  notes,
   notesDir,
   onOpenChange,
   onOpenSettings,
@@ -144,16 +134,18 @@ export function CommandPalette({
   const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
-  const currentNote = notes.find((note) => note.path === currentPath);
+  const currentNote =
+    currentPath === undefined || activeSnapshot === undefined
+      ? undefined
+      : {
+          path: currentPath,
+          pinned: activeSnapshot.pinned,
+          tags: activeSnapshot.tags,
+          title: activeSnapshot.title,
+        };
   // cmdk's `onSelect` carries no event, so the modifier is read off the
   // gesture that triggered it, in the capture phase to beat cmdk's own handler.
   const newTabRef = useRef(false);
-
-  // Empty path is unreachable: the tags view is gated on a current note.
-  const noteTags = useNoteTags(
-    currentNote?.path ?? "",
-    currentNote?.tags ?? []
-  );
 
   // A tag chip navigates with `?tag=`, which is what opens the palette. The
   // parent keys this component on the tag and the mode, so the seed applies
@@ -179,11 +171,6 @@ export function CommandPalette({
       inputRef.current?.select();
     }
   }, [view]);
-  const tagCounts = new Map(
-    allTags.map(({ count, tag: name }) => [name, count])
-  );
-  const knownTags = new Set(tagCounts.keys());
-
   const trackCursor = useCallback(
     (event: React.SyntheticEvent<HTMLInputElement>) => {
       setCursor(
@@ -283,13 +270,6 @@ export function CommandPalette({
     [close]
   );
 
-  // A tag the note carries may not be in the index yet, so the choices are the
-  // union rather than the index alone.
-  const draftTag = query.trim().toLowerCase();
-  const tagChoices = [...new Set([...knownTags, ...noteTags.tags])]
-    .toSorted()
-    .filter((name) => name.includes(draftTag));
-
   const matchesQuery = (label: string) =>
     label.toLowerCase().includes(query.trim().toLowerCase());
 
@@ -312,12 +292,14 @@ export function CommandPalette({
       }
 
       runAction("could not move note", async () => {
-        const next = await moveNote(currentNote.path, folder);
-
-        renameTab(currentNote.path, next);
+        const session = getTabHandles(activeId);
+        if (session?.changePath === undefined) {
+          throw new Error("the note is still opening");
+        }
+        await session.changePath({ folder, kind: "move" });
       });
     },
-    [currentNote, runAction]
+    [activeId, currentNote, runAction]
   );
 
   const moveToNewFolder = useCallback(() => {
@@ -330,27 +312,13 @@ export function CommandPalette({
     }
 
     runAction("could not rename note", async () => {
-      const next = await retitleNote(currentNote.path, query.trim());
-
-      renameTab(currentNote.path, next);
+      const session = getTabHandles(activeId);
+      if (session?.changePath === undefined) {
+        throw new Error("the note is still opening");
+      }
+      await session.changePath({ kind: "retitle", title: query.trim() });
     });
-  }, [currentNote, query, runAction]);
-
-  const toggleTag = useCallback(
-    (name: string, attached: boolean) => {
-      noteTags.changeTags(
-        attached
-          ? noteTags.tags.filter((existing) => existing !== name)
-          : [...noteTags.tags, name]
-      );
-    },
-    [noteTags]
-  );
-
-  const createTag = useCallback(() => {
-    setQuery("");
-    noteTags.changeTags([...noteTags.tags, draftTag]);
-  }, [draftTag, noteTags]);
+  }, [activeId, currentNote, query, runAction]);
 
   const newNote = useCallback(() => {
     runAction("could not create note", async () => {
@@ -366,7 +334,7 @@ export function CommandPalette({
     const title = query.trim();
 
     runAction("could not create note", async () => {
-      const path = await createNote({ filename: filenameFromTitle(title) });
+      const path = await createNote({ title });
 
       openInTab(path, true);
     });
@@ -378,7 +346,7 @@ export function CommandPalette({
     }
 
     runAction("could not update pin", () =>
-      setNotePinned(currentNote.path, !currentNote.pinned)
+      changeNoteMetadata(currentNote.path, { pinned: !currentNote.pinned })
     );
   }, [currentNote, runAction]);
 
@@ -473,7 +441,7 @@ export function CommandPalette({
   }, [activeId, close]);
 
   const quickCapture = useCallback(() => {
-    runAction("could not open quick capture", () => invoke("show_capture"));
+    runAction("could not open quick capture", commands.showCapture);
   }, [runAction]);
 
   const reindex = useCallback(() => {
@@ -706,7 +674,6 @@ export function CommandPalette({
         ) : null}
         {view === "move" ? (
           <MoveView
-            folders={searchFolders(notes)}
             onCancel={backToActions}
             onMove={moveToFolder}
             onMoveToNewFolder={moveToNewFolder}
@@ -723,13 +690,11 @@ export function CommandPalette({
         ) : null}
         {view === "tags" ? (
           <TagsView
-            attached={noteTags.tags}
-            choices={tagChoices}
-            counts={tagCounts}
-            draftTag={draftTag}
-            onCreate={createTag}
+            attached={currentNote.tags}
             onDone={backToActions}
-            onToggle={toggleTag}
+            onQueryChange={setQuery}
+            path={currentNote.path}
+            query={query}
             title={currentNote.title}
           />
         ) : null}
@@ -799,9 +764,7 @@ export function CommandPalette({
 
           {view === "find" ? (
             <PaletteSearch
-              allTags={allTags}
               cursor={cursor}
-              notes={notes}
               onCreate={createFromQuery}
               onLoadingChange={setSearchLoading}
               onQueryChange={applySuggestion}

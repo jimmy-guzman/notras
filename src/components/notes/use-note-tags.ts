@@ -1,75 +1,23 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { toast } from "@/components/ui/toast";
-
-import { setNoteTags } from "@/data/set-note-tags";
+import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 
-/**
- * A note's tags with an optimistic write.
- *
- * Shared by every surface that edits tags, so a rollback or a sync rule is
- * fixed once rather than per surface (`D31`).
- */
+/** Both tag controls read and edit the session's document. */
 export function useNoteTags(path: string, tags: string[]) {
-  const queryClient = useQueryClient();
-  const mutationKey = ["note-tags", path];
-  const [optimisticTags, setOptimisticTags] = useState(tags);
-
-  // Optimistic state follows the file (adjust-during-render pattern): an agent
-  // editing the frontmatter on disk has to show up here rather than leaving
-  // the row stuck on whatever we last set. Compared by value, since every
-  // re-read hands back a fresh array.
-  const tagsKey = tags.join("\n");
-  const [syncedTags, setSyncedTags] = useState(tagsKey);
-
-  if (syncedTags !== tagsKey) {
-    setSyncedTags(tagsKey);
-    setOptimisticTags(tags);
-  }
-
-  // A path change resets the observer, and a mutation already in flight keeps
-  // the options it held then, so its callbacks speak for the note it started
-  // on. Layout, not passive: a rejection lands in a microtask and can beat a
-  // passive effect to this.
-  const active = useRef({ path, tags });
-
-  useLayoutEffect(() => {
-    active.current = { path, tags };
-  });
-
-  const { mutate: changeTags } = useMutation({
-    mutationFn: (nextTags: string[]) => setNoteTags(path, nextTags),
-    mutationKey,
-    onError: (error) => {
-      // A note the user has left owns neither the row nor the toast, and its
-      // rollback would land on whatever the showing note has pending.
-      if (path !== active.current.path) {
-        return;
+  const changeTags = useCallback(
+    async (update: (current: string[]) => string[]) => {
+      try {
+        await changeNoteMetadata(path, { tags: update });
+      } catch (error) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not update tags",
+          type: "error",
+        });
       }
-
-      // This one still counts as pending here, so anything above one is a
-      // later toggle queued behind it, which will decide the display itself.
-      // An older failure must not restore a set the user moved past (`D31`).
-      if (queryClient.isMutating({ mutationKey }) > 1) {
-        return;
-      }
-
-      setOptimisticTags(active.current.tags);
-      toast.add({
-        description: reasonOf(error),
-        title: "could not update tags",
-        type: "error",
-      });
     },
-    onMutate: (nextTags: string[]) => {
-      setOptimisticTags(nextTags);
-    },
-    // `NoteService.setTags` is a read-modify-write of the file, so two in
-    // flight could land in either order. The scope is the note rather than the
-    // hook, so the two surfaces `D31` allows serialize against each other too.
-    scope: { id: path },
-  });
-
-  return { changeTags, tags: optimisticTags };
+    [path]
+  );
+  return { changeTags, tags };
 }

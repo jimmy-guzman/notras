@@ -1,0 +1,177 @@
+{
+  "paths": [
+    {
+      "destination": "a%20b.md",
+      "from": "projects/source.md",
+      "expected": "projects/a b.md"
+    },
+    {
+      "destination": "a%2fb.md",
+      "from": "projects/source.md",
+      "expected": "projects/a%2Fb.md"
+    },
+    {
+      "destination": "%C0%AF.md",
+      "from": "projects/source.md",
+      "expected": "projects/��.md"
+    },
+    {
+      "destination": "%E0%80%AF.md",
+      "from": "projects/source.md",
+      "expected": "projects/���.md"
+    },
+    {
+      "destination": "%ED%A0%80.md",
+      "from": "projects/source.md",
+      "expected": "projects/���.md"
+    },
+    {
+      "destination": "%F4%90%80%80.md",
+      "from": "projects/source.md",
+      "expected": "projects/����.md"
+    },
+    {
+      "destination": "%F8%88%80%80%80.md",
+      "from": "projects/source.md",
+      "expected": "projects/�����.md"
+    },
+    {
+      "destination": "%E2%82.md",
+      "from": "projects/source.md",
+      "expected": "projects/��.md"
+    },
+    {
+      "destination": "%E2%41%AC.md",
+      "from": "projects/source.md",
+      "expected": "projects/�A�.md"
+    },
+    {
+      "destination": "%FF.md",
+      "from": "projects/source.md",
+      "expected": "projects/�.md"
+    },
+    {
+      "destination": "%GG.md",
+      "from": "projects/source.md",
+      "expected": "projects/%GG.md"
+    },
+    {
+      "destination": "caf%C3%A9.md",
+      "from": "projects/source.md",
+      "expected": "projects/café.md"
+    },
+    {
+      "destination": "%F0%9F%98%80.md",
+      "from": "projects/source.md",
+      "expected": "projects/😀.md"
+    },
+    {
+      "destination": "%23.md",
+      "from": "projects/source.md",
+      "expected": "projects/%23.md"
+    },
+    {
+      "destination": "../../escape.md",
+      "from": "projects/source.md",
+      "expected": null
+    },
+    {
+      "destination": "../atlas.md?x=1#part",
+      "from": "projects/source.md",
+      "expected": "atlas.md"
+    },
+    {
+      "destination": "%C3é.md",
+      "from": "projects/source.md",
+      "expected": "projects/�é.md"
+    }
+  ],
+  "titles": [
+    {
+      "notes": [
+        {
+          "path": "a.md",
+          "title": "Same"
+        },
+        {
+          "path": "Z.md",
+          "title": "Same"
+        }
+      ],
+      "target": "Same",
+      "from": "index.md",
+      "expected": "Z.md"
+    },
+    {
+      "notes": [
+        {
+          "path": "é.md",
+          "title": "Same"
+        },
+        {
+          "path": "z.md",
+          "title": "Same"
+        }
+      ],
+      "target": "Same",
+      "from": "index.md",
+      "expected": "z.md"
+    },
+    {
+      "notes": [
+        {
+          "path": "😀.md",
+          "title": "Same"
+        },
+        {
+          "path": ".md",
+          "title": "Same"
+        }
+      ],
+      "target": "Same",
+      "from": "index.md",
+      "expected": ".md"
+    },
+    {
+      "notes": [
+        {
+          "path": "a.md",
+          "title": "Same"
+        },
+        {
+          "path": "work/z.md",
+          "title": "Same"
+        }
+      ],
+      "target": "Same",
+      "from": "work/index.md",
+      "expected": "work/z.md"
+    },
+    {
+      "notes": [
+        {
+          "path": "Same.md",
+          "title": "Other"
+        },
+        {
+          "path": "z.md",
+          "title": "Same"
+        }
+      ],
+      "target": "﻿ SAME  ",
+      "from": "index.md",
+      "expected": "z.md"
+    },
+    {
+      "notes": [
+        {
+          "path": "Same.MARKDOWN",
+          "title": "Other"
+        }
+      ],
+      "target": "same",
+      "from": "index.md",
+      "expected": "Same.MARKDOWN"
+    }
+  ]
+}

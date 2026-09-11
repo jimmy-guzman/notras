@@ -21,16 +21,19 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
 - First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
 - A note is a file whose extension is `md` or `markdown`, matched without regard to case, so `NOTE.MD` is a note.
-- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Symlinks are never indexed, and a note that became one after indexing is not read for mentions.
+- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Scans skip symlinked files and directories, including a note whose parent became a symlink after indexing. Such notes are not read for mentions.
+- The selected notes root may be a symlink. The app resolves it before reading, watching or granting attachment access. Existing symlinked paths beneath that root are refused for direct note operations and attachment writes. A symlinked index directory or database path prevents opening the library. Explicit external-file operations remain available.
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
+- An explicit creation filename may include its `.md` extension in any letter case. Creating `entry.md` produces `entry.md`, with collision suffixes before the extension.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
-- A path segment carries no `/`, `\` or `:`, is not blank, and does not start with a dot. A folder name is at most 120 characters.
-- The title resolves from frontmatter `title:`, then the body's leading `#` heading, then the filename with its extension stripped.
+- A library path uses `/` separators with no empty, `.` or `..` components. A segment carries no `\`, `:` or null character, is not blank, and does not start with a dot. A folder name is at most 120 characters. Library mutation receipts use `/` separators on every platform.
+- The title resolves from the leading `#` heading, then an imported frontmatter `title:`, then the filename stem. Existing frontmatter titles remain unchanged.
 - Only the first non-blank line can be that heading, and it takes CommonMark's ATX shape: up to three spaces of indent, one `#`, then a space, a tab, or the end of the line. `##` never matches, and `# C#` keeps its trailing `#`.
-- "rename note..." derives a filename from the title: lowercased, with whitespace and `" * / : < > ? \ |` collapsed to `-`, truncated to 120 characters. It rewrites a leading heading the note already has and a `title:` key the note already has, then renames the file.
-- Nothing introduces a heading or a `title:` key, so a note carrying neither is only renamed. Nothing else in the app renames a file.
-- A rename onto a taken path is refused before the write, so the file is untouched.
-- Frontmatter reads three keys: `pinned`, `tags` as an inline or block list, and `title` as read-only. Every other key survives a rewrite verbatim, including its position, and so does the closing delimiter the file used.
+- "rename note..." accepts a readable name and sets the leading heading, introducing it when absent. The filename is lowercased, with whitespace and invalid filename characters collapsed to hyphens, and truncated to 120 UTF-16 code units without splitting a Unicode character.
+- Every heading edit inside notras requests a freshly derived filename, even when the edit restores the original text. An empty or removed heading leaves the filename alone. Opening, reading, searching, and external edits never request a rename.
+- A taken filename receives the first available numeric suffix, starting at `-2`. The current file does not collide with itself. Each new heading edit recomputes the suffix from scratch. One undo restores the heading and filename together; if that filename has since been taken, restoration also uses an available suffix.
+- Rename and move stage and sync a destination before publishing it without overwriting an existing file. A failed publication leaves the source unchanged. If source removal fails after publication, both files remain, the tab follows the destination, and the main window shows the source path and cleanup reason.
+- Frontmatter reads three top-level keys: `pinned`, `tags` as an inline or block list, and `title` as read-only. Nested keys remain foreign metadata. Every other key survives a rewrite verbatim, including its position, and so does the closing delimiter the file used.
 - A tag is trimmed, unquoted, stripped of `,`, `[` and `]`, and lowercased. Empty tags are dropped and duplicates collapse.
 - "move to folder..." keeps the filename rather than the title, creates the folder if it is missing, and refuses a target that is taken.
 - "delete note..." asks once, then removes the file. There is no trash.
@@ -42,10 +45,16 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - Typing starts a save 800ms after the last change.
 - Losing window focus, unmounting the session, and quitting each flush too.
-- The rich editor holds the body. Frontmatter from the last read is composed back around it on every write, so a pin or a tag set elsewhere survives a body save.
-- Source mode holds the whole file, frontmatter included, so frontmatter is editable there.
-- A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted.
-- Writes are serialized, so two flushes cannot land out of order. A keystroke during a write returns the state to unsaved.
+- Rich mode edits the body of the session document; source mode edits the whole document. Rename, pin, and tags also edit that document. Rapid tag additions and removals apply to the current document, retaining other tag edits made before the controls refresh or saving completes. Every save writes its complete contents.
+- Switching editor modes preserves unsaved content, including source spelling that renders identically, and the shared undo history. Save completion cannot replace newer typing. A failed selection mapping does not prevent a valid document replacement from reaching the rich editor; the editor retains its transaction-mapped selection instead.
+- A write goes to a temporary sibling, syncs, copies the original's permissions, and renames over. A save cannot recreate a file that was deleted. Replacement supports open readers whose sharing permissions allow it, including on Windows. Existing readers retain the original file; subsequent reads see the replacement. Failed publication cleans up its temporary file.
+- Writes and folder moves are serialized per session. Rename changes the heading immediately; saving publishes the resulting content and filename. Further rename and move actions remain available while earlier work is pending. Later saves use the committed path.
+- Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
+- A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
+- Direct reads and indexing obtain content and timestamps from the same opened file. An atomic replacement during a read cannot mix two files; concurrent in-place writes are not isolated. An invalid or unavailable modification time reports a failure instead of indexing zero.
+- A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read waits for a complete recovery scan and reports a failure if recovery is incomplete. Waiting readers share the scan; direct file reads and saves can run between its steps. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
+- A scan reports invalid file paths and continues indexing valid notes. Path-conversion failures defer stale-row deletion until a scan can convert all file paths. Indexed reads still reject an incomplete recovery.
+- Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
 
 ## External changes
@@ -53,8 +62,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The watcher debounces at 300ms, so a file written by anything else reaches the app within about a second. A note appears in the palette under its own title rather than its filename.
 - A change event names the files that changed, and only the tabs holding one of them re-read. An event naming nothing means the whole vault changed, and every tab re-reads.
 - An external file's path is never named by a change event, so an external tab re-reads when the window regains focus.
-- A buffer reloads only when it is clean, the file is newer than this tab's own last write, and the body differs. The reload remounts the editor, so the caret and the undo history go with it.
-- Frontmatter follows the file whether or not the buffer is clean.
+- A clean session adopts a newer external document without writing or renaming it. The mounted editor remains in place, its selection maps through the change, and undo history resets at that external version.
+- An external observation cannot replace unsaved work. Saves and folder moves defer file-read reconciliation, and results for a former path cannot replace the document.
 - A dirty buffer wins. An external edit to a note with unsaved changes is not shown, and the next flush overwrites it.
 - A tab whose file was deleted while its buffer was clean closes itself.
 - A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
@@ -67,14 +76,14 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A save that failed shows why under "could not save", in the save glyph's tooltip and in the tab's dot.
 - A search the index could not answer reads "could not search notes" over the reason in the palette, and offers no note to create from it.
 - A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
-- The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
+- The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches. Failed observation reconciliation emits no change event.
 - The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
-- Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" drops every row and rescans, which is what reaches notes nobody has edited.
-- An index a previous version built is dropped to rows on the first launch of a newer one and rebuilt by the startup scan, which the log records.
+- Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" refreshes every note, including unchanged files, while retaining indexed rows until each note is refreshed. During a healthy scan, indexed queries use the complete version from before the scan and refresh after completion. Queries against a fresh or failed index wait for successful recovery. A partially indexed library cannot appear as empty, and a folder rescan cannot show both the old and new paths. File reads and saves can run between scan steps and while indexed queries execute. One large file can still delay another file operation.
+- An older index schema is recreated on the first launch of a newer one and rebuilt by the startup scan, which the log records.
 
 ## Tabs
 
-- Tabs sit in the title bar. Each holds its own editing session, undo history, and caret.
+- Tabs sit in the title bar. Each holds its own editing session, undo history, and caret. Tab labels and overflow choices show the live document title, using the filename until the document loads. The tab strip and an available document remain usable while library lists are pending or failed.
 - ⌘N, ⌘T, the strip's `+`, the tray's new note, the palette's new note, and the palette's create row all open a new note in a new tab.
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A link click replaces.
@@ -88,26 +97,28 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
 - Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.
-- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved to its own path, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render, its wikilinks do not navigate, and it counts no mentions. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
+- A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved beside the original file, with in-app heading edits updating its filename, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render, its wikilinks do not navigate, and it counts no mentions. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
-- With nothing to restore, the most recently updated note opens.
+- With nothing to restore, the most recently updated note opens when its query completes. The welcome screen and new-note action remain available during that read. A tab change cancels this automatic opening, so a late result cannot replace the user's choice. A failed read shows its reason and a retry action.
 
 ## Search and the palette
 
 - ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing.
 - Find mode lists notes and never actions. Actions mode lists actions and never notes.
-- Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes pinned first.
+- Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes by most recently updated, without prioritizing pins.
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
 - A hit carries a snippet of at most 24 tokens with the matched text highlighted.
 - Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.
 - `#tag` and `folder:path` may appear anywhere alongside free text. All filters, including repeated filters, combine with AND before the 30-result cap. A folder includes its descendants; `folder:/` includes the notes root and its descendants. An unknown tag or folder returns nothing.
 - Find mode keeps an "add filter" button below the results. It opens choices for folder, tag, mentions of a note, links from a note, phrase in prose, and link destination. Escape returns from these choices without changing the query. Incomplete tokens show suggestions. Folder suggestions include ancestors and subtree counts, with a "notes root" choice. Picking a suggestion replaces the token at the caret, or an unfinished token, and preserves other filters and free text. Resolved tokens show note results instead of a picker. Values accept quotes and escaped quotes or backslashes.
 - A find that matches no note offers to create one named for the query, which opens in a new tab. Its filename is derived from what was typed, so `Q3 planning: draft` lands as `q3-planning-draft.md`, and a name already on disk gets a counter rather than overwriting. The row appears only after a completed, unfiltered free-text search returns no results. Pending searches offer no creation. Incomplete filters and failures show their own messages.
-- `to:projects/atlas.md` finds notes mentioning that note through resolved internal links or its bare title. Existing duplicate-title resolution and self-reference exclusions apply. `from:projects/atlas.md` finds existing notes it explicitly links to, excluding itself and unresolved targets. Note pickers show titles and paths and insert canonical library-relative paths. An unresolved path returns nothing. Relationship searches select matching destination rows and relevant resolver candidates before crossing the native database bridge; free-text candidates remain uncapped until the filters have been applied.
+- `to:projects/atlas.md` finds notes mentioning that note through resolved internal links or its bare title. Existing duplicate-title resolution and self-reference exclusions apply. `from:projects/atlas.md` finds existing notes it explicitly links to, excluding itself and unresolved targets. Note pickers show titles and paths and insert canonical library-relative paths. An unresolved path returns nothing. Rust resolves relationship searches and returns complete results; free-text candidates remain uncapped until the filters have been applied.
+- Each saved-library query reads one indexed version, including titles, tags, snippets, links and literal prose. External file changes appear after indexing; a query cannot combine earlier metadata with newer file contents. A query that finishes after a library switch rejects its old result.
 - `mention:"Ada Lovelace"` finds the whole phrase in saved prose without regard to case, including headings and excluding frontmatter, code, HTML, and link spans. The phrase need not name a note, and punctuation-only phrases are searchable. ASCII phrases with letters or digits use FTS to narrow candidate files before literal matching, retaining files with non-ASCII bodies because Unicode word boundaries differ. Punctuation-only and non-ASCII phrases scan the saved library so tokenizer or Unicode case-folding differences cannot omit matches.
 - `link:github.com` matches literal destination text without regard to case: note paths, attachments, external URLs, unresolved wikilinks, and rendered autolinks. Image sources do not match. Without free text, results show matching context when available; outgoing context names its source note.
-- Palette search reads saved library content. A failed read shows its reason and a retry button, and never offers creation. While a changed query debounces or loads, the last displayed note rows stay visible at the same opacity and scroll position. Those rows cannot open through Enter, ⌘Enter, or a click, and those gestures are not queued. Results replace the previous rows together when the current query completes, with the first result selected and the list scrolled to the top. Refreshing the same query keeps its rows usable and preserves the choice while that note remains in the results. Clearing the input restores recent notes immediately. Responses and failures for an earlier query cannot replace the current display.
+- Palette search reads saved library content. A failed read shows its reason and a retry button, and never offers creation. While a changed query debounces or loads, the last displayed note rows stay visible at the same opacity and scroll position. Those rows cannot open through Enter, ⌘Enter, or a click, and those gestures are not queued. Results replace the previous rows together when the current query completes, with the first result selected and the list scrolled to the top. Refreshing the same query keeps its rows usable and preserves the choice while that note remains in the results. Clearing the input restores cached recent notes immediately; an uncached list shows loading until its read completes. A failed refresh retains cached rows beside the error. Responses and failures for an earlier query cannot replace the current display.
+- Filter suggestions and move choices show loading or a failure with retry until their data is available. These reads do not block the actions list. Both tag editors keep attached tags and typed choices available while suggestions are pending or failed, and do not label unknown counts as zero. The palette offers a typed tag as "add" because tagging does not require knowing whether the tag already exists elsewhere.
 - The actions are find in note, new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
 - Find in note needs an available editor, including an external file.
 - New note, focus mode, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
@@ -134,12 +145,14 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
 - ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
+- A failed rich-editor selection conversion does not block valid document edits or saves. Invalid selection offsets do not reach the shared document.
 - In source mode, Tab inserts two spaces and Shift-Tab outdents two.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
-- Clicking a pill resolves by title first, then by filename, preferring a note in the same folder, then by path. A link matching nothing says so and creates nothing.
+- A link activation waits for the note list when resolution is not yet available. A failed read reports "could not open note" and its reason without claiming the destination is missing. A newer link activation, switching away from the originating tab, or closing that session supersedes the pending action. Returning to that tab does not revive the action. Changes that leave the originating tab active, including background-tab closures and reordering, do not supersede it. A superseded result cannot navigate or show an obsolete failure.
+- Clicking a pill resolves by title first, then by filename, preferring a note in the same folder, then by Unicode scalar path order so duplicate titles resolve identically across devices. A link matching nothing says so and creates nothing.
 - The status strip counts the notes that mention the one showing, as `3 mentions` or `1 mention`, and shows nothing while none does. A mention is a wikilink or a markdown link in another note that resolves to this one the way a click would, or this note's title written there bare, so a note's links to itself and links that name no note count for nothing.
-- A bare title counts when it stands as a whole word, without regard to case, outside links, code, HTML, and the heading that names the other note. A letter, digit or underscore on either side makes it part of a longer word, and a note titled by its frontmatter has no naming heading, so its first heading is prose. The filename is not searched, and two notes sharing a title both count the same bare line.
+- A bare title counts when it stands as a whole word, without regard to case, outside links, code, HTML, and the heading that names the other note. A letter, digit or underscore on either side makes it part of a longer word, and a leading heading names the note even when imported frontmatter also has a title. The filename is not searched, and two notes sharing a title both count the same bare line.
 - The count, ⌘⇧L, and "show mentions" in the palette open one list: a row per note reading `title · folder`, the line that mentions it beneath, starting on a word a little before the link or the title, and `+1` on a note that mentions it more than once. ⏎ opens the note in the showing tab, ⌘⏎ opens it beside, and esc closes.
 - A link or a bare title written by anything else reaches the count within about a second.
 - A read of the mentions that fails leaves the count absent and toasts why once, under "could not read mentions".
@@ -195,6 +208,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A note on screen before and after a hop glides to its new place over 0.15s with its line turning under it; with reduce motion on the move is instant.
 - A pill's title truncates to the room the ring leaves it, so the graph fits the window at any width and never puts a scrollbar on it.
 - With nothing on either side the centre stands alone over "no links yet, and nothing mentions it".
+- A failed graph refresh keeps the last graph visible and reports the failure once for that note, under "could not read the graph".
 - A read of the bare mentions that fails draws the graph from links alone and toasts why once, under "could not read the graph".
 
 ## Quick capture
@@ -218,7 +232,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - If the webview never answers, the quit goes through after 5 seconds.
 - "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. A path that reaches the notes dir through a symlink counts as inside it. macOS only.
 - Settings exposes the notes folder and launch at login. Changing the folder creates its `.notras/`, builds an index, restarts the watcher, and stores the choice.
-- The webview cannot write the index. A statement SQLite does not report as read-only is refused.
+- Rust owns index reads and writes. The webview sends typed operations and has no generic SQL command.
+- A native panic stops a production build. It is not reported as an ordinary file failure, and interrupted native state is not reused.
 
 ## Updates
 

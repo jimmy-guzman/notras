@@ -20,21 +20,13 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Actionable future work belongs in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).** State the problem, the desired outcome, the evidence, and any unresolved prerequisite. Check for an existing issue before opening one. Speculative ideas need no backlog entry. What landed belongs in the commit, not in a second log.
 
-- **A choice with a rejected alternative belongs in `DECISIONS.md`.** Ruling out an option for a reason worth recording makes the choice a decision. Add a numbered entry with the rationale and what was rejected.
+- **`DECISIONS.md` is history, not a constraint.** Reassess an old choice against current behavior and evidence. Routine implementation details belong in code; current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. Add a decision entry only when the rationale needs a durable record beyond those sources. A rejected alternative alone does not require one.
 
-- **Breaking an invariant in `ARCHITECTURE.md` is a design change.** Each one holds a property the architecture depends on, so changing one is never a refactor and gets a `DECISIONS.md` entry of its own.
+- **Reassess architectural invariants when behavior changes.** Update `ARCHITECTURE.md` to describe the resulting system. An existing invariant can be wrong; its presence does not require preserving it or adding a decision entry.
 
 - **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at. Reusing an ID repoints every reference to it without any of them changing.
 
 - **Cite IDs, never restate, and never in code.** Write `D7` in commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now. A comment has to stand on its own instead: a reader in the file cannot follow the citation, and `DECISIONS.md` records what was decided once rather than what the code does now.
-
-## Learning more about Effect
-
-This repository uses the Effect TypeScript library.
-
-Before writing any Effect code, read `node_modules/effect/AGENTS.md` in full and follow the links in the file when required.
-
-If you need to learn more about particular Effect APIs and concepts that the guide does not cover, search through the source code in `node_modules/effect/src`.
 
 ## Naming and layout
 
@@ -72,7 +64,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 ## Boundaries between units
 
-- **Depend on abstractions you pass in, not concretions you reach for.** This repo already names its ports: `FileStore` in `src/core`, `Database` in `src/server/db`. A service that reaches for a Tauri command directly cannot be tested. Nothing enforces this since `D43`, so `ARCHITECTURE.md` records the boundaries and a reviewer holds them.
+- **Depend on abstractions you pass in, not concretions you reach for.** Keep platform access at the boundaries described in `ARCHITECTURE.md`. Native handlers call `Library` operations; frontend data functions use the generated command client. Test native behavior with real files and SQLite, and frontend behavior at the IPC boundary.
 
 - **Hide what varies behind a stable surface.** Keep implementation details, data shapes, and library choices private to their module. Expose the narrowest interface callers need.
 
@@ -94,15 +86,17 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 - **Where TypeScript infers return types, do not annotate internal functions.** That covers unexported functions, local closures, and inline callbacks. Exported functions and interface method signatures are the exception, since their return type is part of the public contract.
 
-- **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validation is Effect Schema in `src/server/schemas/`, not zod.
+- **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validate at the owning boundary described in `ARCHITECTURE.md`; persisted mutation inputs are validated in Rust.
 
-- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `run()` gets it to a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
+- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `nativeCommand()` preserves it for a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
 
 - **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 
 - **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** A warning fires because something is off. Silencing it converts a problem you can solve now into one that surfaces later without the warning attached.
 
 ## Testing
+
+- **Use the existing test tools instead of rebuilding their infrastructure.** Use `render` for React components and `renderHook` for hooks without UI. Query controls by role or label and use `user-event` for interactions. Keep explicit events for tests that need an exact timer boundary, a native event payload, or an editor transaction. Shared setup owns React cleanup and DOM matchers; do not add per-file roots, polling loops, or act-environment flags.
 
 - **Test behavior, not implementation.** Assert what a caller or user observes. Both terms scale with the unit under test: for a component it is the person clicking, for a function it is the code calling it. A test that asserts internals breaks on every refactor while proving nothing about whether the code works.
 
@@ -134,22 +128,25 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 ```txt
 pnpm knip             # 0. unused code/deps (fix before proceeding)
+pnpm bindings:check   # native contract drift, before checking its callers
 pnpm typecheck        # 1. types
 pnpm check            # 2. lint + format
 pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
 pnpm build:web        # 4. web bundle build
 ```
 
-When Rust sources or gate configuration change, also run these commands from `src-tauri/` in this order:
+When Rust sources or gate configuration change, also run these commands from the repository root in this order:
 
 ```txt
 cargo machete
 cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+cargo clippy --workspace --locked --all-targets -- -D warnings
+cargo test --workspace --locked
 ```
 
-CI runs the TypeScript commands in order. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
+CI checks native binding drift on Linux before starting the TypeScript job. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
+
+Regenerate `src/server/adapters/bindings.ts` with `pnpm bindings`; do not edit its generated command signatures or runtime by hand. Change the native registry or export configuration in Rust. `ARCHITECTURE.md` describes the contract and test boundary.
 
 For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. Nothing automated covers it, which `D21` records. Say which claims you checked and which you took from the code alone.
 
@@ -271,6 +268,6 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **`## Why` also says what happens when the change is wrong and how someone finds out.** The section carries the problem the change addresses. Two more sentences make it answerable: the risk someone accepted, and the signal that fires when the risk lands.
 
-- **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated `Cargo.lock` beside it, which is what `cargo test --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
+- **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
 
 - **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs rot as soon as the code moves without them. Catching the update at the point of change is when it reliably happens at all.

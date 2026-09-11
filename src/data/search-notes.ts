@@ -1,7 +1,9 @@
 import type { NoteSearch } from "@/core/search";
-import { NoteService } from "@/server/services/note-service";
-import { run } from "./run";
+import { nativeCommand } from "@/data/native-command";
+import { noteResult } from "@/data/note-results";
+import { commands } from "@/server/adapters/bindings";
 
-export function searchNotes(search: NoteSearch) {
-  return run(NoteService.use((service) => service.search(search)));
+export async function searchNotes(search: NoteSearch) {
+  const notes = await nativeCommand(() => commands.searchNotes(search));
+  return notes.map(noteResult);
 }

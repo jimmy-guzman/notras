@@ -1,13 +1,12 @@
-import { NoteService } from "@/server/services/note-service";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-/** Copy a dragged-in file into `attachments/`; resolves to its relative path. */
-export function attachFile(sourcePath: string) {
-  return run(NoteService.use((svc) => svc.attach(sourcePath)));
+/** Copy a dragged-in file into attachments, returning its relative path. */
+export async function attachFile(sourcePath: string): Promise<string> {
+  return await nativeCommand(() => commands.attachFile(sourcePath));
 }
 
-/** Save a pasted clipboard image; resolves to its relative path. */
-export function attachImage(base64Data: string) {
-  return run(NoteService.use((svc) => svc.attachImage(base64Data)));
+/** Save a pasted image, returning its relative path. */
+export async function attachImage(base64Data: string): Promise<string> {
+  return await nativeCommand(() => commands.attachImage(base64Data));
 }

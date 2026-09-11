@@ -1,32 +1,31 @@
-import { Schema } from "effect";
+import { nativeCommand } from "@/data/native-command";
+import { commands, type NoteName } from "@/server/adapters/bindings";
 
-import {
-  folderNameSchema,
-  noteFilenameSchema,
-} from "@/server/schemas/note-schemas";
-import { NoteService } from "@/server/services/note-service";
-
-import { run } from "./run";
-
-interface CreateNoteOptions {
+type CreateNoteOptions = {
   content?: string;
-  filename?: string;
   folder?: string;
+} & (
+  | { filename?: string; title?: never }
+  | { filename?: never; title: string }
+);
+
+function creationName(options: CreateNoteOptions | undefined): NoteName | null {
+  if (options?.title !== undefined) {
+    return { kind: "title", value: options.title };
+  }
+  return options?.filename === undefined
+    ? null
+    : { kind: "filename", value: options.filename };
 }
 
-export async function createNote(options?: CreateNoteOptions) {
-  const folder =
-    options?.folder === undefined
-      ? undefined
-      : await Schema.decodePromise(folderNameSchema)(options.folder);
-  const filename =
-    options?.filename === undefined
-      ? undefined
-      : await Schema.decodePromise(noteFilenameSchema)(options.filename);
-
-  return run(
-    NoteService.use((svc) =>
-      svc.create({ content: options?.content, filename, folder })
-    )
+export async function createNote(options?: CreateNoteOptions): Promise<string> {
+  const name = creationName(options);
+  const receipt = await nativeCommand(() =>
+    commands.createNote({
+      content: options?.content ?? null,
+      folder: options?.folder ?? null,
+      name,
+    })
   );
+  return receipt.path;
 }

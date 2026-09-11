@@ -4,11 +4,14 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { CaptureWindow } from "@/components/capture-window";
-import { toast } from "@/components/ui/toast";
+import { Toaster, toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
+import { reportNoteWarnings } from "@/lib/ui/note-warnings";
 import { routeTree } from "@/routeTree.gen";
+import { events } from "@/server/adapters/bindings";
 
 /**
  * The watcher decides staleness; a failed read surfaces at once. The cache
@@ -54,6 +57,37 @@ const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
 );
 
 export function App() {
+  useEffect(() => {
+    if (isCaptureWindow) {
+      return;
+    }
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const subscribe = async () => {
+      try {
+        const stop = await events.mutationWarnings.listen(({ payload }) =>
+          reportNoteWarnings(payload.warnings)
+        );
+        if (disposed) {
+          stop();
+        } else {
+          unlisten = stop;
+        }
+      } catch (error) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not receive file warnings",
+          type: "error",
+        });
+      }
+    };
+    subscribe();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   if (isCaptureWindow) {
     return <CaptureWindow />;
   }
@@ -61,6 +95,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
     </QueryClientProvider>
   );
 }

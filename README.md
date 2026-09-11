@@ -54,7 +54,8 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 ### Tabs
 
 - several notes open at once, in the title bar
-- each tab keeps its own undo history and caret
+- each tab keeps its own undo history across rich and source mode
+- editing the heading names the file; rename accepts a readable name, and one undo restores both
 - the open set comes back when you relaunch
 
 ### Files and the system
@@ -160,6 +161,8 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm build`     | build the desktop bundle            |
 | `pnpm dev:web`   | run only the web shell (Vite)       |
 | `pnpm build:web` | build only the web shell            |
+| `pnpm bindings` | regenerate the Rust command and event client |
+| `pnpm bindings:check` | fail if a temporary native binding export differs |
 | `pnpm check`     | lint and format check (Ultracite)   |
 | `pnpm fix`       | lint and format, auto-fixing        |
 | `pnpm typecheck` | type check (tsc)                    |
@@ -173,7 +176,7 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 
 Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
 
-Rust commands run from `src-tauri`. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional tools once:
+Rust commands run from the repository root. The Cargo workspace contains the independent `notras-core` engine and the Tauri shell in `src-tauri`. Both use the root `target` directory. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional tools once:
 
 ```bash
 cargo install cargo-machete --locked --version 0.9.2
@@ -185,11 +188,18 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo machete` | unused Rust dependencies |
 | `cargo fmt --all -- --check` | Rust formatting check |
 | `cargo fmt --all` | format Rust sources |
-| `cargo clippy --locked --all-targets -- -D warnings` | Clippy, with warnings treated as errors |
-| `cargo test --locked` | Rust tests, including doctests |
-| `../scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
+| `cargo clippy --workspace --locked --all-targets -- -D warnings` | Clippy, with warnings treated as errors |
+| `cargo test -p notras-core --locked` | engine tests without Tauri or binding metadata |
+| `cargo test --workspace --locked` | engine and shell tests, including doctests |
+| `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-CI runs Clippy and tests on macOS, Linux, and Windows. Dependency and formatting checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. Coverage includes application and shell code and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+Both crates inherit checks requiring explicit unsafe operations, safety comments on unsafe blocks, and reasons for lint allowances. CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes both workspace crates and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
+
+On Windows MSVC, `src-tauri/build.rs` embeds `windows_manifest.xml` through the linker for both the application and shell test executables. It declares the Common Controls v6 dependency required by Tauri. Without that manifest, Windows can reject the test executable with `STATUS_ENTRYPOINT_NOT_FOUND` before any tests run.
+
+Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
+
+Mutation tests cover native file and index outcomes, shared normalization fixtures, and session persistence with delayed writes and path changes. A file that committed remains saved when indexing fails. The main window reports the warning, and the next index read attempts recovery.
 
 ## Technologies
 
@@ -201,8 +211,6 @@ CI runs Clippy and tests on macOS, Linux, and Windows. Dependency and formatting
 - [TanStack Router](https://tanstack.com/router)
 - [TipTap](https://tiptap.dev) 3
 - [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown)
-- [Effect](https://effect.website) 4 (release candidate)
-- [Drizzle ORM](https://orm.drizzle.team)
 - [SQLite](https://sqlite.org) FTS5
 - [Shadcn UI](https://ui.shadcn.com)
 - [Base UI](https://base-ui.com)

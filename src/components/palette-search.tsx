@@ -184,33 +184,27 @@ function filterHelp(kind: SearchFilter["kind"] | undefined) {
 
 const NO_NOTES: NoteMeta[] = [];
 
-function useSearchResults(
-  query: string,
-  notes: NoteMeta[],
-  showPicker: boolean
-) {
+function useSearchResults(query: string, showPicker: boolean) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
   const idle = query.trim() === "";
-  const result = useQuery({
+  const recent = useQuery({
+    ...noteQueries.list({ limit: 20, sort: "updated" }),
+    enabled: idle,
+  });
+  const searched = useQuery({
     ...noteQueries.search(parseSearch(debounced)),
     enabled: !(idle || search.incomplete || showPicker) && debounced === query,
   });
-  const pending =
-    !(idle || search.incomplete || showPicker) &&
-    (debounced !== query || result.isPending);
-  const failed = !idle && debounced === query && result.isError;
-  const currentNotes = (() => {
-    if (idle) {
-      return notes;
-    }
-    if (search.incomplete || showPicker || failed || !result.isSuccess) {
-      return NO_NOTES;
-    }
-    return result.data;
-  })();
+  const result = idle ? recent : searched;
+  const showingResults = !(search.incomplete || showPicker);
+  const waitingForDebounce = !idle && debounced !== query;
+  const pending = showingResults && (waitingForDebounce || result.isPending);
+  const failed = (idle || debounced === query) && result.isError;
+  const currentNotes =
+    search.incomplete || showPicker ? NO_NOTES : (result.data ?? NO_NOTES);
   const [displayed, setDisplayed] = useState({
-    notes: idle ? notes.slice(0, 20) : NO_NOTES,
+    notes: idle ? currentNotes.slice(0, 20) : NO_NOTES,
     query,
   });
   useLayoutEffect(() => {
@@ -224,10 +218,7 @@ function useSearchResults(
   const readyNotes = idle ? currentNotes.slice(0, 20) : currentNotes;
   const visible = pending ? displayed.notes : readyNotes;
   const resultQuery = pending ? displayed.query : query;
-  const reading =
-    !(idle || search.incomplete || showPicker) &&
-    debounced === query &&
-    result.isFetching;
+  const reading = showingResults && !waitingForDebounce && result.isFetching;
   return {
     failed,
     pending,
@@ -238,10 +229,38 @@ function useSearchResults(
   };
 }
 
+function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
+  const suggestions = useQuery({
+    ...noteQueries.list(),
+    enabled:
+      candidate !== undefined &&
+      ["folder", "to", "from"].includes(candidate.kind),
+  });
+  const tags = useQuery({
+    ...noteQueries.tags(),
+    enabled: candidate?.kind === "tag",
+  });
+  const choicesQuery = candidate?.kind === "tag" ? tags : suggestions;
+  const needsChoices =
+    candidate !== undefined &&
+    ["folder", "to", "from", "tag"].includes(candidate.kind);
+  const choicesPending =
+    needsChoices && choicesQuery.data === undefined && choicesQuery.isPending;
+  const choicesFailed =
+    needsChoices && choicesQuery.data === undefined && choicesQuery.isError;
+  const picker = pickerChoices(
+    candidate,
+    suggestions.data ?? NO_NOTES,
+    tags.data ?? []
+  );
+  const retryChoices = useCallback(async () => {
+    await choicesQuery.refetch();
+  }, [choicesQuery]);
+  return { choicesFailed, choicesPending, choicesQuery, picker, retryChoices };
+}
+
 interface PaletteSearchProps {
-  allTags: { count: number; tag: string }[];
   cursor?: number;
-  notes: NoteMeta[];
   onCreate: () => void;
   onLoadingChange?: (loading: boolean) => void;
   onQueryChange: (query: string) => void;
@@ -251,9 +270,7 @@ interface PaletteSearchProps {
 }
 
 export function PaletteSearch({
-  allTags,
   cursor,
-  notes,
   onCreate,
   onLoadingChange,
   onQueryChange,
@@ -264,10 +281,12 @@ export function PaletteSearch({
   const search = parseSearch(query);
   const idle = query.trim() === "";
   const candidate = searchSuggestion(query, cursor);
-  const picker = pickerChoices(candidate, notes, allTags);
+  const { choicesFailed, choicesPending, choicesQuery, picker, retryChoices } =
+    useFilterChoices(candidate);
   const showPicker = picker !== undefined && picker.choices.length > 0;
+  const choosingFilter = showPicker || choicesPending || choicesFailed;
   const { failed, pending, readingQuery, result, resultQuery, visible } =
-    useSearchResults(query, notes, showPicker);
+    useSearchResults(query, choosingFilter);
   useLayoutEffect(() => {
     onResultQueryChange?.(resultQuery);
   }, [onResultQueryChange, resultQuery]);
@@ -327,8 +346,24 @@ export function PaletteSearch({
   })();
 
   return (
-    <div aria-busy={pending}>
-      {!(showPicker || pending) && visible.length === 0 && !offerCreate ? (
+    <div aria-busy={pending || choicesPending}>
+      {choicesPending ? (
+        <p className="p-4 text-muted-foreground text-sm" role="status">
+          loading suggestions...
+        </p>
+      ) : null}
+      {choicesFailed ? (
+        <div className="p-4 text-sm" role="status">
+          <p>could not load suggestions</p>
+          <p>{reasonOf(choicesQuery.error)}</p>
+          <Button onClick={retryChoices} size="sm" variant="ghost">
+            retry
+          </Button>
+        </div>
+      ) : null}
+      {!(choosingFilter || pending) &&
+      (visible.length === 0 || failed) &&
+      !offerCreate ? (
         <Empty className="p-6" role="status">
           <EmptyHeader>
             <EmptyTitle>{status.title}</EmptyTitle>
@@ -343,7 +378,7 @@ export function PaletteSearch({
           ) : null}
         </Empty>
       ) : null}
-      {!showPicker && (visible.length > 0 || offerCreate) ? (
+      {!choosingFilter && (visible.length > 0 || offerCreate) ? (
         <CommandGroup heading="notes" key={resultQuery}>
           {visible.map((note) => (
             <NoteItem

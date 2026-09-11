@@ -1,8 +1,14 @@
-import { batch, createStore, useSelector } from "@tanstack/react-store";
-
+import {
+  batch,
+  createStore,
+  type ReadonlyStore,
+  useSelector,
+} from "@tanstack/react-store";
 import type { SaveStatus } from "@/components/editor/use-autosave";
+import type { FrontmatterPatch } from "@/core/frontmatter";
+import type { PendingOpen } from "@/server/adapters/bindings";
 
-import type { ClosedTab, PendingOpen, Tab, TabState } from "./tab";
+import type { ClosedTab, Tab, TabState } from "./tab";
 
 import {
   adoptNote,
@@ -25,6 +31,13 @@ const STORAGE_KEY = "tabs";
  * use. Never rendered, so registering one notifies nobody.
  */
 export interface TabHandles {
+  /** Present when a loaded note session can flush and follow a native path change. */
+  changePath?: (
+    change:
+      | { kind: "move"; folder: string }
+      | { kind: "retitle"; title: string }
+  ) => Promise<void>;
+  editMetadata?: (patch: FrontmatterPatch) => Promise<void>;
   /** The caret's offset in this buffer's markdown, or -1. Read only when the set is persisted. */
   getCaret: () => number;
   /** Into whichever surface is live, since ⌘P swaps which one owns the caret. */
@@ -47,7 +60,8 @@ export interface TabSnapshot {
 
 const tabs = createStore<TabState>({ activeId: "", tabs: [] });
 
-const snapshots = createStore<Record<string, TabSnapshot>>({});
+const snapshots = createStore<Record<string, ReadonlyStore<TabSnapshot>>>({});
+const emptySnapshot = createStore<TabSnapshot | undefined>(undefined);
 
 let closed: ClosedTab[] = [];
 /** Carets read back at launch, each consumed once by the session that mounts. */
@@ -210,7 +224,8 @@ export function useTabState() {
 }
 
 export function useTabSnapshot(id: string) {
-  return useSelector(snapshots, (all) => all[id]);
+  const source = useSelector(snapshots, (all) => all[id]);
+  return useSelector<TabSnapshot | undefined>(source ?? emptySnapshot);
 }
 
 export function getTabHandles(id: string) {
@@ -222,9 +237,20 @@ export function registerTabHandles(id: string, next: TabHandles) {
   handles.set(id, next);
 }
 
-/** Called by a session on every change it makes to what the chrome shows. */
-export function publishTabSnapshot(id: string, snapshot: TabSnapshot) {
+/** Connect the chrome to the session's derived state for its mounted lifetime. */
+export function registerTabSnapshot(
+  id: string,
+  snapshot: ReadonlyStore<TabSnapshot>
+) {
   snapshots.setState((prev) => ({ ...prev, [id]: snapshot }));
+  return () => {
+    if (snapshots.state[id] !== snapshot) {
+      return;
+    }
+    snapshots.setState((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([key]) => key !== id))
+    );
+  };
 }
 
 /**
@@ -331,4 +357,20 @@ export function activateTab(id: string) {
 /** Follow a note that a rename or a folder move gave a new path. */
 export function renameTab(from: string, to: string) {
   setState(replaceNotePath(getTabState(), from, to));
+}
+
+/** Edit metadata through the note that owns the live document. */
+export async function changeNoteMetadata(
+  path: string,
+  patch: FrontmatterPatch
+): Promise<void> {
+  const tab = tabs.state.tabs.find(
+    (entry) => entry.path === path && entry.kind === "note"
+  );
+  const edit =
+    tab === undefined ? undefined : handles.get(tab.id)?.editMetadata;
+  if (edit === undefined) {
+    throw new Error("the note is still opening");
+  }
+  await edit(patch);
 }

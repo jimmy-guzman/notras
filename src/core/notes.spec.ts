@@ -1,25 +1,23 @@
 import { describe, expect, it } from "vitest";
+import fixtures from "../../fixtures/note-mutations.json";
 
 import { parseNote } from "./frontmatter";
 import {
   filenameFromTitle,
-  NOTE_SEGMENT_PATTERN,
   resolveTitle,
   retitleLeadingHeading,
-  suffixedFilename,
 } from "./notes";
 
-/**
- * The title-resolution parity table. The `resolves_titles_from_frontmatter_
- * then_heading_then_filename` test in `src-tauri/src/index.rs` asserts the same
- * cases in the same order, so the two resolvers can be diffed by eye.
- */
+const VALID_FILENAME = /^(?!\.)[^/\\:]+$/;
+
+// Mirrors should_resolve_heading_then_imported_title_then_filename in
+// crates/notras-core/src/markdown.rs so both runtimes choose the same title.
 const cases: [content: string, path: string, expected: string][] = [
-  // Frontmatter wins over a heading that disagrees.
+  // The heading wins over an imported title that disagrees.
   [
     "---\ntitle: from frontmatter\n---\n# from heading\n",
     "note.md",
-    "from frontmatter",
+    "from heading",
   ],
   [
     '---\ntitle: "effect: a primer"\n---\nbody\n',
@@ -27,7 +25,7 @@ const cases: [content: string, path: string, expected: string][] = [
     "effect: a primer",
   ],
   ["---\ntitle: effect: a primer\n---\nbody\n", "note.md", "effect: a primer"],
-  // An empty title is absent, so the heading takes over.
+  // An empty imported title does not change heading precedence.
   ["---\ntitle:\n---\n# from heading\n", "note.md", "from heading"],
   // Heading beats the filename.
   ["# from heading\n", "note.md", "from heading"],
@@ -63,8 +61,8 @@ describe("resolveTitle", () => {
     );
   });
 
-  // Mirrors `strips_the_markdown_extension_case_insensitively` in
-  // `src-tauri/src/index.rs`, case for case, so the two cannot drift.
+  // Mirrors `should_strip_the_markdown_extension_case_insensitively` in
+  // `crates/notras-core/src/markdown.rs`, case for case, so the two cannot drift.
   it("should strip the markdown extension case-insensitively", () => {
     expect(resolveTitle("NOTE.MD", "body\n")).toBe("NOTE");
     expect(resolveTitle("note.md", "body\n")).toBe("note");
@@ -120,6 +118,18 @@ describe("retitleLeadingHeading", () => {
 });
 
 describe("filenameFromTitle", () => {
+  it("should leave a whole Unicode character at the filename limit", () => {
+    expect(filenameFromTitle(`${"a".repeat(119)}😀`)).toBe("a".repeat(119));
+    expect(filenameFromTitle(`${"a".repeat(118)}😀`)).toBe(
+      `${"a".repeat(118)}😀`
+    );
+  });
+  it.each(fixtures.filenames)(
+    "should preserve the shared filename for $title",
+    ({ title, expected }) => {
+      expect(filenameFromTitle(title)).toBe(expected);
+    }
+  );
   it.each([
     ["team sync", "team-sync"],
     ["Effect: A Primer", "effect-a-primer"],
@@ -155,26 +165,7 @@ describe("filenameFromTitle", () => {
     ];
 
     for (const title of titles) {
-      expect(filenameFromTitle(title)).toMatch(NOTE_SEGMENT_PATTERN);
+      expect(filenameFromTitle(title)).toMatch(VALID_FILENAME);
     }
-  });
-});
-
-describe("suffixedFilename", () => {
-  it("should append the counter when the base has room", () => {
-    expect(suffixedFilename("untitled", 2)).toBe("untitled-2");
-  });
-
-  it("should cut the base so the suffix fits under the cap", () => {
-    const filename = suffixedFilename("a".repeat(120), 10);
-
-    expect(filename).toHaveLength(120);
-    expect(filename.endsWith("-10")).toBe(true);
-  });
-
-  it("should leave no separator run where the cut landed", () => {
-    const filename = suffixedFilename(`${"a".repeat(117)}-bc`, 2);
-
-    expect(filename).toBe(`${"a".repeat(117)}-2`);
   });
 });

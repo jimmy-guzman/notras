@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../src-tauri"
+cd "$(dirname "$0")/.."
 
 # A failed rerun must not publish reports from an earlier run.
 rm -rf target/coverage
-cargo llvm-cov --locked --no-report
+cargo llvm-cov --workspace --locked --no-report
 mkdir -p target
 coverage_tmp=$(mktemp -d target/coverage.XXXXXX)
 trap 'rm -rf "$coverage_tmp"' EXIT

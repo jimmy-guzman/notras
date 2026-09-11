@@ -1,79 +1,65 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
+import { createStore } from "@tanstack/react-store";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { CommandPalette } from "@/components/command-palette";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
-import { getTabState, openNote } from "@/lib/tabs/store";
+import { getTabState, openNote, registerTabSnapshot } from "@/lib/tabs/store";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+const FOUND_NOTE = /Found/;
+const CREATE_NOTE = /create/;
 
-function press(input: Element, key: string) {
-  input.dispatchEvent(
-    new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key })
-  );
-}
-
-function type(input: HTMLInputElement, value: string) {
-  Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value"
-  )?.set?.call(input, value);
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-async function mount(mode: "actions" | "find", notes: NoteMeta[]) {
+function mount(mode: "actions" | "find", notes: NoteMeta[]) {
+  const user = userEvent.setup();
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
+  client.setQueryData(noteQueries.list().queryKey, notes);
+  client.setQueryData(
+    noteQueries.list({ limit: 20, sort: "updated" }).queryKey,
+    notes
+  );
+  client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   const closed: boolean[] = [];
-  await act(async () => {
-    root.render(
-      createElement(
-        QueryClientProvider,
-        { client },
-        createElement(CommandPalette, {
-          allTags: [{ count: 1, tag: "work" }],
-          mode,
-          notes,
-          notesDir: "/notes",
-          onOpenChange: (next) => closed.push(next),
-          onOpenSettings: () => undefined,
-          open: true,
-        })
-      )
-    );
-    await Promise.resolve();
-  });
+  onTestFinished(() => client.clear());
+  render(
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(CommandPalette, {
+        mode,
+        notesDir: "/notes",
+        onOpenChange: (next) => closed.push(next),
+        onOpenSettings: () => undefined,
+        open: true,
+      })
+    )
+  );
   return {
     client,
     closed,
     get input() {
-      const input = document.querySelector<HTMLInputElement>("[cmdk-input]");
-      if (input === null) {
-        throw new Error("palette input missing");
-      }
-      return input;
+      return screen.getByRole<HTMLInputElement>("combobox");
     },
-    unmount: () => {
-      act(() => root.unmount());
-      host.remove();
-      client.clear();
-    },
+    user,
   };
 }
 
 describe("command palette keyboard", () => {
-  it("should open the async search result with Enter rather than inserting a filter", async ({
-    onTestFinished,
-  }) => {
+  it("should open the async search result with Enter rather than inserting a filter", async () => {
     const note: NoteMeta = {
       createdAt: new Date(0),
       folder: "projects",
@@ -84,8 +70,7 @@ describe("command palette keyboard", () => {
       title: "Roadmap",
       updatedAt: new Date(0),
     };
-    const palette = await mount("find", []);
-    onTestFinished(palette.unmount);
+    const palette = mount("find", []);
     const read = Promise.withResolvers<NoteMeta[]>();
     const pending = Promise.allSettled([
       palette.client.fetchQuery({
@@ -93,31 +78,27 @@ describe("command palette keyboard", () => {
         queryFn: () => read.promise,
       }),
     ]);
-    act(() => type(palette.input, "Roadmap"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "Roadmap");
     expect(document.body.textContent).not.toContain("searching notes");
-    act(() => press(palette.input, "Enter"));
+    await palette.user.keyboard("{Enter}");
     expect(palette.input.value).toBe("Roadmap");
     await act(async () => {
       read.resolve([note]);
       await pending;
     });
-    await vi.waitFor(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
+    await waitFor(() => {
       expect(
-        document.querySelector('[cmdk-item][aria-selected="true"]')?.textContent
+        screen.getByRole("option", { selected: true }).textContent
       ).toContain("Roadmap");
     });
-    act(() => press(palette.input, "Enter"));
+    await palette.user.keyboard("{Enter}");
     expect(palette.closed).toContain(false);
     expect(getTabState().tabs.some((tab) => tab.path === note.path)).toBe(true);
   });
 
-  it("should keep filter discovery outside result selection and preserve the query through the picker", async ({
-    onTestFinished,
-  }) => {
-    const palette = await mount("find", [
+  it("should keep filter discovery outside result selection and preserve the query through the picker", async () => {
+    const palette = mount("find", [
       {
         createdAt: new Date(0),
         folder: "work/2026",
@@ -129,70 +110,51 @@ describe("command palette keyboard", () => {
         updatedAt: new Date(0),
       },
     ]);
-    onTestFinished(palette.unmount);
-    act(() => type(palette.input, "budget #work "));
-    const addFilter = [...document.querySelectorAll("button")].find(
-      (button) => button.textContent === "add filter"
-    );
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "budget #work ");
+    const addFilter = screen.getByRole("button", { name: "add filter" });
     expect(addFilter).toBeDefined();
-    act(() => addFilter?.click());
+    await palette.user.click(addFilter);
     expect(palette.input.value).toBe("");
-    act(() => type(palette.input, "folder"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "folder");
     await act(async () => {
       await Promise.resolve();
     });
-    act(() => press(palette.input, "Enter"));
+    await palette.user.keyboard("{Enter}");
     expect(palette.input.value).toBe("budget #work folder:");
     expect(document.body.textContent).not.toContain("incomplete filter");
-    const folder = [
-      ...document.querySelectorAll<HTMLElement>('[role="option"]'),
-    ].find((row) => row.getAttribute("data-value") === "work");
+    const folder = screen.getByRole("option", { name: "work 1" });
     expect(folder?.textContent).toContain("1");
-    act(() => folder?.click());
+    await palette.user.click(folder);
     expect(palette.input.value).toBe("budget #work folder:work ");
-    expect(document.activeElement).toBe(palette.input);
-    act(() => addFilter?.click());
-    act(() => press(palette.input, "Escape"));
+    expect(palette.input).toHaveFocus();
+    await palette.user.click(addFilter);
+    await palette.user.keyboard("{Escape}");
     expect(palette.input.value).toBe("budget #work folder:work ");
     expect(palette.closed).toEqual([]);
   });
 
-  it("should select the first filter when opening its empty menu and go back from its footer", async ({
-    onTestFinished,
-  }) => {
-    const palette = await mount("find", []);
-    onTestFinished(palette.unmount);
-    const addFilter = [...document.querySelectorAll("button")].find(
-      (button) => button.textContent === "add filter"
-    );
-    act(() => addFilter?.click());
+  it("should select the first filter when opening its empty menu and go back from its footer", async () => {
+    const palette = mount("find", []);
+    const addFilter = screen.getByRole("button", { name: "add filter" });
+    await palette.user.click(addFilter);
     await act(async () => {
       await Promise.resolve();
     });
     expect(
-      document.querySelector('[role="option"][aria-selected="true"]')
-        ?.textContent
+      screen.getByRole("option", { selected: true }).textContent
     ).toContain("folder");
-    const back = [...document.querySelectorAll("button")].find(
-      (button) => button.textContent === "back to notes"
-    );
-    await act(async () => {
-      back?.focus();
-      if (back !== undefined) {
-        press(back, "Escape");
-      }
-      await Promise.resolve();
-    });
+    const back = screen.getByRole("button", { name: "back to notes" });
+    act(() => back.focus());
+    await palette.user.keyboard("{Escape}");
     expect(palette.input.value).toBe("");
     expect(palette.closed).toEqual([]);
     expect(document.body.textContent).toContain("add filter");
   });
 
-  it("should keep an arrow-key choice when the same query receives updated results", async ({
-    onTestFinished,
-  }) => {
-    const palette = await mount("find", []);
-    onTestFinished(palette.unmount);
+  it("should keep an arrow-key choice when the same query receives updated results", async () => {
+    const palette = mount("find", []);
     const first: NoteMeta = {
       createdAt: new Date(0),
       folder: "work",
@@ -215,20 +177,16 @@ describe("command palette keyboard", () => {
     };
     const options = noteQueries.search(parseSearch("project"));
     palette.client.setQueryData(options.queryKey, [first, second]);
-    act(() => type(palette.input, "project"));
-    await vi.waitFor(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "project");
+    await waitFor(() => {
       expect(
-        document.querySelector('[role="option"][aria-selected="true"]')
-          ?.textContent
+        screen.getByRole("option", { selected: true }).textContent
       ).toContain("Project first");
     });
-    act(() => press(palette.input, "ArrowDown"));
+    await palette.user.keyboard("{ArrowDown}");
     expect(
-      document.querySelector('[role="option"][aria-selected="true"]')
-        ?.textContent
+      screen.getByRole("option", { selected: true }).textContent
     ).toContain("Project second");
     const read = Promise.withResolvers<NoteMeta[]>();
     const pending = Promise.allSettled([
@@ -242,82 +200,83 @@ describe("command palette keyboard", () => {
       await Promise.resolve();
     });
     expect(
-      document.querySelector('[role="option"][aria-selected="true"]')
-        ?.textContent
+      screen.getByRole("option", { selected: true }).textContent
     ).toContain("Project second");
     await act(async () => {
       read.resolve([second, first]);
       await pending;
     });
-    await vi.waitFor(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
+    await waitFor(() => {
       expect(
-        document.querySelector('[role="option"][aria-selected="true"]')
-          ?.textContent
+        screen.getByRole("option", { selected: true }).textContent
       ).toContain("Project second");
     });
-    act(() => press(palette.input, "Enter"));
+    await palette.user.keyboard("{Enter}");
     expect(palette.closed).toContain(false);
     expect(getTabState().tabs.some((tab) => tab.path === second.path)).toBe(
       true
     );
   });
 
-  it("should select creation after an empty search completes", async ({
-    onTestFinished,
-  }) => {
-    const palette = await mount("find", []);
-    onTestFinished(palette.unmount);
+  it("should select creation after an empty search completes", async () => {
+    const palette = mount("find", []);
     palette.client.setQueryData(
       noteQueries.search(parseSearch("new project")).queryKey,
       []
     );
-    act(() => type(palette.input, "new project"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "new project");
     expect(document.querySelector('[role="option"]')).toBeNull();
-    await vi.waitFor(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
+    await waitFor(() => {
       expect(
-        document.querySelector('[role="option"][aria-selected="true"]')
-          ?.textContent
+        screen.getByRole("option", { selected: true }).textContent
       ).toContain('create "new project"');
     });
   });
 
-  it("should match visible action wording and select the existing rename title", async ({
-    onTestFinished,
-  }) => {
+  it("should match visible action wording and select the existing rename title", async () => {
     openNote("projects/atlas.md");
-    const palette = await mount("actions", [
+    registerTabSnapshot(
+      getTabState().activeId,
+      createStore(() => ({
+        pinned: true,
+        reason: undefined,
+        sourceMode: false,
+        status: "dirty",
+        tags: ["work"],
+        title: "Atlas",
+        words: 1,
+      }))
+    );
+    const palette = mount("actions", [
       {
         createdAt: new Date(0),
         folder: "projects",
         path: "projects/atlas.md",
-        pinned: true,
+        pinned: false,
         snippet: null,
         tags: ["work"],
-        title: "Atlas",
+        title: "outdated indexed title",
         updatedAt: new Date(0),
       },
     ]);
-    onTestFinished(palette.unmount);
-    act(() => type(palette.input, "unpin"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "unpin");
     expect(document.body.textContent).toContain("unpin note");
-    act(() => type(palette.input, "turn on focus"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "turn on focus");
     expect(document.body.textContent).toContain("turn on focus mode");
-    act(() => type(palette.input, "rename"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "rename");
     await act(async () => {
       await Promise.resolve();
     });
-    act(() => press(palette.input, "Enter"));
+    await palette.user.keyboard("{Enter}");
     expect(palette.input.value).toBe("Atlas");
     expect([palette.input.selectionStart, palette.input.selectionEnd]).toEqual([
       0, 5,
     ]);
-    act(() => press(palette.input, "Escape"));
+    await palette.user.keyboard("{Escape}");
     expect(palette.closed).toEqual([]);
     expect(palette.input.value).toBe("");
     expect(document.body.textContent).toContain("rename note");
@@ -329,9 +288,7 @@ describe("command palette keyboard", () => {
 });
 
 describe("steady palette searches", () => {
-  it("should retain recent rows without opening them while a new search is pending", async ({
-    onTestFinished,
-  }) => {
+  it("should retain recent rows without opening them while a new search is pending", async () => {
     vi.useFakeTimers();
     onTestFinished(() => {
       vi.useRealTimers();
@@ -356,8 +313,7 @@ describe("steady palette searches", () => {
       title: "Found",
       updatedAt: new Date(0),
     };
-    const palette = await mount("find", [recent]);
-    onTestFinished(palette.unmount);
+    const palette = mount("find", [recent]);
     const read = Promise.withResolvers<NoteMeta[]>();
     const request = Promise.allSettled([
       palette.client.fetchQuery({
@@ -365,24 +321,16 @@ describe("steady palette searches", () => {
         queryFn: () => read.promise,
       }),
     ]);
-    const row = document.querySelector<HTMLElement>('[role="option"]');
-    act(() => type(palette.input, "found"));
+    const row = screen.getByRole("option");
+    fireEvent.change(palette.input, { target: { value: "found" } });
     expect(document.querySelector('[role="option"]')).toBe(row);
     expect(row?.textContent).toContain("Recent");
     expect(row?.getAttribute("aria-disabled")).toBe("true");
     expect(document.body.textContent).not.toContain("searching notes");
-    act(() => {
-      row?.click();
-      press(palette.input, "Enter");
-      palette.input.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          bubbles: true,
-          cancelable: true,
-          key: "Enter",
-          metaKey: true,
-        })
-      );
-    });
+    fireEvent.click(row);
+    act(() => palette.input.focus());
+    fireEvent.keyDown(palette.input, { key: "Enter" });
+    fireEvent.keyDown(palette.input, { key: "Enter", metaKey: true });
     expect(palette.closed).toEqual([]);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(150);
@@ -396,27 +344,23 @@ describe("steady palette searches", () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(
-      document.querySelector('[role="option"][aria-selected="true"]')
-        ?.textContent
+      screen.getByRole("option", { selected: true }).textContent
     ).toContain("Found");
     expect(document.body.textContent).not.toContain("Recent");
     expect(palette.closed).toEqual([]);
-    act(() => press(palette.input, "Enter"));
+    fireEvent.keyDown(palette.input, { key: "Enter" });
     expect(palette.closed).toEqual([false]);
     expect(getTabState().tabs.some((tab) => tab.path === "found.md")).toBe(
       true
     );
   });
 
-  it("should delay the footer spinner until a read takes 500ms and reset it for another query", async ({
-    onTestFinished,
-  }) => {
+  it("should delay the footer spinner until a read takes 500ms and reset it for another query", async () => {
     vi.useFakeTimers();
     onTestFinished(() => {
       vi.useRealTimers();
     });
-    const palette = await mount("find", []);
-    onTestFinished(palette.unmount);
+    const palette = mount("find", []);
     const read = Promise.withResolvers<NoteMeta[]>();
     const request = Promise.allSettled([
       palette.client.fetchQuery({
@@ -424,7 +368,7 @@ describe("steady palette searches", () => {
         queryFn: () => read.promise,
       }),
     ]);
-    act(() => type(palette.input, "slow"));
+    fireEvent.change(palette.input, { target: { value: "slow" } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(149);
     });
@@ -454,7 +398,7 @@ describe("steady palette searches", () => {
       noteQueries.search(parseSearch("cached")).queryKey,
       []
     );
-    act(() => type(palette.input, "cached"));
+    fireEvent.change(palette.input, { target: { value: "cached" } });
     expect(
       document.querySelector('svg[aria-label="searching notes"]')
     ).toBeNull();
@@ -473,9 +417,7 @@ describe("steady palette searches", () => {
     expect(document.body.textContent).toContain('create "cached"');
   });
 
-  it("should ignore intermediate responses and restore recent notes immediately when cleared", async ({
-    onTestFinished,
-  }) => {
+  it("should ignore intermediate responses and restore recent notes immediately when cleared", async () => {
     vi.useFakeTimers();
     onTestFinished(() => {
       vi.useRealTimers();
@@ -500,8 +442,7 @@ describe("steady palette searches", () => {
       title: "Intermediate",
       updatedAt: new Date(0),
     };
-    const palette = await mount("find", [recent]);
-    onTestFinished(palette.unmount);
+    const palette = mount("find", [recent]);
     const firstRead = Promise.withResolvers<NoteMeta[]>();
     const firstRequest = Promise.allSettled([
       palette.client.fetchQuery({
@@ -516,11 +457,11 @@ describe("steady palette searches", () => {
         queryFn: () => lastRead.promise,
       }),
     ]);
-    act(() => type(palette.input, "first"));
+    fireEvent.change(palette.input, { target: { value: "first" } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(150);
     });
-    act(() => type(palette.input, "last"));
+    fireEvent.change(palette.input, { target: { value: "last" } });
     await act(async () => {
       firstRead.resolve([intermediate]);
       await firstRequest;
@@ -532,7 +473,7 @@ describe("steady palette searches", () => {
       await vi.advanceTimersByTimeAsync(149);
     });
     expect(document.body.textContent).not.toContain("Intermediate");
-    act(() => type(palette.input, ""));
+    fireEvent.change(palette.input, { target: { value: "" } });
     expect(
       document.querySelector('[role="option"]')?.getAttribute("aria-disabled")
     ).toBe("false");
@@ -548,9 +489,7 @@ describe("steady palette searches", () => {
     ).toBeNull();
   });
 
-  it("should show current filter choices immediately after a failed search", async ({
-    onTestFinished,
-  }) => {
+  it("should show current filter choices immediately after a failed search", async () => {
     const note: NoteMeta = {
       createdAt: new Date(0),
       folder: "work",
@@ -561,26 +500,120 @@ describe("steady palette searches", () => {
       title: "Note",
       updatedAt: new Date(0),
     };
-    const palette = await mount("find", [note]);
-    onTestFinished(palette.unmount);
+    const palette = mount("find", [note]);
     const key = noteQueries.search(parseSearch("broken")).queryKey;
     palette.client.setQueryData(key, []);
     palette.client
       .getQueryCache()
       .find({ queryKey: key })
       ?.setState({ error: new Error("index unavailable"), status: "error" });
-    act(() => type(palette.input, "broken"));
-    await vi.waitFor(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "broken");
+    await waitFor(() => {
       expect(document.body.textContent).toContain("index unavailable");
     });
-    act(() => type(palette.input, "folder:"));
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "folder:");
     expect(document.querySelector('[role="option"]')?.textContent).toContain(
       "notes root"
     );
     expect(document.body.textContent).not.toContain("index unavailable");
     expect(document.body.textContent).not.toContain("incomplete filter");
   });
+});
+
+it("should search while the full note list is pending without treating it as empty", async () => {
+  const list = Promise.withResolvers<[]>();
+  mockIPC((command) => {
+    if (command === "list_notes") {
+      return list.promise;
+    }
+    if (command === "search_notes") {
+      return [
+        {
+          createdAt: 1,
+          folder: "",
+          path: "found.md",
+          pinned: false,
+          snippet: "matched words",
+          tags: [],
+          title: "Found",
+          updatedAt: 1,
+        },
+      ];
+    }
+    throw new Error(`unexpected command: ${command}`);
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  onTestFinished(async () => {
+    await act(() => {
+      list.resolve([]);
+    });
+    client.clear();
+    clearMocks();
+  });
+  const onOpenChange = vi.fn();
+  const onOpenSettings = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <CommandPalette
+        mode="find"
+        notesDir="/notes"
+        onOpenChange={onOpenChange}
+        onOpenSettings={onOpenSettings}
+        open
+      />
+    </QueryClientProvider>
+  );
+  expect(screen.queryByText("nothing found")).not.toBeInTheDocument();
+  const user = userEvent.setup();
+  await user.type(screen.getByRole("combobox"), "needle");
+  expect(
+    await screen.findByRole("option", { name: FOUND_NOTE })
+  ).toBeInTheDocument();
+});
+
+it("should report a failed first note list and retry without offering creation", async () => {
+  let attempts = 0;
+  mockIPC((command) => {
+    if (command !== "list_notes") {
+      throw new Error(`unexpected command: ${command}`);
+    }
+    attempts += 1;
+    if (attempts === 1) {
+      throw Object.assign(new Error("index unavailable"), { kind: "failed" });
+    }
+    return [];
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  onTestFinished(() => {
+    client.clear();
+    clearMocks();
+  });
+  const onOpenChange = vi.fn();
+  const onOpenSettings = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <CommandPalette
+        mode="find"
+        notesDir="/notes"
+        onOpenChange={onOpenChange}
+        onOpenSettings={onOpenSettings}
+        open
+      />
+    </QueryClientProvider>
+  );
+  expect(await screen.findByText("could not search notes")).toBeInTheDocument();
+  expect(screen.getByText("index unavailable")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("option", { name: CREATE_NOTE })
+  ).not.toBeInTheDocument();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "retry" }));
+  expect(await screen.findByText("nothing found")).toBeInTheDocument();
+  expect(attempts).toBe(2);
 });

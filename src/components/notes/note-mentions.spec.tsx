@@ -1,21 +1,20 @@
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
-
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import type { Mention } from "@/core/links";
+import { noteQueries } from "@/data/queries";
 import { getTabState } from "@/lib/tabs/store";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 
-import { NoteMentions } from "./note-mentions";
-
-// `act` refuses to run without this, and no setup file exists to set it.
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
-let teardown: (() => void) | null = null;
+import { MentionsOf, NoteMentions } from "./note-mentions";
 
 afterEach(() => {
-  teardown?.();
-  teardown = null;
+  cleanup();
+  setMentionsOpen(false);
+  clearMocks();
 });
 
 function mention(
@@ -42,27 +41,9 @@ function mention(
   };
 }
 
-async function mount(mentions: Mention[]) {
-  const host = document.createElement("div");
-
-  document.body.append(host);
-
-  const root = createRoot(host);
-
-  await act(async () => {
-    root.render(createElement(NoteMentions, { mentions }));
-    await Promise.resolve();
-  });
-
-  teardown = () => {
-    act(() => {
-      root.unmount();
-    });
-    host.remove();
-    setMentionsOpen(false);
-  };
-
-  return host;
+function mount(mentions: Mention[]) {
+  const { container } = render(createElement(NoteMentions, { mentions }));
+  return container;
 }
 
 async function showList() {
@@ -71,18 +52,18 @@ async function showList() {
     await Promise.resolve();
   });
 
-  return [...document.body.querySelectorAll('[role="menuitem"]')];
+  return screen.queryAllByRole("menuitem");
 }
 
 describe("NoteMentions", () => {
-  it("should show nothing while nothing links here", async () => {
-    const host = await mount([]);
+  it("should show nothing while nothing links here", () => {
+    const host = mount([]);
 
     expect(host.textContent).toBe("");
   });
 
-  it("should count the notes linking here", async () => {
-    const host = await mount([
+  it("should count the notes linking here", () => {
+    const host = mount([
       mention("a.md", "see [[here]]"),
       mention("b.md", "and [[here]]"),
     ]);
@@ -90,14 +71,14 @@ describe("NoteMentions", () => {
     expect(host.textContent).toBe("2 mentions");
   });
 
-  it("should count one note in the singular", async () => {
-    const host = await mount([mention("a.md", "see [[here]]")]);
+  it("should count one note in the singular", () => {
+    const host = mount([mention("a.md", "see [[here]]")]);
 
     expect(host.textContent).toBe("1 mention");
   });
 
   it("should list each linking note with the line that links here", async () => {
-    await mount([
+    mount([
       mention("a.md", "see [[here]] first"),
       mention("work/b.md", "then [[here]]"),
     ]);
@@ -119,7 +100,7 @@ describe("NoteMentions", () => {
       match: "[[here]]",
     });
 
-    await mount([twice, mention("b.md", "once [[here]]")]);
+    mount([twice, mention("b.md", "once [[here]]")]);
 
     const items = await showList();
 
@@ -132,7 +113,7 @@ describe("NoteMentions", () => {
   it("should start the line a little before its link", async () => {
     const padding = "word ".repeat(20);
 
-    await mount([mention("a.md", `${padding}[[here]] at the end`)]);
+    mount([mention("a.md", `${padding}[[here]] at the end`)]);
 
     const [item] = await showList();
 
@@ -143,63 +124,88 @@ describe("NoteMentions", () => {
 
   it("should close the list when its note goes away", async () => {
     const mentions = [mention("a.md", "see [[here]]")];
-    const host = document.createElement("div");
-
-    document.body.append(host);
-
-    const root = createRoot(host);
-
-    await act(async () => {
-      root.render(createElement(NoteMentions, { mentions }));
-      await Promise.resolve();
-    });
-
+    const { unmount } = render(createElement(NoteMentions, { mentions }));
     expect(await showList()).toHaveLength(1);
+    unmount();
+    mount(mentions);
 
-    // Unmount without the teardown's reset, which is what a tab switch or a
-    // closed tab does to the component.
-    await act(async () => {
-      root.unmount();
-      await Promise.resolve();
-    });
-    host.remove();
-
-    await mount(mentions);
-
-    expect(document.body.querySelectorAll('[role="menuitem"]')).toHaveLength(0);
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
   });
 
   it("should open the picked note in place, and beside it with ⌘", async () => {
-    await mount([
-      mention("a.md", "see [[here]]"),
-      mention("b.md", "and [[here]]"),
-    ]);
+    mount([mention("a.md", "see [[here]]"), mention("b.md", "and [[here]]")]);
+    const user = userEvent.setup();
     const before = getTabState().tabs.length;
 
-    const [first, second] = await showList();
-
-    await act(async () => {
-      first?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
+    await showList();
+    const [first] = screen.getAllByRole("menuitem");
+    if (first === undefined) {
+      throw new Error("first mention missing");
+    }
+    await user.click(first);
 
     expect(getTabState().tabs).toHaveLength(before + 1);
     expect(
       getTabState().tabs.find((tab) => tab.id === getTabState().activeId)?.path
     ).toBe("a.md");
 
-    const items = await showList();
-
-    await act(async () => {
-      (items[1] ?? second)?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, metaKey: true })
-      );
-      await Promise.resolve();
-    });
+    await showList();
+    const [, second] = screen.getAllByRole("menuitem");
+    if (second === undefined) {
+      throw new Error("second mention missing");
+    }
+    await user.keyboard("{Meta>}");
+    await user.click(second);
+    await user.keyboard("{/Meta}");
 
     expect(getTabState().tabs).toHaveLength(before + 2);
     expect(
       getTabState().tabs.find((tab) => tab.id === getTabState().activeId)?.path
     ).toBe("b.md");
+  });
+});
+
+describe("MentionsOf native queries", () => {
+  it("should publish the complete count together and request only the saved path", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const response = Promise.withResolvers<unknown>();
+    const calls: unknown[] = [];
+    mockIPC((command, args) => {
+      calls.push({ args, command });
+      return response.promise;
+    });
+    const { container: host } = render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(MentionsOf, { path: "atlas.md" })
+      )
+    );
+    onTestFinished(() => client.clear());
+    expect(host.textContent).toBe("");
+    await act(async () => {
+      response.resolve(
+        ["a.md", "b.md"].map((path) => ({
+          lines: [{ context: "Atlas in prose", line: 2, match: "Atlas" }],
+          note: {
+            createdAt: 0,
+            folder: "",
+            path,
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: path,
+            updatedAt: 1000,
+          },
+        }))
+      );
+      await client.fetchQuery(noteQueries.mentions("atlas.md"));
+    });
+    await waitFor(() => expect(host.textContent).toBe("2 mentions"));
+    expect(calls).toEqual([
+      { args: { path: "atlas.md" }, command: "find_mentions" },
+    ]);
   });
 });

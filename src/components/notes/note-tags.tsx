@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
@@ -11,6 +13,8 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
+import { noteQueries } from "@/data/queries";
+import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 
 interface TagBadgeProps {
@@ -35,15 +39,15 @@ function TagBadge({ onFilter, tag }: TagBadgeProps) {
 }
 
 interface NoteTagsProps {
-  allTags: { count: number; tag: string }[];
   onFilter: (tag: string) => void;
   path: string;
   tags: string[];
 }
 
-export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
+export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const allTags = useQuery({ ...noteQueries.tags(), enabled: open });
   const { changeTags, tags: optimisticTags } = useNoteTags(path, tags);
 
   useHotkey(
@@ -54,7 +58,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
     { meta: { name: "edit tags" } }
   );
 
-  const counts = new Map(allTags.map(({ count, tag }) => [tag, count]));
+  const counts = new Map(allTags.data?.map(({ count, tag }) => [tag, count]));
 
   // A tag the note carries may not be in the index yet, and the typed draft is
   // the "create" row. Both are the same kind of string an existing tag is, so
@@ -73,11 +77,22 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
   const commitTags = useCallback(
     (nextTags: string[]) => {
       setQuery("");
-      changeTags(nextTags);
+      // The combobox reports a replacement for its rendered value, so recover the toggled items here.
+      const toggled = [
+        ...nextTags.filter((tag) => !optimisticTags.includes(tag)),
+        ...optimisticTags.filter((tag) => !nextTags.includes(tag)),
+      ];
+      changeTags((current) => [
+        ...current.filter((tag) => !toggled.includes(tag)),
+        ...toggled.filter((tag) => !current.includes(tag)),
+      ]);
     },
-    [changeTags]
+    [changeTags, optimisticTags]
   );
 
+  const retry = useCallback(async () => {
+    await allTags.refetch();
+  }, [allTags]);
   const hasTags = optimisticTags.length > 0;
 
   return (
@@ -103,6 +118,7 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
         value={optimisticTags}
       >
         <ComboboxTrigger
+          aria-label="add tag"
           className="[&>svg:last-child]:hidden"
           render={
             <Badge
@@ -121,17 +137,36 @@ export function NoteTags({ allTags, onFilter, path, tags }: NoteTagsProps) {
           side="top"
         >
           <ComboboxInput placeholder="filter tags..." showTrigger={false} />
-          <ComboboxEmpty className="flex-col gap-0.5">
-            <p className="text-muted-foreground">no tags yet</p>
-            <p className="text-faint">type to create one</p>
-          </ComboboxEmpty>
+          {allTags.data === undefined && allTags.isPending ? (
+            <p
+              className="px-3 py-2 text-muted-foreground text-xs"
+              role="status"
+            >
+              loading tag suggestions...
+            </p>
+          ) : null}
+          {allTags.isError ? (
+            <div className="px-3 py-2 text-xs" role="status">
+              <p>could not load tag suggestions</p>
+              <p>{reasonOf(allTags.error)}</p>
+              <Button onClick={retry} size="sm" variant="ghost">
+                retry
+              </Button>
+            </div>
+          ) : null}
+          {allTags.isSuccess ? (
+            <ComboboxEmpty className="flex-col gap-0.5">
+              <p className="text-muted-foreground">no tags yet</p>
+              <p className="text-faint">type to create one</p>
+            </ComboboxEmpty>
+          ) : null}
           <ComboboxList>
             {(tag: string) => (
               <ComboboxItem key={tag} value={tag}>
                 <HashIcon className="text-muted-foreground" />
                 <span className="truncate">{tag}</span>
                 <span className="ml-auto text-faint">
-                  {counts.get(tag) ?? "new"}
+                  {counts.get(tag) ?? (allTags.data === undefined ? "" : "new")}
                 </span>
               </ComboboxItem>
             )}

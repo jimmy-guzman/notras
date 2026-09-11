@@ -1,11 +1,10 @@
-import { FileStore } from "@/core/file-store";
+import { nativeCommand } from "@/data/native-command";
+import { commands } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-export function getNotesDir() {
-  return run(FileStore.use((store) => store.getNotesDir()));
+export async function getNotesDir(): Promise<string> {
+  return await nativeCommand(commands.getNotesDir);
 }
 
-export function setNotesDir(path: string) {
-  return run(FileStore.use((store) => store.setNotesDir(path)));
+export async function setNotesDir(path: string): Promise<void> {
+  await nativeCommand(() => commands.setNotesDir(path));
 }

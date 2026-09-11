@@ -1,27 +1,30 @@
+mod bindings;
 mod clipboard;
-mod frontmatter;
-mod index;
+mod library;
 mod notes;
 mod state;
 mod watcher;
 mod windows;
 
-use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use serde::Serialize;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::window::Color;
 use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, Theme, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, Manager, RunEvent, Runtime, Theme, WebviewUrl, WebviewWindowBuilder,
+    WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_store::StoreExt;
 
-use crate::state::{AppState, Core};
+use crate::bindings::NotesChanged;
+use crate::library::LibraryOwner;
+use crate::state::AppState;
+use notras_core::Library;
+use tauri_specta::Event;
 
 /// `--background` from `src/styles.css`, restated because the window layer is
 /// painted by the OS before any stylesheet exists. `src/styles.spec.ts` fails if
@@ -46,7 +49,7 @@ fn background_for(theme: Theme) -> Color {
 /// documented to cover a view's descendants, and the buttons live in the frame
 /// view rather than under `contentView`, so it is set on both.
 #[cfg(target_os = "macos")]
-fn use_compact_window_controls(window: &tauri::WebviewWindow) {
+fn use_compact_window_controls<R: Runtime>(window: &tauri::WebviewWindow<R>) {
     use objc2::available;
     use objc2_app_kit::{NSWindow, NSWindowButton};
 
@@ -54,35 +57,38 @@ fn use_compact_window_controls(window: &tauri::WebviewWindow) {
         return;
     }
 
-    let Ok(pointer) = window.ns_window() else {
-        return;
-    };
+    let native_window = window.clone();
+    if let Err(error) = window.run_on_main_thread(move || {
+        let Ok(pointer) = native_window.ns_window() else {
+            return;
+        };
 
-    // Tauri hands back the NSWindow backing this webview window.
-    let ns_window: &NSWindow = unsafe { &*pointer.cast::<NSWindow>() };
+        // SAFETY: Tauri returns a non-null, aligned NSWindow pointer retained in
+        // the current autorelease pool. This closure runs on the main thread,
+        // and the borrow ends before returning to the event loop or draining
+        // that pool. No native reference escapes the closure.
+        let ns_window: &NSWindow = unsafe { &*pointer.cast::<NSWindow>() };
 
-    if let Some(view) = ns_window.contentView() {
-        view.setPrefersCompactControlSizeMetrics(true);
-    }
-
-    for kind in [
-        NSWindowButton::CloseButton,
-        NSWindowButton::MiniaturizeButton,
-        NSWindowButton::ZoomButton,
-    ] {
-        if let Some(button) = ns_window.standardWindowButton(kind) {
-            button.setPrefersCompactControlSizeMetrics(true);
+        if let Some(view) = ns_window.contentView() {
+            view.setPrefersCompactControlSizeMetrics(true);
         }
+
+        for kind in [
+            NSWindowButton::CloseButton,
+            NSWindowButton::MiniaturizeButton,
+            NSWindowButton::ZoomButton,
+        ] {
+            if let Some(button) = ns_window.standardWindowButton(kind) {
+                button.setPrefersCompactControlSizeMetrics(true);
+            }
+        }
+    }) {
+        log::error!("could not update window controls: {error}");
     }
 }
 
 #[cfg(not(target_os = "macos"))]
-fn use_compact_window_controls(_window: &tauri::WebviewWindow) {}
-
-#[derive(Clone, Serialize)]
-pub struct NotesChanged {
-    pub paths: Vec<String>,
-}
+fn use_compact_window_controls<R: Runtime>(_window: &tauri::WebviewWindow<R>) {}
 
 fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -91,7 +97,7 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-pub(crate) fn open_capture(app: &AppHandle) {
+pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("capture") {
         let _ = window.show();
         let _ = window.set_focus();
@@ -129,7 +135,7 @@ pub(crate) fn open_capture(app: &AppHandle) {
 /// Grant the asset protocol read access to a notes dir. Images inside notes are
 /// rendered through `convertFileSrc`, so the scope has to follow the folder the
 /// user picked -- the config ships with an empty static scope.
-pub fn allow_assets(app: &AppHandle, notes_dir: &std::path::Path) {
+pub fn allow_assets<R: Runtime>(app: &AppHandle<R>, notes_dir: &std::path::Path) {
     if let Err(error) = app.asset_protocol_scope().allow_directory(notes_dir, true) {
         log::error!(
             "could not grant asset access to {}: {error}",
@@ -168,19 +174,16 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         Some(dir) => dir,
         None => app.path().home_dir()?.join("notras"),
     };
-    fs::create_dir_all(notes_dir.join(".notras"))?;
+
+    let library = Library::open(&notes_dir)?;
+    let notes_dir = library.directory().to_owned();
 
     // Images are rendered through the asset protocol; the scope follows the
     // notes dir at runtime rather than blanketing $HOME in the config.
     allow_assets(app.handle(), &notes_dir);
 
-    let conn = index::open(&notes_dir)?;
-
     app.manage(AppState {
-        core: Mutex::new(Core {
-            notes_dir: notes_dir.clone(),
-            conn,
-        }),
+        library: LibraryOwner::new(library),
         watcher: Mutex::new(None),
         pending_open: Mutex::new(Vec::new()),
         quitting: AtomicBool::new(false),
@@ -190,24 +193,28 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let scan_app = app.handle().clone();
     std::thread::spawn(move || {
         let state = scan_app.state::<AppState>();
-        let core = state.core();
-        match index::scan_all(&core.conn, &core.notes_dir) {
+        match state.library.scan() {
             Ok(changed) => {
-                drop(core);
-                if !changed.is_empty() {
-                    if let Err(error) =
-                        scan_app.emit("notes-changed", NotesChanged { paths: changed })
-                    {
-                        log::error!("could not emit {}: {error}", "notes-changed");
+                state.library.publish(changed.generation, || {
+                    if !changed.paths.is_empty() {
+                        if let Err(error) = (NotesChanged {
+                            paths: changed.paths,
+                        })
+                        .emit(&scan_app)
+                        {
+                            log::error!("could not emit notes-changed: {error}");
+                        }
                     }
-                }
+                });
             }
-            Err(error) => log::error!("startup scan failed: {error}"),
+            Err(error) => {
+                log::error!("startup scan failed: {error}");
+            }
         }
     });
 
     let state = app.state::<AppState>();
-    *state.watcher() = match watcher::start(app.handle().clone(), notes_dir) {
+    *state.watcher() = match watcher::start(app.handle().clone(), notes_dir, 0) {
         Ok(watcher) => Some(watcher),
         Err(error) => {
             log::error!("could not watch the notes dir: {error}");
@@ -307,29 +314,9 @@ pub fn run() {
             .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
+    let bindings = bindings::builder();
     let built = builder
-        .invoke_handler(tauri::generate_handler![
-            clipboard::read_code_clipboard,
-            notes::attach_file,
-            notes::attach_image,
-            notes::cancel_quit,
-            notes::classify_open_paths,
-            notes::db_select,
-            notes::delete_note,
-            notes::find_mentions,
-            notes::get_notes_dir,
-            notes::note_exists,
-            notes::pending_open_files,
-            notes::quit_app,
-            notes::read_external,
-            notes::read_note,
-            notes::reindex_all,
-            notes::rename_note,
-            notes::set_notes_dir,
-            notes::write_external,
-            notes::write_note,
-            windows::show_capture,
-        ])
+        .invoke_handler(bindings.invoke_handler())
         .on_window_event(|window, event| match event {
             // Close-to-tray for the main window; capture window just hides.
             WindowEvent::CloseRequested { api, .. } => {
@@ -343,7 +330,10 @@ pub fn run() {
             }
             _ => {}
         })
-        .setup(|app| setup(app))
+        .setup(move |app| {
+            bindings.mount_events(app);
+            setup(app)
+        })
         .build(tauri::generate_context!());
     let app = match built {
         Ok(app) => app,

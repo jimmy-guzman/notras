@@ -1,23 +1,20 @@
-import { FileStore } from "@/core/file-store";
+import { nativeCommand } from "@/data/native-command";
+import { commands, type SaveName } from "@/server/adapters/bindings";
 
-import { run } from "./run";
-
-/**
- * Read a markdown file outside the notes dir (Open With / drag-in).
- *
- * The mtime lands as a `Date` so an external tab and a note tab reconcile
- * against disk through the same comparison (`D54`).
- */
+/** Read an external Markdown file without adding it to the library index. */
 export async function readExternalNote(path: string) {
-  const file = await run(FileStore.use((store) => store.readExternal(path)));
-
+  const file = await nativeCommand(() => commands.readExternal(path));
   return { content: file.content, updatedAt: new Date(file.updatedAt) };
 }
 
-export async function writeExternalNote(path: string, content: string) {
-  const updatedAt = await run(
-    FileStore.use((store) => store.writeExternal(path, content))
+/** Save the complete external document, deriving a filename only for an in-app heading edit. */
+export async function writeExternalNote(
+  path: string,
+  content: string,
+  name: SaveName | null = null
+) {
+  const receipt = await nativeCommand(() =>
+    commands.writeExternal(path, content, name)
   );
-
-  return new Date(updatedAt);
+  return { ...receipt, updatedAt: new Date(receipt.updatedAt) };
 }

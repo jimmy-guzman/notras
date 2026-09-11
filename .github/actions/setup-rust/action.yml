@@ -16,22 +16,22 @@ runs:
   using: composite
   steps:
     # The toml is the source of truth, and rustup honours it for every cargo
-    # run under src-tauri. It cannot replace this input: the action reads no
+    # run in the workspace. It cannot replace this input: the action reads no
     # toml and exits on an empty `toolchain`.
     - name: 🗃️ Read Toolchain
       id: toolchain
       shell: bash
       run: |
         set -euo pipefail
-        channel=$(awk -F'"' '/^channel/ { print $2 }' src-tauri/rust-toolchain.toml)
+        channel=$(awk -F'"' '/^channel/ { print $2 }' rust-toolchain.toml)
         if [ -z "$channel" ]; then
-          echo "::error::no channel in src-tauri/rust-toolchain.toml"
+          echo "::error::no channel in rust-toolchain.toml"
           exit 1
         fi
         echo "channel=$channel" >> "$GITHUB_OUTPUT"
-        components=$(awk -F'[][]' '/^components/ { gsub(/[" ]/, "", $2); print $2 }' src-tauri/rust-toolchain.toml)
+        components=$(awk -F'[][]' '/^components/ { gsub(/[" ]/, "", $2); print $2 }' rust-toolchain.toml)
         if [ -z "$components" ]; then
-          echo "::error::no components in src-tauri/rust-toolchain.toml"
+          echo "::error::no components in rust-toolchain.toml"
           exit 1
         fi
         echo "components=$components" >> "$GITHUB_OUTPUT"
@@ -56,4 +56,4 @@ runs:
       with:
         save-if: ${{ inputs.save-cache }}
         shared-key: ${{ inputs.shared-key }}
-        workspaces: "./src-tauri -> target"
+        workspaces: ". -> target"
