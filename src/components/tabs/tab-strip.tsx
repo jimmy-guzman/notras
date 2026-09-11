@@ -41,7 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
-import { noteQueries, notesDirQuery } from "@/data/queries";
+import { notesDirQuery } from "@/data/queries";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   activateTab,
@@ -96,21 +96,25 @@ const ANNOUNCEMENTS: Announcements = {
 const animateLayoutChanges: AnimateLayoutChanges = (args) =>
   args.isSorting || args.wasDragging ? defaultAnimateLayoutChanges(args) : true;
 
+function fallbackTitle(tab: Tab) {
+  return tab.kind === "external"
+    ? (tab.path.split("/").at(-1) ?? tab.path)
+    : noteTitle(tab.path);
+}
+
 interface TabItemProps {
   active: boolean;
-  /** Shown until the session publishes a title off its live buffer. */
-  fallback: string;
   notesDir: string;
   /** The only tab has nowhere to go, so its press moves the window instead. */
   sole: boolean;
   tab: Tab;
 }
 
-function TabItem({ active, fallback, notesDir, sole, tab }: TabItemProps) {
+function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   const id = tabId(tab);
   const snapshot = useTabSnapshot(id);
   const ref = useRef<HTMLSpanElement | null>(null);
-  const label = snapshot?.title ?? fallback;
+  const label = snapshot?.title ?? fallbackTitle(tab);
   const {
     isDragging,
     listeners,
@@ -257,11 +261,12 @@ function TabItem({ active, fallback, notesDir, sole, tab }: TabItemProps) {
 }
 
 interface OverflowItemProps {
-  label: string;
   tab: Tab;
 }
 
-function OverflowItem({ label, tab }: OverflowItemProps) {
+function OverflowItem({ tab }: OverflowItemProps) {
+  const snapshot = useTabSnapshot(tabId(tab));
+  const label = snapshot?.title ?? fallbackTitle(tab);
   const select = useCallback(() => {
     activateTab(tabId(tab));
   }, [tab]);
@@ -271,11 +276,10 @@ function OverflowItem({ label, tab }: OverflowItemProps) {
 
 interface OverflowMenuProps {
   hidden: Tab[];
-  labelFor: (tab: Tab) => string;
 }
 
 /** The tabs the strip has scrolled out of reach. */
-function OverflowMenu({ hidden, labelFor }: OverflowMenuProps) {
+function OverflowMenu({ hidden }: OverflowMenuProps) {
   if (hidden.length === 0) {
     return null;
   }
@@ -296,7 +300,7 @@ function OverflowMenu({ hidden, labelFor }: OverflowMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {hidden.map((tab) => (
-          <OverflowItem key={tabId(tab)} label={labelFor(tab)} tab={tab} />
+          <OverflowItem key={tabId(tab)} tab={tab} />
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -345,7 +349,6 @@ interface TabListProps {
  * go, so it hands the press to the window instead.
  */
 function TabList({ activeId, tabs }: TabListProps) {
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
@@ -356,15 +359,6 @@ function TabList({ activeId, tabs }: TabListProps) {
     useSensor(PointerSensor, {
       activationConstraint: { distance: ACTIVATION_DISTANCE_PX },
     })
-  );
-
-  const labelFor = useCallback(
-    (tab: Tab) =>
-      tab.kind === "external"
-        ? (tab.path.split("/").at(-1) ?? tab.path)
-        : (notes.find((meta) => meta.path === tab.path)?.title ??
-          noteTitle(tab.path)),
-    [notes]
   );
 
   useEffect(() => {
@@ -479,7 +473,6 @@ function TabList({ activeId, tabs }: TabListProps) {
             {tabs.map((tab) => (
               <TabItem
                 active={tabId(tab) === activeId}
-                fallback={labelFor(tab)}
                 key={tabId(tab)}
                 notesDir={notesDir}
                 sole={tabs.length === 1}
@@ -491,7 +484,6 @@ function TabList({ activeId, tabs }: TabListProps) {
       </DndContext>
       <OverflowMenu
         hidden={tabs.filter((tab) => hidden.includes(tabId(tab)))}
-        labelFor={labelFor}
       />
     </>
   );

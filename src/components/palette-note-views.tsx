@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   FolderIcon,
   FolderInputIcon,
@@ -7,8 +8,13 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useCallback } from "react";
+import { useNoteTags } from "@/components/notes/use-note-tags";
+import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { filenameFromTitle } from "@/core/notes";
+import { searchFolders } from "@/core/search";
+import { noteQueries } from "@/data/queries";
+import { reasonOf } from "@/lib/ui/failure";
 
 const COUNT_CLASS =
   "w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums";
@@ -36,7 +42,7 @@ function FolderItem({ count, folder, onMove }: FolderItemProps) {
 
 interface TagChoiceItemProps {
   attached: boolean;
-  count: number;
+  count: number | undefined;
   name: string;
   onToggle: (name: string, attached: boolean) => void;
 }
@@ -86,7 +92,6 @@ export function DeleteView({ onCancel, onConfirm, title }: DeleteViewProps) {
 }
 
 interface MoveViewProps {
-  folders: { count: number; folder: string }[];
   onCancel: () => void;
   onMove: (folder: string) => void;
   onMoveToNewFolder: () => void;
@@ -94,12 +99,33 @@ interface MoveViewProps {
 }
 
 export function MoveView({
-  folders,
   onCancel,
   onMove,
   onMoveToNewFolder,
   query,
 }: MoveViewProps) {
+  const notes = useQuery(noteQueries.list());
+  const retry = useCallback(async () => {
+    await notes.refetch();
+  }, [notes]);
+  if (notes.data === undefined) {
+    return (
+      <div className="p-4 text-sm" role="status">
+        {notes.isError ? (
+          <>
+            <p>could not load folders</p>
+            <p>{reasonOf(notes.error)}</p>
+            <Button onClick={retry} size="sm" variant="ghost">
+              retry
+            </Button>
+          </>
+        ) : (
+          "loading folders..."
+        )}
+      </div>
+    );
+  }
+  const folders = searchFolders(notes.data);
   const draftFolder = query.trim();
   const matches = folders.filter(({ folder }) =>
     (folder === "/" ? "notes root /" : folder)
@@ -172,45 +198,85 @@ export function RenameView({
 
 interface TagsViewProps {
   attached: string[];
-  choices: string[];
-  counts: Map<string, number>;
-  draftTag: string;
-  onCreate: () => void;
   onDone: () => void;
-  onToggle: (name: string, attached: boolean) => void;
+  onQueryChange: (query: string) => void;
+  path: string;
+  query: string;
   title: string;
 }
 
 export function TagsView({
   attached,
-  choices,
-  counts,
-  draftTag,
-  onCreate,
   onDone,
-  onToggle,
+  onQueryChange,
+  path,
+  query,
   title,
 }: TagsViewProps) {
+  const vocabulary = useQuery(noteQueries.tags());
+  const { changeTags } = useNoteTags(path, attached);
+  const counts = new Map(
+    vocabulary.data?.map(({ count, tag }) => [tag, count])
+  );
+  const draftTag = query.trim().toLowerCase();
+  const choices = [...new Set([...counts.keys(), ...attached])]
+    .toSorted()
+    .filter((name) => name.includes(draftTag));
+  const toggle = useCallback(
+    async (name: string, selected: boolean) => {
+      await changeTags(
+        selected ? attached.filter((tag) => tag !== name) : [...attached, name]
+      );
+    },
+    [attached, changeTags]
+  );
+  const add = useCallback(async () => {
+    onQueryChange("");
+    await changeTags([...attached, draftTag]);
+  }, [attached, changeTags, draftTag, onQueryChange]);
+  const retry = useCallback(async () => {
+    await vocabulary.refetch();
+  }, [vocabulary]);
   return (
-    <CommandGroup heading={`tags for "${title}"`}>
-      {choices.map((name) => (
-        <TagChoiceItem
-          attached={attached.includes(name)}
-          count={counts.get(name) ?? 0}
-          key={name}
-          name={name}
-          onToggle={onToggle}
-        />
-      ))}
-      {draftTag === "" || choices.includes(draftTag) ? null : (
-        <CommandItem onSelect={onCreate} value="tag-new">
-          <TagPlusIcon />
-          create "{draftTag}"
+    <>
+      {vocabulary.isPending ? (
+        <p className="p-4 text-muted-foreground text-sm" role="status">
+          loading tag suggestions...
+        </p>
+      ) : null}
+      {vocabulary.isError ? (
+        <div className="p-4 text-sm" role="status">
+          <p>could not load tag suggestions</p>
+          <p>{reasonOf(vocabulary.error)}</p>
+          <Button onClick={retry} size="sm" variant="ghost">
+            retry
+          </Button>
+        </div>
+      ) : null}
+      <CommandGroup heading={`tags for "${title}"`}>
+        {choices.map((name) => (
+          <TagChoiceItem
+            attached={attached.includes(name)}
+            count={
+              vocabulary.data === undefined
+                ? undefined
+                : (counts.get(name) ?? 0)
+            }
+            key={name}
+            name={name}
+            onToggle={toggle}
+          />
+        ))}
+        {draftTag === "" || choices.includes(draftTag) ? null : (
+          <CommandItem onSelect={add} value="tag-new">
+            <TagPlusIcon />
+            add "{draftTag}"
+          </CommandItem>
+        )}
+        <CommandItem onSelect={onDone} value="cancel-tags">
+          done
         </CommandItem>
-      )}
-      <CommandItem onSelect={onDone} value="cancel-tags">
-        done
-      </CommandItem>
-    </CommandGroup>
+      </CommandGroup>
+    </>
   );
 }

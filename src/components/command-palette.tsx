@@ -24,7 +24,6 @@ import {
   XIcon,
 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { useNoteTags } from "@/components/notes/use-note-tags";
 import {
   ActionsView,
   type PaletteAction,
@@ -47,8 +46,6 @@ import {
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
-import type { NoteMeta } from "@/core/notes";
-import { searchFolders } from "@/core/search";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { reindexAll } from "@/data/reindex";
@@ -113,9 +110,7 @@ function PaletteFooter({
 }
 
 interface CommandPaletteProps {
-  allTags: { count: number; tag: string }[];
   mode: PaletteMode;
-  notes: NoteMeta[];
   notesDir: string;
   onOpenChange: (open: boolean) => void;
   onOpenSettings: () => void;
@@ -124,9 +119,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({
-  allTags,
   mode,
-  notes,
   notesDir,
   onOpenChange,
   onOpenSettings,
@@ -154,12 +147,6 @@ export function CommandPalette({
   // gesture that triggered it, in the capture phase to beat cmdk's own handler.
   const newTabRef = useRef(false);
 
-  // Empty path is unreachable: the tags view is gated on a current note.
-  const noteTags = useNoteTags(
-    currentNote?.path ?? "",
-    currentNote?.tags ?? []
-  );
-
   // A tag chip navigates with `?tag=`, which is what opens the palette. The
   // parent keys this component on the tag and the mode, so the seed applies
   // once per tag and typing afterwards is never overwritten. Only find reads
@@ -184,11 +171,6 @@ export function CommandPalette({
       inputRef.current?.select();
     }
   }, [view]);
-  const tagCounts = new Map(
-    allTags.map(({ count, tag: name }) => [name, count])
-  );
-  const knownTags = new Set(tagCounts.keys());
-
   const trackCursor = useCallback(
     (event: React.SyntheticEvent<HTMLInputElement>) => {
       setCursor(
@@ -288,13 +270,6 @@ export function CommandPalette({
     [close]
   );
 
-  // A tag the note carries may not be in the index yet, so the choices are the
-  // union rather than the index alone.
-  const draftTag = query.trim().toLowerCase();
-  const tagChoices = [...new Set([...knownTags, ...noteTags.tags])]
-    .toSorted()
-    .filter((name) => name.includes(draftTag));
-
   const matchesQuery = (label: string) =>
     label.toLowerCase().includes(query.trim().toLowerCase());
 
@@ -344,22 +319,6 @@ export function CommandPalette({
       await session.changePath({ kind: "retitle", title: query.trim() });
     });
   }, [activeId, currentNote, query, runAction]);
-
-  const toggleTag = useCallback(
-    (name: string, attached: boolean) => {
-      noteTags.changeTags(
-        attached
-          ? noteTags.tags.filter((existing) => existing !== name)
-          : [...noteTags.tags, name]
-      );
-    },
-    [noteTags]
-  );
-
-  const createTag = useCallback(() => {
-    setQuery("");
-    noteTags.changeTags([...noteTags.tags, draftTag]);
-  }, [draftTag, noteTags]);
 
   const newNote = useCallback(() => {
     runAction("could not create note", async () => {
@@ -715,7 +674,6 @@ export function CommandPalette({
         ) : null}
         {view === "move" ? (
           <MoveView
-            folders={searchFolders(notes)}
             onCancel={backToActions}
             onMove={moveToFolder}
             onMoveToNewFolder={moveToNewFolder}
@@ -732,13 +690,11 @@ export function CommandPalette({
         ) : null}
         {view === "tags" ? (
           <TagsView
-            attached={noteTags.tags}
-            choices={tagChoices}
-            counts={tagCounts}
-            draftTag={draftTag}
-            onCreate={createTag}
+            attached={currentNote.tags}
             onDone={backToActions}
-            onToggle={toggleTag}
+            onQueryChange={setQuery}
+            path={currentNote.path}
+            query={query}
             title={currentNote.title}
           />
         ) : null}
@@ -808,9 +764,7 @@ export function CommandPalette({
 
           {view === "find" ? (
             <PaletteSearch
-              allTags={allTags}
               cursor={cursor}
-              notes={notes}
               onCreate={createFromQuery}
               onLoadingChange={setSearchLoading}
               onQueryChange={applySuggestion}

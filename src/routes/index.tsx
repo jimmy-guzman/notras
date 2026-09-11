@@ -1,8 +1,8 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
@@ -15,7 +15,6 @@ import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
-import { getNotes } from "@/data/get-notes";
 import { noteQueries } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import {
@@ -32,7 +31,7 @@ import {
   useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
-import type { Tab } from "@/lib/tabs/tab";
+import type { Tab, TabState } from "@/lib/tabs/tab";
 import { stepTab, tabId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
@@ -56,17 +55,12 @@ export const Route = createFileRoute("/")({
 
     // A restored path that no longer reads closes its own tab, so nothing is
     // checked against disk here.
-    if (restoreTabs()) {
+    const restored = restoreTabs();
+    if (restored) {
       await adoptVaultNotes(commands.classifyOpenPaths);
-    } else {
-      const [latest] = await getNotes({ limit: 1, sort: "updated" });
-
-      if (latest !== undefined) {
-        openNote(latest.path);
-      }
     }
-
     seeded = true;
+    return restored ? undefined : getTabState();
   },
 });
 
@@ -121,6 +115,45 @@ function Welcome({ onNew }: { onNew: () => void }) {
   );
 }
 
+function RecentNote({ initialTabs }: { initialTabs: TabState }) {
+  const [finished, setFinished] = useState(false);
+  const latest = useQuery({
+    ...noteQueries.list({ limit: 1, sort: "updated" }),
+    enabled: !finished,
+  });
+  useEffect(() => {
+    if (latest.isSuccess && !finished) {
+      setFinished(true);
+      const [note] = latest.data;
+      if (note !== undefined && getTabState() === initialTabs) {
+        openNote(note.path);
+      }
+    }
+  }, [finished, initialTabs, latest.data, latest.isSuccess]);
+  const retry = useCallback(async () => {
+    await latest.refetch();
+  }, [latest]);
+  if (finished) {
+    return null;
+  }
+  if (latest.isError) {
+    return (
+      <div className="p-3 text-center text-sm" role="status">
+        <p>could not open the recent note</p>
+        <p>{reasonOf(latest.error)}</p>
+        <Button onClick={retry} size="sm" variant="ghost">
+          retry
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <p className="p-3 text-center text-muted-foreground text-xs" role="status">
+      loading recent note...
+    </p>
+  );
+}
+
 interface ActiveProps {
   tab: Tab;
 }
@@ -150,7 +183,6 @@ function ActiveControls({ tab }: ActiveProps) {
 }
 
 interface ActiveStatusBarProps extends ActiveProps {
-  allTags: { count: number; tag: string }[];
   graphEnabled: boolean;
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
@@ -159,7 +191,6 @@ interface ActiveStatusBarProps extends ActiveProps {
 }
 
 function ActiveStatusBar({
-  allTags,
   graphEnabled,
   onFilterTag,
   onToggleFocusMode,
@@ -172,7 +203,6 @@ function ActiveStatusBar({
 
   return (
     <StatusBar
-      allTags={allTags}
       focusModeEnabled={focusModeEnabled}
       graphEnabled={graphEnabled}
       note={
@@ -199,9 +229,11 @@ function ActiveStatusBar({
  * would fire N times, and a dropped file would land in every open note.
  */
 function Workspace() {
-  const { activeId, tabs } = useTabState();
+  const tabState = useTabState();
+  const { activeId, tabs } = tabState;
   const navigate = useNavigate();
-  const { data: tags } = useSuspenseQuery(noteQueries.tags());
+  const startupTabs = Route.useLoaderData();
+  const [initialTabs] = useState(startupTabs);
 
   const activeTab = tabs.find((tab) => tabId(tab) === activeId);
   const graphMode = useGraphMode(activeId);
@@ -368,7 +400,12 @@ function Workspace() {
         {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
       {tabs.length === 0 ? (
-        <Welcome onNew={newNote} />
+        <>
+          <Welcome onNew={newNote} />
+          {initialTabs !== undefined && tabState === initialTabs ? (
+            <RecentNote initialTabs={initialTabs} />
+          ) : null}
+        </>
       ) : (
         <div className="relative min-h-0 flex-1">
           {tabs.map((tab) => (
@@ -387,7 +424,6 @@ function Workspace() {
       )}
       {activeTab === undefined ? null : (
         <ActiveStatusBar
-          allTags={tags}
           graphEnabled={graphMode}
           onFilterTag={filterByTag}
           onToggleFocusMode={toggleFocusMode}

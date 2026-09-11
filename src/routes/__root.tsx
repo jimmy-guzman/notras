@@ -45,11 +45,7 @@ export const Route = createRootRouteWithContext<{
     typeof search.tag === "string" ? { tag: search.tag } : {},
   // Priming only: an inactive query is one invalidation cannot reach.
   loader: async ({ context }) => {
-    await Promise.all([
-      context.queryClient.query({ ...noteQueries.list(), staleTime: STATIC }),
-      context.queryClient.query({ ...noteQueries.tags(), staleTime: STATIC }),
-      context.queryClient.query({ ...notesDirQuery, staleTime: STATIC }),
-    ]);
+    await context.queryClient.query({ ...notesDirQuery, staleTime: STATIC });
   },
 });
 
@@ -75,9 +71,7 @@ function disposeLater(...pending: Promise<() => void>[]) {
 }
 
 function RootLayout() {
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const { data: tags } = useSuspenseQuery(noteQueries.tags());
   const { tag } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -317,10 +311,8 @@ function RootLayout() {
         <Outlet />
       </div>
       <CommandPalette
-        allTags={tags}
         key={`${tag ?? ""}:${paletteView}:${paletteSession}`}
         mode={paletteView}
-        notes={notes}
         notesDir={notesDir}
         onOpenChange={handlePaletteOpenChange}
         onOpenSettings={openSettings}

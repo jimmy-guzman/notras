@@ -1,4 +1,8 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "cn";
 import {
@@ -40,6 +44,7 @@ import { useFocusMode } from "@/lib/prefs";
 import {
   clearRestoredCaret,
   closeTab,
+  getTabState,
   openNote,
   registerTabHandles,
   registerTabSnapshot,
@@ -79,9 +84,16 @@ function SessionBuffer({
   readFile,
   tab,
 }: SessionBufferProps) {
-  const { data: notes } = useSuspenseQuery(noteQueries.list());
+  const { data: notes } = useQuery({
+    ...noteQueries.list(),
+    enabled: tab.kind === "note",
+  });
+  const queryClient = useQueryClient();
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const resolveLinks = useMemo(() => linkResolver(notes), [notes]);
+  const resolveLinks = useMemo(
+    () => (notes === undefined ? undefined : linkResolver(notes)),
+    [notes]
+  );
   const id = tabId(tab);
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
@@ -165,19 +177,21 @@ function SessionBuffer({
   // ahead of every effect that reads it, since effects run in order.
   const live = useRef({
     notes,
+    path: tab.path,
     resolveLinks,
   });
 
   useLayoutEffect(() => {
     live.current = {
       notes,
+      path: tab.path,
       resolveLinks,
     };
   });
   // Live values behind stable getters, so the mount-frozen editor callbacks
   // never go stale.
   const getTitles = useCallback(
-    () => live.current.notes.map((meta) => meta.title),
+    () => live.current.notes?.map((meta) => meta.title) ?? [],
     []
   );
 
@@ -189,44 +203,64 @@ function SessionBuffer({
     [notesDir]
   );
 
+  const navigation = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => navigation.current?.abort(), []);
+
+  const followNote = useCallback(
+    async (kind: "title" | "path", value: string) => {
+      navigation.current?.abort();
+      const request = new AbortController();
+      navigation.current = request;
+      const origin = getTabState();
+      const isCurrent = () =>
+        !request.signal.aborted && getTabState() === origin;
+      try {
+        const resolver =
+          live.current.resolveLinks ??
+          linkResolver(await queryClient.query(noteQueries.list()));
+        if (!isCurrent()) {
+          return;
+        }
+        const target = resolver[kind](value, live.current.path);
+        if (target === undefined) {
+          toast.add({
+            title:
+              kind === "title"
+                ? `no note named "${value.trim().toLowerCase()}"`
+                : `no note at ${value}`,
+            type: "error",
+          });
+          return;
+        }
+        openNote(target.path);
+      } catch (error) {
+        if (isCurrent()) {
+          toast.add({
+            description: reasonOf(error),
+            title: "could not open note",
+            type: "error",
+          });
+        }
+      }
+    },
+    [queryClient]
+  );
   const openWikilink = useCallback(
-    (linkTitle: string) => {
-      const target = live.current.resolveLinks.title(linkTitle, tab.path);
-
-      if (target === undefined) {
-        toast.add({
-          title: `no note named "${linkTitle.trim().toLowerCase()}"`,
-          type: "error",
-        });
-
-        return;
-      }
-
-      openNote(target.path);
+    async (title: string) => {
+      await followNote("title", title);
     },
-    [tab.path]
+    [followNote]
   );
-
-  // Hover asks the same question a click does, without the toast a miss gets.
-  const resolveWikilink = useCallback(
-    (linkTitle: string) =>
-      live.current.resolveLinks.title(linkTitle, tab.path)?.path,
-    [tab.path]
-  );
-
   const openNoteLink = useCallback(
-    (href: string) => {
-      const target = live.current.resolveLinks.path(href, tab.path);
-
-      if (target === undefined) {
-        toast.add({ title: `no note at ${href}`, type: "error" });
-
-        return;
-      }
-
-      openNote(target.path);
+    async (href: string) => {
+      await followNote("path", href);
     },
-    [tab.path]
+    [followNote]
+  );
+  const resolveWikilink = useCallback(
+    (title: string) =>
+      live.current.resolveLinks?.title(title, live.current.path)?.path,
+    []
   );
 
   const handleBodyChange = useCallback(

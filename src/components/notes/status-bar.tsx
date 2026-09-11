@@ -17,7 +17,6 @@ import { readingTime } from "@/lib/utils/word-count";
 const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
 
 interface StatusBarProps {
-  allTags: { count: number; tag: string }[];
   focusModeEnabled: boolean;
   graphEnabled: boolean;
   /** External files do not belong to the saved library. */
@@ -31,7 +30,6 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
-  allTags,
   focusModeEnabled,
   graphEnabled,
   note,
@@ -98,12 +96,7 @@ export function StatusBar({
     <footer className="flex h-7 shrink-0 items-center gap-1 bg-card px-3 text-muted-foreground text-xs shadow-[inset_0_1px_0_var(--border)]">
       {note === undefined ? null : (
         <>
-          <NoteTags
-            allTags={allTags}
-            onFilter={onFilterTag}
-            path={note.path}
-            tags={note.tags}
-          />
+          <NoteTags onFilter={onFilterTag} path={note.path} tags={note.tags} />
           {/* Keyed so a tab switch closes the previous note's mentions list. */}
           <MentionsOf key={note.path} path={note.path} />
         </>

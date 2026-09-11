@@ -2,11 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished } from "vitest";
+import { PaletteSearch } from "@/components/palette-search";
 import { Command, CommandList } from "@/components/ui/command";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
-import { PaletteSearch } from "./palette-search";
 
 function mount(query: string, error?: Error) {
   const client = new QueryClient({
@@ -14,6 +14,8 @@ function mount(query: string, error?: Error) {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+  client.setQueryData(noteQueries.list().queryKey, []);
+  client.setQueryData(noteQueries.tags().queryKey, []);
   const options = noteQueries.search(parseSearch(query));
   client.setQueryData(options.queryKey, []);
   if (error) {
@@ -34,8 +36,6 @@ function mount(query: string, error?: Error) {
           CommandList,
           null,
           createElement(PaletteSearch, {
-            allTags: [],
-            notes: [],
             onCreate: () => undefined,
             onQueryChange: () => undefined,
             onSelectNote: () => undefined,
@@ -82,6 +82,19 @@ it("should start an initial filtered search without unrelated recent rows", () =
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
+  client.setQueryData(noteQueries.list().queryKey, [
+    {
+      createdAt: new Date(0),
+      folder: "",
+      path: "recent.md",
+      pinned: false,
+      snippet: null,
+      tags: ["work"],
+      title: "Recent",
+      updatedAt: new Date(0),
+    },
+  ]);
   const read = Promise.withResolvers<NoteMeta[]>();
   const request = Promise.allSettled([
     client.fetchQuery({
@@ -107,19 +120,6 @@ it("should start an initial filtered search without unrelated recent rows", () =
           CommandList,
           null,
           createElement(PaletteSearch, {
-            allTags: [{ count: 1, tag: "work" }],
-            notes: [
-              {
-                createdAt: new Date(0),
-                folder: "",
-                path: "recent.md",
-                pinned: false,
-                snippet: null,
-                tags: ["work"],
-                title: "Recent",
-                updatedAt: new Date(0),
-              },
-            ],
             onCreate: () => undefined,
             onQueryChange: () => undefined,
             onSelectNote: () => undefined,

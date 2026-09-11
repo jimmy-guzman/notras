@@ -4,13 +4,27 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { createElement, StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
+import { Toaster } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { getNote } from "@/data/get-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { closeTab, getTabHandles, getTabState } from "@/lib/tabs/store";
+import {
+  closeTab,
+  getTabHandles,
+  getTabState,
+  openNote,
+} from "@/lib/tabs/store";
 import { tabPanelId } from "@/lib/tabs/tab";
 
 import { NoteSession } from "./note-session";
@@ -103,6 +117,257 @@ describe("NoteSession", () => {
       closeTab(entry.id);
     }
     clearMocks();
+  });
+
+  it("should edit and retain history while the note list is pending", async () => {
+    const listed = Promise.withResolvers<[]>();
+    const writes: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "list_notes") {
+        return listed.promise;
+      }
+      if (command === "save_note") {
+        writes.push(args);
+        return { path: "a.md", updatedAt: 2, warnings: [] };
+      }
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+      content: "# Available\n\nOriginal text",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(async () => {
+      await act(() => {
+        listed.resolve([]);
+      });
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={tab} />
+      </QueryClientProvider>
+    );
+
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.insertContent("Typed ");
+    });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(writes).toHaveLength(1);
+    await act(() => {
+      listed.resolve([]);
+    });
+    expect(await editor()).toBe(liveEditor);
+    await act(() => {
+      liveEditor.commands.undo();
+    });
+    expect(liveEditor.getText()).not.toContain("Typed");
+  });
+
+  it("should report a failed pending link lookup without treating the destination as missing", async () => {
+    const listed = Promise.withResolvers<[]>();
+    mockIPC((command) => {
+      if (command === "list_notes") {
+        return listed.promise;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+      content: "# Available\n\n[Target](target.md)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(async () => {
+      await act(() => {
+        listed.resolve([]);
+      });
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={tab} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
+    await act(() => {
+      listed.reject({ kind: "failed", message: "index unavailable" });
+    });
+    expect(await screen.findByText("could not open note")).toBeInTheDocument();
+    expect(screen.getByText("index unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
+    expect(await editor()).toBe(liveEditor);
+  });
+
+  it.each([
+    { change: "switching tabs", completion: "resolve" },
+    { change: "switching tabs", completion: "reject" },
+    { change: "closing the session", completion: "resolve" },
+    { change: "closing the session", completion: "reject" },
+  ])(
+    "should ignore a delayed link $completion after $change",
+    async ({ change, completion }) => {
+      const listed = Promise.withResolvers<unknown[]>();
+      mockIPC((command) => {
+        if (command === "list_notes") {
+          return listed.promise;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      client.setQueryData(notesDirQuery.queryKey, "/notes");
+      client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+        content: "# Available\n\n[Target](target.md)",
+        pinned: false,
+        tags: [],
+        updatedAt: new Date(1),
+      });
+      onTestFinished(async () => {
+        await act(() => {
+          listed.resolve([]);
+        });
+        client.clear();
+      });
+      render(<Toaster />);
+      const session = render(
+        <QueryClientProvider client={client}>
+          <NoteSession active tab={tab} />
+        </QueryClientProvider>
+      );
+      const liveEditor = await editor();
+      await act(() => {
+        liveEditor.commands.setTextSelection(
+          liveEditor.state.doc.content.size - 2
+        );
+        liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+      });
+      if (change === "switching tabs") {
+        await act(() => {
+          openNote("chosen.md");
+        });
+      } else {
+        session.unmount();
+      }
+      await act(() => {
+        if (completion === "reject") {
+          listed.reject({ kind: "failed", message: "lookup unavailable" });
+        } else {
+          listed.resolve([
+            {
+              createdAt: 1,
+              folder: "",
+              path: "target.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Target",
+              updatedAt: 1,
+            },
+          ]);
+        }
+      });
+      expect(getTabState().tabs.map((entry) => entry.path)).toEqual(
+        change === "switching tabs" ? ["chosen.md"] : []
+      );
+      expect(screen.queryByText("lookup unavailable")).not.toBeInTheDocument();
+    }
+  );
+
+  it("should follow only the most recently activated link while its lookup is pending", async () => {
+    const listed = Promise.withResolvers<unknown[]>();
+    mockIPC((command) => {
+      if (command === "list_notes") {
+        return listed.promise;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+      content: "# Available\n\n[First](first.md) [Second](second.md)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(async () => {
+      await act(() => {
+        listed.resolve([]);
+      });
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={tab} />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.setTextSelection(13);
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await act(() => {
+      listed.resolve([
+        {
+          createdAt: 1,
+          folder: "",
+          path: "first.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "First",
+          updatedAt: 1,
+        },
+        {
+          createdAt: 1,
+          folder: "",
+          path: "second.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "Second",
+          updatedAt: 1,
+        },
+      ]);
+    });
+    expect(getTabState().tabs.map((entry) => entry.path)).toEqual([
+      "second.md",
+    ]);
   });
 
   it.each([false, true])(
