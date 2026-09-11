@@ -354,6 +354,48 @@ describe("NoteGraph", () => {
 });
 
 describe("TabGraph native queries", () => {
+  it("should report a failed refresh while keeping the cached graph", async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const query = noteQueries.graph({ kind: "note", path: "c.md" });
+    client.setQueryData(query.queryKey, {
+      mentionsError: null,
+      picture: notePicture(),
+    });
+    mockIPC(() =>
+      Promise.reject({ kind: "failed", message: "permission denied" })
+    );
+    const reported = vi.spyOn(toast, "add");
+    onTestFinished(() => {
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+    render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(TabGraph, {
+          tab: { id: "c", kind: "note", path: "c.md" },
+        })
+      )
+    );
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: query.queryKey });
+    });
+    await waitFor(() =>
+      expect(reported).toHaveBeenCalledExactlyOnceWith({
+        description: "permission denied",
+        title: "could not read the graph",
+        type: "error",
+      })
+    );
+    expect(screen.getByRole("button", { name: "c" })).toBeInTheDocument();
+  });
+
   it("should keep the previous graph through a hop and show explicit links after a prose failure", async () => {
     const client = new QueryClient({
       defaultOptions: {

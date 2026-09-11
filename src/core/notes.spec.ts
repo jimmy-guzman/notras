@@ -8,15 +8,12 @@ import {
   retitleLeadingHeading,
 } from "./notes";
 
-/**
- * The title-resolution parity table. The `resolves_titles_from_frontmatter_
- * then_heading_then_filename` test in `src-tauri/src/index.rs` asserts the same
- * cases in the same order, so the two resolvers can be diffed by eye.
- */
 const VALID_FILENAME = /^(?!\.)[^/\\:]+$/;
 
+// Mirrors should_resolve_heading_then_imported_title_then_filename in
+// crates/notras-core/src/markdown.rs so both runtimes choose the same title.
 const cases: [content: string, path: string, expected: string][] = [
-  // Frontmatter wins over a heading that disagrees.
+  // The heading wins over an imported title that disagrees.
   [
     "---\ntitle: from frontmatter\n---\n# from heading\n",
     "note.md",
@@ -28,7 +25,7 @@ const cases: [content: string, path: string, expected: string][] = [
     "effect: a primer",
   ],
   ["---\ntitle: effect: a primer\n---\nbody\n", "note.md", "effect: a primer"],
-  // An empty title is absent, so the heading takes over.
+  // An empty imported title does not change heading precedence.
   ["---\ntitle:\n---\n# from heading\n", "note.md", "from heading"],
   // Heading beats the filename.
   ["# from heading\n", "note.md", "from heading"],
@@ -64,8 +61,8 @@ describe("resolveTitle", () => {
     );
   });
 
-  // Mirrors `strips_the_markdown_extension_case_insensitively` in
-  // `src-tauri/src/index.rs`, case for case, so the two cannot drift.
+  // Mirrors `should_strip_the_markdown_extension_case_insensitively` in
+  // `crates/notras-core/src/markdown.rs`, case for case, so the two cannot drift.
   it("should strip the markdown extension case-insensitively", () => {
     expect(resolveTitle("NOTE.MD", "body\n")).toBe("NOTE");
     expect(resolveTitle("note.md", "body\n")).toBe("note");

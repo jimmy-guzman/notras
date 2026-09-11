@@ -8,8 +8,9 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createEditorExtensions } from "@/components/editor/extensions";
+import { SENTINEL } from "@/components/editor/sentinel";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
@@ -223,5 +224,65 @@ describe("code block clipboard", () => {
     await user.selectOptions(language, "");
 
     expect(handle.getContent().trimEnd()).toBe("```\ngraph TD\n```");
+  });
+});
+
+describe("document selection mapping", () => {
+  it("should deliver document edits without a selection when source mapping fails", async () => {
+    const onChange = vi.fn();
+    const onSelect = vi.fn();
+    const { container } = render(
+      createElement(Editor, {
+        initialContent: "body",
+        onChange,
+        onSelect,
+      })
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
+    );
+    const surface = container.querySelector(".ProseMirror");
+    if (
+      surface === null ||
+      !("editor" in surface) ||
+      !(surface.editor instanceof TiptapEditor)
+    ) {
+      throw new Error("the editor did not mount");
+    }
+    const { editor } = surface;
+    const manager = editor.markdown;
+    if (manager === undefined) {
+      throw new Error("the editor has no markdown converter");
+    }
+    const serialize = manager.serialize.bind(manager);
+    const failing = vi
+      .spyOn(manager, "serialize")
+      .mockImplementation((document) => {
+        if (JSON.stringify(document).includes(SENTINEL)) {
+          throw new Error("cannot map the selection");
+        }
+        return serialize(document);
+      });
+    onTestFinished(() => failing.mockRestore());
+    onSelect.mockClear();
+    act(() => {
+      editor.commands.insertContent("new ");
+    });
+    expect(onChange).toHaveBeenCalled();
+    expect(onChange.mock.lastCall?.[0]).toContain("new body");
+    expect(onChange.mock.lastCall?.[1].selection).toBeUndefined();
+    expect(onSelect).not.toHaveBeenCalled();
+    failing.mockRestore();
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 4 });
+    });
+    expect(onSelect).toHaveBeenLastCalledWith(0, 3);
+    act(() => {
+      editor.commands.insertContent("old");
+    });
+    expect(onChange.mock.lastCall?.[1].selection).toEqual({
+      anchor: 3,
+      head: 3,
+    });
   });
 });

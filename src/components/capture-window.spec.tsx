@@ -57,11 +57,16 @@ describe("capture persistence", () => {
       editor.commands.insertContent("a captured thought");
     });
     await user.keyboard("{Escape}");
-    expect(writes).toHaveLength(1);
-    expect(hides).toHaveLength(1);
-    expect(document.querySelector(".ProseMirror")?.textContent).toBe("");
+    await waitFor(() => {
+      expect(writes).toHaveLength(1);
+      expect(hides).toHaveLength(1);
+      expect(document.querySelector(".ProseMirror")?.textContent).toBe("");
+    });
     await user.keyboard("{Escape}");
-    expect(writes).toHaveLength(1);
+    await waitFor(() => {
+      expect(hides).toHaveLength(2);
+      expect(writes).toHaveLength(1);
+    });
   });
 
   it("should retain the jot and show the reason when no file committed", async () => {
@@ -80,11 +85,13 @@ describe("capture persistence", () => {
       editor.commands.insertContent("keep this thought");
     });
     await user.keyboard("{Escape}");
-    expect(hides).toEqual([]);
-    expect(document.querySelector(".ProseMirror")?.textContent).toBe(
-      "keep this thought"
-    );
-    expect(document.body.textContent).toContain("could not save the capture");
-    expect(document.body.textContent).toContain("the disk is full");
+    await waitFor(() => {
+      expect(hides).toEqual([]);
+      expect(document.querySelector(".ProseMirror")?.textContent).toBe(
+        "keep this thought"
+      );
+      expect(document.body.textContent).toContain("could not save the capture");
+      expect(document.body.textContent).toContain("the disk is full");
+    });
   });
 });

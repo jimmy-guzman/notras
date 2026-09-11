@@ -371,43 +371,41 @@ describe("NoteSession", () => {
     await waitFor(() => expect(getNote).toHaveBeenCalledTimes(2));
     expect(panel()?.textContent).toContain("could not read this note");
   });
-});
 
-it("should retain source spelling and undo through repeated rich and source switches", async () => {
-  const writes: string[] = [];
-  mockIPC((command, args) => {
-    if (command === "save_note") {
-      if (
-        args === undefined ||
-        !("content" in args) ||
-        typeof args.content !== "string"
-      ) {
-        throw new Error("save content missing");
+  it("should retain source spelling and undo through repeated rich and source switches", async () => {
+    const writes: string[] = [];
+    mockIPC((command, args) => {
+      if (command === "save_note") {
+        if (
+          args === undefined ||
+          !("content" in args) ||
+          typeof args.content !== "string"
+        ) {
+          throw new Error("save content missing");
+        }
+        writes.push(args.content);
+        return { path: "a.md", updatedAt: 2, warnings: [] };
       }
-      writes.push(args.content);
-      return { path: "a.md", updatedAt: 2, warnings: [] };
-    }
+    });
+    mountSession("*hello*");
+    await editor();
+    act(() => sessionHandles().toggleSource());
+    const source = await editor();
+    act(() => {
+      source.commands.selectAll();
+      source.commands.insertContent("_hello_");
+    });
+    act(() => sessionHandles().toggleSource());
+    await editor();
+    act(() => sessionHandles().toggleSource());
+    const remounted = await editor();
+    expect(remounted.state.doc.textContent).toBe("_hello_");
+    act(() => remounted.commands.undo());
+    expect(remounted.state.doc.textContent).toBe("*hello*");
+    act(() => remounted.commands.redo());
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(writes.at(-1)).toBe("_hello_");
   });
-  mountSession("*hello*");
-  await editor();
-  act(() => sessionHandles().toggleSource());
-  const source = await editor();
-  act(() => {
-    source.commands.selectAll();
-    source.commands.insertContent("_hello_");
-  });
-  act(() => sessionHandles().toggleSource());
-  await editor();
-  act(() => sessionHandles().toggleSource());
-  const remounted = await editor();
-  expect(remounted.state.doc.textContent).toBe("_hello_");
-  act(() => remounted.commands.undo());
-  expect(remounted.state.doc.textContent).toBe("*hello*");
-  act(() => remounted.commands.redo());
-  await act(async () => {
-    await flushPendingWrites();
-  });
-  expect(writes.at(-1)).toBe("_hello_");
-  cleanup();
-  clearMocks();
 });

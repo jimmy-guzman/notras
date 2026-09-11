@@ -746,9 +746,7 @@ export function TabGraph({ tab }: TabGraphProps) {
     )
   );
   const reported = useRef<string | null>(null);
-  const failure =
-    result.data?.mentionsError ??
-    (result.data === undefined ? result.error : null);
+  const failure = result.error ?? result.data?.mentionsError ?? null;
 
   useEffect(() => {
     if (failure !== null && reported.current !== tab.path) {

@@ -138,7 +138,12 @@ describe("native resolver parity", () => {
     for (const fixture of queryFixtures.paths) {
       const notes =
         fixture.expected === null
-          ? [meta("escape.md")]
+          ? [
+              meta("escape.md"),
+              meta("../escape.md"),
+              meta("projects/escape.md"),
+              meta("projects/../../escape.md"),
+            ]
           : [meta(fixture.expected)];
       expect(
         linkResolver(notes).path(fixture.destination, fixture.from)?.path ??

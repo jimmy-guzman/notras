@@ -54,7 +54,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -74,6 +74,9 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
            pinned INTEGER NOT NULL DEFAULT 0,
            created_at INTEGER NOT NULL,
            updated_at INTEGER NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS note_prose_fallback (
+           path TEXT PRIMARY KEY
          );
          CREATE TABLE IF NOT EXISTS note_tag (
            path TEXT NOT NULL,
@@ -155,7 +158,7 @@ pub fn phrase_candidates(conn: &Connection, phrase: &str) -> Result<Vec<String>,
         let query = format!("\"{}\"", phrase.replace('"', "\"\""));
         let mut stmt = conn.prepare(
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1
-             UNION SELECT path FROM note_fts WHERE length(content) != length(CAST(content AS BLOB))
+             UNION SELECT path FROM note_prose_fallback
              ORDER BY path",
         )?;
         let paths = stmt
@@ -254,6 +257,10 @@ pub fn scan_prose(
 pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     tx.execute("DELETE FROM note WHERE path = ?1", [rel_path])?;
+    tx.execute(
+        "DELETE FROM note_prose_fallback WHERE path = ?1",
+        [rel_path],
+    )?;
     tx.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
     tx.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
     tx.execute("DELETE FROM note_fts WHERE path = ?1", [rel_path])?;
@@ -269,6 +276,7 @@ pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
 pub fn clear(conn: &Connection) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     tx.execute("DELETE FROM note", [])?;
+    tx.execute("DELETE FROM note_prose_fallback", [])?;
     tx.execute("DELETE FROM note_tag", [])?;
     tx.execute("DELETE FROM note_link", [])?;
     tx.execute("DELETE FROM note_fts", [])?;
@@ -371,6 +379,17 @@ fn index_note(
         ],
     )?;
 
+    tx.execute(
+        "DELETE FROM note_prose_fallback WHERE path = ?1",
+        [rel_path],
+    )?;
+    // SQLite length(TEXT) stops at NUL; preserve those former candidates too.
+    if !parsed.body.is_ascii() || parsed.body.contains('\0') {
+        tx.execute(
+            "INSERT INTO note_prose_fallback (path) VALUES (?1)",
+            [rel_path],
+        )?;
+    }
     tx.execute("DELETE FROM note_tag WHERE path = ?1", [rel_path])?;
     for tag in &parsed.frontmatter.tags {
         tx.execute(
@@ -509,7 +528,14 @@ pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, Index
     let mut changed = Vec::new();
 
     for file in files {
-        let rel = RelativePath::from_host(notes_dir, &file)?.into_string();
+        let rel = match RelativePath::from_host(notes_dir, &file) {
+            Ok(relative) => relative.into_string(),
+            Err(error) => {
+                log::warn!("could not index {}: {error}", file.display());
+                failures.push(IndexError::Io(error));
+                continue;
+            }
+        };
         match index_file(conn, notes_dir, &rel) {
             Ok(true) => changed.push(rel.clone()),
             Ok(false) => {}
@@ -570,6 +596,82 @@ mod tests {
                 .collect()
         })?;
         rows.collect()
+    }
+
+    #[test]
+    fn should_preserve_the_content_scan_candidate_set() {
+        let directory = tempfile::tempdir().unwrap();
+        let dir = directory.path();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        for (path, body) in [
+            ("ascii.md", "ordinary prose"),
+            ("match.md", "needle"),
+            ("unicode.md", "café"),
+            ("nul.md", "before\0after"),
+            ("metadata.md", "---\ntitle: café\n---\nbody"),
+        ] {
+            fs::write(dir.join(path), body).unwrap();
+            index_file(&conn, dir, path).unwrap();
+        }
+        let mut previous = conn.prepare(
+            "SELECT path FROM note_fts WHERE note_fts MATCH ?1
+             UNION SELECT path FROM note_fts WHERE length(content) != length(CAST(content AS BLOB)) ORDER BY path"
+        ).unwrap();
+        for phrase in ["needle", "missing"] {
+            let expected = previous
+                .query_map([phrase], |row| row.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            assert_eq!(phrase_candidates(&conn, phrase).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn should_keep_unicode_candidates_current_after_edits_deletion_and_rebuild() {
+        let directory = tempfile::tempdir().unwrap();
+        let dir = directory.path();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        fs::write(dir.join("note.md"), "café").unwrap();
+        reindex_file(&conn, dir, "note.md").unwrap();
+        assert_eq!(phrase_candidates(&conn, "needle").unwrap(), ["note.md"]);
+        fs::write(dir.join("note.md"), "ordinary prose").unwrap();
+        reindex_file(&conn, dir, "note.md").unwrap();
+        assert!(phrase_candidates(&conn, "needle").unwrap().is_empty());
+        fs::write(dir.join("note.md"), "café").unwrap();
+        reindex_file(&conn, dir, "note.md").unwrap();
+        conn.pragma_update(None, "user_version", 5).unwrap();
+        ensure_schema(&conn).unwrap();
+        assert!(phrase_candidates(&conn, "needle").unwrap().is_empty());
+        scan_all(&conn, dir).unwrap();
+        assert_eq!(phrase_candidates(&conn, "needle").unwrap(), ["note.md"]);
+        fs::remove_file(dir.join("note.md")).unwrap();
+        scan_all(&conn, dir).unwrap();
+        assert!(phrase_candidates(&conn, "needle").unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_report_invalid_file_paths_and_finish_scanning_valid_notes() {
+        let directory = tempfile::tempdir().unwrap();
+        let dir = directory.path();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        fs::write(dir.join("deleted.md"), "old").unwrap();
+        scan_all(&conn, dir).unwrap();
+        fs::remove_file(dir.join("deleted.md")).unwrap();
+        fs::write(dir.join("invalid:name.md"), "invalid").unwrap();
+        fs::write(dir.join("valid.md"), "readable").unwrap();
+
+        let report = scan_all(&conn, dir).unwrap();
+        assert_eq!(report.failures.len(), 1);
+        assert!(report.failures[0].to_string().contains("invalid:name.md"));
+        assert!(report.changed.contains(&"valid.md".to_string()));
+        assert!(report.changed.contains(&"deleted.md".to_string()));
+        let rows = select(&conn, "SELECT path FROM note", &[]).unwrap();
+        assert_eq!(rows, vec![vec![json!("valid.md")]]);
     }
 
     /// A file written from a terminal states its own title, and the index reads

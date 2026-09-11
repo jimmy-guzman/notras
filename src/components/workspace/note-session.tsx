@@ -53,6 +53,10 @@ import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { useGraphMode } from "@/lib/ui/graph";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 
+function bodyPrefix(raw: string) {
+  return raw.length - parseNote(raw).body.length;
+}
+
 interface SessionBufferProps {
   active: boolean;
   file: SessionFile;
@@ -101,7 +105,7 @@ function SessionBuffer({
         onDocumentChanged: (content, selection) => {
           if (!persistence.store.state.sourceMode) {
             const currentBody = parseNote(content).body;
-            const prefix = content.length - currentBody.length;
+            const prefix = bodyPrefix(content);
             editorRef.current?.replaceContent(
               currentBody,
               selection === undefined
@@ -228,7 +232,7 @@ function SessionBuffer({
   const handleBodyChange = useCallback(
     (content: string, edit: DocumentEdit) => {
       const raw = persistence.store.state.content;
-      const prefix = raw.length - parseNote(raw).body.length;
+      const prefix = bodyPrefix(raw);
       onChange(
         { content, mode: "body" },
         {
@@ -249,7 +253,7 @@ function SessionBuffer({
   const selectBody = useCallback(
     (anchor: number, head: number) => {
       const raw = persistence.store.state.content;
-      const prefix = raw.length - parseNote(raw).body.length;
+      const prefix = bodyPrefix(raw);
       persistence.select(anchor + prefix, head + prefix);
     },
     [persistence]
@@ -283,10 +287,7 @@ function SessionBuffer({
     const raw = persistence.store.state.content;
     const currentBody = parseNote(raw).body;
 
-    return Math.max(
-      0,
-      Math.min(offset - (raw.length - currentBody.length), currentBody.length)
-    );
+    return Math.max(0, Math.min(offset - bodyPrefix(raw), currentBody.length));
   }, [persistence]);
 
   const insertText = useCallback(
@@ -312,7 +313,7 @@ function SessionBuffer({
   const toggleSource = useCallback(() => {
     const raw = persistence.store.state.content;
     const currentBody = parseNote(raw).body;
-    const prefixLength = raw.length - currentBody.length;
+    const prefixLength = bodyPrefix(raw);
     const wasSource = persistence.store.state.sourceMode;
 
     if (wasSource) {

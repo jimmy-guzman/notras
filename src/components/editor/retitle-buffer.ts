@@ -1,9 +1,7 @@
 import { parseNote } from "@/core/frontmatter";
-import { retitleLeadingHeading } from "@/core/notes";
+import { ATX_HEADING as HEADING, retitleLeadingHeading } from "@/core/notes";
 
 const LINE_BREAK = /[\r\n]/;
-
-const HEADING = /^ {0,3}#(?:[ \t]|$)/;
 
 /** Set the naming heading, introducing it when the note has none. */
 export function renameDocument(content: string, title: string): string {

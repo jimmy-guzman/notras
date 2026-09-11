@@ -36,7 +36,7 @@ export function noteTitle(path: string) {
  * space, a tab, or end of line. `##` never matches, and a tab indent makes the
  * line a code block rather than a heading.
  */
-const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/;
+export const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/;
 
 const ATX_OPENING_HASH = /^ {0,3}#/;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { composeNote, parseNote, updateFrontmatter } from "@/core/frontmatter";
 import fixtures from "../../fixtures/note-mutations.json";
-import { composeNote, parseNote, updateFrontmatter } from "./frontmatter";
 
 it("should preserve nested metadata when editing note-level pin and tags", () => {
   const content =

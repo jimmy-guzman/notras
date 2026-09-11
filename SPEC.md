@@ -24,6 +24,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Scans skip symlinked files and directories, including a note whose parent became a symlink after indexing. Such notes are not read for mentions.
 - The selected notes root may be a symlink. The app resolves it before reading, watching or granting attachment access. Existing symlinked paths beneath that root are refused for direct note operations and attachment writes. A symlinked index directory or database path prevents opening the library. Explicit external-file operations remain available.
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
+- An explicit creation filename may include its `.md` extension in any letter case. Creating `entry.md` produces `entry.md`, with collision suffixes before the extension.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
 - A library path uses `/` separators with no empty, `.` or `..` components. A segment carries no `\`, `:` or null character, is not blank, and does not start with a dot. A folder name is at most 120 characters. Library mutation receipts use `/` separators on every platform.
 - The title resolves from the leading `#` heading, then an imported frontmatter `title:`, then the filename stem. Existing frontmatter titles remain unchanged.
@@ -52,6 +53,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
 - Direct reads and indexing obtain content and timestamps from the same opened file. An atomic replacement during a read cannot mix two files; concurrent in-place writes are not isolated. An invalid or unavailable modification time reports a failure instead of indexing zero.
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read attempts a complete rebuild and reports a failure if recovery is incomplete. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
+- A scan reports invalid file paths and continues indexing valid notes and removing stale rows. Indexed reads still reject an incomplete recovery.
 - Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
 - The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
 
@@ -141,6 +143,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
 - ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
+- A failed rich-editor selection conversion does not block valid document edits or saves. Invalid selection offsets do not reach the shared document.
 - In source mode, Tab inserts two spaces and Shift-Tab outdents two.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
@@ -202,6 +205,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A note on screen before and after a hop glides to its new place over 0.15s with its line turning under it; with reduce motion on the move is instant.
 - A pill's title truncates to the room the ring leaves it, so the graph fits the window at any width and never puts a scrollbar on it.
 - With nothing on either side the centre stands alone over "no links yet, and nothing mentions it".
+- A failed graph refresh keeps the last graph visible and reports the failure once for that note, under "could not read the graph".
 - A read of the bare mentions that fails draws the graph from links alone and toasts why once, under "could not read the graph".
 
 ## Quick capture

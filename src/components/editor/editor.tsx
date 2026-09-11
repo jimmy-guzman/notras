@@ -204,15 +204,19 @@ function touchesHeading(transaction: Transaction) {
 }
 
 function sourceOffset(editor: TiptapEditor, position: number) {
-  const manager = editor.markdown;
-  if (manager === undefined) {
-    throw new Error("the editor has no markdown converter");
+  try {
+    const manager = editor.markdown;
+    if (manager === undefined) {
+      throw new Error("the editor has no markdown converter");
+    }
+    const marked = editor.state.tr.insertText(SENTINEL, position);
+    return fileMarkdown(
+      manager,
+      normalizeMarkdown(manager.serialize(marked.doc.toJSON()))
+    ).indexOf(SENTINEL);
+  } catch {
+    return -1;
   }
-  const marked = editor.state.tr.insertText(SENTINEL, position);
-  return fileMarkdown(
-    manager,
-    normalizeMarkdown(manager.serialize(marked.doc.toJSON()))
-  ).indexOf(SENTINEL);
 }
 
 function positionInDocument(
@@ -646,10 +650,14 @@ export function Editor({
       setReading(false);
       // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
       if (!suppressChangeRef.current && config.onSelect !== undefined) {
-        config.onSelect(
-          sourceOffset(instance, instance.state.selection.anchor),
-          sourceOffset(instance, instance.state.selection.head)
-        );
+        const { selection } = instance.state;
+        const anchor = sourceOffset(instance, selection.anchor);
+        const head = selection.empty
+          ? anchor
+          : sourceOffset(instance, selection.head);
+        if (anchor >= 0 && head >= 0) {
+          config.onSelect(anchor, head);
+        }
       }
     },
     onTransaction: ({
@@ -665,12 +673,14 @@ export function Editor({
       if (!transactions.some((entry) => entry.docChanged)) {
         return;
       }
+      const { selection } = instance.state;
+      const anchor = sourceOffset(instance, selection.anchor);
+      const head = selection.empty
+        ? anchor
+        : sourceOffset(instance, selection.head);
       config.onChange(serializeMarkdown(instance), {
         headingEdited: transactions.some(touchesHeading),
-        selection: {
-          anchor: sourceOffset(instance, instance.state.selection.anchor),
-          head: sourceOffset(instance, instance.state.selection.head),
-        },
+        ...(anchor >= 0 && head >= 0 ? { selection: { anchor, head } } : {}),
       });
     },
   });

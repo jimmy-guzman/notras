@@ -618,7 +618,15 @@ impl Library {
     pub fn create_note(&self, options: &CreateNote) -> Result<MutationReceipt, CommandError> {
         let folder = validate_folder(options.folder.as_deref().unwrap_or(""))?;
         let base = match &options.name {
-            Some(NoteName::Filename(name)) => validate_filename(name)?,
+            Some(NoteName::Filename(name)) => {
+                let filename = validate_filename(name)?;
+                match filename.rsplit_once('.') {
+                    Some((stem, extension)) if extension.eq_ignore_ascii_case("md") => {
+                        stem.to_owned()
+                    }
+                    _ => filename,
+                }
+            }
             Some(NoteName::Title(title)) => filename_from_title(&validate_title(title)?),
             None => "untitled".to_owned(),
         };
@@ -800,6 +808,41 @@ mod tests {
     use proptest::prelude::*;
     use serde_json::Value;
     use std::cell::Cell;
+
+    #[test]
+    fn should_create_explicit_filenames_with_one_markdown_extension() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path()).unwrap();
+        for (name, expected) in [
+            ("entry.md", "entry.md"),
+            ("entry", "entry-2.md"),
+            (" entry.md ", "entry-3.md"),
+            ("entry.MD", "entry-4.md"),
+            ("entry.Md", "entry-5.md"),
+            ("entry.mD", "entry-6.md"),
+        ] {
+            let receipt = core
+                .create_note(&CreateNote {
+                    name: Some(NoteName::Filename(name.into())),
+                    content: Some("body".into()),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(receipt.path, expected);
+            assert_eq!(
+                fs::read_to_string(directory.path().join(expected)).unwrap(),
+                "body"
+            );
+        }
+        for name in [".md", "../entry.md", "folder/entry.md", ""] {
+            assert!(core
+                .create_note(&CreateNote {
+                    name: Some(NoteName::Filename(name.into())),
+                    ..Default::default()
+                })
+                .is_err());
+        }
+    }
 
     #[test]
     fn should_preserve_missing_file_causes_without_changing_the_wire_error() {

@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 /// Parsed values from the supported frontmatter dialect.
-/// Unknown keys remain in the raw block for lossless metadata rewrites.
 #[derive(Debug, Default, PartialEq)]
 pub struct Frontmatter {
     pub pinned: bool,
@@ -11,15 +10,8 @@ pub struct Frontmatter {
 
 pub struct Parsed<'a> {
     pub frontmatter: Frontmatter,
-    pub raw: Option<RawBlock>,
     /// The note body with the frontmatter block stripped.
     pub body: &'a str,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct RawBlock {
-    pub close: String,
-    pub lines: Vec<String>,
 }
 
 /// ECMAScript whitespace, shared with the live editor's string operations.
@@ -82,7 +74,6 @@ pub fn parse(content: &str) -> Parsed<'_> {
     let mut parsed = Parsed {
         frontmatter: Frontmatter::default(),
         body: content,
-        raw: None,
     };
 
     let Some(rest) = content
@@ -110,17 +101,6 @@ pub fn parse(content: &str) -> Parsed<'_> {
 
     let block = &rest[..block_end];
     parsed.body = &rest[body_start..];
-    parsed.raw = Some(RawBlock {
-        close: rest[block_end..body_start]
-            .trim_end_matches('\n')
-            .trim_end_matches('\r')
-            .to_owned(),
-        lines: block
-            .split_terminator('\n')
-            .map(|line| line.strip_suffix('\r').unwrap_or(line).to_owned())
-            .collect(),
-    });
-
     let mut in_tags_list = false;
     for line in block.lines() {
         let trimmed = line.trim_end_matches(is_space);

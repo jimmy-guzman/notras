@@ -291,8 +291,13 @@ pub async fn write_external<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_notes_dir(state: State<'_, AppState>) -> String {
-    state.library().directory().to_string_lossy().to_string()
+pub async fn get_notes_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        let library = state.library();
+        Ok(library.directory().to_string_lossy().to_string())
+    })
+    .await
 }
 
 #[tauri::command]

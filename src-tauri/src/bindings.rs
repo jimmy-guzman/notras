@@ -28,7 +28,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::classify_open_paths::<tauri::Wry>,
             notes::delete_note::<tauri::Wry>,
             notes::find_mentions::<tauri::Wry>,
-            notes::get_notes_dir,
+            notes::get_notes_dir::<tauri::Wry>,
             notes::list_notes::<tauri::Wry>,
             notes::list_tags::<tauri::Wry>,
             notes::read_graph::<tauri::Wry>,
