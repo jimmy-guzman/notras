@@ -35,13 +35,14 @@ pub use scan::Scan;
 pub(crate) fn index_key(notes_dir: &Path) -> String {
     use sha2::{Digest, Sha256};
 
-    Sha256::digest(notes_dir.as_os_str().as_encoded_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    format!(
+        "{:x}",
+        Sha256::digest(notes_dir.as_os_str().as_encoded_bytes())
+    )
 }
 
 /// A library directory and its disposable index, accessed under one host-owned lock.
+#[derive(Debug)]
 pub struct Library {
     notes_dir: PathBuf,
     root: Dir,
@@ -73,6 +74,7 @@ impl Library {
         &self.notes_dir
     }
 
+    /// The SQLite file this library's index lives in, under the cache directory.
     pub fn index_path(&self) -> PathBuf {
         self.index_dir.join(index::DATABASE)
     }
@@ -172,6 +174,7 @@ impl Library {
         Ok(report.changed)
     }
 
+    /// Drop an unfinished scan; indexed reads then wait for a recovery.
     pub fn abandon_scan(&self, _scan: Scan) {
         self.index_dirty.set(true);
     }

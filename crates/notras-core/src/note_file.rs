@@ -1,12 +1,11 @@
 use std::fs::{File, Metadata};
 use std::io::{self, Read};
 use std::process;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cap_std::fs::{Dir, OpenOptions};
 
-static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+pub(crate) const TEMP_PREFIX: &str = ".tmp-";
 
 #[cfg(unix)]
 fn rename(dir: &Dir, from: &str, _file: &File, to: &str, replace: bool) -> io::Result<bool> {
@@ -60,9 +59,13 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
     };
     use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
+    let too_long = || io::Error::new(io::ErrorKind::InvalidInput, "the file name is too long");
     let name: Vec<u16> = to.encode_utf16().collect();
+    let name_bytes =
+        u32::try_from(name.len() * std::mem::size_of::<u16>()).map_err(|_| too_long())?;
     let size =
         std::mem::size_of::<FILE_RENAME_INFORMATION>() + name.len() * std::mem::size_of::<u16>();
+    let length = u32::try_from(size).map_err(|_| too_long())?;
     let mut buffer = vec![0u64; size.div_ceil(std::mem::size_of::<u64>())];
     let info = buffer.as_mut_ptr().cast::<FILE_RENAME_INFORMATION>();
     let flags = if replace {
@@ -76,7 +79,7 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
     unsafe {
         (*info).Anonymous.Flags = flags;
         (*info).RootDirectory = dir.as_raw_handle();
-        (*info).FileNameLength = (name.len() * std::mem::size_of::<u16>()) as u32;
+        (*info).FileNameLength = name_bytes;
         std::ptr::copy_nonoverlapping(
             name.as_ptr(),
             (&raw mut (*info).FileName).cast::<u16>(),
@@ -92,7 +95,7 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
                 file.as_raw_handle(),
                 &mut status_block,
                 info.cast(),
-                size as u32,
+                length,
                 class,
             )
         }
@@ -116,7 +119,10 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
     }
     // SAFETY: a status-code translation that reads no memory.
     let code = unsafe { RtlNtStatusToDosError(status) };
-    Err(io::Error::from_raw_os_error(code as i32))
+    Err(match i32::try_from(code) {
+        Ok(code) => io::Error::from_raw_os_error(code),
+        Err(_) => io::Error::other(format!("nt status {status:#x}")),
+    })
 }
 
 pub(crate) struct TempSibling {
@@ -138,12 +144,8 @@ impl TempSibling {
 
             options.access_mode(GENERIC_READ | GENERIC_WRITE | DELETE);
         }
-        loop {
-            let name = format!(
-                ".tmp-{}-{}",
-                process::id(),
-                TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
-            );
+        for attempt in 0u64.. {
+            let name = format!("{TEMP_PREFIX}{}-{attempt}", process::id());
             match dir.open_with(&name, &options) {
                 Ok(file) => {
                     return Ok(Self {
@@ -157,6 +159,10 @@ impl TempSibling {
                 Err(error) => return Err(error),
             }
         }
+        Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "every temporary name is taken",
+        ))
     }
 
     pub(crate) fn file(&self) -> &File {

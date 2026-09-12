@@ -9,6 +9,7 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::index::{self, IndexError, ScanReport};
 use crate::relative_path::RelativePath;
 
+#[derive(Debug)]
 enum Entry {
     Root,
     Entries {
@@ -21,6 +22,7 @@ enum Entry {
 
 /// A resumable scan of one library. The host serializes each step with file
 /// mutations; no document bytes are retained between steps.
+#[derive(Debug)]
 pub struct Scan {
     pub(crate) root: PathBuf,
     entries: Vec<Entry>,

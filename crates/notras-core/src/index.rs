@@ -432,11 +432,13 @@ fn index_note(
 /// A file that is there but cannot be read keeps whatever row it has, and so
 /// does everything under a folder that cannot be listed: absence from the walk
 /// is only evidence of deletion where the walk could look.
+#[derive(Debug)]
 pub struct ScanReport {
     pub changed: Vec<String>,
     pub failures: Vec<IndexError>,
 }
 
+/// Scan every saved file, failing on the first file that cannot be indexed.
 pub fn scan_complete(
     conn: &Connection,
     root: &Dir,
@@ -449,6 +451,7 @@ pub fn scan_complete(
     Ok(report.changed)
 }
 
+/// Scan every saved file, retaining per-file failures in the report.
 pub fn scan_all(conn: &Connection, root: &Dir, notes_dir: &Path) -> Result<ScanReport, IndexError> {
     crate::Scan::new(notes_dir, false).run(conn, root)
 }
