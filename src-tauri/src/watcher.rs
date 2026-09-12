@@ -56,7 +56,9 @@ fn handle<R: Runtime>(app: &AppHandle<R>, generation: u64, events: &[DebouncedEv
         Ok(changed) if changed.paths.is_empty() => return,
         Ok(changed) => changed.paths,
         Err(error) => {
-            log::error!("could not reconcile observed paths: {error}");
+            if !state.library.closing() {
+                log::error!("could not reconcile observed paths: {error}");
+            }
             return;
         }
     };
@@ -85,7 +87,7 @@ mod tests {
         let contract = crate::bindings::builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: LibraryOwner::new(Library::open(directory.path()).unwrap()),
+                library: LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(Vec::new()),
                 quitting: AtomicBool::new(false),

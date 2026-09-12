@@ -153,6 +153,10 @@ impl Library {
         Ok(report.changed)
     }
 
+    pub fn abandon_scan(&self, _scan: Scan) {
+        self.index_dirty.set(true);
+    }
+
     /// Classify user-selected files as library notes or explicit external files.
     pub fn classify_opens(&self, paths: Vec<String>) -> Vec<PendingOpen> {
         application::classify_opens(&self.notes_dir, paths)
@@ -188,6 +192,21 @@ mod tests {
             2
         );
         assert_eq!(library.reconcile_paths([external.as_path()]), None);
+    }
+
+    #[test]
+    fn should_require_recovery_after_an_abandoned_scan() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let library = Library::open(directory.path()).unwrap();
+        let mut scan = library.begin_scan(false);
+        assert!(!library.advance_scan(&mut scan).unwrap());
+
+        library.abandon_scan(scan);
+
+        assert!(library.index_needs_rebuild());
+        assert_eq!(library.list_notes(&Default::default()).unwrap().len(), 1);
+        assert!(!library.index_needs_rebuild());
     }
 
     #[test]

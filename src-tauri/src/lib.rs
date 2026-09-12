@@ -182,8 +182,13 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // notes dir at runtime rather than blanketing $HOME in the config.
     allow_assets(app.handle(), &notes_dir);
 
+    let status_app = app.handle().clone();
     app.manage(AppState {
-        library: LibraryOwner::new(library),
+        library: LibraryOwner::new(library, move |status| {
+            if let Err(error) = status.emit(&status_app) {
+                log::error!("could not emit index-status: {error}");
+            }
+        }),
         watcher: Mutex::new(None),
         pending_open: Mutex::new(Vec::new()),
         quitting: AtomicBool::new(false),
@@ -208,7 +213,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 });
             }
             Err(error) => {
-                log::error!("startup scan failed: {error}");
+                if !state.library.closing() {
+                    log::error!("startup scan failed: {error}");
+                }
             }
         }
     });
@@ -402,6 +409,7 @@ pub fn run() {
                 log::error!("could not emit {}: {error}", "open-file");
             }
         }
+        RunEvent::Exit => app.state::<AppState>().library.shutdown(),
         _ => {}
     });
 }

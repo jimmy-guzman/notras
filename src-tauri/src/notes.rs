@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
-use crate::bindings::{MutationWarnings, NotesChanged};
+use crate::bindings::{IndexStatus, MutationWarnings, NotesChanged};
 use crate::state::AppState;
 use crate::watcher;
 use notras_core::{
@@ -294,6 +294,12 @@ pub async fn get_notes_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, Comm
 
 #[tauri::command]
 #[specta::specta]
+pub async fn index_status<R: Runtime>(app: AppHandle<R>) -> Result<IndexStatus, CommandError> {
+    run_blocking(move || Ok(app.state::<AppState>().library.status())).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn set_notes_dir<R: Runtime>(
     app: AppHandle<R>,
     path: String,
@@ -316,7 +322,7 @@ pub async fn set_notes_dir<R: Runtime>(
         } else {
             let library = Library::open(Path::new(&path))?;
             let notes_dir = library.directory().to_owned();
-            library.scan_complete()?;
+            state.library.prepare(&library)?;
             let generation = state.library().generation() + 1;
             let fresh =
                 watcher::start(app.clone(), notes_dir.clone(), generation).map_err(|error| {

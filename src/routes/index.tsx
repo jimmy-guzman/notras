@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
+import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import {
@@ -130,6 +131,7 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
       }
     }
   }, [finished, initialTabs, latest.data, latest.isSuccess]);
+  const indexStatus = useQuery(indexStatusQuery);
   const retry = useCallback(async () => {
     await latest.refetch();
   }, [latest]);
@@ -149,7 +151,9 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
   }
   return (
     <p className="p-3 text-center text-muted-foreground text-xs" role="status">
-      loading recent note...
+      {indexStatus.data?.state === "scanning"
+        ? "indexing notes..."
+        : "loading recent note..."}
     </p>
   );
 }

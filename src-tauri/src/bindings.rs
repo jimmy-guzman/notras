@@ -15,6 +15,14 @@ pub struct MutationWarnings {
     pub warnings: Vec<MutationWarning>,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, specta::Type, tauri_specta::Event)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum IndexStatus {
+    Scanning,
+    Ready,
+    Failed { reason: String },
+}
+
 pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
     tauri_specta::Builder::new()
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
@@ -29,6 +37,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::delete_note::<tauri::Wry>,
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir::<tauri::Wry>,
+            notes::index_status::<tauri::Wry>,
             notes::list_notes::<tauri::Wry>,
             notes::list_tags::<tauri::Wry>,
             notes::read_graph::<tauri::Wry>,
@@ -47,7 +56,8 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
         ])
         .events(tauri_specta::collect_events![
             NotesChanged,
-            MutationWarnings
+            MutationWarnings,
+            IndexStatus
         ])
 }
 
@@ -99,6 +109,7 @@ mod tests {
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
                     Library::open(directory.path()).unwrap(),
+                    |_| {},
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
@@ -204,7 +215,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: crate::library::LibraryOwner::new(library),
+                library: crate::library::LibraryOwner::new(library, |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -258,6 +269,7 @@ mod tests {
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
                     Library::open(directory.path()).unwrap(),
+                    |_| {},
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
@@ -311,6 +323,7 @@ mod tests {
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
                     Library::open(directory.path()).unwrap(),
+                    |_| {},
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
@@ -351,7 +364,10 @@ mod tests {
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
-                library: crate::library::LibraryOwner::new(Library::open(&initial).unwrap()),
+                library: crate::library::LibraryOwner::new(
+                    Library::open(&initial).unwrap(),
+                    |_| {},
+                ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -431,7 +447,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: crate::library::LibraryOwner::new(library),
+                library: crate::library::LibraryOwner::new(library, |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -490,7 +506,10 @@ mod tests {
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
-                library: crate::library::LibraryOwner::new(Library::open(&initial).unwrap()),
+                library: crate::library::LibraryOwner::new(
+                    Library::open(&initial).unwrap(),
+                    |_| {},
+                ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),
@@ -549,6 +568,54 @@ mod tests {
     }
 
     #[test]
+    fn should_serve_index_status_through_the_production_registry() {
+        use tauri_specta::Event as _;
+
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let status_app = app.handle().clone();
+        app.manage(AppState {
+            library: crate::library::LibraryOwner::new(
+                Library::open(directory.path()).unwrap(),
+                move |status| status.emit(&status_app).unwrap(),
+            ),
+            watcher: Mutex::new(None),
+            pending_open: Mutex::new(vec![]),
+            quitting: AtomicBool::new(false),
+        });
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, statuses) = mpsc::channel();
+        app.listen("index-status", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+
+        assert_eq!(
+            invoke(&window, "index_status", json!({})).unwrap(),
+            json!({"state": "scanning"})
+        );
+        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(
+            invoke(&window, "index_status", json!({})).unwrap(),
+            json!({"state": "ready"})
+        );
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            [json!({"state": "ready"})]
+        );
+    }
+
+    #[test]
     fn should_serve_typed_saved_queries_through_the_production_registry() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".notras")).unwrap();
@@ -563,7 +630,7 @@ mod tests {
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: crate::library::LibraryOwner::new(library),
+                library: crate::library::LibraryOwner::new(library, |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
                 quitting: AtomicBool::new(false),

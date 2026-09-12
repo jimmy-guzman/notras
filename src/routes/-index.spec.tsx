@@ -23,6 +23,9 @@ it("should let a new note open before library queries finish without a late rest
     if (command === "get_notes_dir") {
       return "/notes";
     }
+    if (command === "index_status") {
+      return { state: "ready" };
+    }
     if (command === "list_notes") {
       if (args === undefined || !("filters" in args)) {
         throw new Error("list_notes requires filters");

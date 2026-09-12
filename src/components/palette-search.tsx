@@ -25,6 +25,7 @@ import {
   searchFolders,
   searchSuggestion,
 } from "@/core/search";
+import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { reasonOf } from "@/lib/ui/failure";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
@@ -164,12 +165,13 @@ function pickerChoices(
         return { heading: "notes to filter by", Icon: FileTextIcon };
     }
   })();
-  return {
-    ...presentation,
-    choices: choices.filter(({ label, value }) =>
-      `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
-    ),
-  };
+  const offered = choices.filter(({ label, value }) =>
+    `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
+  );
+  if (offered.length === 0) {
+    return;
+  }
+  return { ...presentation, choices: offered };
 }
 
 function filterHelp(kind: SearchFilter["kind"] | undefined) {
@@ -183,6 +185,12 @@ function filterHelp(kind: SearchFilter["kind"] | undefined) {
 }
 
 const NO_NOTES: NoteMeta[] = [];
+
+function stopCommandKeys(event: React.KeyboardEvent) {
+  if (event.key !== "Escape") {
+    event.stopPropagation();
+  }
+}
 
 function useSearchResults(query: string, showPicker: boolean) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
@@ -219,8 +227,12 @@ function useSearchResults(query: string, showPicker: boolean) {
   const visible = pending ? displayed.notes : readyNotes;
   const resultQuery = pending ? displayed.query : query;
   const reading = showingResults && !waitingForDebounce && result.isFetching;
+  const indexStatus = useQuery(indexStatusQuery);
+  const indexing =
+    pending && visible.length === 0 && indexStatus.data?.state === "scanning";
   return {
     failed,
+    indexing,
     pending,
     readingQuery: reading ? query : undefined,
     result,
@@ -283,10 +295,17 @@ export function PaletteSearch({
   const candidate = searchSuggestion(query, cursor);
   const { choicesFailed, choicesPending, choicesQuery, picker, retryChoices } =
     useFilterChoices(candidate);
-  const showPicker = picker !== undefined && picker.choices.length > 0;
+  const showPicker = picker !== undefined;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
-  const { failed, pending, readingQuery, result, resultQuery, visible } =
-    useSearchResults(query, choosingFilter);
+  const {
+    failed,
+    indexing,
+    pending,
+    readingQuery,
+    result,
+    resultQuery,
+    visible,
+  } = useSearchResults(query, choosingFilter);
   useLayoutEffect(() => {
     onResultQueryChange?.(resultQuery);
   }, [onResultQueryChange, resultQuery]);
@@ -311,11 +330,6 @@ export function PaletteSearch({
     },
     [candidate, cursor, onQueryChange, query]
   );
-  const stopCommandKeys = useCallback((event: React.KeyboardEvent) => {
-    if (event.key !== "Escape") {
-      event.stopPropagation();
-    }
-  }, []);
   const retry = useCallback(async () => {
     await result.refetch();
   }, [result]);
@@ -360,6 +374,11 @@ export function PaletteSearch({
             retry
           </Button>
         </div>
+      ) : null}
+      {indexing ? (
+        <p className="p-4 text-muted-foreground text-sm" role="status">
+          indexing notes...
+        </p>
       ) : null}
       {!(choosingFilter || pending) &&
       (visible.length === 0 || failed) &&
