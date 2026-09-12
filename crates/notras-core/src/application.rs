@@ -1415,22 +1415,13 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn link_dir(target: &Path, link: &Path) {
-        std::os::unix::fs::symlink(target, link).unwrap();
-    }
-
-    #[cfg(windows)]
-    fn link_dir(target: &Path, link: &Path) {
-        std::os::windows::fs::symlink_dir(target, link).unwrap();
-    }
-
     fn swap_folder_for_link(directory: &Path, folder: &str, outside: &Path) {
         fs::rename(
             directory.join(folder),
             directory.join(format!("{folder}-original")),
         )
         .unwrap();
-        link_dir(outside, &directory.join(folder));
+        std::os::unix::fs::symlink(outside, directory.join(folder)).unwrap();
     }
 
     fn library_with_folder_note() -> (tempfile::TempDir, tempfile::TempDir, Library) {
@@ -1443,6 +1434,7 @@ mod tests {
         (directory, outside, core)
     }
 
+    #[cfg(unix)]
     #[test]
     fn should_write_the_validated_note_after_its_parent_is_swapped_for_a_symlink() {
         let (directory, outside, core) = library_with_folder_note();
@@ -1464,6 +1456,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn should_read_the_validated_note_after_its_parent_is_swapped() {
         let (directory, outside, core) = library_with_folder_note();
@@ -1480,6 +1473,7 @@ mod tests {
         assert_eq!(content, "original");
     }
 
+    #[cfg(unix)]
     #[test]
     fn should_delete_the_validated_note_and_leave_the_swap_target_alone() {
         let (directory, outside, core) = library_with_folder_note();
@@ -1498,6 +1492,7 @@ mod tests {
         assert!(!directory.path().join("folder-original/note.md").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn should_place_a_move_destination_in_the_validated_folder() {
         let (directory, outside, core) = library_with_folder_note();
@@ -1516,6 +1511,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn should_copy_an_attachment_into_the_validated_attachments_folder() {
         let directory = tempfile::tempdir().unwrap();
@@ -1536,6 +1532,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn should_follow_a_validated_folder_that_moves_outside_the_library() {
         let (directory, outside, core) = library_with_folder_note();
@@ -1563,39 +1560,56 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn should_refuse_a_junction_planted_where_a_validated_folder_was() {
+    fn should_refuse_to_move_a_validated_folder_while_an_operation_holds_it() {
+        const ERROR_SHARING_VIOLATION: i32 = 32;
         let (directory, outside, core) = library_with_folder_note();
         let located = RelativePath::parse("folder/note.md")
             .unwrap()
             .resolve(&core.root)
             .unwrap();
-        fs::rename(
+
+        let refused = fs::rename(
             directory.path().join("folder"),
             directory.path().join("folder-original"),
         )
-        .unwrap();
-        let status = std::process::Command::new("cmd")
-            .args(["/C", "mklink", "/J"])
-            .arg(directory.path().join("folder"))
-            .arg(outside.path())
-            .status()
-            .unwrap();
-        assert!(status.success());
-
+        .unwrap_err();
         replace(&located, "written").unwrap();
-        let later = RelativePath::parse("folder/note.md")
-            .unwrap()
-            .locate(&core.root);
 
+        assert_eq!(refused.raw_os_error(), Some(ERROR_SHARING_VIOLATION));
         assert_eq!(
             fs::read_to_string(outside.path().join("note.md")).unwrap(),
             "outside"
         );
         assert_eq!(
-            fs::read_to_string(directory.path().join("folder-original/note.md")).unwrap(),
+            fs::read_to_string(directory.path().join("folder/note.md")).unwrap(),
             "written"
         );
-        assert!(!matches!(later, Ok(Some(_))));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn should_refuse_a_junction_as_a_folder_component() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "outside").unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(directory.path().join("link"))
+            .arg(outside.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let located = RelativePath::parse("link/note.md")
+            .unwrap()
+            .locate(&core.root);
+
+        assert!(!matches!(located, Ok(Some(_))));
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "outside"
+        );
     }
 
     #[test]

@@ -176,7 +176,14 @@ impl Scan {
                     mut entries,
                 } => match entries.next() {
                     None => {}
-                    Some(Err(error)) => self.unreadable(&relative, error),
+                    Some(Err(error)) => {
+                        self.entries.push(Entry::Entries {
+                            dir,
+                            relative: relative.clone(),
+                            entries,
+                        });
+                        self.unreadable(&relative, error);
+                    }
                     Some(Ok(entry)) => {
                         let parent = Entry::Entries {
                             dir: dir.try_clone()?,

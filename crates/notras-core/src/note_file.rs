@@ -50,22 +50,25 @@ fn link_then_unlink(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
 fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::Result<bool> {
     use std::os::windows::io::AsRawHandle;
 
-    use windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
-    use windows_sys::Win32::Storage::FileSystem::{
-        FileRenameInfo, FileRenameInfoEx, SetFileInformationByHandle, FILE_RENAME_INFO,
+    use windows_sys::Wdk::Storage::FileSystem::{
+        FileRenameInformation, FileRenameInformationEx, NtSetInformationFile,
+        FILE_RENAME_INFORMATION, FILE_RENAME_POSIX_SEMANTICS, FILE_RENAME_REPLACE_IF_EXISTS,
     };
-    use windows_sys::Win32::System::WindowsProgramming::{
-        FILE_RENAME_FLAG_POSIX_SEMANTICS, FILE_RENAME_FLAG_REPLACE_IF_EXISTS,
+    use windows_sys::Win32::Foundation::{
+        RtlNtStatusToDosError, STATUS_INVALID_INFO_CLASS, STATUS_INVALID_PARAMETER,
+        STATUS_NOT_SUPPORTED, STATUS_SUCCESS,
     };
+    use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
-    let name: Vec<u16> = to.encode_utf16().chain(std::iter::once(0)).collect();
-    let size = std::mem::size_of::<FILE_RENAME_INFO>() + name.len() * std::mem::size_of::<u16>();
+    let name: Vec<u16> = to.encode_utf16().collect();
+    let size =
+        std::mem::size_of::<FILE_RENAME_INFORMATION>() + name.len() * std::mem::size_of::<u16>();
     let mut buffer = vec![0u64; size.div_ceil(std::mem::size_of::<u64>())];
-    let info = buffer.as_mut_ptr().cast::<FILE_RENAME_INFO>();
+    let info = buffer.as_mut_ptr().cast::<FILE_RENAME_INFORMATION>();
     let flags = if replace {
-        FILE_RENAME_FLAG_POSIX_SEMANTICS | FILE_RENAME_FLAG_REPLACE_IF_EXISTS
+        FILE_RENAME_POSIX_SEMANTICS | FILE_RENAME_REPLACE_IF_EXISTS
     } else {
-        FILE_RENAME_FLAG_POSIX_SEMANTICS
+        FILE_RENAME_POSIX_SEMANTICS
     };
     // SAFETY: `buffer` is u64-aligned and at least `size` bytes, which covers the
     // header and the whole name; the API defines FileName as a one-element array
@@ -73,7 +76,7 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
     unsafe {
         (*info).Anonymous.Flags = flags;
         (*info).RootDirectory = dir.as_raw_handle();
-        (*info).FileNameLength = ((name.len() - 1) * std::mem::size_of::<u16>()) as u32;
+        (*info).FileNameLength = (name.len() * std::mem::size_of::<u16>()) as u32;
         std::ptr::copy_nonoverlapping(
             name.as_ptr(),
             (&raw mut (*info).FileName).cast::<u16>(),
@@ -81,26 +84,39 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
         );
     }
     let attempt = move |class| {
+        let mut status_block = IO_STATUS_BLOCK::default();
         // SAFETY: `info` points at `size` initialized bytes laid out as the class expects,
         // and both handles stay open for the duration of the call.
-        unsafe { SetFileInformationByHandle(file.as_raw_handle(), class, info.cast(), size as u32) }
+        unsafe {
+            NtSetInformationFile(
+                file.as_raw_handle(),
+                &mut status_block,
+                info.cast(),
+                size as u32,
+                class,
+            )
+        }
     };
-    if attempt(FileRenameInfoEx) != 0 {
+    let mut status = attempt(FileRenameInformationEx);
+    if [
+        STATUS_INVALID_INFO_CLASS,
+        STATUS_INVALID_PARAMETER,
+        STATUS_NOT_SUPPORTED,
+    ]
+    .contains(&status)
+    {
+        // SAFETY: same buffer as above; the union member switches to the older class's field.
+        unsafe {
+            (*info).Anonymous.ReplaceIfExists = replace;
+        }
+        status = attempt(FileRenameInformation);
+    }
+    if status == STATUS_SUCCESS {
         return Ok(true);
     }
-    let error = io::Error::last_os_error();
-    if error.raw_os_error() != Some(ERROR_INVALID_PARAMETER as i32) {
-        return Err(error);
-    }
-    // SAFETY: same buffer as above; the union member switches to the older class's field.
-    unsafe {
-        (*info).Anonymous.ReplaceIfExists = replace;
-    }
-    if attempt(FileRenameInfo) != 0 {
-        Ok(true)
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    // SAFETY: a status-code translation that reads no memory.
+    let code = unsafe { RtlNtStatusToDosError(status) };
+    Err(io::Error::from_raw_os_error(code as i32))
 }
 
 pub(crate) struct TempSibling {
