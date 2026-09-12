@@ -165,12 +165,13 @@ function pickerChoices(
         return { heading: "notes to filter by", Icon: FileTextIcon };
     }
   })();
-  return {
-    ...presentation,
-    choices: choices.filter(({ label, value }) =>
-      `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
-    ),
-  };
+  const offered = choices.filter(({ label, value }) =>
+    `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
+  );
+  if (offered.length === 0) {
+    return;
+  }
+  return { ...presentation, choices: offered };
 }
 
 function filterHelp(kind: SearchFilter["kind"] | undefined) {
@@ -189,40 +190,6 @@ function stopCommandKeys(event: React.KeyboardEvent) {
   if (event.key !== "Escape") {
     event.stopPropagation();
   }
-}
-
-function emptyStatus(state: {
-  candidate: SearchFilter["kind"] | undefined;
-  error: unknown;
-  failed: boolean;
-  idle: boolean;
-  incomplete: boolean;
-  indexing: boolean;
-}) {
-  if (state.indexing) {
-    return {
-      description: "search opens when the index is ready",
-      title: "indexing notes",
-    };
-  }
-  if (state.incomplete) {
-    return {
-      description: filterHelp(state.candidate),
-      title: "incomplete filter",
-    };
-  }
-  if (state.failed) {
-    return {
-      description: reasonOf(state.error),
-      title: "could not search notes",
-    };
-  }
-  return {
-    description: state.idle
-      ? "create a note with the new note action"
-      : "try different words or remove a filter",
-    title: "nothing found",
-  };
 }
 
 function useSearchResults(query: string, showPicker: boolean) {
@@ -272,23 +239,6 @@ function useSearchResults(query: string, showPicker: boolean) {
     resultQuery,
     visible,
   };
-}
-
-function useLoadingSignal(
-  readingQuery: string | undefined,
-  onLoadingChange: ((loading: boolean) => void) | undefined
-) {
-  useLayoutEffect(() => {
-    onLoadingChange?.(false);
-    if (readingQuery === undefined) {
-      return;
-    }
-    const timer = setTimeout(() => onLoadingChange?.(true), 500);
-    return () => {
-      clearTimeout(timer);
-      onLoadingChange?.(false);
-    };
-  }, [onLoadingChange, readingQuery]);
 }
 
 function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
@@ -345,7 +295,7 @@ export function PaletteSearch({
   const candidate = searchSuggestion(query, cursor);
   const { choicesFailed, choicesPending, choicesQuery, picker, retryChoices } =
     useFilterChoices(candidate);
-  const showPicker = picker !== undefined && picker.choices.length > 0;
+  const showPicker = picker !== undefined;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
   const {
     failed,
@@ -359,7 +309,17 @@ export function PaletteSearch({
   useLayoutEffect(() => {
     onResultQueryChange?.(resultQuery);
   }, [onResultQueryChange, resultQuery]);
-  useLoadingSignal(readingQuery, onLoadingChange);
+  useLayoutEffect(() => {
+    onLoadingChange?.(false);
+    if (readingQuery === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => onLoadingChange?.(true), 500);
+    return () => {
+      clearTimeout(timer);
+      onLoadingChange?.(false);
+    };
+  }, [onLoadingChange, readingQuery]);
   const pickFilter = useCallback(
     (value: string) => {
       if (candidate !== undefined) {
@@ -378,19 +338,26 @@ export function PaletteSearch({
     result.isSuccess &&
     search.filters.length === 0 &&
     visible.length === 0;
-  const empty =
-    !choosingFilter &&
-    (indexing || !pending) &&
-    (visible.length === 0 || failed) &&
-    !offerCreate;
-  const status = emptyStatus({
-    candidate: candidate?.kind,
-    error: result.error,
-    failed,
-    idle,
-    incomplete: search.incomplete,
-    indexing,
-  });
+  const status = (() => {
+    if (search.incomplete) {
+      return {
+        description: filterHelp(candidate?.kind),
+        title: "incomplete filter",
+      };
+    }
+    if (failed) {
+      return {
+        description: reasonOf(result.error),
+        title: "could not search notes",
+      };
+    }
+    return {
+      description: idle
+        ? "create a note with the new note action"
+        : "try different words or remove a filter",
+      title: "nothing found",
+    };
+  })();
 
   return (
     <div aria-busy={pending || choicesPending}>
@@ -408,7 +375,14 @@ export function PaletteSearch({
           </Button>
         </div>
       ) : null}
-      {empty ? (
+      {indexing ? (
+        <p className="p-4 text-muted-foreground text-sm" role="status">
+          indexing notes...
+        </p>
+      ) : null}
+      {!(choosingFilter || pending) &&
+      (visible.length === 0 || failed) &&
+      !offerCreate ? (
         <Empty className="p-6" role="status">
           <EmptyHeader>
             <EmptyTitle>{status.title}</EmptyTitle>
