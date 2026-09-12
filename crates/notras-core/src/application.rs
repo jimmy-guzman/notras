@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
-use cap_fs_ext::MetadataExt as _;
 use cap_std::{ambient_authority, fs::Dir};
 use serde::{Deserialize, Serialize};
 
@@ -454,10 +453,7 @@ fn same_file(
 ) -> Result<bool, CommandError> {
     let candidate = source.sibling(candidate)?;
     match candidate.symlink_metadata() {
-        Ok(metadata) if metadata.is_file() => {
-            let metadata = candidate.open_read()?.metadata()?;
-            Ok((metadata.dev(), metadata.ino()) == identity)
-        }
+        Ok(metadata) if metadata.is_file() => Ok(candidate.identity()? == identity),
         Ok(_) => Ok(false),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error.into()),
@@ -505,7 +501,7 @@ fn save_file(
     temp.file().set_permissions(metadata.permissions())?;
     write_temp(temp.file_mut(), content)?;
     let updated_at = checked_mtime(temp.file())?;
-    let identity = (metadata.dev(), metadata.ino());
+    let identity = source.identity()?;
     let mut counter = 1;
     loop {
         let candidate = if counter == 1 {

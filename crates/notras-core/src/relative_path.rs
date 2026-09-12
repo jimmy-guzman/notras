@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io;
 use std::path::{Component, Path};
 
-use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_fs_ext::{DirExt, FollowSymlinks, MetadataExt as _, OpenOptionsFollowExt};
 use cap_std::fs::{Dir, Metadata, OpenOptions};
 
 fn symlink_error() -> io::Error {
@@ -65,6 +65,13 @@ impl Located {
 
     pub(crate) fn symlink_metadata(&self) -> io::Result<Metadata> {
         self.dir.symlink_metadata(&self.name)
+    }
+
+    pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
+        let mut options = OpenOptions::new();
+        options.read(true).follow(FollowSymlinks::No);
+        let metadata = self.dir.open_with(&self.name, &options)?.metadata()?;
+        Ok((metadata.dev(), metadata.ino()))
     }
 
     pub(crate) fn remove_file(&self) -> io::Result<()> {

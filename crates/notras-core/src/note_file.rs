@@ -9,38 +9,45 @@ use cap_std::fs::{Dir, OpenOptions};
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(unix)]
-fn rename(dir: &Dir, from: &str, _file: &File, to: &str, replace: bool) -> io::Result<()> {
+fn rename(dir: &Dir, from: &str, _file: &File, to: &str, replace: bool) -> io::Result<bool> {
     if replace {
-        return dir.rename(from, dir, to);
+        dir.rename(from, dir, to)?;
+        return Ok(true);
     }
     rename_noclobber(dir, from, to)
 }
 
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<()> {
+fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     use rustix::fs::RenameFlags;
     use rustix::io::Errno;
 
     match rustix::fs::renameat_with(dir, from, dir, to, RenameFlags::NOREPLACE) {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(true),
         Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => link_then_unlink(dir, from, to),
         Err(error) => Err(error.into()),
     }
 }
 
 #[cfg(all(unix, not(any(target_os = "linux", target_vendor = "apple"))))]
-fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<()> {
+fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     link_then_unlink(dir, from, to)
 }
 
 #[cfg(unix)]
-fn link_then_unlink(dir: &Dir, from: &str, to: &str) -> io::Result<()> {
+fn link_then_unlink(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     dir.hard_link(from, dir, to)?;
-    dir.remove_file(from)
+    match dir.remove_file(from) {
+        Ok(()) => Ok(true),
+        Err(error) => {
+            log::warn!("published {to}, but could not remove its sibling {from}: {error}");
+            Ok(false)
+        }
+    }
 }
 
 #[cfg(windows)]
-fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::Result<()> {
+fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::Result<bool> {
     use std::os::windows::io::AsRawHandle;
 
     use windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
@@ -73,13 +80,13 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
             name.len(),
         );
     }
-    let attempt = |class| {
+    let attempt = move |class| {
         // SAFETY: `info` points at `size` initialized bytes laid out as the class expects,
         // and both handles stay open for the duration of the call.
         unsafe { SetFileInformationByHandle(file.as_raw_handle(), class, info.cast(), size as u32) }
     };
     if attempt(FileRenameInfoEx) != 0 {
-        return Ok(());
+        return Ok(true);
     }
     let error = io::Error::last_os_error();
     if error.raw_os_error() != Some(ERROR_INVALID_PARAMETER as i32) {
@@ -90,7 +97,7 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
         (*info).Anonymous.ReplaceIfExists = replace;
     }
     if attempt(FileRenameInfo) != 0 {
-        Ok(())
+        Ok(true)
     } else {
         Err(io::Error::last_os_error())
     }
@@ -145,14 +152,12 @@ impl TempSibling {
     }
 
     pub(crate) fn replace(&mut self, target: &str) -> io::Result<()> {
-        rename(&self.dir, &self.name, &self.file, target, true)?;
-        self.armed = false;
+        self.armed = !rename(&self.dir, &self.name, &self.file, target, true)?;
         Ok(())
     }
 
     pub(crate) fn publish(&mut self, target: &str) -> io::Result<()> {
-        rename(&self.dir, &self.name, &self.file, target, false)?;
-        self.armed = false;
+        self.armed = !rename(&self.dir, &self.name, &self.file, target, false)?;
         Ok(())
     }
 }
