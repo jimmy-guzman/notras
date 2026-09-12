@@ -56,7 +56,9 @@ fn handle<R: Runtime>(app: &AppHandle<R>, generation: u64, events: &[DebouncedEv
         Ok(changed) if changed.paths.is_empty() => return,
         Ok(changed) => changed.paths,
         Err(error) => {
-            log::error!("could not reconcile observed paths: {error}");
+            if !state.library.closing() {
+                log::error!("could not reconcile observed paths: {error}");
+            }
             return;
         }
     };

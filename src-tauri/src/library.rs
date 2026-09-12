@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock};
 
 use crate::bindings::IndexStatus;
@@ -101,6 +101,7 @@ pub struct LibraryOwner {
     publication: RwLock<()>,
     on_status: Box<dyn Fn(IndexStatus) + Send + Sync>,
     reported: Mutex<u64>,
+    closing: AtomicBool,
 }
 
 impl LibraryOwner {
@@ -120,6 +121,28 @@ impl LibraryOwner {
             publication: RwLock::new(()),
             on_status: Box::new(on_status),
             reported: Mutex::new(0),
+            closing: AtomicBool::new(false),
+        }
+    }
+
+    pub fn closing(&self) -> bool {
+        self.closing.load(Ordering::SeqCst)
+    }
+
+    fn closing_error() -> CommandError {
+        std::io::Error::other("the library is closing").into()
+    }
+
+    /// Refuse new scans and wait for the running one to abandon at its next
+    /// step. Called on process exit, so a per-note transaction is never interrupted.
+    pub fn shutdown(&self) {
+        self.closing.store(true, Ordering::SeqCst);
+        let mut state = self.foreground();
+        while state.active.is_some() {
+            state = self
+                .changed
+                .wait(state)
+                .expect("library state was poisoned");
         }
     }
 
@@ -261,6 +284,9 @@ impl LibraryOwner {
                 paths: Vec::new(),
             });
         }
+        if self.closing() {
+            return Err(Self::closing_error());
+        }
         if matches!(kind, ScanKind::Recovery)
             && state.initialized
             && !state.library.index_needs_rebuild()
@@ -309,6 +335,24 @@ impl LibraryOwner {
             let mut state = self.background();
             if generation != state.generation {
                 return Err(std::io::Error::other("the selected library changed").into());
+            }
+            if self.closing() {
+                state.library.abandon_scan(scan);
+                let error = Self::closing_error();
+                completion
+                    .set(Err(error.clone()))
+                    .expect("a scan completes once");
+                state.active.take();
+                let change = set_status(
+                    &mut state,
+                    IndexStatus::Failed {
+                        reason: error.message.clone(),
+                    },
+                );
+                self.changed.notify_all();
+                drop(state);
+                self.report(change);
+                return Err(error);
             }
             let result = match state.library.advance_scan(&mut scan) {
                 Ok(false) => continue,
@@ -730,6 +774,87 @@ mod tests {
 
         assert_eq!(statuses.try_iter().last(), Some(IndexStatus::Ready));
         assert_eq!(owner.status(), IndexStatus::Ready);
+    }
+
+    #[test]
+    fn should_abandon_a_running_scan_on_shutdown_and_let_the_next_launch_finish_it() {
+        let directory = tempfile::tempdir().unwrap();
+        for index in 0..40 {
+            fs::write(
+                directory.path().join(format!("note-{index}.md")),
+                format!("# Note {index}"),
+            )
+            .unwrap();
+        }
+        let (owner, statuses) = reporting_owner(Library::open(directory.path()).unwrap());
+        let owner = Arc::new(owner);
+        let completion = Arc::new(OnceLock::new());
+        let scan = {
+            let mut state = owner.foreground();
+            state.active = Some(ActiveScan {
+                completion: completion.clone(),
+                view: None,
+                changed: Vec::new(),
+            });
+            state.library.begin_scan(false)
+        };
+        let paused = owner.read();
+        let scanner = owner.clone();
+        let scan_completion = completion.clone();
+        let scanning = thread::spawn(move || scanner.run_steps(0, scan_completion, scan));
+        let closer = owner.clone();
+        let closing = thread::spawn(move || closer.shutdown());
+        while !owner.closing() {
+            thread::yield_now();
+        }
+        drop(paused);
+
+        let Err(error) = scanning.join().unwrap() else {
+            panic!("a scan must not finish after shutdown");
+        };
+        closing.join().unwrap();
+
+        assert_eq!(error.message, "the library is closing");
+        assert!(completion.get().unwrap().is_err());
+        assert!(owner.read().index_needs_rebuild());
+        let Err(refused) = owner.query(|view| view.list_tags()) else {
+            panic!("a query must not answer after shutdown");
+        };
+        assert_eq!(refused.message, "the library is closing");
+        let failed = IndexStatus::Failed {
+            reason: "the library is closing".into(),
+        };
+        assert_eq!(statuses.try_iter().collect::<Vec<_>>(), [failed.clone()]);
+        assert_eq!(owner.status(), failed);
+
+        let relaunched = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
+        relaunched.scan().unwrap();
+        assert_eq!(
+            relaunched
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()
+                .len(),
+            40
+        );
+    }
+
+    #[test]
+    fn should_return_from_shutdown_when_no_scan_is_running() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
+        owner.scan().unwrap();
+
+        owner.shutdown();
+
+        let Err(error) = owner.scan() else {
+            panic!("a scan must not start after shutdown");
+        };
+        assert_eq!(error.message, "the library is closing");
+        assert_eq!(
+            owner.read().read_note("note.md".into()).unwrap().content,
+            "# Note"
+        );
     }
 
     #[test]
