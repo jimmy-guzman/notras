@@ -15,7 +15,8 @@ import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { createNote } from "@/data/create-note";
-import { indexStatusQuery, noteQueries } from "@/data/queries";
+import { indexStatusQuery } from "@/data/index-status";
+import { noteQueries } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import {
   activateTab,

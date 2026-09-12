@@ -128,9 +128,6 @@ export type GraphResult = { picture: Picture | null; mentionsError: CommandError
 export type GraphTarget = { kind: "note"; path: string } | { kind: "hub"; hub: Hub }
 export type Hub = { kind: "folder"; folder: string } | { kind: "tag"; tag: string }
 export type HubPill = { count: number; hub: Hub }
-/**
- * Whether indexed reads answer now, wait on a scan, or fail until recovery succeeds.
- */
 export type IndexStatus = { state: "scanning" } | { state: "ready" } | { state: "failed"; reason: string }
 export type Mention = { lines: MentionLine[]; note: NoteMeta }
 export type MentionLine = { context: string; line: number; match: string }

@@ -23,8 +23,6 @@ struct OwnedLibrary {
     status_revision: u64,
 }
 
-/// A transition numbered under the guard, so publication can drop one that a
-/// later transition has already overtaken.
 struct StatusChange {
     revision: u64,
     status: IndexStatus,
@@ -105,7 +103,6 @@ pub struct LibraryOwner {
 }
 
 impl LibraryOwner {
-    /// A new owner reports scanning: its readers wait until the first scan completes.
     pub fn new(library: Library, on_status: impl Fn(IndexStatus) + Send + Sync + 'static) -> Self {
         Self {
             state: Mutex::new(OwnedLibrary {
@@ -133,8 +130,6 @@ impl LibraryOwner {
         std::io::Error::other("the library is closing").into()
     }
 
-    /// Refuse new scans and wait for the running one to abandon at its next
-    /// step. Called on process exit, so a per-note transaction is never interrupted.
     pub fn shutdown(&self) {
         self.closing.store(true, Ordering::SeqCst);
         let mut state = self.foreground();
@@ -146,8 +141,6 @@ impl LibraryOwner {
         }
     }
 
-    /// Publish in revision order. The sink runs under its own lock, outside the
-    /// operation guard, so a transition overtaken between the guard and here is dropped.
     fn report(&self, change: Option<StatusChange>) {
         let Some(change) = change else {
             return;
@@ -403,8 +396,6 @@ impl LibraryOwner {
         self.run_scan(ScanKind::Observed(paths), Some(generation))
     }
 
-    /// Index a replacement completely before it is selected. Nothing reads it
-    /// yet, so this runs outside the operation guard, and it stops when the owner is closing.
     pub fn prepare(&self, library: &Library) -> Result<(), CommandError> {
         let mut scan = library.begin_scan(false);
         loop {

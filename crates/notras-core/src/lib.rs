@@ -153,8 +153,6 @@ impl Library {
         Ok(report.changed)
     }
 
-    /// Drop an unfinished scan. Indexed reads then wait for a recovery, since
-    /// rows the scan did not reach may be stale.
     pub fn abandon_scan(&self, _scan: Scan) {
         self.index_dirty.set(true);
     }

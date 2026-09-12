@@ -7,7 +7,7 @@ import {
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen } from "@testing-library/react";
 import { expect, it, onTestFinished } from "vitest";
-import { indexStatusQuery } from "@/data/queries";
+import { indexStatusQuery } from "@/data/index-status";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { routeTree } from "@/routeTree.gen";
 

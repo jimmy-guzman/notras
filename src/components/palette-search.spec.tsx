@@ -7,7 +7,8 @@ import { PaletteSearch } from "@/components/palette-search";
 import { Command, CommandList } from "@/components/ui/command";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
-import { indexStatusQuery, noteQueries } from "@/data/queries";
+import { indexStatusQuery } from "@/data/index-status";
+import { noteQueries } from "@/data/queries";
 
 function mount(query: string, error?: Error) {
   const client = new QueryClient({

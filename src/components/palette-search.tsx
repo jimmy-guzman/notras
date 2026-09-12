@@ -25,7 +25,8 @@ import {
   searchFolders,
   searchSuggestion,
 } from "@/core/search";
-import { indexStatusQuery, noteQueries } from "@/data/queries";
+import { indexStatusQuery } from "@/data/index-status";
+import { noteQueries } from "@/data/queries";
 import { reasonOf } from "@/lib/ui/failure";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 
@@ -273,7 +274,6 @@ function useSearchResults(query: string, showPicker: boolean) {
   };
 }
 
-/** Report a read that stays pending for 500ms, and clear it when it settles or changes. */
 function useLoadingSignal(
   readingQuery: string | undefined,
   onLoadingChange: ((loading: boolean) => void) | undefined

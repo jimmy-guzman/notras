@@ -409,8 +409,6 @@ pub fn run() {
                 log::error!("could not emit {}: {error}", "open-file");
             }
         }
-        // Every exit path ends here, after any chance to call the quit off, so
-        // a scan is abandoned at a step boundary rather than killed mid-transaction.
         RunEvent::Exit => app.state::<AppState>().library.shutdown(),
         _ => {}
     });

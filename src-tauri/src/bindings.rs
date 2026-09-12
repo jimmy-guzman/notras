@@ -15,7 +15,6 @@ pub struct MutationWarnings {
     pub warnings: Vec<MutationWarning>,
 }
 
-/// Whether indexed reads answer now, wait on a scan, or fail until recovery succeeds.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, specta::Type, tauri_specta::Event)]
 #[serde(tag = "state", rename_all = "kebab-case")]
 pub enum IndexStatus {
