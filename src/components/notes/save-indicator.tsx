@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+  FileDiffIcon,
   SaveCheckIcon,
   SaveIcon,
   SaveOffIcon,
@@ -17,6 +18,11 @@ const STATUS: Record<
   SaveStatus,
   { icon: typeof SaveIcon; label: string; tone?: string }
 > = {
+  conflict: {
+    icon: FileDiffIcon,
+    label: "needs review",
+    tone: "text-destructive",
+  },
   dirty: { icon: SavePenIcon, label: "unsaved" },
   failed: {
     icon: SaveOffIcon,

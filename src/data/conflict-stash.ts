@@ -22,3 +22,25 @@ export async function readConflictStash(
         ours: stash.ours,
       };
 }
+
+/** Store a review so it survives closing the tab and the app. */
+export async function stashConflict(
+  kind: Tab["kind"],
+  path: string,
+  stash: ConflictStash
+): Promise<void> {
+  await nativeCommand(() =>
+    commands.stashConflict(kind, path, {
+      base: { ...stash.base, updatedAt: stash.base.updatedAt.getTime() },
+      ours: stash.ours,
+    })
+  );
+}
+
+/** Remove a tab's stored review; a missing one is not a failure. */
+export async function clearConflictStash(
+  kind: Tab["kind"],
+  path: string
+): Promise<void> {
+  await nativeCommand(() => commands.clearConflict(kind, path));
+}

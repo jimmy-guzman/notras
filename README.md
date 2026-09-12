@@ -215,6 +215,7 @@ Mutation tests cover native file and index outcomes, shared normalization fixtur
 - [Shadcn UI](https://ui.shadcn.com)
 - [Base UI](https://base-ui.com)
 - [Tailwind CSS](https://tailwindcss.com) 4
+- [node-diff3](https://github.com/bhousel/node-diff3)
 
 ## Docs
 

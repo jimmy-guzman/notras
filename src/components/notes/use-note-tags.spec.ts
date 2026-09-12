@@ -31,7 +31,9 @@ it("should preserve successive tag edits before a rerender or save completes", a
     },
     {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (_path, content) => {
         writes.push(content);
         return held.promise;
@@ -107,7 +109,9 @@ it("should edit the live document and keep the chosen tags when saving fails", a
     },
     {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: () => held.promise,
     }
   );

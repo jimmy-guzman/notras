@@ -18,7 +18,9 @@ describe("note persistence", () => {
     }>();
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: () => held.promise,
     });
     note.edit({ content: "# Errands\n\nfirst edit", mode: "body" });
@@ -48,8 +50,10 @@ describe("note persistence", () => {
     const changes: string[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onDocumentChanged: (content) => changes.push(content),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path, content, name) => {
         writes.push({ content, name, path });
         return writes.length === 1
@@ -100,7 +104,9 @@ describe("note persistence", () => {
     const writes: unknown[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path, content, name) => {
         writes.push({ content, name, path });
         return writes.length === 1
@@ -141,7 +147,9 @@ describe("note persistence", () => {
     let attempts = 0;
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (_path, _content, name) => {
         expect(name).toEqual({ kind: "heading" });
         attempts += 1;
@@ -170,7 +178,9 @@ describe("note persistence", () => {
     const writes: unknown[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path, _content, name) => {
         writes.push(name);
         return Promise.resolve({
@@ -202,7 +212,9 @@ describe("note persistence", () => {
     const writes: unknown[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path, _content, name) => {
         writes.push(name);
         return Promise.resolve({
@@ -234,7 +246,9 @@ describe("note persistence", () => {
           path: `${change.folder}/shopping.md`,
         });
       },
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path) =>
         Promise.resolve({ path, revision: "r1", updatedAt: new Date(1) }),
     });
@@ -259,7 +273,9 @@ describe("note persistence", () => {
     const writes: string[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path, content) => {
         writes.push(content);
         return writes.length === 1
@@ -296,8 +312,10 @@ describe("note persistence", () => {
     const observed: string[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onDocumentChanged: (content) => observed.push(content),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (path, content) => {
         writes.push(content);
         return Promise.resolve({
@@ -328,7 +346,9 @@ it("should reconcile a newer file observed during a save without receiving it tw
   }>();
   const note = createNotePersistence(initial, {
     changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
     onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
     write: () => held.promise,
   });
   const release = note.retain();
@@ -361,10 +381,12 @@ it("should discard a deferred missing observation after the save changes the pat
   let closed = false;
   const note = createNotePersistence(initial, {
     changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
     onCleanFileMissing: () => {
       closed = true;
     },
     onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
     write: () => held.promise,
   });
   const release = note.retain();
@@ -387,7 +409,9 @@ it("should autosave native source edits and derive the tab state without a React
   const writes: unknown[] = [];
   const note = createNotePersistence(initial, {
     changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
     onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
     write: (path, content, name) => {
       writes.push({ content, name, path });
       return Promise.resolve({
@@ -434,4 +458,391 @@ it("should autosave native source edits and derive the tab state without a React
     await release();
     vi.useRealTimers();
   }
+});
+
+it("should combine an external change with unsaved typing and save the result", async () => {
+  const writes: string[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path, content) => {
+      writes.push(content);
+      return Promise.resolve({ path, revision: "r2", updatedAt: new Date(2) });
+    },
+  });
+  note.edit({ content: "# Errands\n\nbody\n\nmine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
+    false
+  );
+  expect(note.store.state.content).toBe("# Chores\n\nbody\n\nmine");
+  expect(note.store.state.status).toBe("dirty");
+  expect(note.store.state.base.revision).toBe("r1");
+  await note.flush();
+  expect(writes).toEqual(["# Chores\n\nbody\n\nmine"]);
+  expect(note.store.state.status).toBe("saved");
+});
+
+it("should not rename after a merged heading, and reset undo at the merge", async () => {
+  const names: unknown[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path, _content, name) => {
+      names.push(name);
+      return Promise.resolve({ path, revision: "r2", updatedAt: new Date(2) });
+    },
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
+    false
+  );
+  expect(note.applyHistory("undo")).toBe(false);
+  await note.flush();
+  expect(names).toEqual([null]);
+});
+
+it("should take identical edits on both sides without review", () => {
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: () => Promise.reject(new Error("no save requested")),
+  });
+  note.edit({ content: "# Errands\n\nsame words", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nsame words",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  expect(note.store.state.content).toBe("# Errands\n\nsame words");
+  expect(note.store.state.status).toBe("dirty");
+  expect(note.store.state.theirs).toBeUndefined();
+});
+
+it("should keep newer typing when its own save echoes back", async () => {
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path) =>
+      Promise.resolve({ path, revision: "r1", updatedAt: new Date(1) }),
+  });
+  note.edit({ content: "# Errands\n\nsaved words", mode: "body" });
+  await note.flush();
+  note.edit({ content: "# Errands\n\nsaved words, and more", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nsaved words",
+      revision: "r1",
+      updatedAt: new Date(4),
+    },
+    false
+  );
+  expect(note.store.state.content).toBe("# Errands\n\nsaved words, and more");
+  expect(note.store.state.status).toBe("dirty");
+  expect(note.store.state.updatedAt).toEqual(new Date(4));
+});
+
+it("should ignore a read older than its last save", async () => {
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path) =>
+      Promise.resolve({ path, revision: "r1", updatedAt: new Date(5) }),
+  });
+  note.edit({ content: "# Errands\n\nsaved words", mode: "body" });
+  await note.flush();
+  note.receiveFile(
+    "shopping.md",
+    { content: "# Errands\n\nbody", revision: "r0", updatedAt: new Date(3) },
+    false
+  );
+  expect(note.store.state.content).toBe("# Errands\n\nsaved words");
+  expect(note.store.state.status).toBe("saved");
+});
+
+it("should pause saving and stash the review when edits overlap", async () => {
+  const writes: string[] = [];
+  const stashes: unknown[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: (path, stash) => {
+      stashes.push({ path, stash });
+      return Promise.resolve();
+    },
+    write: (path, content) => {
+      writes.push(content);
+      return Promise.resolve({ path, revision: "r2", updatedAt: new Date(2) });
+    },
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  expect(note.store.state.status).toBe("conflict");
+  expect(note.store.state.content).toBe("# Errands\n\nbody, mine");
+  expect(note.store.state.theirs).toEqual({
+    content: "# Errands\n\nbody, on disk",
+    revision: "r1",
+    updatedAt: new Date(1),
+  });
+  expect(note.store.state.base.revision).toBe("r0");
+  note.edit({ content: "# Errands\n\nbody, mine, more", mode: "body" });
+  expect(note.store.state.status).toBe("conflict");
+  await expect(note.flush()).resolves.toBe(true);
+  expect(writes).toEqual([]);
+  expect(stashes).toEqual([
+    {
+      path: "shopping.md",
+      stash: {
+        base: {
+          content: initial.content,
+          revision: "r0",
+          updatedAt: new Date(0),
+        },
+        ours: "# Errands\n\nbody, mine",
+      },
+    },
+    {
+      path: "shopping.md",
+      stash: {
+        base: {
+          content: initial.content,
+          revision: "r0",
+          updatedAt: new Date(0),
+        },
+        ours: "# Errands\n\nbody, mine, more",
+      },
+    },
+  ]);
+});
+
+it("should report an unsafe quit when the review cannot be stashed", async () => {
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.reject(new Error("the disk is full")),
+    write: () => Promise.reject(new Error("no save requested")),
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  await Promise.resolve();
+  expect(note.store.state.reason).toBe("the disk is full");
+  await expect(note.flush()).resolves.toBe(false);
+  expect(note.store.state.status).toBe("conflict");
+  await expect(note.editMetadata({ pinned: true })).rejects.toThrow(
+    "the disk is full"
+  );
+});
+
+it("should refuse a folder move while a review is open", async () => {
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: () => Promise.reject(new Error("no save requested")),
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  await expect(
+    note.changePath({ folder: "archive", kind: "move" })
+  ).rejects.toThrow("this note needs review before it can move");
+  expect(note.store.state.pendingPaths).toBe(0);
+});
+
+it("should note a file that changes again during review without stashing twice", async () => {
+  const stashes: unknown[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: (_path, stash) => {
+      stashes.push(stash.ours);
+      return Promise.resolve();
+    },
+    write: () => Promise.reject(new Error("no save requested")),
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(2),
+    },
+    false
+  );
+  expect(note.store.state.changedAgain).toBe(false);
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk again",
+      revision: "r2",
+      updatedAt: new Date(3),
+    },
+    false
+  );
+  expect(note.store.state.status).toBe("conflict");
+  expect(note.store.state.changedAgain).toBe(true);
+  expect(note.store.state.theirs?.revision).toBe("r2");
+  await Promise.resolve();
+  expect(stashes).toEqual(["# Errands\n\nbody, mine"]);
+});
+
+it("should leave review and clear the stash once a later change combines", async () => {
+  const cleared: string[] = [];
+  const writes: string[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: (path) => {
+      cleared.push(path);
+      return Promise.resolve();
+    },
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path, content) => {
+      writes.push(content);
+      return Promise.resolve({ path, revision: "r3", updatedAt: new Date(3) });
+    },
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  await Promise.resolve();
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Chores\n\nbody",
+      revision: "r2",
+      updatedAt: new Date(2),
+    },
+    false
+  );
+  expect(note.store.state.status).toBe("dirty");
+  expect(note.store.state.content).toBe("# Chores\n\nbody, mine");
+  await note.flush();
+  expect(writes).toEqual(["# Chores\n\nbody, mine"]);
+  expect(cleared).toEqual(["shopping.md"]);
+  expect(note.store.state.status).toBe("saved");
+});
+
+it("should keep a committed save when its stored review cannot be removed", async () => {
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.reject(new Error("permission denied")),
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path) =>
+      Promise.resolve({ path, revision: "r3", updatedAt: new Date(3) }),
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  await Promise.resolve();
+  note.receiveFile(
+    "shopping.md",
+    { content: "# Chores\n\nbody", revision: "r2", updatedAt: new Date(2) },
+    false
+  );
+  await expect(note.flush()).resolves.toBe(true);
+  expect(note.store.state.status).toBe("saved");
+  expect(note.store.state.reason).toBe(
+    "the stored review could not be removed: permission denied"
+  );
+});
+
+it("should hold a pin change with the unsaved text while a review is open", async () => {
+  const stashes: string[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: () => Promise.resolve(),
+    onPathChanged: () => undefined,
+    stash: (_path, stash) => {
+      stashes.push(stash.ours);
+      return Promise.resolve();
+    },
+    write: () => Promise.reject(new Error("no save requested")),
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  await note.editMetadata({ pinned: true });
+  expect(note.store.state.status).toBe("conflict");
+  expect(note.snapshot.state.pinned).toBe(true);
+  expect(stashes.at(-1)).toBe(
+    "---\npinned: true\n---\n# Errands\n\nbody, mine"
+  );
 });

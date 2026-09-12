@@ -55,7 +55,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read waits for a complete recovery scan and reports a failure if recovery is incomplete. Waiting readers share the scan; direct file reads and saves can run between its steps. Direct file reads remain available. A committed capture clears and hides even when indexing reports a warning.
 - A scan reports invalid file paths and continues indexing valid notes. Path-conversion failures defer stale-row deletion until a scan can convert all file paths. Indexed reads still reject an incomplete recovery.
 - Index reconciliation reports unreadable database values as failures. Failed index deletion rolls back changes to the note's metadata, tags, links and search entry; it does not undo a committed file deletion.
-- The save glyph in the title bar reads saved, unsaved, saving, or could not save. A tab whose save failed carries a dot of its own.
+- The save glyph in the title bar reads saved, unsaved, saving, could not save, or needs review. A tab whose save failed, or whose note needs review, carries a dot of its own.
 
 ## External changes
 
@@ -63,8 +63,12 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A change event names the files that changed, and only the tabs holding one of them re-read. An event naming nothing means the whole vault changed, and every tab re-reads.
 - An external file's path is never named by a change event, so an external tab re-reads when the window regains focus.
 - A clean session adopts a newer external document without writing or renaming it. The mounted editor remains in place, its selection maps through the change, and undo history resets at that external version.
-- An external observation cannot replace unsaved work. Saves and folder moves defer file-read reconciliation, and results for a former path cannot replace the document.
-- A dirty buffer wins. An external edit to a note with unsaved changes is not shown, and the next flush overwrites it.
+- An external observation never discards unsaved work. Saves and folder moves defer file-read reconciliation, and results for a former path cannot replace the document.
+- A file whose content revision equals the version the session started from is the session's own write echoing back. It changes nothing but the acknowledged timestamp.
+- A read whose timestamp is not newer than the last acknowledged one is stale and is ignored, so a read that started before a save cannot revert it.
+- A newer external version of a note with unsaved edits is combined with them line by line, three ways against the version the session started from. Edits in different places both survive, identical edits count once, and the combined note saves as usual. Undo history resets at the combination, and a heading that arrives this way does not rename the file.
+- Edits that overlap the external change pause saving. The tab shows a banner saying the note changed on disk, the glyph and the dot read needs review, and the session keeps its unsaved text beside the version on disk. Typing continues without saving, and a pin or tag change joins the unsaved text the same way. A folder move is refused with "this note needs review before it can move". A file that changes again while paused replaces the version on disk and marks the review as started over, unless the new version combines cleanly, which resumes saving.
+- While paused, the unsaved text and the version it started from are stored under the app data folder, keyed by tab kind and path, on entering the pause and on every flush. A stash that cannot be written shows its reason after needs review, and a flush that cannot stash reports the quit as unsafe. A stored review that cannot be removed after a committed save leaves the save committed and shows the reason after saved.
 - A tab whose file was deleted while its buffer was clean closes itself.
 - A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
 - A read that fails for any other reason leaves the tab's text alone and toasts once. Repeated failures do not stack a second toast. A tab that has never read shows the reason in its panel and offers to try again.

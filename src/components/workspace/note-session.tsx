@@ -35,6 +35,7 @@ import { toast } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
 import { linkResolver } from "@/core/links";
+import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import type { SessionFile } from "@/data/queries";
@@ -113,6 +114,7 @@ function SessionBuffer({
       { ...file, kind: tab.kind, path: tab.path },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
+        clearStash: async (path) => await clearConflictStash(tab.kind, path),
         onCleanFileMissing: () => closeTab(id),
         onDocumentChanged: (content, selection) => {
           if (!persistence.store.state.sourceMode) {
@@ -130,6 +132,8 @@ function SessionBuffer({
           }
         },
         onPathChanged: renameTab,
+        stash: async (path, stash) =>
+          await stashConflict(tab.kind, path, stash),
         write: async (path, content, name) =>
           tab.kind === "external"
             ? await writeExternalNote(path, content, name)
@@ -146,7 +150,7 @@ function SessionBuffer({
     [id, persistence]
   );
   const { body } = parseNote(autosave.content);
-  const { missing, sourceMode } = autosave;
+  const { missing, sourceMode, status } = autosave;
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source mode,
@@ -427,6 +431,15 @@ function SessionBuffer({
           <AlertTitle>this file is gone</AlertTitle>
           <AlertDescription>
             nothing here is being saved, so copy what you need
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {status === "conflict" ? (
+        <Alert className="m-4 shrink-0" variant="destructive">
+          <AlertTitle>this note changed on disk</AlertTitle>
+          <AlertDescription>
+            your unsaved edits overlap the change, so nothing saves until you
+            review them
           </AlertDescription>
         </Alert>
       ) : null}

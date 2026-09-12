@@ -32,7 +32,9 @@ function mountAutosave(
           {
             changePath: () =>
               Promise.reject(new Error("no path action requested")),
+            clearStash: () => Promise.resolve(),
             onPathChanged: () => undefined,
+            stash: () => Promise.resolve(),
             write: async (path, content) => ({
               path,
               revision: content,

@@ -35,7 +35,9 @@ it.each(["combobox", "palette"])(
       },
       {
         changePath: () => Promise.reject(new Error("no move requested")),
+        clearStash: () => Promise.resolve(),
         onPathChanged: () => undefined,
+        stash: () => Promise.resolve(),
         write: (_path, content) => {
           writes.push(content);
           return saved.promise;

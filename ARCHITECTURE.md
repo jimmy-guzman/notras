@@ -225,7 +225,7 @@ The root loader awaits only the library directory. The workspace loader restores
 
 ### Rich and source editing
 
-The rich editor projects the body; source mode projects the complete Markdown. Both update one session document, and every save sends that complete document. The session retains only the sent revision until acknowledgement, so newer edits remain dirty. A receipt updates the committed path and timestamp without replacing live text. There are no field-specific revisions or title reconciliation patches.
+The rich editor projects the body; source mode projects the complete Markdown. Both update one session document, and every save sends that complete document. The session counts edits and retains only the count it sent until acknowledgement, so newer edits remain dirty. It also retains its base, the file version its edits started from, which each save receipt, clean adoption, merge and folder move replace. A receipt updates the committed path, timestamp and base without replacing live text. There are no field-specific revisions or title reconciliation patches.
 
 ### Markdown round-trip contract
 
@@ -247,9 +247,9 @@ The workspace renders one `NoteSession` per open tab, keyed by an opaque tab id 
 
 An update restart is the exception. It reaches `ExitRequested` carrying `RESTART_EXIT_CODE`, which Tauri refuses to prevent, so `lib.rs` returns before the handshake rather than opening one it cannot honour. `installUpdate` in `src/lib/updater.ts` awaits `flushPendingWrites` itself between `downloadAndInstall` and `relaunch`. A failed flush leaves the app running the old version rather than restarting, and the bundle already downloaded applies the next time someone launches it.
 
-### External-change reload guard
+### External-change reconciliation
 
-The controller accepts reads only for its committed path. It retains the latest observation while writes or folder moves are pending, then reconciles it when those operations settle. An observation for a former path is discarded. A re-read replaces the document only when it is clean and the file's mtime is newer than its acknowledged timestamp. Stale reads cannot replace newer local content.
+The controller accepts reads only for its committed path. It retains the latest observation while writes or folder moves are pending, then reconciles it when those operations settle. An observation for a former path is discarded. Reconciliation reads the file's content revision and mtime in four steps. A revision equal to the base is an echo of the session's own write and only advances the acknowledged timestamp. An mtime not newer than the acknowledged one is a stale read and is ignored. A clean session adopts the file as its new base. A dirty session merges it three ways through `src/core/merge.ts`, `node-diff3` on lines with the disk's line ending, then applies a clean merge as an edit and takes the file as base, or enters conflict: it holds the file as `theirs`, cancels autosave, refuses folder moves, and writes its text and base through the session's `stash` port, again on every flush, until a save commits and the `clearStash` port removes it. Stale reads cannot replace newer local content, and a differing revision never advances the timestamp without being absorbed.
 
 ### Adding a Rust command
 

@@ -45,6 +45,7 @@ function mountSession(content?: string) {
     client.setQueryData(noteQueries.fileKey("note", tab.path), {
       content,
       pinned: false,
+      revision: "r0",
       tags: [],
       updatedAt: new Date(1),
     });
@@ -799,4 +800,50 @@ describe("NoteSession", () => {
     });
     expect(writes.at(-1)).toBe("_hello_");
   });
+});
+
+it("should combine a change elsewhere in the note with unsaved typing", async () => {
+  const client = mountSession("# Errands\n\nbody");
+  const liveEditor = await editor();
+  await act(() => {
+    liveEditor.commands.insertContent("Typed ");
+  });
+  await act(() => {
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: "# Chores\n\nbody",
+      pinned: false,
+      revision: "r1",
+      tags: [],
+      updatedAt: new Date(2),
+    });
+  });
+  await waitFor(() => expect(liveEditor.getText()).toContain("Chores"));
+  expect(liveEditor.getText()).toContain("bodyTyped");
+  expect(
+    screen.queryByText("this note changed on disk")
+  ).not.toBeInTheDocument();
+  client.clear();
+});
+
+it("should announce a change that overlaps unsaved typing", async () => {
+  const client = mountSession("# Errands\n\nbody");
+  const liveEditor = await editor();
+  await act(() => {
+    liveEditor.commands.insertContent("Typed ");
+  });
+  await act(() => {
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: "# Errands\n\nbody, on disk",
+      pinned: false,
+      revision: "r1",
+      tags: [],
+      updatedAt: new Date(2),
+    });
+  });
+  await waitFor(() =>
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+  );
+  expect(liveEditor.getText()).toContain("bodyTyped");
+  expect(liveEditor.getText()).not.toContain("on disk");
+  client.clear();
 });
