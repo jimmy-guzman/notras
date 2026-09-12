@@ -18,6 +18,8 @@ use std::cell::Cell;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use cap_std::{ambient_authority, fs::Dir};
+
 pub use application::{
     read_external, write_external, CommandError, CreateNote, DeleteReceipt, ErrorKind,
     MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
@@ -30,24 +32,37 @@ pub use queries::{
 pub use relationships::{Graph, Hub, HubPill, Mention, MentionLine, RingMember};
 pub use scan::Scan;
 
+pub(crate) fn index_key(notes_dir: &Path) -> String {
+    use sha2::{Digest, Sha256};
+
+    Sha256::digest(notes_dir.as_os_str().as_encoded_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 /// A library directory and its disposable index, accessed under one host-owned lock.
 pub struct Library {
     notes_dir: PathBuf,
+    root: Dir,
+    index_dir: PathBuf,
     conn: rusqlite::Connection,
     index_dirty: Cell<bool>,
 }
 
 impl Library {
-    /// Open or rebuild the index schema. Scanning is a separate operation so the
-    /// host can start it off its UI thread.
-    pub fn open(notes_dir: &Path) -> Result<Self, CommandError> {
+    /// Open or rebuild the index schema under `cache_dir`, keyed by the resolved
+    /// root. Scanning is a separate operation so the host can start it off its UI thread.
+    pub fn open(notes_dir: &Path, cache_dir: &Path) -> Result<Self, CommandError> {
         fs::create_dir_all(notes_dir)?;
         let notes_dir = notes_dir.canonicalize()?;
-        relative_path::reject_symlink(&notes_dir.join(".notras"))?;
-        fs::create_dir_all(notes_dir.join(".notras"))?;
-        let conn = index::open(&notes_dir)?;
+        let root = Dir::open_ambient_dir(&notes_dir, ambient_authority())?;
+        let index_dir = cache_dir.join(index_key(&notes_dir));
+        let conn = index::open(&index_dir)?;
         Ok(Self {
             notes_dir,
+            root,
+            index_dir,
             conn,
             index_dirty: Cell::new(false),
         })
@@ -58,10 +73,14 @@ impl Library {
         &self.notes_dir
     }
 
+    pub fn index_path(&self) -> PathBuf {
+        self.index_dir.join(index::DATABASE)
+    }
+
     /// Scan saved files, retaining successful changes when individual files fail.
     /// Failed scans mark indexed reads for recovery before they return results.
     pub fn scan(&self) -> Result<Vec<String>, CommandError> {
-        match index::scan_all(&self.conn, &self.notes_dir) {
+        match index::scan_all(&self.conn, &self.root, &self.notes_dir) {
             Ok(report) => {
                 self.index_dirty.set(!report.failures.is_empty());
                 Ok(report.changed)
@@ -75,7 +94,7 @@ impl Library {
 
     /// Scan every saved file, rejecting a library switch if any file cannot be indexed.
     pub fn scan_complete(&self) -> Result<(), CommandError> {
-        index::scan_complete(&self.conn, &self.notes_dir)?;
+        index::scan_complete(&self.conn, &self.root, &self.notes_dir)?;
         Ok(())
     }
 
@@ -89,7 +108,7 @@ impl Library {
             &self.notes_dir,
             paths.into_iter().map(Path::to_owned).collect(),
         );
-        match scan.run(&self.conn) {
+        match scan.run(&self.conn, &self.root) {
             Ok(report) => {
                 if !report.failures.is_empty() {
                     self.index_dirty.set(true);
@@ -134,7 +153,7 @@ impl Library {
         if scan.root != self.notes_dir {
             return Err(std::io::Error::other("the selected library changed").into());
         }
-        scan.step(&self.conn).map_err(|error| {
+        scan.step(&self.conn, &self.root).map_err(|error| {
             self.index_dirty.set(true);
             error.into()
         })
@@ -170,7 +189,7 @@ mod tests {
     #[test]
     fn should_reconcile_external_files_without_echoing_saved_mutations() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let saved = library
             .create_note(&CreateNote {
                 content: Some("# saved".into()),
@@ -198,7 +217,7 @@ mod tests {
     fn should_require_recovery_after_an_abandoned_scan() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Note").unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let mut scan = library.begin_scan(false);
         assert!(!library.advance_scan(&mut scan).unwrap());
 
@@ -212,7 +231,7 @@ mod tests {
     #[test]
     fn should_reconcile_children_when_only_the_folder_move_is_observed() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let source = library.directory().join("before");
         let destination = library.directory().join("after");
         fs::create_dir(&source).unwrap();
@@ -233,7 +252,7 @@ mod tests {
     #[test]
     fn should_request_full_refresh_after_an_observed_file_cannot_be_indexed() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let unreadable = library.directory().join("broken.md");
         fs::write(&unreadable, [0xff]).unwrap();
 
@@ -250,6 +269,40 @@ mod tests {
         assert_eq!(library.reconcile_paths([unreadable.as_path()]), None);
     }
 
+    #[test]
+    fn should_open_a_library_without_creating_notras() {
+        let directory = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let library = Library::open(directory.path(), cache.path()).unwrap();
+
+        library.scan_complete().unwrap();
+
+        assert!(!directory.path().join(".notras").exists());
+        assert!(library.index_path().starts_with(cache.path()));
+        assert!(library.index_path().is_file());
+        assert_eq!(
+            library.list_notes(&NoteFilters::default()).unwrap().len(),
+            1
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_key_the_index_by_the_canonical_root() {
+        let directory = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let real = directory.path().join("real");
+        let alias = directory.path().join("alias");
+        fs::create_dir(&real).unwrap();
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let through_alias = Library::open(&alias, cache.path()).unwrap().index_path();
+        let through_real = Library::open(&real, cache.path()).unwrap().index_path();
+
+        assert_eq!(through_alias, through_real);
+    }
+
     #[cfg(unix)]
     #[test]
     fn should_reconcile_canonical_paths_when_the_selected_root_is_a_symlink() {
@@ -258,7 +311,7 @@ mod tests {
         let link = directory.path().join("selected");
         fs::create_dir(&root).unwrap();
         std::os::unix::fs::symlink(&root, &link).unwrap();
-        let library = Library::open(&link).unwrap();
+        let library = Library::open(&link, &directory.path().join(".index")).unwrap();
         let note = root.canonicalize().unwrap().join("note.md");
         fs::write(&note, "# note").unwrap();
 
@@ -270,16 +323,5 @@ mod tests {
             library.read_note("note.md".into()).unwrap().content,
             "# note"
         );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn should_refuse_a_symlinked_index_directory_before_creating_a_database() {
-        let directory = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        std::os::unix::fs::symlink(outside.path(), directory.path().join(".notras")).unwrap();
-
-        assert!(Library::open(directory.path()).is_err());
-        assert!(!outside.path().join("index.db").exists());
     }
 }

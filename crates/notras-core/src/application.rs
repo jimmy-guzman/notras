@@ -1,16 +1,17 @@
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
+use cap_fs_ext::MetadataExt as _;
+use cap_std::{ambient_authority, fs::Dir};
 use serde::{Deserialize, Serialize};
-use tempfile::{Builder, NamedTempFile};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{persist_replacement, timestamp_millis, OpenedNote},
-    relative_path::RelativePath,
+    note_file::{timestamp_millis, OpenedNote, TempSibling},
+    relative_path::{ensure_folder, Located, RelativePath},
     Library,
 };
 
@@ -173,29 +174,25 @@ fn collision(path: &str) -> CommandError {
 }
 
 /// Publish a fully written sibling, refusing a destination that already exists.
-fn create_file(path: &Path, rel: &str, content: &str) -> Result<i64, CommandError> {
-    let folder = path.parent().ok_or("a note outside any folder")?;
-    let mut temp = Builder::new().suffix(".tmp").tempfile_in(folder)?;
-    write_temp(&mut temp, content)?;
-    let updated_at = checked_mtime(temp.as_file())?;
-    temp.persist_noclobber(path).map_err(|error| {
-        if error.error.kind() == io::ErrorKind::AlreadyExists {
-            CommandError::with_source(collision(rel).message, error.error)
+fn create_file(target: &Located, rel: &str, content: &str) -> Result<i64, CommandError> {
+    let mut temp = TempSibling::create(&target.dir)?;
+    write_temp(temp.file_mut(), content)?;
+    let updated_at = checked_mtime(temp.file())?;
+    temp.publish(&target.name).map_err(|error| {
+        if error.kind() == io::ErrorKind::AlreadyExists {
+            CommandError::with_source(collision(rel).message, error)
         } else {
-            error.error.into()
+            error.into()
         }
     })?;
     Ok(updated_at)
 }
 
-fn write_temp(temp: &mut NamedTempFile, content: &str) -> io::Result<()> {
-    use std::io::Write as _;
-
-    temp.write_all(content.as_bytes())?;
-    // `persist` synchronizes neither the bytes nor the directory, so without
-    // this the rename can reach disk first and a power cut leaves the empty
-    // file this whole dance exists to prevent.
-    temp.as_file().sync_all()
+fn write_temp(file: &mut File, content: &str) -> io::Result<()> {
+    file.write_all(content.as_bytes())?;
+    // A rename can reach disk before the bytes it publishes, so without this
+    // a power cut leaves the empty file this whole dance exists to prevent.
+    file.sync_all()
 }
 
 /// A committed file change whose derived index or source cleanup needs attention.
@@ -352,26 +349,26 @@ fn note_path(folder: &str, filename: &str) -> String {
     }
 }
 
-fn checked_mtime(file: &fs::File) -> Result<i64, CommandError> {
+fn checked_mtime(file: &File) -> Result<i64, CommandError> {
     Ok(timestamp_millis(file.metadata()?.modified())?)
 }
 
 /// Publish an existing note's replacement and obtain the receipt timestamp before publication.
-fn replace(path: &Path, content: &str) -> Result<i64, CommandError> {
-    let original = fs::OpenOptions::new().write(true).open(path)?;
-    let folder = path.parent().ok_or("a note outside any folder")?;
-    let mut temp = Builder::new().suffix(".tmp").tempfile_in(folder)?;
-    fs::set_permissions(temp.path(), original.metadata()?.permissions())?;
-    write_temp(&mut temp, content)?;
-    let updated_at = checked_mtime(temp.as_file())?;
-    persist_replacement(temp, path)?;
+fn replace(source: &Located, content: &str) -> Result<i64, CommandError> {
+    let original = source.open_write()?;
+    let mut temp = TempSibling::create(&source.dir)?;
+    temp.file()
+        .set_permissions(original.metadata()?.permissions())?;
+    write_temp(temp.file_mut(), content)?;
+    let updated_at = checked_mtime(temp.file())?;
+    temp.replace(&source.name)?;
     Ok(updated_at)
 }
 
 fn reconcile(core: &Library, paths: &[&str]) -> Vec<MutationWarning> {
     let mut warnings = Vec::new();
     for path in paths {
-        if let Err(error) = index::reindex_file(&core.conn, &core.notes_dir, path) {
+        if let Err(error) = index::reindex_file(&core.conn, &core.root, path) {
             core.index_dirty.set(true);
             log::error!("committed {path}, but indexing failed: {error}");
             warnings.push(MutationWarning::Index {
@@ -390,29 +387,33 @@ fn publish_move(
     content: String,
     metadata: &fs::Metadata,
 ) -> Result<PathMutationReceipt, CommandError> {
-    let source = from.resolve(&core.notes_dir)?;
-    let target = to.resolve(&core.notes_dir)?;
-    if target.try_exists()? {
-        return Err(collision(to.as_str()));
+    let source = from.resolve(&core.root)?;
+    let (folder, name) = to.split();
+    let target = Located {
+        dir: ensure_folder(&core.root, folder)?,
+        name: name.to_owned(),
+    };
+    match target.symlink_metadata() {
+        Ok(_) => return Err(collision(to.as_str())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
     }
-    let parent = target.parent().ok_or("a note outside any folder")?;
-    fs::create_dir_all(parent)?;
-    let mut temp = Builder::new().suffix(".tmp").tempfile_in(parent)?;
-    fs::set_permissions(temp.path(), metadata.permissions())?;
-    write_temp(&mut temp, &content)?;
-    temp.as_file()
+    let mut temp = TempSibling::create(&target.dir)?;
+    temp.file().set_permissions(metadata.permissions())?;
+    write_temp(temp.file_mut(), &content)?;
+    temp.file()
         .set_times(fs::FileTimes::new().set_modified(metadata.modified()?))?;
-    temp.as_file().sync_all()?;
-    let updated_at = checked_mtime(temp.as_file())?;
-    temp.persist_noclobber(&target).map_err(|error| {
-        if error.error.kind() == io::ErrorKind::AlreadyExists {
-            CommandError::with_source(collision(to.as_str()).message, error.error)
+    temp.file().sync_all()?;
+    let updated_at = checked_mtime(temp.file())?;
+    temp.publish(&target.name).map_err(|error| {
+        if error.kind() == io::ErrorKind::AlreadyExists {
+            CommandError::with_source(collision(to.as_str()).message, error)
         } else {
-            error.error.into()
+            error.into()
         }
     })?;
     let mut warnings = Vec::new();
-    let remaining_source = match fs::remove_file(&source) {
+    let remaining_source = match source.remove_file() {
         Ok(()) => None,
         Err(error) => {
             log::error!(
@@ -441,21 +442,39 @@ fn publish_move(
 }
 
 struct FileCommit {
-    path: PathBuf,
+    name: String,
     updated_at: i64,
     warnings: Vec<MutationWarning>,
 }
 
+fn same_file(
+    source: &Located,
+    candidate: &str,
+    identity: (u64, u64),
+) -> Result<bool, CommandError> {
+    let candidate = source.sibling(candidate)?;
+    match candidate.symlink_metadata() {
+        Ok(metadata) if metadata.is_file() => {
+            let metadata = candidate.open_read()?.metadata()?;
+            Ok((metadata.dev(), metadata.ino()) == identity)
+        }
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
 /// Publish one complete document and its filename without overwriting another note.
 fn save_file(
-    source: &Path,
+    source: &Located,
     content: &str,
     name: Option<SaveName>,
 ) -> Result<FileCommit, CommandError> {
-    if !is_markdown(source) {
+    if !is_markdown(Path::new(&source.name)) {
         return Err("notes must be markdown files".into());
     }
-    let metadata = fs::metadata(source)?;
+    let original = source.open_write()?;
+    let metadata = original.metadata()?;
     let filename = match name {
         Some(SaveName::Heading) => markdown::leading_heading(frontmatter::parse(content).body)
             .map(|heading| format!("{}.md", filename_from_title(&heading))),
@@ -469,12 +488,11 @@ fn save_file(
     };
     let Some(filename) = filename else {
         return Ok(FileCommit {
-            path: source.to_owned(),
+            name: source.name.clone(),
             updated_at: replace(source, content)?,
             warnings: vec![],
         });
     };
-    let folder = source.parent().ok_or("a note outside any folder")?;
     let stem = Path::new(&filename)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -483,11 +501,11 @@ fn save_file(
         .extension()
         .and_then(|s| s.to_str())
         .ok_or("invalid filename")?;
-    let mut temp = Builder::new().suffix(".tmp").tempfile_in(folder)?;
-    fs::set_permissions(temp.path(), metadata.permissions())?;
-    write_temp(&mut temp, content)?;
-    let updated_at = checked_mtime(temp.as_file())?;
-    let original = source.canonicalize()?;
+    let mut temp = TempSibling::create(&source.dir)?;
+    temp.file().set_permissions(metadata.permissions())?;
+    write_temp(temp.file_mut(), content)?;
+    let updated_at = checked_mtime(temp.file())?;
+    let identity = (metadata.dev(), metadata.ino());
     let mut counter = 1;
     loop {
         let candidate = if counter == 1 {
@@ -495,41 +513,31 @@ fn save_file(
         } else {
             format!("{}.{}", suffixed_filename(stem, counter), extension)
         };
-        let target = folder.join(candidate);
-        let same = target == source
-            || match fs::symlink_metadata(&target) {
-                Ok(metadata) => metadata.is_file() && target.canonicalize()? == original,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-                Err(error) => return Err(error.into()),
-            };
-        if same {
-            persist_replacement(temp, &target)?;
+        if candidate == source.name || same_file(source, &candidate, identity)? {
+            temp.replace(&candidate)?;
             return Ok(FileCommit {
-                path: target,
+                name: candidate,
                 updated_at,
                 warnings: vec![],
             });
         }
-        match temp.persist_noclobber(&target) {
-            Ok(_) => {
-                let warnings = match fs::remove_file(source) {
+        match temp.publish(&candidate) {
+            Ok(()) => {
+                let warnings = match source.remove_file() {
                     Ok(()) => vec![],
                     Err(error) => vec![MutationWarning::Cleanup {
-                        path: source.to_string_lossy().into_owned(),
+                        path: source.name.clone(),
                         message: io_reason(&error),
                     }],
                 };
                 return Ok(FileCommit {
-                    path: target,
+                    name: candidate,
                     updated_at,
                     warnings,
                 });
             }
-            Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
-                temp = error.file;
-                counter += 1;
-            }
-            Err(error) => return Err(error.error.into()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => counter += 1,
+            Err(error) => return Err(error.into()),
         }
     }
 }
@@ -538,7 +546,7 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     if !is_markdown(path) {
         return Err("only markdown files can be opened".into());
     }
-    let file = OpenedNote::open(path)?;
+    let file = OpenedNote::new(File::open(path)?);
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
     Ok(NoteFile {
         content: file.read()?,
@@ -552,16 +560,37 @@ pub fn write_external(
     content: &str,
     name: Option<SaveName>,
 ) -> Result<MutationReceipt, CommandError> {
-    path.to_str().ok_or("the path is not valid unicode")?;
-    let result = save_file(path, content, name)?;
+    let host = path.to_str().ok_or("the path is not valid unicode")?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .ok_or("a note outside any folder")?;
+    let source = Located {
+        dir: Dir::open_ambient_dir(parent, ambient_authority())?,
+        name: path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or("a note without a filename")?
+            .to_owned(),
+    };
+    let result = save_file(&source, content, name)?;
+    let mut warnings = result.warnings;
+    for warning in &mut warnings {
+        if let MutationWarning::Cleanup {
+            path: remaining, ..
+        } = warning
+        {
+            *remaining = host.to_owned();
+        }
+    }
     Ok(MutationReceipt {
-        path: result
-            .path
+        path: parent
+            .join(result.name)
             .to_str()
             .ok_or("the path is not valid unicode")?
             .to_owned(),
         updated_at: result.updated_at,
-        warnings: result.warnings,
+        warnings,
     })
 }
 
@@ -614,8 +643,7 @@ impl Library {
 
     pub fn read_note(&self, path: String) -> Result<SavedNote, CommandError> {
         let relative = RelativePath::parse(&path)?;
-        let abs = relative.resolve(&self.notes_dir)?;
-        let file = OpenedNote::open(&abs)?;
+        let file = OpenedNote::new(relative.resolve(&self.root)?.open_read()?);
         let metadata = file.metadata()?;
         let content = file.read()?;
         let parsed = frontmatter::parse(&content);
@@ -646,14 +674,9 @@ impl Library {
             None => "untitled".to_owned(),
         };
         let mut path = RelativePath::parse(&note_path(&folder, &base))?;
-        let parent = if folder.is_empty() {
-            self.notes_dir.clone()
-        } else {
-            RelativePath::parse(&folder)?.resolve(&self.notes_dir)?
-        };
-        fs::create_dir_all(&parent)?;
+        let parent = ensure_folder(&self.root, &folder)?;
         let mut counter = 1;
-        while match fs::symlink_metadata(self.notes_dir.join(path.as_str())) {
+        while match parent.symlink_metadata(path.split().1) {
             Ok(_) => true,
             Err(error) if error.kind() == io::ErrorKind::NotFound => false,
             Err(error) => return Err(error.into()),
@@ -661,9 +684,12 @@ impl Library {
             counter += 1;
             path = RelativePath::parse(&note_path(&folder, &suffixed_filename(&base, counter)))?;
         }
-        let abs = path.resolve(&self.notes_dir)?;
+        let target = Located {
+            dir: parent,
+            name: path.split().1.to_owned(),
+        };
         let updated_at = create_file(
-            &abs,
+            &target,
             path.as_str(),
             options.content.as_deref().unwrap_or(""),
         )?;
@@ -683,10 +709,15 @@ impl Library {
         name: Option<SaveName>,
     ) -> Result<MutationReceipt, CommandError> {
         let relative = RelativePath::parse(path)?;
-        let source = relative.resolve(&self.notes_dir)?;
+        let source = relative.resolve(&self.root)?;
         let result = save_file(&source, content, name)?;
+        let (folder, _) = relative.split();
         let mut receipt = MutationReceipt {
-            path: RelativePath::from_host(&self.notes_dir, &result.path)?.into_string(),
+            path: if folder.is_empty() {
+                result.name
+            } else {
+                format!("{folder}/{}", result.name)
+            },
             updated_at: result.updated_at,
             warnings: result.warnings,
         };
@@ -721,7 +752,7 @@ impl Library {
         };
         let from = RelativePath::parse(&path)?;
         let to = RelativePath::parse(&target)?;
-        let opened = OpenedNote::open(&from.resolve(&self.notes_dir)?)?;
+        let opened = OpenedNote::new(from.resolve(&self.root)?.open_read()?);
         let metadata = opened.metadata()?;
         let updated_at = timestamp_millis(metadata.modified())?;
         let content = opened.read()?;
@@ -741,7 +772,9 @@ impl Library {
     }
 
     pub fn delete_note(&self, path: String) -> Result<DeleteReceipt, CommandError> {
-        fs::remove_file(RelativePath::parse(&path)?.resolve(&self.notes_dir)?)?;
+        RelativePath::parse(&path)?
+            .resolve(&self.root)?
+            .remove_file()?;
         let warnings = reconcile(self, &[&path]);
         Ok(DeleteReceipt { path, warnings })
     }
@@ -755,8 +788,7 @@ impl Library {
             .to_owned();
 
         RelativePath::parse(&format!("attachments/{name}"))?;
-        let dir = RelativePath::parse("attachments")?.resolve(&self.notes_dir)?;
-        fs::create_dir_all(&dir)?;
+        let dir = ensure_folder(&self.root, "attachments")?;
 
         let (stem, ext) = match name.rsplit_once('.') {
             Some((stem, ext)) => (stem.to_string(), format!(".{ext}")),
@@ -764,7 +796,7 @@ impl Library {
         };
         let mut candidate = name;
         let mut counter = 1;
-        while match fs::symlink_metadata(dir.join(&candidate)) {
+        while match dir.symlink_metadata(&candidate) {
             Ok(_) => true,
             Err(error) if error.kind() == io::ErrorKind::NotFound => false,
             Err(error) => return Err(error.into()),
@@ -774,8 +806,12 @@ impl Library {
         }
 
         let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
-        fs::copy(source, relative.resolve(&self.notes_dir)?)?;
-        Ok(format!("attachments/{candidate}"))
+        let target = Located {
+            dir,
+            name: candidate,
+        };
+        io::copy(&mut File::open(source)?, &mut target.create_new()?)?;
+        Ok(relative.into_string())
     }
 
     pub fn attach_image(&self, base64_data: &str) -> Result<String, CommandError> {
@@ -785,8 +821,7 @@ impl Library {
             .decode(base64_data)
             .map_err(|error| CommandError::with_source("the pasted image is not valid", error))?;
 
-        let dir = RelativePath::parse("attachments")?.resolve(&self.notes_dir)?;
-        fs::create_dir_all(&dir)?;
+        let dir = ensure_folder(&self.root, "attachments")?;
 
         let stamp = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -794,7 +829,7 @@ impl Library {
             .unwrap_or_default();
         let mut candidate = format!("pasted-{stamp}.png");
         let mut counter = 1;
-        while match fs::symlink_metadata(dir.join(&candidate)) {
+        while match dir.symlink_metadata(&candidate) {
             Ok(_) => true,
             Err(error) if error.kind() == io::ErrorKind::NotFound => false,
             Err(error) => return Err(error.into()),
@@ -804,8 +839,12 @@ impl Library {
         }
 
         let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
-        fs::write(relative.resolve(&self.notes_dir)?, bytes)?;
-        Ok(format!("attachments/{candidate}"))
+        let target = Located {
+            dir,
+            name: candidate,
+        };
+        target.create_new()?.write_all(&bytes)?;
+        Ok(relative.into_string())
     }
 
     pub fn reindex_all(&self) -> Result<Vec<String>, CommandError> {
@@ -820,15 +859,21 @@ mod tests {
     use super::*;
     use proptest::prelude::*;
     use serde_json::Value;
-    use std::cell::Cell;
+
+    fn located(directory: &Path, name: &str) -> Located {
+        Located {
+            dir: Dir::open_ambient_dir(directory, ambient_authority()).unwrap(),
+            name: name.to_owned(),
+        }
+    }
 
     #[test]
     fn should_save_a_same_filename_heading_while_a_reader_holds_the_original() {
         let directory = tempfile::tempdir().unwrap();
-        let core = Library::open(directory.path()).unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let path = directory.path().join("errands.md");
         fs::write(&path, "# Errands\n\noriginal").unwrap();
-        let reader = OpenedNote::open(&path).unwrap();
+        let reader = OpenedNote::new(File::open(&path).unwrap());
 
         let receipt = core
             .save_note(
@@ -850,7 +895,7 @@ mod tests {
     #[test]
     fn should_create_explicit_filenames_with_one_markdown_extension() {
         let directory = tempfile::tempdir().unwrap();
-        let core = Library::open(directory.path()).unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         for (name, expected) in [
             ("entry.md", "entry.md"),
             ("entry", "entry-2.md"),
@@ -886,7 +931,7 @@ mod tests {
     fn should_preserve_missing_file_causes_without_changing_the_wire_error() {
         use std::error::Error as _;
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let error = library.read_note("missing.md".into()).unwrap_err();
 
         assert_eq!(
@@ -901,7 +946,7 @@ mod tests {
     fn should_preserve_sqlite_causes_without_changing_the_wire_error() {
         use std::error::Error as _;
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.conn.execute_batch("DROP TABLE note").unwrap();
         let error = library.list_notes(&Default::default()).unwrap_err();
 
@@ -916,7 +961,7 @@ mod tests {
     fn should_preserve_invalid_image_causes_without_creating_an_attachment() {
         use std::error::Error as _;
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let error = library.attach_image("%%%").unwrap_err();
 
         assert_eq!(error.message, "the pasted image is not valid");
@@ -927,12 +972,7 @@ mod tests {
     #[test]
     fn should_recompute_collision_suffixes_and_exclude_the_current_file() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("shopping.md"), "# imported").unwrap();
         fs::write(
             directory.path().join("weekend-errands.md"),
@@ -982,12 +1022,7 @@ mod tests {
     #[test]
     fn should_keep_filenames_for_reads_body_edits_and_empty_headings() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("shopping.md"), "# Errands\n\nbody").unwrap();
         core.read_note("shopping.md".into()).unwrap();
         assert!(directory.path().join("shopping.md").exists());
@@ -1005,12 +1040,7 @@ mod tests {
     #[test]
     fn should_restore_a_filename_for_undo_without_overwriting_another_note() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("weekend.md"), "# Weekend").unwrap();
         let restored = core
             .save_note(
@@ -1128,12 +1158,7 @@ mod tests {
     #[test]
     fn should_validate_names_before_creating_any_files_and_suffix_existing_names() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         for name in ["", ".hidden", "a/b", "a\\b", "a:b"] {
             assert!(core
                 .create_note(&CreateNote {
@@ -1169,12 +1194,8 @@ mod tests {
     #[test]
     fn should_refuse_incomplete_index_recovery_and_keep_direct_file_reads_available() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(true),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        core.index_dirty.set(true);
         fs::write(directory.path().join("good.md"), "readable").unwrap();
         fs::write(directory.path().join("bad.md"), [0xff]).unwrap();
         assert!(core.list_notes(&Default::default()).is_err());
@@ -1200,14 +1221,9 @@ mod tests {
     #[test]
     fn should_report_committed_writes_and_refuse_stale_reads_until_recovery_succeeds() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("a.md"), "# old").unwrap();
-        index::index_file(&core.conn, &core.notes_dir, "a.md").unwrap();
+        index::index_file(&core.conn, &core.root, "a.md").unwrap();
         core.conn.execute_batch("PRAGMA query_only = ON").unwrap();
         let receipt = core.save_note("a.md", "# saved", None).unwrap();
         assert!(
@@ -1232,14 +1248,9 @@ mod tests {
     fn should_report_the_destination_and_remaining_source_when_cleanup_fails() {
         use std::os::unix::fs::PermissionsExt;
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
         fs::create_dir(directory.path().join("source")).unwrap();
         fs::write(directory.path().join("source/a.md"), "# original").unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let source = directory.path().join("source");
         fs::set_permissions(&source, fs::Permissions::from_mode(0o555)).unwrap();
         if fs::File::create(source.join("probe")).is_err() {
@@ -1265,12 +1276,7 @@ mod tests {
     #[test]
     fn should_save_and_read_indexed_notes_without_a_native_runtime() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn: index::open(directory.path()).unwrap(),
-            index_dirty: Cell::new(false),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
 
         let receipt = core
             .create_note(&CreateNote {
@@ -1316,7 +1322,8 @@ mod tests {
         let missing_directory = tempfile::tempdir().unwrap();
         let missing = missing_directory.path().to_owned().join("gone.md");
 
-        let error = replace(&missing, "recreated").unwrap_err();
+        let error =
+            replace(&located(missing_directory.path(), "gone.md"), "recreated").unwrap_err();
 
         assert_eq!(error.kind, ErrorKind::NotFound);
         assert!(!missing.exists());
@@ -1337,7 +1344,7 @@ mod tests {
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
 
         if fs::File::create(dir.join("probe")).is_err() {
-            assert!(replace(&note, "replacement").is_err());
+            assert!(replace(&located(&dir, "note.md"), "replacement").is_err());
             assert_eq!(fs::read_to_string(&note).unwrap(), "the original bytes");
         }
 
@@ -1356,7 +1363,7 @@ mod tests {
         fs::write(&note, "before").unwrap();
         fs::set_permissions(&note, fs::Permissions::from_mode(0o640)).unwrap();
 
-        replace(&note, "after").unwrap();
+        replace(&located(note_directory.path(), "note.md"), "after").unwrap();
 
         let mode = fs::metadata(&note).unwrap().permissions().mode();
 
@@ -1370,7 +1377,7 @@ mod tests {
         let note = dir.join("note.md");
         fs::write(&note, "before").unwrap();
 
-        replace(&note, "after").unwrap();
+        replace(&located(&dir, "note.md"), "after").unwrap();
 
         let left: Vec<_> = fs::read_dir(&dir)
             .unwrap()
@@ -1386,7 +1393,12 @@ mod tests {
         let taken = taken_directory.path().to_owned().join("taken.md");
         fs::write(&taken, "someone else's note").unwrap();
 
-        let error = create_file(&taken, "taken.md", "clobbered").unwrap_err();
+        let error = create_file(
+            &located(taken_directory.path(), "taken.md"),
+            "taken.md",
+            "clobbered",
+        )
+        .unwrap_err();
 
         assert_eq!(
             error.message,
@@ -1401,9 +1413,193 @@ mod tests {
         let existing = existing_directory.path().to_owned().join("note.md");
         fs::write(&existing, "before").unwrap();
 
-        replace(&existing, "after").unwrap();
+        replace(&located(existing_directory.path(), "note.md"), "after").unwrap();
 
         assert_eq!(fs::read_to_string(&existing).unwrap(), "after");
+    }
+
+    #[cfg(unix)]
+    fn link_dir(target: &Path, link: &Path) {
+        std::os::unix::fs::symlink(target, link).unwrap();
+    }
+
+    #[cfg(windows)]
+    fn link_dir(target: &Path, link: &Path) {
+        std::os::windows::fs::symlink_dir(target, link).unwrap();
+    }
+
+    fn swap_folder_for_link(directory: &Path, folder: &str, outside: &Path) {
+        fs::rename(
+            directory.join(folder),
+            directory.join(format!("{folder}-original")),
+        )
+        .unwrap();
+        link_dir(outside, &directory.join(folder));
+    }
+
+    fn library_with_folder_note() -> (tempfile::TempDir, tempfile::TempDir, Library) {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("folder")).unwrap();
+        fs::write(directory.path().join("folder/note.md"), "original").unwrap();
+        fs::write(outside.path().join("note.md"), "outside").unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        (directory, outside, core)
+    }
+
+    #[test]
+    fn should_write_the_validated_note_after_its_parent_is_swapped_for_a_symlink() {
+        let (directory, outside, core) = library_with_folder_note();
+        let located = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .resolve(&core.root)
+            .unwrap();
+        swap_folder_for_link(directory.path(), "folder", outside.path());
+
+        replace(&located, "written").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "outside"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join("folder-original/note.md")).unwrap(),
+            "written"
+        );
+    }
+
+    #[test]
+    fn should_read_the_validated_note_after_its_parent_is_swapped() {
+        let (directory, outside, core) = library_with_folder_note();
+        let located = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .resolve(&core.root)
+            .unwrap();
+        swap_folder_for_link(directory.path(), "folder", outside.path());
+
+        let content = OpenedNote::new(located.open_read().unwrap())
+            .read()
+            .unwrap();
+
+        assert_eq!(content, "original");
+    }
+
+    #[test]
+    fn should_delete_the_validated_note_and_leave_the_swap_target_alone() {
+        let (directory, outside, core) = library_with_folder_note();
+        let located = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .resolve(&core.root)
+            .unwrap();
+        swap_folder_for_link(directory.path(), "folder", outside.path());
+
+        located.remove_file().unwrap();
+
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "outside"
+        );
+        assert!(!directory.path().join("folder-original/note.md").exists());
+    }
+
+    #[test]
+    fn should_place_a_move_destination_in_the_validated_folder() {
+        let (directory, outside, core) = library_with_folder_note();
+        let target = Located {
+            dir: ensure_folder(&core.root, "folder").unwrap(),
+            name: "moved.md".into(),
+        };
+        swap_folder_for_link(directory.path(), "folder", outside.path());
+
+        create_file(&target, "folder/moved.md", "moved").unwrap();
+
+        assert!(!outside.path().join("moved.md").exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("folder-original/moved.md")).unwrap(),
+            "moved"
+        );
+    }
+
+    #[test]
+    fn should_copy_an_attachment_into_the_validated_attachments_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let target = Located {
+            dir: ensure_folder(&core.root, "attachments").unwrap(),
+            name: "image.png".into(),
+        };
+        swap_folder_for_link(directory.path(), "attachments", outside.path());
+
+        target.create_new().unwrap().write_all(b"bytes").unwrap();
+
+        assert!(!outside.path().join("image.png").exists());
+        assert_eq!(
+            fs::read(directory.path().join("attachments-original/image.png")).unwrap(),
+            b"bytes"
+        );
+    }
+
+    #[test]
+    fn should_follow_a_validated_folder_that_moves_outside_the_library() {
+        let (directory, outside, core) = library_with_folder_note();
+        let located = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .resolve(&core.root)
+            .unwrap();
+        core.scan().unwrap();
+        fs::rename(
+            directory.path().join("folder"),
+            outside.path().join("folder"),
+        )
+        .unwrap();
+
+        replace(&located, "written").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(outside.path().join("folder/note.md")).unwrap(),
+            "written"
+        );
+        assert!(!directory.path().join("folder").exists());
+        core.scan().unwrap();
+        assert!(core.list_notes(&Default::default()).unwrap().is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn should_refuse_a_junction_planted_where_a_validated_folder_was() {
+        let (directory, outside, core) = library_with_folder_note();
+        let located = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .resolve(&core.root)
+            .unwrap();
+        fs::rename(
+            directory.path().join("folder"),
+            directory.path().join("folder-original"),
+        )
+        .unwrap();
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(directory.path().join("folder"))
+            .arg(outside.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        replace(&located, "written").unwrap();
+        let later = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .locate(&core.root);
+
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "outside"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join("folder-original/note.md")).unwrap(),
+            "written"
+        );
+        assert!(!matches!(later, Ok(Some(_))));
     }
 
     #[test]
@@ -1526,7 +1722,7 @@ mod tests {
     #[test]
     fn should_reject_noncanonical_library_paths() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::create_dir(directory.path().join("folder")).unwrap();
         fs::write(directory.path().join("folder/note.md"), "# note").unwrap();
         #[cfg(unix)]
@@ -1553,7 +1749,7 @@ mod tests {
             directory.path().join("note.md"),
         )
         .unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
 
         assert!(library.read_note("note.md".into()).is_err());
         assert_eq!(
@@ -1571,7 +1767,7 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("note.md"), "# outside").unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
 
         assert!(library
             .save_note("linked/note.md", "# changed", None)
@@ -1590,7 +1786,7 @@ mod tests {
         fs::write(outside.path().join("note.md"), "# outside").unwrap();
         let link = directory.path().join("note.md");
         std::os::unix::fs::symlink(outside.path().join("note.md"), &link).unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
 
         assert!(library.delete_note("note.md".into()).is_err());
         assert!(fs::symlink_metadata(link).unwrap().is_symlink());
@@ -1606,7 +1802,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("note.md"), "# source").unwrap();
 
         assert!(library
@@ -1630,7 +1826,7 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("source.txt"), "attachment").unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("attachments")).unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
 
         assert!(library
             .attach_file(&outside.path().join("source.txt"))
@@ -1642,7 +1838,7 @@ mod tests {
     #[test]
     fn should_return_slash_separated_paths_after_saving_in_a_folder() {
         let directory = tempfile::tempdir().unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::create_dir(directory.path().join("folder")).unwrap();
         fs::write(directory.path().join("folder/note.md"), "# before").unwrap();
 

@@ -23,14 +23,8 @@ impl Library {
         if self.index_needs_rebuild() {
             return Err(std::io::Error::other("the index is still incomplete").into());
         }
-        for suffix in ["", "-wal", "-shm", "-journal"] {
-            crate::relative_path::reject_symlink(
-                &self.notes_dir.join(format!(".notras/index.db{suffix}")),
-            )?;
-        }
-        crate::relative_path::reject_symlink(&self.notes_dir.join(".notras"))?;
         let conn = Connection::open_with_flags(
-            self.notes_dir.join(".notras/index.db"),
+            self.index_path(),
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         conn.execute_batch("BEGIN DEFERRED")?;
@@ -452,13 +446,7 @@ mod tests {
 
     fn library() -> (tempfile::TempDir, Library) {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let conn = index::open(directory.path()).unwrap();
-        let core = Library {
-            notes_dir: directory.path().to_owned(),
-            conn,
-            index_dirty: Default::default(),
-        };
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         (directory, core)
     }
 
@@ -466,7 +454,7 @@ mod tests {
         let absolute = core.notes_dir.join(path);
         fs::create_dir_all(absolute.parent().unwrap()).unwrap();
         fs::write(absolute, content).unwrap();
-        index::index_file(&core.conn, &core.notes_dir, path).unwrap();
+        index::index_file(&core.conn, &core.root, path).unwrap();
         core.conn
             .execute(
                 "UPDATE note SET created_at = 0, updated_at = ?1 WHERE path = ?2",
@@ -750,12 +738,12 @@ mod tests {
             "---\ntags: [z, a]\n---\n# Kept\nreplacement",
         )
         .unwrap();
-        index::reindex_file(&core.conn, directory.path(), "kept.md").unwrap();
+        index::reindex_file(&core.conn, &core.root, "kept.md").unwrap();
         fs::remove_file(directory.path().join("removed.md")).unwrap();
         core.scan_complete().unwrap();
         core.conn.execute_batch("VACUUM").unwrap();
         drop(core);
-        let core = Library::open(directory.path()).unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         assert!(core.scan().unwrap().is_empty());
         for query in ["obsolete", "original"] {
             assert!(core
@@ -1026,12 +1014,8 @@ mod tests {
                         bare["context"].as_str().unwrap()
                     );
                     save(&core, bare["path"].as_str().unwrap(), &content, 1);
-                    index::reindex_file(
-                        &core.conn,
-                        &core.notes_dir,
-                        bare["path"].as_str().unwrap(),
-                    )
-                    .unwrap();
+                    index::reindex_file(&core.conn, &core.root, bare["path"].as_str().unwrap())
+                        .unwrap();
                 }
                 let filter = serde_json::from_value(args[0].clone()).unwrap();
                 let expected: HashMap<String, Option<String>> =

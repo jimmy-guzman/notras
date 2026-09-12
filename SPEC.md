@@ -19,10 +19,10 @@ What notras does. Every claim below is checkable against a running build, so a c
 ## Notes and files
 
 - Notes live in one directory. It defaults to `~/notras` and settings changes it. The choice is stored in Tauri's `settings.json`.
-- First launch creates the notes dir, `.notras/`, and `.notras/index.db`, then scans the folder.
+- First launch creates the notes dir and its index under the app's cache folder, `~/Library/Caches/codes.jimmy.notras/index/` on macOS, in a subfolder keyed by the resolved notes dir, then scans the folder. An older `.notras/` inside the library is left alone.
 - A note is a file whose extension is `md` or `markdown`, matched without regard to case, so `NOTE.MD` is a note.
-- A folder is a directory. Any path segment starting with a dot is skipped, so `.notras/` never indexes itself. Scans skip symlinked files and directories, including a note whose parent became a symlink after indexing. Such notes are not read for mentions.
-- The selected notes root may be a symlink. The app resolves it before reading, watching or granting attachment access. Existing symlinked paths beneath that root are refused for direct note operations and attachment writes. A symlinked index directory or database path prevents opening the library. Explicit external-file operations remain available.
+- A folder is a directory. Any path segment starting with a dot is skipped. Scans skip symlinked files and directories, including a note whose parent became a symlink after indexing. Such notes are not read for mentions.
+- The selected notes root may be a symlink. The app resolves it before reading, watching or granting attachment access. Existing symlinked paths beneath that root are refused for direct note operations and attachment writes. A note operation binds to the folder it validated: a symlink planted at that folder's name afterwards cannot redirect the read, write, move, deletion or attachment to another directory. A validated folder that is moved during the operation carries the result with it, inside or outside the library, and the next scan drops rows for anything no longer reachable. Explicit external-file operations remain available; an external file that is itself a symlink opens but cannot be saved.
 - A new note is `untitled.md` in the notes root. A name already taken takes the next free `untitled-2`, then `untitled-3`. The suffixed name stays within 120 characters, with the base cut to make room.
 - An explicit creation filename may include its `.md` extension in any letter case. Creating `entry.md` produces `entry.md`, with collision suffixes before the extension.
 - Creating a note is atomic. Losing the race reports that a note already exists at that path, and leaves no partial file.
@@ -78,7 +78,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
 - The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches. Failed observation reconciliation emits no change event.
 - The index skips a file whose mtime matches its stored row, so the app's own writes do not echo back.
-- Deleting `.notras/index.db` and relaunching rebuilds it from the files. "reindex library" refreshes every note, including unchanged files, while retaining indexed rows until each note is refreshed. During a healthy scan, indexed queries use the complete version from before the scan and refresh after completion. Queries against a fresh or failed index wait for successful recovery. A partially indexed library cannot appear as empty, and a folder rescan cannot show both the old and new paths. File reads and saves can run between scan steps and while indexed queries execute. One large file can still delay another file operation. While indexed reads wait on a fresh or recovering index, the palette and the welcome screen read "indexing notes..." instead of a blank area or the generic loading text. A scan that fails reports its reason to the reads that waited on it.
+- Deleting the cached index and relaunching rebuilds it from the files. "reindex library" refreshes every note, including unchanged files, while retaining indexed rows until each note is refreshed. During a healthy scan, indexed queries use the complete version from before the scan and refresh after completion. Queries against a fresh or failed index wait for successful recovery. A partially indexed library cannot appear as empty, and a folder rescan cannot show both the old and new paths. File reads and saves can run between scan steps and while indexed queries execute. One large file can still delay another file operation. While indexed reads wait on a fresh or recovering index, the palette and the welcome screen read "indexing notes..." instead of a blank area or the generic loading text. A scan that fails reports its reason to the reads that waited on it.
 - An older index schema is recreated on the first launch of a newer one and rebuilt by the startup scan, which the log records.
 
 ## Tabs
@@ -232,7 +232,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - If the webview never answers, the quit goes through after 5 seconds.
 - Quitting stops a running scan at its next step. The next launch's startup scan indexes what the interrupted scan had not reached. A reindex interrupted by a quit does not resume as a reindex; run "reindex library" again to refresh the remaining notes.
 - "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. A path that reaches the notes dir through a symlink counts as inside it. macOS only.
-- Settings exposes the notes folder and launch at login. Changing the folder creates its `.notras/`, builds an index, restarts the watcher, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A quit during that build leaves the choice unsaved.
+- Settings exposes the notes folder and launch at login. Changing the folder builds its index under the cache folder, restarts the watcher, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A quit during that build leaves the choice unsaved.
 - Rust owns index reads and writes. The webview sends typed operations and has no generic SQL command.
 - A native panic stops a production build. It is not reported as an ordinary file failure, and interrupted native state is not reused.
 
@@ -249,5 +249,5 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
 - The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives in `localStorage["focus-mode"]` beside them.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
-- The index at `.notras/index.db` is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
+- The index lives under the app's cache folder, keyed by the resolved notes dir, and is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
 - The reopen stack, source mode, graph mode, undo history, and scroll position live in memory and do not survive a relaunch.

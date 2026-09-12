@@ -132,6 +132,12 @@ pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+pub(crate) fn index_cache<R: Runtime>(
+    manager: &impl Manager<R>,
+) -> tauri::Result<std::path::PathBuf> {
+    Ok(manager.path().app_cache_dir()?.join("index"))
+}
+
 /// Grant the asset protocol read access to a notes dir. Images inside notes are
 /// rendered through `convertFileSrc`, so the scope has to follow the folder the
 /// user picked -- the config ships with an empty static scope.
@@ -175,7 +181,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         None => app.path().home_dir()?.join("notras"),
     };
 
-    let library = Library::open(&notes_dir)?;
+    let library = Library::open(&notes_dir, &index_cache(app)?)?;
     let notes_dir = library.directory().to_owned();
 
     // Images are rendered through the asset protocol; the scope follows the
