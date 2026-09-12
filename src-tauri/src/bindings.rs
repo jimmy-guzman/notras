@@ -335,8 +335,8 @@ mod tests {
     #[test]
     fn should_keep_concurrent_library_switches_and_the_watcher_on_the_same_directory() {
         let directory = tempfile::tempdir().unwrap();
-        // macOS reports canonical paths in FSEvents; the temporary root may
-        // otherwise use the /var symlink while events arrive under /private/var.
+        // The store keeps the selected string while get_notes_dir returns the
+        // resolved root, so the equality below needs a root that resolves to itself.
         let root = directory.path().canonicalize().unwrap();
         let initial = root.join("initial");
         let first = root.join("first");
@@ -413,6 +413,138 @@ mod tests {
                 .unwrap(),
             json!({"paths": ["after.md"]})
         );
+        *app.state::<AppState>().watcher() = None;
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_watch_the_resolved_root_when_the_selected_library_is_a_symlink() {
+        let directory = tempfile::tempdir().unwrap();
+        let real = directory.path().join("real");
+        let alias = directory.path().join("alias");
+        fs::create_dir(&real).unwrap();
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+        let library = Library::open(&alias).unwrap();
+        let notes_dir = library.directory().to_owned();
+        assert_eq!(notes_dir, real.canonicalize().unwrap());
+        assert_ne!(notes_dir, alias);
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(library),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        app.listen("notes-changed", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+        *app.state::<AppState>().watcher() =
+            Some(crate::watcher::start(app.handle().clone(), notes_dir.clone(), 0).unwrap());
+
+        fs::write(alias.join("external.md"), "# through the alias").unwrap();
+        assert_eq!(
+            changes
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap(),
+            json!({"paths": ["external.md"]})
+        );
+        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(notes[0]["path"], "external.md");
+        assert_eq!(notes[0]["title"], "through the alias");
+        let note = invoke(&window, "read_note", json!({"path": "external.md"})).unwrap();
+        assert_eq!(note["content"], "# through the alias");
+        assert_eq!(
+            invoke(&window, "get_notes_dir", json!({})).unwrap(),
+            json!(notes_dir)
+        );
+        assert!(changes.try_recv().is_err());
+        *app.state::<AppState>().watcher() = None;
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_follow_a_switch_to_a_symlinked_library_with_the_watcher() {
+        let directory = tempfile::tempdir().unwrap();
+        let initial = directory.path().join("initial");
+        let real = directory.path().join("real");
+        let alias = directory.path().join("alias");
+        fs::create_dir(&initial).unwrap();
+        fs::create_dir(&real).unwrap();
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(Library::open(&initial).unwrap()),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        app.listen("notes-changed", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+        let initial_dir = app.state::<AppState>().library().directory().to_owned();
+        *app.state::<AppState>().watcher() =
+            Some(crate::watcher::start(app.handle().clone(), initial_dir, 0).unwrap());
+
+        invoke(&window, "set_notes_dir", json!({"path": alias})).unwrap();
+        assert_eq!(
+            changes
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap(),
+            json!({"paths": []})
+        );
+        assert_eq!(
+            invoke(&window, "get_notes_dir", json!({})).unwrap(),
+            json!(real.canonicalize().unwrap())
+        );
+        let settings: Value = serde_json::from_slice(
+            &fs::read(directory.path().join("settings/settings.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(settings["notesDir"], json!(alias));
+
+        fs::write(initial.join("stale.md"), "# left behind").unwrap();
+        fs::write(alias.join("external.md"), "# through the alias").unwrap();
+        assert_eq!(
+            changes
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap(),
+            json!({"paths": ["external.md"]})
+        );
+        assert!(changes
+            .recv_timeout(std::time::Duration::from_millis(500))
+            .is_err());
+        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(notes.as_array().unwrap().len(), 1);
+        assert_eq!(notes[0]["path"], "external.md");
+        let note = invoke(&window, "read_note", json!({"path": "external.md"})).unwrap();
+        assert_eq!(note["content"], "# through the alias");
         *app.state::<AppState>().watcher() = None;
     }
 
