@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::{fs, io};
 
+use cap_std::fs::Dir;
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 
@@ -10,7 +11,7 @@ use crate::{
         bare_mentions, destinations, is_note_path, leading_heading, resolve_title, wikilinks,
     },
     note_file::{timestamp_millis, OpenedNote},
-    relative_path::{reject_symlink, RelativePath},
+    relative_path::RelativePath,
 };
 
 /// What an index operation can fail on: the note's file, or the database.
@@ -22,15 +23,14 @@ pub enum IndexError {
     Db(#[from] rusqlite::Error),
 }
 
-/// Open the index under `notes_dir`, rebuilding it from nothing when what is
-/// there cannot be opened or holds no usable schema. The files are the source
+pub(crate) const DATABASE: &str = "index.db";
+
+/// Open the index in its cache directory, rebuilding it from nothing when what
+/// is there cannot be opened or holds no usable schema. The files are the source
 /// of truth, so a database the app cannot read is one it can throw away.
-pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
-    reject_symlink(&notes_dir.join(".notras"))?;
-    for suffix in ["", "-wal", "-shm", "-journal"] {
-        reject_symlink(&notes_dir.join(format!(".notras/index.db{suffix}")))?;
-    }
-    let path = notes_dir.join(".notras/index.db");
+pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
+    fs::create_dir_all(index_dir)?;
+    let path = index_dir.join(DATABASE);
     let opened = Connection::open(&path).and_then(|conn| ensure_schema(&conn).map(|()| conn));
     let error = match opened {
         Ok(conn) => return Ok(conn),
@@ -39,7 +39,7 @@ pub fn open(notes_dir: &Path) -> Result<Connection, IndexError> {
 
     log::warn!("rebuilding the index, which could not be opened: {error}");
     for suffix in ["", "-wal", "-shm"] {
-        let stale = notes_dir.join(format!(".notras/index.db{suffix}"));
+        let stale = index_dir.join(format!("{DATABASE}{suffix}"));
         if let Err(error) = fs::remove_file(&stale) {
             if error.kind() != io::ErrorKind::NotFound {
                 log::warn!("could not remove {}: {error}", stale.display());
@@ -264,34 +264,35 @@ pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
 /// Index a single note file. Returns `true` when the index changed. Files
 /// whose mtime matches the stored row are skipped, which also suppresses
 /// watcher echo for writes that already indexed synchronously.
-pub fn index_file(conn: &Connection, notes_dir: &Path, rel_path: &str) -> Result<bool, IndexError> {
-    index_note(conn, notes_dir, rel_path, false)
+pub fn index_file(conn: &Connection, root: &Dir, rel_path: &str) -> Result<bool, IndexError> {
+    index_note(conn, root, rel_path, false)
 }
 
 /// Reconcile a known file mutation even when two writes share a timestamp.
-pub fn reindex_file(
-    conn: &Connection,
-    notes_dir: &Path,
-    rel_path: &str,
-) -> Result<bool, IndexError> {
-    index_note(conn, notes_dir, rel_path, true)
+pub fn reindex_file(conn: &Connection, root: &Dir, rel_path: &str) -> Result<bool, IndexError> {
+    index_note(conn, root, rel_path, true)
 }
 
 fn index_note(
     conn: &Connection,
-    notes_dir: &Path,
+    root: &Dir,
     rel_path: &str,
     force: bool,
 ) -> Result<bool, IndexError> {
     let relative = RelativePath::parse(rel_path)?;
-    let Some(abs) = relative.resolve_for_scan(notes_dir)? else {
-        remove(conn, relative.as_str())?;
-        return Ok(true);
+    let located = match relative.locate(root) {
+        Ok(Some(located)) => located,
+        Ok(None) => {
+            remove(conn, rel_path)?;
+            return Ok(true);
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            remove(conn, rel_path)?;
+            return Ok(true);
+        }
+        Err(error) => return Err(error.into()),
     };
-
-    // `symlink_metadata` does not follow the link, so a note symlinked to
-    // something outside the vault never gets its contents into the index.
-    let meta = match fs::symlink_metadata(&abs) {
+    let meta = match located.symlink_metadata() {
         Ok(meta) => meta,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             remove(conn, rel_path)?;
@@ -304,8 +305,8 @@ fn index_note(
         return Ok(true);
     }
 
-    let file = match OpenedNote::open(&abs) {
-        Ok(file) => file,
+    let file = match located.open_read() {
+        Ok(file) => OpenedNote::new(file),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             remove(conn, rel_path)?;
             return Ok(true);
@@ -431,21 +432,28 @@ fn index_note(
 /// A file that is there but cannot be read keeps whatever row it has, and so
 /// does everything under a folder that cannot be listed: absence from the walk
 /// is only evidence of deletion where the walk could look.
+#[derive(Debug)]
 pub struct ScanReport {
     pub changed: Vec<String>,
     pub failures: Vec<IndexError>,
 }
 
-pub fn scan_complete(conn: &Connection, notes_dir: &Path) -> Result<Vec<String>, IndexError> {
-    let report = scan_all(conn, notes_dir)?;
+/// Scan every saved file, failing on the first file that cannot be indexed.
+pub fn scan_complete(
+    conn: &Connection,
+    root: &Dir,
+    notes_dir: &Path,
+) -> Result<Vec<String>, IndexError> {
+    let report = scan_all(conn, root, notes_dir)?;
     if let Some(error) = report.failures.into_iter().next() {
         return Err(error);
     }
     Ok(report.changed)
 }
 
-pub fn scan_all(conn: &Connection, notes_dir: &Path) -> Result<ScanReport, IndexError> {
-    crate::Scan::new(notes_dir, false).run(conn)
+/// Scan every saved file, retaining per-file failures in the report.
+pub fn scan_all(conn: &Connection, root: &Dir, notes_dir: &Path) -> Result<ScanReport, IndexError> {
+    crate::Scan::new(notes_dir, false).run(conn, root)
 }
 
 #[cfg(test)]
@@ -455,7 +463,13 @@ mod tests {
     use serde_json::{json, Value};
     use std::time::UNIX_EPOCH;
 
+    use cap_std::ambient_authority;
+
     use super::*;
+
+    fn root(directory: &Path) -> Dir {
+        Dir::open_ambient_dir(directory, ambient_authority()).unwrap()
+    }
 
     fn select(
         conn: &Connection,
@@ -492,7 +506,7 @@ mod tests {
             ("metadata.md", "---\ntitle: café\n---\nbody"),
         ] {
             fs::write(dir.join(path), body).unwrap();
-            index_file(&conn, dir, path).unwrap();
+            index_file(&conn, &root(dir), path).unwrap();
         }
         let mut previous = conn.prepare(
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1
@@ -515,20 +529,20 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
         fs::write(dir.join("note.md"), "café").unwrap();
-        reindex_file(&conn, dir, "note.md").unwrap();
+        reindex_file(&conn, &root(dir), "note.md").unwrap();
         assert_eq!(phrase_candidates(&conn, "needle").unwrap(), ["note.md"]);
         fs::write(dir.join("note.md"), "ordinary prose").unwrap();
-        reindex_file(&conn, dir, "note.md").unwrap();
+        reindex_file(&conn, &root(dir), "note.md").unwrap();
         assert!(phrase_candidates(&conn, "needle").unwrap().is_empty());
         fs::write(dir.join("note.md"), "café").unwrap();
-        reindex_file(&conn, dir, "note.md").unwrap();
+        reindex_file(&conn, &root(dir), "note.md").unwrap();
         conn.pragma_update(None, "user_version", 5).unwrap();
         ensure_schema(&conn).unwrap();
         assert!(phrase_candidates(&conn, "needle").unwrap().is_empty());
-        scan_all(&conn, dir).unwrap();
+        scan_all(&conn, &root(dir), dir).unwrap();
         assert_eq!(phrase_candidates(&conn, "needle").unwrap(), ["note.md"]);
         fs::remove_file(dir.join("note.md")).unwrap();
-        scan_all(&conn, dir).unwrap();
+        scan_all(&conn, &root(dir), dir).unwrap();
         assert!(phrase_candidates(&conn, "needle").unwrap().is_empty());
     }
 
@@ -540,13 +554,13 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
         fs::write(dir.join("deleted.md"), "old").unwrap();
-        scan_all(&conn, dir).unwrap();
+        scan_all(&conn, &root(dir), dir).unwrap();
         fs::remove_file(dir.join("deleted.md")).unwrap();
         fs::write(dir.join("invalid:name.md"), "invalid").unwrap();
         fs::write(dir.join("valid.md"), "readable").unwrap();
         conn.execute("INSERT INTO note(path, title, created_at, updated_at) VALUES ('invalid:name.md', 'indexed', 0, 0)", []).unwrap();
 
-        let report = scan_all(&conn, dir).unwrap();
+        let report = scan_all(&conn, &root(dir), dir).unwrap();
         assert_eq!(report.failures.len(), 1);
         assert!(report.failures[0].to_string().contains("invalid:name.md"));
         assert_eq!(report.changed, ["valid.md"]);
@@ -561,7 +575,7 @@ mod tests {
         );
 
         fs::remove_file(dir.join("invalid:name.md")).unwrap();
-        let complete = scan_all(&conn, dir).unwrap();
+        let complete = scan_all(&conn, &root(dir), dir).unwrap();
         assert!(complete.failures.is_empty());
         assert!(complete.changed.contains(&"deleted.md".to_string()));
         assert!(complete.changed.contains(&"invalid:name.md".to_string()));
@@ -587,7 +601,7 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         let rows = select(&conn, "SELECT path, title FROM note ORDER BY path", &[]).unwrap();
 
@@ -613,13 +627,16 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         // Stand in for a row written by an older derivation, without touching
         // the file, so the mtime skip is live.
         conn.execute("UPDATE note SET title = 'agent-note'", [])
             .unwrap();
-        assert!(scan_all(&conn, &dir).unwrap().changed.is_empty());
+        assert!(scan_all(&conn, &root(&dir), &dir)
+            .unwrap()
+            .changed
+            .is_empty());
         let stale: String = conn
             .query_row("SELECT title FROM note", [], |row| row.get(0))
             .unwrap();
@@ -627,7 +644,7 @@ mod tests {
 
         assert_eq!(
             crate::Scan::new(&dir, true)
-                .run(&conn)
+                .run(&conn, &root(&dir))
                 .unwrap()
                 .changed
                 .len(),
@@ -654,7 +671,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        let changed = scan_all(&conn, &dir).unwrap().changed;
+        let changed = scan_all(&conn, &root(&dir), &dir).unwrap().changed;
         assert_eq!(changed.len(), 2);
 
         let rows = select(
@@ -686,11 +703,14 @@ mod tests {
         assert!(no_hits.is_empty());
 
         // Re-scan is a no-op thanks to mtime skip.
-        assert!(scan_all(&conn, &dir).unwrap().changed.is_empty());
+        assert!(scan_all(&conn, &root(&dir), &dir)
+            .unwrap()
+            .changed
+            .is_empty());
 
         // Deleting the file drops it from the index on the next scan.
         fs::remove_file(dir.join("ideas.md")).unwrap();
-        let changed = scan_all(&conn, &dir).unwrap().changed;
+        let changed = scan_all(&conn, &root(&dir), &dir).unwrap().changed;
         assert_eq!(changed, vec!["ideas.md".to_string()]);
     }
 
@@ -703,7 +723,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        assert_eq!(scan_all(&conn, &dir).unwrap().changed.len(), 1);
+        assert_eq!(scan_all(&conn, &root(&dir), &dir).unwrap().changed.len(), 1);
 
         let rows = select(&conn, "SELECT path, title FROM note", &[]).unwrap();
         assert_eq!(rows[0][0], json!("NOTE.MD"));
@@ -720,14 +740,14 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         let rows = select(&conn, "SELECT path FROM note ORDER BY path", &[]).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0][0], json!("real.md"));
 
         // Even asked for directly, a symlink never lands a row.
-        index_file(&conn, &dir, "linked.md").unwrap();
+        index_file(&conn, &root(&dir), "linked.md").unwrap();
         let rows = select(
             &conn,
             "SELECT path FROM note WHERE path = ?1",
@@ -749,7 +769,7 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         let rows = select(
             &conn,
@@ -802,7 +822,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         // Stand in for a database an older build wrote, without touching the
         // file, so the mtime skip is live.
@@ -815,7 +835,7 @@ mod tests {
             .unwrap()
             .is_empty());
 
-        assert_eq!(scan_all(&conn, &dir).unwrap().changed.len(), 1);
+        assert_eq!(scan_all(&conn, &root(&dir), &dir).unwrap().changed.len(), 1);
         assert_eq!(
             select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
             vec![vec![json!("b")]]
@@ -828,7 +848,8 @@ mod tests {
         let content = "---\ntags: [work]\n---\n# Source\nAda wrote this.";
         fs::write(directory.path().join("source.md"), content).unwrap();
         {
-            let library = crate::Library::open(directory.path()).unwrap();
+            let library =
+                crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
             library.scan_complete().unwrap();
             library
                 .conn
@@ -838,7 +859,8 @@ mod tests {
                 .unwrap();
         }
 
-        let library = crate::Library::open(directory.path()).unwrap();
+        let library =
+            crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.scan_complete().unwrap();
 
         let found = scan_prose(&library.conn, vec!["source.md".into()], "Ada", true).unwrap();
@@ -853,7 +875,9 @@ mod tests {
     #[test]
     fn should_rebuild_version_six_search_rows_from_unchanged_files() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
+        let cache = directory.path().join(".index");
+        let index_dir = cache.join(crate::index_key(&directory.path().canonicalize().unwrap()));
+        fs::create_dir_all(&index_dir).unwrap();
         let content = "---\ntags: [z, a]\n---\n# Current\nfresh [[Other]]";
         fs::write(directory.path().join("note.md"), content).unwrap();
         let modified = timestamp_millis(
@@ -862,7 +886,7 @@ mod tests {
                 .modified(),
         )
         .unwrap();
-        let conn = Connection::open(directory.path().join(".notras/index.db")).unwrap();
+        let conn = Connection::open(index_dir.join(DATABASE)).unwrap();
         conn.execute_batch(
             "CREATE TABLE note (path TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
              CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content, tokenize='unicode61');
@@ -876,7 +900,7 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let core = crate::Library::open(directory.path()).unwrap();
+        let core = crate::Library::open(directory.path(), &cache).unwrap();
         assert_eq!(core.scan().unwrap(), ["note.md"]);
         let notes = core
             .list_notes(&crate::NoteFilters {
@@ -945,7 +969,7 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         let find = |path: &str, title: &str| {
             scan_mentions(
@@ -1009,14 +1033,14 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         fs::remove_file(dir.join("s.md")).unwrap();
         std::os::unix::fs::symlink(&outside, dir.join("s.md")).unwrap();
 
         let candidates = mention_candidates(&conn, "graph view.md", "graph view").unwrap();
         assert_eq!(candidates, vec!["s.md".to_string()]);
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         assert!(scan_mentions(&conn, candidates, "graph view")
             .unwrap()
             .is_empty());
@@ -1030,7 +1054,7 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
 
         let rows = select(
             &conn,
@@ -1099,7 +1123,7 @@ mod tests {
         fs::write(dir.join("a.md"), "---\ntitle: Ada Lovelace\n---\n# Ada Lovelace\n\nada lovelace wrote this.\n\n`Ada Lovelace` [Ada Lovelace](a.md) <span>Ada Lovelace</span>\n\nLovelaces and xAda Lovelace are different.\n\nA +++ phrase.\n").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         let mentions = scan_prose(&conn, vec!["a.md".into()], "Ada Lovelace", true).unwrap();
         assert_eq!(
             mentions.iter().map(|row| row.line).collect::<Vec<_>>(),
@@ -1124,7 +1148,7 @@ mod tests {
         .unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         let rows = select(
             &conn,
             "SELECT kind, target FROM note_link ORDER BY kind",
@@ -1153,7 +1177,7 @@ mod tests {
         fs::write(dir.join("c.md"), "unrelated prose\n").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         let candidates = phrase_candidates(&conn, "Ada Lovelace").unwrap();
         assert_eq!(candidates, vec!["a.md", "b.md"]);
         let found = scan_prose(&conn, candidates, "Ada Lovelace", true).unwrap();
@@ -1174,7 +1198,7 @@ mod tests {
         fs::write(dir.join("b.md"), "ordinary prose\n").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         let candidates = phrase_candidates(&conn, "!!!").unwrap();
         assert_eq!(candidates, vec!["a.md", "b.md"]);
         let found = scan_prose(&conn, candidates, "!!!", true).unwrap();
@@ -1197,7 +1221,7 @@ mod tests {
         fs::write(dir.join("unrelated.md"), "ordinary prose").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, dir).unwrap();
+        scan_all(&conn, &root(dir), dir).unwrap();
 
         let candidates = mention_candidates(&conn, "ada.md", "Ada").unwrap();
         assert_eq!(candidates, ["fallback.md", "fts.md"]);
@@ -1220,7 +1244,7 @@ mod tests {
         fs::write(dir.join("c.md"), "unrelated prose\n").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         let found =
             scan_prose(&conn, phrase_candidates(&conn, "Ada").unwrap(), "Ada", true).unwrap();
         assert_eq!(
@@ -1240,7 +1264,7 @@ mod tests {
         fs::write(dir.join("b.md"), "foo Ა bar\n").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, &dir).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
         let found = scan_prose(
             &conn,
             phrase_candidates(&conn, "foo Ა bar").unwrap(),
@@ -1264,7 +1288,7 @@ mod tests {
         fs::write(&note, "---\ntags: [work]\n---\n# note\n[[other]]").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        index_file(&conn, directory.path(), "note.md").unwrap();
+        index_file(&conn, &root(directory.path()), "note.md").unwrap();
         conn.execute_batch(
             "CREATE TRIGGER refuse_delete BEFORE DELETE ON note_link
              BEGIN SELECT RAISE(FAIL, 'index unavailable'); END;",
@@ -1272,7 +1296,7 @@ mod tests {
         .unwrap();
         fs::remove_file(&note).unwrap();
 
-        assert!(index_file(&conn, directory.path(), "note.md").is_err());
+        assert!(index_file(&conn, &root(directory.path()), "note.md").is_err());
         assert_eq!(
             select(
                 &conn,
@@ -1287,7 +1311,7 @@ mod tests {
         );
 
         conn.execute_batch("DROP TRIGGER refuse_delete").unwrap();
-        index_file(&conn, directory.path(), "note.md").unwrap();
+        index_file(&conn, &root(directory.path()), "note.md").unwrap();
         assert_eq!(
             select(
                 &conn,
@@ -1309,7 +1333,7 @@ mod tests {
         fs::write(&note, "# original").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        index_file(&conn, directory.path(), "note.md").unwrap();
+        index_file(&conn, &root(directory.path()), "note.md").unwrap();
         conn.execute(
             "UPDATE note SET updated_at = 'invalid' WHERE path = 'note.md'",
             [],
@@ -1318,7 +1342,7 @@ mod tests {
         fs::write(&note, "# changed").unwrap();
 
         assert!(matches!(
-            index_file(&conn, directory.path(), "note.md"),
+            index_file(&conn, &root(directory.path()), "note.md"),
             Err(IndexError::Db(rusqlite::Error::InvalidColumnType(..)))
         ));
         assert_eq!(
@@ -1344,7 +1368,7 @@ mod tests {
         .unwrap();
 
         assert!(matches!(
-            scan_all(&conn, directory.path()),
+            scan_all(&conn, &root(directory.path()), directory.path()),
             Err(IndexError::Db(rusqlite::Error::InvalidColumnType(..)))
         ));
         assert_eq!(
@@ -1363,11 +1387,11 @@ mod tests {
         fs::write(folder.join("note.md"), "# note").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        index_file(&conn, directory.path(), "folder/note.md").unwrap();
+        index_file(&conn, &root(directory.path()), "folder/note.md").unwrap();
         fs::rename(&folder, outside.path().join("folder")).unwrap();
         std::os::unix::fs::symlink(outside.path().join("folder"), &folder).unwrap();
 
-        index_file(&conn, directory.path(), "folder/note.md").unwrap();
+        index_file(&conn, &root(directory.path()), "folder/note.md").unwrap();
 
         assert_eq!(
             select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
@@ -1385,7 +1409,7 @@ mod tests {
 
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        scan_all(&conn, directory.path()).unwrap();
+        scan_all(&conn, &root(directory.path()), directory.path()).unwrap();
         assert!(
             scan_prose(&conn, vec!["folder/note.md".into()], "phrase", true)
                 .unwrap()
@@ -1409,7 +1433,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        assert!(index_file(&conn, directory.path(), "note.md").is_err());
+        assert!(index_file(&conn, &root(directory.path()), "note.md").is_err());
         assert_eq!(
             select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
             vec![vec![json!(0)]]

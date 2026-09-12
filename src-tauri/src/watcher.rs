@@ -87,7 +87,10 @@ mod tests {
         let contract = crate::bindings::builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
-                library: LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {}),
+                library: LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(Vec::new()),
                 quitting: AtomicBool::new(false),

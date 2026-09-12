@@ -1,16 +1,88 @@
-use std::fs;
+use std::fs::File;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 
-pub(crate) fn reject_symlink(path: &Path) -> io::Result<()> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.is_symlink() => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "the path passes through a symlink",
-        )),
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
+use cap_fs_ext::{DirExt, FollowSymlinks, MetadataExt as _, OpenOptionsFollowExt};
+use cap_std::fs::{Dir, Metadata, OpenOptions};
+
+fn symlink_error() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "the path passes through a symlink",
+    )
+}
+
+fn open_child(dir: &Dir, name: &str) -> io::Result<Option<Dir>> {
+    if dir.symlink_metadata(name)?.is_symlink() {
+        return Ok(None);
+    }
+    dir.open_dir_nofollow(name).map(Some)
+}
+
+pub(crate) fn ensure_folder(root: &Dir, folder: &str) -> io::Result<Dir> {
+    let mut dir = root.try_clone()?;
+    for part in folder.split('/').filter(|part| !part.is_empty()) {
+        dir = match open_child(&dir, part) {
+            Ok(Some(child)) => child,
+            Ok(None) => return Err(symlink_error()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                match dir.create_dir(part) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                    Err(error) => return Err(error),
+                }
+                open_child(&dir, part)?.ok_or_else(symlink_error)?
+            }
+            Err(error) => return Err(error),
+        };
+    }
+    Ok(dir)
+}
+
+#[derive(Debug)]
+pub(crate) struct Located {
+    pub(crate) dir: Dir,
+    pub(crate) name: String,
+}
+
+impl Located {
+    fn open(&self, options: &mut OpenOptions) -> io::Result<File> {
+        options.follow(FollowSymlinks::No);
+        Ok(self.dir.open_with(&self.name, options)?.into_std())
+    }
+
+    pub(crate) fn open_read(&self) -> io::Result<File> {
+        self.open(OpenOptions::new().read(true))
+    }
+
+    pub(crate) fn open_write(&self) -> io::Result<File> {
+        self.open(OpenOptions::new().write(true))
+    }
+
+    pub(crate) fn create_new(&self) -> io::Result<File> {
+        self.open(OpenOptions::new().write(true).create_new(true))
+    }
+
+    pub(crate) fn symlink_metadata(&self) -> io::Result<Metadata> {
+        self.dir.symlink_metadata(&self.name)
+    }
+
+    pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
+        let mut options = OpenOptions::new();
+        options.read(true).follow(FollowSymlinks::No);
+        let metadata = self.dir.open_with(&self.name, &options)?.metadata()?;
+        Ok((metadata.dev(), metadata.ino()))
+    }
+
+    pub(crate) fn remove_file(&self) -> io::Result<()> {
+        self.dir.remove_file(&self.name)
+    }
+
+    pub(crate) fn sibling(&self, name: &str) -> io::Result<Self> {
+        Ok(Self {
+            dir: self.dir.try_clone()?,
+            name: name.to_owned(),
+        })
     }
 }
 
@@ -61,29 +133,117 @@ impl RelativePath {
         self.0
     }
 
-    /// Resolve a direct operation, rejecting existing symlinked components.
-    pub(crate) fn resolve(&self, root: &Path) -> io::Result<PathBuf> {
-        self.resolve_for_scan(root)?.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "the path passes through a symlink",
-            )
-        })
+    pub(crate) fn split(&self) -> (&str, &str) {
+        self.0.rsplit_once('/').unwrap_or(("", &self.0))
     }
 
-    /// Resolve a scan candidate, returning `None` for a symlinked component.
-    /// Missing descendants remain paths so callers can reconcile deleted notes.
-    pub(crate) fn resolve_for_scan(&self, root: &Path) -> io::Result<Option<PathBuf>> {
-        let mut path = root.to_owned();
-        for part in self.0.split('/') {
-            path.push(part);
-            match fs::symlink_metadata(&path) {
-                Ok(metadata) if metadata.is_symlink() => return Ok(None),
-                Ok(_) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => break,
-                Err(error) => return Err(error),
-            }
+    pub(crate) fn locate(&self, root: &Dir) -> io::Result<Option<Located>> {
+        let (folder, name) = self.split();
+        let mut dir = root.try_clone()?;
+        for part in folder.split('/').filter(|part| !part.is_empty()) {
+            let Some(child) = open_child(&dir, part)? else {
+                return Ok(None);
+            };
+            dir = child;
         }
-        Ok(Some(root.join(&self.0)))
+        match dir.symlink_metadata(name) {
+            Ok(metadata) if metadata.is_symlink() => return Ok(None),
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        Ok(Some(Located {
+            dir,
+            name: name.to_owned(),
+        }))
+    }
+
+    pub(crate) fn resolve(&self, root: &Dir) -> io::Result<Located> {
+        self.locate(root)?.ok_or_else(symlink_error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use cap_std::ambient_authority;
+
+    use super::*;
+
+    fn root(directory: &Path) -> Dir {
+        Dir::open_ambient_dir(directory, ambient_authority()).unwrap()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_a_symlinked_parent_when_locating() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "# Outside").unwrap();
+        std::os::unix::fs::symlink(outside.path(), directory.path().join("folder")).unwrap();
+
+        let located = RelativePath::parse("folder/note.md")
+            .unwrap()
+            .locate(&root(directory.path()))
+            .unwrap();
+
+        assert!(located.is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_reject_a_symlinked_final_component_when_opening() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("note.md"), "# Outside").unwrap();
+        fs::write(directory.path().join("real.md"), "# Real").unwrap();
+        let root = root(directory.path());
+        let located = RelativePath::parse("real.md")
+            .unwrap()
+            .resolve(&root)
+            .unwrap();
+        fs::remove_file(directory.path().join("real.md")).unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("note.md"),
+            directory.path().join("real.md"),
+        )
+        .unwrap();
+
+        assert!(located.open_read().is_err());
+        assert_eq!(
+            fs::read_to_string(outside.path().join("note.md")).unwrap(),
+            "# Outside"
+        );
+    }
+
+    #[test]
+    fn should_report_a_missing_parent_as_not_found() {
+        let directory = tempfile::tempdir().unwrap();
+
+        let error = RelativePath::parse("missing/note.md")
+            .unwrap()
+            .locate(&root(directory.path()))
+            .unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn should_create_missing_folders_and_reuse_existing_ones() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = root(directory.path());
+
+        let created = ensure_folder(&root, "projects/atlas").unwrap();
+        fs::write(directory.path().join("projects/atlas/note.md"), "# Atlas").unwrap();
+        let reused = ensure_folder(&root, "projects/atlas").unwrap();
+
+        assert!(created.symlink_metadata("note.md").unwrap().is_file());
+        assert!(reused.symlink_metadata("note.md").unwrap().is_file());
+        assert!(ensure_folder(&root, "")
+            .unwrap()
+            .symlink_metadata("projects")
+            .unwrap()
+            .is_dir());
     }
 }

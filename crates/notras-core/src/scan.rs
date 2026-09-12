@@ -1,20 +1,28 @@
 use std::collections::HashSet;
-use std::fs::{self, ReadDir};
+use std::io;
 use std::path::{Path, PathBuf};
 
+use cap_fs_ext::DirExt;
+use cap_std::fs::{Dir, ReadDir};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::index::{self, IndexError, ScanReport};
 use crate::relative_path::RelativePath;
 
+#[derive(Debug)]
 enum Entry {
-    Directory(PathBuf),
-    Entries(PathBuf, Box<ReadDir>),
+    Root,
+    Entries {
+        dir: Dir,
+        relative: String,
+        entries: Box<ReadDir>,
+    },
     Observed(PathBuf),
 }
 
 /// A resumable scan of one library. The host serializes each step with file
 /// mutations; no document bytes are retained between steps.
+#[derive(Debug)]
 pub struct Scan {
     pub(crate) root: PathBuf,
     entries: Vec<Entry>,
@@ -29,11 +37,19 @@ pub struct Scan {
     report: ScanReport,
 }
 
+fn join(relative: &str, name: &str) -> String {
+    if relative.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{relative}/{name}")
+    }
+}
+
 impl Scan {
     pub(crate) fn new(root: &Path, force: bool) -> Self {
         Self {
             root: root.to_owned(),
-            entries: vec![Entry::Directory(root.to_owned())],
+            entries: vec![Entry::Root],
             force,
             full: true,
             seen: HashSet::new(),
@@ -57,25 +73,32 @@ impl Scan {
         }
     }
 
-    fn unreadable(&mut self, dir: &Path, error: std::io::Error) {
-        log::warn!("could not list {}: {error}", dir.display());
-        if let Some(relative) = index::relative_path(&self.root, dir) {
-            self.shadowed.push(if relative.is_empty() {
-                relative
-            } else {
-                format!("{relative}/")
-            });
+    fn unreadable(&mut self, relative: &str, error: io::Error) {
+        log::warn!("could not list {relative}: {error}");
+        self.shadowed.push(if relative.is_empty() {
+            String::new()
         } else {
-            self.paths_complete = false;
-        }
+            format!("{relative}/")
+        });
         self.report.failures.push(error.into());
     }
 
-    fn index_path(&mut self, conn: &Connection, path: &str) -> Result<(), IndexError> {
+    fn list(&mut self, dir: Dir, relative: String) {
+        match dir.entries() {
+            Ok(entries) => self.entries.push(Entry::Entries {
+                dir,
+                relative,
+                entries: Box::new(entries),
+            }),
+            Err(error) => self.unreadable(&relative, error),
+        }
+    }
+
+    fn index_path(&mut self, conn: &Connection, root: &Dir, path: &str) -> Result<(), IndexError> {
         let result = if self.force {
-            index::reindex_file(conn, &self.root, path)
+            index::reindex_file(conn, root, path)
         } else {
-            index::index_file(conn, &self.root, path)
+            index::index_file(conn, root, path)
         };
         match result {
             Ok(true) => self.report.changed.push(path.to_owned()),
@@ -89,14 +112,14 @@ impl Scan {
         Ok(())
     }
 
-    fn file(&mut self, conn: &Connection, path: &Path) -> Result<(), IndexError> {
-        match RelativePath::from_host(&self.root, path) {
+    fn file(&mut self, conn: &Connection, root: &Dir, relative: &str) -> Result<(), IndexError> {
+        match RelativePath::parse(relative) {
             Ok(relative) => {
-                self.index_path(conn, relative.as_str())?;
+                self.index_path(conn, root, relative.as_str())?;
                 self.seen.insert(relative.into_string());
             }
             Err(error) => {
-                log::warn!("could not index {}: {error}", path.display());
+                log::warn!("could not index {relative}: {error}");
                 self.paths_complete = false;
                 self.report.failures.push(error.into());
             }
@@ -104,47 +127,83 @@ impl Scan {
         Ok(())
     }
 
-    pub(crate) fn step(&mut self, conn: &Connection) -> Result<bool, IndexError> {
+    fn child(
+        &mut self,
+        conn: &Connection,
+        root: &Dir,
+        dir: &Dir,
+        relative: &str,
+        entry: &cap_std::fs::DirEntry,
+    ) -> Result<(), IndexError> {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            self.paths_complete = false;
+            self.report.failures.push(
+                io::Error::new(io::ErrorKind::InvalidData, "the path is not valid unicode").into(),
+            );
+            return Ok(());
+        };
+        if name.starts_with('.') {
+            return Ok(());
+        }
+        let child = join(relative, name);
+        let kind = match entry.file_type() {
+            Ok(kind) => kind,
+            Err(error) => {
+                self.unreadable(relative, error);
+                return Ok(());
+            }
+        };
+        if kind.is_dir() {
+            match dir.open_dir_nofollow(name) {
+                Ok(child_dir) => self.list(child_dir, child),
+                Err(error) => self.unreadable(&child, error),
+            }
+        } else if kind.is_file() && index::is_note_file(Path::new(name)) {
+            self.file(conn, root, &child)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn step(&mut self, conn: &Connection, root: &Dir) -> Result<bool, IndexError> {
         if let Some(entry) = self.entries.pop() {
             match entry {
-                Entry::Directory(path) => match fs::read_dir(&path) {
-                    Ok(entries) => self.entries.push(Entry::Entries(path, Box::new(entries))),
-                    Err(error) => self.unreadable(&path, error),
+                Entry::Root => match root.try_clone() {
+                    Ok(dir) => self.list(dir, String::new()),
+                    Err(error) => self.unreadable("", error),
                 },
-                Entry::Entries(dir, mut entries) => match entries.next() {
+                Entry::Entries {
+                    dir,
+                    relative,
+                    mut entries,
+                } => match entries.next() {
                     None => {}
-                    Some(Err(error)) => self.unreadable(&dir, error),
+                    Some(Err(error)) => {
+                        self.entries.push(Entry::Entries {
+                            dir,
+                            relative: relative.clone(),
+                            entries,
+                        });
+                        self.unreadable(&relative, error);
+                    }
                     Some(Ok(entry)) => {
-                        if entry
-                            .file_name()
-                            .to_str()
-                            .is_some_and(|name| name.starts_with('.'))
-                        {
-                            self.entries.push(Entry::Entries(dir, entries));
-                            return Ok(false);
-                        }
-                        let path = entry.path();
-                        match entry.file_type() {
-                            Err(error) => self.unreadable(&dir, error),
-                            Ok(kind) => {
-                                self.entries.push(Entry::Entries(dir, entries));
-                                if kind.is_dir() {
-                                    self.entries.push(Entry::Directory(path));
-                                } else if kind.is_file() && index::is_note_file(&path) {
-                                    self.file(conn, &path)?;
-                                }
-                            }
-                        }
+                        let parent = Entry::Entries {
+                            dir: dir.try_clone()?,
+                            relative: relative.clone(),
+                            entries,
+                        };
+                        self.entries.push(parent);
+                        self.child(conn, root, &dir, &relative, &entry)?;
                     }
                 },
                 Entry::Observed(path) => {
-                    if index::relative_path(&self.root, &path).is_none() {
+                    let Some(relative) = index::relative_path(&self.root, &path) else {
                         return Ok(false);
-                    }
+                    };
                     if index::is_note_file(&path) {
-                        self.file(conn, &path)?;
+                        self.file(conn, root, &relative)?;
                     } else if path.is_dir() || !path.exists() {
-                        self.entries = vec![Entry::Directory(self.root.clone())];
+                        self.entries = vec![Entry::Root];
                         self.full = true;
                     }
                 }
@@ -161,7 +220,7 @@ impl Scan {
             // A foreground create or move may have arrived after directory enumeration.
             // Re-read the path under the same lock instead of deleting from an old listing.
             if RelativePath::parse(&path).is_ok() {
-                self.index_path(conn, &path)?;
+                self.index_path(conn, root, &path)?;
             } else {
                 index::remove(conn, &path)?;
                 self.report.changed.push(path);
@@ -201,15 +260,16 @@ impl Scan {
         self.report
     }
 
-    pub(crate) fn run(mut self, conn: &Connection) -> Result<ScanReport, IndexError> {
-        while !self.step(conn)? {}
+    pub(crate) fn run(mut self, conn: &Connection, root: &Dir) -> Result<ScanReport, IndexError> {
+        while !self.step(conn, root)? {}
         Ok(self.finish())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fs;
+
     use crate::{CreateNote, Library, NoteName};
 
     #[test]
@@ -217,7 +277,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("keep.md"), "# Keep").unwrap();
         fs::write(directory.path().join("gone.md"), "# Gone").unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.scan_complete().unwrap();
         fs::remove_file(directory.path().join("gone.md")).unwrap();
         let mut scan = library.begin_scan(true);
@@ -255,7 +315,7 @@ mod tests {
     fn should_keep_last_known_rows_until_a_forced_scan_refreshes_them() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Current").unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.scan_complete().unwrap();
         library
             .conn
@@ -279,7 +339,7 @@ mod tests {
     fn should_not_hide_a_failed_mutation_when_a_scan_finishes() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.scan_complete().unwrap();
         let mut scan = library.begin_scan(true);
         while scan.deletions.is_none() {

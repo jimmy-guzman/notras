@@ -320,7 +320,10 @@ pub async fn set_notes_dir<R: Runtime>(
         let replacement = if same_directory {
             None
         } else {
-            let library = Library::open(Path::new(&path))?;
+            let cache = crate::index_cache(&app).map_err(|error| {
+                CommandError::with_source("the cache folder is unavailable", error)
+            })?;
+            let library = Library::open(Path::new(&path), &cache)?;
             let notes_dir = library.directory().to_owned();
             state.library.prepare(&library)?;
             let generation = state.library().generation() + 1;

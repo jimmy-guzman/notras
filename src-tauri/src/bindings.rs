@@ -103,12 +103,11 @@ mod tests {
     #[test]
     fn should_commit_notes_and_emit_serialized_changes_after_releasing_the_lock() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
-                    Library::open(directory.path()).unwrap(),
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
                     |_| {},
                 ),
                 watcher: Mutex::new(None),
@@ -208,9 +207,8 @@ mod tests {
     #[test]
     fn should_report_committed_capture_warnings_after_unlocking_and_recover_reads() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
-        let library = Library::open(directory.path()).unwrap();
-        let conn = rusqlite::Connection::open(directory.path().join(".notras/index.db")).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let conn = rusqlite::Connection::open(library.index_path()).unwrap();
         conn.execute_batch("CREATE TRIGGER refuse_insert BEFORE INSERT ON note BEGIN SELECT RAISE(FAIL, 'index unavailable'); END;").unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
@@ -262,13 +260,12 @@ mod tests {
     #[test]
     fn should_reject_invalid_arguments_and_preserve_existing_files_on_expected_failures() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
         fs::write(directory.path().join("kept.md"), "original").unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
-                    Library::open(directory.path()).unwrap(),
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
                     |_| {},
                 ),
                 watcher: Mutex::new(None),
@@ -317,12 +314,11 @@ mod tests {
     #[test]
     fn should_decode_camel_case_attachment_arguments() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
-                    Library::open(directory.path()).unwrap(),
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
                     |_| {},
                 ),
                 watcher: Mutex::new(None),
@@ -354,7 +350,7 @@ mod tests {
         let initial = root.join("initial");
         let first = root.join("first");
         let second = root.join("second");
-        fs::create_dir_all(initial.join(".notras")).unwrap();
+        fs::create_dir_all(&initial).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let mut context = tauri::test::mock_context(tauri::test::noop_assets());
         // The mock context has no bundle validation. An absolute identifier keeps
@@ -365,7 +361,7 @@ mod tests {
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
-                    Library::open(&initial).unwrap(),
+                    Library::open(&initial, &directory.path().join(".index")).unwrap(),
                     |_| {},
                 ),
                 watcher: Mutex::new(None),
@@ -440,7 +436,7 @@ mod tests {
         let alias = directory.path().join("alias");
         fs::create_dir(&real).unwrap();
         std::os::unix::fs::symlink(&real, &alias).unwrap();
-        let library = Library::open(&alias).unwrap();
+        let library = Library::open(&alias, &directory.path().join(".index")).unwrap();
         let notes_dir = library.directory().to_owned();
         assert_eq!(notes_dir, real.canonicalize().unwrap());
         assert_ne!(notes_dir, alias);
@@ -507,7 +503,7 @@ mod tests {
             .plugin(tauri_plugin_store::Builder::new().build())
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
-                    Library::open(&initial).unwrap(),
+                    Library::open(&initial, &directory.path().join(".index")).unwrap(),
                     |_| {},
                 ),
                 watcher: Mutex::new(None),
@@ -582,7 +578,7 @@ mod tests {
         let status_app = app.handle().clone();
         app.manage(AppState {
             library: crate::library::LibraryOwner::new(
-                Library::open(directory.path()).unwrap(),
+                Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
                 move |status| status.emit(&status_app).unwrap(),
             ),
             watcher: Mutex::new(None),
@@ -618,14 +614,13 @@ mod tests {
     #[test]
     fn should_serve_typed_saved_queries_through_the_production_registry() {
         let directory = tempfile::tempdir().unwrap();
-        fs::create_dir(directory.path().join(".notras")).unwrap();
         fs::write(directory.path().join("atlas.md"), "# Atlas\n[[Source]]").unwrap();
         fs::write(
             directory.path().join("source.md"),
             "---\ntags: [work]\n---\n# Source\nAtlas in prose",
         )
         .unwrap();
-        let library = Library::open(directory.path()).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.scan_complete().unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
