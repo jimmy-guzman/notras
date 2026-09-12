@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock};
 
+use crate::bindings::IndexStatus;
 use notras_core::{CommandError, Library, ReadView, Scan};
 
 type Completion = Arc<OnceLock<Result<(), CommandError>>>;
@@ -18,6 +19,27 @@ struct OwnedLibrary {
     generation: u64,
     initialized: bool,
     active: Option<ActiveScan>,
+    status: IndexStatus,
+    status_revision: u64,
+}
+
+/// A transition numbered under the guard, so publication can drop one that a
+/// later transition has already overtaken.
+struct StatusChange {
+    revision: u64,
+    status: IndexStatus,
+}
+
+fn set_status(state: &mut OwnedLibrary, next: IndexStatus) -> Option<StatusChange> {
+    if state.status == next {
+        return None;
+    }
+    state.status = next.clone();
+    state.status_revision += 1;
+    Some(StatusChange {
+        revision: state.status_revision,
+        status: next,
+    })
 }
 
 enum ScanKind {
@@ -77,21 +99,49 @@ pub struct LibraryOwner {
     changed: Condvar,
     waiting: AtomicUsize,
     publication: RwLock<()>,
+    on_status: Box<dyn Fn(IndexStatus) + Send + Sync>,
+    reported: Mutex<u64>,
 }
 
 impl LibraryOwner {
-    pub fn new(library: Library) -> Self {
+    /// A new owner reports scanning: its readers wait until the first scan completes.
+    pub fn new(library: Library, on_status: impl Fn(IndexStatus) + Send + Sync + 'static) -> Self {
         Self {
             state: Mutex::new(OwnedLibrary {
                 library,
                 generation: 0,
                 initialized: false,
                 active: None,
+                status: IndexStatus::Scanning,
+                status_revision: 0,
             }),
             changed: Condvar::new(),
             waiting: AtomicUsize::new(0),
             publication: RwLock::new(()),
+            on_status: Box::new(on_status),
+            reported: Mutex::new(0),
         }
+    }
+
+    /// Publish in revision order. The sink runs under its own lock, outside the
+    /// operation guard, so a transition overtaken between the guard and here is dropped.
+    fn report(&self, change: Option<StatusChange>) {
+        let Some(change) = change else {
+            return;
+        };
+        let mut reported = self
+            .reported
+            .lock()
+            .expect("status publication was poisoned");
+        if change.revision <= *reported {
+            return;
+        }
+        *reported = change.revision;
+        (self.on_status)(change.status);
+    }
+
+    pub fn status(&self) -> IndexStatus {
+        self.foreground().status.clone()
     }
 
     fn foreground(&self) -> MutexGuard<'_, OwnedLibrary> {
@@ -235,12 +285,15 @@ impl LibraryOwner {
                 .begin_scan(dirty || matches!(kind, ScanKind::Rebuild)),
         };
         let completion = Arc::new(OnceLock::new());
+        let waiting = view.is_none();
         state.active = Some(ActiveScan {
             completion: completion.clone(),
             view,
             changed: Vec::new(),
         });
+        let change = waiting.then(|| set_status(&mut state, IndexStatus::Scanning));
         drop(state);
+        self.report(change.flatten());
         self.run_steps(generation, completion, scan)
     }
 
@@ -269,8 +322,18 @@ impl LibraryOwner {
                 .set(result.as_ref().map(|_| ()).map_err(Clone::clone))
                 .expect("a scan completes once");
             let active = state.active.take().expect("a running scan has an owner");
+            let change = set_status(
+                &mut state,
+                match &result {
+                    Ok(_) => IndexStatus::Ready,
+                    Err(error) => IndexStatus::Failed {
+                        reason: error.message.clone(),
+                    },
+                },
+            );
             self.changed.notify_all();
             drop(state);
+            self.report(change);
             return result.map(|mut paths| {
                 paths.extend(active.changed);
                 paths.sort();
@@ -298,22 +361,26 @@ impl LibraryOwner {
 
     /// The caller has scanned the replacement completely and can persist its selection.
     pub fn replace_scanned(&self, library: Library) {
-        let _publication = self
-            .publication
-            .write()
-            .expect("library publication was poisoned");
-        let mut state = self.foreground();
-        if let Some(scan) = state.active.take() {
-            scan.completion
-                .set(Err(
-                    std::io::Error::other("the selected library changed").into()
-                ))
-                .expect("a scan completes once");
-        }
-        state.library = library;
-        state.generation += 1;
-        state.initialized = true;
-        self.changed.notify_all();
+        let change = {
+            let _publication = self
+                .publication
+                .write()
+                .expect("library publication was poisoned");
+            let mut state = self.foreground();
+            if let Some(scan) = state.active.take() {
+                scan.completion
+                    .set(Err(
+                        std::io::Error::other("the selected library changed").into()
+                    ))
+                    .expect("a scan completes once");
+            }
+            state.library = library;
+            state.generation += 1;
+            state.initialized = true;
+            self.changed.notify_all();
+            set_status(&mut state, IndexStatus::Ready)
+        };
+        self.report(change);
     }
 
     /// Emit after releasing the operation guard, without crossing a library switch.
@@ -341,7 +408,7 @@ mod tests {
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
         let library = Library::open(directory.path()).unwrap();
         library.scan_complete().unwrap();
-        let owner = Arc::new(LibraryOwner::new(library));
+        let owner = Arc::new(LibraryOwner::new(library, |_| {}));
         let paused = owner.read();
         let mut scan = paused.begin_scan(true);
         let writer = owner.clone();
@@ -384,7 +451,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("observed.md"), "# Observed").unwrap();
         fs::write(directory.path().join("untouched.md"), "# Untouched").unwrap();
-        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
         let observed = owner.read().directory().join("observed.md");
 
         owner.observe(0, vec![observed]).unwrap();
@@ -401,7 +468,7 @@ mod tests {
     fn should_repeat_a_save_invalidation_when_the_scan_finishes() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
-        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
         owner.scan().unwrap();
         let completion = Arc::new(OnceLock::new());
         let scan = {
@@ -448,7 +515,7 @@ mod tests {
     fn should_allow_a_save_while_a_query_retains_its_read_view() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
-        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
         owner.scan().unwrap();
 
         let notes = owner
@@ -474,7 +541,7 @@ mod tests {
     fn should_reject_a_query_result_after_its_library_is_replaced() {
         let old = tempfile::tempdir().unwrap();
         fs::write(old.path().join("old.md"), "# Old").unwrap();
-        let owner = LibraryOwner::new(Library::open(old.path()).unwrap());
+        let owner = LibraryOwner::new(Library::open(old.path()).unwrap(), |_| {});
         owner.scan().unwrap();
         let fresh = tempfile::tempdir().unwrap();
         fs::write(fresh.path().join("new.md"), "# New").unwrap();
@@ -502,7 +569,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
         fs::write(directory.path().join("broken.md"), [0xff]).unwrap();
-        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap());
+        let owner = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
         assert!(owner.query(|view| view.list_tags()).is_err());
         owner.read().save_note("note.md", "# After", None).unwrap();
         assert_eq!(
@@ -523,7 +590,7 @@ mod tests {
     fn should_cancel_scan_work_and_events_from_a_replaced_library() {
         let old = tempfile::tempdir().unwrap();
         fs::write(old.path().join("old.md"), "# Old").unwrap();
-        let owner = LibraryOwner::new(Library::open(old.path()).unwrap());
+        let owner = LibraryOwner::new(Library::open(old.path()).unwrap(), |_| {});
         let completion = Arc::new(OnceLock::new());
         let scan = {
             let mut state = owner.foreground();
@@ -558,12 +625,122 @@ mod tests {
         owner.publish(1, || assert!(owner.try_read().is_some()));
     }
 
+    fn reporting_owner(library: Library) -> (LibraryOwner, std::sync::mpsc::Receiver<IndexStatus>) {
+        let (sender, statuses) = std::sync::mpsc::channel();
+        let owner = LibraryOwner::new(library, move |status| sender.send(status).unwrap());
+        (owner, statuses)
+    }
+
+    #[test]
+    fn should_report_scanning_while_readers_wait_and_ready_after_the_scan() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let (owner, statuses) = reporting_owner(Library::open(directory.path()).unwrap());
+        assert_eq!(owner.status(), IndexStatus::Scanning);
+
+        owner.scan().unwrap();
+
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            [IndexStatus::Ready]
+        );
+        assert_eq!(owner.status(), IndexStatus::Ready);
+    }
+
+    #[test]
+    fn should_report_a_failed_scan_with_its_reason() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("broken.md"), [0xff]).unwrap();
+        let (owner, statuses) = reporting_owner(Library::open(directory.path()).unwrap());
+
+        let Err(error) = owner.query(|view| view.list_tags()) else {
+            panic!("an unreadable note must fail recovery");
+        };
+
+        let failed = IndexStatus::Failed {
+            reason: error.message,
+        };
+        assert_eq!(statuses.try_iter().collect::<Vec<_>>(), [failed.clone()]);
+        assert_eq!(owner.status(), failed);
+
+        fs::write(directory.path().join("broken.md"), "# Repaired").unwrap();
+        owner.query(|view| view.list_tags()).unwrap();
+
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            [IndexStatus::Scanning, IndexStatus::Ready]
+        );
+    }
+
+    #[test]
+    fn should_drop_a_status_change_overtaken_before_publication() {
+        let old = tempfile::tempdir().unwrap();
+        let (owner, statuses) = reporting_owner(Library::open(old.path()).unwrap());
+        owner.scan().unwrap();
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            [IndexStatus::Ready]
+        );
+        let stale = set_status(
+            &mut owner.foreground(),
+            IndexStatus::Failed {
+                reason: "overtaken".into(),
+            },
+        );
+        let fresh = tempfile::tempdir().unwrap();
+        let replacement = Library::open(fresh.path()).unwrap();
+        replacement.scan_complete().unwrap();
+        owner.replace_scanned(replacement);
+
+        owner.report(stale);
+
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            [IndexStatus::Ready]
+        );
+        assert_eq!(owner.status(), IndexStatus::Ready);
+    }
+
+    #[test]
+    fn should_not_report_a_healthy_rebuild_as_scanning() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let (owner, statuses) = reporting_owner(Library::open(directory.path()).unwrap());
+        owner.scan().unwrap();
+        assert_eq!(statuses.try_iter().count(), 1);
+
+        owner.rebuild().unwrap();
+
+        assert_eq!(statuses.try_iter().count(), 0);
+        assert_eq!(owner.status(), IndexStatus::Ready);
+    }
+
+    #[test]
+    fn should_report_ready_after_a_replacement() {
+        let old = tempfile::tempdir().unwrap();
+        fs::write(old.path().join("broken.md"), [0xff]).unwrap();
+        let (owner, statuses) = reporting_owner(Library::open(old.path()).unwrap());
+        assert!(owner.query(|view| view.list_tags()).is_err());
+        assert!(matches!(owner.status(), IndexStatus::Failed { .. }));
+        let fresh = tempfile::tempdir().unwrap();
+        let replacement = Library::open(fresh.path()).unwrap();
+        replacement.scan_complete().unwrap();
+
+        owner.replace_scanned(replacement);
+
+        assert_eq!(statuses.try_iter().last(), Some(IndexStatus::Ready));
+        assert_eq!(owner.status(), IndexStatus::Ready);
+    }
+
     #[test]
     fn should_keep_complete_paths_visible_during_a_folder_rescan() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join("before")).unwrap();
         fs::write(directory.path().join("before/note.md"), "# Note").unwrap();
-        let owner = Arc::new(LibraryOwner::new(Library::open(directory.path()).unwrap()));
+        let owner = Arc::new(LibraryOwner::new(
+            Library::open(directory.path()).unwrap(),
+            |_| {},
+        ));
         owner.scan().unwrap();
         fs::rename(
             directory.path().join("before"),

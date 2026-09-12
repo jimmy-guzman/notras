@@ -17,7 +17,7 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createNote } from "@/data/create-note";
-import { noteQueries, notesDirQuery } from "@/data/queries";
+import { indexStatusQuery, noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
@@ -175,7 +175,11 @@ function RootLayout() {
       }
     });
 
-    return disposeLater(unlisten);
+    const unlistenStatus = events.indexStatus.listen((event) => {
+      queryClient.setQueryData(indexStatusQuery.queryKey, event.payload);
+    });
+
+    return disposeLater(unlisten, unlistenStatus);
   }, [queryClient]);
 
   // Tray menu + "Open With" plumbing from Rust.

@@ -10,6 +10,7 @@ import { getMentions } from "./get-mentions";
 import { getNote } from "./get-note";
 import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
+import { getIndexStatus } from "./index-status";
 import { getNotesDir } from "./notes-dir";
 import { searchNotes } from "./search-notes";
 
@@ -101,4 +102,11 @@ export const notesDirQuery = queryOptions({
   meta: { what: "could not refresh the notes folder" },
   queryFn: getNotesDir,
   queryKey: ["notes-dir"] as const,
+});
+
+/** Whether indexed reads answer now or wait on a scan; primed on demand, then event-driven. */
+export const indexStatusQuery = queryOptions({
+  meta: { what: "could not refresh the index status" },
+  queryFn: getIndexStatus,
+  queryKey: ["index-status"] as const,
 });

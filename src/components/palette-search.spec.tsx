@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { PaletteSearch } from "@/components/palette-search";
 import { Command, CommandList } from "@/components/ui/command";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
-import { noteQueries } from "@/data/queries";
+import { indexStatusQuery, noteQueries } from "@/data/queries";
 
 function mount(query: string, error?: Error) {
   const client = new QueryClient({
@@ -15,6 +15,7 @@ function mount(query: string, error?: Error) {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+  client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
   client.setQueryData(noteQueries.list().queryKey, []);
   client.setQueryData(noteQueries.tags().queryKey, []);
   const options = noteQueries.search(parseSearch(query));
@@ -97,6 +98,56 @@ describe("palette search states", () => {
     expect(host.textContent).not.toContain("searching notes");
     expect(host.textContent).not.toContain("nothing found");
     expect(host.textContent).not.toContain("create");
+  });
+  it("should say indexing while a first search waits on the scan", async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(indexStatusQuery.queryKey, { state: "scanning" });
+    client.setQueryData(noteQueries.tags().queryKey, []);
+    mockIPC((command) => {
+      if (command === "search_notes") {
+        return new Promise(() => undefined);
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+      client.clear();
+    });
+    const { container } = render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(
+          Command,
+          { shouldFilter: false },
+          createElement(
+            CommandList,
+            null,
+            createElement(PaletteSearch, {
+              onCreate: () => undefined,
+              onQueryChange: () => undefined,
+              onSelectNote: () => undefined,
+              query: "budget",
+            })
+          )
+        )
+      )
+    );
+
+    expect(container.textContent).toContain("indexing notes");
+    expect(container.textContent).not.toContain("nothing found");
+    expect(container.textContent).not.toContain("create");
+    act(() => {
+      client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+    });
+    await waitFor(() => {
+      expect(container.textContent).not.toContain("indexing notes");
+    });
+    expect(container.textContent).not.toContain("nothing found");
   });
   it("should show incomplete input without offering creation", () => {
     const { host } = mount("folder:");

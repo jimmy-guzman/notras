@@ -25,7 +25,7 @@ import {
   searchFolders,
   searchSuggestion,
 } from "@/core/search";
-import { noteQueries } from "@/data/queries";
+import { indexStatusQuery, noteQueries } from "@/data/queries";
 import { reasonOf } from "@/lib/ui/failure";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
 
@@ -184,6 +184,46 @@ function filterHelp(kind: SearchFilter["kind"] | undefined) {
 
 const NO_NOTES: NoteMeta[] = [];
 
+function stopCommandKeys(event: React.KeyboardEvent) {
+  if (event.key !== "Escape") {
+    event.stopPropagation();
+  }
+}
+
+function emptyStatus(state: {
+  candidate: SearchFilter["kind"] | undefined;
+  error: unknown;
+  failed: boolean;
+  idle: boolean;
+  incomplete: boolean;
+  indexing: boolean;
+}) {
+  if (state.indexing) {
+    return {
+      description: "search opens when the index is ready",
+      title: "indexing notes",
+    };
+  }
+  if (state.incomplete) {
+    return {
+      description: filterHelp(state.candidate),
+      title: "incomplete filter",
+    };
+  }
+  if (state.failed) {
+    return {
+      description: reasonOf(state.error),
+      title: "could not search notes",
+    };
+  }
+  return {
+    description: state.idle
+      ? "create a note with the new note action"
+      : "try different words or remove a filter",
+    title: "nothing found",
+  };
+}
+
 function useSearchResults(query: string, showPicker: boolean) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
@@ -219,14 +259,36 @@ function useSearchResults(query: string, showPicker: boolean) {
   const visible = pending ? displayed.notes : readyNotes;
   const resultQuery = pending ? displayed.query : query;
   const reading = showingResults && !waitingForDebounce && result.isFetching;
+  const indexStatus = useQuery(indexStatusQuery);
+  const indexing =
+    pending && visible.length === 0 && indexStatus.data?.state === "scanning";
   return {
     failed,
+    indexing,
     pending,
     readingQuery: reading ? query : undefined,
     result,
     resultQuery,
     visible,
   };
+}
+
+/** Report a read that stays pending for 500ms, and clear it when it settles or changes. */
+function useLoadingSignal(
+  readingQuery: string | undefined,
+  onLoadingChange: ((loading: boolean) => void) | undefined
+) {
+  useLayoutEffect(() => {
+    onLoadingChange?.(false);
+    if (readingQuery === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => onLoadingChange?.(true), 500);
+    return () => {
+      clearTimeout(timer);
+      onLoadingChange?.(false);
+    };
+  }, [onLoadingChange, readingQuery]);
 }
 
 function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
@@ -285,22 +347,19 @@ export function PaletteSearch({
     useFilterChoices(candidate);
   const showPicker = picker !== undefined && picker.choices.length > 0;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
-  const { failed, pending, readingQuery, result, resultQuery, visible } =
-    useSearchResults(query, choosingFilter);
+  const {
+    failed,
+    indexing,
+    pending,
+    readingQuery,
+    result,
+    resultQuery,
+    visible,
+  } = useSearchResults(query, choosingFilter);
   useLayoutEffect(() => {
     onResultQueryChange?.(resultQuery);
   }, [onResultQueryChange, resultQuery]);
-  useLayoutEffect(() => {
-    onLoadingChange?.(false);
-    if (readingQuery === undefined) {
-      return;
-    }
-    const timer = setTimeout(() => onLoadingChange?.(true), 500);
-    return () => {
-      clearTimeout(timer);
-      onLoadingChange?.(false);
-    };
-  }, [onLoadingChange, readingQuery]);
+  useLoadingSignal(readingQuery, onLoadingChange);
   const pickFilter = useCallback(
     (value: string) => {
       if (candidate !== undefined) {
@@ -311,11 +370,6 @@ export function PaletteSearch({
     },
     [candidate, cursor, onQueryChange, query]
   );
-  const stopCommandKeys = useCallback((event: React.KeyboardEvent) => {
-    if (event.key !== "Escape") {
-      event.stopPropagation();
-    }
-  }, []);
   const retry = useCallback(async () => {
     await result.refetch();
   }, [result]);
@@ -324,26 +378,19 @@ export function PaletteSearch({
     result.isSuccess &&
     search.filters.length === 0 &&
     visible.length === 0;
-  const status = (() => {
-    if (search.incomplete) {
-      return {
-        description: filterHelp(candidate?.kind),
-        title: "incomplete filter",
-      };
-    }
-    if (failed) {
-      return {
-        description: reasonOf(result.error),
-        title: "could not search notes",
-      };
-    }
-    return {
-      description: idle
-        ? "create a note with the new note action"
-        : "try different words or remove a filter",
-      title: "nothing found",
-    };
-  })();
+  const empty =
+    !choosingFilter &&
+    (indexing || !pending) &&
+    (visible.length === 0 || failed) &&
+    !offerCreate;
+  const status = emptyStatus({
+    candidate: candidate?.kind,
+    error: result.error,
+    failed,
+    idle,
+    incomplete: search.incomplete,
+    indexing,
+  });
 
   return (
     <div aria-busy={pending || choicesPending}>
@@ -361,9 +408,7 @@ export function PaletteSearch({
           </Button>
         </div>
       ) : null}
-      {!(choosingFilter || pending) &&
-      (visible.length === 0 || failed) &&
-      !offerCreate ? (
+      {empty ? (
         <Empty className="p-6" role="status">
           <EmptyHeader>
             <EmptyTitle>{status.title}</EmptyTitle>

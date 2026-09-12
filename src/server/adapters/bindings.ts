@@ -35,6 +35,9 @@ async findMentions(path: string) : Promise<Mention[]> {
 async getNotesDir() : Promise<string> {
     return await TAURI_INVOKE("get_notes_dir");
 },
+async indexStatus() : Promise<IndexStatus> {
+    return await TAURI_INVOKE("index_status");
+},
 async listNotes(filters: NoteFilters) : Promise<NoteMeta[]> {
     return await TAURI_INVOKE("list_notes", { filters });
 },
@@ -92,9 +95,11 @@ async showCapture() : Promise<void> {
 
 
 export const events = __makeEvents__<{
+indexStatus: IndexStatus,
 mutationWarnings: MutationWarnings,
 notesChanged: NotesChanged
 }>({
+indexStatus: "index-status",
 mutationWarnings: "mutation-warnings",
 notesChanged: "notes-changed"
 })
@@ -123,6 +128,10 @@ export type GraphResult = { picture: Picture | null; mentionsError: CommandError
 export type GraphTarget = { kind: "note"; path: string } | { kind: "hub"; hub: Hub }
 export type Hub = { kind: "folder"; folder: string } | { kind: "tag"; tag: string }
 export type HubPill = { count: number; hub: Hub }
+/**
+ * Whether indexed reads answer now, wait on a scan, or fail until recovery succeeds.
+ */
+export type IndexStatus = { state: "scanning" } | { state: "ready" } | { state: "failed"; reason: string }
 export type Mention = { lines: MentionLine[]; note: NoteMeta }
 export type MentionLine = { context: string; line: number; match: string }
 export type MutationReceipt = { path: string; updatedAt: number; warnings: MutationWarning[] }
