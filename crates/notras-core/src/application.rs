@@ -1112,6 +1112,36 @@ mod tests {
         assert_eq!(fs::read_to_string(path).unwrap(), "# original");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn should_read_an_external_file_through_a_symlink() {
+        let directory = tempfile::tempdir().unwrap();
+        let real = directory.path().join("real.md");
+        let link = directory.path().join("link.md");
+        fs::write(&real, "# Real").unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let file = read_external(&link).unwrap();
+
+        assert_eq!(file.content, "# Real");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_to_save_an_external_file_through_a_symlink() {
+        let directory = tempfile::tempdir().unwrap();
+        let real = directory.path().join("real.md");
+        let link = directory.path().join("link.md");
+        fs::write(&real, "# Real").unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        assert!(write_external(&link, "# Changed", None).is_err());
+
+        assert_eq!(fs::read_to_string(&real).unwrap(), "# Real");
+        assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
+    }
+
     #[test]
     fn should_save_external_heading_edits_without_an_index() {
         let directory = tempfile::tempdir().unwrap();
