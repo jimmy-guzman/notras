@@ -5,12 +5,17 @@ const initial = {
   content: "# Errands\n\nbody",
   kind: "note",
   path: "shopping.md",
+  revision: "r0",
   updatedAt: new Date(0),
 } as const;
 
 describe("note persistence", () => {
   it("should defer a missing-file observation while newer typing overlaps a save", async () => {
-    const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+    const held = Promise.withResolvers<{
+      path: string;
+      revision: string;
+      updatedAt: Date;
+    }>();
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
       onPathChanged: () => undefined,
@@ -22,7 +27,11 @@ describe("note persistence", () => {
     note.edit({ content: "# Errands\n\nnewer typing", mode: "body" });
     note.receiveFile("shopping.md", undefined, true);
     expect(note.store.state.missing).toBe(false);
-    held.resolve({ path: "shopping.md", updatedAt: new Date(1) });
+    held.resolve({
+      path: "shopping.md",
+      revision: "r1",
+      updatedAt: new Date(1),
+    });
     await saving;
     note.receiveFile("shopping.md", undefined, true);
     expect(note.store.state.missing).toBe(true);
@@ -30,7 +39,11 @@ describe("note persistence", () => {
   });
 
   it("should keep newer writing when a rename save finishes", async () => {
-    const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+    const held = Promise.withResolvers<{
+      path: string;
+      revision: string;
+      updatedAt: Date;
+    }>();
     const writes: unknown[] = [];
     const changes: string[] = [];
     const note = createNotePersistence(initial, {
@@ -41,7 +54,7 @@ describe("note persistence", () => {
         writes.push({ content, name, path });
         return writes.length === 1
           ? held.promise
-          : Promise.resolve({ path, updatedAt: new Date(2) });
+          : Promise.resolve({ path, revision: "r2", updatedAt: new Date(2) });
       },
     });
     const renaming = note.changePath({
@@ -54,7 +67,11 @@ describe("note persistence", () => {
       content: "# Weekend errands\n\nbody with newer writing",
       mode: "body",
     });
-    held.resolve({ path: "weekend-errands.md", updatedAt: new Date(1) });
+    held.resolve({
+      path: "weekend-errands.md",
+      revision: "r1",
+      updatedAt: new Date(1),
+    });
     await renaming;
     expect(note.store.state.status).toBe("dirty");
     expect(note.store.state.content).toContain("newer writing");
@@ -75,7 +92,11 @@ describe("note persistence", () => {
   });
 
   it("should undo the heading and filename while their save is still pending", async () => {
-    const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+    const held = Promise.withResolvers<{
+      path: string;
+      revision: string;
+      updatedAt: Date;
+    }>();
     const writes: unknown[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
@@ -84,7 +105,11 @@ describe("note persistence", () => {
         writes.push({ content, name, path });
         return writes.length === 1
           ? held.promise
-          : Promise.resolve({ path: "shopping.md", updatedAt: new Date(2) });
+          : Promise.resolve({
+              path: "shopping.md",
+              revision: "r2",
+              updatedAt: new Date(2),
+            });
       },
     });
     const renaming = note.changePath({
@@ -94,7 +119,11 @@ describe("note persistence", () => {
     await Promise.resolve();
     expect(note.applyHistory("undo")).toBe(true);
     expect(note.store.state.content).toBe(initial.content);
-    held.resolve({ path: "weekend-errands-2.md", updatedAt: new Date(1) });
+    held.resolve({
+      path: "weekend-errands-2.md",
+      revision: "r1",
+      updatedAt: new Date(1),
+    });
     await renaming;
     await note.flush();
     expect(writes.at(-1)).toEqual({
@@ -118,7 +147,11 @@ describe("note persistence", () => {
         attempts += 1;
         return attempts === 1
           ? Promise.reject(new Error("disk full"))
-          : Promise.resolve({ path: "weekend.md", updatedAt: new Date(1) });
+          : Promise.resolve({
+              path: "weekend.md",
+              revision: "r1",
+              updatedAt: new Date(1),
+            });
       },
     });
     await expect(
@@ -140,14 +173,22 @@ describe("note persistence", () => {
       onPathChanged: () => undefined,
       write: (path, _content, name) => {
         writes.push(name);
-        return Promise.resolve({ path, updatedAt: new Date(3) });
+        return Promise.resolve({
+          path,
+          revision: "r3",
+          updatedAt: new Date(3),
+        });
       },
     });
     await note.flush();
     expect(writes).toEqual([]);
     note.receiveFile(
       "shopping.md",
-      { content: "# Changed elsewhere\n\nbody", updatedAt: new Date(1) },
+      {
+        content: "# Changed elsewhere\n\nbody",
+        revision: "r1",
+        updatedAt: new Date(1),
+      },
       false
     );
     await note.flush();
@@ -164,7 +205,11 @@ describe("note persistence", () => {
       onPathChanged: () => undefined,
       write: (path, _content, name) => {
         writes.push(name);
-        return Promise.resolve({ path, updatedAt: new Date(1) });
+        return Promise.resolve({
+          path,
+          revision: "r1",
+          updatedAt: new Date(1),
+        });
       },
     });
     note.edit(
@@ -181,12 +226,17 @@ describe("note persistence", () => {
       changePath: (path, change) => {
         paths.push(path);
         return Promise.resolve({
-          file: { content: initial.content, updatedAt: new Date(1) },
+          file: {
+            content: initial.content,
+            revision: "r1",
+            updatedAt: new Date(1),
+          },
           path: `${change.folder}/shopping.md`,
         });
       },
       onPathChanged: () => undefined,
-      write: (path) => Promise.resolve({ path, updatedAt: new Date(1) }),
+      write: (path) =>
+        Promise.resolve({ path, revision: "r1", updatedAt: new Date(1) }),
     });
     const first = note.changePath({ folder: "one", kind: "move" });
     const second = note.changePath({ folder: "two", kind: "move" });
@@ -201,7 +251,11 @@ describe("note persistence", () => {
     });
   });
   it("should keep source, pin, and tag edits in one document while saving takes time", async () => {
-    const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+    const held = Promise.withResolvers<{
+      path: string;
+      revision: string;
+      updatedAt: Date;
+    }>();
     const writes: string[] = [];
     const note = createNotePersistence(initial, {
       changePath: () => Promise.reject(new Error("no move requested")),
@@ -210,7 +264,7 @@ describe("note persistence", () => {
         writes.push(content);
         return writes.length === 1
           ? held.promise
-          : Promise.resolve({ path, updatedAt: new Date(2) });
+          : Promise.resolve({ path, revision: "r2", updatedAt: new Date(2) });
       },
     });
     const pinning = note.editMetadata({ pinned: true });
@@ -221,7 +275,11 @@ describe("note persistence", () => {
       mode: "document",
     });
     const tagging = note.editMetadata({ tags: ["fresh"] });
-    held.resolve({ path: "shopping.md", updatedAt: new Date(1) });
+    held.resolve({
+      path: "shopping.md",
+      revision: "r1",
+      updatedAt: new Date(1),
+    });
     await pinning;
     await tagging;
     expect(writes.at(-1)).toBe(
@@ -242,13 +300,17 @@ describe("note persistence", () => {
       onPathChanged: () => undefined,
       write: (path, content) => {
         writes.push(content);
-        return Promise.resolve({ path, updatedAt: new Date(2) });
+        return Promise.resolve({
+          path,
+          revision: "r2",
+          updatedAt: new Date(2),
+        });
       },
     });
     const externalContent = "---\ntags: [external]\n---\n# Errands\n\nbody";
     note.receiveFile(
       "shopping.md",
-      { content: externalContent, updatedAt: new Date(1) },
+      { content: externalContent, revision: "r1", updatedAt: new Date(1) },
       false
     );
     expect(note.store.state.content).toBe(externalContent);
@@ -259,7 +321,11 @@ describe("note persistence", () => {
 });
 
 it("should reconcile a newer file observed during a save without receiving it twice", async () => {
-  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const held = Promise.withResolvers<{
+    path: string;
+    revision: string;
+    updatedAt: Date;
+  }>();
   const note = createNotePersistence(initial, {
     changePath: () => Promise.reject(new Error("no move requested")),
     onPathChanged: () => undefined,
@@ -273,12 +339,13 @@ it("should reconcile a newer file observed during a save without receiving it tw
     "shopping.md",
     {
       content: "# Errands\n\nexternal edit",
+      revision: "r2",
       updatedAt: new Date(2),
     },
     false
   );
   expect(note.store.state.content).toContain("local edit");
-  held.resolve({ path: "shopping.md", updatedAt: new Date(1) });
+  held.resolve({ path: "shopping.md", revision: "r1", updatedAt: new Date(1) });
   await saving;
   expect(note.store.state.content).toBe("# Errands\n\nexternal edit");
   expect(note.applyHistory("undo")).toBe(false);
@@ -286,7 +353,11 @@ it("should reconcile a newer file observed during a save without receiving it tw
 });
 
 it("should discard a deferred missing observation after the save changes the path", async () => {
-  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const held = Promise.withResolvers<{
+    path: string;
+    revision: string;
+    updatedAt: Date;
+  }>();
   let closed = false;
   const note = createNotePersistence(initial, {
     changePath: () => Promise.reject(new Error("no move requested")),
@@ -300,7 +371,7 @@ it("should discard a deferred missing observation after the save changes the pat
   const saving = note.changePath({ kind: "retitle", title: "Weekend" });
   await Promise.resolve();
   note.receiveFile("shopping.md", undefined, true);
-  held.resolve({ path: "weekend.md", updatedAt: new Date(1) });
+  held.resolve({ path: "weekend.md", revision: "r1", updatedAt: new Date(1) });
   await saving;
   expect(note.store.state).toMatchObject({
     missing: false,
@@ -319,7 +390,11 @@ it("should autosave native source edits and derive the tab state without a React
     onPathChanged: () => undefined,
     write: (path, content, name) => {
       writes.push({ content, name, path });
-      return Promise.resolve({ path: "weekend.md", updatedAt: new Date(1) });
+      return Promise.resolve({
+        path: "weekend.md",
+        revision: "r1",
+        updatedAt: new Date(1),
+      });
     },
   });
   const release = note.retain();

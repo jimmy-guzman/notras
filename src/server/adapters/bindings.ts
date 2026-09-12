@@ -26,6 +26,9 @@ async cancelQuit() : Promise<void> {
 async classifyOpenPaths(paths: string[]) : Promise<PendingOpen[]> {
     return await TAURI_INVOKE("classify_open_paths", { paths });
 },
+async clearConflict(kind: OpenKind, path: string) : Promise<null> {
+    return await TAURI_INVOKE("clear_conflict", { kind, path });
+},
 async deleteNote(path: string) : Promise<DeleteReceipt> {
     return await TAURI_INVOKE("delete_note", { path });
 },
@@ -59,6 +62,9 @@ async pendingOpenFiles() : Promise<PendingOpen[]> {
 async quitApp() : Promise<void> {
     await TAURI_INVOKE("quit_app");
 },
+async readConflict(kind: OpenKind, path: string) : Promise<ConflictStash | null> {
+    return await TAURI_INVOKE("read_conflict", { kind, path });
+},
 async readExternal(path: string) : Promise<NoteFile> {
     return await TAURI_INVOKE("read_external", { path });
 },
@@ -76,6 +82,9 @@ async moveNote(path: string, folder: string) : Promise<PathMutationReceipt> {
 },
 async setNotesDir(path: string) : Promise<null> {
     return await TAURI_INVOKE("set_notes_dir", { path });
+},
+async stashConflict(kind: OpenKind, path: string, stash: ConflictStash) : Promise<null> {
+    return await TAURI_INVOKE("stash_conflict", { kind, path, stash });
 },
 async writeExternal(path: string, content: string, name: SaveName | null) : Promise<MutationReceipt> {
     return await TAURI_INVOKE("write_external", { path, content, name });
@@ -115,6 +124,10 @@ export type CodeClipboard = { language: string | null }
  * A command failure: the kind the caller branches on, and the message it shows.
  */
 export type CommandError = { kind: ErrorKind; message: string }
+/**
+ * Both sides of an unresolved review: the version the edits started from and the edits.
+ */
+export type ConflictStash = { base: NoteFile; ours: string }
 export type CountedTag = { count: number; tag: string }
 export type CreateNote = { content: string | null; folder: string | null; name: NoteName | null }
 export type DeleteReceipt = { path: string; warnings: MutationWarning[] }
@@ -131,13 +144,13 @@ export type HubPill = { count: number; hub: Hub }
 export type IndexStatus = { state: "scanning" } | { state: "ready" } | { state: "failed"; reason: string }
 export type Mention = { lines: MentionLine[]; note: NoteMeta }
 export type MentionLine = { context: string; line: number; match: string }
-export type MutationReceipt = { path: string; updatedAt: number; warnings: MutationWarning[] }
+export type MutationReceipt = { path: string; revision: string; updatedAt: number; warnings: MutationWarning[] }
 /**
  * A committed file change whose derived index or source cleanup needs attention.
  */
 export type MutationWarning = { kind: "index"; path: string; message: string } | { kind: "cleanup"; path: string; message: string }
 export type MutationWarnings = { warnings: MutationWarning[] }
-export type NoteFile = { content: string; updatedAt: number }
+export type NoteFile = { content: string; revision: string; updatedAt: number }
 export type NoteFilters = { folder: string | null; limit: number | null; pinnedOnly: boolean | null; query: string | null; sort: NoteSort | null; tag: string | null }
 export type NoteMeta = { createdAt: number; folder: string; path: string; pinned: boolean; snippet: string | null; tags: string[]; title: string; updatedAt: number }
 export type NoteName = { kind: "filename"; value: string } | { kind: "title"; value: string }
@@ -157,7 +170,7 @@ export type PendingOpen = { kind: OpenKind; path: string }
 export type Picture = { kind: "note"; note: NoteMeta; graph: Graph } | { kind: "hub"; hub: HubPill; members: RingMember[] }
 export type RingMember = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta }
 export type SaveName = { kind: "heading" } | { kind: "filename"; value: string }
-export type SavedNote = { content: string; path: string; pinned: boolean; tags: string[]; title: string; updatedAt: number }
+export type SavedNote = { content: string; path: string; pinned: boolean; revision: string; tags: string[]; title: string; updatedAt: number }
 export type SearchFilter = { kind: "folder"; value: string } | { kind: "from"; value: string } | { kind: "link"; value: string } | { kind: "mention"; value: string } | { kind: "tag"; value: string } | { kind: "to"; value: string }
 
 /** tauri-specta globals **/

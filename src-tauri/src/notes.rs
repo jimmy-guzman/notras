@@ -10,8 +10,8 @@ use crate::bindings::{IndexStatus, MutationWarnings, NotesChanged};
 use crate::state::AppState;
 use crate::watcher;
 use notras_core::{
-    self, CommandError, CreateNote, DeleteReceipt, Library, MutationReceipt, MutationWarning,
-    NoteFile, PathMutationReceipt, PendingOpen, SaveName, SavedNote,
+    self, CommandError, ConflictStash, CreateNote, DeleteReceipt, Library, MutationReceipt,
+    MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen, SaveName, SavedNote,
 };
 use notras_core::{
     CountedTag, GraphResult, GraphTarget, Mention, NoteFilters, NoteMeta, NoteSearch,
@@ -279,6 +279,43 @@ pub async fn write_external<R: Runtime>(
         Ok(result)
     })
     .await
+}
+
+fn conflicts_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, CommandError> {
+    crate::conflicts_dir(app)
+        .map_err(|error| CommandError::with_source("the data folder is unavailable", error))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_conflict<R: Runtime>(
+    app: AppHandle<R>,
+    kind: OpenKind,
+    path: String,
+    stash: ConflictStash,
+) -> Result<(), CommandError> {
+    run_blocking(move || notras_core::stash_conflict(&conflicts_dir(&app)?, kind, &path, &stash))
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_conflict<R: Runtime>(
+    app: AppHandle<R>,
+    kind: OpenKind,
+    path: String,
+) -> Result<Option<ConflictStash>, CommandError> {
+    run_blocking(move || notras_core::read_conflict(&conflicts_dir(&app)?, kind, &path)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_conflict<R: Runtime>(
+    app: AppHandle<R>,
+    kind: OpenKind,
+    path: String,
+) -> Result<(), CommandError> {
+    run_blocking(move || notras_core::clear_conflict(&conflicts_dir(&app)?, kind, &path)).await
 }
 
 #[tauri::command]

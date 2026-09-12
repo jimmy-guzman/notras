@@ -14,7 +14,11 @@ import { useNoteTags } from "./use-note-tags";
 it("should preserve successive tag edits before a rerender or save completes", async ({
   onTestFinished,
 }) => {
-  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const held = Promise.withResolvers<{
+    path: string;
+    revision: string;
+    updatedAt: Date;
+  }>();
   const writes: string[] = [];
   const note = createNotePersistence(
     {
@@ -22,6 +26,7 @@ it("should preserve successive tag edits before a rerender or save completes", a
         "---\npinned: true\ntags: [kept, removed]\n---\n# Errands\n\nbody",
       kind: "note",
       path: "errands.md",
+      revision: "r0",
       updatedAt: new Date(0),
     },
     {
@@ -68,7 +73,11 @@ it("should preserve successive tag edits before a rerender or save completes", a
     "second",
   ]);
   await act(async () => {
-    held.resolve({ path: "errands.md", updatedAt: new Date(1) });
+    held.resolve({
+      path: "errands.md",
+      revision: "r1",
+      updatedAt: new Date(1),
+    });
     await Promise.all(changing);
   });
   expect(parseNote(writes.at(-1) ?? "").frontmatter.tags).toEqual([
@@ -83,12 +92,17 @@ it("should preserve successive tag edits before a rerender or save completes", a
 it("should edit the live document and keep the chosen tags when saving fails", async ({
   onTestFinished,
 }) => {
-  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const held = Promise.withResolvers<{
+    path: string;
+    revision: string;
+    updatedAt: Date;
+  }>();
   const note = createNotePersistence(
     {
       content: "---\ntags: [kept]\n---\n# Errands\n\nbody",
       kind: "note",
       path: "errands.md",
+      revision: "r0",
       updatedAt: new Date(0),
     },
     {

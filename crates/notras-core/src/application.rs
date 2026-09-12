@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{timestamp_millis, OpenedNote, TempSibling},
+    note_file::{content_revision, timestamp_millis, OpenedNote, TempSibling},
     relative_path::{ensure_folder, Located, RelativePath},
     Library,
 };
@@ -133,10 +133,11 @@ impl From<&str> for CommandError {
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteFile {
     pub content: String,
+    pub revision: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
 }
@@ -148,6 +149,7 @@ pub struct SavedNote {
     pub content: String,
     pub path: String,
     pub pinned: bool,
+    pub revision: String,
     pub tags: Vec<String>,
     pub title: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
@@ -208,6 +210,7 @@ pub enum MutationWarning {
 #[serde(rename_all = "camelCase")]
 pub struct MutationReceipt {
     pub path: String,
+    pub revision: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
     pub warnings: Vec<MutationWarning>,
@@ -431,6 +434,7 @@ fn publish_move(
     Ok(PathMutationReceipt {
         path: to.as_str().to_owned(),
         file: NoteFile {
+            revision: content_revision(&content),
             content,
             updated_at,
         },
@@ -544,8 +548,10 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     }
     let file = OpenedNote::new(File::open(path)?);
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
+    let content = file.read()?;
     Ok(NoteFile {
-        content: file.read()?,
+        revision: content_revision(&content),
+        content,
         updated_at,
     })
 }
@@ -585,13 +591,14 @@ pub fn write_external(
             .to_str()
             .ok_or("the path is not valid unicode")?
             .to_owned(),
+        revision: content_revision(content),
         updated_at: result.updated_at,
         warnings,
     })
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OpenKind {
     External,
@@ -649,6 +656,7 @@ impl Library {
             tags: parsed.frontmatter.tags,
             title,
             path,
+            revision: content_revision(&content),
             content,
             updated_at: timestamp_millis(metadata.modified())?,
         })
@@ -684,14 +692,12 @@ impl Library {
             dir: parent,
             name: path.split().1.to_owned(),
         };
-        let updated_at = create_file(
-            &target,
-            path.as_str(),
-            options.content.as_deref().unwrap_or(""),
-        )?;
+        let content = options.content.as_deref().unwrap_or("");
+        let updated_at = create_file(&target, path.as_str(), content)?;
         let warnings = reconcile(self, &[path.as_str()]);
         Ok(MutationReceipt {
             path: path.into_string(),
+            revision: content_revision(content),
             updated_at,
             warnings,
         })
@@ -714,6 +720,7 @@ impl Library {
             } else {
                 format!("{folder}/{}", result.name)
             },
+            revision: content_revision(content),
             updated_at: result.updated_at,
             warnings: result.warnings,
         };
@@ -756,6 +763,7 @@ impl Library {
             return Ok(PathMutationReceipt {
                 path,
                 file: NoteFile {
+                    revision: content_revision(&content),
                     content,
                     updated_at,
                 },
@@ -886,6 +894,47 @@ mod tests {
             fs::read_to_string(&path).unwrap(),
             "# Errands\n\nreplacement"
         );
+    }
+
+    #[test]
+    fn should_return_the_revision_of_a_created_note() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+
+        let receipt = core
+            .create_note(&CreateNote {
+                content: Some("# Created\n\nbody".into()),
+                name: Some(NoteName::Filename("created".into())),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(receipt.revision, content_revision("# Created\n\nbody"));
+        assert_eq!(receipt.revision.len(), 64);
+        assert_eq!(
+            core.read_note("created.md".into()).unwrap().revision,
+            receipt.revision
+        );
+    }
+
+    #[test]
+    fn should_report_a_revision_that_matches_the_bytes_read() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        fs::write(directory.path().join("note.md"), "# Read\n\ncaf\u{e9}").unwrap();
+
+        let note = core.read_note("note.md".into()).unwrap();
+        let external = read_external(&directory.path().join("note.md")).unwrap();
+        let saved = core
+            .save_note("note.md", "# Read\n\nchanged", None)
+            .unwrap();
+        let moved = core.move_note("note.md".into(), "folder").unwrap();
+
+        assert_eq!(note.revision, content_revision("# Read\n\ncaf\u{e9}"));
+        assert_eq!(external.revision, note.revision);
+        assert_eq!(saved.revision, content_revision("# Read\n\nchanged"));
+        assert_eq!(moved.file.revision, saved.revision);
+        assert_ne!(saved.revision, note.revision);
     }
 
     #[test]

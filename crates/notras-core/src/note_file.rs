@@ -192,6 +192,13 @@ impl Drop for TempSibling {
     }
 }
 
+/// The opaque revision of a document, which a reader and a writer derive from the bytes alone.
+pub(crate) fn content_revision(content: &str) -> String {
+    use sha2::{Digest, Sha256};
+
+    format!("{:x}", Sha256::digest(content.as_bytes()))
+}
+
 pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> {
     let duration = time?.duration_since(UNIX_EPOCH).map_err(|_| {
         io::Error::new(

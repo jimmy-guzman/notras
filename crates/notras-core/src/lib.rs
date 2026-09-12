@@ -5,6 +5,7 @@
 //! for the desktop IPC exporter; engine operations do not depend on it.
 
 mod application;
+mod conflicts;
 mod frontmatter;
 mod index;
 mod markdown;
@@ -25,6 +26,7 @@ pub use application::{
     MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
     PendingOpen, SaveName, SavedNote,
 };
+pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
 pub use queries::{
     CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch, NoteSort, Picture,
     ReadView, SearchFilter,

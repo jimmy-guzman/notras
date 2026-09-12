@@ -120,6 +120,9 @@ describe("palette note views", () => {
         if (command === "get_notes_dir") {
           return "/notes";
         }
+        if (command === "read_conflict") {
+          return null;
+        }
         if (command === "read_note") {
           return {
             content: "---\ntags:\n  - work\n---\n# Atlas\n",

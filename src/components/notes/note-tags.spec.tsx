@@ -19,13 +19,18 @@ import {
 it.each(["combobox", "palette"])(
   "should retain rapid tag toggles from the %s before its displayed tags refresh",
   async (control) => {
-    const saved = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+    const saved = Promise.withResolvers<{
+      path: string;
+      revision: string;
+      updatedAt: Date;
+    }>();
     const writes: string[] = [];
     const note = createNotePersistence(
       {
         content: "# Note",
         kind: "note",
         path: "note.md",
+        revision: "r0",
         updatedAt: new Date(0),
       },
       {
@@ -54,7 +59,11 @@ it.each(["combobox", "palette"])(
     ]);
     onTestFinished(async () => {
       await act(async () => {
-        saved.resolve({ path: "note.md", updatedAt: new Date(1) });
+        saved.resolve({
+          path: "note.md",
+          revision: "r1",
+          updatedAt: new Date(1),
+        });
         await note.flush();
         closeTab(id);
       });
@@ -96,7 +105,11 @@ it.each(["combobox", "palette"])(
       "second",
     ]);
     await act(async () => {
-      saved.resolve({ path: "note.md", updatedAt: new Date(1) });
+      saved.resolve({
+        path: "note.md",
+        revision: "r1",
+        updatedAt: new Date(1),
+      });
       await note.flush();
     });
     expect(parseNote(writes.at(-1) ?? "").frontmatter.tags).toEqual(["second"]);

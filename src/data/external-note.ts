@@ -4,7 +4,11 @@ import { commands, type SaveName } from "@/server/adapters/bindings";
 /** Read an external Markdown file without adding it to the library index. */
 export async function readExternalNote(path: string) {
   const file = await nativeCommand(() => commands.readExternal(path));
-  return { content: file.content, updatedAt: new Date(file.updatedAt) };
+  return {
+    content: file.content,
+    revision: file.revision,
+    updatedAt: new Date(file.updatedAt),
+  };
 }
 
 /** Save the complete external document, deriving a filename only for an in-app heading edit. */

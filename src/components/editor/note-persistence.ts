@@ -24,11 +24,13 @@ export interface EditorContent {
 
 interface FileContent {
   content: string;
+  revision: string;
   updatedAt: Date;
 }
 
 interface SaveReceipt {
   path: string;
+  revision: string;
   updatedAt: Date;
 }
 
@@ -73,13 +75,13 @@ export function createNotePersistence(
     () => changed()
   );
   const state = createStore<
-    Omit<PersistenceState, "content"> & { revision: number }
+    Omit<PersistenceState, "content" | "revision"> & { edits: number }
   >({
+    edits: 0,
     missing: false,
     path: initial.path,
     pendingPaths: 0,
     reason: undefined,
-    revision: 0,
     sourceMode: false,
     status: "saved",
     updatedAt: initial.updatedAt,
@@ -88,6 +90,7 @@ export function createNotePersistence(
   const store = createStore(() => {
     const current = state.get();
     return {
+      base,
       content: document.content(),
       missing: current.missing,
       path: current.path,
@@ -118,18 +121,19 @@ export function createNotePersistence(
   let observation:
     | { path: string; file: FileContent | undefined; missing: boolean }
     | undefined;
+  let base: FileContent = initial;
   let owners = 0;
-  let revision = 0;
-  let savedRevision = 0;
+  let edits = 0;
+  let savedEdits = 0;
   let savedName = document.nameId();
   let tail: Promise<unknown> = Promise.resolve();
 
   const changed = () => {
-    revision += 1;
+    edits += 1;
     state.setState((previous) => ({
       ...previous,
+      edits,
       reason: undefined,
-      revision,
       status: "dirty",
     }));
     debouncer.maybeExecute();
@@ -146,10 +150,10 @@ export function createNotePersistence(
     }
   };
   const write = async () => {
-    if (revision <= savedRevision || state.state.missing) {
+    if (edits <= savedEdits || state.state.missing) {
       return;
     }
-    const sentRevision = revision;
+    const sentEdits = edits;
     const sentName = document.nameId();
     const content = document.content();
     const name = sentName === savedName ? null : document.naming();
@@ -166,11 +170,16 @@ export function createNotePersistence(
         receipt.path.split("/").at(-1) ?? receipt.path
       );
       savedName = sentName;
-      savedRevision = sentRevision;
+      savedEdits = sentEdits;
+      base = {
+        content,
+        revision: receipt.revision,
+        updatedAt: receipt.updatedAt,
+      };
       followPath(receipt);
       state.setState((previous) => ({
         ...previous,
-        status: revision > savedRevision ? "dirty" : "saved",
+        status: edits > savedEdits ? "dirty" : "saved",
         writing: false,
       }));
     } catch (error) {
@@ -240,7 +249,12 @@ export function createNotePersistence(
         }
         await write();
         const receipt = await ports.changePath(state.state.path, change);
-        followPath({ path: receipt.path, updatedAt: receipt.file.updatedAt });
+        base = receipt.file;
+        followPath({
+          path: receipt.path,
+          revision: receipt.file.revision,
+          updatedAt: receipt.file.updatedAt,
+        });
       } finally {
         state.setState((previous) => ({
           ...previous,
@@ -260,7 +274,7 @@ export function createNotePersistence(
       if (!(await save())) {
         return false;
       }
-    } while (!state.state.missing && revision > savedRevision);
+    } while (!state.state.missing && edits > savedEdits);
     return true;
   };
   const applyHistory = (direction: "undo" | "redo", execute = true) => {
@@ -284,6 +298,7 @@ export function createNotePersistence(
     if (reload) {
       document.replace(file.content);
       ports.onDocumentChanged?.(document.content());
+      base = file;
     }
 
     if (!(current.missing || reload || newer)) {

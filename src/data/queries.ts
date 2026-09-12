@@ -5,6 +5,7 @@ import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
 import type { Tab } from "@/lib/tabs/tab";
 import type { GraphTarget } from "@/server/adapters/bindings";
+import { readConflictStash } from "./conflict-stash";
 import { readExternalNote } from "./external-note";
 import { getMentions } from "./get-mentions";
 import { getNote } from "./get-note";
@@ -24,6 +25,7 @@ const fileKey = (kind: Tab["kind"], path: string) =>
 export interface SessionFile {
   content: string;
   pinned: boolean;
+  revision: string;
   tags: string[];
   updatedAt: Date;
 }
@@ -35,6 +37,7 @@ async function readTab(kind: Tab["kind"], path: string): Promise<SessionFile> {
     return {
       content: file.content,
       pinned: false,
+      revision: file.revision,
       tags: [],
       updatedAt: file.updatedAt,
     };
@@ -45,6 +48,7 @@ async function readTab(kind: Tab["kind"], path: string): Promise<SessionFile> {
   return {
     content: note.content,
     pinned: note.pinned,
+    revision: note.revision,
     tags: note.tags,
     updatedAt: note.updatedAt,
   };
@@ -53,6 +57,11 @@ async function readTab(kind: Tab["kind"], path: string): Promise<SessionFile> {
 /** Keyed generic to specific: every invalidation is one prefix. */
 export const noteQueries = {
   all,
+  conflict: (kind: Tab["kind"], path: string) =>
+    queryOptions({
+      queryFn: () => readConflictStash(kind, path),
+      queryKey: [...all, "conflict", kind, path] as const,
+    }),
   file: (kind: Tab["kind"], path: string) =>
     queryOptions({
       queryFn: () => readTab(kind, path),

@@ -26,6 +26,7 @@ function mountAutosave(
             content: "",
             kind: "note",
             path: "note.md",
+            revision: "r0",
             updatedAt: new Date(0),
           },
           {
@@ -34,6 +35,7 @@ function mountAutosave(
             onPathChanged: () => undefined,
             write: async (path, content) => ({
               path,
+              revision: content,
               updatedAt: await write(path, content),
             }),
           }
@@ -42,7 +44,7 @@ function mountAutosave(
       useLayoutEffect(() => {
         persistence.receiveFile(
           "note.md",
-          { content: "", updatedAt: new Date(0) },
+          { content: "", revision: "r0", updatedAt: new Date(0) },
           !enabled
         );
         duringCommit?.();

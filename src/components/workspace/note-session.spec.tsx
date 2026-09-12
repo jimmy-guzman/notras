@@ -49,6 +49,7 @@ function mountSession(content?: string) {
       updatedAt: new Date(1),
     });
     client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, null);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
   }
 
