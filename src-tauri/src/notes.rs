@@ -322,7 +322,7 @@ pub async fn set_notes_dir<R: Runtime>(
         } else {
             let library = Library::open(Path::new(&path))?;
             let notes_dir = library.directory().to_owned();
-            library.scan_complete()?;
+            state.library.prepare(&library)?;
             let generation = state.library().generation() + 1;
             let fresh =
                 watcher::start(app.clone(), notes_dir.clone(), generation).map_err(|error| {

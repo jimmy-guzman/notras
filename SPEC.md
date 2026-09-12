@@ -232,7 +232,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - If the webview never answers, the quit goes through after 5 seconds.
 - Quitting stops a running scan at its next step. The next launch's startup scan indexes what the interrupted scan had not reached. A reindex interrupted by a quit does not resume as a reindex; run "reindex library" again to refresh the remaining notes.
 - "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. A path that reaches the notes dir through a symlink counts as inside it. macOS only.
-- Settings exposes the notes folder and launch at login. Changing the folder creates its `.notras/`, builds an index, restarts the watcher, and stores the choice.
+- Settings exposes the notes folder and launch at login. Changing the folder creates its `.notras/`, builds an index, restarts the watcher, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A quit during that build leaves the choice unsaved.
 - Rust owns index reads and writes. The webview sends typed operations and has no generic SQL command.
 - A native panic stops a production build. It is not reported as an ordinary file failure, and interrupted native state is not reused.
 

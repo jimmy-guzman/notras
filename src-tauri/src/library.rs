@@ -403,6 +403,21 @@ impl LibraryOwner {
         self.run_scan(ScanKind::Observed(paths), Some(generation))
     }
 
+    /// Index a replacement completely before it is selected. Nothing reads it
+    /// yet, so this runs outside the operation guard, and it stops when the owner is closing.
+    pub fn prepare(&self, library: &Library) -> Result<(), CommandError> {
+        let mut scan = library.begin_scan(false);
+        loop {
+            if self.closing() {
+                return Err(Self::closing_error());
+            }
+            if library.advance_scan(&mut scan)? {
+                break;
+            }
+        }
+        library.finish_scan(scan).map(|_| ())
+    }
+
     /// The caller has scanned the replacement completely and can persist its selection.
     pub fn replace_scanned(&self, library: Library) {
         let change = {
@@ -704,7 +719,10 @@ mod tests {
         let failed = IndexStatus::Failed {
             reason: error.message,
         };
-        assert_eq!(statuses.try_iter().collect::<Vec<_>>(), [failed.clone()]);
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            std::slice::from_ref(&failed)
+        );
         assert_eq!(owner.status(), failed);
 
         fs::write(directory.path().join("broken.md"), "# Repaired").unwrap();
@@ -824,7 +842,10 @@ mod tests {
         let failed = IndexStatus::Failed {
             reason: "the library is closing".into(),
         };
-        assert_eq!(statuses.try_iter().collect::<Vec<_>>(), [failed.clone()]);
+        assert_eq!(
+            statuses.try_iter().collect::<Vec<_>>(),
+            std::slice::from_ref(&failed)
+        );
         assert_eq!(owner.status(), failed);
 
         let relaunched = LibraryOwner::new(Library::open(directory.path()).unwrap(), |_| {});
@@ -855,6 +876,61 @@ mod tests {
             owner.read().read_note("note.md".into()).unwrap().content,
             "# Note"
         );
+    }
+
+    #[test]
+    fn should_prepare_a_replacement_while_the_operation_guard_is_held() {
+        let old = tempfile::tempdir().unwrap();
+        fs::write(old.path().join("old.md"), "# Old").unwrap();
+        let owner = Arc::new(LibraryOwner::new(
+            Library::open(old.path()).unwrap(),
+            |_| {},
+        ));
+        owner.scan().unwrap();
+        let fresh = tempfile::tempdir().unwrap();
+        fs::write(fresh.path().join("one.md"), "# One").unwrap();
+        fs::write(fresh.path().join("two.md"), "# Two").unwrap();
+        let replacement = Library::open(fresh.path()).unwrap();
+        let held = owner.read();
+        let (sender, prepared) = std::sync::mpsc::channel();
+        let preparer = owner.clone();
+        thread::spawn(move || {
+            sender
+                .send(preparer.prepare(&replacement).map(|()| replacement))
+                .unwrap();
+        });
+
+        let replacement = prepared
+            .recv_timeout(Duration::from_secs(5))
+            .expect("preparation must not wait on the operation guard")
+            .unwrap();
+
+        assert_eq!(held.read_note("old.md".into()).unwrap().content, "# Old");
+        drop(held);
+        owner.replace_scanned(replacement);
+        assert_eq!(
+            owner
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn should_stop_preparing_a_replacement_when_closing() {
+        let old = tempfile::tempdir().unwrap();
+        let owner = LibraryOwner::new(Library::open(old.path()).unwrap(), |_| {});
+        let fresh = tempfile::tempdir().unwrap();
+        fs::write(fresh.path().join("one.md"), "# One").unwrap();
+        let replacement = Library::open(fresh.path()).unwrap();
+        owner.shutdown();
+
+        let Err(error) = owner.prepare(&replacement) else {
+            panic!("preparation must stop after shutdown");
+        };
+
+        assert_eq!(error.message, "the library is closing");
     }
 
     #[test]
