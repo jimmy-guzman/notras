@@ -1,5 +1,6 @@
 mod bindings;
 mod clipboard;
+mod external_image;
 mod library;
 mod notes;
 mod state;
@@ -335,6 +336,9 @@ pub fn run() {
 
     let bindings = bindings::builder();
     let built = builder
+        .register_uri_scheme_protocol(external_image::SCHEME, |_, request| {
+            external_image::respond(&request)
+        })
         .invoke_handler(bindings.invoke_handler())
         .on_window_event(|window, event| match event {
             // Close-to-tray for the main window; capture window just hides.

@@ -137,16 +137,32 @@ interface SessionBufferProps {
 }
 
 /**
- * A relative image resolves against the note, the way a link does; a source
- * with a scheme, an anchor or a root passes through for the webview to judge,
- * and one that climbs out of the notes folder renders as a broken image.
+ * A relative image resolves against the file that holds it, the way a link
+ * does. A source with a scheme, an anchor or a root passes through for the
+ * webview to judge. A note's image loads through the asset protocol under
+ * the notes dir, and one that climbs out renders as a broken image. An
+ * external file's image goes to the `external-image` scheme with the document
+ * and the source, and Rust resolves the pair on each request.
  */
-function noteImageSrc(src: string, from: string, notesDir: string) {
+function imageSrc(
+  src: string,
+  kind: "external" | "note",
+  from: string,
+  notesDir: string
+) {
   if (!isRelativeDestination(src)) {
     return src;
   }
 
-  const resolved = foldPath(decodeAttachmentPath(src), from);
+  const path = decodeAttachmentPath(src);
+
+  if (kind === "external") {
+    const query = new URLSearchParams({ doc: from, src: path });
+
+    return `${convertFileSrc("", "external-image")}?${query}`;
+  }
+
+  const resolved = foldPath(path, from);
 
   return resolved === undefined
     ? ""
@@ -322,8 +338,8 @@ function SessionBuffer({
   );
 
   const resolveImageSrc = useCallback(
-    (src: string) => noteImageSrc(src, live.current.path, notesDir),
-    [notesDir]
+    (src: string) => imageSrc(src, tab.kind, live.current.path, notesDir),
+    [notesDir, tab.kind]
   );
   const documentPath = useCallback(() => live.current.path, []);
 
@@ -412,7 +428,6 @@ function SessionBuffer({
           onFileLinkClick: openFileLink,
           onNoteLinkClick: openNoteLink,
           onWikilinkClick: openWikilink,
-          resolveImageSrc,
           resolveWikilink,
         }
       : {};
@@ -605,6 +620,7 @@ function SessionBuffer({
             onHistory={onHistory}
             onReady={attachEditor}
             onSelect={selectBody}
+            resolveImageSrc={resolveImageSrc}
             stripSentinel={sentineledBody !== undefined}
             titles={getTitles}
             {...noteEditing}

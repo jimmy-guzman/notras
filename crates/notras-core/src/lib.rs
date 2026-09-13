@@ -22,8 +22,8 @@ use std::path::{Path, PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 
 pub use application::{
-    read_external, write_external, CommandError, CreateNote, DeleteReceipt, ErrorKind,
-    MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
+    external_image, read_external, write_external, CommandError, CreateNote, DeleteReceipt,
+    ErrorKind, MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
     PendingOpen, SaveName, SaveOutcome, SavedNote,
 };
 pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};

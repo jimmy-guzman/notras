@@ -354,6 +354,48 @@ describe("NoteSession", () => {
     ]);
   });
 
+  it("should send an external file's image to the scheme with the document and the source", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC((command) => {
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const path = "/Users/me/docs/note.md";
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
+    client.setQueryData(noteQueries.fileKey("external", path), {
+      content: "# Ext\n\n![shot](../my%20shot.png)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t6", kind: "external", path }} />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t6");
+    const image = document
+      .getElementById(tabPanelId("t6"))
+      ?.querySelector("img");
+    expect(image?.getAttribute("src")).toBe(
+      "external-image://localhost/?doc=%2FUsers%2Fme%2Fdocs%2Fnote.md&src=..%2Fmy+shot.png"
+    );
+    const sources: string[] = [];
+    liveEditor.state.doc.descendants((node) => {
+      if (node.type.name === "image") {
+        sources.push(String(node.attrs.src));
+      }
+      return true;
+    });
+    expect(sources).toEqual(["../my%20shot.png"]);
+  });
+
   it("should report a failed pending link lookup without treating the destination as missing", async () => {
     const listed = Promise.withResolvers<[]>();
     mockIPC((command) => {

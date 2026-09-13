@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::{self, Read as _, Seek as _, Write as _};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
@@ -763,6 +763,39 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
         content,
         updated_at,
     })
+}
+
+/// The image a relative source names from an external document, checked on
+/// each request rather than granted once: the document has to be a markdown
+/// file on disk and the source relative. `..` climbs and a symlink is followed,
+/// since the document is the anchor and nothing around it is the library's to
+/// fence.
+pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandError> {
+    if !is_markdown(document) {
+        return Err("only markdown files can be opened".into());
+    }
+    if !fs::metadata(document)?.is_file() {
+        return Err("the document is not a file".into());
+    }
+    let parent = document
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .ok_or("a note outside any folder")?;
+    if src.is_empty() {
+        return Err("the image names no file".into());
+    }
+    let source = Path::new(src);
+    if source
+        .components()
+        .any(|part| matches!(part, Component::RootDir | Component::Prefix(_)))
+    {
+        return Err("the image names an absolute path".into());
+    }
+    let image = fs::canonicalize(parent.join(source))?;
+    if !fs::metadata(&image)?.is_file() {
+        return Err("that path is not a file".into());
+    }
+    Ok(image)
 }
 
 /// Persist an external document, rejecting non-Unicode paths before file access.
@@ -2342,6 +2375,99 @@ mod tests {
         assert!(library
             .linked_file_path("projects/a.md", "../docs/doc.pdf")
             .is_ok());
+    }
+
+    fn external_document() -> tempfile::TempDir {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join("docs/images")).unwrap();
+        fs::write(directory.path().join("docs/note.md"), "# Note").unwrap();
+        fs::write(directory.path().join("docs/notes.txt"), "text").unwrap();
+        fs::write(directory.path().join("docs/my shot.png"), "png").unwrap();
+        fs::write(directory.path().join("docs/images/x.png"), "png").unwrap();
+        fs::write(directory.path().join("up.png"), "png").unwrap();
+        directory
+    }
+
+    #[test]
+    fn should_resolve_an_external_image_against_its_document() {
+        let directory = external_document();
+        let document = directory.path().join("docs/note.md");
+        let root = fs::canonicalize(directory.path()).unwrap();
+
+        for (src, expected) in [
+            ("my shot.png", "docs/my shot.png"),
+            ("./my shot.png", "docs/my shot.png"),
+            ("images/x.png", "docs/images/x.png"),
+            ("../up.png", "up.png"),
+        ] {
+            assert_eq!(
+                external_image(&document, src).unwrap(),
+                root.join(expected),
+                "{src}"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_follow_a_symlink_from_an_external_document() {
+        let directory = external_document();
+        let elsewhere = tempfile::tempdir().unwrap();
+        fs::write(elsewhere.path().join("far.png"), "png").unwrap();
+        std::os::unix::fs::symlink(
+            elsewhere.path().join("far.png"),
+            directory.path().join("docs/link.png"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            external_image(&directory.path().join("docs/note.md"), "link.png").unwrap(),
+            fs::canonicalize(elsewhere.path().join("far.png")).unwrap()
+        );
+    }
+
+    #[test]
+    fn should_refuse_an_external_image_request_it_cannot_anchor() {
+        let directory = external_document();
+        let document = directory.path().join("docs/note.md");
+
+        for (doc, src, reason) in [
+            (
+                document.clone(),
+                "/etc/hosts",
+                "the image names an absolute path",
+            ),
+            (document.clone(), "", "the image names no file"),
+            (document.clone(), "images", "that path is not a file"),
+            (
+                directory.path().join("docs/notes.txt"),
+                "my shot.png",
+                "only markdown files can be opened",
+            ),
+            (
+                directory.path().join("docs"),
+                "my shot.png",
+                "only markdown files can be opened",
+            ),
+        ] {
+            let error = external_image(&doc, src).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Failed, "{src}");
+            assert_eq!(error.message, reason, "{src}");
+        }
+    }
+
+    #[test]
+    fn should_report_a_missing_external_image_or_document_as_not_found() {
+        let directory = external_document();
+
+        for (doc, src) in [
+            (directory.path().join("docs/note.md"), "gone.png"),
+            (directory.path().join("docs/gone.md"), "my shot.png"),
+        ] {
+            let error = external_image(&doc, src).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::NotFound, "{src}");
+            assert_eq!(error.message, "no such file", "{src}");
+        }
     }
 
     #[test]
