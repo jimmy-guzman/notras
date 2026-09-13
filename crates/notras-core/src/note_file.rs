@@ -39,6 +39,10 @@ fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
 /// Whether an exchange happened, or the platform has none to offer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Exchange {
+    #[cfg_attr(
+        not(any(target_os = "linux", target_vendor = "apple")),
+        expect(dead_code, reason = "only a platform with an exchange constructs it")
+    )]
     Swapped,
     Unsupported,
 }
