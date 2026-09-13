@@ -371,13 +371,15 @@ pub async fn set_notes_dir<R: Runtime>(
             })?;
             let library = Library::open(Path::new(&path), &cache)?;
             let notes_dir = library.directory().to_owned();
-            state.library.prepare(&library)?;
-            let generation = state.library().generation() + 1;
-            let fresh =
-                watcher::start(app.clone(), notes_dir.clone(), generation).map_err(|error| {
+            // Watched before it is scanned, so a write that lands during the scan
+            // reaches the owner, which holds it until the replacement is installed.
+            let preparation = state.library.begin_replacement();
+            let fresh = watcher::start(app.clone(), notes_dir.clone(), preparation.generation)
+                .map_err(|error| {
                     CommandError::with_source(format!("could not watch the folder: {error}"), error)
                 })?;
-            Some((library, notes_dir, fresh, generation))
+            state.library.prepare(&library)?;
+            Some((library, notes_dir, fresh, preparation))
         };
 
         // Persisted before the swap: a folder the next launch cannot find again is
@@ -390,13 +392,20 @@ pub async fn set_notes_dir<R: Runtime>(
             CommandError::with_source(format!("the setting could not be saved: {error}"), error)
         })?;
 
-        if let Some((library, notes_dir, fresh, generation)) = replacement {
+        if let Some((library, notes_dir, fresh, preparation)) = replacement {
+            let generation = preparation.generation;
             crate::allow_assets(&app, &notes_dir);
-            state.library.replace_scanned(library);
+            let observed = state.library.replace_scanned(library);
+            drop(preparation);
 
             // Dropping the old watcher may join a callback waiting for the library.
             *watcher = Some(fresh);
             drop(watcher);
+            if !observed.is_empty() {
+                if let Err(error) = state.library.observe(generation, observed) {
+                    log::error!("could not reconcile paths observed during the switch: {error}");
+                }
+            }
             emit_changed(&app, generation, vec![]);
         }
         Ok(())
