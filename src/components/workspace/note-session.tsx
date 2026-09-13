@@ -6,6 +6,7 @@ import {
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "cn";
 import {
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -13,6 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import type { FindHandle } from "@/components/editor/find";
@@ -22,7 +24,12 @@ import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -32,9 +39,15 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
+import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
 import { linkResolver } from "@/core/links";
+import {
+  type ConflictStash,
+  clearConflictStash,
+  stashConflict,
+} from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import type { SessionFile } from "@/data/queries";
@@ -62,12 +75,63 @@ function bodyPrefix(raw: string) {
   return raw.length - parseNote(raw).body.length;
 }
 
+interface SessionAlertsProps {
+  conflict: boolean;
+  missing: boolean;
+  onReview: () => void;
+  reviewButton: RefObject<HTMLButtonElement | null>;
+}
+
+/** The pane's standing alerts, in the note's column and above its scroller. */
+function SessionAlerts({
+  conflict,
+  missing,
+  onReview,
+  reviewButton,
+}: SessionAlertsProps) {
+  if (!(missing || conflict)) {
+    return null;
+  }
+  return (
+    <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-4 px-6 pt-6">
+      {missing ? (
+        <Alert variant="destructive">
+          <AlertTitle>this file is gone</AlertTitle>
+          <AlertDescription>
+            nothing here is being saved, so copy what you need
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {conflict ? (
+        <Alert variant="destructive">
+          <AlertTitle>this note changed on disk</AlertTitle>
+          <AlertDescription>
+            your unsaved edits overlap the change, so nothing saves until you
+            review them
+          </AlertDescription>
+          <AlertAction>
+            <Button
+              onClick={onReview}
+              ref={reviewButton}
+              size="sm"
+              variant="outline"
+            >
+              review
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
 interface SessionBufferProps {
   active: boolean;
   file: SessionFile;
   /** The file behind this buffer has gone; what is on screen is all there is. */
   missing: boolean;
   readFile: SessionFile | undefined;
+  stash: ConflictStash | null;
   tab: Tab;
 }
 
@@ -82,6 +146,7 @@ function SessionBuffer({
   file,
   missing: readMissing,
   readFile,
+  stash,
   tab,
 }: SessionBufferProps) {
   const { data: notes } = useQuery({
@@ -110,9 +175,16 @@ function SessionBuffer({
   const sourceRef = useRef<null | SourceEditorHandle>(null);
   const [persistence] = useState(() =>
     createNotePersistence(
-      { ...file, kind: tab.kind, path: tab.path },
+      { ...file, kind: tab.kind, path: tab.path, stash: stash ?? undefined },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
+        clearStash: async (path) => {
+          await clearConflictStash(tab.kind, path);
+          queryClient.setQueryData(
+            noteQueries.conflict(tab.kind, path).queryKey,
+            null
+          );
+        },
         onCleanFileMissing: () => closeTab(id),
         onDocumentChanged: (content, selection) => {
           if (!persistence.store.state.sourceMode) {
@@ -130,10 +202,17 @@ function SessionBuffer({
           }
         },
         onPathChanged: renameTab,
-        write: async (path, content, name) =>
+        stash: async (path, review) => {
+          await stashConflict(tab.kind, path, review);
+          queryClient.setQueryData(
+            noteQueries.conflict(tab.kind, path).queryKey,
+            review
+          );
+        },
+        write: async (path, content, name, expected) =>
           tab.kind === "external"
-            ? await writeExternalNote(path, content, name)
-            : await saveNote(path, content, name),
+            ? await writeExternalNote(path, content, name, expected)
+            : await saveNote(path, content, name, expected),
       }
     )
   );
@@ -146,7 +225,36 @@ function SessionBuffer({
     [id, persistence]
   );
   const { body } = parseNote(autosave.content);
-  const { missing, sourceMode } = autosave;
+  const { changedAgain, missing, sourceMode, status, theirs } = autosave;
+  const [reviewing, setReviewing] = useState(false);
+  const showReview = reviewing && status === "conflict";
+  const reviewButton = useRef<HTMLButtonElement>(null);
+  const reviewingRef = useRef(false);
+  useLayoutEffect(() => {
+    reviewingRef.current = showReview;
+  }, [showReview]);
+  useEffect(() => {
+    if (status !== "conflict") {
+      setReviewing(false);
+    }
+  }, [status]);
+  const openReview = useCallback(() => setReviewing(true), []);
+  const backFromReview = useCallback(() => {
+    flushSync(() => setReviewing(false));
+    reviewButton.current?.focus();
+  }, []);
+  const resolveReview = useCallback(
+    (content: string) => {
+      flushSync(() => setReviewing(false));
+      persistence.resolve(content);
+      if (persistence.store.state.sourceMode) {
+        sourceRef.current?.focus();
+      } else {
+        editorRef.current?.focus();
+      }
+    },
+    [persistence]
+  );
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source mode,
@@ -396,7 +504,12 @@ function SessionBuffer({
   // way in. ⌘P decides which surface owns the caret; the other one's handle
   // belongs to an editor that has already been destroyed.
   useEffect(() => {
-    if (!active || graphMode || noteFind.store.state.open) {
+    if (
+      !active ||
+      graphMode ||
+      reviewingRef.current ||
+      noteFind.store.state.open
+    ) {
       return;
     }
 
@@ -422,39 +535,56 @@ function SessionBuffer({
       id={tabPanelId(id)}
       role="tabpanel"
     >
-      {missing ? (
-        <Alert className="m-4 shrink-0" variant="destructive">
-          <AlertTitle>this file is gone</AlertTitle>
-          <AlertDescription>
-            nothing here is being saved, so copy what you need
-          </AlertDescription>
-        </Alert>
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          showReview && "pointer-events-none invisible"
+        )}
+      >
+        <SessionAlerts
+          conflict={status === "conflict"}
+          missing={missing}
+          onReview={openReview}
+          reviewButton={reviewButton}
+        />
+        {sourceMode ? (
+          <SourceEditor
+            editor={persistence.sourceEditor}
+            focusOnMount={focusOnMount}
+            initialCursor={sourceCursor}
+            onReady={attachSourceEditor}
+          />
+        ) : (
+          <Editor
+            findOpen={findState.open}
+            focusModeEnabled={focusModeEnabled}
+            focusOnMount={focusOnMount}
+            initialContent={sentineledBody ?? body}
+            onChange={handleBodyChange}
+            onHistory={onHistory}
+            onNoteLinkClick={tab.kind === "note" ? openNoteLink : undefined}
+            onReady={attachEditor}
+            onSelect={selectBody}
+            onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
+            resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}
+            resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
+            stripSentinel={sentineledBody !== undefined}
+            titles={getTitles}
+          />
+        )}
+      </div>
+      {status === "conflict" && theirs !== undefined ? (
+        <ConflictReview
+          base={autosave.base.content}
+          changedAgain={changedAgain}
+          key={theirs.revision}
+          onBack={backFromReview}
+          onResolve={resolveReview}
+          open={showReview}
+          ours={autosave.content}
+          theirs={theirs.content}
+        />
       ) : null}
-      {sourceMode ? (
-        <SourceEditor
-          editor={persistence.sourceEditor}
-          focusOnMount={focusOnMount}
-          initialCursor={sourceCursor}
-          onReady={attachSourceEditor}
-        />
-      ) : (
-        <Editor
-          findOpen={findState.open}
-          focusModeEnabled={focusModeEnabled}
-          focusOnMount={focusOnMount}
-          initialContent={sentineledBody ?? body}
-          onChange={handleBodyChange}
-          onHistory={onHistory}
-          onNoteLinkClick={tab.kind === "note" ? openNoteLink : undefined}
-          onReady={attachEditor}
-          onSelect={selectBody}
-          onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
-          resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}
-          resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
-          stripSentinel={sentineledBody !== undefined}
-          titles={getTitles}
-        />
-      )}
     </div>
   );
 }
@@ -507,21 +637,32 @@ interface NoteSessionProps {
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
   const { data, error, refetch } = useQuery(noteQueries.file(kind, path));
+  const stash = useQuery(noteQueries.conflict(kind, path));
   const retry = useCallback(() => {
     refetch();
-  }, [refetch]);
+    stash.refetch();
+  }, [refetch, stash.refetch]);
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.
   const lastRead = useRef<SessionFile | undefined>(undefined);
+  // The stored review is keyed by path too, so a rename would otherwise leave
+  // the gate below with nothing and unmount the buffer mid-session.
+  const lastStash = useRef<ConflictStash | null | undefined>(undefined);
 
   useEffect(() => {
     if (data !== undefined) {
       lastRead.current = data;
     }
   }, [data]);
+  useEffect(() => {
+    if (stash.data !== undefined) {
+      lastStash.current = stash.data;
+    }
+  }, [stash.data]);
 
   const file = data ?? lastRead.current;
+  const stored = stash.data === undefined ? lastStash.current : stash.data;
 
   // Only a missing file is a deletion. A permission or IO failure leaves the
   // note where it was, so the tab keeps what it last read (`D55`).
@@ -560,6 +701,18 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
       />
     ) : null;
   }
+  // Opening without knowing whether a review is stored would start from the
+  // disk file and lose the stashed text on the first save.
+  if (stored === undefined) {
+    return stash.isError ? (
+      <UnreadableNote
+        active={active}
+        id={tab.id}
+        reason={reasonOf(stash.error)}
+        retry={retry}
+      />
+    ) : null;
+  }
 
   return (
     <SessionBuffer
@@ -567,6 +720,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
       file={file}
       missing={gone}
       readFile={data}
+      stash={stored}
       tab={tab}
     />
   );

@@ -26,15 +26,22 @@ function mountAutosave(
             content: "",
             kind: "note",
             path: "note.md",
+            revision: "r0",
             updatedAt: new Date(0),
           },
           {
             changePath: () =>
               Promise.reject(new Error("no path action requested")),
+            clearStash: () => Promise.resolve(),
             onPathChanged: () => undefined,
+            stash: () => Promise.resolve(),
             write: async (path, content) => ({
-              path,
-              updatedAt: await write(path, content),
+              kind: "committed",
+              receipt: {
+                path,
+                revision: content,
+                updatedAt: await write(path, content),
+              },
             }),
           }
         )
@@ -42,7 +49,7 @@ function mountAutosave(
       useLayoutEffect(() => {
         persistence.receiveFile(
           "note.md",
-          { content: "", updatedAt: new Date(0) },
+          { content: "", revision: "r0", updatedAt: new Date(0) },
           !enabled
         );
         duringCommit?.();

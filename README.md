@@ -130,6 +130,8 @@ Signing and notarization are tracked in [issue #171](https://github.com/jimmy-gu
 | `⌘⇧N`     | global quick capture             |
 | `esc`     | (capture window) save + hide     |
 | `⌘⏎`      | (capture window) save + hide     |
+| `esc`     | (review) back to the note        |
+| `⌘⏎`      | (review) resolve                 |
 
 - `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
 - `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
@@ -215,6 +217,7 @@ Mutation tests cover native file and index outcomes, shared normalization fixtur
 - [Shadcn UI](https://ui.shadcn.com)
 - [Base UI](https://base-ui.com)
 - [Tailwind CSS](https://tailwindcss.com) 4
+- [node-diff3](https://github.com/bhousel/node-diff3)
 
 ## Docs
 

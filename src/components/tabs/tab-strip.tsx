@@ -205,12 +205,17 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           />
         }
       >
-        {snapshot?.status === "failed" ? (
+        {snapshot?.status === "failed" || snapshot?.status === "conflict" ? (
           <span className="me-1.5 size-1.5 shrink-0 rounded-full bg-destructive">
             <span className="sr-only">
-              {snapshot.reason === undefined
-                ? "could not save"
-                : `could not save: ${snapshot.reason}`}
+              {[
+                snapshot.status === "failed"
+                  ? "could not save"
+                  : "needs review",
+                snapshot.reason,
+              ]
+                .filter((part) => part !== undefined)
+                .join(": ")}
             </span>
           </span>
         ) : null}

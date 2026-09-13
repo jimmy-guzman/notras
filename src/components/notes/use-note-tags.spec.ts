@@ -1,7 +1,10 @@
 import { useSelector } from "@tanstack/react-store";
 import { act, renderHook } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { createNotePersistence } from "@/components/editor/note-persistence";
+import {
+  createNotePersistence,
+  type SaveOutcome,
+} from "@/components/editor/note-persistence";
 import { parseNote } from "@/core/frontmatter";
 import {
   closeTab,
@@ -14,7 +17,7 @@ import { useNoteTags } from "./use-note-tags";
 it("should preserve successive tag edits before a rerender or save completes", async ({
   onTestFinished,
 }) => {
-  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const held = Promise.withResolvers<SaveOutcome>();
   const writes: string[] = [];
   const note = createNotePersistence(
     {
@@ -22,11 +25,14 @@ it("should preserve successive tag edits before a rerender or save completes", a
         "---\npinned: true\ntags: [kept, removed]\n---\n# Errands\n\nbody",
       kind: "note",
       path: "errands.md",
+      revision: "r0",
       updatedAt: new Date(0),
     },
     {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: (_path, content) => {
         writes.push(content);
         return held.promise;
@@ -68,7 +74,10 @@ it("should preserve successive tag edits before a rerender or save completes", a
     "second",
   ]);
   await act(async () => {
-    held.resolve({ path: "errands.md", updatedAt: new Date(1) });
+    held.resolve({
+      kind: "committed",
+      receipt: { path: "errands.md", revision: "r1", updatedAt: new Date(1) },
+    });
     await Promise.all(changing);
   });
   expect(parseNote(writes.at(-1) ?? "").frontmatter.tags).toEqual([
@@ -83,17 +92,20 @@ it("should preserve successive tag edits before a rerender or save completes", a
 it("should edit the live document and keep the chosen tags when saving fails", async ({
   onTestFinished,
 }) => {
-  const held = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+  const held = Promise.withResolvers<SaveOutcome>();
   const note = createNotePersistence(
     {
       content: "---\ntags: [kept]\n---\n# Errands\n\nbody",
       kind: "note",
       path: "errands.md",
+      revision: "r0",
       updatedAt: new Date(0),
     },
     {
       changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
       onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
       write: () => held.promise,
     }
   );

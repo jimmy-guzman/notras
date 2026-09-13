@@ -132,8 +132,6 @@ An earlier design ran a remark-based format pass on blur, which carried a questi
 
 A debounced `notify` watcher reindexes external writes and the UI refreshes on its event, which `ARCHITECTURE.md` describes along with the echo and reload guards.
 
-**Constraint:** last-write-wins on an external edit to the open note. Acceptable for a single user, and the reason nothing merges the two versions.
-
 **Rejected: polling the directory.** Simpler and portable. Rejected on latency, since the property being sold is that an agent's write appears within about a second.
 
 **Rejected: an MCP server for agents.** The obvious way to let an AI write notes. Rejected because `D2` already gives agents a write path, and an MCP server is a process to build, run, and keep in sync with the file format. Recorded in `DEFERRED.md`, in case agents ever need richer operations than file writes.

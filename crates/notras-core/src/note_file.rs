@@ -23,6 +23,9 @@ fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
 
     match rustix::fs::renameat_with(dir, from, dir, to, RenameFlags::NOREPLACE) {
         Ok(()) => Ok(true),
+        // The three ways a kernel says it has no such flag: a filesystem that
+        // rejects it, a kernel older than the syscall, and a macOS volume that
+        // refuses the extended rename.
         Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => link_then_unlink(dir, from, to),
         Err(error) => Err(error.into()),
     }
@@ -31,6 +34,32 @@ fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
 #[cfg(all(unix, not(any(target_os = "linux", target_vendor = "apple"))))]
 fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     link_then_unlink(dir, from, to)
+}
+
+/// Whether an exchange happened, or the platform has none to offer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Exchange {
+    Swapped,
+    Unsupported,
+}
+
+/// Swap two entries in one step where the platform can.
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+fn exchange(dir: &Dir, from: &str, to: &str) -> io::Result<Exchange> {
+    use rustix::fs::RenameFlags;
+    use rustix::io::Errno;
+
+    match rustix::fs::renameat_with(dir, from, dir, to, RenameFlags::EXCHANGE) {
+        Ok(()) => Ok(Exchange::Swapped),
+        // The same three refusals as the no-replace rename above.
+        Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => Ok(Exchange::Unsupported),
+        Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+fn exchange(_dir: &Dir, _from: &str, _to: &str) -> io::Result<Exchange> {
+    Ok(Exchange::Unsupported)
 }
 
 #[cfg(unix)]
@@ -173,6 +202,45 @@ impl TempSibling {
         &mut self.file
     }
 
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Move the entry at `from`, the file behind `handle`, over this sibling, so it
+    /// sits under a name no other writer knows. Windows renames the handle itself.
+    pub(crate) fn take(&mut self, from: &str, handle: &File) -> io::Result<()> {
+        rename(&self.dir, from, handle, &self.name, true)?;
+        Ok(())
+    }
+
+    /// Give a taken entry its name back without replacing whatever landed there.
+    /// A name that is taken again keeps the entry where it is, so it survives.
+    pub(crate) fn give_back(&mut self, to: &str, handle: &File) -> io::Result<()> {
+        match rename(&self.dir, &self.name, handle, to, false) {
+            Ok(unlinked) => {
+                self.armed = !unlinked;
+                Ok(())
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                log::warn!(
+                    "{to} was taken again, so its previous file stays as {}",
+                    self.name
+                );
+                self.armed = false;
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Swap this sibling with `target` in one step where the platform can.
+    ///
+    /// The sibling stays armed either way: after one swap, dropping it removes the
+    /// displaced target, and after a second swap it removes the sibling again.
+    pub(crate) fn exchange(&self, target: &str) -> io::Result<Exchange> {
+        exchange(&self.dir, &self.name, target)
+    }
+
     pub(crate) fn replace(&mut self, target: &str) -> io::Result<()> {
         self.armed = !rename(&self.dir, &self.name, &self.file, target, true)?;
         Ok(())
@@ -190,6 +258,13 @@ impl Drop for TempSibling {
             let _ = self.dir.remove_file(&self.name);
         }
     }
+}
+
+/// The revision of a document, derived from its bytes alone.
+pub(crate) fn content_revision(content: &str) -> String {
+    use sha2::{Digest, Sha256};
+
+    format!("{:x}", Sha256::digest(content.as_bytes()))
 }
 
 pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> {
@@ -287,6 +362,50 @@ mod tests {
             "replacement"
         );
         assert!(!directory.path().join(name).exists());
+    }
+
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    #[test]
+    fn should_exchange_the_sibling_with_its_target_and_keep_both_files() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "original").unwrap();
+        let (temp, name) = sibling(&root(directory.path()), "replacement");
+
+        assert_eq!(temp.exchange("note.md").unwrap(), Exchange::Swapped);
+
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "replacement"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join(&name)).unwrap(),
+            "original"
+        );
+        drop(temp);
+        assert!(!directory.path().join(name).exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "replacement"
+        );
+    }
+
+    #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+    #[test]
+    fn should_report_exchange_as_unsupported_where_the_platform_has_none() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "original").unwrap();
+        let (temp, name) = sibling(&root(directory.path()), "replacement");
+
+        assert_eq!(temp.exchange("note.md").unwrap(), Exchange::Unsupported);
+
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "original"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join(name)).unwrap(),
+            "replacement"
+        );
     }
 
     #[cfg(windows)]

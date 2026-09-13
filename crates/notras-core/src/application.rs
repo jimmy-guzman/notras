@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::{self, Write as _};
+use std::io::{self, Read as _, Seek as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{timestamp_millis, OpenedNote, TempSibling},
+    note_file::{content_revision, timestamp_millis, Exchange, OpenedNote, TempSibling},
     relative_path::{ensure_folder, Located, RelativePath},
     Library,
 };
@@ -133,10 +133,11 @@ impl From<&str> for CommandError {
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteFile {
     pub content: String,
+    pub revision: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
 }
@@ -148,6 +149,7 @@ pub struct SavedNote {
     pub content: String,
     pub path: String,
     pub pinned: bool,
+    pub revision: String,
     pub tags: Vec<String>,
     pub title: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
@@ -208,9 +210,19 @@ pub enum MutationWarning {
 #[serde(rename_all = "camelCase")]
 pub struct MutationReceipt {
     pub path: String,
+    pub revision: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
     pub warnings: Vec<MutationWarning>,
+}
+
+/// What a save did: published at the expected revision, or refused because the file moved on.
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum SaveOutcome {
+    Committed { receipt: MutationReceipt },
+    Conflict { file: NoteFile },
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -352,16 +364,163 @@ fn checked_mtime(file: &File) -> Result<i64, CommandError> {
     Ok(timestamp_millis(file.metadata()?.modified())?)
 }
 
-/// Publish an existing note's replacement and obtain the receipt timestamp before publication.
-fn replace(source: &Located, content: &str) -> Result<i64, CommandError> {
-    let original = source.open_write()?;
+/// A publication that either landed or found the file changed underneath it.
+enum Publication<T> {
+    Committed(T),
+    Conflict(NoteFile),
+}
+
+impl<T> Publication<T> {
+    fn map<U>(self, f: impl FnOnce(T) -> U) -> Publication<U> {
+        match self {
+            Self::Committed(value) => Publication::Committed(f(value)),
+            Self::Conflict(file) => Publication::Conflict(file),
+        }
+    }
+}
+
+/// The bytes and timestamp behind an open handle, read from its start.
+fn current_file(original: &mut File) -> Result<NoteFile, CommandError> {
+    original.rewind()?;
+    let mut content = String::new();
+    original.read_to_string(&mut content)?;
+    Ok(NoteFile {
+        revision: content_revision(&content),
+        content,
+        updated_at: checked_mtime(original)?,
+    })
+}
+
+fn handle_identity(file: &File) -> io::Result<(u64, u64)> {
+    use cap_fs_ext::MetadataExt as _;
+
+    let metadata = cap_std::fs::Metadata::from_file(file)?;
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+/// An entry moved to a private name, where only this process can reach it.
+struct Withdrawn {
+    grave: TempSibling,
+}
+
+/// Move the entry at `source` to a name no other writer knows.
+fn withdraw(source: &Located, handle: &File) -> Result<Withdrawn, CommandError> {
+    let mut grave = TempSibling::create(&source.dir)?;
+    grave.take(&source.name, handle)?;
+    Ok(Withdrawn { grave })
+}
+
+impl Withdrawn {
+    fn holds(&self, source: &Located, handle: &File) -> Result<bool, CommandError> {
+        Ok(source.sibling(self.grave.name())?.identity()? == handle_identity(handle)?)
+    }
+
+    fn give_back(mut self, source: &Located, handle: &File) -> Result<(), CommandError> {
+        Ok(self.grave.give_back(&source.name, handle)?)
+    }
+}
+
+/// A replacement beside its original, which stays open until publication decides.
+struct Staged {
+    original: File,
+    temp: TempSibling,
+    updated_at: i64,
+}
+
+/// Write the replacement only while the original still carries `expected`.
+fn stage(
+    source: &Located,
+    content: &str,
+    expected: &str,
+) -> Result<Publication<Staged>, CommandError> {
+    let mut original = source.open_write()?;
+    let current = current_file(&mut original)?;
+    if current.revision != expected {
+        return Ok(Publication::Conflict(current));
+    }
     let mut temp = TempSibling::create(&source.dir)?;
     temp.file()
         .set_permissions(original.metadata()?.permissions())?;
     write_temp(temp.file_mut(), content)?;
     let updated_at = checked_mtime(temp.file())?;
-    temp.replace(&source.name)?;
-    Ok(updated_at)
+    Ok(Publication::Committed(Staged {
+        original,
+        temp,
+        updated_at,
+    }))
+}
+
+impl Staged {
+    /// True when the original handle still names the bytes the save started from.
+    fn original_unchanged(&mut self, expected: &str) -> Result<bool, CommandError> {
+        Ok(current_file(&mut self.original)?.revision == expected)
+    }
+
+    /// Put the replacement at `target`, re-proving the precondition after the swap
+    /// where the platform can swap; elsewhere the check-then-rename window is accepted.
+    fn exchange_over(
+        &mut self,
+        source: &Located,
+        target: &str,
+        expected: &str,
+    ) -> Result<Publication<i64>, CommandError> {
+        if self.temp.exchange(target)? == Exchange::Unsupported {
+            if !self.original_unchanged(expected)? {
+                let mut current = source.open_read()?;
+                return Ok(Publication::Conflict(current_file(&mut current)?));
+            }
+            self.temp.replace(target)?;
+            return Ok(Publication::Committed(self.updated_at));
+        }
+        // After the swap the original inode should sit under the temp name. A
+        // different inode means a rename landed over the target in between, and
+        // it can carry the very bytes the handle still shows, so identity comes
+        // before the hash.
+        let displaced = source.sibling(self.temp.name())?;
+        let intact = displaced.identity()? == handle_identity(&self.original)?
+            && self.original_unchanged(expected)?;
+        if intact {
+            return Ok(Publication::Committed(self.updated_at));
+        }
+        self.temp.exchange(target)?;
+        let mut current = source.open_read()?;
+        Ok(Publication::Conflict(current_file(&mut current)?))
+    }
+
+    /// Remove the original after `candidate` was published under a new name, unless
+    /// it changed in between, in which case the candidate is withdrawn instead.
+    /// Each removal first moves the entry to a private name, so a file that lands
+    /// under the public name in the meantime is never the one unlinked.
+    fn retire_original(
+        &mut self,
+        source: &Located,
+        candidate: &str,
+        expected: &str,
+    ) -> Result<Publication<Vec<MutationWarning>>, CommandError> {
+        let original = match withdraw(source, &self.original) {
+            Ok(original) => original,
+            Err(error) => {
+                return Ok(Publication::Committed(vec![MutationWarning::Cleanup {
+                    path: source.name.clone(),
+                    message: error.message,
+                }]))
+            }
+        };
+        if original.holds(source, &self.original)? && self.original_unchanged(expected)? {
+            drop(original);
+            return Ok(Publication::Committed(vec![]));
+        }
+        original.give_back(source, &self.original)?;
+        let published = source.sibling(candidate)?;
+        let withdrawn = withdraw(&published, self.temp.file())?;
+        if withdrawn.holds(&published, self.temp.file())? {
+            drop(withdrawn);
+        } else {
+            withdrawn.give_back(&published, self.temp.file())?;
+        }
+        let mut current = source.open_read()?;
+        Ok(Publication::Conflict(current_file(&mut current)?))
+    }
 }
 
 fn reconcile(core: &Library, paths: &[&str]) -> Vec<MutationWarning> {
@@ -431,6 +590,7 @@ fn publish_move(
     Ok(PathMutationReceipt {
         path: to.as_str().to_owned(),
         file: NoteFile {
+            revision: content_revision(&content),
             content,
             updated_at,
         },
@@ -465,12 +625,11 @@ fn save_file(
     source: &Located,
     content: &str,
     name: Option<SaveName>,
-) -> Result<FileCommit, CommandError> {
+    expected: &str,
+) -> Result<Publication<FileCommit>, CommandError> {
     if !is_markdown(Path::new(&source.name)) {
         return Err("notes must be markdown files".into());
     }
-    let original = source.open_write()?;
-    let metadata = original.metadata()?;
     let filename = match name {
         Some(SaveName::Heading) => markdown::leading_heading(frontmatter::parse(content).body)
             .map(|heading| format!("{}.md", filename_from_title(&heading))),
@@ -482,12 +641,18 @@ fn save_file(
         }
         None => None,
     };
+    let mut staged = match stage(source, content, expected)? {
+        Publication::Committed(staged) => staged,
+        Publication::Conflict(file) => return Ok(Publication::Conflict(file)),
+    };
     let Some(filename) = filename else {
-        return Ok(FileCommit {
-            name: source.name.clone(),
-            updated_at: replace(source, content)?,
-            warnings: vec![],
-        });
+        return Ok(staged
+            .exchange_over(source, &source.name, expected)?
+            .map(|updated_at| FileCommit {
+                name: source.name.clone(),
+                updated_at,
+                warnings: vec![],
+            }));
     };
     let stem = Path::new(&filename)
         .file_stem()
@@ -497,10 +662,6 @@ fn save_file(
         .extension()
         .and_then(|s| s.to_str())
         .ok_or("invalid filename")?;
-    let mut temp = TempSibling::create(&source.dir)?;
-    temp.file().set_permissions(metadata.permissions())?;
-    write_temp(temp.file_mut(), content)?;
-    let updated_at = checked_mtime(temp.file())?;
     let identity = source.identity()?;
     let mut counter = 1;
     loop {
@@ -509,28 +670,36 @@ fn save_file(
         } else {
             format!("{}.{}", suffixed_filename(stem, counter), extension)
         };
-        if candidate == source.name || same_file(source, &candidate, identity)? {
-            temp.replace(&candidate)?;
-            return Ok(FileCommit {
-                name: candidate,
-                updated_at,
-                warnings: vec![],
-            });
-        }
-        match temp.publish(&candidate) {
-            Ok(()) => {
-                let warnings = match source.remove_file() {
-                    Ok(()) => vec![],
-                    Err(error) => vec![MutationWarning::Cleanup {
-                        path: source.name.clone(),
-                        message: io_reason(&error),
-                    }],
-                };
-                return Ok(FileCommit {
+        if candidate == source.name {
+            return Ok(staged
+                .exchange_over(source, &candidate, expected)?
+                .map(|updated_at| FileCommit {
                     name: candidate,
                     updated_at,
-                    warnings,
-                });
+                    warnings: vec![],
+                }));
+        }
+        if same_file(source, &candidate, identity)? {
+            // The current file under another spelling, a case-only rename on a
+            // case-insensitive filesystem or a hard link: a swap would leave that
+            // entry under the temp name, so this keeps the plain rename.
+            staged.temp.replace(&candidate)?;
+            return Ok(Publication::Committed(FileCommit {
+                name: candidate,
+                updated_at: staged.updated_at,
+                warnings: vec![],
+            }));
+        }
+        match staged.temp.publish(&candidate) {
+            Ok(()) => {
+                let updated_at = staged.updated_at;
+                return Ok(staged
+                    .retire_original(source, &candidate, expected)?
+                    .map(|warnings| FileCommit {
+                        name: candidate,
+                        updated_at,
+                        warnings,
+                    }));
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => counter += 1,
             Err(error) => return Err(error.into()),
@@ -544,8 +713,10 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     }
     let file = OpenedNote::new(File::open(path)?);
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
+    let content = file.read()?;
     Ok(NoteFile {
-        content: file.read()?,
+        revision: content_revision(&content),
+        content,
         updated_at,
     })
 }
@@ -555,7 +726,8 @@ pub fn write_external(
     path: &Path,
     content: &str,
     name: Option<SaveName>,
-) -> Result<MutationReceipt, CommandError> {
+    expected: &str,
+) -> Result<SaveOutcome, CommandError> {
     let host = path.to_str().ok_or("the path is not valid unicode")?;
     let parent = path
         .parent()
@@ -569,7 +741,10 @@ pub fn write_external(
             .ok_or("a note without a filename")?
             .to_owned(),
     };
-    let result = save_file(&source, content, name)?;
+    let result = match save_file(&source, content, name, expected)? {
+        Publication::Committed(result) => result,
+        Publication::Conflict(file) => return Ok(SaveOutcome::Conflict { file }),
+    };
     let mut warnings = result.warnings;
     for warning in &mut warnings {
         if let MutationWarning::Cleanup {
@@ -579,19 +754,22 @@ pub fn write_external(
             *remaining = host.to_owned();
         }
     }
-    Ok(MutationReceipt {
-        path: parent
-            .join(result.name)
-            .to_str()
-            .ok_or("the path is not valid unicode")?
-            .to_owned(),
-        updated_at: result.updated_at,
-        warnings,
+    Ok(SaveOutcome::Committed {
+        receipt: MutationReceipt {
+            path: parent
+                .join(result.name)
+                .to_str()
+                .ok_or("the path is not valid unicode")?
+                .to_owned(),
+            revision: content_revision(content),
+            updated_at: result.updated_at,
+            warnings,
+        },
     })
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OpenKind {
     External,
@@ -649,6 +827,7 @@ impl Library {
             tags: parsed.frontmatter.tags,
             title,
             path,
+            revision: content_revision(&content),
             content,
             updated_at: timestamp_millis(metadata.modified())?,
         })
@@ -684,29 +863,31 @@ impl Library {
             dir: parent,
             name: path.split().1.to_owned(),
         };
-        let updated_at = create_file(
-            &target,
-            path.as_str(),
-            options.content.as_deref().unwrap_or(""),
-        )?;
+        let content = options.content.as_deref().unwrap_or("");
+        let updated_at = create_file(&target, path.as_str(), content)?;
         let warnings = reconcile(self, &[path.as_str()]);
         Ok(MutationReceipt {
             path: path.into_string(),
+            revision: content_revision(content),
             updated_at,
             warnings,
         })
     }
 
-    /// Persist a live document; reads and watcher observations never request naming.
+    /// Save a document at the revision it started from, or return the changed file.
     pub fn save_note(
         &self,
         path: &str,
         content: &str,
         name: Option<SaveName>,
-    ) -> Result<MutationReceipt, CommandError> {
+        expected: &str,
+    ) -> Result<SaveOutcome, CommandError> {
         let relative = RelativePath::parse(path)?;
         let source = relative.resolve(&self.root)?;
-        let result = save_file(&source, content, name)?;
+        let result = match save_file(&source, content, name, expected)? {
+            Publication::Committed(result) => result,
+            Publication::Conflict(file) => return Ok(SaveOutcome::Conflict { file }),
+        };
         let (folder, _) = relative.split();
         let mut receipt = MutationReceipt {
             path: if folder.is_empty() {
@@ -714,6 +895,7 @@ impl Library {
             } else {
                 format!("{folder}/{}", result.name)
             },
+            revision: content_revision(content),
             updated_at: result.updated_at,
             warnings: result.warnings,
         };
@@ -731,7 +913,7 @@ impl Library {
             vec![path, receipt.path.as_str()]
         };
         receipt.warnings.extend(reconcile(self, &paths));
-        Ok(receipt)
+        Ok(SaveOutcome::Committed { receipt })
     }
 
     pub fn move_note(
@@ -756,6 +938,7 @@ impl Library {
             return Ok(PathMutationReceipt {
                 path,
                 file: NoteFile {
+                    revision: content_revision(&content),
                     content,
                     updated_at,
                 },
@@ -863,6 +1046,53 @@ mod tests {
         }
     }
 
+    fn committed(outcome: SaveOutcome) -> MutationReceipt {
+        match outcome {
+            SaveOutcome::Committed { receipt } => receipt,
+            SaveOutcome::Conflict { file } => panic!("expected a committed save, got {file:?}"),
+        }
+    }
+
+    fn conflicted(outcome: SaveOutcome) -> NoteFile {
+        match outcome {
+            SaveOutcome::Conflict { file } => file,
+            SaveOutcome::Committed { receipt } => panic!("expected a conflict, got {receipt:?}"),
+        }
+    }
+
+    /// Save at the revision the file carries now, the way a session that just read it would.
+    fn saved(
+        core: &Library,
+        path: &str,
+        content: &str,
+        name: Option<SaveName>,
+    ) -> Result<MutationReceipt, CommandError> {
+        let expected = core.read_note(path.into())?.revision;
+        core.save_note(path, content, name, &expected)
+            .map(committed)
+    }
+
+    fn written(
+        path: &Path,
+        content: &str,
+        name: Option<SaveName>,
+    ) -> Result<MutationReceipt, CommandError> {
+        let expected = read_external(path)?.revision;
+        write_external(path, content, name, &expected).map(committed)
+    }
+
+    /// The old whole-file replacement: stage at the current revision and publish.
+    fn replace(source: &Located, content: &str) -> Result<i64, CommandError> {
+        let expected = current_file(&mut source.open_read()?)?.revision;
+        let Publication::Committed(mut staged) = stage(source, content, &expected)? else {
+            panic!("the file changed between reading and staging");
+        };
+        match staged.exchange_over(source, &source.name, &expected)? {
+            Publication::Committed(updated_at) => Ok(updated_at),
+            Publication::Conflict(file) => panic!("the file changed underneath: {file:?}"),
+        }
+    }
+
     #[test]
     fn should_save_a_same_filename_heading_while_a_reader_holds_the_original() {
         let directory = tempfile::tempdir().unwrap();
@@ -871,13 +1101,13 @@ mod tests {
         fs::write(&path, "# Errands\n\noriginal").unwrap();
         let reader = OpenedNote::new(File::open(&path).unwrap());
 
-        let receipt = core
-            .save_note(
-                "errands.md",
-                "# Errands\n\nreplacement",
-                Some(SaveName::Heading),
-            )
-            .unwrap();
+        let receipt = saved(
+            &core,
+            "errands.md",
+            "# Errands\n\nreplacement",
+            Some(SaveName::Heading),
+        )
+        .unwrap();
 
         assert_eq!(receipt.path, "errands.md");
         assert!(receipt.warnings.is_empty());
@@ -886,6 +1116,45 @@ mod tests {
             fs::read_to_string(&path).unwrap(),
             "# Errands\n\nreplacement"
         );
+    }
+
+    #[test]
+    fn should_return_the_revision_of_a_created_note() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+
+        let receipt = core
+            .create_note(&CreateNote {
+                content: Some("# Created\n\nbody".into()),
+                name: Some(NoteName::Filename("created".into())),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(receipt.revision, content_revision("# Created\n\nbody"));
+        assert_eq!(receipt.revision.len(), 64);
+        assert_eq!(
+            core.read_note("created.md".into()).unwrap().revision,
+            receipt.revision
+        );
+    }
+
+    #[test]
+    fn should_report_a_revision_that_matches_the_bytes_read() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        fs::write(directory.path().join("note.md"), "# Read\n\ncaf\u{e9}").unwrap();
+
+        let note = core.read_note("note.md".into()).unwrap();
+        let external = read_external(&directory.path().join("note.md")).unwrap();
+        let saved = saved(&core, "note.md", "# Read\n\nchanged", None).unwrap();
+        let moved = core.move_note("note.md".into(), "folder").unwrap();
+
+        assert_eq!(note.revision, content_revision("# Read\n\ncaf\u{e9}"));
+        assert_eq!(external.revision, note.revision);
+        assert_eq!(saved.revision, content_revision("# Read\n\nchanged"));
+        assert_eq!(moved.file.revision, saved.revision);
+        assert_ne!(saved.revision, note.revision);
     }
 
     #[test]
@@ -975,34 +1244,34 @@ mod tests {
             "someone else's note",
         )
         .unwrap();
-        let first = core
-            .save_note(
-                "shopping.md",
-                "# Weekend errands\n\nbody",
-                Some(SaveName::Heading),
-            )
-            .unwrap();
+        let first = saved(
+            &core,
+            "shopping.md",
+            "# Weekend errands\n\nbody",
+            Some(SaveName::Heading),
+        )
+        .unwrap();
         assert_eq!(first.path, "weekend-errands-2.md");
-        let second = core
-            .save_note(
-                &first.path,
-                "# Weekend errands\n\nbody",
-                Some(SaveName::Heading),
-            )
-            .unwrap();
+        let second = saved(
+            &core,
+            &first.path,
+            "# Weekend errands\n\nbody",
+            Some(SaveName::Heading),
+        )
+        .unwrap();
         assert_eq!(second.path, "weekend-errands-2.md");
         assert_eq!(
             fs::read_to_string(directory.path().join("weekend-errands.md")).unwrap(),
             "someone else's note"
         );
         fs::remove_file(directory.path().join("weekend-errands.md")).unwrap();
-        let third = core
-            .save_note(
-                &second.path,
-                "# Weekend errands\n\nbody",
-                Some(SaveName::Heading),
-            )
-            .unwrap();
+        let third = saved(
+            &core,
+            &second.path,
+            "# Weekend errands\n\nbody",
+            Some(SaveName::Heading),
+        )
+        .unwrap();
         assert_eq!(third.path, "weekend-errands.md");
         assert!(!directory.path().join("weekend-errands-2.md").exists());
         assert_eq!(
@@ -1023,13 +1292,9 @@ mod tests {
         core.read_note("shopping.md".into()).unwrap();
         assert!(directory.path().join("shopping.md").exists());
         assert!(!directory.path().join("errands.md").exists());
-        let body = core
-            .save_note("shopping.md", "# Errands\n\nnew body", None)
-            .unwrap();
+        let body = saved(&core, "shopping.md", "# Errands\n\nnew body", None).unwrap();
         assert_eq!(body.path, "shopping.md");
-        let empty = core
-            .save_note(&body.path, "# \n\nbody", Some(SaveName::Heading))
-            .unwrap();
+        let empty = saved(&core, &body.path, "# \n\nbody", Some(SaveName::Heading)).unwrap();
         assert_eq!(empty.path, "shopping.md");
     }
 
@@ -1038,22 +1303,22 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("weekend.md"), "# Weekend").unwrap();
-        let restored = core
-            .save_note(
-                "weekend.md",
-                "# Errands",
-                Some(SaveName::Filename("shopping.md".into())),
-            )
-            .unwrap();
+        let restored = saved(
+            &core,
+            "weekend.md",
+            "# Errands",
+            Some(SaveName::Filename("shopping.md".into())),
+        )
+        .unwrap();
         assert_eq!(restored.path, "shopping.md");
         fs::write(directory.path().join("weekend.md"), "# other").unwrap();
-        let redo = core
-            .save_note(
-                &restored.path,
-                "# Weekend",
-                Some(SaveName::Filename("weekend.md".into())),
-            )
-            .unwrap();
+        let redo = saved(
+            &core,
+            &restored.path,
+            "# Weekend",
+            Some(SaveName::Filename("weekend.md".into())),
+        )
+        .unwrap();
         assert_eq!(redo.path, "weekend-2.md");
         assert_eq!(
             fs::read_to_string(directory.path().join("weekend.md")).unwrap(),
@@ -1069,7 +1334,7 @@ mod tests {
         let link = directory.path().join("errands.md");
         fs::write(&source, "# imported").unwrap();
         std::os::unix::fs::symlink(&source, &link).unwrap();
-        let receipt = write_external(&source, "# Errands", Some(SaveName::Heading)).unwrap();
+        let receipt = written(&source, "# Errands", Some(SaveName::Heading)).unwrap();
         assert_eq!(
             Path::new(&receipt.path),
             directory.path().join("errands-2.md")
@@ -1088,7 +1353,7 @@ mod tests {
             .path()
             .join(std::ffi::OsString::from_vec(b"note-\xff.md".to_vec()));
 
-        let error = write_external(&path, "# changed", None).unwrap_err();
+        let error = write_external(&path, "# changed", None, "").unwrap_err();
 
         assert_eq!(error.kind, ErrorKind::Failed);
         assert_eq!(error.message, "the path is not valid unicode");
@@ -1106,7 +1371,7 @@ mod tests {
             .join(std::ffi::OsString::from_vec(b"note-\xff.md".to_vec()));
         fs::write(&path, "# original").unwrap();
 
-        let error = write_external(&path, "# changed", None).unwrap_err();
+        let error = write_external(&path, "# changed", None, "").unwrap_err();
 
         assert_eq!(error.message, "the path is not valid unicode");
         assert_eq!(fs::read_to_string(path).unwrap(), "# original");
@@ -1135,7 +1400,7 @@ mod tests {
         fs::write(&real, "# Real").unwrap();
         std::os::unix::fs::symlink(&real, &link).unwrap();
 
-        assert!(write_external(&link, "# Changed", None).is_err());
+        assert!(write_external(&link, "# Changed", None, "").is_err());
 
         assert_eq!(fs::read_to_string(&real).unwrap(), "# Real");
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
@@ -1147,7 +1412,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("shopping.md");
         fs::write(&path, "# Errands").unwrap();
-        let receipt = write_external(&path, "# Weekend errands", Some(SaveName::Heading)).unwrap();
+        let receipt = written(&path, "# Weekend errands", Some(SaveName::Heading)).unwrap();
         assert_eq!(
             Path::new(&receipt.path),
             directory.path().join("weekend-errands.md")
@@ -1251,7 +1516,7 @@ mod tests {
         fs::write(directory.path().join("a.md"), "# old").unwrap();
         index::index_file(&core.conn, &core.root, "a.md").unwrap();
         core.conn.execute_batch("PRAGMA query_only = ON").unwrap();
-        let receipt = core.save_note("a.md", "# saved", None).unwrap();
+        let receipt = saved(&core, "a.md", "# saved", None).unwrap();
         assert!(
             matches!(receipt.warnings.as_slice(), [MutationWarning::Index { path, .. }] if path == "a.md")
         );
@@ -1810,7 +2075,7 @@ mod tests {
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
 
         assert!(library
-            .save_note("linked/note.md", "# changed", None)
+            .save_note("linked/note.md", "# changed", None, "")
             .is_err());
         assert_eq!(
             fs::read_to_string(outside.path().join("note.md")).unwrap(),
@@ -1882,11 +2147,202 @@ mod tests {
         fs::create_dir(directory.path().join("folder")).unwrap();
         fs::write(directory.path().join("folder/note.md"), "# before").unwrap();
 
-        let receipt = library
-            .save_note("folder/note.md", "# after", Some(SaveName::Heading))
-            .unwrap();
+        let receipt = saved(
+            &library,
+            "folder/note.md",
+            "# after",
+            Some(SaveName::Heading),
+        )
+        .unwrap();
 
         assert_eq!(receipt.path, "folder/after.md");
         assert_eq!(receipt.warnings.len(), 0);
+    }
+
+    #[test]
+    fn should_refuse_a_save_whose_expected_revision_is_stale_and_return_the_file_on_disk() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        fs::write(directory.path().join("note.md"), "# on disk").unwrap();
+
+        let file = conflicted(
+            core.save_note(
+                "note.md",
+                "# mine",
+                None,
+                &content_revision("# started from"),
+            )
+            .unwrap(),
+        );
+
+        assert_eq!(file.content, "# on disk");
+        assert_eq!(file.revision, content_revision("# on disk"));
+        assert!(file.updated_at > 0);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# on disk"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn should_refuse_a_stale_external_save_without_writing() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "# on disk").unwrap();
+
+        let file =
+            conflicted(write_external(&path, "# mine", Some(SaveName::Heading), "stale").unwrap());
+
+        assert_eq!(file.content, "# on disk");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "# on disk");
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn should_publish_when_nothing_changed_between_staging_and_publication() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# before").unwrap();
+        let source = located(directory.path(), "note.md");
+        let expected = content_revision("# before");
+        let Publication::Committed(mut staged) = stage(&source, "# after", &expected).unwrap()
+        else {
+            panic!("staging should pass at the current revision");
+        };
+
+        let outcome = staged.exchange_over(&source, "note.md", &expected).unwrap();
+
+        assert!(matches!(outcome, Publication::Committed(_)));
+        drop(staged);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# after"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    #[test]
+    fn should_keep_an_in_place_write_that_landed_between_staging_and_publication() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# before").unwrap();
+        let source = located(directory.path(), "note.md");
+        let expected = content_revision("# before");
+        let Publication::Committed(mut staged) = stage(&source, "# mine", &expected).unwrap()
+        else {
+            panic!("staging should pass at the current revision");
+        };
+        fs::write(directory.path().join("note.md"), "# written in place").unwrap();
+
+        let outcome = staged.exchange_over(&source, "note.md", &expected).unwrap();
+
+        let Publication::Conflict(file) = outcome else {
+            panic!("an in-place write must be kept");
+        };
+        assert_eq!(file.content, "# written in place");
+        drop(staged);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# written in place"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    #[test]
+    fn should_keep_a_replacement_that_landed_between_staging_and_publication() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# before").unwrap();
+        let source = located(directory.path(), "note.md");
+        let expected = content_revision("# before");
+        let Publication::Committed(mut staged) = stage(&source, "# mine", &expected).unwrap()
+        else {
+            panic!("staging should pass at the current revision");
+        };
+        // The same bytes under a new inode: only the identity check can see it.
+        fs::write(directory.path().join("incoming.md"), "# before").unwrap();
+        fs::rename(
+            directory.path().join("incoming.md"),
+            directory.path().join("note.md"),
+        )
+        .unwrap();
+
+        let outcome = staged.exchange_over(&source, "note.md", &expected).unwrap();
+
+        let Publication::Conflict(file) = outcome else {
+            panic!("a renamed-over file must be kept");
+        };
+        assert_eq!(file.content, "# before");
+        drop(staged);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# before"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn should_keep_a_file_renamed_over_the_original_before_a_rename_could_retire_it() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("shopping.md"), "# before").unwrap();
+        let source = located(directory.path(), "shopping.md");
+        let expected = content_revision("# before");
+        let Publication::Committed(mut staged) = stage(&source, "# Errands", &expected).unwrap()
+        else {
+            panic!("staging should pass at the current revision");
+        };
+        staged.temp.publish("errands.md").unwrap();
+        fs::write(directory.path().join("incoming.md"), "# before").unwrap();
+        fs::rename(
+            directory.path().join("incoming.md"),
+            directory.path().join("shopping.md"),
+        )
+        .unwrap();
+
+        let outcome = staged
+            .retire_original(&source, "errands.md", &expected)
+            .unwrap();
+
+        let Publication::Conflict(file) = outcome else {
+            panic!("a renamed-over original must be kept");
+        };
+        assert_eq!(file.content, "# before");
+        drop(staged);
+        assert!(!directory.path().join("errands.md").exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("shopping.md")).unwrap(),
+            "# before"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn should_keep_the_original_when_it_changed_before_a_rename_could_retire_it() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("shopping.md"), "# before").unwrap();
+        let source = located(directory.path(), "shopping.md");
+        let expected = content_revision("# before");
+        let Publication::Committed(mut staged) = stage(&source, "# Errands", &expected).unwrap()
+        else {
+            panic!("staging should pass at the current revision");
+        };
+        staged.temp.publish("errands.md").unwrap();
+        fs::write(directory.path().join("shopping.md"), "# written in place").unwrap();
+
+        let outcome = staged
+            .retire_original(&source, "errands.md", &expected)
+            .unwrap();
+
+        let Publication::Conflict(file) = outcome else {
+            panic!("a changed original must be kept");
+        };
+        assert_eq!(file.content, "# written in place");
+        drop(staged);
+        assert!(!directory.path().join("errands.md").exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("shopping.md")).unwrap(),
+            "# written in place"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
     }
 }

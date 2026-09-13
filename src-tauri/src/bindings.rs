@@ -34,6 +34,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::attach_image::<tauri::Wry>,
             notes::cancel_quit,
             notes::classify_open_paths::<tauri::Wry>,
+            notes::clear_conflict::<tauri::Wry>,
             notes::delete_note::<tauri::Wry>,
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir::<tauri::Wry>,
@@ -44,12 +45,14 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::search_notes::<tauri::Wry>,
             notes::pending_open_files::<tauri::Wry>,
             notes::quit_app::<tauri::Wry>,
+            notes::read_conflict::<tauri::Wry>,
             notes::read_external,
             notes::read_note::<tauri::Wry>,
             notes::reindex_all::<tauri::Wry>,
             notes::create_note::<tauri::Wry>,
             notes::move_note::<tauri::Wry>,
             notes::set_notes_dir::<tauri::Wry>,
+            notes::stash_conflict::<tauri::Wry>,
             notes::write_external::<tauri::Wry>,
             notes::save_note::<tauri::Wry>,
             windows::show_capture::<tauri::Wry>,
@@ -141,6 +144,11 @@ mod tests {
         .unwrap();
         assert_eq!(receipt["path"], "ideas/a.md");
         assert!(receipt["updatedAt"].as_i64().unwrap() > 0);
+        let revision = receipt["revision"].as_str().unwrap();
+        assert_eq!(revision.len(), 64);
+        assert!(revision
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         assert_eq!(
             fs::read_to_string(directory.path().join("ideas/a.md")).unwrap(),
             "# first\nbody"
@@ -149,7 +157,8 @@ mod tests {
             invoke(&window, "read_note", json!({"path": "ideas/a.md"})).unwrap(),
             json!({
                 "content": "# first\nbody", "updatedAt": receipt["updatedAt"],
-                "path": "ideas/a.md", "title": "first", "pinned": false, "tags": []
+                "revision": revision, "path": "ideas/a.md", "title": "first",
+                "pinned": false, "tags": []
             })
         );
         assert_eq!(
@@ -161,12 +170,16 @@ mod tests {
         assert_eq!(notes[0]["path"], "ideas/a.md");
         assert_eq!(notes[0]["title"], "first");
 
-        invoke(
+        let outcome = invoke(
             &window,
             "save_note",
-            json!({"path": "ideas/a.md", "content": "# second"}),
+            json!({"path": "ideas/a.md", "content": "# second", "expected": revision}),
         )
         .unwrap();
+        assert_eq!(outcome["kind"], "committed");
+        let saved = &outcome["receipt"];
+        assert_eq!(saved["path"], "ideas/a.md");
+        assert_ne!(saved["revision"], receipt["revision"]);
         assert_eq!(
             changes.recv().unwrap(),
             (json!({"paths": ["ideas/a.md"]}), true)
@@ -178,6 +191,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(moved["path"], "a.md");
+        assert_eq!(moved["file"]["revision"], saved["revision"]);
         assert_eq!(
             changes.recv().unwrap(),
             (json!({"paths": ["ideas/a.md", "a.md"]}), true)
@@ -299,7 +313,7 @@ mod tests {
         let failure = invoke(
             &window,
             "save_note",
-            json!({"path": "new.md", "create": true}),
+            json!({"path": "new.md", "create": true, "expected": ""}),
         )
         .unwrap_err();
         assert!(failure.as_str().unwrap().contains("content"));
@@ -608,6 +622,145 @@ mod tests {
         assert_eq!(
             statuses.try_iter().collect::<Vec<_>>(),
             [json!({"state": "ready"})]
+        );
+    }
+
+    #[test]
+    fn should_report_a_conflict_without_writing_or_emitting_a_change() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# on disk").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        let _listener = app.listen("notes-changed", move |event| {
+            sender.send(event.payload().to_owned()).unwrap();
+        });
+
+        let outcome = invoke(
+            &window,
+            "save_note",
+            json!({"path": "note.md", "content": "# mine", "expected": "stale"}),
+        )
+        .unwrap();
+
+        assert_eq!(outcome["kind"], "conflict");
+        assert_eq!(outcome["file"]["content"], "# on disk");
+        assert_eq!(outcome["file"]["revision"].as_str().unwrap().len(), 64);
+        assert!(outcome["file"]["updatedAt"].as_i64().unwrap() > 0);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# on disk"
+        );
+        assert!(changes.try_recv().is_err());
+
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("ext.md"), "# outside").unwrap();
+        let outcome = invoke(
+            &window,
+            "write_external",
+            json!({"path": outside.path().join("ext.md"), "content": "# mine", "expected": "stale"}),
+        )
+        .unwrap();
+        assert_eq!(outcome["kind"], "conflict");
+        assert_eq!(outcome["file"]["content"], "# outside");
+        assert_eq!(
+            fs::read_to_string(outside.path().join("ext.md")).unwrap(),
+            "# outside"
+        );
+    }
+
+    #[test]
+    fn should_round_trip_a_conflict_stash_under_the_app_data_dir() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier = directory.path().join("data").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let stash = json!({
+            "base": {"content": "# Base", "revision": "abc", "updatedAt": 5},
+            "ours": "# Ours"
+        });
+
+        assert_eq!(
+            invoke(
+                &window,
+                "read_conflict",
+                json!({"kind": "note", "path": "a.md"})
+            )
+            .unwrap(),
+            Value::Null
+        );
+        invoke(
+            &window,
+            "stash_conflict",
+            json!({"kind": "note", "path": "a.md", "stash": stash}),
+        )
+        .unwrap();
+        assert_eq!(
+            invoke(
+                &window,
+                "read_conflict",
+                json!({"kind": "note", "path": "a.md"})
+            )
+            .unwrap(),
+            stash
+        );
+        assert_eq!(
+            invoke(
+                &window,
+                "read_conflict",
+                json!({"kind": "external", "path": "a.md"})
+            )
+            .unwrap(),
+            Value::Null
+        );
+        assert!(directory.path().join("data/conflicts").is_dir());
+        invoke(
+            &window,
+            "clear_conflict",
+            json!({"kind": "note", "path": "a.md"}),
+        )
+        .unwrap();
+        assert_eq!(
+            invoke(
+                &window,
+                "read_conflict",
+                json!({"kind": "note", "path": "a.md"})
+            )
+            .unwrap(),
+            Value::Null
         );
     }
 

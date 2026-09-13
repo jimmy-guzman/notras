@@ -56,7 +56,7 @@ impl Located {
     }
 
     pub(crate) fn open_write(&self) -> io::Result<File> {
-        self.open(OpenOptions::new().write(true))
+        self.open(OpenOptions::new().read(true).write(true))
     }
 
     pub(crate) fn create_new(&self) -> io::Result<File> {

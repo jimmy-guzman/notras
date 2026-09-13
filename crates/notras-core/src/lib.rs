@@ -5,6 +5,7 @@
 //! for the desktop IPC exporter; engine operations do not depend on it.
 
 mod application;
+mod conflicts;
 mod frontmatter;
 mod index;
 mod markdown;
@@ -23,8 +24,9 @@ use cap_std::{ambient_authority, fs::Dir};
 pub use application::{
     read_external, write_external, CommandError, CreateNote, DeleteReceipt, ErrorKind,
     MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
-    PendingOpen, SaveName, SavedNote,
+    PendingOpen, SaveName, SaveOutcome, SavedNote,
 };
+pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
 pub use queries::{
     CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch, NoteSort, Picture,
     ReadView, SearchFilter,
