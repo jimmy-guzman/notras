@@ -55,8 +55,20 @@ impl Located {
         self.open(OpenOptions::new().read(true))
     }
 
+    /// Open for a save: read to check the revision, write, and on Windows the
+    /// DELETE access a rename through this handle needs when the save retires it.
     pub(crate) fn open_write(&self) -> io::Result<File> {
-        self.open(OpenOptions::new().read(true).write(true))
+        let mut options = OpenOptions::new();
+        options.read(true).write(true);
+        #[cfg(windows)]
+        {
+            use cap_std::fs::OpenOptionsExt as _;
+            use windows_sys::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
+            use windows_sys::Win32::Storage::FileSystem::DELETE;
+
+            options.access_mode(GENERIC_READ | GENERIC_WRITE | DELETE);
+        }
+        self.open(&mut options)
     }
 
     pub(crate) fn create_new(&self) -> io::Result<File> {
