@@ -86,11 +86,11 @@ async setNotesDir(path: string) : Promise<null> {
 async stashConflict(kind: OpenKind, path: string, stash: ConflictStash) : Promise<null> {
     return await TAURI_INVOKE("stash_conflict", { kind, path, stash });
 },
-async writeExternal(path: string, content: string, name: SaveName | null) : Promise<MutationReceipt> {
-    return await TAURI_INVOKE("write_external", { path, content, name });
+async writeExternal(path: string, content: string, name: SaveName | null, expected: string) : Promise<SaveOutcome> {
+    return await TAURI_INVOKE("write_external", { path, content, name, expected });
 },
-async saveNote(path: string, content: string, name: SaveName | null) : Promise<MutationReceipt> {
-    return await TAURI_INVOKE("save_note", { path, content, name });
+async saveNote(path: string, content: string, name: SaveName | null, expected: string) : Promise<SaveOutcome> {
+    return await TAURI_INVOKE("save_note", { path, content, name, expected });
 },
 /**
  * Open quick capture, or focus its existing window.
@@ -170,6 +170,10 @@ export type PendingOpen = { kind: OpenKind; path: string }
 export type Picture = { kind: "note"; note: NoteMeta; graph: Graph } | { kind: "hub"; hub: HubPill; members: RingMember[] }
 export type RingMember = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta }
 export type SaveName = { kind: "heading" } | { kind: "filename"; value: string }
+/**
+ * What a save did: published at the expected revision, or refused because the file moved on.
+ */
+export type SaveOutcome = { kind: "committed"; receipt: MutationReceipt } | { kind: "conflict"; file: NoteFile }
 export type SavedNote = { content: string; path: string; pinned: boolean; revision: string; tags: string[]; title: string; updatedAt: number }
 export type SearchFilter = { kind: "folder"; value: string } | { kind: "from"; value: string } | { kind: "link"; value: string } | { kind: "mention"; value: string } | { kind: "tag"; value: string } | { kind: "to"; value: string }
 

@@ -3,7 +3,10 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { createNotePersistence } from "@/components/editor/note-persistence";
+import {
+  createNotePersistence,
+  type SaveOutcome,
+} from "@/components/editor/note-persistence";
 import { NoteTags } from "@/components/notes/note-tags";
 import { TagsView } from "@/components/palette-note-views";
 import { Command, CommandList } from "@/components/ui/command";
@@ -19,11 +22,7 @@ import {
 it.each(["combobox", "palette"])(
   "should retain rapid tag toggles from the %s before its displayed tags refresh",
   async (control) => {
-    const saved = Promise.withResolvers<{
-      path: string;
-      revision: string;
-      updatedAt: Date;
-    }>();
+    const saved = Promise.withResolvers<SaveOutcome>();
     const writes: string[] = [];
     const note = createNotePersistence(
       {
@@ -62,9 +61,8 @@ it.each(["combobox", "palette"])(
     onTestFinished(async () => {
       await act(async () => {
         saved.resolve({
-          path: "note.md",
-          revision: "r1",
-          updatedAt: new Date(1),
+          kind: "committed",
+          receipt: { path: "note.md", revision: "r1", updatedAt: new Date(1) },
         });
         await note.flush();
         closeTab(id);
@@ -108,9 +106,8 @@ it.each(["combobox", "palette"])(
     ]);
     await act(async () => {
       saved.resolve({
-        path: "note.md",
-        revision: "r1",
-        updatedAt: new Date(1),
+        kind: "committed",
+        receipt: { path: "note.md", revision: "r1", updatedAt: new Date(1) },
       });
       await note.flush();
     });

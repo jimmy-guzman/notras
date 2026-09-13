@@ -192,10 +192,10 @@ function SessionBuffer({
         onPathChanged: renameTab,
         stash: async (path, stash) =>
           await stashConflict(tab.kind, path, stash),
-        write: async (path, content, name) =>
+        write: async (path, content, name, expected) =>
           tab.kind === "external"
-            ? await writeExternalNote(path, content, name)
-            : await saveNote(path, content, name),
+            ? await writeExternalNote(path, content, name, expected)
+            : await saveNote(path, content, name, expected),
       }
     )
   );

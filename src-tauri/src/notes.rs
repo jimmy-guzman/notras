@@ -11,7 +11,8 @@ use crate::state::AppState;
 use crate::watcher;
 use notras_core::{
     self, CommandError, ConflictStash, CreateNote, DeleteReceipt, Library, MutationReceipt,
-    MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen, SaveName, SavedNote,
+    MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome,
+    SavedNote,
 };
 use notras_core::{
     CountedTag, GraphResult, GraphTarget, Mention, NoteFilters, NoteMeta, NoteSearch,
@@ -183,20 +184,25 @@ pub async fn save_note<R: Runtime>(
     path: String,
     content: String,
     name: Option<SaveName>,
-) -> Result<MutationReceipt, CommandError> {
+    expected: String,
+) -> Result<SaveOutcome, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
         let (result, changed) = state.library.mutate(|library| {
-            let result = library.save_note(&path, &content, name)?;
-            let paths = if path == result.path {
-                vec![path]
-            } else {
-                vec![path, result.path.clone()]
+            let result = library.save_note(&path, &content, name, &expected)?;
+            // An empty list tells the frontend the whole vault changed, so a
+            // conflict, which wrote nothing, must not reach `emit_changed`.
+            let paths = match &result {
+                SaveOutcome::Committed { receipt } if path == receipt.path => vec![path],
+                SaveOutcome::Committed { receipt } => vec![path, receipt.path.clone()],
+                SaveOutcome::Conflict { .. } => vec![],
             };
             Ok((result, paths))
         })?;
-        emit_warnings(&app, &result.warnings);
-        emit_changed(&app, changed.generation, changed.paths);
+        if let SaveOutcome::Committed { receipt } = &result {
+            emit_warnings(&app, &receipt.warnings);
+            emit_changed(&app, changed.generation, changed.paths);
+        }
         Ok(result)
     })
     .await
@@ -272,10 +278,13 @@ pub async fn write_external<R: Runtime>(
     path: String,
     content: String,
     name: Option<SaveName>,
-) -> Result<MutationReceipt, CommandError> {
+    expected: String,
+) -> Result<SaveOutcome, CommandError> {
     run_blocking(move || {
-        let result = notras_core::write_external(Path::new(&path), &content, name)?;
-        emit_warnings(&app, &result.warnings);
+        let result = notras_core::write_external(Path::new(&path), &content, name, &expected)?;
+        if let SaveOutcome::Committed { receipt } = &result {
+            emit_warnings(&app, &receipt.warnings);
+        }
         Ok(result)
     })
     .await

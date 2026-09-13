@@ -170,12 +170,15 @@ mod tests {
         assert_eq!(notes[0]["path"], "ideas/a.md");
         assert_eq!(notes[0]["title"], "first");
 
-        let saved = invoke(
+        let outcome = invoke(
             &window,
             "save_note",
-            json!({"path": "ideas/a.md", "content": "# second"}),
+            json!({"path": "ideas/a.md", "content": "# second", "expected": revision}),
         )
         .unwrap();
+        assert_eq!(outcome["kind"], "committed");
+        let saved = &outcome["receipt"];
+        assert_eq!(saved["path"], "ideas/a.md");
         assert_ne!(saved["revision"], receipt["revision"]);
         assert_eq!(
             changes.recv().unwrap(),
@@ -310,7 +313,7 @@ mod tests {
         let failure = invoke(
             &window,
             "save_note",
-            json!({"path": "new.md", "create": true}),
+            json!({"path": "new.md", "create": true, "expected": ""}),
         )
         .unwrap_err();
         assert!(failure.as_str().unwrap().contains("content"));
@@ -619,6 +622,66 @@ mod tests {
         assert_eq!(
             statuses.try_iter().collect::<Vec<_>>(),
             [json!({"state": "ready"})]
+        );
+    }
+
+    #[test]
+    fn should_report_a_conflict_without_writing_or_emitting_a_change() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# on disk").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        let _listener = app.listen("notes-changed", move |event| {
+            sender.send(event.payload().to_owned()).unwrap();
+        });
+
+        let outcome = invoke(
+            &window,
+            "save_note",
+            json!({"path": "note.md", "content": "# mine", "expected": "stale"}),
+        )
+        .unwrap();
+
+        assert_eq!(outcome["kind"], "conflict");
+        assert_eq!(outcome["file"]["content"], "# on disk");
+        assert_eq!(outcome["file"]["revision"].as_str().unwrap().len(), 64);
+        assert!(outcome["file"]["updatedAt"].as_i64().unwrap() > 0);
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "# on disk"
+        );
+        assert!(changes.try_recv().is_err());
+
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("ext.md"), "# outside").unwrap();
+        let outcome = invoke(
+            &window,
+            "write_external",
+            json!({"path": outside.path().join("ext.md"), "content": "# mine", "expected": "stale"}),
+        )
+        .unwrap();
+        assert_eq!(outcome["kind"], "conflict");
+        assert_eq!(outcome["file"]["content"], "# outside");
+        assert_eq!(
+            fs::read_to_string(outside.path().join("ext.md")).unwrap(),
+            "# outside"
         );
     }
 

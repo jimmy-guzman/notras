@@ -11,14 +11,26 @@ export async function readExternalNote(path: string) {
   };
 }
 
-/** Save the complete external document, deriving a filename only for an in-app heading edit. */
+/** Save the complete external document at the revision it started from; a changed file comes back instead. */
 export async function writeExternalNote(
   path: string,
   content: string,
-  name: SaveName | null = null
+  name: SaveName | null,
+  expected: string
 ) {
-  const receipt = await nativeCommand(() =>
-    commands.writeExternal(path, content, name)
+  const outcome = await nativeCommand(() =>
+    commands.writeExternal(path, content, name, expected)
   );
-  return { ...receipt, updatedAt: new Date(receipt.updatedAt) };
+  return outcome.kind === "committed"
+    ? {
+        kind: outcome.kind,
+        receipt: {
+          ...outcome.receipt,
+          updatedAt: new Date(outcome.receipt.updatedAt),
+        },
+      }
+    : {
+        file: { ...outcome.file, updatedAt: new Date(outcome.file.updatedAt) },
+        kind: outcome.kind,
+      };
 }

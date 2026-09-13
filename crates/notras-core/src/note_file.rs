@@ -33,6 +33,24 @@ fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     link_then_unlink(dir, from, to)
 }
 
+/// Swap two entries in one step, or report that this platform cannot.
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+fn exchange(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
+    use rustix::fs::RenameFlags;
+    use rustix::io::Errno;
+
+    match rustix::fs::renameat_with(dir, from, dir, to, RenameFlags::EXCHANGE) {
+        Ok(()) => Ok(true),
+        Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+fn exchange(_dir: &Dir, _from: &str, _to: &str) -> io::Result<bool> {
+    Ok(false)
+}
+
 #[cfg(unix)]
 fn link_then_unlink(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     dir.hard_link(from, dir, to)?;
@@ -173,6 +191,45 @@ impl TempSibling {
         &mut self.file
     }
 
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Move the entry at `from`, the file behind `handle`, over this sibling, so it
+    /// sits under a name no other writer knows. Windows renames the handle itself.
+    pub(crate) fn take(&mut self, from: &str, handle: &File) -> io::Result<()> {
+        rename(&self.dir, from, handle, &self.name, true)?;
+        Ok(())
+    }
+
+    /// Give a taken entry its name back without replacing whatever landed there.
+    /// A name that is taken again keeps the entry where it is, so it survives.
+    pub(crate) fn give_back(&mut self, to: &str, handle: &File) -> io::Result<()> {
+        match rename(&self.dir, &self.name, handle, to, false) {
+            Ok(unlinked) => {
+                self.armed = !unlinked;
+                Ok(())
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                log::warn!(
+                    "{to} was taken again, so its previous file stays as {}",
+                    self.name
+                );
+                self.armed = false;
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Swap this sibling with `target` in one step; false means the platform cannot.
+    ///
+    /// The sibling stays armed either way: after one swap, dropping it removes the
+    /// displaced target, and after a second swap it removes the sibling again.
+    pub(crate) fn exchange(&self, target: &str) -> io::Result<bool> {
+        exchange(&self.dir, &self.name, target)
+    }
+
     pub(crate) fn replace(&mut self, target: &str) -> io::Result<()> {
         self.armed = !rename(&self.dir, &self.name, &self.file, target, true)?;
         Ok(())
@@ -294,6 +351,50 @@ mod tests {
             "replacement"
         );
         assert!(!directory.path().join(name).exists());
+    }
+
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    #[test]
+    fn should_exchange_the_sibling_with_its_target_and_keep_both_files() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "original").unwrap();
+        let (temp, name) = sibling(&root(directory.path()), "replacement");
+
+        assert!(temp.exchange("note.md").unwrap());
+
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "replacement"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join(&name)).unwrap(),
+            "original"
+        );
+        drop(temp);
+        assert!(!directory.path().join(name).exists());
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "replacement"
+        );
+    }
+
+    #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+    #[test]
+    fn should_report_exchange_as_unsupported_where_the_platform_has_none() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "original").unwrap();
+        let (temp, name) = sibling(&root(directory.path()), "replacement");
+
+        assert!(!temp.exchange("note.md").unwrap());
+
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            "original"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join(name)).unwrap(),
+            "replacement"
+        );
     }
 
     #[cfg(windows)]

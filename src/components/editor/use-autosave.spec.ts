@@ -36,9 +36,12 @@ function mountAutosave(
             onPathChanged: () => undefined,
             stash: () => Promise.resolve(),
             write: async (path, content) => ({
-              path,
-              revision: content,
-              updatedAt: await write(path, content),
+              kind: "committed",
+              receipt: {
+                path,
+                revision: content,
+                updatedAt: await write(path, content),
+              },
             }),
           }
         )

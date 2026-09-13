@@ -36,6 +36,11 @@ interface SaveReceipt {
   updatedAt: Date;
 }
 
+/** What a write did: published at the revision sent, or refused with the file now on disk. */
+export type SaveOutcome =
+  | { kind: "committed"; receipt: SaveReceipt }
+  | { kind: "conflict"; file: FileContent };
+
 interface PersistencePorts {
   changePath: (
     path: string,
@@ -52,8 +57,9 @@ interface PersistencePorts {
   write: (
     path: string,
     content: string,
-    name: SaveName | null
-  ) => Promise<SaveReceipt>;
+    name: SaveName | null,
+    expected: string
+  ) => Promise<SaveOutcome>;
 }
 
 interface PersistenceState {
@@ -217,7 +223,22 @@ export function createNotePersistence(
       writing: true,
     }));
     try {
-      const receipt = await ports.write(state.state.path, content, name);
+      const outcome = await ports.write(
+        state.state.path,
+        content,
+        name,
+        state.state.base.revision
+      );
+      if (outcome.kind === "conflict") {
+        state.setState((previous) => ({
+          ...previous,
+          status: "dirty",
+          writing: false,
+        }));
+        absorb(outcome.file);
+        return;
+      }
+      const { receipt } = outcome;
       document.acknowledgeName(
         sentName,
         receipt.path.split("/").at(-1) ?? receipt.path
@@ -304,10 +325,15 @@ export function createNotePersistence(
         if (state.state.missing) {
           throw new Error("no such file");
         }
+        const refused = () =>
+          new Error("this note needs review before it can move");
         if (inConflict()) {
-          throw new Error("this note needs review before it can move");
+          throw refused();
         }
         await write();
+        if (inConflict()) {
+          throw refused();
+        }
         const receipt = await ports.changePath(state.state.path, change);
         state.setState((previous) => ({ ...previous, base: receipt.file }));
         followPath({

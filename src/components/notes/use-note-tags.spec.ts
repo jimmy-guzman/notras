@@ -1,7 +1,10 @@
 import { useSelector } from "@tanstack/react-store";
 import { act, renderHook } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { createNotePersistence } from "@/components/editor/note-persistence";
+import {
+  createNotePersistence,
+  type SaveOutcome,
+} from "@/components/editor/note-persistence";
 import { parseNote } from "@/core/frontmatter";
 import {
   closeTab,
@@ -14,11 +17,7 @@ import { useNoteTags } from "./use-note-tags";
 it("should preserve successive tag edits before a rerender or save completes", async ({
   onTestFinished,
 }) => {
-  const held = Promise.withResolvers<{
-    path: string;
-    revision: string;
-    updatedAt: Date;
-  }>();
+  const held = Promise.withResolvers<SaveOutcome>();
   const writes: string[] = [];
   const note = createNotePersistence(
     {
@@ -76,9 +75,8 @@ it("should preserve successive tag edits before a rerender or save completes", a
   ]);
   await act(async () => {
     held.resolve({
-      path: "errands.md",
-      revision: "r1",
-      updatedAt: new Date(1),
+      kind: "committed",
+      receipt: { path: "errands.md", revision: "r1", updatedAt: new Date(1) },
     });
     await Promise.all(changing);
   });
@@ -94,11 +92,7 @@ it("should preserve successive tag edits before a rerender or save completes", a
 it("should edit the live document and keep the chosen tags when saving fails", async ({
   onTestFinished,
 }) => {
-  const held = Promise.withResolvers<{
-    path: string;
-    revision: string;
-    updatedAt: Date;
-  }>();
+  const held = Promise.withResolvers<SaveOutcome>();
   const note = createNotePersistence(
     {
       content: "---\ntags: [kept]\n---\n# Errands\n\nbody",

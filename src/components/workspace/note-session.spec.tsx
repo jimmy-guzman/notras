@@ -133,7 +133,10 @@ describe("NoteSession", () => {
       }
       if (command === "save_note") {
         writes.push(args);
-        return { path: "a.md", updatedAt: 2, warnings: [] };
+        return {
+          kind: "committed",
+          receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
+        };
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -503,9 +506,13 @@ describe("NoteSession", () => {
     async (sourceMode) => {
       const writes: unknown[] = [];
       const held = Promise.withResolvers<{
-        path: string;
-        updatedAt: number;
-        warnings: never[];
+        kind: "committed";
+        receipt: {
+          path: string;
+          revision: string;
+          updatedAt: number;
+          warnings: never[];
+        };
       }>();
       mockIPC((command, args) => {
         if (command !== "save_note") {
@@ -514,7 +521,15 @@ describe("NoteSession", () => {
         writes.push(args);
         return writes.length === 1
           ? held.promise
-          : { path: "a.md", updatedAt: 3, warnings: [] };
+          : {
+              kind: "committed",
+              receipt: {
+                path: "a.md",
+                revision: "r3",
+                updatedAt: 3,
+                warnings: [],
+              },
+            };
       });
       mountSession("# Errands\n\nbody");
       await editor();
@@ -541,9 +556,13 @@ describe("NoteSession", () => {
       const selection = surface.state.selection.from;
       await act(async () => {
         held.resolve({
-          path: "weekend-errands-2.md",
-          updatedAt: 2,
-          warnings: [],
+          kind: "committed",
+          receipt: {
+            path: "weekend-errands-2.md",
+            revision: "r2",
+            updatedAt: 2,
+            warnings: [],
+          },
         });
         await renaming;
       });
@@ -567,6 +586,7 @@ describe("NoteSession", () => {
       });
       expect(writes.at(-1)).toEqual({
         content: "# Errands\n\nbody",
+        expected: "r2",
         name: { kind: "filename", value: "a.md" },
         path: "weekend-errands-2.md",
       });
@@ -587,7 +607,15 @@ describe("NoteSession", () => {
       mockIPC((command, args) => {
         if (command === "save_note") {
           writes.push(args);
-          return { path: "errands.md", updatedAt: 2, warnings: [] };
+          return {
+            kind: "committed",
+            receipt: {
+              path: "errands.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
         }
       });
       mountSession("# Errands\n\nbody");
@@ -621,7 +649,15 @@ describe("NoteSession", () => {
     mockIPC((command, args) => {
       if (command === "save_note") {
         writes.push(args);
-        return { path: "errands.md", updatedAt: 2, warnings: [] };
+        return {
+          kind: "committed",
+          receipt: {
+            path: "errands.md",
+            revision: "r2",
+            updatedAt: 2,
+            warnings: [],
+          },
+        };
       }
     });
     mountSession("# Errands\n\nbody");
@@ -640,7 +676,15 @@ describe("NoteSession", () => {
     mockIPC((command, args) => {
       if (command === "save_note") {
         writes.push(args);
-        return { path: tab.path, updatedAt: 2, warnings: [] };
+        return {
+          kind: "committed",
+          receipt: {
+            path: tab.path,
+            revision: "r2",
+            updatedAt: 2,
+            warnings: [],
+          },
+        };
       }
     });
     mountSession("---\ntags: [old]\n---\nbody");
@@ -667,6 +711,7 @@ describe("NoteSession", () => {
     expect(writes).toEqual([
       {
         content: "---\ntags: [edited]\n---\nbody plus typing",
+        expected: "r0",
         name: null,
         path: "a.md",
       },
@@ -679,6 +724,7 @@ describe("NoteSession", () => {
     });
     expect(writes.at(-1)).toEqual({
       content: "---\ntags: [edited]\n---\nbody plus typing again",
+      expected: "r2",
       name: null,
       path: "a.md",
     });
@@ -686,9 +732,13 @@ describe("NoteSession", () => {
 
   it("should keep newer source edits while an earlier save is in flight", async () => {
     const first = Promise.withResolvers<{
-      path: string;
-      updatedAt: number;
-      warnings: [];
+      kind: "committed";
+      receipt: {
+        path: string;
+        revision: string;
+        updatedAt: number;
+        warnings: [];
+      };
     }>();
     const writes: unknown[] = [];
     mockIPC((command, args) => {
@@ -696,7 +746,15 @@ describe("NoteSession", () => {
         writes.push(args);
         return writes.length === 1
           ? first.promise
-          : { path: tab.path, updatedAt: 3, warnings: [] };
+          : {
+              kind: "committed",
+              receipt: {
+                path: tab.path,
+                revision: "r3",
+                updatedAt: 3,
+                warnings: [],
+              },
+            };
       }
     });
     mountSession("body");
@@ -726,17 +784,22 @@ describe("NoteSession", () => {
       rich.commands.insertContent(" later");
     });
     await act(async () => {
-      first.resolve({ path: tab.path, updatedAt: 2, warnings: [] });
+      first.resolve({
+        kind: "committed",
+        receipt: { path: tab.path, revision: "r2", updatedAt: 2, warnings: [] },
+      });
       expect(await flushing).toBe(true);
     });
     expect(writes).toEqual([
       {
         content: "---\ntags: [first]\n---\nbody",
+        expected: "r0",
         name: null,
         path: "a.md",
       },
       {
         content: "---\ntags: [second]\n---\nbody later",
+        expected: "r2",
         name: null,
         path: "a.md",
       },
@@ -777,7 +840,10 @@ describe("NoteSession", () => {
           throw new Error("save content missing");
         }
         writes.push(args.content);
-        return { path: "a.md", updatedAt: 2, warnings: [] };
+        return {
+          kind: "committed",
+          receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
+        };
       }
     });
     mountSession("*hello*");
@@ -1023,7 +1089,10 @@ it("should resolve a place, save the composed note, and clear the stored review"
       calls.push(command);
       if (command === "save_note") {
         writes.push(args);
-        return { path: "a.md", revision: "r2", updatedAt: 3, warnings: [] };
+        return {
+          kind: "committed",
+          receipt: { path: "a.md", revision: "r2", updatedAt: 3, warnings: [] },
+        };
       }
       return null;
     }
