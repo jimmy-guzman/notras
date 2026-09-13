@@ -29,8 +29,6 @@ import {
 } from "@/core/merge";
 import { useHotkeys } from "@/lib/ui/shortcuts";
 
-const NOTE_FACE = "font-editor text-base leading-[1.65] whitespace-pre-wrap";
-const HEADING_FACE = "font-editor font-semibold text-[1.88em] leading-[1.3]";
 const FOLD_AFTER_LINES = 6;
 const HEADING_LINE = /^#{1,6} /;
 
@@ -44,7 +42,7 @@ function ContextRun({ lines }: ContextRunProps) {
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
       <Button
-        className="self-start text-muted-foreground"
+        className="self-start font-sans text-muted-foreground"
         onClick={expand}
         size="xs"
         variant="link"
@@ -54,7 +52,7 @@ function ContextRun({ lines }: ContextRunProps) {
     );
   }
   return (
-    <div className={cn(NOTE_FACE, "text-muted-foreground")}>
+    <div className="whitespace-pre-wrap text-muted-foreground">
       {lines.join("\n")}
     </div>
   );
@@ -89,7 +87,7 @@ interface SideProps {
 function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
   return (
     <>
-      <div className="flex items-center justify-between text-muted-foreground text-xs">
+      <div className="flex items-center justify-between font-sans text-muted-foreground text-xs">
         <span>{label}</span>
         <Button aria-label={useLabel} onClick={onUse} size="xs" variant="ghost">
           use this
@@ -97,10 +95,10 @@ function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
       </div>
       <div
         className={cn(
-          "rounded-lg bg-card px-4 py-3",
-          heading ? HEADING_FACE : NOTE_FACE,
+          "whitespace-pre-wrap rounded-lg bg-card px-4 py-3",
           lines.length === 0 && "text-muted-foreground"
         )}
+        data-heading={heading ? "1" : undefined}
       >
         {lines.length === 0 ? "nothing" : lines.join("\n")}
       </div>
@@ -150,27 +148,24 @@ function Place({
         label="on disk"
         lines={hunk.theirs}
         onUse={useTheirs}
-        useLabel="use the version on disk"
+        useLabel="use this, the version on disk"
       />
       <Side
         heading={heading}
         label="mine"
         lines={hunk.ours}
         onUse={useOurs}
-        useLabel="use mine"
+        useLabel="use this, mine"
       />
       <Label
-        className="font-normal text-muted-foreground text-xs"
+        className="font-normal font-sans text-muted-foreground text-xs"
         htmlFor={resultId}
       >
         result<span className="sr-only"> for place {number}</span>
       </Label>
       <Textarea
-        className={cn(
-          "md:text-base",
-          heading ? HEADING_FACE : NOTE_FACE,
-          "placeholder:font-normal placeholder:font-sans placeholder:text-sm"
-        )}
+        className="rounded-lg placeholder:font-normal placeholder:font-sans placeholder:text-sm"
+        data-heading={heading ? "1" : undefined}
         id={resultId}
         onChange={edit}
         placeholder="use one side above, or write the result"
@@ -313,7 +308,9 @@ export function ConflictReview({
             ) : null}
           </div>
         )}
-        {rows}
+        {rows.length > 0 ? (
+          <div className="typeset typeset-note flex flex-col gap-6">{rows}</div>
+        ) : null}
         <div className="flex items-center gap-2 pt-2">
           <Button disabled={remaining > 0} onClick={resolve} size="sm">
             resolve
@@ -321,7 +318,7 @@ export function ConflictReview({
           <Button onClick={onBack} size="sm" variant="ghost">
             back
           </Button>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-xs tabular-nums">
             {remaining > 0
               ? `${remaining} of ${places} still need a result`
               : "every place has a result"}

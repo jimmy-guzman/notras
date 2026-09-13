@@ -1015,12 +1015,12 @@ it("should fill the result from either side and show a deleted side as nothing",
   const { client } = await mountConflict("# Errands\n\nbody", "# Errands\n");
   await user.click(screen.getByRole("button", { name: "review" }));
   expect(screen.getByText("nothing")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "use mine" }));
+  await user.click(screen.getByRole("button", { name: "use this, mine" }));
   const result = screen.getByRole("textbox", { name: "result for place 1" });
   expect(result).toHaveValue("bodyTyped ");
   expect(result).toHaveFocus();
   await user.click(
-    screen.getByRole("button", { name: "use the version on disk" })
+    screen.getByRole("button", { name: "use this, the version on disk" })
   );
   expect(result).toHaveValue("");
   expect(screen.getByText("every place has a result")).toBeInTheDocument();
@@ -1076,11 +1076,14 @@ it("should show a heading place at heading size and fold long unchanged runs", a
 
   const heading = await mountConflict("# Errands", "# Chores");
   await user.click(screen.getByRole("button", { name: "review" }));
-  expect(screen.getByText("# Chores")).toHaveClass("text-[1.88em]");
-  expect(screen.getByText("# ErrandsTyped")).toHaveClass("text-[1.88em]");
+  expect(screen.getByText("# Chores")).toHaveAttribute("data-heading", "1");
+  expect(screen.getByText("# ErrandsTyped")).toHaveAttribute(
+    "data-heading",
+    "1"
+  );
   expect(
     screen.getByRole("textbox", { name: "result for place 1" })
-  ).toHaveClass("text-[1.88em]");
+  ).toHaveAttribute("data-heading", "1");
   heading.client.clear();
 });
 
