@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { clearMocks, mockConvertFileSrc, mockIPC } from "@tauri-apps/api/mocks";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
@@ -182,6 +182,176 @@ describe("NoteSession", () => {
       liveEditor.commands.undo();
     });
     expect(liveEditor.getText()).not.toContain("Typed");
+  });
+
+  it("should open a file link through the note that holds it", async () => {
+    const opened: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "open_linked_file") {
+        opened.push(args);
+        return null;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(
+      noteQueries.conflict("note", "projects/a.md").queryKey,
+      null
+    );
+    client.setQueryData(noteQueries.fileKey("note", "projects/a.md"), {
+      content: "# A\n\n[spec](../docs/my%20spec.pdf)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t3", kind: "note", path: "projects/a.md" }}
+        />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t3");
+    await act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() =>
+      expect(opened).toEqual([
+        { destination: "../docs/my%20spec.pdf", from: "projects/a.md" },
+      ])
+    );
+    expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
+  it("should report a file link the library refused with its reason", async () => {
+    mockIPC((command) => {
+      if (command === "open_linked_file") {
+        return Promise.reject({ kind: "not-found", message: "no such file" });
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
+    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+      content: "# A\n\n[spec](docs/spec.pdf)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={tab} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    expect(await screen.findByText("could not open file")).toBeInTheDocument();
+    expect(screen.getByText("no such file")).toBeInTheDocument();
+  });
+
+  it("should leave a file link alone in an external tab", async () => {
+    const commands: string[] = [];
+    mockIPC((command) => {
+      commands.push(command);
+      return null;
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const path = "/Users/me/docs/note.md";
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
+    client.setQueryData(noteQueries.fileKey("external", path), {
+      content: "# Ext\n\n[spec](./spec.pdf)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t4", kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t4");
+    await act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    expect(commands).toEqual([]);
+    expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
+  it("should render an image relative to the note and drop one that climbs out", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC((command) => {
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(
+      noteQueries.conflict("note", "projects/a.md").queryKey,
+      null
+    );
+    client.setQueryData(noteQueries.fileKey("note", "projects/a.md"), {
+      content: "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t5", kind: "note", path: "projects/a.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t5");
+    const sources = [
+      ...(document.getElementById(tabPanelId("t5"))?.querySelectorAll("img") ??
+        []),
+    ].map((image) => image.getAttribute("src"));
+    expect(sources).toEqual([
+      "asset://localhost/%2Fnotes%2Fprojects%2Fmy%20shot.png",
+      "",
+    ]);
   });
 
   it("should report a failed pending link lookup without treating the destination as missing", async () => {

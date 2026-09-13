@@ -51,6 +51,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::reindex_all::<tauri::Wry>,
             notes::create_note::<tauri::Wry>,
             notes::move_note::<tauri::Wry>,
+            notes::open_linked_file::<tauri::Wry>,
             notes::set_notes_dir::<tauri::Wry>,
             notes::stash_conflict::<tauri::Wry>,
             notes::write_external::<tauri::Wry>,
@@ -101,6 +102,57 @@ mod tests {
             },
         )
         .map(|body| body.deserialize().unwrap())
+    }
+
+    #[test]
+    fn should_refuse_linked_files_the_library_cannot_hand_to_the_system() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("projects")).unwrap();
+        fs::write(directory.path().join("projects/a.md"), "# A").unwrap();
+        fs::write(directory.path().join("b.md"), "# B").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        for (destination, failure) in [
+            (
+                "../../outside.pdf",
+                json!({"kind": "failed", "message": "the link climbs out of the notes folder"}),
+            ),
+            (
+                "../b.md",
+                json!({"kind": "failed", "message": "notes open in notras"}),
+            ),
+            (
+                "../missing.pdf",
+                json!({"kind": "not-found", "message": "no such file"}),
+            ),
+        ] {
+            assert_eq!(
+                invoke(
+                    &window,
+                    "open_linked_file",
+                    json!({"from": "projects/a.md", "destination": destination}),
+                )
+                .unwrap_err(),
+                failure,
+                "{destination}"
+            );
+        }
     }
 
     #[test]

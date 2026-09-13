@@ -22,7 +22,7 @@ import { StarterKit } from "@tiptap/starter-kit";
 import { encode } from "mdurl";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
-import { isNotePath } from "@/core/links";
+import { isRelativeDestination } from "@/core/links";
 import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
 import {
   escapeMarkdownLabel,
@@ -162,7 +162,7 @@ const NoteLink = Link.extend({
         this.options.HTMLAttributes,
         HTMLAttributes,
         allowed ? {} : { href: "" },
-        isNotePath(href) ? { "data-note": "" } : {}
+        isRelativeDestination(href) ? { "data-note": "" } : {}
       ),
       0,
     ];

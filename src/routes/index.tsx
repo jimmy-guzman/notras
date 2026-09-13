@@ -288,7 +288,10 @@ function Workspace() {
   // whichever tab is showing.
   useEffect(() => {
     const attachDropped = async (paths: string[]) => {
-      const target = getTabHandles(getTabState().activeId);
+      const state = getTabState();
+      const target = getTabHandles(state.activeId);
+      const showing = state.tabs.find((entry) => entry.id === state.activeId);
+      const from = showing?.kind === "note" ? showing.path : "";
 
       if (target === undefined) {
         toast.add({
@@ -305,7 +308,7 @@ function Workspace() {
 
       for (const copy of copies) {
         if (copy.status === "fulfilled") {
-          target.insertText(attachmentLink(copy.value));
+          target.insertText(attachmentLink(copy.value, from));
         } else {
           const error: unknown = copy.reason;
 

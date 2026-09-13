@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 
 use serde_json::Value;
 use tauri::{AppHandle, Manager, Runtime, State};
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
@@ -77,6 +78,41 @@ pub async fn attach_file<R: Runtime>(
         let state = app.state::<AppState>();
         let library = state.library();
         library.attach_file(Path::new(&source))
+    })
+    .await
+}
+
+/// The opener capitalizes its own messages; an io failure already reads as the app's.
+fn opener_reason(error: tauri_plugin_opener::Error) -> CommandError {
+    match error {
+        tauri_plugin_opener::Error::Io(error) => error.into(),
+        error => {
+            let text = error.to_string();
+            let mut chars = text.chars();
+            let message = chars.next().map_or_else(String::new, |first| {
+                first.to_lowercase().chain(chars).collect::<String>()
+            });
+            CommandError::with_source(message, error)
+        }
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_linked_file<R: Runtime>(
+    app: AppHandle<R>,
+    from: String,
+    destination: String,
+) -> Result<(), CommandError> {
+    run_blocking(move || {
+        let host = {
+            let state = app.state::<AppState>();
+            let library = state.library();
+            library.linked_file_path(&from, &destination)?
+        };
+        app.opener()
+            .open_path(host.to_string_lossy(), None::<&str>)
+            .map_err(opener_reason)
     })
     .await
 }

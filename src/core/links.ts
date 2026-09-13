@@ -26,13 +26,18 @@ const NOTE_EXTENSION = /\.(?:md|markdown)$/i;
 
 const FRAGMENT_OR_QUERY = /[#?]/;
 
-/** Kept in parity with `is_note_path` in `src-tauri/src/index.rs`. */
-export function isNotePath(destination: string) {
-  if (
+/** A destination that names a file beside the note rather than a place with a scheme. */
+export function isRelativeDestination(destination: string) {
+  return !(
     destination.startsWith("#") ||
     destination.startsWith("/") ||
     SCHEME.test(destination)
-  ) {
+  );
+}
+
+/** Kept in parity with `is_note_path` in `src-tauri/src/index.rs`. */
+export function isNotePath(destination: string) {
+  if (!isRelativeDestination(destination)) {
     return false;
   }
 
@@ -42,15 +47,20 @@ export function isNotePath(destination: string) {
   return !name.startsWith(".") && NOTE_EXTENSION.test(name);
 }
 
-/** Resolve a destination's path segments without looking up an indexed note. */
-function resolveNotePath(
-  destination: string,
-  from: string
-): string | undefined {
-  const bare = decode(destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "");
+/**
+ * A library path refuses a hidden segment and these characters, so a `..\\`
+ * cannot read as a climb elsewhere and a dotfile stays out of reach.
+ */
+const REFUSED_SEGMENT = /^\.|[\\:\0]/;
+
+/**
+ * Fold a decoded relative path onto the folder of `from`, `.` and `..`
+ * included, or undefined when it climbs above the notes root.
+ */
+export function foldPath(path: string, from: string): string | undefined {
   const segments: string[] = [];
 
-  for (const segment of [...noteFolder(from).split("/"), ...bare.split("/")]) {
+  for (const segment of [...noteFolder(from).split("/"), ...path.split("/")]) {
     if (segment === "" || segment === ".") {
       continue;
     }
@@ -63,10 +73,22 @@ function resolveNotePath(
       continue;
     }
 
+    if (REFUSED_SEGMENT.test(segment)) {
+      return;
+    }
+
     segments.push(segment);
   }
 
   return segments.join("/");
+}
+
+/** Resolve a destination's path segments without looking up an indexed note. */
+function resolveNotePath(destination: string, from: string) {
+  return foldPath(
+    decode(destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? ""),
+    from
+  );
 }
 
 function comparePaths(left: string, right: string) {

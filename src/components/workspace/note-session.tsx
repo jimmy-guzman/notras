@@ -42,7 +42,7 @@ import { toast } from "@/components/ui/toast";
 import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
-import { linkResolver } from "@/core/links";
+import { foldPath, isRelativeDestination, linkResolver } from "@/core/links";
 import {
   type ConflictStash,
   clearConflictStash,
@@ -50,6 +50,7 @@ import {
 } from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
+import { openLinkedFile } from "@/data/open-linked-file";
 import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { saveNote } from "@/data/save-note";
@@ -133,6 +134,23 @@ interface SessionBufferProps {
   readFile: SessionFile | undefined;
   stash: ConflictStash | null;
   tab: Tab;
+}
+
+/**
+ * A relative image resolves against the note, the way a link does; a source
+ * with a scheme, an anchor or a root passes through for the webview to judge,
+ * and one that climbs out of the notes folder renders as a broken image.
+ */
+function noteImageSrc(src: string, from: string, notesDir: string) {
+  if (!isRelativeDestination(src)) {
+    return src;
+  }
+
+  const resolved = foldPath(decodeAttachmentPath(src), from);
+
+  return resolved === undefined
+    ? ""
+    : convertFileSrc(`${notesDir}/${resolved}`);
 }
 
 /**
@@ -304,12 +322,10 @@ function SessionBuffer({
   );
 
   const resolveImageSrc = useCallback(
-    (src: string) =>
-      src.includes("://")
-        ? src
-        : convertFileSrc(`${notesDir}/${decodeAttachmentPath(src)}`),
+    (src: string) => noteImageSrc(src, live.current.path, notesDir),
     [notesDir]
   );
+  const documentPath = useCallback(() => live.current.path, []);
 
   const navigation = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => navigation.current?.abort(), []);
@@ -375,6 +391,31 @@ function SessionBuffer({
       live.current.resolveLinks?.title(title, live.current.path)?.path,
     []
   );
+  const openFileLink = useCallback(async (href: string) => {
+    try {
+      await openLinkedFile(live.current.path, href);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not open file",
+        type: "error",
+      });
+    }
+  }, []);
+
+  // What a note has and an external file lacks: links that resolve against
+  // the library, and attachments written into it.
+  const noteEditing =
+    tab.kind === "note"
+      ? {
+          documentPath,
+          onFileLinkClick: openFileLink,
+          onNoteLinkClick: openNoteLink,
+          onWikilinkClick: openWikilink,
+          resolveImageSrc,
+          resolveWikilink,
+        }
+      : {};
 
   const handleBodyChange = useCallback(
     (content: string, edit: DocumentEdit) => {
@@ -562,14 +603,11 @@ function SessionBuffer({
             initialContent={sentineledBody ?? body}
             onChange={handleBodyChange}
             onHistory={onHistory}
-            onNoteLinkClick={tab.kind === "note" ? openNoteLink : undefined}
             onReady={attachEditor}
             onSelect={selectBody}
-            onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
-            resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}
-            resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
             stripSentinel={sentineledBody !== undefined}
             titles={getTitles}
+            {...noteEditing}
           />
         )}
       </div>
