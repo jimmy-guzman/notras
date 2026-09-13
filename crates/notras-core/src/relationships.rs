@@ -148,8 +148,10 @@ pub fn resolve_path(destination: &str, from: &str) -> Option<String> {
     fold_destination(destination, from, LINK_ESCAPES_KEPT)
 }
 
-/// A file destination is an attachment path, encoded whole on the way in and
-/// decoded whole here, so `%23` reaches the `#` in the name on disk.
+/// A file destination folded onto the note's folder, decoded whole.
+///
+/// An attachment path is encoded whole on the way in, so decoding whole here
+/// lets `%23` reach the `#` in the name on disk.
 pub fn resolve_file_path(destination: &str, from: &str) -> Option<String> {
     fold_destination(destination, from, b"")
 }

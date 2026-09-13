@@ -182,6 +182,10 @@ impl Library {
     }
 
     /// Classify user-selected files as library notes or explicit external files.
+    pub fn classify_open(&self, path: String) -> PendingOpen {
+        application::classify_open(&self.notes_dir, path)
+    }
+
     pub fn classify_opens(&self, paths: Vec<String>) -> Vec<PendingOpen> {
         application::classify_opens(&self.notes_dir, paths)
     }

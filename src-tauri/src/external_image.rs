@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tauri::http::{header, HeaderValue, Request, Response, StatusCode};
 use tauri::Url;
@@ -20,13 +20,13 @@ fn content_type(path: &Path) -> Option<&'static str> {
     })
 }
 
-fn parse(uri: &str) -> Option<(String, String)> {
+fn parse(uri: &str) -> Option<(PathBuf, String)> {
     let url = Url::parse(uri).ok()?;
     let mut document = None;
     let mut src = None;
     for (key, value) in url.query_pairs() {
         match &*key {
-            "doc" => document = Some(value.into_owned()),
+            "doc" => document = Some(PathBuf::from(value.into_owned())),
             "src" => src = Some(value.into_owned()),
             _ => {}
         }
@@ -40,13 +40,14 @@ fn status(code: StatusCode) -> Response<Vec<u8>> {
     response
 }
 
-/// Answer one image request with the bytes and their type, or with a status
-/// that leaves the image broken and says why in the inspector.
+/// Answer one image request with the bytes and their type, or a status.
+///
+/// A status leaves the image broken and says why in the inspector.
 pub fn respond(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     let Some((document, src)) = parse(&request.uri().to_string()) else {
         return status(StatusCode::BAD_REQUEST);
     };
-    let image = match notras_core::external_image(Path::new(&document), &src) {
+    let image = match notras_core::external_image(&document, &src) {
         Ok(image) => image,
         Err(error) if error.kind == ErrorKind::NotFound => return status(StatusCode::NOT_FOUND),
         Err(_) => return status(StatusCode::FORBIDDEN),

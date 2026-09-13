@@ -111,7 +111,10 @@ pub async fn open_linked_file<R: Runtime>(
             library.linked_file_path(&from, &destination)?
         };
         app.opener()
-            .open_path(host.to_string_lossy(), None::<&str>)
+            .open_path(
+                host.to_str().ok_or("the path is not valid unicode")?,
+                None::<&str>,
+            )
             .map_err(opener_reason)
     })
     .await
@@ -127,7 +130,10 @@ pub async fn open_external_file<R: Runtime>(
     run_blocking(move || {
         let host = notras_core::external_file(Path::new(&document), &destination)?;
         app.opener()
-            .open_path(host.to_string_lossy(), None::<&str>)
+            .open_path(
+                host.to_str().ok_or("the path is not valid unicode")?,
+                None::<&str>,
+            )
             .map_err(opener_reason)
     })
     .await
@@ -142,13 +148,13 @@ pub async fn resolve_external_link<R: Runtime>(
 ) -> Result<PendingOpen, CommandError> {
     run_blocking(move || {
         let target = notras_core::external_note(Path::new(&document), &destination)?;
+        let target = target
+            .to_str()
+            .ok_or("the path is not valid unicode")?
+            .to_owned();
         let state = app.state::<AppState>();
         let library = state.library();
-        library
-            .classify_opens(vec![target.to_string_lossy().into_owned()])
-            .into_iter()
-            .next()
-            .ok_or_else(|| "the link resolved to nothing".into())
+        Ok(library.classify_open(target))
     })
     .await
 }

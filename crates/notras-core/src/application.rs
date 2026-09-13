@@ -161,10 +161,12 @@ fn is_markdown(path: &Path) -> bool {
     index::is_note_file(path)
 }
 
-/// What the system would run rather than open. LaunchServices executes a file
-/// with no extension when its mode allows, and hands `.command`, `.tool` and
-/// `.sh` to Terminal; a `.pdf` with an execute bit, which FAT volumes give
-/// every file, still opens in its viewer. Windows decides by extension alone.
+/// Whether the system would run the file rather than open it.
+///
+/// LaunchServices executes a file with no extension when its mode allows, and
+/// hands `.command`, `.tool` and `.sh` to Terminal; a `.pdf` with an execute
+/// bit, which FAT volumes give every file, still opens in its viewer. Windows
+/// decides by extension alone.
 fn runs_on_open(name: &str, metadata: &cap_std::fs::Metadata) -> bool {
     let extension = Path::new(name)
         .extension()
@@ -765,11 +767,12 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     })
 }
 
-/// The file a relative destination names from an external document, checked
-/// on each request rather than granted once: the document has to be a markdown
-/// file on disk and the destination relative. `..` climbs and a symlink is
-/// followed, since the document is the anchor and nothing around it is the
-/// library's to fence.
+/// The file a relative destination names from an external document.
+///
+/// Checked on each request rather than granted once: the document has to be a
+/// markdown file on disk and the destination relative. `..` climbs and a
+/// symlink is followed, since the document is the anchor and nothing around it
+/// is the library's to fence.
 fn external_target(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     if !is_markdown(document) {
         return Err("only markdown files can be opened".into());
@@ -803,8 +806,9 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
     Ok(image)
 }
 
-/// The markdown file a link written in an external document names, for the
-/// shell to classify as a note or another external file.
+/// The markdown file a link in an external document names.
+///
+/// The shell classifies it as a note or another external file.
 pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
     if !is_markdown(&target) {
@@ -816,8 +820,9 @@ pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, Comm
     Ok(target)
 }
 
-/// The file a link written in an external document names, checked the way a
-/// note's linked file is before the shell hands it to the system.
+/// The file a link in an external document names, for the system to open.
+///
+/// Checked the way a note's linked file is before the shell hands it over.
 pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
     if is_markdown(&target) {
@@ -908,7 +913,7 @@ pub struct PendingOpen {
     pub path: String,
 }
 
-fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
+pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
     match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
         Some(rel) => PendingOpen {
@@ -1116,8 +1121,9 @@ impl Library {
         Ok(relative.into_string())
     }
 
-    /// The host path of a file a note links to, checked on the library handle
-    /// the way a note read is.
+    /// The host path of a file a note links to, for the system to open.
+    ///
+    /// Checked on the library handle the way a note read is.
     pub fn linked_file_path(&self, from: &str, destination: &str) -> Result<PathBuf, CommandError> {
         if destination.starts_with('/') {
             return Err("the link names an absolute path".into());
