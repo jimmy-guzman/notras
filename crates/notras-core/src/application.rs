@@ -497,20 +497,25 @@ impl Staged {
         candidate: &str,
         expected: &str,
     ) -> Result<Publication<Vec<MutationWarning>>, CommandError> {
-        let original = match withdraw(source, &self.original) {
-            Ok(original) => original,
-            Err(error) => {
-                return Ok(Publication::Committed(vec![MutationWarning::Cleanup {
-                    path: source.name.clone(),
-                    message: error.message,
-                }]))
+        // Windows withdraws by handle, which would move an original that a
+        // rename already displaced, so the public name is checked first: a
+        // foreign file there is left where it is on every platform.
+        if source.identity()? == handle_identity(&self.original)? {
+            let original = match withdraw(source, &self.original) {
+                Ok(original) => original,
+                Err(error) => {
+                    return Ok(Publication::Committed(vec![MutationWarning::Cleanup {
+                        path: source.name.clone(),
+                        message: error.message,
+                    }]))
+                }
+            };
+            if original.holds(source, &self.original)? && self.original_unchanged(expected)? {
+                drop(original);
+                return Ok(Publication::Committed(vec![]));
             }
-        };
-        if original.holds(source, &self.original)? && self.original_unchanged(expected)? {
-            drop(original);
-            return Ok(Publication::Committed(vec![]));
+            original.give_back(source, &self.original)?;
         }
-        original.give_back(source, &self.original)?;
         let published = source.sibling(candidate)?;
         let withdrawn = withdraw(&published, self.temp.file())?;
         if withdrawn.holds(&published, self.temp.file())? {
