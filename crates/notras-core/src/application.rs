@@ -670,7 +670,10 @@ fn save_file(
         } else {
             format!("{}.{}", suffixed_filename(stem, counter), extension)
         };
-        if candidate == source.name {
+        // The current file, by its own name, another spelling of it on a
+        // case-insensitive filesystem, or a hard link: every one displaces the
+        // original inode, so the swap's identity check holds for all of them.
+        if candidate == source.name || same_file(source, &candidate, identity)? {
             return Ok(staged
                 .exchange_over(source, &candidate, expected)?
                 .map(|updated_at| FileCommit {
@@ -678,22 +681,6 @@ fn save_file(
                     updated_at,
                     warnings: vec![],
                 }));
-        }
-        if same_file(source, &candidate, identity)? {
-            // The current file under another spelling, a case-only rename on a
-            // case-insensitive filesystem or a hard link: a swap would leave that
-            // entry under the temp name, so this keeps the plain rename after
-            // one more check, the same window as a platform without a swap.
-            if !staged.original_unchanged(expected)? {
-                let mut current = source.open_read()?;
-                return Ok(Publication::Conflict(current_file(&mut current)?));
-            }
-            staged.temp.replace(&candidate)?;
-            return Ok(Publication::Committed(FileCommit {
-                name: candidate,
-                updated_at: staged.updated_at,
-                warnings: vec![],
-            }));
         }
         match staged.temp.publish(&candidate) {
             Ok(()) => {
@@ -2284,6 +2271,37 @@ mod tests {
             "# before"
         );
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_publish_over_a_hard_link_to_the_current_file_and_leave_no_sibling() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        fs::write(directory.path().join("shopping.md"), "# imported").unwrap();
+        fs::hard_link(
+            directory.path().join("shopping.md"),
+            directory.path().join("errands.md"),
+        )
+        .unwrap();
+
+        let receipt = saved(&core, "shopping.md", "# Errands", Some(SaveName::Heading)).unwrap();
+
+        assert_eq!(receipt.path, "errands.md");
+        assert_eq!(
+            fs::read_to_string(directory.path().join("errands.md")).unwrap(),
+            "# Errands"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join("shopping.md")).unwrap(),
+            "# imported"
+        );
+        let names: Vec<_> = fs::read_dir(directory.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| name.ends_with(".md") || name.starts_with(".tmp-"))
+            .collect();
+        assert_eq!(names.len(), 2);
     }
 
     #[test]
