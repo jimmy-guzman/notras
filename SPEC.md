@@ -106,6 +106,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.
 - A file opened through "Open With" from outside the notes dir is an external tab: labelled by its basename in mono, saved beside the original file, with in-app heading edits updating its filename, absent from the index, and carrying no pin, tags, rename, move, delete, or reveal. Its relative images do not render, its wikilinks do not navigate, and it counts no mentions. One inside the notes dir opens as the note it is, landing on the tab already holding it when one does.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
+- A note closed or relaunched while its review was open reopens with the unsaved text and the banner, and its review picks up against whatever the file holds now. A tab does not mount until it knows whether a review is stored; a stored review that cannot be read shows the reason in the pane and offers to try again.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
 - With nothing to restore, the most recently updated note opens when its query completes. The welcome screen and new-note action remain available during that read, which says "indexing notes..." while the first scan runs. A tab change cancels this automatic opening, so a late result cannot replace the user's choice. A failed read shows its reason and a retry action.
 
@@ -235,7 +236,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The window itself never scrolls, including when content overflows or caret movement asks an ancestor to scroll. The note or source editor has one vertical scrollbar between the two bands. No outer scrollbar runs the full height of the window or crosses either band.
 - The tray menu offers open notras, new note, quick capture, and quit.
 - Closing either window hides it. Quitting is what exits.
-- A quit is held until every open buffer has flushed. A buffer that could not write cancels the quit and says so. A buffer whose file is gone reports the quit as safe while still holding text, and its banner is the only warning.
+- A quit is held until every open buffer has flushed. A buffer that could not write cancels the quit and says so. A buffer under review stores its text instead of writing, and reports the quit as safe once stored. A buffer whose file is gone reports the quit as safe while still holding text, and its banner is the only warning.
 - If the webview never answers, the quit goes through after 5 seconds.
 - Quitting stops a running scan at its next step. The next launch's startup scan indexes what the interrupted scan had not reached. A reindex interrupted by a quit does not resume as a reindex; run "reindex library" again to refresh the remaining notes.
 - "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. A path that reaches the notes dir through a symlink counts as inside it. macOS only.
@@ -257,4 +258,5 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives in `localStorage["focus-mode"]` beside them.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
 - The index lives under the app's cache folder, keyed by the resolved notes dir, and is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
+- A review that has not been resolved lives under the app data folder in `conflicts/`, one file per tab kind and path, and is removed by the save that resolves it.
 - The reopen stack, source mode, graph mode, undo history, and scroll position live in memory and do not survive a relaunch.

@@ -81,30 +81,37 @@ export type NotePersistence = ReturnType<typeof createNotePersistence>;
 
 /** A session's document and ordered writes; save receipts never edit its history. */
 export function createNotePersistence(
-  initial: FileContent & { path: string; kind: "note" | "external" },
+  initial: FileContent & {
+    path: string;
+    kind: "note" | "external";
+    stash?: ConflictStash;
+  },
   ports: PersistencePorts
 ) {
+  const resumed = initial.stash;
   const document = createNoteDocument(
-    initial.content,
+    resumed?.ours ?? initial.content,
     initial.path.split("/").at(-1) ?? initial.path,
     () => changed()
   );
+  // A resumed review starts at its stored base and timestamp, so the file on
+  // disk arrives as a newer observation and is combined or held again.
   const state = createStore<PersistenceState>({
-    base: {
+    base: resumed?.base ?? {
       content: initial.content,
       revision: initial.revision,
       updatedAt: initial.updatedAt,
     },
     changedAgain: false,
-    edits: 0,
+    edits: resumed === undefined ? 0 : 1,
     missing: false,
     path: initial.path,
     pendingPaths: 0,
     reason: undefined,
     sourceMode: false,
-    status: "saved",
+    status: resumed === undefined ? "saved" : "dirty",
     theirs: undefined,
-    updatedAt: initial.updatedAt,
+    updatedAt: resumed?.base.updatedAt ?? initial.updatedAt,
     writing: false,
   });
   const store = createStore(() => {
@@ -144,10 +151,10 @@ export function createNotePersistence(
     | { path: string; file: FileContent | undefined; missing: boolean }
     | undefined;
   let owners = 0;
-  let edits = 0;
+  let edits = resumed === undefined ? 0 : 1;
   let savedEdits = 0;
   let savedName = document.nameId();
-  let stashedAt: string | undefined;
+  let stashedAt = resumed === undefined ? undefined : initial.path;
   let tail: Promise<unknown> = Promise.resolve();
 
   const inConflict = () => state.state.status === "conflict";
@@ -291,6 +298,9 @@ export function createNotePersistence(
     },
     { wait: 800 }
   );
+  if (resumed !== undefined) {
+    debouncer.maybeExecute();
+  }
   const edit = (
     content: EditorContent,
     details: DocumentEdit = { headingEdited: false }

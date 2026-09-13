@@ -1024,3 +1024,98 @@ it("should refuse a folder move when the save before it is held for review", asy
   expect(moves).toEqual([]);
   expect(note.store.state.status).toBe("conflict");
 });
+
+it("should resume a stored review and hold it again once the file arrives", async () => {
+  const writes: string[] = [];
+  const note = createNotePersistence(
+    {
+      ...initial,
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      stash: {
+        base: {
+          content: initial.content,
+          revision: "r0",
+          updatedAt: new Date(0),
+        },
+        ours: "# Errands\n\nbody, mine",
+      },
+      updatedAt: new Date(1),
+    },
+    {
+      changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: () => Promise.resolve(),
+      onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
+      write: (_path, content) => {
+        writes.push(content);
+        return Promise.reject(new Error("no save expected"));
+      },
+    }
+  );
+  expect(note.store.state.content).toBe("# Errands\n\nbody, mine");
+  expect(note.store.state.status).toBe("dirty");
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  expect(note.store.state.status).toBe("conflict");
+  expect(note.store.state.theirs?.revision).toBe("r1");
+  expect(note.store.state.content).toBe("# Errands\n\nbody, mine");
+  await expect(note.flush()).resolves.toBe(true);
+  expect(writes).toEqual([]);
+});
+
+it("should resume a stored review and save once the file no longer overlaps", async () => {
+  const cleared: string[] = [];
+  const writes: { content: string; expected: string }[] = [];
+  const note = createNotePersistence(
+    {
+      ...initial,
+      content: "# Chores\n\nbody",
+      revision: "r1",
+      stash: {
+        base: {
+          content: initial.content,
+          revision: "r0",
+          updatedAt: new Date(0),
+        },
+        ours: "# Errands\n\nbody, mine",
+      },
+      updatedAt: new Date(1),
+    },
+    {
+      changePath: () => Promise.reject(new Error("no move requested")),
+      clearStash: (path) => {
+        cleared.push(path);
+        return Promise.resolve();
+      },
+      onPathChanged: () => undefined,
+      stash: () => Promise.resolve(),
+      write: (path, content, _name, expected) => {
+        writes.push({ content, expected });
+        return Promise.resolve({
+          kind: "committed",
+          receipt: { path, revision: "r2", updatedAt: new Date(2) },
+        });
+      },
+    }
+  );
+  note.receiveFile(
+    "shopping.md",
+    { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
+    false
+  );
+  expect(note.store.state.content).toBe("# Chores\n\nbody, mine");
+  await note.flush();
+  expect(writes).toEqual([
+    { content: "# Chores\n\nbody, mine", expected: "r1" },
+  ]);
+  expect(cleared).toEqual(["shopping.md"]);
+  expect(note.store.state.status).toBe("saved");
+});

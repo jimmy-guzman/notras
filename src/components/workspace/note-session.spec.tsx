@@ -16,6 +16,7 @@ import {
 
 import { Toaster } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
+import type { ConflictStash } from "@/data/conflict-stash";
 import { getNote } from "@/data/get-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
@@ -146,6 +147,7 @@ describe("NoteSession", () => {
       },
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
     client.setQueryData(noteQueries.fileKey("note", "a.md"), {
       content: "# Available\n\nOriginal text",
       pinned: false,
@@ -196,6 +198,7 @@ describe("NoteSession", () => {
       },
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
     client.setQueryData(noteQueries.fileKey("note", "a.md"), {
       content: "# Available\n\n[Target](target.md)",
       pinned: false,
@@ -255,6 +258,7 @@ describe("NoteSession", () => {
         },
       });
       client.setQueryData(notesDirQuery.queryKey, "/notes");
+      client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
       client.setQueryData(noteQueries.fileKey("note", "a.md"), {
         content: "# Available\n\n[Target](target.md)",
         pinned: false,
@@ -367,6 +371,7 @@ describe("NoteSession", () => {
         },
       });
       client.setQueryData(notesDirQuery.queryKey, "/notes");
+      client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
       client.setQueryData(noteQueries.fileKey("note", "a.md"), {
         content: "# Available\n\n[Target](target.md)",
         pinned: false,
@@ -446,6 +451,7 @@ describe("NoteSession", () => {
       },
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
     client.setQueryData(noteQueries.fileKey("note", "a.md"), {
       content: "# Available\n\n[First](first.md) [Second](second.md)",
       pinned: false,
@@ -1117,5 +1123,86 @@ it("should resolve a place, save the composed note, and clear the stored review"
   ]);
   expect(calls.filter((call) => call === "clear_conflict")).toHaveLength(1);
   expect(liveEditor.isFocused).toBe(true);
+  client.clear();
+});
+
+it("should reopen a note with its stored review and the banner", async () => {
+  mockIPC(() => null);
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+    },
+  });
+  client.setQueryData(noteQueries.fileKey("note", tab.path), {
+    content: "# Errands\n\nbody, on disk",
+    pinned: false,
+    revision: "r1",
+    tags: [],
+    updatedAt: new Date(2),
+  });
+  client.setQueryData(noteQueries.list().queryKey, []);
+  const stored: ConflictStash = {
+    base: {
+      content: "# Errands\n\nbody",
+      revision: "r0",
+      updatedAt: new Date(1),
+    },
+    ours: "# Errands\n\nbody, mine",
+  };
+  client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, stored);
+  client.setQueryData(notesDirQuery.queryKey, "/notes");
+  render(
+    createElement(
+      StrictMode,
+      null,
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(NoteSession, { active: true, tab })
+      )
+    )
+  );
+  const liveEditor = await editor();
+  expect(liveEditor.getText()).toContain("body, mine");
+  await waitFor(() =>
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+  );
+  client.clear();
+});
+
+it("should not open a note until its stored review is known", async () => {
+  mockIPC((command) => {
+    if (command === "read_conflict") {
+      return new Promise(() => undefined);
+    }
+    return null;
+  });
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+    },
+  });
+  client.setQueryData(noteQueries.fileKey("note", tab.path), {
+    content: "# Errands\n\nbody",
+    pinned: false,
+    revision: "r0",
+    tags: [],
+    updatedAt: new Date(1),
+  });
+  client.setQueryData(noteQueries.list().queryKey, []);
+  client.setQueryData(notesDirQuery.queryKey, "/notes");
+  render(
+    createElement(
+      StrictMode,
+      null,
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(NoteSession, { active: true, tab })
+      )
+    )
+  );
+  await Promise.resolve();
+  expect(panel()).toBeNull();
   client.clear();
 });

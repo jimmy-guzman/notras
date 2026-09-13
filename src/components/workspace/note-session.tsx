@@ -43,7 +43,11 @@ import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
 import { linkResolver } from "@/core/links";
-import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
+import {
+  type ConflictStash,
+  clearConflictStash,
+  stashConflict,
+} from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import type { SessionFile } from "@/data/queries";
@@ -127,6 +131,7 @@ interface SessionBufferProps {
   /** The file behind this buffer has gone; what is on screen is all there is. */
   missing: boolean;
   readFile: SessionFile | undefined;
+  stash: ConflictStash | null;
   tab: Tab;
 }
 
@@ -141,6 +146,7 @@ function SessionBuffer({
   file,
   missing: readMissing,
   readFile,
+  stash,
   tab,
 }: SessionBufferProps) {
   const { data: notes } = useQuery({
@@ -169,7 +175,7 @@ function SessionBuffer({
   const sourceRef = useRef<null | SourceEditorHandle>(null);
   const [persistence] = useState(() =>
     createNotePersistence(
-      { ...file, kind: tab.kind, path: tab.path },
+      { ...file, kind: tab.kind, path: tab.path, stash: stash ?? undefined },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
         clearStash: async (path) => await clearConflictStash(tab.kind, path),
@@ -190,8 +196,8 @@ function SessionBuffer({
           }
         },
         onPathChanged: renameTab,
-        stash: async (path, stash) =>
-          await stashConflict(tab.kind, path, stash),
+        stash: async (path, review) =>
+          await stashConflict(tab.kind, path, review),
         write: async (path, content, name, expected) =>
           tab.kind === "external"
             ? await writeExternalNote(path, content, name, expected)
@@ -620,9 +626,11 @@ interface NoteSessionProps {
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
   const { data, error, refetch } = useQuery(noteQueries.file(kind, path));
+  const stash = useQuery(noteQueries.conflict(kind, path));
   const retry = useCallback(() => {
     refetch();
-  }, [refetch]);
+    stash.refetch();
+  }, [refetch, stash.refetch]);
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.
@@ -673,6 +681,18 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
       />
     ) : null;
   }
+  // Opening without knowing whether a review is stored would start from the
+  // disk file and lose the stashed text on the first save.
+  if (stash.data === undefined) {
+    return stash.isError ? (
+      <UnreadableNote
+        active={active}
+        id={tab.id}
+        reason={reasonOf(stash.error)}
+        retry={retry}
+      />
+    ) : null;
+  }
 
   return (
     <SessionBuffer
@@ -680,6 +700,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
       file={file}
       missing={gone}
       readFile={data}
+      stash={stash.data}
       tab={tab}
     />
   );
