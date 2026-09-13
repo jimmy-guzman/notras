@@ -765,12 +765,12 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     })
 }
 
-/// The image a relative source names from an external document, checked on
-/// each request rather than granted once: the document has to be a markdown
-/// file on disk and the source relative. `..` climbs and a symlink is followed,
-/// since the document is the anchor and nothing around it is the library's to
-/// fence.
-pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandError> {
+/// The file a relative destination names from an external document, checked
+/// on each request rather than granted once: the document has to be a markdown
+/// file on disk and the destination relative. `..` climbs and a symlink is
+/// followed, since the document is the anchor and nothing around it is the
+/// library's to fence.
+fn external_target(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     if !is_markdown(document) {
         return Err("only markdown files can be opened".into());
     }
@@ -781,21 +781,67 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .ok_or("a note outside any folder")?;
-    if src.is_empty() {
-        return Err("the image names no file".into());
+    if destination.is_empty() {
+        return Err("the destination names no file".into());
     }
-    let source = Path::new(src);
-    if source
+    let target = Path::new(destination);
+    if target
         .components()
         .any(|part| matches!(part, Component::RootDir | Component::Prefix(_)))
     {
-        return Err("the image names an absolute path".into());
+        return Err("the destination names an absolute path".into());
     }
-    let image = fs::canonicalize(parent.join(source))?;
+    Ok(fs::canonicalize(parent.join(target))?)
+}
+
+/// The image a decoded relative source names from an external document.
+pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandError> {
+    let image = external_target(document, src)?;
     if !fs::metadata(&image)?.is_file() {
         return Err("that path is not a file".into());
     }
     Ok(image)
+}
+
+/// The markdown file a link written in an external document names, for the
+/// shell to classify as a note or another external file.
+pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
+    let target = external_target(document, &relationships::bare_file_destination(destination))?;
+    if !is_markdown(&target) {
+        return Err("only markdown files open as tabs".into());
+    }
+    if !fs::metadata(&target)?.is_file() {
+        return Err("that path is not a file".into());
+    }
+    Ok(target)
+}
+
+/// The file a link written in an external document names, checked the way a
+/// note's linked file is before the shell hands it to the system.
+pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
+    let target = external_target(document, &relationships::bare_file_destination(destination))?;
+    if is_markdown(&target) {
+        return Err("markdown files open in notras".into());
+    }
+    let name = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("the path is not valid unicode")?;
+    let dir = Dir::open_ambient_dir(
+        target.parent().ok_or("a file outside any folder")?,
+        ambient_authority(),
+    )?;
+    let metadata = dir.metadata(name)?;
+    if metadata.is_dir() {
+        return Err("that path is a folder".into());
+    }
+    if !metadata.is_file() {
+        return Err("that path is not a file".into());
+    }
+    if runs_on_open(name, &metadata) {
+        return Err("that file is a program".into());
+    }
+    Ok(target)
 }
 
 /// Persist an external document, rejecting non-Unicode paths before file access.
@@ -2435,9 +2481,9 @@ mod tests {
             (
                 document.clone(),
                 "/etc/hosts",
-                "the image names an absolute path",
+                "the destination names an absolute path",
             ),
-            (document.clone(), "", "the image names no file"),
+            (document.clone(), "", "the destination names no file"),
             (document.clone(), "images", "that path is not a file"),
             (
                 directory.path().join("docs/notes.txt"),
@@ -2454,6 +2500,68 @@ mod tests {
             assert_eq!(error.kind, ErrorKind::Failed, "{src}");
             assert_eq!(error.message, reason, "{src}");
         }
+    }
+
+    #[test]
+    fn should_resolve_a_link_from_an_external_document_as_a_file_or_a_note() {
+        let directory = external_document();
+        fs::write(directory.path().join("docs/my spec.pdf"), "pdf").unwrap();
+        fs::write(directory.path().join("other.md"), "# Other").unwrap();
+        let document = directory.path().join("docs/note.md");
+        let root = fs::canonicalize(directory.path()).unwrap();
+
+        assert_eq!(
+            external_file(&document, "my%20spec.pdf#page=2").unwrap(),
+            root.join("docs/my spec.pdf")
+        );
+        assert_eq!(
+            external_note(&document, "../other.md").unwrap(),
+            root.join("other.md")
+        );
+    }
+
+    #[test]
+    fn should_keep_files_and_notes_apart_from_an_external_document() {
+        let directory = external_document();
+        fs::write(directory.path().join("docs/my spec.pdf"), "pdf").unwrap();
+        let document = directory.path().join("docs/note.md");
+
+        assert_eq!(
+            external_file(&document, "note.md").unwrap_err().message,
+            "markdown files open in notras"
+        );
+        assert_eq!(
+            external_note(&document, "my%20spec.pdf")
+                .unwrap_err()
+                .message,
+            "only markdown files open as tabs"
+        );
+        assert_eq!(
+            external_file(&document, "images").unwrap_err().message,
+            "that path is a folder"
+        );
+        assert_eq!(
+            external_file(&document, "gone.pdf").unwrap_err().kind,
+            ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_a_program_linked_from_an_external_document() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let directory = external_document();
+        let path = directory.path().join("docs/run.command");
+        fs::write(&path, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            external_file(&directory.path().join("docs/note.md"), "run.command")
+                .unwrap_err()
+                .message,
+            "that file is a program"
+        );
     }
 
     #[test]

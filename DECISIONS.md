@@ -1018,6 +1018,6 @@ An external tab showed no images: `resolveImageSrc` joined every source onto the
 
 **Rejected: `allow_file` per image.** The narrowest grant Tauri offers, but the resolver runs synchronously inside `renderHTML`, and an image added while editing would be missed until the document reloaded.
 
-**Rejected: routing library images through the same scheme.** It would put every image read behind one handler and take the asset protocol out of the app, but library reads belong on the validated handle (`D77`), and a handler that takes the library guard on the webview's protocol thread contends with every note operation. Left for a follow-up.
+**Rejected: routing library images through the same scheme.** It would put every image read behind one handler and take the asset protocol out of the app, but library reads belong on the validated handle (`D77`), and a handler that takes the library guard on the webview's protocol thread contends with every note operation.
 
 **Constraint:** a compromised webview can read any image on disk by naming an existing markdown file, which is the reach `read_external` already gives it for markdown; the CSP's `connect-src` keeps the bytes inside the window. The handler runs on wry's protocol thread like the asset handler, so a slow disk stalls that thread the same way.

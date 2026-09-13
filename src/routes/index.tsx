@@ -291,7 +291,18 @@ function Workspace() {
       const state = getTabState();
       const target = getTabHandles(state.activeId);
       const showing = state.tabs.find((entry) => entry.id === state.activeId);
-      const from = showing?.kind === "note" ? showing.path : "";
+
+      if (showing?.kind === "external") {
+        toast.add({
+          description: "attachments live in the notes folder",
+          title: "could not attach file",
+          type: "error",
+        });
+
+        return;
+      }
+
+      const from = showing?.path ?? "";
 
       if (target === undefined) {
         toast.add({

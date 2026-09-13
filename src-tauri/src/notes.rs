@@ -119,6 +119,42 @@ pub async fn open_linked_file<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn open_external_file<R: Runtime>(
+    app: AppHandle<R>,
+    document: String,
+    destination: String,
+) -> Result<(), CommandError> {
+    run_blocking(move || {
+        let host = notras_core::external_file(Path::new(&document), &destination)?;
+        app.opener()
+            .open_path(host.to_string_lossy(), None::<&str>)
+            .map_err(opener_reason)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_external_link<R: Runtime>(
+    app: AppHandle<R>,
+    document: String,
+    destination: String,
+) -> Result<PendingOpen, CommandError> {
+    run_blocking(move || {
+        let target = notras_core::external_note(Path::new(&document), &destination)?;
+        let state = app.state::<AppState>();
+        let library = state.library();
+        library
+            .classify_opens(vec![target.to_string_lossy().into_owned()])
+            .into_iter()
+            .next()
+            .ok_or_else(|| "the link resolved to nothing".into())
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn attach_image<R: Runtime>(
     app: AppHandle<R>,
     base64_data: String,

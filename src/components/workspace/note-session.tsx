@@ -50,9 +50,11 @@ import {
 } from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
+import { openExternalFile } from "@/data/open-external-file";
 import { openLinkedFile } from "@/data/open-linked-file";
 import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
+import { resolveExternalLink } from "@/data/resolve-external-link";
 import { saveNote } from "@/data/save-note";
 import { useFocusMode } from "@/lib/prefs";
 import {
@@ -60,6 +62,7 @@ import {
   closeTab,
   getTabState,
   openNote,
+  openTab,
   registerTabHandles,
   registerTabSnapshot,
   renameTab,
@@ -418,10 +421,45 @@ function SessionBuffer({
       });
     }
   }, []);
+  const openExternalFileLink = useCallback(async (href: string) => {
+    try {
+      await openExternalFile(live.current.path, href);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not open file",
+        type: "error",
+      });
+    }
+  }, []);
+  const openExternalNoteLink = useCallback(async (href: string) => {
+    navigation.current?.abort();
+    const request = new AbortController();
+    navigation.current = request;
+    const origin = getTabState().activeId;
+    const isCurrent = () =>
+      !request.signal.aborted && getTabState().activeId === origin;
+    try {
+      const target = await resolveExternalLink(live.current.path, href);
+      if (isCurrent()) {
+        openTab(target.kind, target.path);
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not open note",
+          type: "error",
+        });
+      }
+    }
+  }, []);
+  const noAttachments = useCallback(() => null, []);
 
-  // What a note has and an external file lacks: links that resolve against
-  // the library, and attachments written into it.
-  const noteEditing =
+  // What the tab kind decides: a note's links resolve through the library and
+  // its attachments land in it; an external file's links resolve against the
+  // file, and it takes no attachments.
+  const linkHandling =
     tab.kind === "note"
       ? {
           documentPath,
@@ -430,7 +468,11 @@ function SessionBuffer({
           onWikilinkClick: openWikilink,
           resolveWikilink,
         }
-      : {};
+      : {
+          documentPath: noAttachments,
+          onFileLinkClick: openExternalFileLink,
+          onNoteLinkClick: openExternalNoteLink,
+        };
 
   const handleBodyChange = useCallback(
     (content: string, edit: DocumentEdit) => {
@@ -623,7 +665,7 @@ function SessionBuffer({
             resolveImageSrc={resolveImageSrc}
             stripSentinel={sentineledBody !== undefined}
             titles={getTitles}
-            {...noteEditing}
+            {...linkHandling}
           />
         )}
       </div>

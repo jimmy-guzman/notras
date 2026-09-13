@@ -274,11 +274,14 @@ describe("NoteSession", () => {
     expect(screen.getByText("no such file")).toBeInTheDocument();
   });
 
-  it("should leave a file link alone in an external tab", async () => {
-    const commands: string[] = [];
-    mockIPC((command) => {
-      commands.push(command);
-      return null;
+  it("should open a file link from an external tab against the file", async () => {
+    const opened: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "open_external_file") {
+        opened.push(args);
+        return null;
+      }
+      throw new Error(`unexpected command: ${command}`);
     });
     const client = new QueryClient({
       defaultOptions: {
@@ -308,8 +311,106 @@ describe("NoteSession", () => {
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    expect(commands).toEqual([]);
+    await waitFor(() =>
+      expect(opened).toEqual([{ destination: "./spec.pdf", document: path }])
+    );
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
+  it("should open a markdown link from an external tab as the tab it already is", async () => {
+    mockIPC((command, args) => {
+      if (command === "resolve_external_link") {
+        expect(args).toEqual({
+          destination: "../other.md",
+          document: "/Users/me/docs/note.md",
+        });
+        return { kind: "external", path: "/Users/me/other.md" };
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const path = "/Users/me/docs/note.md";
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
+    client.setQueryData(noteQueries.fileKey("external", path), {
+      content: "# Ext\n\n[other](../other.md)",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t7", kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t7");
+    await act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() =>
+      expect(
+        getTabState().tabs.map((entry) => [entry.kind, entry.path])
+      ).toContainEqual(["external", "/Users/me/other.md"])
+    );
+    expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
+  });
+
+  it("should refuse a pasted image in an external tab", async () => {
+    const commands: string[] = [];
+    mockIPC((command) => {
+      commands.push(command);
+      return null;
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const path = "/Users/me/docs/note.md";
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
+    client.setQueryData(noteQueries.fileKey("external", path), {
+      content: "# Ext\n\ntext",
+      pinned: false,
+      tags: [],
+      updatedAt: new Date(1),
+    });
+    onTestFinished(() => client.clear());
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t8", kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t8");
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(
+      new File([new Uint8Array([137, 80, 78, 71])], "shot.png", {
+        type: "image/png",
+      })
+    );
+    await act(() => {
+      liveEditor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { bubbles: true, clipboardData })
+      );
+    });
+    expect(
+      await screen.findByText("could not paste image")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("attachments live in the notes folder")
+    ).toBeInTheDocument();
+    expect(commands).toEqual([]);
+    expect(liveEditor.state.doc.textContent).toBe("Exttext");
   });
 
   it("should render an image relative to the note and drop one that climbs out", async () => {

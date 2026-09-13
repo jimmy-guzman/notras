@@ -154,6 +154,14 @@ pub fn resolve_file_path(destination: &str, from: &str) -> Option<String> {
     fold_destination(destination, from, b"")
 }
 
+/// A file destination without its fragment or query, decoded whole.
+pub(crate) fn bare_file_destination(destination: &str) -> String {
+    decode_destination(
+        destination.split(['#', '?']).next().unwrap_or_default(),
+        b"",
+    )
+}
+
 fn fold_destination(destination: &str, from: &str, kept: &[u8]) -> Option<String> {
     let bare = decode_destination(
         destination.split(['#', '?']).next().unwrap_or_default(),

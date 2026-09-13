@@ -256,8 +256,11 @@ export interface EditorHandle {
 }
 
 interface EditorProps {
-  /** The note the editor holds, for destinations written relative to it. */
-  documentPath?: () => string;
+  /**
+   * Where a pasted image's destination is written from: the note's library
+   * path, null for a file that takes no attachments, absent for the notes root.
+   */
+  documentPath?: () => null | string;
   findOpen?: boolean;
   focusModeEnabled?: boolean;
   focusOnMount?: boolean;
@@ -504,6 +507,19 @@ export function Editor({
         );
 
         if (imageItem) {
+          const from =
+            config.documentPath === undefined ? "" : config.documentPath();
+
+          if (from === null) {
+            toast.add({
+              description: "attachments live in the notes folder",
+              title: "could not paste image",
+              type: "error",
+            });
+
+            return true;
+          }
+
           const blob = imageItem.getAsFile();
 
           if (blob) {
@@ -536,10 +552,7 @@ export function Editor({
                   ?.chain()
                   .focus()
                   .setImage({
-                    src: attachmentDestination(
-                      relativePath,
-                      config.documentPath?.() ?? ""
-                    ),
+                    src: attachmentDestination(relativePath, from),
                   })
                   .run();
               } catch (error) {
