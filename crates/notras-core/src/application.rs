@@ -465,6 +465,10 @@ impl Staged {
         expected: &str,
     ) -> Result<Publication<i64>, CommandError> {
         if self.temp.exchange(target)? == Exchange::Unsupported {
+            if !self.original_unchanged(expected)? {
+                let mut current = source.open_read()?;
+                return Ok(Publication::Conflict(current_file(&mut current)?));
+            }
             self.temp.replace(target)?;
             return Ok(Publication::Committed(self.updated_at));
         }

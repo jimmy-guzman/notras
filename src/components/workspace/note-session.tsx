@@ -178,7 +178,13 @@ function SessionBuffer({
       { ...file, kind: tab.kind, path: tab.path, stash: stash ?? undefined },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
-        clearStash: async (path) => await clearConflictStash(tab.kind, path),
+        clearStash: async (path) => {
+          await clearConflictStash(tab.kind, path);
+          queryClient.setQueryData(
+            noteQueries.conflict(tab.kind, path).queryKey,
+            null
+          );
+        },
         onCleanFileMissing: () => closeTab(id),
         onDocumentChanged: (content, selection) => {
           if (!persistence.store.state.sourceMode) {
@@ -196,8 +202,13 @@ function SessionBuffer({
           }
         },
         onPathChanged: renameTab,
-        stash: async (path, review) =>
-          await stashConflict(tab.kind, path, review),
+        stash: async (path, review) => {
+          await stashConflict(tab.kind, path, review);
+          queryClient.setQueryData(
+            noteQueries.conflict(tab.kind, path).queryKey,
+            review
+          );
+        },
         write: async (path, content, name, expected) =>
           tab.kind === "external"
             ? await writeExternalNote(path, content, name, expected)
@@ -635,14 +646,23 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.
   const lastRead = useRef<SessionFile | undefined>(undefined);
+  // The stored review is keyed by path too, so a rename would otherwise leave
+  // the gate below with nothing and unmount the buffer mid-session.
+  const lastStash = useRef<ConflictStash | null | undefined>(undefined);
 
   useEffect(() => {
     if (data !== undefined) {
       lastRead.current = data;
     }
   }, [data]);
+  useEffect(() => {
+    if (stash.data !== undefined) {
+      lastStash.current = stash.data;
+    }
+  }, [stash.data]);
 
   const file = data ?? lastRead.current;
+  const stored = stash.data === undefined ? lastStash.current : stash.data;
 
   // Only a missing file is a deletion. A permission or IO failure leaves the
   // note where it was, so the tab keeps what it last read (`D55`).
@@ -683,7 +703,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   }
   // Opening without knowing whether a review is stored would start from the
   // disk file and lose the stashed text on the first save.
-  if (stash.data === undefined) {
+  if (stored === undefined) {
     return stash.isError ? (
       <UnreadableNote
         active={active}
@@ -700,7 +720,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
       file={file}
       missing={gone}
       readFile={data}
-      stash={stash.data}
+      stash={stored}
       tab={tab}
     />
   );

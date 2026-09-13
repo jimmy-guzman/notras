@@ -1209,3 +1209,81 @@ it("should not open a note until its stored review is known", async () => {
   expect(panel()).toBeNull();
   client.clear();
 });
+
+it("should keep the stored review in the query cache as it is written and cleared", async () => {
+  const user = userEvent.setup();
+  const { client } = await mountConflict(
+    "# Errands\n\nbody",
+    "# Errands\n\nbody, on disk",
+    (command) =>
+      command === "save_note"
+        ? {
+            kind: "committed",
+            receipt: {
+              path: "a.md",
+              revision: "r2",
+              updatedAt: 3,
+              warnings: [],
+            },
+          }
+        : null
+  );
+  await waitFor(() =>
+    expect(
+      client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
+    ).toMatchObject({ ours: "# Errands\n\nbodyTyped " })
+  );
+  await user.click(screen.getByRole("button", { name: "review" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "result for place 1" }),
+    "body, both"
+  );
+  await user.click(screen.getByRole("button", { name: "resolve" }));
+  await act(async () => {
+    await flushPendingWrites();
+  });
+  expect(
+    client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
+  ).toBeNull();
+  client.clear();
+});
+
+it("should keep the editor across a rename while the renamed review is unknown", async () => {
+  mockIPC((command) =>
+    command === "read_conflict" ? new Promise(() => undefined) : null
+  );
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+    },
+  });
+  for (const path of [tab.path, "errands.md"]) {
+    client.setQueryData(noteQueries.fileKey("note", path), {
+      content: "# Errands\n\nbody",
+      pinned: false,
+      revision: "r0",
+      tags: [],
+      updatedAt: new Date(1),
+    });
+  }
+  client.setQueryData(noteQueries.list().queryKey, []);
+  client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, null);
+  client.setQueryData(notesDirQuery.queryKey, "/notes");
+  const session = (path: string) =>
+    createElement(
+      StrictMode,
+      null,
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(NoteSession, { active: true, tab: { ...tab, path } })
+      )
+    );
+  const view = render(session(tab.path));
+  const liveEditor = await editor();
+  view.rerender(session("errands.md"));
+  await Promise.resolve();
+  expect(panel()).not.toBeNull();
+  expect(await editor()).toBe(liveEditor);
+  client.clear();
+});

@@ -87,6 +87,19 @@ describe("three-way merge", () => {
     expect(composeResolution(result, ["ours", "ours"])).toBe(ours);
   });
 
+  it("should delete a place whose result is empty", () => {
+    const result = mergeDocuments(
+      "a\nmine\nz\n",
+      "a\nbase\nz\n",
+      "a\ntheirs\nz\n"
+    );
+    if (result.kind !== "conflict") {
+      throw new Error("expected a conflict");
+    }
+
+    expect(composeResolution(result, [{ edited: "" }])).toBe("a\nz\n");
+  });
+
   it("should refuse a resolution that leaves a hunk unchosen", () => {
     const result = mergeDocuments("a\nmine\n", "a\nbase\n", "a\ntheirs\n");
     if (result.kind !== "conflict") {

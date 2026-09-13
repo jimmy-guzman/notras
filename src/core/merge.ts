@@ -39,7 +39,8 @@ function chosenLines(hunk: Hunk, choice: HunkChoice) {
   if (choice === "theirs") {
     return hunk.theirs;
   }
-  return lines(choice.edited);
+  // An empty result is the place deleted, not one blank line.
+  return choice.edited === "" ? [] : lines(choice.edited);
 }
 
 /**
