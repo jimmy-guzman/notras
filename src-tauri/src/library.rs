@@ -14,13 +14,55 @@ struct ActiveScan {
     changed: Vec<String>,
 }
 
+/// A replacement announced but not installed, holding what its watcher saw so far.
+#[derive(Debug)]
+struct Pending {
+    generation: u64,
+    observed: Vec<PathBuf>,
+}
+
 struct OwnedLibrary {
     library: Library,
     generation: u64,
     initialized: bool,
     active: Option<ActiveScan>,
+    pending: Option<Pending>,
     status: IndexStatus,
     status_revision: u64,
+}
+
+/// The generation a replacement will take, kept until it is installed or given up.
+///
+/// Dropping it before `replace_scanned` drops the observations queued for it.
+pub struct Preparation<'a> {
+    owner: &'a LibraryOwner,
+    pub generation: u64,
+}
+
+impl std::fmt::Debug for Preparation<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Preparation")
+            .field("generation", &self.generation)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for Preparation<'_> {
+    fn drop(&mut self) {
+        // A poisoned owner is fatal everywhere else; panicking here as well would
+        // turn an unwinding switch into an abort.
+        let Ok(mut state) = self.owner.state.lock() else {
+            return;
+        };
+        if state
+            .pending
+            .as_ref()
+            .is_some_and(|pending| pending.generation == self.generation)
+        {
+            state.pending = None;
+        }
+    }
 }
 
 struct StatusChange {
@@ -110,6 +152,7 @@ impl LibraryOwner {
                 generation: 0,
                 initialized: false,
                 active: None,
+                pending: None,
                 status: IndexStatus::Scanning,
                 status_revision: 0,
             }),
@@ -202,6 +245,14 @@ impl LibraryOwner {
                 paths,
             },
         ))
+    }
+
+    #[cfg(test)]
+    pub fn queued_observations(&self) -> usize {
+        self.foreground()
+            .pending
+            .as_ref()
+            .map_or(0, |pending| pending.observed.len())
     }
 
     #[cfg(test)]
@@ -388,12 +439,46 @@ impl LibraryOwner {
         self.run_scan(ScanKind::Rebuild, None)
     }
 
+    /// Reconcile paths a watcher saw, or hold them for a replacement still being prepared.
     pub fn observe(
         &self,
         generation: u64,
         paths: Vec<PathBuf>,
     ) -> Result<ScanChanges, CommandError> {
+        {
+            let mut state = self.foreground();
+            if let Some(pending) = state
+                .pending
+                .as_mut()
+                .filter(|pending| pending.generation == generation)
+            {
+                pending.observed.extend(paths);
+                return Ok(ScanChanges {
+                    generation,
+                    paths: Vec::new(),
+                });
+            }
+        }
         self.run_scan(ScanKind::Observed(paths), Some(generation))
+    }
+
+    /// Announce a replacement, so its watcher can start before its scan does.
+    pub fn begin_replacement(&self) -> Preparation<'_> {
+        let mut state = self.foreground();
+        let generation = state.generation + 1;
+        if let Some(previous) = state.pending.replace(Pending {
+            generation,
+            observed: Vec::new(),
+        }) {
+            log::warn!(
+                "a replacement for generation {} was announced over one still pending",
+                previous.generation
+            );
+        }
+        Preparation {
+            owner: self,
+            generation,
+        }
     }
 
     pub fn prepare(&self, library: &Library) -> Result<(), CommandError> {
@@ -409,9 +494,11 @@ impl LibraryOwner {
         library.finish_scan(scan).map(|_| ())
     }
 
-    /// The caller has scanned the replacement completely and can persist its selection.
-    pub fn replace_scanned(&self, library: Library) {
-        let change = {
+    /// Install a fully scanned replacement.
+    ///
+    /// Returns what its watcher saw while it was being prepared.
+    pub fn replace_scanned(&self, library: Library) -> Vec<PathBuf> {
+        let (change, observed) = {
             let _publication = self
                 .publication
                 .write()
@@ -427,10 +514,23 @@ impl LibraryOwner {
             state.library = library;
             state.generation += 1;
             state.initialized = true;
+            let observed = match state.pending.take() {
+                Some(pending) if pending.generation == state.generation => pending.observed,
+                Some(pending) => {
+                    log::warn!(
+                        "dropped observations queued for generation {} while installing {}",
+                        pending.generation,
+                        state.generation
+                    );
+                    Vec::new()
+                }
+                None => Vec::new(),
+            };
             self.changed.notify_all();
-            set_status(&mut state, IndexStatus::Ready)
+            (set_status(&mut state, IndexStatus::Ready), observed)
         };
         self.report(change);
+        observed
     }
 
     /// Emit after releasing the operation guard, without crossing a library switch.
@@ -909,6 +1009,83 @@ mod tests {
             owner.read().read_note("note.md".into()).unwrap().content,
             "# Note"
         );
+    }
+
+    #[test]
+    fn should_queue_observations_for_a_prepared_replacement_and_index_them_when_installed() {
+        let old = tempfile::tempdir().unwrap();
+        fs::write(old.path().join("old.md"), "# Old").unwrap();
+        let owner = LibraryOwner::new(
+            Library::open(old.path(), &old.path().join(".index")).unwrap(),
+            |_| {},
+        );
+        owner.scan().unwrap();
+        let fresh = tempfile::tempdir().unwrap();
+        fs::write(fresh.path().join("one.md"), "# One").unwrap();
+        let replacement = Library::open(fresh.path(), &fresh.path().join(".index")).unwrap();
+        // The watcher reports paths under the resolved root, as the library names it.
+        let late = replacement.directory().join("late.md");
+
+        let preparation = owner.begin_replacement();
+        owner.prepare(&replacement).unwrap();
+        fs::write(&late, "# Late").unwrap();
+        let held = owner
+            .observe(preparation.generation, vec![late.clone()])
+            .unwrap();
+        assert!(held.paths.is_empty());
+        assert_eq!(
+            owner
+                .query(|view| view.list_notes(&Default::default()))
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let observed = owner.replace_scanned(replacement);
+        drop(preparation);
+
+        assert_eq!(observed, vec![late]);
+        let replayed = owner.observe(1, observed).unwrap();
+        assert_eq!(replayed.paths, vec!["late.md"]);
+        let mut paths: Vec<_> = owner
+            .query(|view| view.list_notes(&Default::default()))
+            .unwrap()
+            .into_iter()
+            .map(|note| note.path)
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["late.md", "one.md"]);
+    }
+
+    #[test]
+    fn should_drop_a_queue_when_its_preparation_is_abandoned() {
+        let old = tempfile::tempdir().unwrap();
+        fs::write(old.path().join("old.md"), "# Old").unwrap();
+        let owner = LibraryOwner::new(
+            Library::open(old.path(), &old.path().join(".index")).unwrap(),
+            |_| {},
+        );
+        owner.scan().unwrap();
+        let fresh = tempfile::tempdir().unwrap();
+        fs::write(fresh.path().join("one.md"), "# One").unwrap();
+
+        let abandoned = owner.begin_replacement();
+        let generation = abandoned.generation;
+        owner
+            .observe(generation, vec![fresh.path().join("one.md")])
+            .unwrap();
+        drop(abandoned);
+
+        assert!(owner
+            .observe(generation, vec![fresh.path().join("one.md")])
+            .unwrap()
+            .paths
+            .is_empty());
+        let replacement = Library::open(fresh.path(), &fresh.path().join(".index")).unwrap();
+        let preparation = owner.begin_replacement();
+        owner.prepare(&replacement).unwrap();
+        assert_eq!(preparation.generation, generation);
+        assert!(owner.replace_scanned(replacement).is_empty());
     }
 
     #[test]
