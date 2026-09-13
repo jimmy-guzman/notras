@@ -413,7 +413,7 @@ describe("NoteSession", () => {
     expect(liveEditor.state.doc.textContent).toBe("Exttext");
   });
 
-  it("should render an image relative to the note and drop one that climbs out", async () => {
+  it("should render an image relative to the note and drop one the note cannot reach", async () => {
     mockConvertFileSrc("macos");
     mockIPC((command) => {
       throw new Error(`unexpected command: ${command}`);
@@ -430,7 +430,8 @@ describe("NoteSession", () => {
       null
     );
     client.setQueryData(noteQueries.fileKey("note", "projects/a.md"), {
-      content: "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)",
+      content:
+        "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)\n\n![abs](/etc/x.png)\n\n![anchor](#x)\n\n![web](https://example.com/a.png)",
       pinned: false,
       tags: [],
       updatedAt: new Date(1),
@@ -452,6 +453,9 @@ describe("NoteSession", () => {
     expect(sources).toEqual([
       "asset://localhost/%2Fnotes%2Fprojects%2Fmy%20shot.png",
       "",
+      "",
+      "",
+      "https://example.com/a.png",
     ]);
   });
 

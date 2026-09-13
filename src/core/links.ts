@@ -26,12 +26,17 @@ const NOTE_EXTENSION = /\.(?:md|markdown)$/i;
 
 const FRAGMENT_OR_QUERY = /[#?]/;
 
+/** A destination the webview can fetch on its own: `https:`, `data:`, `asset:`. */
+export function hasScheme(destination: string) {
+  return SCHEME.test(destination);
+}
+
 /** A destination that names a file beside the note rather than a place with a scheme. */
 export function isRelativeDestination(destination: string) {
   return !(
     destination.startsWith("#") ||
     destination.startsWith("/") ||
-    SCHEME.test(destination)
+    hasScheme(destination)
   );
 }
 

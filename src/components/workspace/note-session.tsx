@@ -42,7 +42,12 @@ import { toast } from "@/components/ui/toast";
 import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
-import { foldPath, isRelativeDestination, linkResolver } from "@/core/links";
+import {
+  foldPath,
+  hasScheme,
+  isRelativeDestination,
+  linkResolver,
+} from "@/core/links";
 import {
   type ConflictStash,
   clearConflictStash,
@@ -141,8 +146,9 @@ interface SessionBufferProps {
 
 /**
  * A relative image resolves against the file that holds it, the way a link
- * does. A source with a scheme, an anchor or a root passes through for the
- * webview to judge. A note's image loads through the asset protocol under
+ * does. A source with a scheme passes through for the webview to judge, and
+ * an anchor or an absolute path renders as a broken image rather than a fetch
+ * from the app's own bundle. A note's image loads through the asset protocol under
  * the notes dir, and one that climbs out renders as a broken image. An
  * external file's image goes to the `external-image` scheme with the document
  * and the source, and Rust resolves the pair on each request.
@@ -154,7 +160,7 @@ function imageSrc(
   notesDir: string
 ) {
   if (!isRelativeDestination(src)) {
-    return src;
+    return hasScheme(src) ? src : "";
   }
 
   const path = decodeAttachmentPath(src);
