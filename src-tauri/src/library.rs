@@ -248,6 +248,14 @@ impl LibraryOwner {
     }
 
     #[cfg(test)]
+    pub fn queued_observations(&self) -> usize {
+        self.foreground()
+            .pending
+            .as_ref()
+            .map_or(0, |pending| pending.observed.len())
+    }
+
+    #[cfg(test)]
     pub fn try_read(&self) -> Option<LibraryGuard<'_>> {
         self.state.try_lock().ok().map(|state| LibraryGuard {
             state,

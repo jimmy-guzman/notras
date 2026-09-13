@@ -344,73 +344,85 @@ pub async fn index_status<R: Runtime>(app: AppHandle<R>) -> Result<IndexStatus, 
     run_blocking(move || Ok(app.state::<AppState>().library.status())).await
 }
 
+/// Save the chosen folder before the swap: a folder the next launch cannot find
+/// again is worse than one this launch never switched to.
+fn persist_notes_dir<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<(), CommandError> {
+    let store = app.store("settings.json").map_err(|error| {
+        CommandError::with_source(format!("the setting could not be saved: {error}"), error)
+    })?;
+    store.set("notesDir", Value::String(path.to_owned()));
+    store.save().map_err(|error| {
+        CommandError::with_source(format!("the setting could not be saved: {error}"), error)
+    })
+}
+
+/// Switch the library to `path`, running `persist` between preparation and installation.
+///
+/// The persistence step is injected because it sits inside the window a test has to
+/// act in: the replacement is watched and scanned, but not yet installed.
+fn switch_notes_dir<R: Runtime>(
+    app: &AppHandle<R>,
+    path: &str,
+    persist: impl FnOnce() -> Result<(), CommandError>,
+) -> Result<(), CommandError> {
+    let state = app.state::<AppState>();
+
+    // Switches can run on different blocking workers. Keep their saved setting,
+    // library swap and watcher replacement in the same order.
+    let mut watcher = state.watcher();
+    let same_directory = match std::fs::canonicalize(path) {
+        Ok(directory) => directory == state.library().directory(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    // Reopening the current database would create a second writer outside
+    // the coordinator while the original library can still save and scan.
+    let replacement = if same_directory {
+        None
+    } else {
+        let cache = crate::index_cache(app)
+            .map_err(|error| CommandError::with_source("the cache folder is unavailable", error))?;
+        let library = Library::open(Path::new(path), &cache)?;
+        let notes_dir = library.directory().to_owned();
+        // Watched before it is scanned, so a write that lands during the scan
+        // reaches the owner, which holds it until the replacement is installed.
+        let preparation = state.library.begin_replacement();
+        let fresh = watcher::start(app.clone(), notes_dir.clone(), preparation.generation)
+            .map_err(|error| {
+                CommandError::with_source(format!("could not watch the folder: {error}"), error)
+            })?;
+        state.library.prepare(&library)?;
+        Some((library, notes_dir, fresh, preparation))
+    };
+
+    persist()?;
+
+    if let Some((library, notes_dir, fresh, preparation)) = replacement {
+        let generation = preparation.generation;
+        crate::allow_assets(app, &notes_dir);
+        let observed = state.library.replace_scanned(library);
+        drop(preparation);
+
+        // Dropping the old watcher may join a callback waiting for the library.
+        *watcher = Some(fresh);
+        drop(watcher);
+        if !observed.is_empty() {
+            if let Err(error) = state.library.observe(generation, observed) {
+                log::error!("could not reconcile paths observed during the switch: {error}");
+            }
+        }
+        emit_changed(app, generation, vec![]);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn set_notes_dir<R: Runtime>(
     app: AppHandle<R>,
     path: String,
 ) -> Result<(), CommandError> {
-    run_blocking(move || {
-        let state = app.state::<AppState>();
-
-        // Switches can run on different blocking workers. Keep their saved setting,
-        // library swap and watcher replacement in the same order.
-        let mut watcher = state.watcher();
-        let same_directory = match std::fs::canonicalize(&path) {
-            Ok(directory) => directory == state.library().directory(),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        };
-        // Reopening the current database would create a second writer outside
-        // the coordinator while the original library can still save and scan.
-        let replacement = if same_directory {
-            None
-        } else {
-            let cache = crate::index_cache(&app).map_err(|error| {
-                CommandError::with_source("the cache folder is unavailable", error)
-            })?;
-            let library = Library::open(Path::new(&path), &cache)?;
-            let notes_dir = library.directory().to_owned();
-            // Watched before it is scanned, so a write that lands during the scan
-            // reaches the owner, which holds it until the replacement is installed.
-            let preparation = state.library.begin_replacement();
-            let fresh = watcher::start(app.clone(), notes_dir.clone(), preparation.generation)
-                .map_err(|error| {
-                    CommandError::with_source(format!("could not watch the folder: {error}"), error)
-                })?;
-            state.library.prepare(&library)?;
-            Some((library, notes_dir, fresh, preparation))
-        };
-
-        // Persisted before the swap: a folder the next launch cannot find again is
-        // worse than one this launch never switched to.
-        let store = app.store("settings.json").map_err(|error| {
-            CommandError::with_source(format!("the setting could not be saved: {error}"), error)
-        })?;
-        store.set("notesDir", Value::String(path));
-        store.save().map_err(|error| {
-            CommandError::with_source(format!("the setting could not be saved: {error}"), error)
-        })?;
-
-        if let Some((library, notes_dir, fresh, preparation)) = replacement {
-            let generation = preparation.generation;
-            crate::allow_assets(&app, &notes_dir);
-            let observed = state.library.replace_scanned(library);
-            drop(preparation);
-
-            // Dropping the old watcher may join a callback waiting for the library.
-            *watcher = Some(fresh);
-            drop(watcher);
-            if !observed.is_empty() {
-                if let Err(error) = state.library.observe(generation, observed) {
-                    log::error!("could not reconcile paths observed during the switch: {error}");
-                }
-            }
-            emit_changed(&app, generation, vec![]);
-        }
-        Ok(())
-    })
-    .await
+    run_blocking(move || switch_notes_dir(&app, &path, || persist_notes_dir(&app, &path))).await
 }
 
 #[tauri::command]
@@ -458,7 +470,82 @@ pub fn cancel_quit(state: State<'_, AppState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::panic::{catch_unwind, panic_any};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{mpsc, Mutex};
+    use std::time::{Duration, Instant};
+
+    use serde_json::json;
+    use tauri::Listener;
+
+    #[test]
+    fn should_index_a_note_written_while_a_switch_prepares() {
+        let directory = tempfile::tempdir().unwrap();
+        let initial = directory.path().join("initial");
+        let fresh = directory.path().join("fresh");
+        fs::create_dir(&initial).unwrap();
+        fs::create_dir(&fresh).unwrap();
+        fs::write(fresh.join("one.md"), "# One").unwrap();
+        let contract = crate::bindings::builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(&initial, &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        contract.mount_events(&app);
+        let (sender, changes) = mpsc::channel();
+        app.listen("notes-changed", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+        let handle = app.handle().clone();
+        let path = fresh.to_string_lossy().into_owned();
+
+        switch_notes_dir(&handle, &path, || {
+            persist_notes_dir(&handle, &path)?;
+            fs::write(fresh.join("late.md"), "# Late").unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while handle.state::<AppState>().library.queued_observations() == 0 {
+                assert!(
+                    Instant::now() < deadline,
+                    "the replacement watcher must report the write before installation"
+                );
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(
+            changes.recv_timeout(Duration::from_secs(5)).unwrap(),
+            json!({"paths": []})
+        );
+        let mut paths: Vec<_> = app
+            .state::<AppState>()
+            .library
+            .query(|view| view.list_notes(&Default::default()))
+            .unwrap()
+            .into_iter()
+            .map(|note| note.path)
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["late.md", "one.md"]);
+        *app.state::<AppState>().watcher() = None;
+    }
 
     #[test]
     fn should_resume_a_blocking_operation_panic_with_its_original_payload() {
