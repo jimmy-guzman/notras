@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeDocuments } from "@/core/merge";
+import { composeResolution, mergeDocuments } from "@/core/merge";
 
 const base = "# Plan\n\nfirst paragraph\n\nsecond paragraph\n";
 
@@ -71,5 +71,30 @@ describe("three-way merge", () => {
         "# Plan\r\n\r\nfirst paragraph, mine\r\n\r\nsecond paragraph, theirs\r\n",
       kind: "merged",
     });
+  });
+
+  it("should compose a resolution from per-hunk choices and edited text", () => {
+    const ours = "# Plan\n\nfirst, mine\n\nsecond, mine\n";
+    const theirs = "# Plan\n\nfirst, theirs\n\nsecond, theirs\n";
+    const result = mergeDocuments(ours, base, theirs);
+    if (result.kind !== "conflict") {
+      throw new Error("expected a conflict");
+    }
+
+    expect(
+      composeResolution(result, ["theirs", { edited: "second, both\nlines" }])
+    ).toBe("# Plan\n\nfirst, theirs\n\nsecond, both\nlines\n");
+    expect(composeResolution(result, ["ours", "ours"])).toBe(ours);
+  });
+
+  it("should refuse a resolution that leaves a hunk unchosen", () => {
+    const result = mergeDocuments("a\nmine\n", "a\nbase\n", "a\ntheirs\n");
+    if (result.kind !== "conflict") {
+      throw new Error("expected a conflict");
+    }
+
+    expect(() => composeResolution(result, [])).toThrow(
+      "every hunk needs a choice"
+    );
   });
 });

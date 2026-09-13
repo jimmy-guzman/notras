@@ -34,6 +34,7 @@ import { NoteSession } from "./note-session";
 vi.mock("@/data/get-note", () => ({ getNote: vi.fn() }));
 
 const tab = { id: "t1", kind: "note", path: "a.md" } as const;
+const UNFOLDED_CONTEXT = /# Errands\s+one\s+two/;
 
 function mountSession(content?: string) {
   const client = new QueryClient({
@@ -845,5 +846,207 @@ it("should announce a change that overlaps unsaved typing", async () => {
   );
   expect(liveEditor.getText()).toContain("bodyTyped");
   expect(liveEditor.getText()).not.toContain("on disk");
+  client.clear();
+});
+
+async function mountConflict(
+  content: string,
+  onDisk: string,
+  ipc: (command: string, args: unknown) => unknown = () => null
+) {
+  mockIPC((command, args) => {
+    if (
+      command === "stash_conflict" ||
+      command === "clear_conflict" ||
+      command === "read_conflict"
+    ) {
+      return ipc(command, args) ?? null;
+    }
+    return ipc(command, args);
+  });
+  const client = mountSession(content);
+  const liveEditor = await editor();
+  await act(() => {
+    liveEditor.commands.insertContent("Typed ");
+  });
+  await act(() => {
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: onDisk,
+      pinned: false,
+      revision: "r1",
+      tags: [],
+      updatedAt: new Date(2),
+    });
+  });
+  await waitFor(() =>
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+  );
+  return { client, liveEditor };
+}
+
+function review() {
+  return screen.queryByRole("region", { name: "review overlapping edits" });
+}
+
+it("should open the review from the banner, hide the note, and come back on escape", async () => {
+  const user = userEvent.setup();
+  const { client } = await mountConflict(
+    "# Errands\n\nbody",
+    "# Errands\n\nbody, on disk"
+  );
+  expect(review()).toHaveClass("invisible");
+  await user.click(screen.getByRole("button", { name: "review" }));
+  expect(review()).not.toHaveClass("invisible");
+  expect(
+    panel()?.querySelector(".ProseMirror")?.closest(".invisible")
+  ).not.toBeNull();
+  expect(
+    screen.getByRole("heading", { name: "1 place changed here and on disk" })
+  ).toBeInTheDocument();
+  expect(screen.getByText("1 of 1 still need a result")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "resolve" })).toBeDisabled();
+  expect(
+    screen.getByRole("textbox", { name: "result for place 1" })
+  ).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(review()).toHaveClass("invisible");
+  expect(
+    panel()?.querySelector(".ProseMirror")?.closest(".invisible")
+  ).toBeNull();
+  expect(screen.getByRole("button", { name: "review" })).toHaveFocus();
+  client.clear();
+});
+
+it("should keep a typed result across back and reopening", async () => {
+  const user = userEvent.setup();
+  const { client } = await mountConflict(
+    "# Errands\n\nbody",
+    "# Errands\n\nbody, on disk"
+  );
+  await user.click(screen.getByRole("button", { name: "review" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "result for place 1" }),
+    "body, both"
+  );
+  await user.click(screen.getByRole("button", { name: "back" }));
+  await user.click(screen.getByRole("button", { name: "review" }));
+  expect(
+    screen.getByRole("textbox", { name: "result for place 1" })
+  ).toHaveValue("body, both");
+  expect(screen.getByText("every place has a result")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
+  client.clear();
+});
+
+it("should fill the result from either side and show a deleted side as nothing", async () => {
+  const user = userEvent.setup();
+  const { client } = await mountConflict("# Errands\n\nbody", "# Errands\n");
+  await user.click(screen.getByRole("button", { name: "review" }));
+  expect(screen.getByText("nothing")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "use mine" }));
+  const result = screen.getByRole("textbox", { name: "result for place 1" });
+  expect(result).toHaveValue("bodyTyped ");
+  expect(result).toHaveFocus();
+  await user.click(
+    screen.getByRole("button", { name: "use the version on disk" })
+  );
+  expect(result).toHaveValue("");
+  expect(screen.getByText("every place has a result")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
+  client.clear();
+});
+
+it("should close the review when a later change combines, and open the next one on the banner", async () => {
+  const user = userEvent.setup();
+  const { client } = await mountConflict(
+    "# Errands\n\nbody",
+    "# Errands\n\nbody, on disk"
+  );
+  await user.click(screen.getByRole("button", { name: "review" }));
+  expect(review()).not.toHaveClass("invisible");
+  await act(() => {
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: "# Chores\n\nbody",
+      pinned: false,
+      revision: "r2",
+      tags: [],
+      updatedAt: new Date(3),
+    });
+  });
+  await waitFor(() => expect(review()).not.toBeInTheDocument());
+  await act(() => {
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: "# Chores\n\nbody, on disk again",
+      pinned: false,
+      revision: "r3",
+      tags: [],
+      updatedAt: new Date(4),
+    });
+  });
+  await waitFor(() =>
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+  );
+  expect(review()).toHaveClass("invisible");
+  client.clear();
+});
+
+it("should show a heading place at heading size and fold long unchanged runs", async () => {
+  const user = userEvent.setup();
+  const { client } = await mountConflict(
+    "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody",
+    "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody, on disk"
+  );
+  await user.click(screen.getByRole("button", { name: "review" }));
+  await user.click(screen.getByRole("button", { name: "10 unchanged lines" }));
+  expect(screen.getByText(UNFOLDED_CONTEXT)).toBeInTheDocument();
+  client.clear();
+  cleanup();
+
+  const heading = await mountConflict("# Errands", "# Chores");
+  await user.click(screen.getByRole("button", { name: "review" }));
+  expect(screen.getByText("# Chores")).toHaveClass("text-[1.88em]");
+  expect(screen.getByText("# ErrandsTyped")).toHaveClass("text-[1.88em]");
+  expect(
+    screen.getByRole("textbox", { name: "result for place 1" })
+  ).toHaveClass("text-[1.88em]");
+  heading.client.clear();
+});
+
+it("should resolve a place, save the composed note, and clear the stored review", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  const writes: unknown[] = [];
+  const { client, liveEditor } = await mountConflict(
+    "# Errands\n\nbody",
+    "# Errands\n\nbody, on disk",
+    (command, args) => {
+      calls.push(command);
+      if (command === "save_note") {
+        writes.push(args);
+        return { path: "a.md", revision: "r2", updatedAt: 3, warnings: [] };
+      }
+      return null;
+    }
+  );
+  await user.click(screen.getByRole("button", { name: "review" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "result for place 1" }),
+    "body, both"
+  );
+  await user.keyboard("{Control>}{Enter}{/Control}");
+  expect(review()).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("this note changed on disk")
+  ).not.toBeInTheDocument();
+  expect(liveEditor.getText()).toContain("body, both");
+  expect(liveEditor.getText()).not.toContain("on disk");
+  await act(async () => {
+    await flushPendingWrites();
+  });
+  expect(writes).toEqual([
+    expect.objectContaining({ content: "# Errands\n\nbody, both" }),
+  ]);
+  expect(calls.filter((call) => call === "clear_conflict")).toHaveLength(1);
+  expect(liveEditor.isFocused).toBe(true);
   client.clear();
 });

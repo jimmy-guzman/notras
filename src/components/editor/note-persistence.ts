@@ -467,6 +467,24 @@ export function createNotePersistence(
     observation = { file, missing, path };
     reconcileFile();
   };
+  const resolve = (content: string) => {
+    const { theirs } = state.state;
+    if (!inConflict() || theirs === undefined) {
+      throw new Error("nothing to review");
+    }
+    replaceDocument(content);
+    edits += 1;
+    state.setState((previous) => ({
+      ...previous,
+      base: theirs,
+      changedAgain: false,
+      edits,
+      reason: undefined,
+      status: "dirty",
+      theirs: undefined,
+    }));
+    return save();
+  };
   const editMetadata = async (patch: FrontmatterPatch) => {
     const next = updateFrontmatter(document.content(), patch);
     document.edit(next, { headingEdited: false, separate: true });
@@ -483,6 +501,7 @@ export function createNotePersistence(
     editMetadata,
     flush,
     receiveFile,
+    resolve,
     retain: () => {
       owners += 1;
       return async () => {

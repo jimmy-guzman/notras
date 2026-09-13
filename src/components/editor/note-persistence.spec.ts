@@ -846,3 +846,42 @@ it("should hold a pin change with the unsaved text while a review is open", asyn
     "---\npinned: true\n---\n# Errands\n\nbody, mine"
   );
 });
+
+it("should resolve a review, save the result, and clear the stored review", async () => {
+  const cleared: string[] = [];
+  const writes: string[] = [];
+  const note = createNotePersistence(initial, {
+    changePath: () => Promise.reject(new Error("no move requested")),
+    clearStash: (path) => {
+      cleared.push(path);
+      return Promise.resolve();
+    },
+    onPathChanged: () => undefined,
+    stash: () => Promise.resolve(),
+    write: (path, content) => {
+      writes.push(content);
+      return Promise.resolve({ path, revision: "r2", updatedAt: new Date(2) });
+    },
+  });
+  note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+  note.receiveFile(
+    "shopping.md",
+    {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    },
+    false
+  );
+  await Promise.resolve();
+  expect(() => note.resolve("# Errands\n\nbody, both")).not.toThrow();
+  expect(note.store.state.content).toBe("# Errands\n\nbody, both");
+  expect(note.store.state.theirs).toBeUndefined();
+  expect(note.applyHistory("undo")).toBe(false);
+  await note.flush();
+  expect(writes).toEqual(["# Errands\n\nbody, both"]);
+  expect(cleared).toEqual(["shopping.md"]);
+  expect(note.store.state.status).toBe("saved");
+  expect(note.store.state.base.revision).toBe("r2");
+  expect(() => note.resolve("again")).toThrow("nothing to review");
+});
