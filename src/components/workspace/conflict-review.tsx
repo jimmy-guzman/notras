@@ -4,12 +4,21 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { KbdGroup } from "@/components/ui/kbd";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   composeResolution,
@@ -34,13 +43,14 @@ function ContextRun({ lines }: ContextRunProps) {
   const expand = useCallback(() => setExpanded(true), []);
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
-      <button
-        className="self-start text-muted-foreground text-xs underline underline-offset-3 hover:text-foreground"
+      <Button
+        className="self-start text-muted-foreground"
         onClick={expand}
-        type="button"
+        size="xs"
+        variant="link"
       >
         {lines.length} unchanged lines
-      </button>
+      </Button>
     );
   }
   return (
@@ -118,6 +128,7 @@ function Place({
   total,
 }: PlaceProps) {
   const heading = isHeadingHunk(hunk);
+  const resultId = useId();
   const resultRef = useRef<HTMLTextAreaElement>(null);
   const useTheirs = useCallback(() => {
     onChange(resultKey, hunk.theirs.join(newline));
@@ -148,14 +159,19 @@ function Place({
         onUse={useOurs}
         useLabel="use mine"
       />
-      <div className="text-muted-foreground text-xs">result</div>
+      <Label
+        className="font-normal text-muted-foreground text-xs"
+        htmlFor={resultId}
+      >
+        result<span className="sr-only"> for place {number}</span>
+      </Label>
       <Textarea
-        aria-label={`result for place ${number}`}
         className={cn(
           "md:text-base",
           heading ? HEADING_FACE : NOTE_FACE,
           "placeholder:font-normal placeholder:font-sans placeholder:text-sm"
         )}
+        id={resultId}
         onChange={edit}
         placeholder="use one side above, or write the result"
         ref={resultRef}
@@ -272,24 +288,31 @@ export function ConflictReview({
       ref={container}
     >
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-6">
-        <div className="flex flex-col gap-1">
-          <h2 className="font-medium text-sm">
-            {merge.kind === "merged"
-              ? "your edits no longer overlap the change on disk"
-              : `${places} ${places === 1 ? "place" : "places"} changed here and on disk`}
-          </h2>
-          <p className="text-muted-foreground text-xs">
-            {merge.kind === "merged"
-              ? "resolve applies both"
-              : "the rest already combined; only these need a result"}
-          </p>
-          {changedAgain ? (
-            <p className="text-destructive text-xs">
-              the file changed again while you were reviewing, so these start
-              over
+        {merge.kind === "merged" ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>
+                your edits no longer overlap the change on disk
+              </EmptyTitle>
+              <EmptyDescription>resolve applies both</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <h2 className="font-medium text-sm">
+              {`${places} ${places === 1 ? "place" : "places"} changed here and on disk`}
+            </h2>
+            <p className="text-muted-foreground text-xs">
+              the rest already combined; only these need a result
             </p>
-          ) : null}
-        </div>
+            {changedAgain ? (
+              <p className="text-destructive text-xs">
+                the file changed again while you were reviewing, so these start
+                over
+              </p>
+            ) : null}
+          </div>
+        )}
         {rows}
         <div className="flex items-center gap-2 pt-2">
           <Button disabled={remaining > 0} onClick={resolve} size="sm">
@@ -303,9 +326,15 @@ export function ConflictReview({
               ? `${remaining} of ${places} still need a result`
               : "every place has a result"}
           </span>
-          <span className="ms-auto flex items-center gap-1 text-muted-foreground text-xs">
-            <Chord hotkey="Escape" /> back
-            <Chord className="ms-2" hotkey="Mod+Enter" /> resolve
+          <span className="ms-auto flex items-center gap-3 text-muted-foreground text-xs">
+            <KbdGroup>
+              <Chord hotkey="Escape" />
+              <span>back</span>
+            </KbdGroup>
+            <KbdGroup>
+              <Chord hotkey="Mod+Enter" />
+              <span>resolve</span>
+            </KbdGroup>
           </span>
         </div>
       </div>
