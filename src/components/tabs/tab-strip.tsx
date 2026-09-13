@@ -182,9 +182,9 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "no-drag group flex h-full min-w-24 flex-1 basis-0 items-center border-border border-r ps-2.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring has-[:focus-visible]:-outline-offset-2",
+              "no-drag group flex h-6 min-w-24 max-w-56 flex-1 basis-0 items-center self-center rounded-md ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring has-[:focus-visible]:-outline-offset-2",
               active
-                ? "bg-background text-foreground"
+                ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-muted/40",
               isDragging &&
                 "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
@@ -470,7 +470,7 @@ function TabList({ activeId, tabs }: TabListProps) {
           <div
             // `relative` so a tab's `offsetParent` is the strip, which the
             // measure above reads against.
-            className="relative flex min-w-0 flex-1 items-stretch overflow-x-auto"
+            className="relative flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
             onKeyDown={handleKeyDown}
             ref={listRef}
             role="tablist"
@@ -512,7 +512,7 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 items-stretch self-stretch">
+    <div className="flex min-w-0 flex-1 items-center">
       <TabList activeId={activeId} tabs={tabs} />
       <NewNoteButton className="ms-1" onNew={onNew} />
     </div>

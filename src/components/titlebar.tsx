@@ -7,9 +7,8 @@ interface TitlebarProps {
 /**
  * The window drag region, and the only chrome above the note.
  *
- * The bottom hairline is an inset shadow rather than a border because the
- * active tab has to paint over it, and a child cannot paint over an ancestor's
- * border (`D52`).
+ * The bottom hairline is an inset shadow rather than a border, so the band
+ * offers its full height to what it holds.
  *
  * The 36px height pairs with the traffic light offset `D29` carries, in both
  * `tauri.conf.json` and `src-tauri/src/lib.rs`, which centres macOS's window
