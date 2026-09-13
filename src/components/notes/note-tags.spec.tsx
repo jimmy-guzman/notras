@@ -3,7 +3,10 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { createNotePersistence } from "@/components/editor/note-persistence";
+import {
+  createNotePersistence,
+  type SaveOutcome,
+} from "@/components/editor/note-persistence";
 import { NoteTags } from "@/components/notes/note-tags";
 import { TagsView } from "@/components/palette-note-views";
 import { Command, CommandList } from "@/components/ui/command";
@@ -19,18 +22,21 @@ import {
 it.each(["combobox", "palette"])(
   "should retain rapid tag toggles from the %s before its displayed tags refresh",
   async (control) => {
-    const saved = Promise.withResolvers<{ path: string; updatedAt: Date }>();
+    const saved = Promise.withResolvers<SaveOutcome>();
     const writes: string[] = [];
     const note = createNotePersistence(
       {
         content: "# Note",
         kind: "note",
         path: "note.md",
+        revision: "r0",
         updatedAt: new Date(0),
       },
       {
         changePath: () => Promise.reject(new Error("no move requested")),
+        clearStash: () => Promise.resolve(),
         onPathChanged: () => undefined,
+        stash: () => Promise.resolve(),
         write: (_path, content) => {
           writes.push(content);
           return saved.promise;
@@ -54,7 +60,10 @@ it.each(["combobox", "palette"])(
     ]);
     onTestFinished(async () => {
       await act(async () => {
-        saved.resolve({ path: "note.md", updatedAt: new Date(1) });
+        saved.resolve({
+          kind: "committed",
+          receipt: { path: "note.md", revision: "r1", updatedAt: new Date(1) },
+        });
         await note.flush();
         closeTab(id);
       });
@@ -96,7 +105,10 @@ it.each(["combobox", "palette"])(
       "second",
     ]);
     await act(async () => {
-      saved.resolve({ path: "note.md", updatedAt: new Date(1) });
+      saved.resolve({
+        kind: "committed",
+        receipt: { path: "note.md", revision: "r1", updatedAt: new Date(1) },
+      });
       await note.flush();
     });
     expect(parseNote(writes.at(-1) ?? "").frontmatter.tags).toEqual(["second"]);

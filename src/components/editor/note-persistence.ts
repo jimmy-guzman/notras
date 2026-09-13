@@ -6,13 +6,15 @@ import {
   parseNote,
   updateFrontmatter,
 } from "@/core/frontmatter";
+import { mergeDocuments } from "@/core/merge";
 import { resolveTitle } from "@/core/notes";
+import type { ConflictStash } from "@/data/conflict-stash";
 import { reasonOf } from "@/lib/ui/failure";
 import { countWords } from "@/lib/utils/word-count";
 import type { SaveName } from "@/server/adapters/bindings";
 import { createNoteDocument, type DocumentEdit } from "./note-document";
 
-export type SaveStatus = "dirty" | "failed" | "saved" | "saving";
+export type SaveStatus = "conflict" | "dirty" | "failed" | "saved" | "saving";
 export type PathChange =
   | { kind: "move"; folder: string }
   | { kind: "retitle"; title: string };
@@ -24,39 +26,54 @@ export interface EditorContent {
 
 interface FileContent {
   content: string;
+  revision: string;
   updatedAt: Date;
 }
 
 interface SaveReceipt {
   path: string;
+  revision: string;
   updatedAt: Date;
 }
+
+/** What a write did: published at the revision sent, or refused with the file now on disk. */
+export type SaveOutcome =
+  | { kind: "committed"; receipt: SaveReceipt }
+  | { kind: "conflict"; file: FileContent };
 
 interface PersistencePorts {
   changePath: (
     path: string,
     change: { kind: "move"; folder: string }
   ) => Promise<{ path: string; file: FileContent }>;
+  clearStash: (path: string) => Promise<void>;
   onCleanFileMissing?: () => void;
   onDocumentChanged?: (
     content: string,
     selection?: { anchor: number; head: number }
   ) => void;
   onPathChanged: (from: string, to: string) => void;
+  stash: (path: string, stash: ConflictStash) => Promise<void>;
   write: (
     path: string,
     content: string,
-    name: SaveName | null
-  ) => Promise<SaveReceipt>;
+    name: SaveName | null,
+    expected: string
+  ) => Promise<SaveOutcome>;
 }
 
-interface PersistenceState extends FileContent {
+interface PersistenceState {
+  base: FileContent;
+  changedAgain: boolean;
+  edits: number;
   missing: boolean;
   path: string;
   pendingPaths: number;
   reason: string | undefined;
   sourceMode: boolean;
   status: SaveStatus;
+  theirs: FileContent | undefined;
+  updatedAt: Date;
   writing: boolean;
 }
 
@@ -64,30 +81,44 @@ export type NotePersistence = ReturnType<typeof createNotePersistence>;
 
 /** A session's document and ordered writes; save receipts never edit its history. */
 export function createNotePersistence(
-  initial: FileContent & { path: string; kind: "note" | "external" },
+  initial: FileContent & {
+    path: string;
+    kind: "note" | "external";
+    stash?: ConflictStash;
+  },
   ports: PersistencePorts
 ) {
+  const resumed = initial.stash;
   const document = createNoteDocument(
-    initial.content,
+    resumed?.ours ?? initial.content,
     initial.path.split("/").at(-1) ?? initial.path,
     () => changed()
   );
-  const state = createStore<
-    Omit<PersistenceState, "content"> & { revision: number }
-  >({
+  // A resumed review starts at its stored base and timestamp, so the file on
+  // disk arrives as a newer observation and is combined or held again.
+  const state = createStore<PersistenceState>({
+    base: resumed?.base ?? {
+      content: initial.content,
+      revision: initial.revision,
+      updatedAt: initial.updatedAt,
+    },
+    changedAgain: false,
+    edits: resumed === undefined ? 0 : 1,
     missing: false,
     path: initial.path,
     pendingPaths: 0,
     reason: undefined,
-    revision: 0,
     sourceMode: false,
-    status: "saved",
-    updatedAt: initial.updatedAt,
+    status: resumed === undefined ? "saved" : "dirty",
+    theirs: undefined,
+    updatedAt: resumed?.base.updatedAt ?? initial.updatedAt,
     writing: false,
   });
   const store = createStore(() => {
     const current = state.get();
     return {
+      base: current.base,
+      changedAgain: current.changedAgain,
       content: document.content(),
       missing: current.missing,
       path: current.path,
@@ -95,6 +126,7 @@ export function createNotePersistence(
       reason: current.reason,
       sourceMode: current.sourceMode,
       status: current.status,
+      theirs: current.theirs,
       updatedAt: current.updatedAt,
       writing: current.writing,
     };
@@ -119,17 +151,23 @@ export function createNotePersistence(
     | { path: string; file: FileContent | undefined; missing: boolean }
     | undefined;
   let owners = 0;
-  let revision = 0;
-  let savedRevision = 0;
+  let edits = resumed === undefined ? 0 : 1;
+  let savedEdits = 0;
   let savedName = document.nameId();
+  let stashedAt = resumed === undefined ? undefined : initial.path;
   let tail: Promise<unknown> = Promise.resolve();
 
+  const inConflict = () => state.state.status === "conflict";
   const changed = () => {
-    revision += 1;
+    edits += 1;
+    if (inConflict()) {
+      state.setState((previous) => ({ ...previous, edits }));
+      return;
+    }
     state.setState((previous) => ({
       ...previous,
+      edits,
       reason: undefined,
-      revision,
       status: "dirty",
     }));
     debouncer.maybeExecute();
@@ -145,11 +183,43 @@ export function createNotePersistence(
       ports.onPathChanged(from, receipt.path);
     }
   };
-  const write = async () => {
-    if (revision <= savedRevision || state.state.missing) {
+  const stashOurs = async () => {
+    const { path } = state.state;
+    try {
+      await ports.stash(path, {
+        base: state.state.base,
+        ours: document.content(),
+      });
+      stashedAt = path;
+      state.setState((previous) => ({ ...previous, reason: undefined }));
+      return true;
+    } catch (error) {
+      state.setState((previous) => ({
+        ...previous,
+        reason: reasonOf(error),
+      }));
+      return false;
+    }
+  };
+  const clearStash = async () => {
+    if (stashedAt === undefined) {
       return;
     }
-    const sentRevision = revision;
+    try {
+      await ports.clearStash(stashedAt);
+      stashedAt = undefined;
+    } catch (error) {
+      state.setState((previous) => ({
+        ...previous,
+        reason: `the stored review could not be removed: ${reasonOf(error)}`,
+      }));
+    }
+  };
+  const write = async () => {
+    if (edits <= savedEdits || state.state.missing || inConflict()) {
+      return;
+    }
+    const sentEdits = edits;
     const sentName = document.nameId();
     const content = document.content();
     const name = sentName === savedName ? null : document.naming();
@@ -160,19 +230,43 @@ export function createNotePersistence(
       writing: true,
     }));
     try {
-      const receipt = await ports.write(state.state.path, content, name);
+      const outcome = await ports.write(
+        state.state.path,
+        content,
+        name,
+        state.state.base.revision
+      );
+      if (outcome.kind === "conflict") {
+        state.setState((previous) => ({
+          ...previous,
+          status: "dirty",
+          writing: false,
+        }));
+        absorb(outcome.file);
+        return;
+      }
+      const { receipt } = outcome;
       document.acknowledgeName(
         sentName,
         receipt.path.split("/").at(-1) ?? receipt.path
       );
       savedName = sentName;
-      savedRevision = sentRevision;
-      followPath(receipt);
       state.setState((previous) => ({
         ...previous,
-        status: revision > savedRevision ? "dirty" : "saved",
+        base: {
+          content,
+          revision: receipt.revision,
+          updatedAt: receipt.updatedAt,
+        },
+      }));
+      followPath(receipt);
+      savedEdits = sentEdits;
+      state.setState((previous) => ({
+        ...previous,
+        status: edits > savedEdits ? "dirty" : "saved",
         writing: false,
       }));
+      await clearStash();
     } catch (error) {
       state.setState((previous) => ({
         ...previous,
@@ -204,6 +298,9 @@ export function createNotePersistence(
     },
     { wait: 800 }
   );
+  if (resumed !== undefined) {
+    debouncer.maybeExecute();
+  }
   const edit = (
     content: EditorContent,
     details: DocumentEdit = { headingEdited: false }
@@ -238,9 +335,22 @@ export function createNotePersistence(
         if (state.state.missing) {
           throw new Error("no such file");
         }
+        const refused = () =>
+          new Error("this note needs review before it can move");
+        if (inConflict()) {
+          throw refused();
+        }
         await write();
+        if (inConflict()) {
+          throw refused();
+        }
         const receipt = await ports.changePath(state.state.path, change);
-        followPath({ path: receipt.path, updatedAt: receipt.file.updatedAt });
+        state.setState((previous) => ({ ...previous, base: receipt.file }));
+        followPath({
+          path: receipt.path,
+          revision: receipt.file.revision,
+          updatedAt: receipt.file.updatedAt,
+        });
       } finally {
         state.setState((previous) => ({
           ...previous,
@@ -255,13 +365,16 @@ export function createNotePersistence(
   };
   const flush = async () => {
     debouncer.cancel();
-    do {
+    while (!inConflict()) {
       // biome-ignore lint/performance/noAwaitInLoops: quit must drain edits that arrived during the preceding write
       if (!(await save())) {
         return false;
       }
-    } while (!state.state.missing && revision > savedRevision);
-    return true;
+      if (state.state.missing || edits <= savedEdits) {
+        return true;
+      }
+    }
+    return await stashOurs();
   };
   const applyHistory = (direction: "undo" | "redo", execute = true) => {
     if (!execute) {
@@ -274,19 +387,74 @@ export function createNotePersistence(
     ports.onDocumentChanged?.(document.content(), document.selection());
     return true;
   };
+  const replaceDocument = (content: string) => {
+    document.replace(content);
+    ports.onDocumentChanged?.(document.content());
+  };
+  const absorb = (file: FileContent) => {
+    const current = state.state;
+    if (current.status === "saved") {
+      replaceDocument(file.content);
+      state.setState((previous) => ({
+        ...previous,
+        base: file,
+        missing: false,
+        updatedAt: file.updatedAt,
+      }));
+      return;
+    }
+    if (inConflict() && file.revision === current.theirs?.revision) {
+      state.setState((previous) => ({
+        ...previous,
+        missing: false,
+        updatedAt: file.updatedAt,
+      }));
+      return;
+    }
+    const merge = mergeDocuments(
+      document.content(),
+      current.base.content,
+      file.content
+    );
+    if (merge.kind === "merged") {
+      replaceDocument(merge.content);
+      edits += 1;
+      state.setState((previous) => ({
+        ...previous,
+        base: file,
+        changedAgain: false,
+        edits,
+        missing: false,
+        reason: undefined,
+        status: "dirty",
+        theirs: undefined,
+        updatedAt: file.updatedAt,
+      }));
+      debouncer.maybeExecute();
+      return;
+    }
+    const again = inConflict();
+    debouncer.cancel();
+    state.setState((previous) => ({
+      ...previous,
+      changedAgain: again,
+      missing: false,
+      status: "conflict",
+      theirs: file,
+      updatedAt: file.updatedAt,
+    }));
+    if (!again) {
+      stashOurs();
+    }
+  };
   const reconcileContent = (file: FileContent) => {
     const current = state.state;
     const newer = file.updatedAt.getTime() > current.updatedAt.getTime();
-    const reload =
-      current.status === "saved" &&
-      newer &&
-      file.content !== document.content();
-    if (reload) {
-      document.replace(file.content);
-      ports.onDocumentChanged?.(document.content());
+    if (file.revision !== current.base.revision && newer) {
+      absorb(file);
+      return;
     }
-
-    if (!(current.missing || reload || newer)) {
+    if (!(current.missing || newer)) {
       return;
     }
     state.setState((previous) => ({
@@ -335,6 +503,24 @@ export function createNotePersistence(
     observation = { file, missing, path };
     reconcileFile();
   };
+  const resolve = (content: string) => {
+    const { theirs } = state.state;
+    if (!inConflict() || theirs === undefined) {
+      throw new Error("nothing to review");
+    }
+    replaceDocument(content);
+    edits += 1;
+    state.setState((previous) => ({
+      ...previous,
+      base: theirs,
+      changedAgain: false,
+      edits,
+      reason: undefined,
+      status: "dirty",
+      theirs: undefined,
+    }));
+    return save();
+  };
   const editMetadata = async (patch: FrontmatterPatch) => {
     const next = updateFrontmatter(document.content(), patch);
     document.edit(next, { headingEdited: false, separate: true });
@@ -351,6 +537,7 @@ export function createNotePersistence(
     editMetadata,
     flush,
     receiveFile,
+    resolve,
     retain: () => {
       owners += 1;
       return async () => {

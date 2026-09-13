@@ -120,6 +120,9 @@ describe("palette note views", () => {
         if (command === "get_notes_dir") {
           return "/notes";
         }
+        if (command === "read_conflict") {
+          return null;
+        }
         if (command === "read_note") {
           return {
             content: "---\ntags:\n  - work\n---\n# Atlas\n",
@@ -136,7 +139,15 @@ describe("palette note views", () => {
           typeof args.content === "string"
         ) {
           writes.push(args.content);
-          return { path: "atlas.md", updatedAt: 2, warnings: [] };
+          return {
+            kind: "committed",
+            receipt: {
+              path: "atlas.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
         }
         throw new Error(`unexpected command: ${command}`);
       });

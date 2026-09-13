@@ -44,6 +44,9 @@ it("should let a new note open before library queries finish without a late rest
     if (command === "create_note") {
       return { path: "chosen.md", updatedAt: 1, warnings: [] };
     }
+    if (command === "read_conflict") {
+      return null;
+    }
     if (command === "read_note") {
       return {
         content: "# Chosen\n\nAvailable document",

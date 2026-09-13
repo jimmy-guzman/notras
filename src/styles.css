@@ -758,8 +758,18 @@ body.dragging .ProseMirror::selection {
    resolves a margin's `em` against the element itself, so it would otherwise
    grow with the heading. `:not(:first-child)` keeps a note that opens on a
    heading, and one the drag ghost lifts, flush: this block is unlayered, so the
-   margin would beat Typeset's own first-child reset. */
-.typeset-note :is(h1, h2, h3, h4, h5, h6) {
+   margin would beat Typeset's own first-child reset. A level declared as
+   `data-heading` takes the same scale without the element: the review quotes a
+   note's heading line in a block and a result box, and neither can be an h1.
+   The attribute rides on `:where()` so it adds no specificity, since a lift on
+   the generic rule would put it above the h2 and h3 rules below. The result
+   box takes the face wholesale, ahead of the level rules and for the same
+   reason, because the control's own type would otherwise win as a utility. */
+.typeset-note :where(textarea) {
+  font: inherit;
+}
+.typeset-note :is(h1, h2, h3, h4, h5, h6),
+.typeset-note :where([data-heading]) {
   --heading-scale: 1;
   font-size: calc(var(--heading-scale) * 1em);
   font-weight: 600;
@@ -767,7 +777,8 @@ body.dragging .ProseMirror::selection {
   text-transform: none;
   letter-spacing: normal;
 }
-.typeset-note h1 {
+.typeset-note h1,
+.typeset-note :where([data-heading="1"]) {
   --heading-scale: 1.88;
   line-height: 1.3;
 }

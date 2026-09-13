@@ -400,6 +400,18 @@ describe("the note preset", () => {
   it("should keep the optical sizing Literata's opsz axis asks for", () => {
     expect(notePreset).toContain("font-optical-sizing: auto");
   });
+
+  it("should scale h2 and h3 from rules no less specific than the generic one", () => {
+    expect(blockOf(source, ".typeset-note h2")).toContain(
+      "--heading-scale: 1.56;"
+    );
+    expect(blockOf(source, ".typeset-note h3")).toContain(
+      "--heading-scale: 1.33;"
+    );
+    expect(source.match(/\[data-heading/g)).toHaveLength(
+      source.match(/:where\(\[data-heading/g)?.length ?? 0
+    );
+  });
 });
 
 describe.each([

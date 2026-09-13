@@ -138,6 +138,12 @@ pub(crate) fn index_cache<R: Runtime>(
     Ok(manager.path().app_cache_dir()?.join("index"))
 }
 
+pub(crate) fn conflicts_dir<R: Runtime>(
+    manager: &impl Manager<R>,
+) -> tauri::Result<std::path::PathBuf> {
+    Ok(manager.path().app_data_dir()?.join("conflicts"))
+}
+
 /// Grant the asset protocol read access to a notes dir. Images inside notes are
 /// rendered through `convertFileSrc`, so the scope has to follow the folder the
 /// user picked -- the config ships with an empty static scope.

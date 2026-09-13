@@ -270,7 +270,7 @@ impl Scan {
 mod tests {
     use std::fs;
 
-    use crate::{CreateNote, Library, NoteName};
+    use crate::{CreateNote, Library, NoteName, SaveOutcome};
 
     #[test]
     fn should_preserve_saves_moves_and_recreated_files_during_cleanup() {
@@ -292,7 +292,10 @@ mod tests {
                 ..Default::default()
             })
             .unwrap();
-        library.save_note("keep.md", "# Latest", None).unwrap();
+        let expected = library.read_note("keep.md".into()).unwrap().revision;
+        library
+            .save_note("keep.md", "# Latest", None, &expected)
+            .unwrap();
         library.move_note("keep.md".into(), "moved").unwrap();
         while !library.advance_scan(&mut scan).unwrap() {}
         library.finish_scan(scan).unwrap();
@@ -351,7 +354,13 @@ mod tests {
             .conn
             .execute("INSERT INTO note_tag VALUES ('note.md', 'old')", [])
             .unwrap();
-        let receipt = library.save_note("note.md", "# After", None).unwrap();
+        let expected = library.read_note("note.md".into()).unwrap().revision;
+        let SaveOutcome::Committed { receipt } = library
+            .save_note("note.md", "# After", None, &expected)
+            .unwrap()
+        else {
+            panic!("the save should commit at the current revision");
+        };
         assert_eq!(receipt.warnings.len(), 1);
         library
             .conn

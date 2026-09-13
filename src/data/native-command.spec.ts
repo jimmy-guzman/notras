@@ -31,20 +31,32 @@ describe("native command boundary", () => {
       expect(command).toBe("save_note");
       expect(args).toEqual({
         content: "# saved",
+        expected: "r0",
         name: null,
         path: "a.md",
       });
       return {
+        kind: "committed",
+        receipt: {
+          path: "a.md",
+          revision: "r1",
+          updatedAt: 1_720_000_001_000,
+          warnings: [
+            { kind: "index", message: "index is unavailable", path: "a.md" },
+          ],
+        },
+      };
+    });
+    await expect(saveNote("a.md", "# saved", null, "r0")).resolves.toEqual({
+      kind: "committed",
+      receipt: {
         path: "a.md",
-        updatedAt: 1_720_000_001_000,
+        revision: "r1",
+        updatedAt: new Date(1_720_000_001_000),
         warnings: [
           { kind: "index", message: "index is unavailable", path: "a.md" },
         ],
-      };
-    });
-    await expect(saveNote("a.md", "# saved")).resolves.toMatchObject({
-      path: "a.md",
-      updatedAt: new Date(1_720_000_001_000),
+      },
     });
   });
 
@@ -53,16 +65,39 @@ describe("native command boundary", () => {
       expect(command).toBe("save_note");
       expect(args).toEqual({
         content: "# Weekend errands",
+        expected: "r0",
         name: { kind: "heading" },
         path: "shopping.md",
       });
-      return { path: "weekend-errands-2.md", updatedAt: 1234, warnings: [] };
+      return {
+        kind: "committed",
+        receipt: {
+          path: "weekend-errands-2.md",
+          revision: "r1",
+          updatedAt: 1234,
+          warnings: [],
+        },
+      };
     });
     await expect(
-      saveNote("shopping.md", "# Weekend errands", { kind: "heading" })
+      saveNote("shopping.md", "# Weekend errands", { kind: "heading" }, "r0")
     ).resolves.toMatchObject({
-      path: "weekend-errands-2.md",
-      updatedAt: new Date(1234),
+      receipt: { path: "weekend-errands-2.md", updatedAt: new Date(1234) },
+    });
+  });
+
+  it("should return the file on disk with a date when a save is refused", async () => {
+    mockIPC((command, args) => {
+      expect(command).toBe("save_note");
+      expect(args).toMatchObject({ expected: "stale" });
+      return {
+        file: { content: "# on disk", revision: "r9", updatedAt: 1234 },
+        kind: "conflict",
+      };
+    });
+    await expect(saveNote("a.md", "# mine", null, "stale")).resolves.toEqual({
+      file: { content: "# on disk", revision: "r9", updatedAt: new Date(1234) },
+      kind: "conflict",
     });
   });
 
@@ -71,20 +106,27 @@ describe("native command boundary", () => {
       expect(command).toBe("write_external");
       expect(args).toEqual({
         content: "# external",
+        expected: "r0",
         name: null,
         path: "/outside/a.md",
       });
       return {
-        path: "/outside/a.md",
-        updatedAt: 1_720_000_002_000,
-        warnings: [],
+        kind: "committed",
+        receipt: {
+          path: "/outside/a.md",
+          revision: "r1",
+          updatedAt: 1_720_000_002_000,
+          warnings: [],
+        },
       };
     });
     await expect(
-      writeExternalNote("/outside/a.md", "# external")
+      writeExternalNote("/outside/a.md", "# external", null, "r0")
     ).resolves.toMatchObject({
-      path: "/outside/a.md",
-      updatedAt: new Date(1_720_000_002_000),
+      receipt: {
+        path: "/outside/a.md",
+        updatedAt: new Date(1_720_000_002_000),
+      },
     });
   });
 

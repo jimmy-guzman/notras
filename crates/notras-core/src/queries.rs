@@ -476,8 +476,14 @@ mod tests {
         );
         let view = core.read_view().unwrap();
 
-        core.save_note("source.md", "# Changed\n[[Grace]]\nGrace wrote this.", None)
-            .unwrap();
+        let expected = core.read_note("source.md".into()).unwrap().revision;
+        core.save_note(
+            "source.md",
+            "# Changed\n[[Grace]]\nGrace wrote this.",
+            None,
+            &expected,
+        )
+        .unwrap();
 
         assert!(view.conn.execute("DELETE FROM note", []).is_err());
         let mentions = view.find_mentions("ada.md").unwrap();

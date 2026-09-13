@@ -452,6 +452,15 @@ mod tests {
     use std::time::{Duration, Instant};
     use std::{fs, thread};
 
+    /// Save at the revision the file carries now, the way a session that just read it would.
+    fn save_current(library: &Library, path: &str, content: &str) -> Result<String, CommandError> {
+        let expected = library.read_note(path.into())?.revision;
+        match library.save_note(path, content, None, &expected)? {
+            notras_core::SaveOutcome::Committed { receipt } => Ok(receipt.path),
+            notras_core::SaveOutcome::Conflict { .. } => Err("the file changed underneath".into()),
+        }
+    }
+
     #[test]
     fn should_serve_a_waiting_save_before_the_next_scan_step() {
         let directory = tempfile::tempdir().unwrap();
@@ -463,7 +472,7 @@ mod tests {
         let mut scan = paused.begin_scan(true);
         let writer = owner.clone();
         let save = thread::spawn(move || {
-            writer.read().save_note("note.md", "# After", None).unwrap();
+            save_current(&writer.read(), "note.md", "# After").unwrap();
         });
         let deadline = Instant::now() + Duration::from_secs(5);
         while owner.waiting.load(Ordering::SeqCst) == 0 {
@@ -539,9 +548,8 @@ mod tests {
         let (_, saved) = owner
             .mutate(|library| {
                 assert!(owner.try_read().is_none());
-                let result = library.save_note("note.md", "# After", None)?;
-                let paths = vec![result.path.clone()];
-                Ok((result, paths))
+                let path = save_current(library, "note.md", "# After")?;
+                Ok(((), vec![path]))
             })
             .unwrap();
         owner.publish(saved.generation, || {
@@ -580,7 +588,7 @@ mod tests {
         let notes = owner
             .query(|view| {
                 assert!(owner.try_read().is_some(), "query held the operation guard");
-                owner.read().save_note("note.md", "# After", None)?;
+                save_current(&owner.read(), "note.md", "# After")?;
                 assert_eq!(owner.read().read_note("note.md".into())?.content, "# After");
                 view.list_notes(&Default::default())
             })
@@ -636,7 +644,7 @@ mod tests {
             |_| {},
         );
         assert!(owner.query(|view| view.list_tags()).is_err());
-        owner.read().save_note("note.md", "# After", None).unwrap();
+        save_current(&owner.read(), "note.md", "# After").unwrap();
         assert_eq!(
             owner.read().read_note("note.md".into()).unwrap().content,
             "# After"
