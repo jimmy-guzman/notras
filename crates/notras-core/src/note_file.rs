@@ -23,6 +23,9 @@ fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
 
     match rustix::fs::renameat_with(dir, from, dir, to, RenameFlags::NOREPLACE) {
         Ok(()) => Ok(true),
+        // The three ways a kernel says it has no such flag: a filesystem that
+        // rejects it, a kernel older than the syscall, and a macOS volume that
+        // refuses the extended rename.
         Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => link_then_unlink(dir, from, to),
         Err(error) => Err(error.into()),
     }
@@ -33,22 +36,30 @@ fn rename_noclobber(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
     link_then_unlink(dir, from, to)
 }
 
-/// Swap two entries in one step, or report that this platform cannot.
+/// Whether an exchange happened, or the platform has none to offer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Exchange {
+    Swapped,
+    Unsupported,
+}
+
+/// Swap two entries in one step where the platform can.
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
-fn exchange(dir: &Dir, from: &str, to: &str) -> io::Result<bool> {
+fn exchange(dir: &Dir, from: &str, to: &str) -> io::Result<Exchange> {
     use rustix::fs::RenameFlags;
     use rustix::io::Errno;
 
     match rustix::fs::renameat_with(dir, from, dir, to, RenameFlags::EXCHANGE) {
-        Ok(()) => Ok(true),
-        Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => Ok(false),
+        Ok(()) => Ok(Exchange::Swapped),
+        // The same three refusals as the no-replace rename above.
+        Err(Errno::INVAL | Errno::NOSYS | Errno::NOTSUP) => Ok(Exchange::Unsupported),
         Err(error) => Err(error.into()),
     }
 }
 
 #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
-fn exchange(_dir: &Dir, _from: &str, _to: &str) -> io::Result<bool> {
-    Ok(false)
+fn exchange(_dir: &Dir, _from: &str, _to: &str) -> io::Result<Exchange> {
+    Ok(Exchange::Unsupported)
 }
 
 #[cfg(unix)]
@@ -222,11 +233,11 @@ impl TempSibling {
         }
     }
 
-    /// Swap this sibling with `target` in one step; false means the platform cannot.
+    /// Swap this sibling with `target` in one step where the platform can.
     ///
     /// The sibling stays armed either way: after one swap, dropping it removes the
     /// displaced target, and after a second swap it removes the sibling again.
-    pub(crate) fn exchange(&self, target: &str) -> io::Result<bool> {
+    pub(crate) fn exchange(&self, target: &str) -> io::Result<Exchange> {
         exchange(&self.dir, &self.name, target)
     }
 
@@ -249,7 +260,7 @@ impl Drop for TempSibling {
     }
 }
 
-/// The opaque revision of a document, which a reader and a writer derive from the bytes alone.
+/// The revision of a document, derived from its bytes alone.
 pub(crate) fn content_revision(content: &str) -> String {
     use sha2::{Digest, Sha256};
 
@@ -360,7 +371,7 @@ mod tests {
         fs::write(directory.path().join("note.md"), "original").unwrap();
         let (temp, name) = sibling(&root(directory.path()), "replacement");
 
-        assert!(temp.exchange("note.md").unwrap());
+        assert_eq!(temp.exchange("note.md").unwrap(), Exchange::Swapped);
 
         assert_eq!(
             fs::read_to_string(directory.path().join("note.md")).unwrap(),
@@ -385,7 +396,7 @@ mod tests {
         fs::write(directory.path().join("note.md"), "original").unwrap();
         let (temp, name) = sibling(&root(directory.path()), "replacement");
 
-        assert!(!temp.exchange("note.md").unwrap());
+        assert_eq!(temp.exchange("note.md").unwrap(), Exchange::Unsupported);
 
         assert_eq!(
             fs::read_to_string(directory.path().join("note.md")).unwrap(),

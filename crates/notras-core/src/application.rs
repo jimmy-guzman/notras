@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{content_revision, timestamp_millis, OpenedNote, TempSibling},
+    note_file::{content_revision, timestamp_millis, Exchange, OpenedNote, TempSibling},
     relative_path::{ensure_folder, Located, RelativePath},
     Library,
 };
@@ -403,7 +403,7 @@ struct Withdrawn {
     grave: TempSibling,
 }
 
-/// Move the entry at `source` out of reach, so a check on it cannot be raced by another writer.
+/// Move the entry at `source` to a name no other writer knows.
 fn withdraw(source: &Located, handle: &File) -> Result<Withdrawn, CommandError> {
     let mut grave = TempSibling::create(&source.dir)?;
     grave.take(&source.name, handle)?;
@@ -411,7 +411,7 @@ fn withdraw(source: &Located, handle: &File) -> Result<Withdrawn, CommandError> 
 }
 
 impl Withdrawn {
-    fn is_file(&self, source: &Located, handle: &File) -> Result<bool, CommandError> {
+    fn holds(&self, source: &Located, handle: &File) -> Result<bool, CommandError> {
         Ok(source.sibling(self.grave.name())?.identity()? == handle_identity(handle)?)
     }
 
@@ -420,14 +420,14 @@ impl Withdrawn {
     }
 }
 
-/// A replacement written beside its original, which stays open until publication decides.
+/// A replacement beside its original, which stays open until publication decides.
 struct Staged {
     original: File,
     temp: TempSibling,
     updated_at: i64,
 }
 
-/// Write the replacement only when the original still carries `expected`.
+/// Write the replacement only while the original still carries `expected`.
 fn stage(
     source: &Located,
     content: &str,
@@ -464,7 +464,7 @@ impl Staged {
         target: &str,
         expected: &str,
     ) -> Result<Publication<i64>, CommandError> {
-        if !self.temp.exchange(target)? {
+        if self.temp.exchange(target)? == Exchange::Unsupported {
             self.temp.replace(target)?;
             return Ok(Publication::Committed(self.updated_at));
         }
@@ -502,14 +502,14 @@ impl Staged {
                 }]))
             }
         };
-        if original.is_file(source, &self.original)? && self.original_unchanged(expected)? {
+        if original.holds(source, &self.original)? && self.original_unchanged(expected)? {
             drop(original);
             return Ok(Publication::Committed(vec![]));
         }
         original.give_back(source, &self.original)?;
         let published = source.sibling(candidate)?;
         let withdrawn = withdraw(&published, self.temp.file())?;
-        if withdrawn.is_file(&published, self.temp.file())? {
+        if withdrawn.holds(&published, self.temp.file())? {
             drop(withdrawn);
         } else {
             withdrawn.give_back(&published, self.temp.file())?;
@@ -870,7 +870,7 @@ impl Library {
         })
     }
 
-    /// Persist a live document at the revision it started from; a changed file is returned instead.
+    /// Save a document at the revision it started from, or return the changed file.
     pub fn save_note(
         &self,
         path: &str,
