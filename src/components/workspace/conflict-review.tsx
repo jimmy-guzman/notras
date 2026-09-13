@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   composeResolution,
   type Hunk,
+  type HunkChoice,
   type MergeConflict,
   mergeDocuments,
   type Newline,
@@ -107,21 +108,38 @@ function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
 }
 
 interface PlaceProps {
+  choice: HunkChoice | undefined;
   hunk: Hunk;
   newline: Newline;
   number: number;
-  onChange: (key: string, result: string) => void;
-  result: string;
+  onChange: (key: string, choice: HunkChoice) => void;
   resultKey: string;
   total: number;
 }
 
+function chosenText(
+  hunk: Hunk,
+  choice: HunkChoice | undefined,
+  newline: Newline
+) {
+  if (choice === undefined) {
+    return "";
+  }
+  if (choice === "ours") {
+    return hunk.ours.join(newline);
+  }
+  if (choice === "theirs") {
+    return hunk.theirs.join(newline);
+  }
+  return choice.edited;
+}
+
 function Place({
+  choice,
   hunk,
   newline,
   number,
   onChange,
-  result,
   resultKey,
   total,
 }: PlaceProps) {
@@ -129,16 +147,16 @@ function Place({
   const resultId = useId();
   const resultRef = useRef<HTMLTextAreaElement>(null);
   const useTheirs = useCallback(() => {
-    onChange(resultKey, hunk.theirs.join(newline));
+    onChange(resultKey, "theirs");
     resultRef.current?.focus();
-  }, [hunk.theirs, newline, onChange, resultKey]);
+  }, [onChange, resultKey]);
   const useOurs = useCallback(() => {
-    onChange(resultKey, hunk.ours.join(newline));
+    onChange(resultKey, "ours");
     resultRef.current?.focus();
-  }, [hunk.ours, newline, onChange, resultKey]);
+  }, [onChange, resultKey]);
   const edit = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) =>
-      onChange(resultKey, event.target.value),
+      onChange(resultKey, { edited: event.target.value }),
     [onChange, resultKey]
   );
   return (
@@ -170,7 +188,7 @@ function Place({
         onChange={edit}
         placeholder="use one side above, or write the result"
         ref={resultRef}
-        value={result}
+        value={chosenText(hunk, choice, newline)}
       />
     </section>
   );
@@ -201,10 +219,10 @@ export function ConflictReview({
     () => mergeDocuments(ours, base, theirs),
     [ours, base, theirs]
   );
-  const [results, setResults] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, HunkChoice>>({});
   const setResult = useCallback(
-    (key: string, result: string) =>
-      setResults((previous) => ({ ...previous, [key]: result })),
+    (key: string, choice: HunkChoice) =>
+      setResults((previous) => ({ ...previous, [key]: choice })),
     []
   );
   const container = useRef<HTMLDivElement>(null);
@@ -219,7 +237,7 @@ export function ConflictReview({
 
   const { choices, remaining, rows } = useMemo(() => {
     const built: {
-      choices: { edited: string }[];
+      choices: HunkChoice[];
       remaining: number;
       rows: ReactNode[];
     } = { choices: [], remaining: 0, rows: [] };
@@ -237,19 +255,19 @@ export function ConflictReview({
         continue;
       }
       const key = hunkKey(position, region);
-      const result = results[key];
-      if (result === undefined) {
+      const choice = results[key];
+      if (choice === undefined) {
         built.remaining += 1;
       }
-      built.choices.push({ edited: result ?? "" });
+      built.choices.push(choice ?? { edited: "" });
       built.rows.push(
         <Place
+          choice={choice}
           hunk={region}
           key={key}
           newline={merge.newline}
           number={built.choices.length}
           onChange={setResult}
-          result={result ?? ""}
           resultKey={key}
           total={total}
         />

@@ -26,4 +26,27 @@ describe("ConflictReview", () => {
     await user.click(screen.getByRole("button", { name: "resolve" }));
     expect(onResolve).toHaveBeenCalledWith("# Chores\n\nbody, mine");
   });
+
+  it("should keep a blank line when the used side is one blank line", async () => {
+    const user = userEvent.setup();
+    const onBack = vi.fn();
+    const onResolve = vi.fn();
+    render(
+      <ConflictReview
+        base={"a\nbase\nz"}
+        changedAgain={false}
+        onBack={onBack}
+        onResolve={onResolve}
+        open
+        ours={"a\nmine\nz"}
+        theirs={"a\n\nz"}
+      />
+    );
+    await user.click(
+      screen.getByRole("button", { name: "use this, the version on disk" })
+    );
+    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "resolve" }));
+    expect(onResolve).toHaveBeenCalledWith("a\n\nz");
+  });
 });

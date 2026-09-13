@@ -873,351 +873,233 @@ describe("NoteSession", () => {
     });
     expect(writes.at(-1)).toBe("_hello_");
   });
-});
 
-it("should combine a change elsewhere in the note with unsaved typing", async () => {
-  const client = mountSession("# Errands\n\nbody");
-  const liveEditor = await editor();
-  await act(() => {
-    liveEditor.commands.insertContent("Typed ");
-  });
-  await act(() => {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content: "# Chores\n\nbody",
-      pinned: false,
-      revision: "r1",
-      tags: [],
-      updatedAt: new Date(2),
+  it("should combine a change elsewhere in the note with unsaved typing", async () => {
+    const client = mountSession("# Errands\n\nbody");
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.insertContent("Typed ");
     });
-  });
-  await waitFor(() => expect(liveEditor.getText()).toContain("Chores"));
-  expect(liveEditor.getText()).toContain("bodyTyped");
-  expect(
-    screen.queryByText("this note changed on disk")
-  ).not.toBeInTheDocument();
-  client.clear();
-});
-
-it("should announce a change that overlaps unsaved typing", async () => {
-  const client = mountSession("# Errands\n\nbody");
-  const liveEditor = await editor();
-  await act(() => {
-    liveEditor.commands.insertContent("Typed ");
-  });
-  await act(() => {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content: "# Errands\n\nbody, on disk",
-      pinned: false,
-      revision: "r1",
-      tags: [],
-      updatedAt: new Date(2),
+    await act(() => {
+      client.setQueryData(noteQueries.fileKey("note", tab.path), {
+        content: "# Chores\n\nbody",
+        pinned: false,
+        revision: "r1",
+        tags: [],
+        updatedAt: new Date(2),
+      });
     });
+    await waitFor(() => expect(liveEditor.getText()).toContain("Chores"));
+    expect(liveEditor.getText()).toContain("bodyTyped");
+    expect(
+      screen.queryByText("this note changed on disk")
+    ).not.toBeInTheDocument();
+    client.clear();
   });
-  await waitFor(() =>
-    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-  );
-  expect(liveEditor.getText()).toContain("bodyTyped");
-  expect(liveEditor.getText()).not.toContain("on disk");
-  client.clear();
-});
 
-async function mountConflict(
-  content: string,
-  onDisk: string,
-  ipc: (command: string, args: unknown) => unknown = () => null
-) {
-  mockIPC((command, args) => {
-    if (
-      command === "stash_conflict" ||
-      command === "clear_conflict" ||
-      command === "read_conflict"
-    ) {
-      return ipc(command, args) ?? null;
-    }
-    return ipc(command, args);
-  });
-  const client = mountSession(content);
-  const liveEditor = await editor();
-  await act(() => {
-    liveEditor.commands.insertContent("Typed ");
-  });
-  await act(() => {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content: onDisk,
-      pinned: false,
-      revision: "r1",
-      tags: [],
-      updatedAt: new Date(2),
+  it("should announce a change that overlaps unsaved typing", async () => {
+    const client = mountSession("# Errands\n\nbody");
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.insertContent("Typed ");
     });
-  });
-  await waitFor(() =>
-    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-  );
-  return { client, liveEditor };
-}
-
-function review() {
-  return screen.queryByRole("region", { name: "review overlapping edits" });
-}
-
-it("should open the review from the banner, hide the note, and come back on escape", async () => {
-  const user = userEvent.setup();
-  const { client } = await mountConflict(
-    "# Errands\n\nbody",
-    "# Errands\n\nbody, on disk"
-  );
-  expect(review()).toHaveClass("invisible");
-  await user.click(screen.getByRole("button", { name: "review" }));
-  expect(review()).not.toHaveClass("invisible");
-  expect(
-    panel()?.querySelector(".ProseMirror")?.closest(".invisible")
-  ).not.toBeNull();
-  expect(
-    screen.getByRole("heading", { name: "1 place changed here and on disk" })
-  ).toBeInTheDocument();
-  expect(screen.getByText("1 of 1 still need a result")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "resolve" })).toBeDisabled();
-  expect(
-    screen.getByRole("textbox", { name: "result for place 1" })
-  ).toHaveFocus();
-  await user.keyboard("{Escape}");
-  expect(review()).toHaveClass("invisible");
-  expect(
-    panel()?.querySelector(".ProseMirror")?.closest(".invisible")
-  ).toBeNull();
-  expect(screen.getByRole("button", { name: "review" })).toHaveFocus();
-  client.clear();
-});
-
-it("should keep a typed result across back and reopening", async () => {
-  const user = userEvent.setup();
-  const { client } = await mountConflict(
-    "# Errands\n\nbody",
-    "# Errands\n\nbody, on disk"
-  );
-  await user.click(screen.getByRole("button", { name: "review" }));
-  await user.type(
-    screen.getByRole("textbox", { name: "result for place 1" }),
-    "body, both"
-  );
-  await user.click(screen.getByRole("button", { name: "back" }));
-  await user.click(screen.getByRole("button", { name: "review" }));
-  expect(
-    screen.getByRole("textbox", { name: "result for place 1" })
-  ).toHaveValue("body, both");
-  expect(screen.getByText("every place has a result")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
-  client.clear();
-});
-
-it("should fill the result from either side and show a deleted side as nothing", async () => {
-  const user = userEvent.setup();
-  const { client } = await mountConflict("# Errands\n\nbody", "# Errands\n");
-  await user.click(screen.getByRole("button", { name: "review" }));
-  expect(screen.getByText("nothing")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "use this, mine" }));
-  const result = screen.getByRole("textbox", { name: "result for place 1" });
-  expect(result).toHaveValue("bodyTyped ");
-  expect(result).toHaveFocus();
-  await user.click(
-    screen.getByRole("button", { name: "use this, the version on disk" })
-  );
-  expect(result).toHaveValue("");
-  expect(screen.getByText("every place has a result")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
-  client.clear();
-});
-
-it("should close the review when a later change combines, and open the next one on the banner", async () => {
-  const user = userEvent.setup();
-  const { client } = await mountConflict(
-    "# Errands\n\nbody",
-    "# Errands\n\nbody, on disk"
-  );
-  await user.click(screen.getByRole("button", { name: "review" }));
-  expect(review()).not.toHaveClass("invisible");
-  await act(() => {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content: "# Chores\n\nbody",
-      pinned: false,
-      revision: "r2",
-      tags: [],
-      updatedAt: new Date(3),
+    await act(() => {
+      client.setQueryData(noteQueries.fileKey("note", tab.path), {
+        content: "# Errands\n\nbody, on disk",
+        pinned: false,
+        revision: "r1",
+        tags: [],
+        updatedAt: new Date(2),
+      });
     });
+    await waitFor(() =>
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+    );
+    expect(liveEditor.getText()).toContain("bodyTyped");
+    expect(liveEditor.getText()).not.toContain("on disk");
+    client.clear();
   });
-  await waitFor(() => expect(review()).not.toBeInTheDocument());
-  await act(() => {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content: "# Chores\n\nbody, on disk again",
-      pinned: false,
-      revision: "r3",
-      tags: [],
-      updatedAt: new Date(4),
-    });
-  });
-  await waitFor(() =>
-    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-  );
-  expect(review()).toHaveClass("invisible");
-  client.clear();
-});
 
-it("should show a heading place at heading size and fold long unchanged runs", async () => {
-  const user = userEvent.setup();
-  const { client } = await mountConflict(
-    "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody",
-    "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody, on disk"
-  );
-  await user.click(screen.getByRole("button", { name: "review" }));
-  await user.click(screen.getByRole("button", { name: "10 unchanged lines" }));
-  expect(screen.getByText(UNFOLDED_CONTEXT)).toBeInTheDocument();
-  client.clear();
-  cleanup();
-
-  const heading = await mountConflict("# Errands", "# Chores");
-  await user.click(screen.getByRole("button", { name: "review" }));
-  expect(screen.getByText("# Chores")).toHaveAttribute("data-heading", "1");
-  expect(screen.getByText("# ErrandsTyped")).toHaveAttribute(
-    "data-heading",
-    "1"
-  );
-  expect(
-    screen.getByRole("textbox", { name: "result for place 1" })
-  ).toHaveAttribute("data-heading", "1");
-  heading.client.clear();
-});
-
-it("should resolve a place, save the composed note, and clear the stored review", async () => {
-  const user = userEvent.setup();
-  const calls: string[] = [];
-  const writes: unknown[] = [];
-  const { client, liveEditor } = await mountConflict(
-    "# Errands\n\nbody",
-    "# Errands\n\nbody, on disk",
-    (command, args) => {
-      calls.push(command);
-      if (command === "save_note") {
-        writes.push(args);
-        return {
-          kind: "committed",
-          receipt: { path: "a.md", revision: "r2", updatedAt: 3, warnings: [] },
-        };
+  async function mountConflict(
+    content: string,
+    onDisk: string,
+    ipc: (command: string, args: unknown) => unknown = () => null
+  ) {
+    mockIPC((command, args) => {
+      if (
+        command === "stash_conflict" ||
+        command === "clear_conflict" ||
+        command === "read_conflict"
+      ) {
+        return ipc(command, args) ?? null;
       }
-      return null;
-    }
-  );
-  await user.click(screen.getByRole("button", { name: "review" }));
-  await user.type(
-    screen.getByRole("textbox", { name: "result for place 1" }),
-    "body, both"
-  );
-  await user.keyboard("{Control>}{Enter}{/Control}");
-  expect(review()).not.toBeInTheDocument();
-  expect(
-    screen.queryByText("this note changed on disk")
-  ).not.toBeInTheDocument();
-  expect(liveEditor.getText()).toContain("body, both");
-  expect(liveEditor.getText()).not.toContain("on disk");
-  await act(async () => {
-    await flushPendingWrites();
-  });
-  expect(writes).toEqual([
-    expect.objectContaining({ content: "# Errands\n\nbody, both" }),
-  ]);
-  expect(calls.filter((call) => call === "clear_conflict")).toHaveLength(1);
-  expect(liveEditor.isFocused).toBe(true);
-  client.clear();
-});
+      return ipc(command, args);
+    });
+    const client = mountSession(content);
+    const liveEditor = await editor();
+    await act(() => {
+      liveEditor.commands.insertContent("Typed ");
+    });
+    await act(() => {
+      client.setQueryData(noteQueries.fileKey("note", tab.path), {
+        content: onDisk,
+        pinned: false,
+        revision: "r1",
+        tags: [],
+        updatedAt: new Date(2),
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+    );
+    return { client, liveEditor };
+  }
 
-it("should reopen a note with its stored review and the banner", async () => {
-  mockIPC(() => null);
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-    },
-  });
-  client.setQueryData(noteQueries.fileKey("note", tab.path), {
-    content: "# Errands\n\nbody, on disk",
-    pinned: false,
-    revision: "r1",
-    tags: [],
-    updatedAt: new Date(2),
-  });
-  client.setQueryData(noteQueries.list().queryKey, []);
-  const stored: ConflictStash = {
-    base: {
-      content: "# Errands\n\nbody",
-      revision: "r0",
-      updatedAt: new Date(1),
-    },
-    ours: "# Errands\n\nbody, mine",
-  };
-  client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, stored);
-  client.setQueryData(notesDirQuery.queryKey, "/notes");
-  render(
-    createElement(
-      StrictMode,
-      null,
-      createElement(
-        QueryClientProvider,
-        { client },
-        createElement(NoteSession, { active: true, tab })
-      )
-    )
-  );
-  const liveEditor = await editor();
-  expect(liveEditor.getText()).toContain("body, mine");
-  await waitFor(() =>
-    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-  );
-  client.clear();
-});
+  function review() {
+    return screen.queryByRole("region", { name: "review overlapping edits" });
+  }
 
-it("should not open a note until its stored review is known", async () => {
-  mockIPC((command) => {
-    if (command === "read_conflict") {
-      return new Promise(() => undefined);
-    }
-    return null;
+  it("should open the review from the banner, hide the note, and come back on escape", async () => {
+    const user = userEvent.setup();
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk"
+    );
+    expect(review()).toHaveClass("invisible");
+    await user.click(screen.getByRole("button", { name: "review" }));
+    expect(review()).not.toHaveClass("invisible");
+    expect(
+      panel()?.querySelector(".ProseMirror")?.closest(".invisible")
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "1 place changed here and on disk" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 of 1 still need a result")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "resolve" })).toBeDisabled();
+    expect(
+      screen.getByRole("textbox", { name: "result for place 1" })
+    ).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(review()).toHaveClass("invisible");
+    expect(
+      panel()?.querySelector(".ProseMirror")?.closest(".invisible")
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "review" })).toHaveFocus();
+    client.clear();
   });
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-    },
-  });
-  client.setQueryData(noteQueries.fileKey("note", tab.path), {
-    content: "# Errands\n\nbody",
-    pinned: false,
-    revision: "r0",
-    tags: [],
-    updatedAt: new Date(1),
-  });
-  client.setQueryData(noteQueries.list().queryKey, []);
-  client.setQueryData(notesDirQuery.queryKey, "/notes");
-  render(
-    createElement(
-      StrictMode,
-      null,
-      createElement(
-        QueryClientProvider,
-        { client },
-        createElement(NoteSession, { active: true, tab })
-      )
-    )
-  );
-  await Promise.resolve();
-  expect(panel()).toBeNull();
-  client.clear();
-});
 
-it("should keep the stored review in the query cache as it is written and cleared", async () => {
-  const user = userEvent.setup();
-  const { client } = await mountConflict(
-    "# Errands\n\nbody",
-    "# Errands\n\nbody, on disk",
-    (command) =>
-      command === "save_note"
-        ? {
+  it("should keep a typed result across back and reopening", async () => {
+    const user = userEvent.setup();
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk"
+    );
+    await user.click(screen.getByRole("button", { name: "review" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "result for place 1" }),
+      "body, both"
+    );
+    await user.click(screen.getByRole("button", { name: "back" }));
+    await user.click(screen.getByRole("button", { name: "review" }));
+    expect(
+      screen.getByRole("textbox", { name: "result for place 1" })
+    ).toHaveValue("body, both");
+    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
+    client.clear();
+  });
+
+  it("should fill the result from either side and show a deleted side as nothing", async () => {
+    const user = userEvent.setup();
+    const { client } = await mountConflict("# Errands\n\nbody", "# Errands\n");
+    await user.click(screen.getByRole("button", { name: "review" }));
+    expect(screen.getByText("nothing")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "use this, mine" }));
+    const result = screen.getByRole("textbox", { name: "result for place 1" });
+    expect(result).toHaveValue("bodyTyped ");
+    expect(result).toHaveFocus();
+    await user.click(
+      screen.getByRole("button", { name: "use this, the version on disk" })
+    );
+    expect(result).toHaveValue("");
+    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
+    client.clear();
+  });
+
+  it("should close the review when a later change combines, and open the next one on the banner", async () => {
+    const user = userEvent.setup();
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk"
+    );
+    await user.click(screen.getByRole("button", { name: "review" }));
+    expect(review()).not.toHaveClass("invisible");
+    await act(() => {
+      client.setQueryData(noteQueries.fileKey("note", tab.path), {
+        content: "# Chores\n\nbody",
+        pinned: false,
+        revision: "r2",
+        tags: [],
+        updatedAt: new Date(3),
+      });
+    });
+    await waitFor(() => expect(review()).not.toBeInTheDocument());
+    await act(() => {
+      client.setQueryData(noteQueries.fileKey("note", tab.path), {
+        content: "# Chores\n\nbody, on disk again",
+        pinned: false,
+        revision: "r3",
+        tags: [],
+        updatedAt: new Date(4),
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+    );
+    expect(review()).toHaveClass("invisible");
+    client.clear();
+  });
+
+  it("should show a heading place at heading size and fold long unchanged runs", async () => {
+    const user = userEvent.setup();
+    const { client } = await mountConflict(
+      "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody",
+      "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody, on disk"
+    );
+    await user.click(screen.getByRole("button", { name: "review" }));
+    await user.click(
+      screen.getByRole("button", { name: "10 unchanged lines" })
+    );
+    expect(screen.getByText(UNFOLDED_CONTEXT)).toBeInTheDocument();
+    client.clear();
+    cleanup();
+
+    const heading = await mountConflict("# Errands", "# Chores");
+    await user.click(screen.getByRole("button", { name: "review" }));
+    expect(screen.getByText("# Chores")).toHaveAttribute("data-heading", "1");
+    expect(screen.getByText("# ErrandsTyped")).toHaveAttribute(
+      "data-heading",
+      "1"
+    );
+    expect(
+      screen.getByRole("textbox", { name: "result for place 1" })
+    ).toHaveAttribute("data-heading", "1");
+    heading.client.clear();
+  });
+
+  it("should resolve a place, save the composed note, and clear the stored review", async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    const writes: unknown[] = [];
+    const { client, liveEditor } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk",
+      (command, args) => {
+        calls.push(command);
+        if (command === "save_note") {
+          writes.push(args);
+          return {
             kind: "committed",
             receipt: {
               path: "a.md",
@@ -1225,65 +1107,193 @@ it("should keep the stored review in the query cache as it is written and cleare
               updatedAt: 3,
               warnings: [],
             },
-          }
-        : null
-  );
-  await waitFor(() =>
+          };
+        }
+        return null;
+      }
+    );
+    await user.click(screen.getByRole("button", { name: "review" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "result for place 1" }),
+      "body, both"
+    );
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(review()).not.toBeInTheDocument();
     expect(
-      client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
-    ).toMatchObject({ ours: "# Errands\n\nbodyTyped " })
-  );
-  await user.click(screen.getByRole("button", { name: "review" }));
-  await user.type(
-    screen.getByRole("textbox", { name: "result for place 1" }),
-    "body, both"
-  );
-  await user.click(screen.getByRole("button", { name: "resolve" }));
-  await act(async () => {
-    await flushPendingWrites();
+      screen.queryByText("this note changed on disk")
+    ).not.toBeInTheDocument();
+    expect(liveEditor.getText()).toContain("body, both");
+    expect(liveEditor.getText()).not.toContain("on disk");
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(writes).toEqual([
+      expect.objectContaining({ content: "# Errands\n\nbody, both" }),
+    ]);
+    expect(calls.filter((call) => call === "clear_conflict")).toHaveLength(1);
+    expect(liveEditor.isFocused).toBe(true);
+    client.clear();
   });
-  expect(
-    client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
-  ).toBeNull();
-  client.clear();
-});
 
-it("should keep the editor across a rename while the renamed review is unknown", async () => {
-  mockIPC((command) =>
-    command === "read_conflict" ? new Promise(() => undefined) : null
-  );
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-    },
+  it("should reopen a note with its stored review and the banner", async () => {
+    mockIPC(() => null);
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: "# Errands\n\nbody, on disk",
+      pinned: false,
+      revision: "r1",
+      tags: [],
+      updatedAt: new Date(2),
+    });
+    client.setQueryData(noteQueries.list().queryKey, []);
+    const stored: ConflictStash = {
+      base: {
+        content: "# Errands\n\nbody",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      ours: "# Errands\n\nbody, mine",
+    };
+    client.setQueryData(
+      noteQueries.conflict("note", tab.path).queryKey,
+      stored
+    );
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    render(
+      createElement(
+        StrictMode,
+        null,
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(NoteSession, { active: true, tab })
+        )
+      )
+    );
+    const liveEditor = await editor();
+    expect(liveEditor.getText()).toContain("body, mine");
+    await waitFor(() =>
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+    );
+    client.clear();
   });
-  for (const path of [tab.path, "errands.md"]) {
-    client.setQueryData(noteQueries.fileKey("note", path), {
+
+  it("should not open a note until its stored review is known", async () => {
+    mockIPC((command) => {
+      if (command === "read_conflict") {
+        return new Promise(() => undefined);
+      }
+      return null;
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
       content: "# Errands\n\nbody",
       pinned: false,
       revision: "r0",
       tags: [],
       updatedAt: new Date(1),
     });
-  }
-  client.setQueryData(noteQueries.list().queryKey, []);
-  client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, null);
-  client.setQueryData(notesDirQuery.queryKey, "/notes");
-  const session = (path: string) =>
-    createElement(
-      StrictMode,
-      null,
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    render(
       createElement(
-        QueryClientProvider,
-        { client },
-        createElement(NoteSession, { active: true, tab: { ...tab, path } })
+        StrictMode,
+        null,
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(NoteSession, { active: true, tab })
+        )
       )
     );
-  const view = render(session(tab.path));
-  const liveEditor = await editor();
-  view.rerender(session("errands.md"));
-  await Promise.resolve();
-  expect(panel()).not.toBeNull();
-  expect(await editor()).toBe(liveEditor);
-  client.clear();
+    await Promise.resolve();
+    expect(panel()).toBeNull();
+    client.clear();
+  });
+
+  it("should keep the stored review in the query cache as it is written and cleared", async () => {
+    const user = userEvent.setup();
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk",
+      (command) =>
+        command === "save_note"
+          ? {
+              kind: "committed",
+              receipt: {
+                path: "a.md",
+                revision: "r2",
+                updatedAt: 3,
+                warnings: [],
+              },
+            }
+          : null
+    );
+    await waitFor(() =>
+      expect(
+        client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
+      ).toMatchObject({ ours: "# Errands\n\nbodyTyped " })
+    );
+    await user.click(screen.getByRole("button", { name: "review" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "result for place 1" }),
+      "body, both"
+    );
+    await user.click(screen.getByRole("button", { name: "resolve" }));
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(
+      client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
+    ).toBeNull();
+    client.clear();
+  });
+
+  it("should keep the editor across a rename while the renamed review is unknown", async () => {
+    mockIPC((command) =>
+      command === "read_conflict" ? new Promise(() => undefined) : null
+    );
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    for (const path of [tab.path, "errands.md"]) {
+      client.setQueryData(noteQueries.fileKey("note", path), {
+        content: "# Errands\n\nbody",
+        pinned: false,
+        revision: "r0",
+        tags: [],
+        updatedAt: new Date(1),
+      });
+    }
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, null);
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    const session = (path: string) =>
+      createElement(
+        StrictMode,
+        null,
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(NoteSession, { active: true, tab: { ...tab, path } })
+        )
+      );
+    const view = render(session(tab.path));
+    const liveEditor = await editor();
+    view.rerender(session("errands.md"));
+    await Promise.resolve();
+    expect(panel()).not.toBeNull();
+    expect(await editor()).toBe(liveEditor);
+    client.clear();
+  });
 });

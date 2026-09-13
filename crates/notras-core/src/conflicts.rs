@@ -1,6 +1,8 @@
 use std::fs::{self, File};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
+use std::process;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
@@ -27,12 +29,22 @@ fn stash_path(dir: &Path, kind: OpenKind, path: &str) -> PathBuf {
     ))
 }
 
+/// Each write gets a sibling of its own, so two stashes of one note in flight
+/// cannot truncate each other's bytes before the rename.
+fn temp_sibling(target: &Path) -> io::Result<(PathBuf, File)> {
+    static WRITES: AtomicU64 = AtomicU64::new(0);
+    let attempt = WRITES.fetch_add(1, Ordering::Relaxed);
+    let temp = target.with_extension(format!("json.{}-{attempt}.tmp", process::id()));
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)?;
+    Ok((temp, file))
+}
+
 fn write_replacing(target: &Path, bytes: &[u8]) -> io::Result<()> {
-    let temp = target.with_extension("json.tmp");
-    let written = File::create(&temp).and_then(|mut file| {
-        file.write_all(bytes)?;
-        file.sync_all()
-    });
+    let (temp, mut file) = temp_sibling(target)?;
+    let written = file.write_all(bytes).and_then(|()| file.sync_all());
     let published = written.and_then(|()| fs::rename(&temp, target));
     if published.is_err() {
         let _ = fs::remove_file(&temp);
@@ -159,6 +171,29 @@ mod tests {
         assert!(read_conflict(&dir, OpenKind::Note, "a.md")
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn should_give_each_stash_write_a_sibling_of_its_own() {
+        let directory = tempfile::tempdir().unwrap();
+        let dir = directory.path().join("conflicts");
+
+        stash_conflict(&dir, OpenKind::Note, "a.md", &stash("# one")).unwrap();
+        let first = fs::read_dir(&dir).unwrap().count();
+        stash_conflict(&dir, OpenKind::Note, "a.md", &stash("# two")).unwrap();
+
+        assert_eq!(first, 1);
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        assert_eq!(
+            read_conflict(&dir, OpenKind::Note, "a.md")
+                .unwrap()
+                .unwrap()
+                .ours,
+            "# two"
+        );
+        let (path, _file) = temp_sibling(&stash_path(&dir, OpenKind::Note, "a.md")).unwrap();
+        let (other, _other) = temp_sibling(&stash_path(&dir, OpenKind::Note, "a.md")).unwrap();
+        assert_ne!(path, other);
     }
 
     #[test]

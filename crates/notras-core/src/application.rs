@@ -682,7 +682,12 @@ fn save_file(
         if same_file(source, &candidate, identity)? {
             // The current file under another spelling, a case-only rename on a
             // case-insensitive filesystem or a hard link: a swap would leave that
-            // entry under the temp name, so this keeps the plain rename.
+            // entry under the temp name, so this keeps the plain rename after
+            // one more check, the same window as a platform without a swap.
+            if !staged.original_unchanged(expected)? {
+                let mut current = source.open_read()?;
+                return Ok(Publication::Conflict(current_file(&mut current)?));
+            }
             staged.temp.replace(&candidate)?;
             return Ok(Publication::Committed(FileCommit {
                 name: candidate,
