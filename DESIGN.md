@@ -112,7 +112,7 @@ Spacing follows Tailwind's scale. Interior padding on small controls stays in th
 
 Motion carries a state change and nothing else. There is no decorative animation, no entrance choreography beyond the platform's own, and no spring.
 
-- Focus mode fades non-active blocks to `0.28` opacity over `0.3s`, and a wheel or touch scroll fades them back up until the caret engages again (`D64`).
+- Focus mode fades non-active blocks to `0.28` opacity over `0.3s`, and a wheel or touch scroll, or a selection reaching past the caret's block, fades them back up until the caret engages again (`D64`).
 - Hover affordances (code block toolbar, code block buttons, wikilinks) resolve over `0.15s`.
 - The editor scrollbar fades in over `0.15s` and out over `0.3s`, using `ease-in-out`. Base UI's scrolling state keeps it visible until `0.5s` after the last scroll, and holding the thumb keeps it visible through a pause (`D76`).
 - A dragged tab follows the pointer, and the tabs it crosses slide one place over `0.15s`, as does the released tab and one that ⌘⌥⇧←/→ moves (`D60`).

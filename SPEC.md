@@ -196,6 +196,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A keyboard move recentres the caret when focus mode is on; a drop does not.
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity and holds the caret's line at the editor's vertical centre. The status strip and the palette toggle it too.
 - Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it.
+- A selection that reaches past the caret's block lifts it too, whether dragged in either direction or extended from the keyboard, and the lift holds until the selection collapses back into one block. Releasing the mouse leaves it standing, and a drag never moves the note. A selection inside one block leaves the dim alone.
 - Typing, deleting, undo, paste, and arrow-key travel recentre with a short glide. A click, a drag-selection, and scrolling by hand do not, and the next keystroke recentres.
 - The caret types at its natural height until its line reaches the centre and locks there, so scrolling up settles at the note start with no blank above. The last lines reach the centre, toggling the mode does not shift the text, resizing the window keeps the caret's line at its anchor, and with reduce motion on the recentre is instant.
 - Inside a code block the caret stays horizontally in view while the mode is on.
