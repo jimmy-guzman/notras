@@ -72,6 +72,8 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 brew install --cask jimmy-guzman/tap/notras
 ```
 
+notras runs on macOS 26 or later. The build is universal, so it runs on Apple silicon and Intel Macs.
+
 notras checks for updates on launch. A new version arrives as a toast with an install button, and nothing installs until you press it.
 
 Or download an installer from [releases](https://github.com/jimmy-guzman/notras/releases):
