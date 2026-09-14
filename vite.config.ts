@@ -37,7 +37,7 @@ export default defineConfig({
       ],
     },
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/coverage/**", "**/src-tauri/**"],
     },
   },
 });
