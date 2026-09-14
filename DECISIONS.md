@@ -1021,3 +1021,15 @@ An external tab showed no images: `resolveImageSrc` joined every source onto the
 **Rejected: routing library images through the same scheme.** It would put every image read behind one handler and take the asset protocol out of the app, but library reads belong on the validated handle (`D77`), and a handler that takes the library guard on the webview's protocol thread contends with every note operation.
 
 **Constraint:** a compromised webview can read any image on disk by naming an existing markdown file, which is the reach `read_external` already gives it for markdown; the CSP's `connect-src` keeps the bytes inside the window. The handler runs on wry's protocol thread like the asset handler, so a slow disk stalls that thread the same way.
+
+### D79 macOS 26 is the floor
+
+The bundle declared macOS 10.13, which is Tauri's default when `bundle.macOS.minimumSystemVersion` is unset, and the cask declared nothing. The frontend needed Safari 17.4 for the `Map.groupBy` calls in `src/core/search.ts`, `src/core/links.ts` and `src/lib/ui/shortcuts.ts`, and macOS 14.4 was the first to ship it. WKWebView is the WebKit the OS ships, and Apple stops updating it on majors it no longer supports, so the floor is an OS version and the declared one was four majors too low.
+
+The floor is now 26.0, the current major, rather than the lowest the code could run on. Releases build on `macos-latest`, which is the 26 image, against SDK 26, and the window chrome is tuned to 26's control metrics (`D29`), so 26 is the only version a release is built and checked on. Supporting only the current major is the stated policy: a lower floor promises a WebKit that receives no fixes, and nothing exercises the app there. The number lives in `tauri.conf.json`, the cask template, `vite.config.ts` and `tsconfig.json`, which `ARCHITECTURE.md` lists as an invariant.
+
+**Rejected: 14.4, the lowest the shipped code runs on.** Costs no source change. Rejected because it is two majors below the version releases are built and checked on, and `text-wrap: pretty`, `field-sizing: content` and `scrollbar-color` would go on degrading there with nothing to notice.
+
+**Rejected: 13.3, Tailwind 4's own floor.** Needs the three `Map.groupBy` calls rewritten and `lib` pinned to `es2023`. Rejected for the same reason at one more major's distance.
+
+**Constraint:** raising the floor when a new major ships edits all four places. The `available!(macos = 26.0)` guard in `use_compact_window_controls` stays, because objc2 decides it at runtime in plain `cargo` builds, which see no deployment target, and folds it to a constant only in the bundled build.

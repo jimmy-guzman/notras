@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   build: {
-    target: "esnext",
+    target: "safari26",
   },
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_ENV_"],
