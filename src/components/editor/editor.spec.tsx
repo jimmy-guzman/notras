@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { Selection } from "@tiptap/pm/state";
-import { type ComponentProps, createElement } from "react";
+import { type ComponentProps, createElement, StrictMode } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { SENTINEL } from "@/components/editor/sentinel";
@@ -410,5 +410,38 @@ describe("caret on mount", () => {
       Selection.atStart(editor.state.doc).from
     );
     expect(document.activeElement).not.toBe(editor.view.dom);
+  });
+
+  it("should keep a restored caret when StrictMode replays the mount", async () => {
+    const handles: EditorHandle[] = [];
+    const { container } = render(
+      createElement(
+        StrictMode,
+        null,
+        createElement(Editor, {
+          focusOnMount: true,
+          initialContent: `# title\n\nbo${SENTINEL}dy`,
+          onChange: () => undefined,
+          onReady: (ready) => {
+            handles.push(ready);
+          },
+          stripSentinel: true,
+        })
+      )
+    );
+    await waitFor(() => expect(handles).toHaveLength(1));
+    const surface = container.querySelector(".ProseMirror");
+    if (
+      surface === null ||
+      !("editor" in surface) ||
+      !(surface.editor instanceof TiptapEditor)
+    ) {
+      throw new Error("the editor did not mount");
+    }
+    const { editor } = surface;
+
+    expect(editor.getText()).not.toContain(SENTINEL);
+    expect(editor.state.selection.$from.parent.textContent).toBe("body");
+    expect(editor.state.selection.$from.parentOffset).toBe(2);
   });
 });
