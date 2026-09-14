@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.0](https://github.com/jimmy-guzman/notras/compare/v0.5.0...v0.6.0) (2026-09-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* 💥 macos 25 and older can no longer run notras
+
+### Features
+
+* ✨ keep note operations responsive during indexing ([#184](https://github.com/jimmy-guzman/notras/issues/184)) ([a8ce10b](https://github.com/jimmy-guzman/notras/commit/a8ce10bdfc077ee7b6ba6b0d7da592f3b14a6a7a)), closes [#180](https://github.com/jimmy-guzman/notras/issues/180)
+* ✨ preserve external edits that overlap unsaved ([#186](https://github.com/jimmy-guzman/notras/issues/186)) ([54a1795](https://github.com/jimmy-guzman/notras/commit/54a1795a7ece9ee60783058a87e649208fce9a06)), closes [#177](https://github.com/jimmy-guzman/notras/issues/177)
+* ✨ require macos 26 ([#191](https://github.com/jimmy-guzman/notras/issues/191)) ([981a66c](https://github.com/jimmy-guzman/notras/commit/981a66c149ea2a100df6c66822d0836c7f51d4af))
+* ✨ resolve relative destinations against the file ([#189](https://github.com/jimmy-guzman/notras/issues/189)) ([06daaff](https://github.com/jimmy-guzman/notras/commit/06daaff24ab55b36226d5c141787b3eefe8aac80))
+* **tabs:** ✨ shape tabs as chrome items ([#188](https://github.com/jimmy-guzman/notras/issues/188)) ([22f5ae2](https://github.com/jimmy-guzman/notras/commit/22f5ae2ad412a72b6e2cb7fde14bd3933e98ae79))
+* **titlebar:** ✨ drag the window from any unused space ([#193](https://github.com/jimmy-guzman/notras/issues/193)) ([0188de5](https://github.com/jimmy-guzman/notras/commit/0188de5daac60003dfa9f4735ff8e9a150d168b1))
+
+
+### Bug Fixes
+
+* 🐛 bind library io to validated folders ([#185](https://github.com/jimmy-guzman/notras/issues/185)) ([eda61fb](https://github.com/jimmy-guzman/notras/commit/eda61fbad9e8824875247900c3451778be5f2e2b)), closes [#178](https://github.com/jimmy-guzman/notras/issues/178)
+* 🐛 index writes that land while a folder switch prepares ([#187](https://github.com/jimmy-guzman/notras/issues/187)) ([9beb4f7](https://github.com/jimmy-guzman/notras/commit/9beb4f71b43752531d6a2f904ef2289f8461d57e)), closes [#183](https://github.com/jimmy-guzman/notras/issues/183)
+* **editor:** 🐛 lift the dim under a cross-block selection ([#190](https://github.com/jimmy-guzman/notras/issues/190)) ([a9d12b7](https://github.com/jimmy-guzman/notras/commit/a9d12b758283ddd9cbbba8e241f2ad3213462701)), closes [#167](https://github.com/jimmy-guzman/notras/issues/167)
+* **editor:** 🐛 open an existing note at its top ([#192](https://github.com/jimmy-guzman/notras/issues/192)) ([cb539b3](https://github.com/jimmy-guzman/notras/commit/cb539b3f04d00b271008efc07687aaa4233590f7))
+
+
+### Refactoring
+
+* 🔄 move the note backend into rust ([#179](https://github.com/jimmy-guzman/notras/issues/179)) ([a7be505](https://github.com/jimmy-guzman/notras/commit/a7be505710beed691486f19f31f839dff1359e4b))
+
 ## [0.5.0](https://github.com/jimmy-guzman/notras/compare/v0.4.0...v0.5.0) (2026-09-10)
 
 
