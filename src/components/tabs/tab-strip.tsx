@@ -182,7 +182,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "no-drag group flex h-6 min-w-24 max-w-56 flex-1 basis-0 items-center self-center rounded-md ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring has-[:focus-visible]:-outline-offset-2",
+              "group flex h-6 min-w-24 max-w-56 flex-1 basis-0 items-center self-center rounded-md ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring has-[:focus-visible]:-outline-offset-2",
               active
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-muted/40",
@@ -190,7 +190,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
                 "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
             )}
             data-tab-id={id}
-            data-tauri-drag-region={sole || undefined}
+            data-tauri-drag-region={sole ? undefined : "false"}
             ref={setRefs}
             role="presentation"
             style={{
@@ -295,7 +295,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
         render={
           <button
             aria-label={`${hidden.length} tabs out of view`}
-            className="no-drag ms-1 inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-md px-1 text-muted-foreground text-xs tabular-nums transition-colors duration-150 hover:bg-muted hover:text-foreground"
+            className="ms-1 inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-md px-1 text-muted-foreground text-xs tabular-nums transition-colors duration-150 hover:bg-muted hover:text-foreground"
             type="button"
           />
         }
@@ -350,8 +350,9 @@ interface TabListProps {
  * The open tabs, in the title bar where the note's title used to sit (`D52`).
  *
  * One tab stop with arrow keys inside it, the `ToggleGroup` pattern `D37` set.
- * Dragging one is dnd-kit's, and `D60` carries why. A lone tab has nowhere to
- * go, so it hands the press to the window instead.
+ * Dragging one is dnd-kit's, and `D60` carries why. A tab among neighbours
+ * keeps its press for the tab drag, and a lone tab has nowhere to go, so it
+ * hands the press to the window instead.
  */
 function TabList({ activeId, tabs }: TabListProps) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);

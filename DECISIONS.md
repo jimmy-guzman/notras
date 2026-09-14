@@ -250,6 +250,8 @@ The note title, its tags, and the pin toggle live in the window's drag region. `
 
 **Superseded in part by `D52` and `D53`,** which move the title into the tab strip and leave one route. The pin and the drag region stay, and the identity the bar carries is the active tab's label rather than a line of text.
 
+**Superseded in part by `D80`,** which finds that the `styles.css` exemption in the constraint below never ran on macOS and removes it. A control opts out of the drag region by being one.
+
 The app was spending two bands on one band's work: an empty drag strip above a header. Folding one into the other returns 32px to the note and puts the title where macOS puts a document title. The traffic lights `D29` centres in the bar land on the title's line.
 
 The workspace and the capture window each render their own titlebar rather than the root rendering one, because a shared root strip cannot hold per-surface content and TanStack Router has no named outlet.
@@ -405,6 +407,8 @@ Those apps agree exactly. All seven put the art at 80.5% of the canvas with a 9.
 ### D35 The save state is a glyph
 
 `SaveIndicator` renders one lucide save icon per state. This entry decides the three that existed when it was written: `SavePenIcon` for `dirty`, `SaveIcon` for `saving`, `SaveCheckIcon` for `saved`. All three share a floppy body and differ in the badge at its lower-right corner, so the shared shape names the subject and the badge names the state. The word survives in a hover tooltip and in `sr-only` text. `D38` adds a fourth state and keeps the rule.
+
+**Superseded in part by `D80`.** WKWebView ignores `-webkit-app-region`, so the `no-drag` class in the constraint below never ran and the trigger stays a `span` without it. Hover is not a press, so the region never touched the tooltip.
 
 The strip opened on a word that rewrote itself on every keystroke, `unsaved` to `saving...` to `saved`. It was the widest item in the row and the only one that changed while the user was reading the note above it, and a second surface spelled the same state a second way.
 
@@ -1033,3 +1037,15 @@ The floor is now 26.0, the current major, rather than the lowest the code could 
 **Rejected: 13.3, Tailwind 4's own floor.** Needs the three `Map.groupBy` calls rewritten and `lib` pinned to `es2023`. Rejected for the same reason at one more major's distance.
 
 **Constraint:** raising the floor when a new major ships edits all four places. The `available!(macos = 26.0)` guard in `use_compact_window_controls` stays, because objc2 decides it at runtime in plain `cargo` builds, which see no deployment target, and folds it to a constant only in the bundled build.
+
+### D80 The titlebar drag region is deep, and a control is the opt-out
+
+`Titlebar` carries `data-tauri-drag-region="deep"`, and nothing inside the band carries an opt-out class. Tauri's injected handler walks up from the pressed element: a `deep` ancestor moves the window from any descendant, a clickable element (a button, an input, a `tab` role) blocks the walk unless it carries the attribute itself, and `false` blocks it outright. Since `D52` put the tabs in the band it had space that moved nothing: the strip after the tabs, the gap between them, and the gaps around the save glyph and the pin. The bare attribute the band carried fires only when the pressed element is the one carrying it, and those presses land on wrapper `div`s.
+
+The `.titlebar-drag-region` and `.no-drag` rules in `styles.css` went with it. WKWebView does not implement `-webkit-app-region`, and `D79` makes macOS the only platform, so the rules and the two tests over them in `src/styles.spec.ts` asserted CSS nothing read. `D28` and `D35` described that CSS as the opt-out, and `D35` credited the class with reviving the save glyph's tooltip; the handler never read the class, and it acts on a press, which a hover is not.
+
+**Rejected: a bare attribute on each wrapper.** Three today, the tablist, the strip's row and the controls' row, and one more for every wrapper added later, each a silent dead zone when forgotten.
+
+**Constraint:** a tab among neighbours marks its wrapper `false`, so a press on its padding or its status dot moves neither the window nor the tab, and the label button stays the dnd handle (`D60`). A lone tab drops the mark and inherits the band, and its label button keeps the attribute of its own that a clickable element needs.
+
+**Constraint:** `deep` arrived in tauri 2.11.0, so `src-tauri/Cargo.toml` asks for `2.11` rather than `2`. A lower resolution would leave the band a bare region again with nothing failing.

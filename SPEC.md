@@ -102,6 +102,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
 - A pointer drag starts after 4px and reorders on release. Pressing a tab selects it first, and the close button never starts a drag.
 - A lone tab does not reorder. Pressing and moving it moves the window, and double-clicking it zooms.
+- Pressing and moving any part of the title bar that is not a control moves the window, and a double-click there zooms. That covers the strip after the tabs, the gap between them, and the space around the save glyph and the pin. A tab's padding belongs to the tab while it has neighbours, so pressing it moves nothing.
 - Tabs that overflow the strip collapse into a count beside `+`, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
 - Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.

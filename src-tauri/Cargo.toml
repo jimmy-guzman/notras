@@ -26,7 +26,7 @@ serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
 specta-typescript = "=0.0.9"
-tauri = { version = "2", features = [
+tauri = { version = "2.11", features = [
   "image-png",
   "protocol-asset",
   "tray-icon",
@@ -61,7 +61,7 @@ objc2-foundation = "0.3"
 [dev-dependencies]
 rusqlite.workspace = true
 tempfile.workspace = true
-tauri = { version = "2", features = ["test"] }
+tauri = { version = "2.11", features = ["test"] }
 
 [lints]
 workspace = true
