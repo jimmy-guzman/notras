@@ -288,7 +288,21 @@ function Workspace() {
   // whichever tab is showing.
   useEffect(() => {
     const attachDropped = async (paths: string[]) => {
-      const target = getTabHandles(getTabState().activeId);
+      const state = getTabState();
+      const target = getTabHandles(state.activeId);
+      const showing = state.tabs.find((entry) => entry.id === state.activeId);
+
+      if (showing?.kind === "external") {
+        toast.add({
+          description: "attachments live in the notes folder",
+          title: "could not attach file",
+          type: "error",
+        });
+
+        return;
+      }
+
+      const from = showing?.path ?? "";
 
       if (target === undefined) {
         toast.add({
@@ -305,7 +319,7 @@ function Workspace() {
 
       for (const copy of copies) {
         if (copy.status === "fulfilled") {
-          target.insertText(attachmentLink(copy.value));
+          target.insertText(attachmentLink(copy.value, from));
         } else {
           const error: unknown = copy.reason;
 

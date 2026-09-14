@@ -22,9 +22,9 @@ use std::path::{Path, PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 
 pub use application::{
-    read_external, write_external, CommandError, CreateNote, DeleteReceipt, ErrorKind,
-    MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
-    PendingOpen, SaveName, SaveOutcome, SavedNote,
+    external_file, external_image, external_note, read_external, write_external, CommandError,
+    CreateNote, DeleteReceipt, ErrorKind, MutationReceipt, MutationWarning, NoteFile, NoteName,
+    OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome, SavedNote,
 };
 pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
 pub use queries::{
@@ -182,6 +182,10 @@ impl Library {
     }
 
     /// Classify user-selected files as library notes or explicit external files.
+    pub fn classify_open(&self, path: String) -> PendingOpen {
+        application::classify_open(&self.notes_dir, path)
+    }
+
     pub fn classify_opens(&self, paths: Vec<String>) -> Vec<PendingOpen> {
         application::classify_opens(&self.notes_dir, paths)
     }

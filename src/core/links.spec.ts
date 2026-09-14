@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import queryFixtures from "../../fixtures/note-queries.json";
 
-import { isNotePath, linkResolver } from "./links";
+import {
+  foldPath,
+  isNotePath,
+  isRelativeDestination,
+  linkResolver,
+} from "./links";
 import type { NoteMeta } from "./notes";
 import { noteFolder, noteTitle } from "./notes";
 
@@ -87,6 +92,52 @@ describe("isNotePath", () => {
     ]) {
       expect(isNotePath(no), no).toBe(false);
     }
+  });
+});
+
+describe("isRelativeDestination", () => {
+  it("should accept a path beside the note and nothing with a scheme, an anchor or a root", () => {
+    for (const yes of [
+      "spec.pdf",
+      "./spec.pdf",
+      "../docs/my%20spec.pdf",
+      "attachments/notes.pdf",
+      "b.md",
+    ]) {
+      expect(isRelativeDestination(yes), yes).toBe(true);
+    }
+    for (const no of [
+      "https://x/spec.pdf",
+      "mailto:x@y.z",
+      "data:image/png;base64,AA==",
+      "#h",
+      "/abs/spec.pdf",
+    ]) {
+      expect(isRelativeDestination(no), no).toBe(false);
+    }
+  });
+});
+
+describe("foldPath", () => {
+  it("should fold a decoded path onto the note's folder", () => {
+    expect(foldPath("../docs/my spec.pdf", "projects/a.md")).toBe(
+      "docs/my spec.pdf"
+    );
+    expect(foldPath("./shot.png", "a.md")).toBe("shot.png");
+    expect(foldPath("attachments/x.png", "projects/a.md")).toBe(
+      "projects/attachments/x.png"
+    );
+  });
+
+  it("should fold to nothing above the root", () => {
+    expect(foldPath("../x.png", "a.md")).toBeUndefined();
+  });
+
+  it("should fold to nothing for a segment the library refuses", () => {
+    expect(foldPath("..\\..\\secret.png", "projects/a.md")).toBeUndefined();
+    expect(foldPath("c:/secret.png", "a.md")).toBeUndefined();
+    expect(foldPath(".private.png", "a.md")).toBeUndefined();
+    expect(foldPath(".hidden/x.png", "a.md")).toBeUndefined();
   });
 });
 

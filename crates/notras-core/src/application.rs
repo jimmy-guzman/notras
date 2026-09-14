@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::{self, Read as _, Seek as _, Write as _};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     frontmatter, index, markdown,
     note_file::{content_revision, timestamp_millis, Exchange, OpenedNote, TempSibling},
+    relationships,
     relative_path::{ensure_folder, Located, RelativePath},
     Library,
 };
@@ -158,6 +159,54 @@ pub struct SavedNote {
 
 fn is_markdown(path: &Path) -> bool {
     index::is_note_file(path)
+}
+
+/// Whether the system would run the file rather than open it.
+///
+/// LaunchServices executes a file with no extension when its mode allows, and
+/// hands `.command`, `.tool` and `.sh` to Terminal; a `.pdf` with an execute
+/// bit, which FAT volumes give every file, still opens in its viewer. Windows
+/// decides by extension alone.
+fn runs_on_open(name: &str, metadata: &cap_std::fs::Metadata) -> bool {
+    let extension = Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase);
+    #[cfg(unix)]
+    {
+        use cap_std::fs::PermissionsExt as _;
+
+        metadata.permissions().mode() & 0o111 != 0
+            && extension
+                .as_deref()
+                .is_none_or(|ext| matches!(ext, "command" | "sh" | "tool"))
+    }
+    #[cfg(windows)]
+    {
+        let _ = metadata;
+        extension.as_deref().is_some_and(|ext| {
+            matches!(
+                ext,
+                "bat"
+                    | "cmd"
+                    | "com"
+                    | "cpl"
+                    | "exe"
+                    | "hta"
+                    | "js"
+                    | "jse"
+                    | "lnk"
+                    | "msi"
+                    | "pif"
+                    | "ps1"
+                    | "scr"
+                    | "vbe"
+                    | "vbs"
+                    | "wsf"
+                    | "wsh"
+            )
+        })
+    }
 }
 
 fn collision(path: &str) -> CommandError {
@@ -718,6 +767,88 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     })
 }
 
+/// The file a relative destination names from an external document.
+///
+/// Checked on each request rather than granted once: the document has to be a
+/// markdown file on disk and the destination relative. `..` climbs and a
+/// symlink is followed, since the document is the anchor and nothing around it
+/// is the library's to fence.
+fn external_target(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
+    if !is_markdown(document) {
+        return Err("only markdown files can be opened".into());
+    }
+    if !fs::metadata(document)?.is_file() {
+        return Err("the document is not a file".into());
+    }
+    let parent = document
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .ok_or("a note outside any folder")?;
+    if destination.is_empty() {
+        return Err("the destination names no file".into());
+    }
+    let target = Path::new(destination);
+    if target
+        .components()
+        .any(|part| matches!(part, Component::RootDir | Component::Prefix(_)))
+    {
+        return Err("the destination names an absolute path".into());
+    }
+    Ok(fs::canonicalize(parent.join(target))?)
+}
+
+/// The image a decoded relative source names from an external document.
+pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandError> {
+    let image = external_target(document, src)?;
+    if !fs::metadata(&image)?.is_file() {
+        return Err("that path is not a file".into());
+    }
+    Ok(image)
+}
+
+/// The markdown file a link in an external document names.
+///
+/// The shell classifies it as a note or another external file.
+pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
+    let target = external_target(document, &relationships::bare_file_destination(destination))?;
+    if !is_markdown(&target) {
+        return Err("only markdown files open as tabs".into());
+    }
+    if !fs::metadata(&target)?.is_file() {
+        return Err("that path is not a file".into());
+    }
+    Ok(target)
+}
+
+/// The file a link in an external document names, for the system to open.
+///
+/// Checked the way a note's linked file is before the shell hands it over.
+pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
+    let target = external_target(document, &relationships::bare_file_destination(destination))?;
+    if is_markdown(&target) {
+        return Err("markdown files open in notras".into());
+    }
+    let name = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("the path is not valid unicode")?;
+    let dir = Dir::open_ambient_dir(
+        target.parent().ok_or("a file outside any folder")?,
+        ambient_authority(),
+    )?;
+    let metadata = dir.metadata(name)?;
+    if metadata.is_dir() {
+        return Err("that path is a folder".into());
+    }
+    if !metadata.is_file() {
+        return Err("that path is not a file".into());
+    }
+    if runs_on_open(name, &metadata) {
+        return Err("that file is a program".into());
+    }
+    Ok(target)
+}
+
 /// Persist an external document, rejecting non-Unicode paths before file access.
 pub fn write_external(
     path: &Path,
@@ -782,7 +913,7 @@ pub struct PendingOpen {
     pub path: String,
 }
 
-fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
+pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
     match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
         Some(rel) => PendingOpen {
@@ -988,6 +1119,32 @@ impl Library {
         };
         io::copy(&mut File::open(source)?, &mut target.create_new()?)?;
         Ok(relative.into_string())
+    }
+
+    /// The host path of a file a note links to, for the system to open.
+    ///
+    /// Checked on the library handle the way a note read is.
+    pub fn linked_file_path(&self, from: &str, destination: &str) -> Result<PathBuf, CommandError> {
+        if destination.starts_with('/') {
+            return Err("the link names an absolute path".into());
+        }
+        let path = relationships::resolve_file_path(destination, from)
+            .ok_or("the link climbs out of the notes folder")?;
+        if index::is_note_file(Path::new(&path)) {
+            return Err("notes open in notras".into());
+        }
+        let located = RelativePath::parse(&path)?.resolve(&self.root)?;
+        let metadata = located.symlink_metadata()?;
+        if metadata.is_dir() {
+            return Err("that path is a folder".into());
+        }
+        if !metadata.is_file() {
+            return Err("that path is not a file".into());
+        }
+        if runs_on_open(&located.name, &metadata) {
+            return Err("that file is a program".into());
+        }
+        Ok(self.notes_dir.join(path))
     }
 
     pub fn attach_image(&self, base64_data: &str) -> Result<String, CommandError> {
@@ -2135,6 +2292,296 @@ mod tests {
             .is_err());
         assert!(library.attach_image("aW1hZ2U=").is_err());
         assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 1);
+    }
+
+    fn library_with_linked_files() -> (tempfile::TempDir, Library) {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join("projects")).unwrap();
+        fs::create_dir_all(directory.path().join("docs")).unwrap();
+        fs::create_dir_all(directory.path().join("attachments")).unwrap();
+        fs::write(directory.path().join("projects/a.md"), "# A").unwrap();
+        fs::write(directory.path().join("b.md"), "# B").unwrap();
+        fs::write(directory.path().join("docs/my spec.pdf"), "pdf").unwrap();
+        fs::write(directory.path().join("attachments/draft #2.pdf"), "pdf").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        (directory, library)
+    }
+
+    #[test]
+    fn should_resolve_a_linked_file_against_the_note() {
+        let (directory, library) = library_with_linked_files();
+        let root = fs::canonicalize(directory.path()).unwrap();
+
+        assert_eq!(
+            library
+                .linked_file_path("projects/a.md", "../docs/my%20spec.pdf")
+                .unwrap(),
+            root.join("docs/my spec.pdf")
+        );
+        assert_eq!(
+            library
+                .linked_file_path("b.md", "./docs/my%20spec.pdf#page=2")
+                .unwrap(),
+            root.join("docs/my spec.pdf")
+        );
+    }
+
+    #[test]
+    fn should_decode_a_file_destination_whole() {
+        let (directory, library) = library_with_linked_files();
+
+        assert_eq!(
+            library
+                .linked_file_path("projects/a.md", "../attachments/draft%20%232.pdf")
+                .unwrap(),
+            fs::canonicalize(directory.path())
+                .unwrap()
+                .join("attachments/draft #2.pdf")
+        );
+    }
+
+    #[test]
+    fn should_refuse_a_linked_file_the_library_cannot_hand_over() {
+        let (_directory, library) = library_with_linked_files();
+
+        for (destination, reason) in [
+            (
+                "../../outside.pdf",
+                "the link climbs out of the notes folder",
+            ),
+            ("/etc/hosts", "the link names an absolute path"),
+            ("../b.md", "notes open in notras"),
+            ("../docs", "that path is a folder"),
+        ] {
+            let error = library
+                .linked_file_path("projects/a.md", destination)
+                .unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Failed, "{destination}");
+            assert_eq!(error.message, reason, "{destination}");
+        }
+    }
+
+    #[test]
+    fn should_report_a_missing_linked_file_as_not_found() {
+        let (_directory, library) = library_with_linked_files();
+
+        let error = library
+            .linked_file_path("projects/a.md", "../docs/gone.pdf")
+            .unwrap_err();
+
+        assert_eq!(error.kind, ErrorKind::NotFound);
+        assert_eq!(error.message, "no such file");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_a_linked_file_through_a_symlink() {
+        let (directory, library) = library_with_linked_files();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("secret.pdf"), "pdf").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("secret.pdf"),
+            directory.path().join("docs/link.pdf"),
+        )
+        .unwrap();
+
+        let error = library
+            .linked_file_path("projects/a.md", "../docs/link.pdf")
+            .unwrap_err();
+
+        assert_eq!(error.message, "the path passes through a symlink");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_a_linked_file_that_is_not_a_regular_file() {
+        let (directory, library) = library_with_linked_files();
+        let _socket =
+            std::os::unix::net::UnixListener::bind(directory.path().join("docs/sock")).unwrap();
+
+        let error = library
+            .linked_file_path("projects/a.md", "../docs/sock")
+            .unwrap_err();
+
+        assert_eq!(error.message, "that path is not a file");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_a_linked_file_the_system_would_run() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let (directory, library) = library_with_linked_files();
+        for name in ["tool", "run.command", "setup.sh", "doc.pdf"] {
+            let path = directory.path().join("docs").join(name);
+            fs::write(&path, "#!/bin/sh\n").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        for name in ["tool", "run.command", "setup.sh"] {
+            let error = library
+                .linked_file_path("projects/a.md", &format!("../docs/{name}"))
+                .unwrap_err();
+            assert_eq!(error.message, "that file is a program", "{name}");
+        }
+        assert!(library
+            .linked_file_path("projects/a.md", "../docs/doc.pdf")
+            .is_ok());
+    }
+
+    fn external_document() -> tempfile::TempDir {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join("docs/images")).unwrap();
+        fs::write(directory.path().join("docs/note.md"), "# Note").unwrap();
+        fs::write(directory.path().join("docs/notes.txt"), "text").unwrap();
+        fs::write(directory.path().join("docs/my shot.png"), "png").unwrap();
+        fs::write(directory.path().join("docs/images/x.png"), "png").unwrap();
+        fs::write(directory.path().join("up.png"), "png").unwrap();
+        directory
+    }
+
+    #[test]
+    fn should_resolve_an_external_image_against_its_document() {
+        let directory = external_document();
+        let document = directory.path().join("docs/note.md");
+        let root = fs::canonicalize(directory.path()).unwrap();
+
+        for (src, expected) in [
+            ("my shot.png", "docs/my shot.png"),
+            ("./my shot.png", "docs/my shot.png"),
+            ("images/x.png", "docs/images/x.png"),
+            ("../up.png", "up.png"),
+        ] {
+            assert_eq!(
+                external_image(&document, src).unwrap(),
+                root.join(expected),
+                "{src}"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_follow_a_symlink_from_an_external_document() {
+        let directory = external_document();
+        let elsewhere = tempfile::tempdir().unwrap();
+        fs::write(elsewhere.path().join("far.png"), "png").unwrap();
+        std::os::unix::fs::symlink(
+            elsewhere.path().join("far.png"),
+            directory.path().join("docs/link.png"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            external_image(&directory.path().join("docs/note.md"), "link.png").unwrap(),
+            fs::canonicalize(elsewhere.path().join("far.png")).unwrap()
+        );
+    }
+
+    #[test]
+    fn should_refuse_an_external_image_request_it_cannot_anchor() {
+        let directory = external_document();
+        let document = directory.path().join("docs/note.md");
+
+        for (doc, src, reason) in [
+            (
+                document.clone(),
+                "/etc/hosts",
+                "the destination names an absolute path",
+            ),
+            (document.clone(), "", "the destination names no file"),
+            (document.clone(), "images", "that path is not a file"),
+            (
+                directory.path().join("docs/notes.txt"),
+                "my shot.png",
+                "only markdown files can be opened",
+            ),
+            (
+                directory.path().join("docs"),
+                "my shot.png",
+                "only markdown files can be opened",
+            ),
+        ] {
+            let error = external_image(&doc, src).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Failed, "{src}");
+            assert_eq!(error.message, reason, "{src}");
+        }
+    }
+
+    #[test]
+    fn should_resolve_a_link_from_an_external_document_as_a_file_or_a_note() {
+        let directory = external_document();
+        fs::write(directory.path().join("docs/my spec.pdf"), "pdf").unwrap();
+        fs::write(directory.path().join("other.md"), "# Other").unwrap();
+        let document = directory.path().join("docs/note.md");
+        let root = fs::canonicalize(directory.path()).unwrap();
+
+        assert_eq!(
+            external_file(&document, "my%20spec.pdf#page=2").unwrap(),
+            root.join("docs/my spec.pdf")
+        );
+        assert_eq!(
+            external_note(&document, "../other.md").unwrap(),
+            root.join("other.md")
+        );
+    }
+
+    #[test]
+    fn should_keep_files_and_notes_apart_from_an_external_document() {
+        let directory = external_document();
+        fs::write(directory.path().join("docs/my spec.pdf"), "pdf").unwrap();
+        let document = directory.path().join("docs/note.md");
+
+        assert_eq!(
+            external_file(&document, "note.md").unwrap_err().message,
+            "markdown files open in notras"
+        );
+        assert_eq!(
+            external_note(&document, "my%20spec.pdf")
+                .unwrap_err()
+                .message,
+            "only markdown files open as tabs"
+        );
+        assert_eq!(
+            external_file(&document, "images").unwrap_err().message,
+            "that path is a folder"
+        );
+        assert_eq!(
+            external_file(&document, "gone.pdf").unwrap_err().kind,
+            ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_a_program_linked_from_an_external_document() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let directory = external_document();
+        let path = directory.path().join("docs/run.command");
+        fs::write(&path, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            external_file(&directory.path().join("docs/note.md"), "run.command")
+                .unwrap_err()
+                .message,
+            "that file is a program"
+        );
+    }
+
+    #[test]
+    fn should_report_a_missing_external_image_or_document_as_not_found() {
+        let directory = external_document();
+
+        for (doc, src) in [
+            (directory.path().join("docs/note.md"), "gone.png"),
+            (directory.path().join("docs/gone.md"), "my shot.png"),
+        ] {
+            let error = external_image(&doc, src).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::NotFound, "{src}");
+            assert_eq!(error.message, "no such file", "{src}");
+        }
     }
 
     #[test]

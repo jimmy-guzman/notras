@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 
 use serde_json::Value;
 use tauri::{AppHandle, Manager, Runtime, State};
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
@@ -77,6 +78,83 @@ pub async fn attach_file<R: Runtime>(
         let state = app.state::<AppState>();
         let library = state.library();
         library.attach_file(Path::new(&source))
+    })
+    .await
+}
+
+/// The opener capitalizes its own messages; an io failure already reads as the app's.
+fn opener_reason(error: tauri_plugin_opener::Error) -> CommandError {
+    match error {
+        tauri_plugin_opener::Error::Io(error) => error.into(),
+        error => {
+            let text = error.to_string();
+            let mut chars = text.chars();
+            let message = chars.next().map_or_else(String::new, |first| {
+                first.to_lowercase().chain(chars).collect::<String>()
+            });
+            CommandError::with_source(message, error)
+        }
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_linked_file<R: Runtime>(
+    app: AppHandle<R>,
+    from: String,
+    destination: String,
+) -> Result<(), CommandError> {
+    run_blocking(move || {
+        let host = {
+            let state = app.state::<AppState>();
+            let library = state.library();
+            library.linked_file_path(&from, &destination)?
+        };
+        app.opener()
+            .open_path(
+                host.to_str().ok_or("the path is not valid unicode")?,
+                None::<&str>,
+            )
+            .map_err(opener_reason)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_external_file<R: Runtime>(
+    app: AppHandle<R>,
+    document: String,
+    destination: String,
+) -> Result<(), CommandError> {
+    run_blocking(move || {
+        let host = notras_core::external_file(Path::new(&document), &destination)?;
+        app.opener()
+            .open_path(
+                host.to_str().ok_or("the path is not valid unicode")?,
+                None::<&str>,
+            )
+            .map_err(opener_reason)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_external_link<R: Runtime>(
+    app: AppHandle<R>,
+    document: String,
+    destination: String,
+) -> Result<PendingOpen, CommandError> {
+    run_blocking(move || {
+        let target = notras_core::external_note(Path::new(&document), &destination)?;
+        let target = target
+            .to_str()
+            .ok_or("the path is not valid unicode")?
+            .to_owned();
+        let state = app.state::<AppState>();
+        let library = state.library();
+        Ok(library.classify_open(target))
     })
     .await
 }

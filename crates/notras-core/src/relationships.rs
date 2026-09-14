@@ -77,13 +77,13 @@ fn escaped_byte(bytes: &[u8]) -> Option<u8> {
 
 // mdurl replaces each byte of an invalid scalar separately, but consumes a
 // structurally complete sequence together. Rust's lossy decoder groups them differently.
-fn decode_run(bytes: &[u8]) -> String {
+fn decode_run(bytes: &[u8], kept: &[u8]) -> String {
     let mut decoded = String::new();
     let mut at = 0;
     while at < bytes.len() {
         let first = bytes[at];
         if first < 0x80 {
-            if b";/?:@&=+$,#".contains(&first) {
+            if kept.contains(&first) {
                 decoded.push_str(&format!("%{first:02X}"));
             } else {
                 decoded.push(first as char);
@@ -120,7 +120,7 @@ fn decode_run(bytes: &[u8]) -> String {
     decoded
 }
 
-fn decode_destination(input: &str) -> String {
+fn decode_destination(input: &str, kept: &[u8]) -> String {
     let mut decoded = String::new();
     let mut at = 0;
     while at < input.len() {
@@ -130,7 +130,7 @@ fn decode_destination(input: &str) -> String {
                 run.push(byte);
                 at += 3;
             }
-            decoded.push_str(&decode_run(&run));
+            decoded.push_str(&decode_run(&run, kept));
         } else {
             let ch = input[at..].chars().next().expect("at is before the end");
             decoded.push(ch);
@@ -140,8 +140,35 @@ fn decode_destination(input: &str) -> String {
     decoded
 }
 
+/// The escapes mdurl leaves in place, so a note link resolves here the way
+/// the editor resolves it.
+const LINK_ESCAPES_KEPT: &[u8] = b";/?:@&=+$,#";
+
 pub fn resolve_path(destination: &str, from: &str) -> Option<String> {
-    let bare = decode_destination(destination.split(['#', '?']).next().unwrap_or_default());
+    fold_destination(destination, from, LINK_ESCAPES_KEPT)
+}
+
+/// A file destination folded onto the note's folder, decoded whole.
+///
+/// An attachment path is encoded whole on the way in, so decoding whole here
+/// lets `%23` reach the `#` in the name on disk.
+pub fn resolve_file_path(destination: &str, from: &str) -> Option<String> {
+    fold_destination(destination, from, b"")
+}
+
+/// A file destination without its fragment or query, decoded whole.
+pub(crate) fn bare_file_destination(destination: &str) -> String {
+    decode_destination(
+        destination.split(['#', '?']).next().unwrap_or_default(),
+        b"",
+    )
+}
+
+fn fold_destination(destination: &str, from: &str, kept: &[u8]) -> Option<String> {
+    let bare = decode_destination(
+        destination.split(['#', '?']).next().unwrap_or_default(),
+        kept,
+    );
     let mut segments = Vec::new();
     for segment in folder(from).split('/').chain(bare.split('/')) {
         match segment {

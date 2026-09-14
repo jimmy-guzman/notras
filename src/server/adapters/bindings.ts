@@ -80,6 +80,15 @@ async createNote(options: CreateNote) : Promise<MutationReceipt> {
 async moveNote(path: string, folder: string) : Promise<PathMutationReceipt> {
     return await TAURI_INVOKE("move_note", { path, folder });
 },
+async openExternalFile(document: string, destination: string) : Promise<null> {
+    return await TAURI_INVOKE("open_external_file", { document, destination });
+},
+async openLinkedFile(from: string, destination: string) : Promise<null> {
+    return await TAURI_INVOKE("open_linked_file", { from, destination });
+},
+async resolveExternalLink(document: string, destination: string) : Promise<PendingOpen> {
+    return await TAURI_INVOKE("resolve_external_link", { document, destination });
+},
 async setNotesDir(path: string) : Promise<null> {
     return await TAURI_INVOKE("set_notes_dir", { path });
 },

@@ -1009,3 +1009,15 @@ Library IO now opens the resolved root as a `cap-std` directory handle, walks fo
 **Rejected: a second pathname check before each operation.** It narrows the window without closing it, and it would have to be repeated at every call site.
 
 **Constraint:** on macOS and Linux an operation follows its validated folder if that folder moves during the operation, inside or outside the library, and the next scan removes rows for anything no longer reachable. On Windows the held folder cannot move at all, because cap-std opens directory handles without delete sharing. Older `.notras/` folders inside a library are left in place; deleting a user's files without asking is the wrong default for a cache move.
+
+### D78 External images load through a per-request scheme
+
+An external tab showed no images: `resolveImageSrc` joined every source onto the notes dir, and the asset protocol's scope held only that dir. The decided policy resolves an external file's images against the file, wherever they point, and Tauri's scope cannot express that. `allow_directory` on the document's folder would not reach `../assets/x.png`, so the grant would have to be `$HOME/**` or `/`, every file type by pathname, for the process lifetime, since the scope only grows. A `~/README.md` would open the home folder to the webview.
+
+`src-tauri/src/external_image.rs` registers an `external-image` scheme instead. The webview names a document and a source, and `notras_core::external_image` answers each request on its own: the document exists as a markdown file, the source is relative, the target is a regular file with an image extension. Nothing persists between requests, so opening a document grants nothing beyond what each request names.
+
+**Rejected: `allow_file` per image.** The narrowest grant Tauri offers, but the resolver runs synchronously inside `renderHTML`, and an image added while editing would be missed until the document reloaded.
+
+**Rejected: routing library images through the same scheme.** It would put every image read behind one handler and take the asset protocol out of the app, but library reads belong on the validated handle (`D77`), and a handler that takes the library guard on the webview's protocol thread contends with every note operation.
+
+**Constraint:** a compromised webview can read any image on disk by naming an existing markdown file, which is the reach `read_external` already gives it for markdown; the CSP's `connect-src` keeps the bytes inside the window. The handler runs on wry's protocol thread like the asset handler, so a slow disk stalls that thread the same way.

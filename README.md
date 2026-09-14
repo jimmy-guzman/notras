@@ -48,7 +48,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - `[text](other.md)` links to notes open with a click, and read as internal
 - the status strip counts the notes that mention the one you are in, by `[[link]]` or by writing its title, and lists them with the line that did it. Other apps call the linked ones backlinks
 - `⌘⌥G` swaps the note for its graph: the note in the centre, what mentions it on the left, what it links to on the right, its folder and tags along the top, arrows to walk it and `⏎` to hop, into a note or into a tag
-- `⌘⇧K` adds or edits a link, `⌘⇧O` opens the one at the caret, and a click opens a web link in your browser
+- `⌘⇧K` adds or edits a link, `⌘⇧O` opens the one at the caret, and a click opens a web link in your browser or a linked file in the app your system picks
 - tags, pins, and folders, with moves between folders run from `⌘⇧P`
 
 ### Tabs

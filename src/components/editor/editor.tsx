@@ -11,12 +11,12 @@ import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
-import { isNotePath } from "@/core/links";
+import { isNotePath, isRelativeDestination } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
 import { styleNonce } from "@/lib/style-nonce";
 import { readCodeClipboard } from "@/lib/ui/code-clipboard";
 import { reasonOf } from "@/lib/ui/failure";
-import { encodeAttachmentPath } from "@/lib/utils/attachments";
+import { attachmentDestination } from "@/lib/utils/attachments";
 import {
   createEditorExtensions,
   fileMarkdown,
@@ -36,8 +36,6 @@ import {
   TYPEWRITER_SCROLL,
 } from "./typewriter";
 import { isSafeUrl, normalizeUrl } from "./urls";
-
-const ATTACHMENTS_PREFIX = "attachments/";
 
 /** Long enough to cross the gap between a link and its panel. */
 const HOVER_CLOSE_MS = 150;
@@ -126,15 +124,19 @@ function hrefAt(state: EditorState, pos: number) {
  * Hrefs arrive from the file on disk (parse, paste, input rule), never only
  * from the link editor, so the scheme is gated here too.
  */
-function followLink(href: string, onNoteLinkClick?: (href: string) => void) {
-  // An attachment is a file the note carries, not a place to go, and a relative
-  // path is not something the opener can resolve anyway.
-  if (href.startsWith(ATTACHMENTS_PREFIX)) {
+function followLink(
+  href: string,
+  onNoteLinkClick?: (href: string) => void,
+  onFileLinkClick?: (href: string) => void
+) {
+  if (isNotePath(href) && onNoteLinkClick) {
+    onNoteLinkClick(href);
+
     return;
   }
 
-  if (isNotePath(href) && onNoteLinkClick) {
-    onNoteLinkClick(href);
+  if (isRelativeDestination(href)) {
+    onFileLinkClick?.(href);
 
     return;
   }
@@ -254,6 +256,11 @@ export interface EditorHandle {
 }
 
 interface EditorProps {
+  /**
+   * Where a pasted image's destination is written from: the note's library
+   * path, null for a file that takes no attachments, absent for the notes root.
+   */
+  documentPath?: () => null | string;
   findOpen?: boolean;
   focusModeEnabled?: boolean;
   focusOnMount?: boolean;
@@ -261,6 +268,8 @@ interface EditorProps {
   initialContent: string;
   onBlur?: () => void;
   onChange: (content: string, edit: DocumentEdit) => void;
+  /** Open a file the note links to, relative to the note. */
+  onFileLinkClick?: (href: string) => void;
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   /** Navigate when a markdown link to a note is clicked. */
   onNoteLinkClick?: (href: string) => void;
@@ -343,7 +352,7 @@ export function Editor({
           const href = typeof attrs.href === "string" ? attrs.href : "";
 
           if (href !== "") {
-            followLink(href, config.onNoteLinkClick);
+            followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
 
             return true;
           }
@@ -414,7 +423,7 @@ export function Editor({
           hrefAt(view.state, pos) || (anchor?.getAttribute("href") ?? "");
 
         if (href !== "") {
-          followLink(href, config.onNoteLinkClick);
+          followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
 
           return true;
         }
@@ -498,6 +507,19 @@ export function Editor({
         );
 
         if (imageItem) {
+          const from =
+            config.documentPath === undefined ? "" : config.documentPath();
+
+          if (from === null) {
+            toast.add({
+              description: "attachments live in the notes folder",
+              title: "could not paste image",
+              type: "error",
+            });
+
+            return true;
+          }
+
           const blob = imageItem.getAsFile();
 
           if (blob) {
@@ -529,7 +551,9 @@ export function Editor({
                 editorRef.current
                   ?.chain()
                   .focus()
-                  .setImage({ src: encodeAttachmentPath(relativePath) })
+                  .setImage({
+                    src: attachmentDestination(relativePath, from),
+                  })
                   .run();
               } catch (error) {
                 toast.add({

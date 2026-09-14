@@ -42,7 +42,12 @@ import { toast } from "@/components/ui/toast";
 import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
-import { linkResolver } from "@/core/links";
+import {
+  foldPath,
+  hasScheme,
+  isRelativeDestination,
+  linkResolver,
+} from "@/core/links";
 import {
   type ConflictStash,
   clearConflictStash,
@@ -50,8 +55,11 @@ import {
 } from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
+import { openExternalFile } from "@/data/open-external-file";
+import { openLinkedFile } from "@/data/open-linked-file";
 import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
+import { resolveExternalLink } from "@/data/resolve-external-link";
 import { saveNote } from "@/data/save-note";
 import { useFocusMode } from "@/lib/prefs";
 import {
@@ -59,6 +67,7 @@ import {
   closeTab,
   getTabState,
   openNote,
+  openTab,
   registerTabHandles,
   registerTabSnapshot,
   renameTab,
@@ -133,6 +142,40 @@ interface SessionBufferProps {
   readFile: SessionFile | undefined;
   stash: ConflictStash | null;
   tab: Tab;
+}
+
+/**
+ * A relative image resolves against the file that holds it, the way a link
+ * does. A source with a scheme passes through for the webview to judge, and
+ * an anchor or an absolute path renders as a broken image rather than a fetch
+ * from the app's own bundle. A note's image loads through the asset protocol under
+ * the notes dir, and one that climbs out renders as a broken image. An
+ * external file's image goes to the `external-image` scheme with the document
+ * and the source, and Rust resolves the pair on each request.
+ */
+function imageSrc(
+  src: string,
+  kind: "external" | "note",
+  from: string,
+  notesDir: string
+) {
+  if (!isRelativeDestination(src)) {
+    return hasScheme(src) ? src : "";
+  }
+
+  const path = decodeAttachmentPath(src);
+
+  if (kind === "external") {
+    const query = new URLSearchParams({ doc: from, src: path });
+
+    return `${convertFileSrc("", "external-image")}?${query}`;
+  }
+
+  const resolved = foldPath(path, from);
+
+  return resolved === undefined
+    ? ""
+    : convertFileSrc(`${notesDir}/${resolved}`);
 }
 
 /**
@@ -304,12 +347,10 @@ function SessionBuffer({
   );
 
   const resolveImageSrc = useCallback(
-    (src: string) =>
-      src.includes("://")
-        ? src
-        : convertFileSrc(`${notesDir}/${decodeAttachmentPath(src)}`),
-    [notesDir]
+    (src: string) => imageSrc(src, tab.kind, live.current.path, notesDir),
+    [notesDir, tab.kind]
   );
+  const documentPath = useCallback(() => live.current.path, []);
 
   const navigation = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => navigation.current?.abort(), []);
@@ -375,6 +416,69 @@ function SessionBuffer({
       live.current.resolveLinks?.title(title, live.current.path)?.path,
     []
   );
+  const openFileLink = useCallback(async (href: string) => {
+    try {
+      await openLinkedFile(live.current.path, href);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not open file",
+        type: "error",
+      });
+    }
+  }, []);
+  const openExternalFileLink = useCallback(async (href: string) => {
+    try {
+      await openExternalFile(live.current.path, href);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not open file",
+        type: "error",
+      });
+    }
+  }, []);
+  const openExternalNoteLink = useCallback(async (href: string) => {
+    navigation.current?.abort();
+    const request = new AbortController();
+    navigation.current = request;
+    const origin = getTabState().activeId;
+    const isCurrent = () =>
+      !request.signal.aborted && getTabState().activeId === origin;
+    try {
+      const target = await resolveExternalLink(live.current.path, href);
+      if (isCurrent()) {
+        openTab(target.kind, target.path);
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not open note",
+          type: "error",
+        });
+      }
+    }
+  }, []);
+  const noAttachments = useCallback(() => null, []);
+
+  // What the tab kind decides: a note's links resolve through the library and
+  // its attachments land in it; an external file's links resolve against the
+  // file, and it takes no attachments.
+  const linkHandling =
+    tab.kind === "note"
+      ? {
+          documentPath,
+          onFileLinkClick: openFileLink,
+          onNoteLinkClick: openNoteLink,
+          onWikilinkClick: openWikilink,
+          resolveWikilink,
+        }
+      : {
+          documentPath: noAttachments,
+          onFileLinkClick: openExternalFileLink,
+          onNoteLinkClick: openExternalNoteLink,
+        };
 
   const handleBodyChange = useCallback(
     (content: string, edit: DocumentEdit) => {
@@ -562,14 +666,12 @@ function SessionBuffer({
             initialContent={sentineledBody ?? body}
             onChange={handleBodyChange}
             onHistory={onHistory}
-            onNoteLinkClick={tab.kind === "note" ? openNoteLink : undefined}
             onReady={attachEditor}
             onSelect={selectBody}
-            onWikilinkClick={tab.kind === "note" ? openWikilink : undefined}
-            resolveImageSrc={tab.kind === "note" ? resolveImageSrc : undefined}
-            resolveWikilink={tab.kind === "note" ? resolveWikilink : undefined}
+            resolveImageSrc={resolveImageSrc}
             stripSentinel={sentineledBody !== undefined}
             titles={getTitles}
+            {...linkHandling}
           />
         )}
       </div>

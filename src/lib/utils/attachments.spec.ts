@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  attachmentDestination,
   attachmentLink,
   decodeAttachmentPath,
   encodeAttachmentPath,
@@ -9,50 +10,71 @@ import {
 describe("attachmentLink", () => {
   it("should embed an image whose name carries spaces", () => {
     expect(
-      attachmentLink("attachments/Screenshot 2026-08-26 at 6.25.40 AM.png")
+      attachmentLink(
+        "attachments/Screenshot 2026-08-26 at 6.25.40 AM.png",
+        "note.md"
+      )
     ).toBe(
       "![Screenshot 2026-08-26 at 6.25.40 AM.png](attachments/Screenshot%202026-08-26%20at%206.25.40%20AM.png)"
     );
   });
 
   it("should link a file that is not an image", () => {
-    expect(attachmentLink("attachments/my notes.pdf")).toBe(
+    expect(attachmentLink("attachments/my notes.pdf", "note.md")).toBe(
       "[my notes.pdf](attachments/my%20notes.pdf)"
     );
   });
 
   it("should escape a bracket that would end the label early", () => {
-    expect(attachmentLink("attachments/notes ].png")).toBe(
+    expect(attachmentLink("attachments/notes ].png", "note.md")).toBe(
       "![notes \\].png](attachments/notes%20%5D.png)"
     );
   });
 
   it("should pad a backslash run that would eat the escaped bracket", () => {
-    expect(attachmentLink("attachments/back\\].png")).toBe(
+    expect(attachmentLink("attachments/back\\].png", "note.md")).toBe(
       "![back\\\\\\].png](attachments/back%5C%5D.png)"
     );
   });
 
   it("should leave an even backslash run before a bracket as it is", () => {
-    expect(attachmentLink("attachments/back\\\\].png")).toBe(
+    expect(attachmentLink("attachments/back\\\\].png", "note.md")).toBe(
       "![back\\\\\\].png](attachments/back%5C%5C%5D.png)"
     );
   });
 
   it("should leave a backslash in the label alone", () => {
-    expect(attachmentLink("attachments/back\\slash.png")).toBe(
+    expect(attachmentLink("attachments/back\\slash.png", "note.md")).toBe(
       "![back\\slash.png](attachments/back%5Cslash.png)"
     );
   });
 
+  it("should climb out of the note's folder to reach attachments", () => {
+    expect(attachmentLink("attachments/my notes.pdf", "projects/a.md")).toBe(
+      "[my notes.pdf](../attachments/my%20notes.pdf)"
+    );
+    expect(attachmentLink("attachments/x.png", "projects/q3/a.md")).toBe(
+      "![x.png](../../attachments/x.png)"
+    );
+  });
+
   it("should encode a name carrying markdown punctuation", () => {
-    expect(attachmentLink("attachments/draft (1) #2.png")).toBe(
+    expect(attachmentLink("attachments/draft (1) #2.png", "note.md")).toBe(
       "![draft (1) #2.png](attachments/draft%20(1)%20%232.png)"
     );
   });
 });
 
 describe("attachment paths", () => {
+  it("should write a pasted image relative to the note", () => {
+    expect(attachmentDestination("attachments/pasted-1.png", "note.md")).toBe(
+      "attachments/pasted-1.png"
+    );
+    expect(
+      attachmentDestination("attachments/pasted-1.png", "projects/a.md")
+    ).toBe("../attachments/pasted-1.png");
+  });
+
   it("should leave the path separators readable", () => {
     expect(encodeAttachmentPath("attachments/my shot.png")).toBe(
       "attachments/my%20shot.png"

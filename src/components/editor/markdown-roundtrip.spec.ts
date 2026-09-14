@@ -119,6 +119,9 @@ describe("markdown round-trip", () => {
     ["image with relative src", "![shot](attachments/x.png)"],
     ["image with an encoded src", "![shot](attachments/my%20shot.png)"],
     ["attachment link", "[my notes.pdf](attachments/my%20notes.pdf)"],
+    ["image beside the note", "![shot](./shot.png)"],
+    ["image up a folder", "![shot](../attachments/x.png)"],
+    ["file link beside the note", "[spec](docs/my%20spec.pdf)"],
     ["horizontal rule", "---"],
     ["wikilink", "see [[grocery list]] for details"],
     ["literal tilde", "takes approx ~5 minutes"],
@@ -143,7 +146,8 @@ describe("markdown round-trip", () => {
 
   it("should parse a dropped attachment whose name has spaces as an image", () => {
     const markdown = attachmentLink(
-      "attachments/Screenshot 2026-08-26 at 6.25.40 AM.png"
+      "attachments/Screenshot 2026-08-26 at 6.25.40 AM.png",
+      "note.md"
     );
 
     expect(imageSources(markdown)).toEqual([

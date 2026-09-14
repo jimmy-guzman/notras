@@ -1,5 +1,7 @@
 import { decode, encode } from "mdurl";
 
+import { noteFolder } from "@/core/notes";
+
 const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/i;
 
 /**
@@ -38,11 +40,24 @@ export function escapeMarkdownTitle(text: string) {
   return text.replaceAll(/["\\]/g, "\\$&");
 }
 
-/** The markdown a dropped file inserts: an embed for an image, a link otherwise. */
-export function attachmentLink(relativePath: string) {
+/**
+ * A library path as the note at `from` writes it: one `..` per folder the
+ * note sits in, since a destination resolves against the note.
+ */
+export function attachmentDestination(relativePath: string, from: string) {
+  const climb = noteFolder(from)
+    .split("/")
+    .filter((segment) => segment !== "")
+    .map(() => "..");
+
+  return encodeAttachmentPath([...climb, relativePath].join("/"));
+}
+
+/** The markdown a dropped file inserts into the note at `from`: an embed for an image, a link otherwise. */
+export function attachmentLink(relativePath: string, from: string) {
   const name = relativePath.split("/").at(-1) ?? relativePath;
   const label = escapeMarkdownLabel(name);
-  const destination = encodeAttachmentPath(relativePath);
+  const destination = attachmentDestination(relativePath, from);
 
   return IMAGE_EXTENSION.test(relativePath)
     ? `![${label}](${destination})`

@@ -34,4 +34,13 @@ describe("a rendered link", () => {
   it("should keep the href of a note it can open", () => {
     expect(render("[a note](other.md)")?.getAttribute("href")).toBe("other.md");
   });
+
+  it("should read as internal for a file beside the note and not for a url", () => {
+    expect(render("[spec](docs/spec.pdf)")?.hasAttribute("data-note")).toBe(
+      true
+    );
+    expect(
+      render("[site](https://example.com)")?.hasAttribute("data-note")
+    ).toBe(false);
+  });
 });
