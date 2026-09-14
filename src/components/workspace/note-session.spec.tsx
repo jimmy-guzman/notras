@@ -98,6 +98,21 @@ async function editor(id: string = tab.id) {
   return surface.editor;
 }
 
+/**
+ * Type at the end of the note's text. A bare "end" would land in the empty
+ * paragraph the trailing-node extension appends after a note that ends in a
+ * heading.
+ */
+function typeAtEnd(liveEditor: TiptapEditor, text: string) {
+  let end = 0;
+  liveEditor.state.doc.descendants((node, pos) => {
+    if (node.isTextblock && node.textContent !== "") {
+      end = pos + node.nodeSize - 1;
+    }
+  });
+  liveEditor.chain().focus(end).insertContent(text).run();
+}
+
 function sessionHandles(id: string = tab.id) {
   const handles = getTabHandles(id);
   if (handles === undefined) {
@@ -168,7 +183,7 @@ describe("NoteSession", () => {
 
     const liveEditor = await editor();
     await act(() => {
-      liveEditor.commands.insertContent("Typed ");
+      typeAtEnd(liveEditor, "Typed ");
     });
     await act(async () => {
       await flushPendingWrites();
@@ -1195,7 +1210,7 @@ describe("NoteSession", () => {
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
     await act(() => {
-      liveEditor.commands.insertContent("Typed ");
+      typeAtEnd(liveEditor, "Typed ");
     });
     await act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
@@ -1218,7 +1233,7 @@ describe("NoteSession", () => {
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
     await act(() => {
-      liveEditor.commands.insertContent("Typed ");
+      typeAtEnd(liveEditor, "Typed ");
     });
     await act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
@@ -1255,7 +1270,7 @@ describe("NoteSession", () => {
     const client = mountSession(content);
     const liveEditor = await editor();
     await act(() => {
-      liveEditor.commands.insertContent("Typed ");
+      typeAtEnd(liveEditor, "Typed ");
     });
     await act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {

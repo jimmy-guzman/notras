@@ -4,7 +4,7 @@ import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Extension, getMarkRange } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
-import { TextSelection } from "@tiptap/pm/state";
+import { Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
@@ -778,24 +778,30 @@ export function Editor({
       }
 
       suppressChangeRef.current = false;
-
-      const max = editor.state.doc.content.size;
-      const chain = editor.chain();
-
-      // A tab restored in the background places its caret without taking
-      // focus: several editors mount at launch and only one is showing.
-      if (config.focusOnMount === true) {
-        chain.focus();
-      }
-
-      chain
-        .setTextSelection(Math.min(pos, max))
-        .setMeta(TYPEWRITER_SCROLL, "skip")
-        .scrollIntoView()
-        .run();
-    } else if (config.focusOnMount === true) {
-      editor.commands.focus("end");
     }
+
+    const { doc } = editor.state;
+    const selection =
+      pos === null
+        ? Selection.atStart(doc)
+        : TextSelection.create(doc, Math.min(pos, doc.content.size));
+    const chain = editor.chain();
+
+    // A tab mounted in the background places its caret without taking
+    // focus: several editors mount at launch and only one is showing.
+    if (config.focusOnMount === true) {
+      chain.focus();
+    }
+
+    chain
+      .command(({ tr }) => {
+        tr.setSelection(selection);
+
+        return true;
+      })
+      .setMeta(TYPEWRITER_SCROLL, "skip")
+      .scrollIntoView()
+      .run();
   }, [config, editor]);
 
   // The recenter rides the plugin's own meta so one animator owns every

@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
+import { Selection } from "@tiptap/pm/state";
 import { type ComponentProps, createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createEditorExtensions } from "@/components/editor/extensions";
@@ -370,5 +371,44 @@ describe("document selection mapping", () => {
       anchor: 3,
       head: 3,
     });
+  });
+});
+
+describe("caret on mount", () => {
+  it("should open at the document start and take focus when no caret is restored", async () => {
+    const { editor } = await mount({
+      focusOnMount: true,
+      initialContent: "# title\n\nbody",
+    });
+
+    expect(editor.state.selection.from).toBe(
+      Selection.atStart(editor.state.doc).from
+    );
+    expect(document.activeElement).toBe(editor.view.dom);
+  });
+
+  it("should place the caret at a restored offset", async () => {
+    const { editor } = await mount({
+      focusOnMount: true,
+      initialContent: `# title\n\nbo${SENTINEL}dy`,
+      stripSentinel: true,
+    });
+
+    expect(editor.getText()).not.toContain(SENTINEL);
+    expect(editor.state.selection.$from.parent.textContent).toBe("body");
+    expect(editor.state.selection.$from.parentOffset).toBe(2);
+    expect(document.activeElement).toBe(editor.view.dom);
+  });
+
+  it("should leave a background tab unfocused at the document start", async () => {
+    const { editor } = await mount({
+      focusOnMount: false,
+      initialContent: "# title\n\nbody",
+    });
+
+    expect(editor.state.selection.from).toBe(
+      Selection.atStart(editor.state.doc).from
+    );
+    expect(document.activeElement).not.toBe(editor.view.dom);
   });
 });
