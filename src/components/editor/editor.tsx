@@ -205,6 +205,19 @@ function touchesHeading(transaction: Transaction) {
   });
 }
 
+function selectionSpansBlocks({ doc, selection }: EditorState) {
+  if (selection.empty) {
+    return false;
+  }
+
+  // `to` sits after the last block when a whole node is selected, so the last
+  // position inside the range is what names that block.
+  return (
+    doc.resolve(selection.from).index(0) !==
+    doc.resolve(selection.to - 1).index(0)
+  );
+}
+
 function sourceOffset(editor: TiptapEditor, position: number) {
   try {
     const manager = editor.markdown;
@@ -675,7 +688,7 @@ export function Editor({
       });
     },
     onSelectionUpdate: ({ editor: instance }) => {
-      setReading(false);
+      setReading(selectionSpansBlocks(instance.state));
       // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
       if (!suppressChangeRef.current && config.onSelect !== undefined) {
         const { selection } = instance.state;
@@ -839,11 +852,14 @@ export function Editor({
       setReading(true);
     };
 
-    // The other half of the clear in `onSelectionUpdate`: ProseMirror drops a
-    // pointer selection equal to the current one before it ever becomes a
-    // transaction, so a click on the caret already there reaches no callback.
+    // The other half of `onSelectionUpdate`: ProseMirror drops a pointer
+    // selection equal to the current one before it ever becomes a transaction,
+    // so a click on the caret already there reaches no callback. It defers to
+    // the selection because a drag across blocks can end in a click too.
     const restore = () => {
-      setReading(false);
+      const instance = editorRef.current;
+
+      setReading(instance !== null && selectionSpansBlocks(instance.state));
     };
 
     surface.addEventListener("wheel", engage, { passive: true });

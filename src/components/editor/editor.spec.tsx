@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { createElement } from "react";
+import { type ComponentProps, createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { SENTINEL } from "@/components/editor/sentinel";
@@ -16,21 +16,19 @@ import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
 
 /**
- * Mount the editor and hand back its scroller div and handle. happy-dom
- * computes no CSS, so the observable seam is the class the stylesheet keys
- * off, the same seam TipTap's own `has-focus` is.
+ * Mount the editor and hand back its scroller div, its handle and the TipTap
+ * instance TipTap attaches to the surface. happy-dom computes no CSS, so the
+ * observable seam is the class the stylesheet keys off, the same seam TipTap's
+ * own `has-focus` is.
  */
-const mount = async (modes: {
-  focusModeEnabled?: boolean;
-  initialContent?: string;
-}) => {
+const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   const handles: EditorHandle[] = [];
 
   const { container: host } = render(
     createElement(Editor, {
       initialContent: "first\n\nsecond",
-      ...modes,
       onChange: () => undefined,
+      ...props,
       onReady: (ready) => {
         handles.push(ready);
       },
@@ -40,35 +38,33 @@ const mount = async (modes: {
   await waitFor(() => expect(handles).toHaveLength(1));
   const [handle] = handles;
   const scroller = host.firstElementChild;
+  const surface = host.querySelector(".ProseMirror");
 
-  if (!(scroller instanceof HTMLElement) || handle === undefined) {
+  if (
+    !(scroller instanceof HTMLElement) ||
+    handle === undefined ||
+    surface === null ||
+    !("editor" in surface) ||
+    !(surface.editor instanceof TiptapEditor)
+  ) {
     throw new Error("the editor did not mount");
   }
 
-  return { handle, scroller };
+  return { editor: surface.editor, handle, scroller };
 };
 
 describe("focus mode reading state", () => {
   it("should apply a document observation without losing selection or existing undo", async () => {
-    const { handle, scroller } = await mount({
+    const { editor, handle, scroller } = await mount({
       initialContent: "# old\n\nbody",
     });
-    const surface = scroller.querySelector(".ProseMirror");
-    if (
-      surface === null ||
-      !("editor" in surface) ||
-      !(surface.editor instanceof TiptapEditor)
-    ) {
-      throw new Error("the editor did not mount");
-    }
-    const { editor } = surface;
     act(() => {
       editor.commands.setTextSelection(editor.state.doc.content.size - 1);
       editor.commands.insertContent(" plus typing");
     });
     const offset = editor.state.selection.$from.parentOffset;
     act(() => handle.replaceContent("# a longer title\n\nbody plus typing"));
-    expect(scroller.querySelector(".ProseMirror")).toBe(surface);
+    expect(scroller.querySelector(".ProseMirror")).toBe(editor.view.dom);
     expect(handle.getContent()).toContain("# a longer title");
     expect(handle.getContent()).toContain("body plus typing");
     expect(editor.state.selection.$from.parentOffset).toBe(offset);
@@ -110,6 +106,69 @@ describe("focus mode reading state", () => {
     fireEvent.click(surface);
 
     expect(scroller).not.toHaveClass("focus-reading");
+  });
+
+  it("should lift the dim while touch scrolling", async () => {
+    const { scroller } = await mount({ focusModeEnabled: true });
+
+    fireEvent.touchMove(scroller);
+
+    expect(scroller).toHaveClass("focus-reading");
+  });
+
+  it("should lift the dim while the selection reaches another block", async () => {
+    const { editor, scroller } = await mount({ focusModeEnabled: true });
+
+    act(() => {
+      editor.commands.setTextSelection({
+        from: 2,
+        to: editor.state.doc.content.size - 2,
+      });
+    });
+
+    expect(scroller).toHaveClass("focus-reading");
+  });
+
+  it("should hold the dim for a selection inside one block", async () => {
+    const { editor, scroller } = await mount({ focusModeEnabled: true });
+
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 4 });
+    });
+
+    expect(scroller).not.toHaveClass("focus-reading");
+  });
+
+  it("should restore the dim when the selection collapses", async () => {
+    const { editor, handle, scroller } = await mount({
+      focusModeEnabled: true,
+    });
+
+    act(() => {
+      editor.commands.setTextSelection({
+        from: 2,
+        to: editor.state.doc.content.size - 2,
+      });
+    });
+    act(() => {
+      handle.insertText("x");
+    });
+
+    expect(scroller).not.toHaveClass("focus-reading");
+  });
+
+  it("should keep the dim lifted when a click ends a selection across blocks", async () => {
+    const { editor, scroller } = await mount({ focusModeEnabled: true });
+
+    act(() => {
+      editor.commands.setTextSelection({
+        from: 2,
+        to: editor.state.doc.content.size - 2,
+      });
+    });
+    fireEvent.click(editor.view.dom);
+
+    expect(scroller).toHaveClass("focus-reading");
   });
 
   it("should not track reading while focus mode is off", async () => {
@@ -229,16 +288,10 @@ describe("code block clipboard", () => {
 
 describe("document selection mapping", () => {
   it("should replace the document when restoring its source selection fails", async () => {
-    const { handle, scroller } = await mount({ initialContent: "old body" });
-    const surface = scroller.querySelector(".ProseMirror");
-    if (
-      surface === null ||
-      !("editor" in surface) ||
-      !(surface.editor instanceof TiptapEditor)
-    ) {
-      throw new Error("the editor did not mount");
-    }
-    const manager = surface.editor.markdown;
+    const { editor, handle, scroller } = await mount({
+      initialContent: "old body",
+    });
+    const manager = editor.markdown;
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
     }
@@ -254,13 +307,13 @@ describe("document selection mapping", () => {
     act(() => handle.replaceContent("new body", { anchor: 2, head: 5 }));
 
     expect(handle.getContent().trimEnd()).toBe("new body");
-    expect(scroller.querySelector(".ProseMirror")).toBe(surface);
+    expect(scroller.querySelector(".ProseMirror")).toBe(editor.view.dom);
     failing.mockRestore();
     act(() => handle.replaceContent("latest body", { anchor: 1, head: 4 }));
     expect(
-      surface.editor.state.doc.textBetween(
-        surface.editor.state.selection.from,
-        surface.editor.state.selection.to
+      editor.state.doc.textBetween(
+        editor.state.selection.from,
+        editor.state.selection.to
       )
     ).toBe("ate");
 
@@ -278,25 +331,11 @@ describe("document selection mapping", () => {
   it("should deliver document edits without a selection when source mapping fails", async () => {
     const onChange = vi.fn();
     const onSelect = vi.fn();
-    const { container } = render(
-      createElement(Editor, {
-        initialContent: "body",
-        onChange,
-        onSelect,
-      })
-    );
-    await waitFor(() =>
-      expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
-    );
-    const surface = container.querySelector(".ProseMirror");
-    if (
-      surface === null ||
-      !("editor" in surface) ||
-      !(surface.editor instanceof TiptapEditor)
-    ) {
-      throw new Error("the editor did not mount");
-    }
-    const { editor } = surface;
+    const { editor } = await mount({
+      initialContent: "body",
+      onChange,
+      onSelect,
+    });
     const manager = editor.markdown;
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
