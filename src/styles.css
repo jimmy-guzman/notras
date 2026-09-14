@@ -191,18 +191,6 @@
   }
 }
 
-/* macOS overlay title bar: an invisible strip that drags the window. */
-.titlebar-drag-region {
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-.titlebar-drag-region button,
-.titlebar-drag-region input,
-.titlebar-drag-region .no-drag {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
 /* TipTap: the editor surface. */
 .ProseMirror {
   min-height: 100%;

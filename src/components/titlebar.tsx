@@ -13,14 +13,17 @@ interface TitlebarProps {
  * The 36px height pairs with the traffic light offset `D29` carries, in both
  * `tauri.conf.json` and `src-tauri/src/lib.rs`, which centres macOS's window
  * buttons in it; changing this height means rechecking both. The buttons float
- * over the top left, so `ps-titlebar` starts the content after them, and
- * buttons and inputs opt out of dragging through `styles.css`.
+ * over the top left, so `ps-titlebar` starts the content after them.
+ *
+ * The region is `deep`: a press anywhere in the band moves the window unless
+ * it lands on a control. Tauri's handler treats a button, an input, or a `tab`
+ * role as that boundary, so a control opts out by being one.
  */
 export function Titlebar({ children }: TitlebarProps) {
   return (
     <div
-      className="titlebar-drag-region flex h-9 shrink-0 items-center bg-card ps-titlebar pe-3 shadow-[inset_0_-1px_0_var(--border)]"
-      data-tauri-drag-region
+      className="flex h-9 shrink-0 items-center bg-card ps-titlebar pe-3 shadow-[inset_0_-1px_0_var(--border)]"
+      data-tauri-drag-region="deep"
     >
       {children}
     </div>
