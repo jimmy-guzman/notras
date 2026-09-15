@@ -1,13 +1,12 @@
 use std::fs::{self, File};
 use std::io::{self, Write as _};
-use std::path::{Path, PathBuf};
-use std::process;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::Path;
 
+use cap_std::{ambient_authority, fs::Dir};
 use serde::{Deserialize, Serialize};
 
 use crate::application::{CommandError, NoteFile, OpenKind};
-use crate::note_file::content_revision;
+use crate::note_file::{content_revision, TempSibling};
 
 /// Both sides of an unresolved review: the version the edits started from and the edits.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -18,38 +17,12 @@ pub struct ConflictStash {
     pub ours: String,
 }
 
-fn stash_path(dir: &Path, kind: OpenKind, path: &str) -> PathBuf {
+fn stash_name(kind: OpenKind, path: &str) -> String {
     let kind = match kind {
         OpenKind::External => "external",
         OpenKind::Note => "note",
     };
-    dir.join(format!(
-        "{}.json",
-        content_revision(&format!("{kind}\0{path}"))
-    ))
-}
-
-/// Each write gets a sibling of its own, so two stashes of one note in flight
-/// cannot truncate each other's bytes before the rename.
-fn temp_sibling(target: &Path) -> io::Result<(PathBuf, File)> {
-    static WRITES: AtomicU64 = AtomicU64::new(0);
-    let attempt = WRITES.fetch_add(1, Ordering::Relaxed);
-    let temp = target.with_extension(format!("json.{}-{attempt}.tmp", process::id()));
-    let file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp)?;
-    Ok((temp, file))
-}
-
-fn write_replacing(target: &Path, bytes: &[u8]) -> io::Result<()> {
-    let (temp, mut file) = temp_sibling(target)?;
-    let written = file.write_all(bytes).and_then(|()| file.sync_all());
-    let published = written.and_then(|()| fs::rename(&temp, target));
-    if published.is_err() {
-        let _ = fs::remove_file(&temp);
-    }
-    published
+    format!("{}.json", content_revision(&format!("{kind}\0{path}")))
 }
 
 /// Keep both sides of a review on disk until a resolution commits.
@@ -62,7 +35,11 @@ pub fn stash_conflict(
     fs::create_dir_all(dir)?;
     let bytes = serde_json::to_vec(stash)
         .map_err(|error| CommandError::with_source("the review could not be stored", error))?;
-    write_replacing(&stash_path(dir, kind, path), &bytes)?;
+    let directory = Dir::open_ambient_dir(dir, ambient_authority())?;
+    let mut temp = TempSibling::create(&directory)?;
+    temp.file_mut().write_all(&bytes)?;
+    temp.file().sync_all()?;
+    temp.replace(&stash_name(kind, path))?;
     Ok(())
 }
 
@@ -72,7 +49,7 @@ pub fn read_conflict(
     kind: OpenKind,
     path: &str,
 ) -> Result<Option<ConflictStash>, CommandError> {
-    let file = match File::open(stash_path(dir, kind, path)) {
+    let file = match File::open(dir.join(stash_name(kind, path))) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
@@ -84,7 +61,7 @@ pub fn read_conflict(
 
 /// Forget a stored review; a note without one is left as it is.
 pub fn clear_conflict(dir: &Path, kind: OpenKind, path: &str) -> Result<(), CommandError> {
-    match fs::remove_file(stash_path(dir, kind, path)) {
+    match fs::remove_file(dir.join(stash_name(kind, path))) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),
@@ -191,9 +168,10 @@ mod tests {
                 .ours,
             "# two"
         );
-        let (path, _file) = temp_sibling(&stash_path(&dir, OpenKind::Note, "a.md")).unwrap();
-        let (other, _other) = temp_sibling(&stash_path(&dir, OpenKind::Note, "a.md")).unwrap();
-        assert_ne!(path, other);
+        let directory = Dir::open_ambient_dir(&dir, ambient_authority()).unwrap();
+        let first = TempSibling::create(&directory).unwrap();
+        let other = TempSibling::create(&directory).unwrap();
+        assert_ne!(first.name(), other.name());
     }
 
     #[test]
@@ -201,7 +179,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let dir = directory.path().join("conflicts");
         fs::create_dir_all(&dir).unwrap();
-        fs::write(stash_path(&dir, OpenKind::Note, "a.md"), "{not json").unwrap();
+        fs::write(dir.join(stash_name(OpenKind::Note, "a.md")), "{not json").unwrap();
 
         let error = read_conflict(&dir, OpenKind::Note, "a.md").unwrap_err();
 

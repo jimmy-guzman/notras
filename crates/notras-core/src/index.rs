@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::{
     frontmatter,
     markdown::{bare_mentions, destinations, is_note_path, resolve_title, wikilinks},
-    note_file::{timestamp_millis, OpenedNote},
+    note_file::timestamp_millis,
     relative_path::RelativePath,
 };
 
@@ -303,7 +303,7 @@ fn index_note(
     }
 
     let file = match located.open_read() {
-        Ok(file) => OpenedNote::new(file),
+        Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             remove(conn, rel_path)?;
             return Ok(true);
@@ -323,7 +323,7 @@ fn index_note(
         return Ok(false);
     }
 
-    let content = file.read()?;
+    let content = io::read_to_string(file)?;
 
     let parsed = frontmatter::parse(&content);
     // The body is a suffix of the file, so what precedes it is the frontmatter,

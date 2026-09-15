@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{content_revision, timestamp_millis, Exchange, OpenedNote, TempSibling},
+    note_file::{content_revision, timestamp_millis, Exchange, TempSibling},
     relationships,
     relative_path::{ensure_folder, Located, RelativePath},
     Library,
@@ -748,9 +748,9 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     if !is_markdown(path) {
         return Err("only markdown files can be opened".into());
     }
-    let file = OpenedNote::new(File::open(path)?);
+    let file = File::open(path)?;
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
-    let content = file.read()?;
+    let content = io::read_to_string(file)?;
     Ok(NoteFile {
         revision: content_revision(&content),
         content,
@@ -929,9 +929,9 @@ pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> 
 impl Library {
     pub fn read_note(&self, path: String) -> Result<NoteFile, CommandError> {
         let relative = RelativePath::parse(&path)?;
-        let file = OpenedNote::new(relative.resolve(&self.root)?.open_read()?);
+        let file = relative.resolve(&self.root)?.open_read()?;
         let metadata = file.metadata()?;
-        let content = file.read()?;
+        let content = io::read_to_string(file)?;
         Ok(NoteFile {
             revision: content_revision(&content),
             content,
@@ -1040,10 +1040,10 @@ impl Library {
         };
         let from = RelativePath::parse(&path)?;
         let to = RelativePath::parse(&target)?;
-        let opened = OpenedNote::new(from.resolve(&self.root)?.open_read()?);
+        let opened = from.resolve(&self.root)?.open_read()?;
         let metadata = opened.metadata()?;
         let updated_at = timestamp_millis(metadata.modified())?;
-        let content = opened.read()?;
+        let content = io::read_to_string(opened)?;
         if path == target {
             return Ok(PathMutationReceipt {
                 path,
@@ -1229,7 +1229,7 @@ mod tests {
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let path = directory.path().join("errands.md");
         fs::write(&path, "# Errands\n\noriginal").unwrap();
-        let reader = OpenedNote::new(File::open(&path).unwrap());
+        let reader = File::open(&path).unwrap();
 
         let receipt = saved(
             &core,
@@ -1241,7 +1241,7 @@ mod tests {
 
         assert_eq!(receipt.path, "errands.md");
         assert!(receipt.warnings.is_empty());
-        assert_eq!(reader.read().unwrap(), "# Errands\n\noriginal");
+        assert_eq!(io::read_to_string(reader).unwrap(), "# Errands\n\noriginal");
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
             "# Errands\n\nreplacement"
@@ -1971,9 +1971,7 @@ mod tests {
             .unwrap();
         swap_folder_for_link(directory.path(), "folder", outside.path());
 
-        let content = OpenedNote::new(located.open_read().unwrap())
-            .read()
-            .unwrap();
+        let content = io::read_to_string(located.open_read().unwrap()).unwrap();
 
         assert_eq!(content, "original");
     }

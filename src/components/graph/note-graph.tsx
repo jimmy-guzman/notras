@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
-import type { KeyboardEvent, MouseEvent, RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import {
   useCallback,
   useEffect,
@@ -377,46 +377,15 @@ function Pill({
     [key, pillRef]
   );
 
-  const go = useCallback(
-    (beside: boolean) => {
-      if (centre) {
-        keys.onLeave();
-      } else if (item.kind === "note") {
-        onHop(item.note.path, beside);
-      } else {
-        onHub(item.pill.hub);
-      }
-    },
-    [centre, item, keys, onHop, onHub]
-  );
-
-  const click = useCallback(
-    (event: MouseEvent) => {
-      go(event.metaKey);
-    },
-    [go]
-  );
-
-  // A native button turns ⏎ into a click, but that click carries no modifier.
-  const keyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Enter" && event.metaKey) {
-        event.preventDefault();
-        go(true);
-      } else {
-        ringKeyDown(event, key, keys);
-      }
-    },
-    [go, key, keys]
-  );
-
-  const live = useCallback(() => {
-    onLive(key);
-  }, [key, onLive]);
-
-  const idle = useCallback(() => {
-    onLive(null);
-  }, [onLive]);
+  const go = (beside: boolean) => {
+    if (centre) {
+      keys.onLeave();
+    } else if (item.kind === "note") {
+      onHop(item.note.path, beside);
+    } else {
+      onHub(item.pill.hub);
+    }
+  };
 
   return (
     <Badge
@@ -424,12 +393,20 @@ function Pill({
         PILL_CLASS,
         centre ? "h-7 px-3 text-foreground text-sm" : "text-muted-foreground"
       )}
-      onBlur={idle}
-      onClick={click}
-      onFocus={live}
-      onKeyDown={keyDown}
-      onMouseEnter={live}
-      onMouseLeave={idle}
+      onBlur={() => onLive(null)}
+      onClick={(event) => go(event.metaKey)}
+      onFocus={() => onLive(key)}
+      onKeyDown={(event) => {
+        // A native button turns ⏎ into a click, but that click carries no modifier.
+        if (event.key === "Enter" && event.metaKey) {
+          event.preventDefault();
+          go(true);
+        } else {
+          ringKeyDown(event, key, keys);
+        }
+      }}
+      onMouseEnter={() => onLive(key)}
+      onMouseLeave={() => onLive(null)}
       render={<button ref={attach} type="button" />}
       style={pillStyle(item.position)}
       variant="ghost"
@@ -463,15 +440,8 @@ function Placeholder({
 }
 
 function NoteRow({ note }: { note: NoteMeta }) {
-  const open = useCallback(
-    (event: MouseEvent) => {
-      openNote(note.path, event.metaKey);
-    },
-    [note.path]
-  );
-
   return (
-    <DropdownMenuItem onClick={open}>
+    <DropdownMenuItem onClick={(event) => openNote(note.path, event.metaKey)}>
       <FileTextIcon />
       <span className="truncate">
         {note.title}
@@ -487,12 +457,8 @@ function NoteRow({ note }: { note: NoteMeta }) {
 }
 
 function HubRow({ onHub, pill }: { onHub: (hub: Hub) => void; pill: HubPill }) {
-  const go = useCallback(() => {
-    onHub(pill.hub);
-  }, [onHub, pill.hub]);
-
   return (
-    <DropdownMenuItem onClick={go}>
+    <DropdownMenuItem onClick={() => onHub(pill.hub)}>
       {pill.hub.kind === "folder" ? <FolderIcon /> : <HashIcon />}
       <span className="truncate">
         {pill.hub.kind === "folder" ? pill.hub.folder : pill.hub.tag}
@@ -524,18 +490,11 @@ function OverflowPill({
     [item.id, pillRef]
   );
 
-  const keyDown = useCallback(
-    (event: KeyboardEvent) => {
-      ringKeyDown(event, item.id, keys);
-    },
-    [item.id, keys]
-  );
-
   const pill = (
     <Badge
       className={cn(PILL_CLASS, "text-muted-foreground tabular-nums")}
       onClick={item.more.kind === "mentions" ? onShowMentions : undefined}
-      onKeyDown={keyDown}
+      onKeyDown={(event) => ringKeyDown(event, item.id, keys)}
       render={<button ref={attach} type="button" />}
       style={pillStyle(item.position)}
       variant="ghost"
@@ -637,8 +596,9 @@ export function NoteGraph({
     pills.current.get(centreKey)?.focus();
   }, [centreKey]);
 
-  const onWalk = useCallback(
-    (from: string, step: Step) => {
+  const keys: RingKeys = {
+    onLeave,
+    onWalk: (from, step) => {
       if (ring.length === 0) {
         return;
       }
@@ -648,10 +608,7 @@ export function NoteGraph({
 
       pills.current.get(ring[next]?.key ?? "")?.focus();
     },
-    [ring]
-  );
-
-  const keys = useMemo(() => ({ onLeave, onWalk }), [onLeave, onWalk]);
+  };
 
   const lone = items.length === 1;
 
@@ -770,30 +727,6 @@ export function TabGraph({ tab }: TabGraphProps) {
 
   const shown = picture ?? last.current;
 
-  const hop = useCallback((path: string, beside: boolean) => {
-    setHubState(null);
-    hopTo(path, beside);
-  }, []);
-
-  const toHub = useCallback(
-    (next: Hub) => {
-      setHubState({ forPath: tab.path, hub: next });
-    },
-    [tab.path]
-  );
-
-  const leave = useCallback(() => {
-    if (hub === null) {
-      hideGraph(tab.id);
-    } else {
-      setHubState(null);
-    }
-  }, [hub, tab.id]);
-
-  const showMentions = useCallback(() => {
-    setMentionsOpen(true);
-  }, []);
-
   if (shown === undefined) {
     return null;
   }
@@ -801,10 +734,19 @@ export function TabGraph({ tab }: TabGraphProps) {
   return (
     <div className="absolute inset-0 overflow-clip bg-background p-6">
       <NoteGraph
-        onHop={hop}
-        onHub={toHub}
-        onLeave={leave}
-        onShowMentions={showMentions}
+        onHop={(path, beside) => {
+          setHubState(null);
+          hopTo(path, beside);
+        }}
+        onHub={(next) => setHubState({ forPath: tab.path, hub: next })}
+        onLeave={() => {
+          if (hub === null) {
+            hideGraph(tab.id);
+          } else {
+            setHubState(null);
+          }
+        }}
+        onShowMentions={() => setMentionsOpen(true)}
         picture={shown}
       />
     </div>
