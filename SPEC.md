@@ -75,11 +75,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A tab whose file was deleted while its buffer was clean closes itself.
 - A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
 - A read that fails for any other reason leaves the tab's text alone and toasts once. Repeated failures do not stack a second toast. A tab that has never read shows the reason in its panel and offers to try again.
-- A failure that stops the workspace from rendering shows what failed and why in place, and offers to try again.
+- A failure that stops the workspace from rendering shows what failed and why in place, and offers to try again. Trying again restarts a failed tab restore and leaves a finished one alone.
 - An error toast names what failed as its title and carries the reason, when the failure has one, as its description.
 - The reason a filesystem failure carries is lowercase and names no error number: "permission denied", "no such file", "that path is a folder", "the volume is read-only", "the disk is full", and for any other kind the system's own words without their code.
 - A failure the app did not anticipate reaches the user as "an unexpected error", and its cause goes to the log. Both sides write to one log file in the app's log folder, `~/Library/Logs/codes.jimmy.notras/notras.log` on macOS, which `pnpm dev` also prints.
-- A refresh of data already on screen that fails toasts what could not refresh and why. The first read of anything reports through its own surface instead: the route error screen for the workspace, the pane for a tab.
+- A refresh of data already on screen that fails toasts what could not refresh and why. The first read of anything reports through its own surface instead: the error screen for the workspace, the pane for a tab.
 - A save that failed shows why under "could not save", in the save glyph's tooltip and in the tab's dot.
 - A search the index could not answer reads "could not search notes" over the reason in the palette, and offers no note to create from it.
 - A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
@@ -116,6 +116,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing.
 - Find mode lists notes and never actions. Actions mode lists actions and never notes.
+- A tag in the status strip opens the palette in find mode filtered to that tag. Closing the palette clears the filter.
 - Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes by most recently updated, without prioritizing pins.
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
 - A hit carries a snippet of at most 24 tokens with the matched text highlighted.
@@ -230,7 +231,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The note lands in `inbox/` with its filename derived from the same content title as other notes. Content without a usable title receives `untitled.md`. A taken name receives the next free numeric suffix. Capture adds no heading or frontmatter.
 - Capturing nothing writes nothing, and the window hides.
 - A failed save keeps the jot on screen and says so.
-- The capture window runs outside the router, so the palette and the tab shortcuts do not reach it. The editor's own keys and find in note do.
+- The capture window is its own tree, so the palette and the tab shortcuts do not reach it. The editor's own keys and find in note do.
 
 ## The window and the system
 

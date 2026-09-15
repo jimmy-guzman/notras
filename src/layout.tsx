@@ -1,54 +1,28 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
-  createRootRouteWithContext,
-  type ErrorComponentProps,
-  Navigate,
-  Outlet,
-  useNavigate,
-  useRouter,
-} from "@tanstack/react-router";
+  QueryErrorResetBoundary,
+  useQueryClient,
+  useSuspenseQueries,
+} from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 import { CommandPalette, type PaletteMode } from "@/components/command-palette";
-import { RouteError } from "@/components/route-error";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Workspace } from "@/components/workspace/workspace";
+import { WorkspaceError } from "@/components/workspace-error";
 import { createNote } from "@/data/create-note";
 import { applyIndexStatus } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
+import { startupQuery } from "@/data/restore-session";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands, events } from "@/server/adapters/bindings";
-
-/** Cached data answers the loader; only a cold key fetches. */
-const STATIC = "static" as const;
-
-interface RootSearch {
-  /** Set by a tag chip to open the palette already filtered to that tag. */
-  tag?: string;
-}
-
-export const Route = createRootRouteWithContext<{
-  queryClient: QueryClient;
-}>()({
-  component: RootLayout,
-  errorComponent: RootError,
-  // The workspace is the only screen (`D53`), so any other path is a stale URL
-  // -- a dev reload holding the retired `/notes/$`, or a malformed deep link.
-  notFoundComponent: () => <Navigate replace to="/" />,
-  validateSearch: (search: Record<string, unknown>): RootSearch =>
-    typeof search.tag === "string" ? { tag: search.tag } : {},
-  // Priming only: an inactive query is one invalidation cannot reach.
-  loader: async ({ context }) => {
-    await context.queryClient.query({ ...notesDirQuery, staleTime: STATIC });
-  },
-});
 
 /** `listen` resolves to its own unsubscribe, which every effect here drops. */
 function disposeLater(...pending: Promise<() => void>[]) {
@@ -71,10 +45,11 @@ function disposeLater(...pending: Promise<() => void>[]) {
   };
 }
 
-function RootLayout() {
-  const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const { tag } = Route.useSearch();
-  const navigate = useNavigate();
+function MainWindow() {
+  const [{ data: notesDir }, { data: initialTabs }] = useSuspenseQueries({
+    queries: [notesDirQuery, startupQuery],
+  });
+  const [tag, setTag] = useState<string>();
   const queryClient = useQueryClient();
   const [paletteSession, setPaletteSession] = useState(0);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>();
@@ -83,20 +58,10 @@ function RootLayout() {
   const paletteOpen = paletteMode !== undefined || tag !== undefined;
   const paletteView = paletteMode ?? "find";
 
-  // A tag chip navigates rather than calling up here, so the search param is
-  // what opens the palette; clearing it on close keeps the URL from reopening
-  // it on the next render.
   const closePalette = useCallback(() => {
     setPaletteMode(undefined);
-
-    if (tag !== undefined) {
-      navigate({
-        replace: true,
-        search: (previous: RootSearch) => ({ ...previous, tag: undefined }),
-        to: ".",
-      });
-    }
-  }, [navigate, tag]);
+    setTag(undefined);
+  }, []);
 
   const handlePaletteOpenChange = useCallback(
     (next: boolean) => {
@@ -113,7 +78,7 @@ function RootLayout() {
   );
 
   // Toggling out of the mode that is showing closes through `closePalette`,
-  // which also clears a `?tag=` opening the palette on nobody's mode.
+  // which also clears a tag opening the palette on nobody's mode.
   const togglePaletteMode = useCallback(
     (next: PaletteMode) => {
       if (paletteOpen && paletteView === next) {
@@ -313,7 +278,7 @@ function RootLayout() {
   return (
     <TooltipProvider>
       <div className="flex h-svh flex-col bg-background text-foreground">
-        <Outlet />
+        <Workspace initialTabs={initialTabs} onFilterTag={setTag} />
       </div>
       <CommandPalette
         key={`${tag ?? ""}:${paletteView}:${paletteSession}`}
@@ -334,16 +299,24 @@ function RootLayout() {
   );
 }
 
-function RootError({ error }: ErrorComponentProps) {
-  const router = useRouter();
-  // The match a new load produces is what resets the boundary.
-  const retry = useCallback(async () => {
-    try {
-      await router.invalidate();
-    } catch {
-      // The screen and its button are still there.
-    }
-  }, [router]);
-
-  return <RouteError reason={reasonOf(error)} retry={retry} />;
+export function Layout() {
+  return (
+    <QueryErrorResetBoundary>
+      {({ reset }) => (
+        <ErrorBoundary
+          fallbackRender={({ error, resetErrorBoundary }) => (
+            <WorkspaceError
+              reason={reasonOf(error)}
+              retry={resetErrorBoundary}
+            />
+          )}
+          onReset={reset}
+        >
+          <Suspense fallback={null}>
+            <MainWindow />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+    </QueryErrorResetBoundary>
+  );
 }

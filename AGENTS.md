@@ -30,7 +30,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Naming and layout
 
-- **Files read bottom-up: helpers at the top, main exported symbol at the bottom.** Scrolling to the end shows the file's public API. Implementation details sit above it in the order you would compose them. Route files are the exception: `export const Route` sits at the top, with components as function declarations below, which hoisting makes lint-clean.
+- **Files read bottom-up: helpers at the top, main exported symbol at the bottom.** Scrolling to the end shows the file's public API. Implementation details sit above it in the order you would compose them.
 
 - **Follow the ecosystem's filename casing convention, and apply it to directories too.** kebab-case in TypeScript, snake_case in Rust. Import mechanics and tooling depend on the convention, so it belongs to the language. Framework-reserved filenames are exempt.
 
@@ -46,7 +46,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Ultracite, a Biome preset, is the only JS/TS formatter and linter** (`D15`, `D41`), and it is dev tooling only. Rust uses rustfmt and Clippy. No Prettier and no ESLint. Do not silence a lint error with a config override: suppress a false positive at the call site with `biome-ignore` and a reason. `noJsxPropsBind` is intentionally disabled across the project: inline event handlers are allowed, and callback memoization needs a measured benefit or a consumer that relies on stable identity. The Shadcn `src/components/ui/**` override turns off the rules with no autofix because `scripts/update-shadcn.sh` regenerates those files (`D19`, `D37`).
 
-- **Sort object keys and imports alphabetically.** Biome's `organizeImports` assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit hook, since neither editor config wires it. One exception the preset already encodes: route option objects, which `ultracite/biome/tanstack` leaves unsorted because their types infer in declaration order.
+- **Sort object keys and imports alphabetically.** Biome's `organizeImports` assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit hook, since neither editor config wires it.
 
 - **Icons come from `lucide-react`, always the `Icon`-suffixed export.** Use `cn()` from the `cn` package for conditional Tailwind classes.
 

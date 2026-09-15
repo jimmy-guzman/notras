@@ -1,15 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, onTestFinished } from "vitest";
+import { Layout } from "@/layout";
 import { closeTab, getTabState } from "@/lib/tabs/store";
-import { routeTree } from "@/routeTree.gen";
 
 const NEW_NOTE = /new note/;
 
@@ -69,11 +64,6 @@ it("should let a new note open before library queries finish without a late rest
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
-  const router = createRouter({
-    context: { queryClient: client },
-    history: createMemoryHistory({ initialEntries: ["/"] }),
-    routeTree,
-  });
   onTestFinished(async () => {
     await act(() => {
       recent.resolve([]);
@@ -89,7 +79,7 @@ it("should let a new note open before library queries finish without a late rest
   });
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <Layout />
     </QueryClientProvider>
   );
   const user = userEvent.setup();

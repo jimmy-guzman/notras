@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { useCallback, useEffect, useState } from "react";
@@ -20,7 +19,6 @@ import { noteQueries } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import {
   activateTab,
-  adoptVaultNotes,
   closeOtherTabs,
   closeTab,
   getTabHandles,
@@ -28,7 +26,6 @@ import {
   moveTab,
   openNote,
   reopenTab,
-  restoreTabs,
   useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
@@ -39,31 +36,6 @@ import { noteFind, openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { attachmentLink } from "@/lib/utils/attachments";
-import { commands } from "@/server/adapters/bindings";
-
-/**
- * Restoring is a launch behaviour. Anything that re-runs the loader afterwards
- * must not reopen a tab the user closed.
- */
-let seeded = false;
-
-export const Route = createFileRoute("/")({
-  component: Workspace,
-  loader: async () => {
-    if (seeded) {
-      return;
-    }
-
-    // A restored path that no longer reads closes its own tab, so nothing is
-    // checked against disk here.
-    const restored = restoreTabs();
-    if (restored) {
-      await adoptVaultNotes(commands.classifyOpenPaths);
-    }
-    seeded = true;
-    return restored ? undefined : getTabState();
-  },
-});
 
 /** ⌘9 is the last tab rather than the ninth, which is the macOS convention. */
 const TAB_JUMPS = [
@@ -232,12 +204,16 @@ function ActiveStatusBar({
  * keyboard belongs here rather than inside one of them. Registered N times it
  * would fire N times, and a dropped file would land in every open note.
  */
-function Workspace() {
+export function Workspace({
+  initialTabs,
+  onFilterTag,
+}: {
+  /** The tab state at launch, or null when saved tabs were restored into it. */
+  initialTabs: TabState | null;
+  onFilterTag: (tag: string) => void;
+}) {
   const tabState = useTabState();
   const { activeId, tabs } = tabState;
-  const navigate = useNavigate();
-  const startupTabs = Route.useLoaderData();
-  const [initialTabs] = useState(startupTabs);
 
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const graphMode = useGraphMode(activeId);
@@ -276,13 +252,6 @@ function Workspace() {
       toggleGraph(state.activeId);
     }
   }, []);
-
-  const filterByTag = useCallback(
-    (tag: string) => {
-      navigate({ search: { tag }, to: "." });
-    },
-    [navigate]
-  );
 
   // Drag a file in -> copy to attachments/, insert a markdown link into
   // whichever tab is showing.
@@ -420,7 +389,7 @@ function Workspace() {
       {tabs.length === 0 ? (
         <>
           <Welcome onNew={newNote} />
-          {initialTabs !== undefined && tabState === initialTabs ? (
+          {tabState === initialTabs ? (
             <RecentNote initialTabs={initialTabs} />
           ) : null}
         </>
@@ -439,7 +408,7 @@ function Workspace() {
       {activeTab === undefined ? null : (
         <ActiveStatusBar
           graphEnabled={graphMode}
-          onFilterTag={filterByTag}
+          onFilterTag={onFilterTag}
           onToggleFocusMode={toggleFocusMode}
           onToggleGraph={toggleGraphView}
           onToggleSource={toggleSource}
