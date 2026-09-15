@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.1](https://github.com/jimmy-guzman/notras/compare/v0.6.0...v0.6.1) (2026-09-15)
+
+
+### Features
+
+* **notes:** ✨ unify note titles and filenames ([#200](https://github.com/jimmy-guzman/notras/issues/200)) ([67ad467](https://github.com/jimmy-guzman/notras/commit/67ad46798c00afb90db2bf0d02decdc4b062ed50))
+
+
+### Refactoring
+
+* **app:** 🔄 drop tanstack router ([#202](https://github.com/jimmy-guzman/notras/issues/202)) ([f9a0b47](https://github.com/jimmy-guzman/notras/commit/f9a0b47b62f5674f2f54a9757ec29d7fd4362cd6))
+
 ## [0.6.0](https://github.com/jimmy-guzman/notras/compare/v0.5.0...v0.6.0) (2026-09-14)
 
 
