@@ -141,7 +141,7 @@ Signing and notarization are tracked in [issue #171](https://github.com/jimmy-gu
 - `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
 - None of those does anything on the empty state, which is where closing the last tab lands you.
 - `⌘D` sets the writing mode, which belongs to the app rather than a note, so it works with nothing open and the next note you create is already in it.
-- The capture window runs outside the router, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, find in note, and the editor's own keys do.
+- The capture window is its own tree, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, find in note, and the editor's own keys do.
 
 ## Development
 
@@ -214,7 +214,6 @@ Mutation tests cover native file and index outcomes, shared normalization fixtur
 - [notify](https://github.com/notify-rs/notify)
 - [Vite](https://vite.dev) 8
 - [React](https://react.dev) 19
-- [TanStack Router](https://tanstack.com/router)
 - [TipTap](https://tiptap.dev) 3
 - [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown)
 - [SQLite](https://sqlite.org) FTS5

@@ -796,9 +796,9 @@ Every read goes through TanStack Query. `src/data/queries.ts` holds one `noteQue
 
 **Constraint:** an empty `paths` means the whole vault changed. `set_notes_dir` emits one, `reindex_all` emits one for a vault that scanned back empty, and the watcher never emits empty at all. An emit site added later that cannot name what changed emits empty rather than nothing.
 
-**Constraint:** `useLoaderData` is not used for query data. A query read that way never becomes active, which makes it eligible for garbage collection and puts it beyond the reach of invalidation.
+**Constraint:** `useLoaderData` is not used for query data. A query read that way never becomes active, which makes it eligible for garbage collection and puts it beyond the reach of invalidation. `D81` retires this constraint.
 
-**Constraint:** the router's own cache is off through `defaultPreloadStaleTime: 0`, so one cache owns staleness.
+**Constraint:** the router's own cache is off through `defaultPreloadStaleTime: 0`, so one cache owns staleness. `D81` retires this constraint.
 
 **Constraint:** `staleTime` is infinite and `retry` is off. The watcher reports an external write within about a second (`D16`), so staleness here is an event rather than a duration, and three retries with backoff would delay the missing-file failure that closes a deleted note's tab.
 
@@ -1049,3 +1049,19 @@ The `.titlebar-drag-region` and `.no-drag` rules in `styles.css` went with it. W
 **Constraint:** a tab among neighbours marks its wrapper `false`, so a press on its padding or its status dot moves neither the window nor the tab, and the label button stays the dnd handle (`D60`). A lone tab drops the mark and inherits the band, and its label button keeps the attribute of its own that a clickable element needs.
 
 **Constraint:** `deep` arrived in tauri 2.11.0, so `src-tauri/Cargo.toml` asks for `2.11` rather than `2`. A lower resolution would leave the band a bare region again with nothing failing.
+
+### D81 The main window mounts without a router
+
+TanStack Router is gone. Its one route was `/`, with no params, no `Link`, and no note path in the URL, which `D53` had already ruled out because the window has no URL bar. Its cache was off, its loaders returned nothing or fought it with a module-level once flag, and its one search param, `?tag=`, was palette state a tag chip wrote and closing erased. What remained was a Vite plugin, a generated tree, two specs building a memory router to render a component, and two exceptions in `AGENTS.md`.
+
+`src/layout.tsx` composes what the root route did: `QueryErrorResetBoundary`, `react-error-boundary` and `Suspense` around the main window, which suspends on the notes directory and the startup query together. The tag is `useState` in the layout. Saved tabs come back through `startupQuery` in `src/data/restore-session.ts`, a query with `staleTime: "static"` and an infinite `gcTime`.
+
+**Rejected: a custom class boundary.** React exposes `getDerivedStateFromError` to no hook, so a class was the no-dependency route. `react-error-boundary` owns reset and has the pairing TanStack Query documents, which a class would have reimplemented as a project convention.
+
+**Rejected: a module-level or app-owned startup promise.** A promise cleared in its own `catch` hands React a fresh attempt on the re-render its rejection triggers, and loops. Keeping it instead needs a once guard and a retry rule of its own, which `static` and an infinite `gcTime` already are.
+
+**Rejected: keeping the router for `?tag=`.** No URL bar, per `D53`.
+
+**Constraint:** the startup query function applies saved tabs to the tab store, the one query allowed to. A separate apply step would need its own once guard. Its two options are the reason it runs once per launch, and a spec isolates it with a fresh `QueryClient`.
+
+**Constraint:** a rejected startup query is refetched by the error screen's retry through `QueryErrorResetBoundary`. A fulfilled one is never refetched, so a render error recovered later cannot replay restoration.

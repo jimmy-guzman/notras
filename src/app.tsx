@@ -3,14 +3,13 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { CaptureWindow } from "@/components/capture-window";
 import { Toaster, toast } from "@/components/ui/toast";
+import { Layout } from "@/layout";
 import { reasonOf } from "@/lib/ui/failure";
 import { reportNoteWarnings } from "@/lib/ui/note-warnings";
-import { routeTree } from "@/routeTree.gen";
 import { events } from "@/server/adapters/bindings";
 
 /**
@@ -37,20 +36,6 @@ const queryClient = new QueryClient({
     },
   }),
 });
-
-const router = createRouter({
-  context: { queryClient },
-  defaultPreload: "intent",
-  // One cache owns staleness.
-  defaultPreloadStaleTime: 0,
-  routeTree,
-});
-
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
-}
 
 const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
   "window"
@@ -94,7 +79,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <Layout />
       <Toaster />
     </QueryClientProvider>
   );

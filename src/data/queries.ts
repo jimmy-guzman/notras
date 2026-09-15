@@ -84,5 +84,5 @@ export const noteQueries = {
 export const notesDirQuery = queryOptions({
   meta: { what: "could not refresh the notes folder" },
   queryFn: getNotesDir,
-  queryKey: ["notes-dir"] as const,
+  queryKey: ["notes-dir"],
 });

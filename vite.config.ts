@@ -1,7 +1,6 @@
 import path from "node:path";
 
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -11,16 +10,7 @@ export default defineConfig({
   },
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_ENV_"],
-  plugins: [
-    tanstackRouter({
-      autoCodeSplitting: true,
-      generatedRouteTree: "src/routeTree.gen.ts",
-      routesDirectory: "src/routes",
-      target: "react",
-    }),
-    react(),
-    tailwindcss(),
-  ],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
@@ -30,11 +20,7 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     warmup: {
-      clientFiles: [
-        "./src/main.tsx",
-        "./src/routes/__root.tsx",
-        "./src/routes/index.tsx",
-      ],
+      clientFiles: ["./src/main.tsx"],
     },
     watch: {
       ignored: ["**/coverage/**", "**/src-tauri/**"],

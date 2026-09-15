@@ -7,13 +7,13 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 
-interface RouteErrorProps {
+interface WorkspaceErrorProps {
   reason: string | undefined;
   retry: () => void;
 }
 
 /** The screen for a failure that stopped the workspace from rendering. */
-export function RouteError({ reason, retry }: RouteErrorProps) {
+export function WorkspaceError({ reason, retry }: WorkspaceErrorProps) {
   return (
     <div className="flex h-svh bg-background text-foreground">
       <Empty>

@@ -1,15 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen } from "@testing-library/react";
 import { expect, it, onTestFinished } from "vitest";
 import { indexStatusQuery } from "@/data/index-status";
+import { Layout } from "@/layout";
 import { closeTab, getTabState } from "@/lib/tabs/store";
-import { routeTree } from "@/routeTree.gen";
 
 it("should say indexing while the recent note waits on the first scan", async () => {
   localStorage.removeItem("tabs");
@@ -41,11 +36,6 @@ it("should say indexing while the recent note waits on the first scan", async ()
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
-  const router = createRouter({
-    context: { queryClient: client },
-    history: createMemoryHistory({ initialEntries: ["/"] }),
-    routeTree,
-  });
   onTestFinished(async () => {
     await act(() => {
       recent.resolve([]);
@@ -59,7 +49,7 @@ it("should say indexing while the recent note waits on the first scan", async ()
   });
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <Layout />
     </QueryClientProvider>
   );
 

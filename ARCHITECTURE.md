@@ -7,7 +7,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Layer           | Choice                                                                                                       |
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | Shell           | Tauri 2 (Rust): command dispatch, notify watcher, tray, global shortcuts                         |
-| Frontend        | Vite + React 19 + TanStack Router (file routes, no SSR); TanStack Query caches every read (`D66`)            |
+| Frontend        | Vite + React 19 (no SSR); TanStack Query caches every read (`D66`); `react-error-boundary` over the workspace (`D81`) |
 | Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
 | Note engine     | `notras-core`: files through `cap-std` directory handles, Markdown interpretation, `rusqlite` index and typed operations |
 | Native contract | Pinned Specta types and Tauri commands/events; Serde wire values and thiserror failures |
@@ -28,7 +28,7 @@ Notes are `.md` or `.markdown` files under the notes dir (default `~/notras`). F
 ```mermaid
 flowchart TD
     subgraph webview [Tauri webview]
-        UI[React + TanStack Router] --> Query[TanStack Query cache]
+        UI[React] --> Query[TanStack Query cache]
         UI --> Persistence[Session persistence controller]
         Persistence --> Mutations[Typed mutation client]
         Query --> Data[src/data async fns]
@@ -60,7 +60,7 @@ flowchart TD
 
 **Rust is the single writer of the index.** Rust publishes complete documents, allocates filenames without overwriting another note, and reconciles the index under the library lock. The editing session owns changes to the document. Committed bytes remain successful when index reconciliation fails. Commands emit affected paths after releasing the lock.
 
-**External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: the root route listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
+**External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: `layout.tsx` listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
 
 **The index is disposable.** `ensure_schema` creates the tables and FTS5 on startup, so deleting the cached `index.db` triggers a rebuild. There is no drizzle-kit, no migration directory, and no `db:push`. `PRAGMA user_version` carries `SCHEMA_VERSION`. Opening an older index recreates its tables and advances the version in one transaction. The startup scan then derives every row from the saved files, including unchanged notes.
 
@@ -98,28 +98,26 @@ note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet()
 
 ```txt
 src/
-  main.tsx            # Vite entry -> App (router, or capture window branch)
-  app-shell.tsx       # Router setup + ?window=capture branch
+  main.tsx            # Vite entry -> App (main window, or capture window branch)
+  app.tsx             # query client + ?window=capture branch
+  layout.tsx          # the main window: error boundary, palette, settings dialog,
+                      # hotkeys, notes-changed listener (D81)
   styles.css          # Tailwind 4 theme, fonts, editor + titlebar styling
   typeset.css         # shadcn/typeset, vendored verbatim (D40); do not edit
   styles.spec.ts      # contrast gate, task-list ladder, note surface,
                       # launch background
-  routes/             # TanStack Router file routes
-    __root.tsx        # loader reads the library directory, palette, settings dialog,
-                      # hotkeys, notes-changed listener
-    index.tsx         # THE page: the workspace -- tab strip, every open
-                      # tab's session, and the two bands (D53)
   components/
     editor/           # TipTap wrapper, extensions, suggestions, autosave, typewriter
     graph/            # the ring layout and the graph view a tab swaps to
     tabs/             # the title bar's tab strip
-    workspace/        # note-session: one open tab, note or external (D54)
+    workspace/        # workspace: the tab strip, every open tab's session, and the
+                      # two bands (D53); note-session: one open tab, note or external (D54)
     notes/            # note-controls (save/pin), note-tags, use-note-tags,
                       # note-mentions, save-indicator, status-bar
     command-palette.tsx
     settings-dialog.tsx
     capture-window.tsx
-    titlebar.tsx      # the drag region, declared once for every window/route
+    titlebar.tsx      # the drag region, declared once for every window
     ui/               # Shadcn components (generated, do not hand-edit)
   core/               # Isomorphic bottom layer (no platform imports)
     frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
@@ -130,6 +128,7 @@ src/
     graph.ts          # graph display types and hub labels
   data/               # Plain async fns the UI calls (ex-server-actions)
     queries.ts        # THE query keys and options, one factory (D66)
+    restore-session.ts # the startup query: saved tabs, once per launch (D81)
     native-command.ts # typed native failure normalization
   server/
     adapters/         # generated native IPC boundary
@@ -189,7 +188,7 @@ Nothing enforces these. Lint held them until `D41` retired the ESLint config, an
 
 - **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or `@/data`. It runs in the webview and in any other runtime, which is what makes it testable without a window.
 - **The `notras-core` crate is window-free.** Its `Library` privately owns the library directory, SQLite connection and index health. The shell calls operations and cannot manipulate index state. `notes.rs` supplies the blocking task and library lock. Library settings and rebuilds use the same typed command boundary through `src/data`. Native bindings live in `src/server/adapters/**`.
-- **UI code** (`src/components`, `src/routes`, `src/lib`) may use `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO and indexed reads go through `src/data`.
+- **UI code** (`src/components`, `src/layout.tsx`, `src/lib`) may use `@tauri-apps/*` for UI concerns: events, dialogs, window control. Note file IO and indexed reads go through `src/data`.
 
 ## Key patterns
 
@@ -213,10 +212,6 @@ Each native indexed query obtains a `ReadView` through `LibraryOwner`. It uses a
 
 The IPC tests use Tauri's test runtime with the production command registry, temporary directories and real SQLite. Index failures are injected through a separate database connection; the shell has no access to the engine connection. They send JSON requests through Tauri's argument decoder and check serialized receipts, failures and events. They do not exercise an OS webview, tray or clipboard. Mutation receipts carry the committed path, its content revision, timestamp and warnings, and every direct read carries the revision of the bytes it returned. Path receipts also carry committed content and any remaining source. Data functions convert timestamps to `Date`. Controller tests supply persistence functions; mounted session tests exercise the real editor, tab store and query cache over the IPC boundary.
 
-### Routes
-
-TanStack Router file routes, laid out the way `AGENTS.md` requires. Route option objects are left unsorted: `ultracite/biome/tanstack` turns the `useSortedKeys` assist off under `src/routes/**` because the option types infer in declaration order. Nothing checks the order itself.
-
 ### The session owns the document
 
 `note-document.ts` owns a Tiptap source editor whose single code block holds the complete Markdown document and ProseMirror history. The source view mounts onto that editor. Detaching it retains the document and history while removing view plugins, so rich edits do not run source highlighting. Rich mode projects the body and delegates edits, selections, undo, and redo to the same document. Mapping a rich selection to source offsets is optional: failed conversion omits the selection without suppressing a valid document edit. Restoring source offsets during a rich replacement is also optional: a mapping failure retains the transaction-mapped selection and still dispatches the replacement. Parsing the replacement itself remains fallible. Rename and metadata actions enter the same history. A filename history entry identifies the result of its action, including a native collision suffix; a new title-source edit creates a fresh naming request. Editor callbacks are fixed at mount and read current session values through stable functions.
@@ -225,7 +220,7 @@ Both editor handles expose a `FindHandle` backed by the shared Tiptap `Find` ext
 
 `createFindController` binds one active editor handle and releases its subscription and highlights on handoff. The workspace owns one controller, and capture owns another. Their query and open state remain in memory. Sessions bind handles; the window owns shortcuts and the floating `FindBar`. A hidden or destroyed editor cannot receive navigation.
 
-The root loader awaits only the library directory. The workspace loader restores saved tabs once. When there are none, `RecentNote` owns the optional latest-note query and its completion state. Its opening request applies only while the tab state still matches startup. Sessions observe the note list without suspending their document, history or persistence. Title suggestions and link hover resolution become available when the list arrives. A link activation without a loaded list awaits resolution and reports a failed read instead of claiming the destination is missing. Each activation supersedes the preceding one. Switching away from the originating tab or disposing its session cancels the pending action, so returning cannot revive it. Changes that leave the originating tab active do not cancel the action. Attached tag chips and typed tag choices use the live document while the counted vocabulary loads. `RecentNote` and palette search read `indexStatusQuery`, primed by `index_status` and updated by the `index-status` event, to label a wait on the first scan.
+The main window suspends on the library directory and the startup query together. The startup query, `src/data/restore-session.ts`, restores saved tabs once per launch: `staleTime: "static"` and an infinite `gcTime` keep a fulfilled result from ever refetching, and the error screen's retry refetches a rejected one (`D81`). When there are none, `RecentNote` owns the optional latest-note query and its completion state. Its opening request applies only while the tab state still matches startup. Sessions observe the note list without suspending their document, history or persistence. Title suggestions and link hover resolution become available when the list arrives. A link activation without a loaded list awaits resolution and reports a failed read instead of claiming the destination is missing. Each activation supersedes the preceding one. Switching away from the originating tab or disposing its session cancels the pending action, so returning cannot revive it. Changes that leave the originating tab active do not cancel the action. Attached tag chips and typed tag choices use the live document while the counted vocabulary loads. `RecentNote` and palette search read `indexStatusQuery`, primed by `index_status` and updated by the `index-status` event, to label a wait on the first scan.
 
 ### Rich and source editing
 
@@ -261,7 +256,7 @@ Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and
 
 The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. Biome excludes the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
 
-A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. Filesystem, SQLite, decoding, settings and task errors retain their underlying causes through Rust's `Error::source()`. Only `kind` and `message` cross IPC. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. Indexed mutations attempt reconciliation before returning a committed receipt. Reconciliation failures mark the index dirty and add warnings. Native index reads wait for coordinated recovery of a dirty index and fail if recovery is incomplete; direct file reads remain available. Main-window mutation warnings and the toaster live outside the workspace route, so a failed indexed query cannot hide them. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
+A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. Filesystem, SQLite, decoding, settings and task errors retain their underlying causes through Rust's `Error::source()`. Only `kind` and `message` cross IPC. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. Indexed mutations attempt reconciliation before returning a committed receipt. Reconciliation failures mark the index dirty and add warnings. Native index reads wait for coordinated recovery of a dirty index and fail if recovery is incomplete; direct file reads remain available. Main-window mutation warnings and the toaster live outside the workspace's error boundary, so a failed indexed query cannot hide them. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
 
 ### Native scan coordination
 
@@ -281,7 +276,7 @@ Palette search separates the input query, its debounced read, and the last displ
 
 Every action row carries a `needs` scope of `none`, `note`, `tab` or `editor`, and the filter offers it only where the workspace answers it. The `editor` scope checks for an attached editor handle, including a note behind graph view. That is what keeps pin and rename off an external file while copy path stays on it, and it is the one place the palette decides what it can act on. Focus mode takes `none`, since the pref it sets belongs to the app rather than to what is open; markdown source takes `tab`, since it is one tab's view state and the row reads it off that tab's snapshot.
 
-One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `__root.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode, tag, and opening session so switching or reopening re-seeds it. Closing retains the mounted view for its exit animation. The palette reads chords through `useChordsByName` and registers none itself.
+One component serves two doors. `find` and `actions` are the two root members of `PaletteView`, and the mode is explicit state seeded from the `mode` prop rather than parsed out of the query, so `#` stays a find-mode grammar and nothing crosses between the two by typing. `layout.tsx` owns which door opened, registers ⌘P and ⌘⇧P, and keys the component on the mode, tag, and opening session so switching or reopening re-seeds it. Closing retains the mounted view for its exit animation. The palette reads chords through `useChordsByName` and registers none itself.
 
 `src/lib/ui/shortcuts.ts` owns React registration through local `useHotkey` and `useHotkeys` hooks. They use TanStack's public keyboard manager for parsing, dispatch, platform conventions, and the live registry. Registration, callback changes, option updates, and cleanup run in layout effects, so an uncommitted render cannot change a live binding. The supported options are enabled state and the action name. Equal option values cause no registry publication, which lets a component read its own bindings without a render loop. Changing those options preserves the registration; removing or replacing a binding unregisters it.
 

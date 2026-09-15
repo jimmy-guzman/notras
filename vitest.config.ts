@@ -11,7 +11,6 @@ export default defineConfig({
       exclude: [
         ...(configDefaults.coverage.exclude ?? []),
         "{vite,vitest,knip}.config.*",
-        "src/routeTree.gen.ts",
       ],
     },
     environment: "happy-dom",
