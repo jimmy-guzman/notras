@@ -1,18 +1,21 @@
 import type { Picture } from "@/core/graph";
 import { nativeCommand } from "@/data/native-command";
 import { mentionResult, noteResult } from "@/data/note-results";
-import {
-  commands,
-  type GraphTarget,
-  type Picture as NativePicture,
+import { commands } from "@/server/adapters/bindings";
+import type {
+  GraphTarget,
+  Picture as NativePicture,
 } from "@/server/adapters/bindings";
 
 function pictureResult(picture: NativePicture): Picture {
   if (picture.kind === "hub") {
     const hubs = picture.members.filter((member) => member.kind === "hub");
     const notes = picture.members
-      .filter((member) => member.kind === "note")
-      .map((member) => ({ ...member, note: noteResult(member.note) }))
+      .flatMap((member) =>
+        member.kind === "note"
+          ? [{ ...member, note: noteResult(member.note) }]
+          : []
+      )
       .toSorted((left, right) => left.note.path.localeCompare(right.note.path));
     return { ...picture, members: [...hubs, ...notes] };
   }

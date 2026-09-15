@@ -36,15 +36,15 @@ export interface ParsedNote {
 
 const CLOSING_DELIMITERS = new Set(["---", "..."]);
 
-const TRAILING_CR = /\r$/;
+const TRAILING_CR = /\r$/u;
 
 function cleanTag(raw: string) {
   const tag = raw
     .trim()
-    .replaceAll(/^["']+|["']+$/g, "")
+    .replaceAll(/^["']+|["']+$/gu, "")
     // Separators are dropped, never kept: a tag carrying one would serialize
     // into `tags: [a, b]` and re-parse as two tags.
-    .replaceAll(/[,[\]]/g, "")
+    .replaceAll(/[,[\]]/gu, "")
     .trim()
     .toLowerCase();
 
@@ -70,9 +70,9 @@ function cleanTitle(raw: string) {
   return title.length > 0 ? title : undefined;
 }
 
-const LEADING_BRACKETS = /^\[+/;
+const LEADING_BRACKETS = /^\[+/u;
 
-const TRAILING_BRACKETS = /\]+$/;
+const TRAILING_BRACKETS = /\]+$/u;
 
 function parseInlineTags(value: string) {
   return value
@@ -269,9 +269,9 @@ export function updateFrontmatter(
   const next = {
     pinned: patch.pinned ?? parsed.frontmatter.pinned,
     tags:
-      typeof patch.tags === "function"
-        ? patch.tags(parsed.frontmatter.tags)
-        : (patch.tags ?? parsed.frontmatter.tags),
+      Array.isArray(patch.tags) || patch.tags === undefined
+        ? (patch.tags ?? parsed.frontmatter.tags)
+        : patch.tags(parsed.frontmatter.tags),
   };
 
   const foreignLines = withoutOwnKeys(parsed.raw?.lines ?? []);

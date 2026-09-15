@@ -1,5 +1,7 @@
 import { decodeHTML } from "entities";
-import { Marked, type Token } from "marked";
+import { Marked } from "marked";
+import type { Token } from "marked";
+
 import { parseNote } from "@/core/frontmatter";
 
 export interface NoteMeta {
@@ -27,7 +29,7 @@ const TRAILING_SURROGATE = /\p{Surrogate}$/u;
 
 const NOTE_NAME_MAX_LENGTH = 120;
 
-const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
+const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/iu;
 
 export function noteTitle(path: string) {
   const name = path.replaceAll("\\", "/").split("/").at(-1) ?? path;
@@ -40,9 +42,9 @@ export function noteTitle(path: string) {
  * space, a tab, or end of line. `##` never matches, and a tab indent makes the
  * line a code block rather than a heading.
  */
-export const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/;
+export const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/u;
 
-const LINE_BREAK = /[\n\r]/;
+const LINE_BREAK = /[\n\r]/u;
 
 /**
  * Rewrite the body's leading `#` heading to `title`, or return `body`
@@ -81,15 +83,15 @@ export function retitleLeadingHeading(body: string, title: string) {
  * them collapses to one hyphen. The result always satisfies
  * the native filename validation: no separators, no leading dot, never blank.
  */
-const LEADING_DOTS_OR_HYPHENS = /^[.-]+/;
+const LEADING_DOTS_OR_HYPHENS = /^[.-]+/u;
 
-const TRAILING_DOTS_OR_HYPHENS = /[.-]+$/;
+const TRAILING_DOTS_OR_HYPHENS = /[.-]+$/u;
 
 export function filenameFromTitle(title: string) {
   const slug = title
     .toLowerCase()
     .replaceAll(/[\s"*/:<>?\\|\p{Cc}]+/gu, "-")
-    .replaceAll(/-{2,}/g, "-")
+    .replaceAll(/-{2,}/gu, "-")
     .slice(0, NOTE_NAME_MAX_LENGTH)
     .replace(TRAILING_SURROGATE, "")
     .replace(LEADING_DOTS_OR_HYPHENS, "")
@@ -98,9 +100,9 @@ export function filenameFromTitle(title: string) {
   return slug === "" ? "untitled" : slug;
 }
 
-const WIKILINK_TITLE = /^\[\[([^\n[\]]+)\]\]/;
-const TITLE_SPACE = /\s+/g;
-const FRONTMATTER_TITLE = /^title\s*:/;
+const WIKILINK_TITLE = /^\[\[(?<title>[^\n[\]]+)\]\]/u;
+const TITLE_SPACE = /\s+/gu;
+const FRONTMATTER_TITLE = /^title\s*:/u;
 
 const titleMarkdown = new Marked({
   extensions: [
@@ -112,7 +114,7 @@ const titleMarkdown = new Marked({
         const match = WIKILINK_TITLE.exec(source);
         return match === null
           ? undefined
-          : { raw: match[0], text: match[1], type: "codespan" };
+          : { raw: match[0], text: match.groups?.title, type: "codespan" };
       },
     },
   ],
@@ -128,17 +130,21 @@ function inlineTitle(tokens: Token[]): string {
     .map((token) => {
       switch (token.type) {
         case "image":
-        case "html":
+        case "html": {
           return "\n".repeat(lineBreaks(token.raw));
-        case "br":
+        }
+        case "br": {
           return "\n";
-        case "codespan":
+        }
+        case "codespan": {
           return token.text;
-        default:
+        }
+        default: {
           if ("tokens" in token && token.tokens !== undefined) {
             return inlineTitle(token.tokens);
           }
           return "text" in token ? decodeHTML(token.text) : "";
+        }
       }
     })
     .join("");

@@ -379,8 +379,7 @@ body.dragging .ProseMirror::selection {
   inset: 0;
   content: "";
   background: var(--primary-foreground);
-  mask:
-    url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
+  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
     center / 70% no-repeat;
 }
 .ProseMirror ul[data-type="taskList"] > li > div {

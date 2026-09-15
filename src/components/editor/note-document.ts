@@ -6,14 +6,22 @@ import {
   redo,
   undo,
 } from "@tiptap/pm/history";
-import { Plugin, TextSelection, type Transaction } from "@tiptap/pm/state";
+import type { Attrs } from "@tiptap/pm/model";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
+import type { Transaction } from "@tiptap/pm/state";
+
 import { titleSource } from "@/core/notes";
 import { styleNonce } from "@/lib/style-nonce";
+
 import { renameDocument } from "./retitle-buffer";
 import {
   createSourceExtensions,
   touchesSourceTitle,
 } from "./source-extensions";
+
+function hasNameId(attrs: Attrs): attrs is Attrs & { name: number } {
+  return typeof attrs.name === "number";
+}
 
 export interface DocumentEdit {
   selection?: { anchor: number; head: number };
@@ -116,11 +124,11 @@ export function createNoteDocument(
 
   const content = () => editor.state.doc.textContent;
   const nameId = () => {
-    const value: unknown = editor.state.doc.attrs.name;
-    if (typeof value !== "number") {
-      throw new Error("the document has no filename history");
+    const { attrs } = editor.state.doc;
+    if (!hasNameId(attrs)) {
+      throw new TypeError("the document has no filename history");
     }
-    return value;
+    return attrs.name;
   };
   const dispatch = (transaction: Transaction) => {
     applying = true;

@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { PinIcon, PinOffIcon } from "lucide-react";
 import { useCallback } from "react";
+
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import { SaveIndicator } from "@/components/notes/save-indicator";
 import { toast } from "@/components/ui/toast";
@@ -38,7 +39,7 @@ function PinToggle({ path, pinned }: PinToggleProps) {
         render={
           <Toggle
             aria-label={pinned ? "unpin note" : "pin note"}
-            className="aria-pressed:bg-transparent aria-pressed:text-foreground"
+            className="aria-pressed:text-foreground aria-pressed:bg-transparent"
             onPressedChange={togglePinned}
             pressed={pinned}
             size="icon-xs"

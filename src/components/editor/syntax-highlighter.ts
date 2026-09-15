@@ -26,8 +26,10 @@ async function initializeHighlighter() {
 export const codeLanguages = bundledLanguagesInfo.map(({ id }) => id);
 
 /** Resolve an explicit fence label without changing what is saved to the file. */
-export function syntaxLanguage(language: unknown): string | undefined {
-  if (typeof language !== "string") {
+export function syntaxLanguage(
+  language: string | null | undefined
+): string | undefined {
+  if (language === null || language === undefined) {
     return undefined;
   }
 

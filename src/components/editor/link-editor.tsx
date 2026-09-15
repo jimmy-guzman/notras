@@ -70,8 +70,7 @@ export function LinkEditor({
 
   return (
     // Keys are handled on the container so Escape works from the buttons too.
-    // biome-ignore lint/a11y/noStaticElementInteractions: popover-level key handling; focus always sits on a real control inside
-    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: popover-level key handling; focus always sits on a real control inside
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- popover-level key handling; focus always sits on a real control inside
     <div
       className="link-editor"
       onKeyDown={(event) => {

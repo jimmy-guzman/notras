@@ -15,7 +15,7 @@ interface WorkspaceErrorProps {
 /** The screen for a failure that stopped the workspace from rendering. */
 export function WorkspaceError({ reason, retry }: WorkspaceErrorProps) {
   return (
-    <div className="flex h-svh bg-background text-foreground">
+    <div className="bg-background text-foreground flex h-svh">
       <Empty>
         <EmptyHeader>
           <EmptyTitle>could not load the workspace</EmptyTitle>

@@ -1,25 +1,27 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createNotePersistence } from "@/components/editor/note-persistence";
+
 import { useAutosave } from "./use-autosave";
 
 const AUTOSAVE_DELAY_MS = 800;
 
+interface AutosaveProps {
+  duringCommit?: () => void;
+  enabled: boolean;
+}
+
 function mountAutosave(
   write: (path: string, content: string) => Promise<Date>
 ) {
-  const initialProps: { enabled: boolean; duringCommit?: () => void } = {
+  const initialProps: AutosaveProps = {
     enabled: true,
   };
   const { result, rerender } = renderHook(
-    ({
-      enabled,
-      duringCommit,
-    }: {
-      enabled: boolean;
-      duringCommit?: () => void;
-    }) => {
+    ({ enabled, duringCommit }: AutosaveProps) => {
+      // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
       const [persistence] = useState(() =>
         createNotePersistence(
           {
@@ -32,7 +34,7 @@ function mountAutosave(
             changePath: () =>
               Promise.reject(new Error("no path action requested")),
             clearStash: () => Promise.resolve(),
-            onPathChanged: () => undefined,
+            onPathChanged: () => {},
             stash: () => Promise.resolve(),
             write: async (path, content) => ({
               kind: "committed",
@@ -97,7 +99,14 @@ function mountAutosave(
   };
 }
 
-describe("useAutosave", () => {
+/** Run every chain link that can run, without landing a write. */
+async function advance() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+describe(useAutosave, () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -150,7 +159,7 @@ describe("useAutosave", () => {
 
     // A false here cancels the quit, which would leave the app unquittable
     // while the tab is open, so the buffer is abandoned rather than blocking.
-    await expect(harness.flush()).resolves.toBe(true);
+    await expect(harness.flush()).resolves.toBeTruthy();
     expect(written).toStrictEqual([]);
   });
 
@@ -193,23 +202,16 @@ describe("useAutosave", () => {
 
   it("should land overlapping writes in the order they were flushed", async () => {
     const written: string[] = [];
-    const landWrite: Array<() => void> = [];
+    const landWrite: (() => void)[] = [];
     const harness = mountAutosave((_path, content) => {
       written.push(content);
 
-      return new Promise<Date>((resolve) => {
-        landWrite.push(() => {
-          resolve(new Date(1));
-        });
+      const { promise, resolve } = Promise.withResolvers<Date>();
+      landWrite.push(() => {
+        resolve(new Date(1));
       });
+      return promise;
     });
-
-    /** Run every chain link that can run, without landing a write. */
-    const advance = async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
-    };
 
     /** Let the write the fake is holding at `index` resolve. */
     const land = async (index: number) => {
@@ -245,8 +247,8 @@ describe("useAutosave", () => {
 
     await land(1);
 
-    await expect(firstFlush).resolves.toBe(true);
-    await expect(secondFlush).resolves.toBe(true);
+    await expect(firstFlush).resolves.toBeTruthy();
+    await expect(secondFlush).resolves.toBeTruthy();
     expect(harness.status).toBe("saved");
   });
 
@@ -272,7 +274,7 @@ describe("useAutosave", () => {
     expect(harness.status).toBe("failed");
 
     // The failed write handed its content back, and the chain still runs.
-    await expect(harness.flush()).resolves.toBe(true);
+    await expect(harness.flush()).resolves.toBeTruthy();
     expect(written).toStrictEqual(["hello", "hello"]);
     expect(harness.status).toBe("saved");
   });
@@ -295,7 +297,7 @@ describe("useAutosave", () => {
     expect(harness.status).toBe("failed");
     expect(harness.reason).toBe("the disk is full");
 
-    await expect(harness.flush()).resolves.toBe(true);
+    await expect(harness.flush()).resolves.toBeTruthy();
     expect(harness.reason).toBeUndefined();
   });
 
@@ -307,7 +309,7 @@ describe("useAutosave", () => {
     harness.type("hello");
 
     // This false is what cancels a quit, unlike the one a gone file reports.
-    await expect(harness.flush()).resolves.toBe(false);
+    await expect(harness.flush()).resolves.toBeFalsy();
     expect(harness.status).toBe("failed");
   });
 });

@@ -17,26 +17,32 @@ export interface NoteSearch {
   query: string;
 }
 
-const FILTER_START = /^(folder:|from:|link:|mention:|to:|#)/;
+const FILTER_START = /^(?:folder:|from:|link:|mention:|to:|#)/u;
 
 function filterKind(prefix: string): SearchFilter["kind"] {
   switch (prefix) {
-    case "folder:":
+    case "folder:": {
       return "folder";
-    case "from:":
+    }
+    case "from:": {
       return "from";
-    case "link:":
+    }
+    case "link:": {
       return "link";
-    case "mention:":
+    }
+    case "mention:": {
       return "mention";
-    case "to:":
+    }
+    case "to:": {
       return "to";
-    default:
+    }
+    default: {
       return "tag";
+    }
   }
 }
-const WHITESPACE = /\s/;
-const NEEDS_QUOTES = /[\s"\\]/;
+const WHITESPACE = /\s/u;
+const NEEDS_QUOTES = /[\s"\\]/u;
 
 function readValue(input: string, start: number) {
   const quoted = input[start] === '"';

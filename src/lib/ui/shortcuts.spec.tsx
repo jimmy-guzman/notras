@@ -1,17 +1,17 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  createElement,
-  Fragment,
-  type PropsWithChildren,
-  Suspense,
-  startTransition,
-} from "react";
+import { createElement, Fragment, Suspense, startTransition } from "react";
+import type { PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
-import { chordGlyph, useChordsByName } from "./shortcuts";
 
-const NOOP = () => undefined;
+import {
+  chordGlyph,
+  useChordsByName,
+  useHotkey,
+  useHotkeys,
+} from "@/lib/ui/shortcuts";
+
+const NOOP = () => {};
 
 function RegisteredBindings({ children }: PropsWithChildren) {
   useHotkeys(
@@ -62,6 +62,7 @@ describe("chord glyph", () => {
     // happy-dom does not report macOS, so this exercises the word-label branch.
     expect(chordGlyph("Mod+Shift+K")).toBe("ctrl+shift+k");
   });
+
   it("should print a single key with no separator", () => {
     expect(chordGlyph("Escape")).toBe("esc");
   });
@@ -76,6 +77,7 @@ describe("chords by name", () => {
       result.current.get("new note")?.map(({ hotkey }) => hotkey)
     ).toStrictEqual(["Mod+N", "Mod+T"]);
   });
+
   it("should leave a name nothing registered absent", () => {
     const { result } = renderHook(() => useChordsByName(), {
       wrapper: RegisteredBindings,
@@ -114,10 +116,10 @@ describe("shortcut registration lifecycle", () => {
     );
     expect(screen.getByRole("status")).not.toHaveTextContent("first");
     await user.keyboard("{Control>}so{/Control}");
-    expect(calls).toEqual(["first", "first"]);
+    expect(calls).toStrictEqual(["first", "first"]);
     rerender(bindings("third", true));
     await user.keyboard("{Control>}so{/Control}");
-    expect(calls).toEqual(["first", "first", "third", "third"]);
+    expect(calls).toStrictEqual(["first", "first", "third", "third"]);
     expect(warnings).not.toHaveBeenCalled();
     rerender(createElement(ChordReader));
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -127,7 +129,7 @@ describe("shortcut registration lifecycle", () => {
 
   it("should keep the committed callbacks and options while a replacement render is suspended", async () => {
     const user = userEvent.setup();
-    const pending = Promise.withResolvers<void>();
+    const pending = Promise.withResolvers<undefined>();
     const calls: string[] = [];
     function SuspendingBindings({ suspend }: { suspend: boolean }) {
       const name = suspend ? "pending" : "committed";
@@ -164,7 +166,7 @@ describe("shortcut registration lifecycle", () => {
     });
     expect(container.textContent).toBe("committed");
     await user.keyboard("{Control>}so{/Control}");
-    expect(calls).toEqual(["committed", "committed"]);
+    expect(calls).toStrictEqual(["committed", "committed"]);
   });
 });
 
@@ -182,7 +184,7 @@ describe("shortcut ownership", () => {
     rerender(createElement(Owner, { name: "save capture" }));
     expect(screen.getByRole("status").textContent).toBe("save capture");
     await user.keyboard("{Control>}s{/Control}");
-    expect(calls).toEqual(["save capture"]);
+    expect(calls).toStrictEqual(["save capture"]);
   });
 
   it("should remove replaced list bindings and dispatch each current binding once", async () => {
@@ -212,6 +214,6 @@ describe("shortcut ownership", () => {
       "switch tab: Mod+2, Mod+3"
     );
     await user.keyboard("{Control>}123{/Control}");
-    expect(calls).toEqual(["first", "second", "new second", "third"]);
+    expect(calls).toStrictEqual(["first", "second", "new second", "third"]);
   });
 });

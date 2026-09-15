@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockConvertFileSrc, mockIPC } from "@tauri-apps/api/mocks";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -11,13 +12,11 @@ import {
   expect,
   it,
   onTestFinished,
-  vi,
 } from "vitest";
+
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Toaster } from "@/components/ui/toast";
-import { FileError } from "@/core/errors";
 import type { ConflictStash } from "@/data/conflict-stash";
-import { getNote } from "@/data/get-note";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import {
@@ -32,12 +31,18 @@ import { tabPanelId } from "@/lib/tabs/tab";
 
 import { NoteSession } from "./note-session";
 
-vi.mock("@/data/get-note", () => ({ getNote: vi.fn() }));
+function savesContent(
+  args: InvokeArgs | undefined
+): args is { content: string } {
+  return (
+    args !== undefined && "content" in args && typeof args.content === "string"
+  );
+}
 
-const NOOP = () => undefined;
+const NOOP = () => {};
 
 const tab = { id: "t1", kind: "note", path: "a.md" } as const;
-const UNFOLDED_CONTEXT = /# Errands\s+one\s+two/;
+const UNFOLDED_CONTEXT = /# Errands\s+one\s+two/u;
 
 function mountSession(content?: string) {
   const client = new QueryClient({
@@ -72,22 +77,24 @@ function mountSession(content?: string) {
   return client;
 }
 
-async function settle() {
-  await waitFor(() => expect(panel()).toBeInTheDocument());
+function panel() {
+  return document.querySelector(`[id="${tabPanelId(tab.id)}"]`);
 }
 
-function panel() {
-  return document.getElementById(tabPanelId(tab.id));
+async function settle() {
+  await waitFor(() => expect(panel()).toBeInTheDocument());
 }
 
 async function editor(id: string = tab.id) {
   await waitFor(() =>
     expect(
-      document.getElementById(tabPanelId(id))?.querySelector(".ProseMirror")
+      document
+        .querySelector(`[id="${tabPanelId(id)}"]`)
+        ?.querySelector(".ProseMirror")
     ).toBeInTheDocument()
   );
   const surface = document
-    .getElementById(tabPanelId(id))
+    .querySelector(`[id="${tabPanelId(id)}"]`)
     ?.querySelector(".ProseMirror");
   if (
     surface === undefined ||
@@ -123,15 +130,22 @@ function sessionHandles(id: string = tab.id) {
   return handles;
 }
 
-describe("NoteSession", () => {
+function review() {
+  return screen.queryByRole("region", { name: "review overlapping edits" });
+}
+
+describe(NoteSession, () => {
+  let reads = 0;
   beforeEach(() => {
-    vi.mocked(getNote).mockReset();
-    vi.mocked(getNote).mockRejectedValue(
-      new FileError({
-        kind: "failed",
-        message: "permission denied",
-      })
-    );
+    reads = 0;
+    mockIPC((command) => {
+      if (command === "read_note") {
+        reads += 1;
+        // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
+        return Promise.reject({ kind: "failed", message: "permission denied" });
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
   });
 
   afterEach(() => {
@@ -194,7 +208,7 @@ describe("NoteSession", () => {
     await act(() => {
       listed.resolve([]);
     });
-    expect(await editor()).toBe(liveEditor);
+    await expect(editor()).resolves.toBe(liveEditor);
     await act(() => {
       liveEditor.commands.undo();
     });
@@ -245,7 +259,7 @@ describe("NoteSession", () => {
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
     await waitFor(() =>
-      expect(opened).toEqual([
+      expect(opened).toStrictEqual([
         { destination: "../docs/my%20spec.pdf", from: "projects/a.md" },
       ])
     );
@@ -255,6 +269,7 @@ describe("NoteSession", () => {
   it("should report a file link the library refused with its reason", async () => {
     mockIPC((command) => {
       if (command === "open_linked_file") {
+        // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
         return Promise.reject({ kind: "not-found", message: "no such file" });
       }
       throw new Error(`unexpected command: ${command}`);
@@ -287,7 +302,9 @@ describe("NoteSession", () => {
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    expect(await screen.findByText("could not open file")).toBeInTheDocument();
+    await expect(
+      screen.findByText("could not open file")
+    ).resolves.toBeInTheDocument();
     expect(screen.getByText("no such file")).toBeInTheDocument();
   });
 
@@ -329,18 +346,18 @@ describe("NoteSession", () => {
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
     await waitFor(() =>
-      expect(opened).toEqual([{ destination: "./spec.pdf", document: path }])
+      expect(opened).toStrictEqual([
+        { destination: "./spec.pdf", document: path },
+      ])
     );
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
   it("should open a markdown link from an external tab as the tab it already is", async () => {
+    const resolved: unknown[] = [];
     mockIPC((command, args) => {
       if (command === "resolve_external_link") {
-        expect(args).toEqual({
-          destination: "../other.md",
-          document: "/Users/me/docs/note.md",
-        });
+        resolved.push(args);
         return { kind: "external", path: "/Users/me/other.md" };
       }
       throw new Error(`unexpected command: ${command}`);
@@ -379,6 +396,9 @@ describe("NoteSession", () => {
       ).toContainEqual(["external", "/Users/me/other.md"])
     );
     expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
+    expect(resolved).toStrictEqual([
+      { destination: "../other.md", document: "/Users/me/docs/note.md" },
+    ]);
   });
 
   it("should refuse a pasted image in an external tab", async () => {
@@ -420,13 +440,13 @@ describe("NoteSession", () => {
         new ClipboardEvent("paste", { bubbles: true, clipboardData })
       );
     });
-    expect(
-      await screen.findByText("could not paste image")
-    ).toBeInTheDocument();
+    await expect(
+      screen.findByText("could not paste image")
+    ).resolves.toBeInTheDocument();
     expect(
       screen.getByText("attachments live in the notes folder")
     ).toBeInTheDocument();
-    expect(commands).toEqual([]);
+    expect(commands).toStrictEqual([]);
     expect(liveEditor.state.doc.textContent).toBe("Exttext");
   });
 
@@ -464,10 +484,11 @@ describe("NoteSession", () => {
     );
     await editor("t5");
     const sources = [
-      ...(document.getElementById(tabPanelId("t5"))?.querySelectorAll("img") ??
-        []),
+      ...(document
+        .querySelector(`[id="${tabPanelId("t5")}"]`)
+        ?.querySelectorAll("img") ?? []),
     ].map((image) => image.getAttribute("src"));
-    expect(sources).toEqual([
+    expect(sources).toStrictEqual([
       "asset://localhost/%2Fnotes%2Fprojects%2Fmy%20shot.png",
       "",
       "",
@@ -503,7 +524,7 @@ describe("NoteSession", () => {
     );
     const liveEditor = await editor("t6");
     const image = document
-      .getElementById(tabPanelId("t6"))
+      .querySelector(`[id="${tabPanelId("t6")}"]`)
       ?.querySelector("img");
     expect(image?.getAttribute("src")).toBe(
       "external-image://localhost/?doc=%2FUsers%2Fme%2Fdocs%2Fnote.md&src=..%2Fmy+shot.png"
@@ -515,7 +536,7 @@ describe("NoteSession", () => {
       }
       return true;
     });
-    expect(sources).toEqual(["../my%20shot.png"]);
+    expect(sources).toStrictEqual(["../my%20shot.png"]);
   });
 
   it("should report a failed pending link lookup without treating the destination as missing", async () => {
@@ -563,10 +584,12 @@ describe("NoteSession", () => {
     await act(() => {
       listed.reject({ kind: "failed", message: "index unavailable" });
     });
-    expect(await screen.findByText("could not open note")).toBeInTheDocument();
+    await expect(
+      screen.findByText("could not open note")
+    ).resolves.toBeInTheDocument();
     expect(screen.getByText("index unavailable")).toBeInTheDocument();
     expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
-    expect(await editor()).toBe(liveEditor);
+    await expect(editor()).resolves.toBe(liveEditor);
   });
 
   it.each([
@@ -660,7 +683,7 @@ describe("NoteSession", () => {
           ]);
         }
       });
-      expect(getTabState().tabs.map((entry) => entry.path)).toEqual(
+      expect(getTabState().tabs.map((entry) => entry.path)).toStrictEqual(
         change === "switching tabs" ? ["chosen.md"] : []
       );
       expect(screen.queryByText("lookup unavailable")).not.toBeInTheDocument();
@@ -763,11 +786,11 @@ describe("NoteSession", () => {
         getTabState().tabs.find((entry) => entry.id === getTabState().activeId)
           ?.path
       ).toBe(completion === "resolve" ? "target.md" : "a.md");
-      if (completion === "reject") {
-        expect(
-          await screen.findByText("lookup unavailable")
-        ).toBeInTheDocument();
-      }
+      await waitFor(() =>
+        expect(screen.queryByText("lookup unavailable") !== null).toBe(
+          completion === "reject"
+        )
+      );
     }
   );
 
@@ -836,7 +859,7 @@ describe("NoteSession", () => {
         },
       ]);
     });
-    expect(getTabState().tabs.map((entry) => entry.path)).toEqual([
+    expect(getTabState().tabs.map((entry) => entry.path)).toStrictEqual([
       "second.md",
     ]);
   });
@@ -906,7 +929,7 @@ describe("NoteSession", () => {
         });
         await renaming;
       });
-      expect(await editor()).toBe(surface);
+      await expect(editor()).resolves.toBe(surface);
       expect(surface.state.selection.from).toBe(selection);
       expect(surface.state.doc.textContent).toContain("plus typing");
       act(() => {
@@ -922,9 +945,9 @@ describe("NoteSession", () => {
       expect(other.state.doc.textContent).toContain("Errands");
       expect(other.state.doc.textContent).not.toContain("Weekend");
       await act(async () => {
-        expect(await flushPendingWrites()).toBe(true);
+        await expect(flushPendingWrites()).resolves.toBeTruthy();
       });
-      expect(writes.at(-1)).toEqual({
+      expect(writes.at(-1)).toStrictEqual({
         content: "# Errands\n\nbody",
         expected: "r2",
         name: { kind: "filename", value: "a.md" },
@@ -1138,9 +1161,9 @@ describe("NoteSession", () => {
       rich.commands.insertContent(" plus typing");
     });
     await act(async () => {
-      expect(await flushPendingWrites()).toBe(true);
+      await expect(flushPendingWrites()).resolves.toBeTruthy();
     });
-    expect(writes).toEqual([
+    expect(writes).toStrictEqual([
       {
         content: "---\ntags: [edited]\n---\nbody plus typing",
         expected: "r0",
@@ -1152,9 +1175,9 @@ describe("NoteSession", () => {
       rich.commands.insertContent(" again");
     });
     await act(async () => {
-      expect(await flushPendingWrites()).toBe(true);
+      await expect(flushPendingWrites()).resolves.toBeTruthy();
     });
-    expect(writes.at(-1)).toEqual({
+    expect(writes.at(-1)).toStrictEqual({
       content: "---\ntags: [edited]\n---\nbody plus typing again",
       expected: "r2",
       name: { kind: "content" },
@@ -1220,9 +1243,9 @@ describe("NoteSession", () => {
         kind: "committed",
         receipt: { path: tab.path, revision: "r2", updatedAt: 2, warnings: [] },
       });
-      expect(await flushing).toBe(true);
+      await expect(flushing).resolves.toBeTruthy();
     });
-    expect(writes).toEqual([
+    expect(writes).toStrictEqual([
       {
         content: "---\ntags: [first]\n---\nbody",
         expected: "r0",
@@ -1256,7 +1279,7 @@ describe("NoteSession", () => {
     await user.click(screen.getByRole("button", { name: "try again" }));
     await settle();
 
-    await waitFor(() => expect(getNote).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(reads).toBe(2));
     expect(panel()?.textContent).toContain("could not read this note");
   });
 
@@ -1264,11 +1287,7 @@ describe("NoteSession", () => {
     const writes: string[] = [];
     mockIPC((command, args) => {
       if (command === "save_note") {
-        if (
-          args === undefined ||
-          !("content" in args) ||
-          typeof args.content !== "string"
-        ) {
+        if (!savesContent(args)) {
           throw new Error("save content missing");
         }
         writes.push(args.content);
@@ -1349,7 +1368,7 @@ describe("NoteSession", () => {
   async function mountConflict(
     content: string,
     onDisk: string,
-    ipc: (command: string, args: unknown) => unknown = () => null
+    ipc: Parameters<typeof mockIPC>[0] = () => null
   ) {
     mockIPC((command, args) => {
       if (
@@ -1379,10 +1398,6 @@ describe("NoteSession", () => {
       expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
     );
     return { client, liveEditor };
-  }
-
-  function review() {
-    return screen.queryByRole("region", { name: "review overlapping edits" });
   }
 
   it("should open the review from the banner, hide the note, and come back on escape", async () => {
@@ -1553,11 +1568,11 @@ describe("NoteSession", () => {
     await act(async () => {
       await flushPendingWrites();
     });
-    expect(writes).toEqual([
+    expect(writes).toStrictEqual([
       expect.objectContaining({ content: "# Errands\n\nbody, both" }),
     ]);
     expect(calls.filter((call) => call === "clear_conflict")).toHaveLength(1);
-    expect(liveEditor.isFocused).toBe(true);
+    expect(liveEditor.isFocused).toBeTruthy();
     client.clear();
   });
 
@@ -1611,7 +1626,7 @@ describe("NoteSession", () => {
   it("should not open a note until its stored review is known", async () => {
     mockIPC((command) => {
       if (command === "read_conflict") {
-        return new Promise(() => undefined);
+        return Promise.withResolvers().promise;
       }
       return null;
     });
@@ -1685,7 +1700,7 @@ describe("NoteSession", () => {
 
   it("should keep the editor across a rename while the renamed review is unknown", async () => {
     mockIPC((command) =>
-      command === "read_conflict" ? new Promise(() => undefined) : null
+      command === "read_conflict" ? Promise.withResolvers().promise : null
     );
     const client = new QueryClient({
       defaultOptions: {
@@ -1719,7 +1734,7 @@ describe("NoteSession", () => {
     view.rerender(session("errands.md"));
     await Promise.resolve();
     expect(panel()).not.toBeNull();
-    expect(await editor()).toBe(liveEditor);
+    await expect(editor()).resolves.toBe(liveEditor);
     client.clear();
   });
 });

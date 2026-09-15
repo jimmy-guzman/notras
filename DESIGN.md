@@ -16,11 +16,11 @@ Interface conventions for notras. Every rule here is either implemented in `src/
 
 Three faces, each with one job, declared in the `@theme inline` block of `src/styles.css`:
 
-| Token           | Face                         | Job                                      |
-| --------------- | ---------------------------- | ---------------------------------------- |
-| `--font-sans`   | `system-ui`, SF Pro on macOS | UI: palette, dialogs, status strip       |
-| `--font-mono`   | iA Writer Mono               | Code and data, inside the editor and out |
-| `--font-editor` | Literata (SIL OFL)           | The note surface                         |
+| Token | Face | Job |
+| --- | --- | --- |
+| `--font-sans` | `system-ui`, SF Pro on macOS | UI: palette, dialogs, status strip |
+| `--font-mono` | iA Writer Mono | Code and data, inside the editor and out |
+| `--font-editor` | Literata (SIL OFL) | The note surface |
 
 Resist a fourth. The two bundled faces come through `@fontsource`, so the app renders the same offline as online, and the sans is the host's own so the chrome matches whatever the user is running (`D25`).
 
@@ -61,25 +61,25 @@ The recipe derives sRGB hex values before they enter the stylesheet. It uses [Ok
 4. Selection mixes 82% paper with 18% blue ink in Cartesian Oklab before gamut mapping and hex conversion. Both source anchors are already in gamut.
 5. Dark secondary lightness is `0.675`, lifted from the prototype's `0.670` because its text on hover measured 4.47:1. This is a text-token correction; the hover surface and component styles stay unchanged.
 
-| Neutral role | Light lightness | Dark lightness |
-| --- | --- | --- |
-| Paper | 0.965 | 0.255 |
-| Card and popover | 0.985 | 0.235 |
-| Hover | 0.925 | 0.305 |
-| Border | 0.850 | 0.380 |
-| Body ink | 0.350 | 0.810 |
-| Secondary ink | 0.510 | 0.675 |
+| Neutral role     | Light lightness | Dark lightness |
+| ---------------- | --------------- | -------------- |
+| Paper            | 0.965           | 0.255          |
+| Card and popover | 0.985           | 0.235          |
+| Hover            | 0.925           | 0.305          |
+| Border           | 0.850           | 0.380          |
+| Body ink         | 0.350           | 0.810          |
+| Secondary ink    | 0.510           | 0.675          |
 
-| Ink | Hue in degrees | Tokens |
-| --- | --- | --- |
-| Red | 25 | `--destructive` |
-| Orange | 65 | `--syntax-keyword-control` |
-| Yellow | 100 | `--syntax-number` |
-| Green | 150 | `--syntax-string` |
-| Cyan | 195 | `--syntax-type` |
-| Blue | 255 | `--syntax-function`, `--syntax-member` |
-| Violet | 300 | `--syntax-keyword-import`, `--syntax-tag` |
-| Pink | 350 | `--primary`, `--ring`, `--syntax-keyword` |
+| Ink    | Hue in degrees | Tokens                                    |
+| ------ | -------------- | ----------------------------------------- |
+| Red    | 25             | `--destructive`                           |
+| Orange | 65             | `--syntax-keyword-control`                |
+| Yellow | 100            | `--syntax-number`                         |
+| Green  | 150            | `--syntax-string`                         |
+| Cyan   | 195            | `--syntax-type`                           |
+| Blue   | 255            | `--syntax-function`, `--syntax-member`    |
+| Violet | 300            | `--syntax-keyword-import`, `--syntax-tag` |
+| Pink   | 350            | `--primary`, `--ring`, `--syntax-keyword` |
 
 Card and popover share a surface. Secondary, muted, and accent share hover. Border and input share a hairline. Card, popover, secondary, and accent foregrounds share body ink, as do syntax operators. Syntax comments, punctuation, and placeholders share secondary ink. Primary foreground uses paper. These aliases keep the palette at fifteen distinct colors per scheme without changing component contracts.
 

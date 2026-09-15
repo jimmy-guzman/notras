@@ -1,13 +1,15 @@
 import { mergeAttributes, Node } from "@tiptap/core";
+import type { Attrs } from "@tiptap/pm/model";
 import { PluginKey } from "@tiptap/pm/state";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
-import type { SuggestionMenuItem } from "./suggestion-menu";
+import { hasString } from "@/components/editor/attrs";
 
+import type { SuggestionMenuItem } from "./suggestion-menu";
 import { SuggestionMenu } from "./suggestion-menu";
 
-const WIKILINK_TOKEN = /^\[\[([^\n[\]]+)\]\]/;
+const WIKILINK_TOKEN = /^\[\[(?<title>[^\n[\]]+)\]\]/u;
 
 export interface WikilinkOptions {
   /** Live note titles for completion. */
@@ -38,9 +40,10 @@ export const Wikilink = Node.create<WikilinkOptions>({
         default: "",
         parseHTML: (element: HTMLElement) =>
           element.dataset.wikilink ?? element.textContent,
-        renderHTML: (attributes: Record<string, unknown>) => ({
-          "data-wikilink":
-            typeof attributes.title === "string" ? attributes.title : "",
+        renderHTML: (attributes: Attrs) => ({
+          "data-wikilink": hasString(attributes, "title")
+            ? attributes.title
+            : "",
         }),
       },
     };
@@ -115,6 +118,8 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
   inline: true,
 
+  markdownTokenName: "wikilink",
+
   markdownTokenizer: {
     level: "inline",
     name: "wikilink",
@@ -125,14 +130,12 @@ export const Wikilink = Node.create<WikilinkOptions>({
       if (match) {
         return {
           raw: match[0],
-          title: match[1],
+          title: match.groups?.title,
           type: "wikilink",
         };
       }
     },
   },
-
-  markdownTokenName: "wikilink",
 
   name: "wikilink",
 
@@ -142,7 +145,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
   parseMarkdown: (token, helpers) =>
     helpers.createNode("wikilink", {
-      title: typeof token.title === "string" ? token.title : "",
+      title: hasString(token, "title") ? token.title : "",
     }),
 
   renderHTML({ HTMLAttributes, node }) {

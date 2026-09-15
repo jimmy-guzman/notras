@@ -1,5 +1,6 @@
 import { nativeCommand } from "@/data/native-command";
-import { commands, type SaveName } from "@/server/adapters/bindings";
+import { commands } from "@/server/adapters/bindings";
+import type { SaveName } from "@/server/adapters/bindings";
 
 /** Read an external Markdown file without adding it to the library index. */
 export async function readExternalNote(path: string) {

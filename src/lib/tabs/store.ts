@@ -1,15 +1,11 @@
-import {
-  batch,
-  createStore,
-  type ReadonlyStore,
-  useSelector,
-} from "@tanstack/react-store";
+import { batch, createStore, useSelector } from "@tanstack/react-store";
+import type { ReadonlyStore } from "@tanstack/react-store";
+
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import type { FrontmatterPatch } from "@/core/frontmatter";
 import type { PendingOpen } from "@/server/adapters/bindings";
 
 import type { ClosedTab, Tab, TabState } from "./tab";
-
 import {
   adoptNote,
   closeTab as closeInList,
@@ -72,6 +68,35 @@ export function getTabState() {
   return tabs.state;
 }
 
+/**
+ * Write the open set to `localStorage`.
+ *
+ * Carets are read off the live sessions here rather than tracked as they move:
+ * `getCaretSourceOffset` serializes a throwaway clone, far too much per
+ * keystroke and nothing at all per open or quit.
+ */
+export function persistTabs() {
+  const carets: Record<string, number> = {};
+
+  for (const tab of getTabState().tabs) {
+    const { id } = tab;
+    const caret = handles.get(id)?.getCaret() ?? -1;
+
+    if (caret >= 0) {
+      carets[id] = caret;
+    }
+  }
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    serializeTabs({
+      activeId: getTabState().activeId,
+      carets,
+      tabs: getTabState().tabs,
+    })
+  );
+}
+
 function setState(next: TabState) {
   if (next.activeId === tabs.state.activeId && next.tabs === tabs.state.tabs) {
     return;
@@ -101,35 +126,6 @@ function setState(next: TabState) {
   });
 
   persistTabs();
-}
-
-/**
- * Write the open set to `localStorage`.
- *
- * Carets are read off the live sessions here rather than tracked as they move:
- * `getCaretSourceOffset` serializes a throwaway clone, far too much per
- * keystroke and nothing at all per open or quit.
- */
-export function persistTabs() {
-  const carets: Record<string, number> = {};
-
-  for (const tab of getTabState().tabs) {
-    const { id } = tab;
-    const caret = handles.get(id)?.getCaret() ?? -1;
-
-    if (caret >= 0) {
-      carets[id] = caret;
-    }
-  }
-
-  localStorage.setItem(
-    STORAGE_KEY,
-    serializeTabs({
-      activeId: getTabState().activeId,
-      carets,
-      tabs: getTabState().tabs,
-    })
-  );
 }
 
 /**
@@ -193,15 +189,14 @@ export async function adoptVaultNotes(
 
   const classified = await classify(external.map((tab) => tab.path));
 
-  setState(
-    external.reduce((state, tab, index) => {
-      const open = classified[index];
-
-      return open?.kind === "note"
-        ? adoptNote(state, tab.id, open.path)
-        : state;
-    }, getTabState())
-  );
+  let state = getTabState();
+  for (const [index, tab] of external.entries()) {
+    const open = classified[index];
+    if (open?.kind === "note") {
+      state = adoptNote(state, tab.id, open.path);
+    }
+  }
+  setState(state);
 }
 
 /**
@@ -268,17 +263,6 @@ export function openNote(path: string, inNewTab = false) {
   openTab("note", path, inNewTab);
 }
 
-/** Close the tab holding a note path, if one is open. */
-export function closeNoteTab(path: string) {
-  const open = getTabState().tabs.find(
-    (tab) => tab.kind === "note" && tab.path === path
-  );
-
-  if (open !== undefined) {
-    closeTab(open.id);
-  }
-}
-
 export function closeTab(id: string) {
   const index = getTabState().tabs.findIndex((entry) => entry.id === id);
   const tab = getTabState().tabs[index];
@@ -288,6 +272,17 @@ export function closeTab(id: string) {
   }
 
   setState(closeInList(getTabState(), id));
+}
+
+/** Close the tab holding a note path, if one is open. */
+export function closeNoteTab(path: string) {
+  const open = getTabState().tabs.find(
+    (tab) => tab.kind === "note" && tab.path === path
+  );
+
+  if (open !== undefined) {
+    closeTab(open.id);
+  }
 }
 
 /** Put back the most recently closed tab, in the slot it came out of. */
@@ -312,7 +307,7 @@ export function closeOtherTabs(id: string) {
 
   // Rightmost first, so the leftmost ends up on top and reopening walks back
   // left to right into a strip that regrows under it.
-  for (const [index, tab] of [...getTabState().tabs.entries()].reverse()) {
+  for (const [index, tab] of [...getTabState().tabs.entries()].toReversed()) {
     if (tab.id !== id) {
       closed = pushClosed(closed, tab, index);
     }
@@ -338,7 +333,7 @@ export function closeTabsAfter(id: string) {
     ...getTabState()
       .tabs.slice(index + 1)
       .entries(),
-  ].reverse()) {
+  ].toReversed()) {
     closed = pushClosed(closed, tab, index + 1 + offset);
   }
 

@@ -2,7 +2,7 @@ import { decode, encode } from "mdurl";
 
 import { noteFolder } from "@/core/notes";
 
-const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/i;
+const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/iu;
 
 /**
  * A path becomes a destination percent-encoded, the separators apart, since a
@@ -29,7 +29,7 @@ export function decodeAttachmentPath(src: string) {
  */
 export function escapeMarkdownLabel(text: string) {
   return text.replaceAll(
-    /(\\*)([[\]])/g,
+    /(?<run>\\*)(?<bracket>[[\]])/gu,
     (_match, run: string, bracket: string) =>
       `${run.length % 2 === 0 ? run : `${run}\\`}\\${bracket}`
   );
@@ -37,7 +37,7 @@ export function escapeMarkdownLabel(text: string) {
 
 /** A title ends at its quote, and unlike a label it does unescape `\\`. */
 export function escapeMarkdownTitle(text: string) {
-  return text.replaceAll(/["\\]/g, "\\$&");
+  return text.replaceAll(/["\\]/gu, "\\$&");
 }
 
 /**

@@ -1,6 +1,7 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
+import { hasString } from "@/components/editor/attrs";
 import { isNotePath } from "@/core/links";
 
 import { createEditorExtensions } from "./extensions";
@@ -67,7 +68,7 @@ function destinations(markdown: string) {
 
   editor.state.doc.descendants((node) => {
     for (const mark of node.marks) {
-      if (mark.type.name === "link" && typeof mark.attrs.href === "string") {
+      if (mark.type.name === "link" && hasString(mark.attrs, "href")) {
         hrefs.push(mark.attrs.href);
       }
     }
@@ -84,7 +85,7 @@ describe("markdown link", () => {
   it.each(cases)(
     "should open the same note link the index records in %j",
     (markdown, expected) => {
-      expect(destinations(markdown).filter(isNotePath)).toEqual(expected);
+      expect(destinations(markdown).filter(isNotePath)).toStrictEqual(expected);
     }
   );
 });
@@ -121,6 +122,6 @@ describe("destination indexing parity", () => {
     ],
     ["[[https://github.com]] https://example.com", ["https://example.com"]],
   ])("should index the destinations rendered in %s", (markdown, expected) => {
-    expect(destinations(String(markdown))).toEqual(expected);
+    expect(destinations(String(markdown))).toStrictEqual(expected);
   });
 });

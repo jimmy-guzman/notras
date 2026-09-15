@@ -1065,3 +1065,7 @@ TanStack Router is gone. Its one route was `/`, with no params, no `Link`, and n
 **Constraint:** the startup query function applies saved tabs to the tab store, the one query allowed to. A separate apply step would need its own once guard. Its two options are the reason it runs once per launch, and a spec isolates it with a fresh `QueryClient`.
 
 **Constraint:** a rejected startup query is refetched by the error screen's retry through `QueryErrorResetBoundary`. A fulfilled one is never refetched, so a render error recovered later cannot replay restoration.
+
+### D82 Ultracite runs on oxc instead of Biome
+
+Lint and formatting come from `ultracite` on oxlint and oxfmt, configured in `oxlint.config.ts` and `oxfmt.config.ts`. `biome.jsonc` and `@biomejs/biome` are gone, and `pnpm check` and `pnpm fix` keep their names. oxfmt formats the markdown, HTML and JSON that `D41` left with no formatter when it retired the previous oxfmt setup, so that rejection no longer stands.

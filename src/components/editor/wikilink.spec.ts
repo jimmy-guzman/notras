@@ -125,7 +125,7 @@ describe("wikilink", () => {
   it.each(cases)(
     "should render a pill where the index records a link in %j",
     (markdown, expected) => {
-      expect(wikilinkTargets(markdown)).toEqual(expected);
+      expect(wikilinkTargets(markdown)).toStrictEqual(expected);
     }
   );
 });

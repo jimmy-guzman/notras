@@ -1,30 +1,33 @@
 import { describe, expect, it } from "vitest";
+
 import { isSafeUrl, normalizeUrl } from "./urls";
 
-describe("isSafeUrl", () => {
+describe(isSafeUrl, () => {
   it("should allow schemeless urls and known safe schemes", () => {
-    expect(isSafeUrl("example.com")).toBe(true);
-    expect(isSafeUrl("https://example.com")).toBe(true);
-    expect(isSafeUrl("mailto:hi@jimmy.codes")).toBe(true);
+    expect(isSafeUrl("example.com")).toBeTruthy();
+    expect(isSafeUrl("https://example.com")).toBeTruthy();
+    expect(isSafeUrl("mailto:hi@jimmy.codes")).toBeTruthy();
   });
 
   it("should reject script-bearing schemes", () => {
-    expect(isSafeUrl("javascript:alert(1)")).toBe(false);
-    expect(isSafeUrl("JavaScript:alert(1)")).toBe(false);
-    expect(isSafeUrl("data:text/html;base64,PHNjcmlwdD4=")).toBe(false);
-    expect(isSafeUrl("vbscript:msgbox(1)")).toBe(false);
+    // oxlint-disable-next-line no-script-url -- the refused scheme is the case under test
+    expect(isSafeUrl("javascript:alert(1)")).toBeFalsy();
+    // oxlint-disable-next-line no-script-url -- the refused scheme is the case under test
+    expect(isSafeUrl("JavaScript:alert(1)")).toBeFalsy();
+    expect(isSafeUrl("data:text/html;base64,PHNjcmlwdD4=")).toBeFalsy();
+    expect(isSafeUrl("vbscript:msgbox(1)")).toBeFalsy();
   });
 
   it("should reject unsafe schemes hidden behind blanks a browser strips", () => {
-    expect(isSafeUrl("   javascript:alert(1)")).toBe(false);
-    expect(isSafeUrl("\u0001javascript:alert(1)")).toBe(false);
-    expect(isSafeUrl("java\tscript:alert(1)")).toBe(false);
-    expect(isSafeUrl("java\nscript:alert(1)")).toBe(false);
+    expect(isSafeUrl("   javascript:alert(1)")).toBeFalsy();
+    expect(isSafeUrl("\u0001javascript:alert(1)")).toBeFalsy();
+    expect(isSafeUrl("java\tscript:alert(1)")).toBeFalsy();
+    expect(isSafeUrl("java\nscript:alert(1)")).toBeFalsy();
     expect(normalizeUrl("  javascript:alert(1)")).toBeNull();
   });
 });
 
-describe("normalizeUrl", () => {
+describe(normalizeUrl, () => {
   it("should keep urls that already carry a scheme", () => {
     expect(normalizeUrl("https://example.com")).toBe("https://example.com");
     expect(normalizeUrl("mailto:hi@jimmy.codes")).toBe("mailto:hi@jimmy.codes");
@@ -48,6 +51,7 @@ describe("normalizeUrl", () => {
   });
 
   it("should reject unsafe schemes", () => {
+    // oxlint-disable-next-line no-script-url -- the refused scheme is the case under test
     expect(normalizeUrl("javascript:alert(1)")).toBeNull();
     expect(normalizeUrl("data:text/html,<script>")).toBeNull();
     expect(normalizeUrl("vbscript:msgbox(1)")).toBeNull();

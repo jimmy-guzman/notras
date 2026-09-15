@@ -50,7 +50,7 @@ function ghostFor(markdown: string, type: string, take = positionsOf) {
   return { editor, element, ghost };
 }
 
-describe("DragGhost", () => {
+describe(DragGhost, () => {
   it("should keep a task item a row rather than a bare item", () => {
     // The row recipe is reached through the list, so an item travelling without
     // one drops its checkbox to a line of its own.
@@ -114,7 +114,7 @@ describe("DragGhost", () => {
     editor.destroy();
 
     expect(document.querySelector(".drag-ghost")).toBeNull();
-    expect(document.body.classList.contains("dragging")).toBe(false);
+    expect(document.body.classList.contains("dragging")).toBeFalsy();
   });
 
   it("should sit below and right of the pointer", () => {

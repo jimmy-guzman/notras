@@ -5,11 +5,11 @@ import { TextSelection } from "@tiptap/pm/state";
 import { dropPoint } from "@tiptap/pm/transform";
 
 /** The item type each list holds, which decides what a drop into one becomes. */
-const LIST_ITEM_TYPE: Readonly<Record<string, string>> = {
-  bulletList: "listItem",
-  orderedList: "listItem",
-  taskList: "taskItem",
-};
+const LIST_ITEM_TYPE = new Map([
+  ["bulletList", "listItem"],
+  ["orderedList", "listItem"],
+  ["taskList", "taskItem"],
+]);
 
 function isListItem(node: Node) {
   return node.type.name === "listItem" || node.type.name === "taskItem";
@@ -76,7 +76,7 @@ function adaptBlock(node: Node, $target: ResolvedPos) {
     return Fragment.from(node);
   }
 
-  const itemName = LIST_ITEM_TYPE[parent.type.name];
+  const itemName = LIST_ITEM_TYPE.get(parent.type.name);
   const itemType =
     itemName === undefined ? undefined : parent.type.schema.nodes[itemName];
 
@@ -117,7 +117,7 @@ function itemBoundary($pos: ResolvedPos) {
   const { depth: from, pos } = $pos;
 
   for (let depth = from; depth > 0; depth -= 1) {
-    if (LIST_ITEM_TYPE[$pos.node(depth).type.name] === undefined) {
+    if (!LIST_ITEM_TYPE.has($pos.node(depth).type.name)) {
       continue;
     }
 
@@ -401,7 +401,7 @@ export function moveText(
 
   // The insert's own map says where what landed ends: the fit may have closed
   // the words into a paragraph, so the slice's size is not the answer.
-  const end = tr.mapping.slice(tr.steps.length - 1).map(pos, 1);
+  const end = tr.mapping.slice(tr.steps.length - 1).map(pos, 1); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror mapping, not an array
 
   return tr.setSelection(
     TextSelection.between(tr.doc.resolve(pos), tr.doc.resolve(end))

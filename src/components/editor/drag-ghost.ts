@@ -17,7 +17,7 @@ const STRUCTURAL = new Set(["OL", "TABLE", "TBODY", "THEAD", "UL"]);
 function shellOf(element: HTMLElement) {
   const shell = document.createElement(element.tagName);
 
-  for (const { name, value } of Array.from(element.attributes)) {
+  for (const { name, value } of element.attributes) {
     shell.setAttribute(name, value);
   }
 
@@ -49,7 +49,7 @@ function structured(clones: Node[], source: HTMLElement) {
       wrapper instanceof HTMLOListElement &&
       origin instanceof HTMLOListElement
     ) {
-      wrapper.start = origin.start + Array.from(origin.children).indexOf(child);
+      wrapper.start = origin.start + [...origin.children].indexOf(child);
     }
 
     wrapper.append(...nodes);

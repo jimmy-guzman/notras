@@ -4,18 +4,18 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 
 ## Tech stack
 
-| Layer           | Choice                                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------------------------ |
-| Shell           | Tauri 2 (Rust): command dispatch, notify watcher, tray, global shortcuts                         |
-| Frontend        | Vite + React 19 (no SSR); TanStack Query caches every read (`D66`); `react-error-boundary` over the workspace (`D81`) |
-| Editor          | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
-| Note engine     | `notras-core`: files through `cap-std` directory handles, Markdown interpretation, `rusqlite` index and typed operations |
+| Layer | Choice |
+| --- | --- |
+| Shell | Tauri 2 (Rust): command dispatch, notify watcher, tray, global shortcuts |
+| Frontend | Vite + React 19 (no SSR); TanStack Query caches every read (`D66`); `react-error-boundary` over the workspace (`D81`) |
+| Editor | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
+| Note engine | `notras-core`: files through `cap-std` directory handles, Markdown interpretation, `rusqlite` index and typed operations |
 | Native contract | Pinned Specta types and Tauri commands/events; Serde wire values and thiserror failures |
-| UI              | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`)                    |
-| Note surface    | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`)                          |
-| Lint + format   | Ultracite (Biome preset) for JS/TS; rustfmt and Clippy for Rust; TipTap's markdown serializer is the runtime canonical form |
-| Testing         | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
-| Package manager | pnpm                                                                                                         |
+| UI | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`) |
+| Note surface | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`) |
+| Lint + format | Ultracite on oxlint and oxfmt for JS/TS; rustfmt and Clippy for Rust; TipTap's markdown serializer is the runtime canonical form |
+| Testing | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
+| Package manager | pnpm |
 
 ## Linux runtime
 
@@ -184,7 +184,7 @@ scripts/
 
 ## Layer boundaries
 
-Nothing enforces these. Lint held them until `D41` retired the ESLint config, and `D43` records why they were not ported to Biome. Review is the check now, and the fix for a violation is never to move the import.
+Nothing enforces these. Lint held them until `D41` retired the ESLint config, and `D43` records why they were not ported to the preset. Review is the check now, and the fix for a violation is never to move the import.
 
 - **`src/core/**` is isomorphic.** No `@tauri-apps/*`, `react`, `react-dom`, or `node:*`, and no upward imports from `@/server`, `@/lib`, `@/components`, or `@/data`. It runs in the webview and in any other runtime, which is what makes it testable without a window.
 - **The `notras-core` crate is window-free.** Its `Library` privately owns the library directory, SQLite connection and index health. The shell calls operations and cannot manipulate index state. `notes.rs` supplies the blocking task and library lock. Library settings and rebuilds use the same typed command boundary through `src/data`. Native bindings live in `src/server/adapters/**`.
@@ -254,7 +254,7 @@ The controller accepts reads only for its committed path. It retains the latest 
 
 Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted reads, mutations, library settings and reindexing reach the generated client through `src/data`. UI concerns call generated shell commands directly.
 
-The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. Biome excludes the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
+The published versions are pinned together: tauri-specta rc.21, specta rc.22 and specta-typescript 0.0.9. Binding generation compares Specta's unmodified temporary export with the committed file in CI before TypeScript checks. The lint and format configs exclude the generated file; TypeScript checks its command and event types with their callers. Knip ignores unused types in this generated file because Specta emits helper types independently of their use.
 
 A command that can fail returns `Result<T, CommandError>`. The `From` implementations turn filesystem and index failures into a lowercase reason without an error number. Filesystem, SQLite, decoding, settings and task errors retain their underlying causes through Rust's `Error::source()`. Only `kind` and `message` cross IPC. The frontend supplies the action. Bindings preserve Tauri's promise rejection behavior, including bare string failures before a handler runs. Indexed mutations attempt reconciliation before returning a committed receipt. Reconciliation failures mark the index dirty and add warnings. Native index reads wait for coordinated recovery of a dirty index and fail if recovery is incomplete; direct file reads remain available. Main-window mutation warnings and the toaster live outside the workspace's error boundary, so a failed indexed query cannot hide them. Attachments and external files keep their existing storage boundaries. Log through `log`; `tauri-plugin-log` remains the destination.
 

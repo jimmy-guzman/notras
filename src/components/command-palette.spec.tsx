@@ -11,14 +11,15 @@ import {
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+
 import { CommandPalette } from "@/components/command-palette";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
 import { getTabState, openNote, registerTabSnapshot } from "@/lib/tabs/store";
 
-const FOUND_NOTE = /Found/;
-const CREATE_NOTE = /create/;
+const FOUND_NOTE = /Found/u;
+const CREATE_NOTE = /create/u;
 
 function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   const user = userEvent.setup();
@@ -43,7 +44,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
         mode,
         notesDir: "/notes",
         onOpenChange: (next) => closed.push(next),
-        onOpenSettings: () => undefined,
+        onOpenSettings: () => {},
         open: true,
       })
     )
@@ -94,7 +95,9 @@ describe("command palette keyboard", () => {
     });
     await palette.user.keyboard("{Enter}");
     expect(palette.closed).toContain(false);
-    expect(getTabState().tabs.some((tab) => tab.path === note.path)).toBe(true);
+    expect(
+      getTabState().tabs.some((tab) => tab.path === note.path)
+    ).toBeTruthy();
   });
 
   it("should keep filter discovery outside result selection and preserve the query through the picker", async () => {
@@ -132,7 +135,7 @@ describe("command palette keyboard", () => {
     await palette.user.click(addFilter);
     await palette.user.keyboard("{Escape}");
     expect(palette.input.value).toBe("budget #work folder:work ");
-    expect(palette.closed).toEqual([]);
+    expect(palette.closed).toStrictEqual([]);
   });
 
   it("should select the first filter when opening its empty menu and go back from its footer", async () => {
@@ -149,7 +152,7 @@ describe("command palette keyboard", () => {
     act(() => back.focus());
     await palette.user.keyboard("{Escape}");
     expect(palette.input.value).toBe("");
-    expect(palette.closed).toEqual([]);
+    expect(palette.closed).toStrictEqual([]);
     expect(document.body.textContent).toContain("add filter");
   });
 
@@ -213,9 +216,9 @@ describe("command palette keyboard", () => {
     });
     await palette.user.keyboard("{Enter}");
     expect(palette.closed).toContain(false);
-    expect(getTabState().tabs.some((tab) => tab.path === second.path)).toBe(
-      true
-    );
+    expect(
+      getTabState().tabs.some((tab) => tab.path === second.path)
+    ).toBeTruthy();
   });
 
   it("should select creation after an empty search completes", async () => {
@@ -273,15 +276,16 @@ describe("command palette keyboard", () => {
     });
     await palette.user.keyboard("{Enter}");
     expect(palette.input.value).toBe("Atlas");
-    expect([palette.input.selectionStart, palette.input.selectionEnd]).toEqual([
-      0, 5,
-    ]);
+    expect([
+      palette.input.selectionStart,
+      palette.input.selectionEnd,
+    ]).toStrictEqual([0, 5]);
     await palette.user.keyboard("{Escape}");
-    expect(palette.closed).toEqual([]);
+    expect(palette.closed).toStrictEqual([]);
     expect(palette.input.value).toBe("");
     expect(document.body.textContent).toContain("rename note");
-    const label = document.getElementById(
-      palette.input.getAttribute("aria-labelledby") ?? ""
+    const label = document.querySelector(
+      `[id="${palette.input.getAttribute("aria-labelledby") ?? ""}"]`
     );
     expect(label?.textContent).toBe("run an action");
   });
@@ -331,7 +335,7 @@ describe("steady palette searches", () => {
     act(() => palette.input.focus());
     fireEvent.keyDown(palette.input, { key: "Enter" });
     fireEvent.keyDown(palette.input, { key: "Enter", metaKey: true });
-    expect(palette.closed).toEqual([]);
+    expect(palette.closed).toStrictEqual([]);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(150);
     });
@@ -347,12 +351,12 @@ describe("steady palette searches", () => {
       screen.getByRole("option", { selected: true }).textContent
     ).toContain("Found");
     expect(document.body.textContent).not.toContain("Recent");
-    expect(palette.closed).toEqual([]);
+    expect(palette.closed).toStrictEqual([]);
     fireEvent.keyDown(palette.input, { key: "Enter" });
-    expect(palette.closed).toEqual([false]);
-    expect(getTabState().tabs.some((tab) => tab.path === "found.md")).toBe(
-      true
-    );
+    expect(palette.closed).toStrictEqual([false]);
+    expect(
+      getTabState().tabs.some((tab) => tab.path === "found.md")
+    ).toBeTruthy();
   });
 
   it("should delay the footer spinner until a read takes 500ms and reset it for another query", async () => {
@@ -522,98 +526,104 @@ describe("steady palette searches", () => {
   });
 });
 
-it("should search while the full note list is pending without treating it as empty", async () => {
-  const list = Promise.withResolvers<[]>();
-  mockIPC((command) => {
-    if (command === "list_notes") {
-      return list.promise;
-    }
-    if (command === "search_notes") {
-      return [
-        {
-          createdAt: 1,
-          folder: "",
-          path: "found.md",
-          pinned: false,
-          snippet: "matched words",
-          tags: [],
-          title: "Found",
-          updatedAt: 1,
-        },
-      ];
-    }
-    throw new Error(`unexpected command: ${command}`);
-  });
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  onTestFinished(async () => {
-    await act(() => {
-      list.resolve([]);
-    });
-    client.clear();
-    clearMocks();
-  });
-  const onOpenChange = vi.fn();
-  const onOpenSettings = vi.fn();
-  render(
-    <QueryClientProvider client={client}>
-      <CommandPalette
-        mode="find"
-        notesDir="/notes"
-        onOpenChange={onOpenChange}
-        onOpenSettings={onOpenSettings}
-        open
-      />
-    </QueryClientProvider>
-  );
-  expect(screen.queryByText("nothing found")).not.toBeInTheDocument();
-  const user = userEvent.setup();
-  await user.type(screen.getByRole("combobox"), "needle");
-  expect(
-    await screen.findByRole("option", { name: FOUND_NOTE })
-  ).toBeInTheDocument();
-});
-
-it("should report a failed first note list and retry without offering creation", async () => {
-  let attempts = 0;
-  mockIPC((command) => {
-    if (command !== "list_notes") {
+describe("command palette", () => {
+  it("should search while the full note list is pending without treating it as empty", async () => {
+    const list = Promise.withResolvers<[]>();
+    mockIPC((command) => {
+      if (command === "list_notes") {
+        return list.promise;
+      }
+      if (command === "search_notes") {
+        return [
+          {
+            createdAt: 1,
+            folder: "",
+            path: "found.md",
+            pinned: false,
+            snippet: "matched words",
+            tags: [],
+            title: "Found",
+            updatedAt: 1,
+          },
+        ];
+      }
       throw new Error(`unexpected command: ${command}`);
-    }
-    attempts += 1;
-    if (attempts === 1) {
-      throw Object.assign(new Error("index unavailable"), { kind: "failed" });
-    }
-    return [];
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    onTestFinished(async () => {
+      await act(() => {
+        list.resolve([]);
+      });
+      client.clear();
+      clearMocks();
+    });
+    const onOpenChange = vi.fn<(open: boolean) => void>();
+    const onOpenSettings = vi.fn<() => void>();
+    render(
+      <QueryClientProvider client={client}>
+        <CommandPalette
+          mode="find"
+          notesDir="/notes"
+          onOpenChange={onOpenChange}
+          onOpenSettings={onOpenSettings}
+          open
+        />
+      </QueryClientProvider>
+    );
+    expect(screen.queryByText("nothing found")).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("combobox"), "needle");
+    await expect(
+      screen.findByRole("option", { name: FOUND_NOTE })
+    ).resolves.toBeInTheDocument();
   });
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+
+  it("should report a failed first note list and retry without offering creation", async () => {
+    let attempts = 0;
+    mockIPC((command) => {
+      if (command !== "list_notes") {
+        throw new Error(`unexpected command: ${command}`);
+      }
+      attempts += 1;
+      if (attempts === 1) {
+        throw Object.assign(new Error("index unavailable"), { kind: "failed" });
+      }
+      return [];
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    const onOpenChange = vi.fn<(open: boolean) => void>();
+    const onOpenSettings = vi.fn<() => void>();
+    render(
+      <QueryClientProvider client={client}>
+        <CommandPalette
+          mode="find"
+          notesDir="/notes"
+          onOpenChange={onOpenChange}
+          onOpenSettings={onOpenSettings}
+          open
+        />
+      </QueryClientProvider>
+    );
+    await expect(
+      screen.findByText("could not search notes")
+    ).resolves.toBeInTheDocument();
+    expect(screen.getByText("index unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: CREATE_NOTE })
+    ).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "retry" }));
+    await expect(
+      screen.findByText("nothing found")
+    ).resolves.toBeInTheDocument();
+    expect(attempts).toBe(2);
   });
-  onTestFinished(() => {
-    client.clear();
-    clearMocks();
-  });
-  const onOpenChange = vi.fn();
-  const onOpenSettings = vi.fn();
-  render(
-    <QueryClientProvider client={client}>
-      <CommandPalette
-        mode="find"
-        notesDir="/notes"
-        onOpenChange={onOpenChange}
-        onOpenSettings={onOpenSettings}
-        open
-      />
-    </QueryClientProvider>
-  );
-  expect(await screen.findByText("could not search notes")).toBeInTheDocument();
-  expect(screen.getByText("index unavailable")).toBeInTheDocument();
-  expect(
-    screen.queryByRole("option", { name: CREATE_NOTE })
-  ).not.toBeInTheDocument();
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "retry" }));
-  expect(await screen.findByText("nothing found")).toBeInTheDocument();
-  expect(attempts).toBe(2);
 });

@@ -4,15 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { Editor } from "@tiptap/core";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
+
 import { CaptureWindow } from "@/components/capture-window";
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "@/components/editor/find";
 import { createNoteDocument } from "@/components/editor/note-document";
-import {
-  SourceEditor,
-  type SourceEditorHandle,
-} from "@/components/editor/source-editor";
+import { SourceEditor } from "@/components/editor/source-editor";
+import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { createFindController } from "@/lib/ui/find";
+
 import { FindBar } from "./find-bar";
 
 describe("find controls", () => {
@@ -95,9 +95,9 @@ describe("find controls", () => {
       throw new Error("source editor missing");
     }
     act(() => handle.find.setQuery("atlas"));
-    expect(handle.find.snapshot()).toEqual({ current: 1, total: 3 });
+    expect(handle.find.snapshot()).toStrictEqual({ current: 1, total: 3 });
     expect(container.querySelector("pre")?.textContent).toBe(source);
-    expect(changes).toEqual([]);
+    expect(changes).toStrictEqual([]);
     act(() => handle.insertText("Atlas "));
     expect(handle.find.snapshot().total).toBe(4);
     act(() => handle.find.setQuery(null));

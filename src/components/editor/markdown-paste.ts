@@ -3,6 +3,7 @@ import { Extension } from "@tiptap/core";
 import type { Fragment, Slice } from "@tiptap/pm/model";
 import type { SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+
 import { toast } from "@/components/ui/toast";
 import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
 import { reasonOf } from "@/lib/ui/failure";
@@ -16,7 +17,7 @@ interface MarkdownPasteOptions {
 }
 
 const MARKDOWN_PASTE_PATTERN =
-  /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|^ {0,3}(?:`{3,}|~{3,})|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/m;
+  /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s|^ {0,3}(?:`{3,}|~{3,})|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/mu;
 
 function containsCodeBlock(content: Fragment): boolean {
   return content.content.some(
@@ -50,7 +51,7 @@ async function pasteNativeCode(
       chain
         .insertContent({
           attrs: { language: code.language },
-          content: [{ text: text.replaceAll(/\r\n?/g, "\n"), type: "text" }],
+          content: [{ text: text.replaceAll(/\r\n?/gu, "\n"), type: "text" }],
           type: "codeBlock",
         })
         .run();

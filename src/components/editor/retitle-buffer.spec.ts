@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { renameDocument } from "./retitle-buffer";
 
 describe("naming heading", () => {
@@ -12,6 +13,7 @@ describe("naming heading", () => {
       "---\ntitle: imported\ncustom: keep\n---\n# Weekend errands\n\nbody"
     );
   });
+
   it("should introduce a heading for a prose-only note", () => {
     expect(renameDocument("body", "Weekend errands")).toBe(
       "# Weekend errands\n\nbody"

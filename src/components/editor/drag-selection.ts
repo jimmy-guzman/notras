@@ -567,6 +567,7 @@ export const DragSelection = Extension.create({
           },
         },
         state: {
+          // SAFETY: only this plugin sets its meta, and it always stores a DragState.
           apply: (tr, value) =>
             (tr.getMeta(dragSelectionKey) as DragState | undefined) ?? value,
           init: () => NOTHING,

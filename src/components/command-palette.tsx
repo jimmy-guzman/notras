@@ -24,11 +24,9 @@ import {
   XIcon,
 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import {
-  ActionsView,
-  type PaletteAction,
-  type PaletteScope,
-} from "@/components/palette-actions";
+
+import { ActionsView } from "@/components/palette-actions";
+import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
 import { PaletteFilters } from "@/components/palette-filters";
 import {
   DeleteView,
@@ -118,6 +116,7 @@ interface CommandPaletteProps {
   tag?: string;
 }
 
+// oxlint-disable-next-line complexity, react-doctor/no-giant-component -- the split is tracked in #203
 export function CommandPalette({
   mode,
   notesDir,
@@ -273,7 +272,7 @@ export function CommandPalette({
   const matchesQuery = (label: string) =>
     label.toLowerCase().includes(query.trim().toLowerCase());
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (currentNote === undefined) {
       return;
     }
@@ -283,30 +282,27 @@ export function CommandPalette({
       closeNoteTab(currentNote.path);
       toast.add({ title: "note deleted", type: "success" });
     });
-  }, [currentNote, runAction]);
+  };
 
-  const moveToFolder = useCallback(
-    (folder: string) => {
-      if (currentNote === undefined) {
-        return;
+  const moveToFolder = (folder: string) => {
+    if (currentNote === undefined) {
+      return;
+    }
+
+    runAction("could not move note", async () => {
+      const session = getTabHandles(activeId);
+      if (session?.changePath === undefined) {
+        throw new Error("the note is still opening");
       }
+      await session.changePath({ folder, kind: "move" });
+    });
+  };
 
-      runAction("could not move note", async () => {
-        const session = getTabHandles(activeId);
-        if (session?.changePath === undefined) {
-          throw new Error("the note is still opening");
-        }
-        await session.changePath({ folder, kind: "move" });
-      });
-    },
-    [activeId, currentNote, runAction]
-  );
-
-  const moveToNewFolder = useCallback(() => {
+  const moveToNewFolder = () => {
     moveToFolder(query.trim());
-  }, [moveToFolder, query]);
+  };
 
-  const confirmRename = useCallback(() => {
+  const confirmRename = () => {
     if (currentNote === undefined) {
       return;
     }
@@ -318,7 +314,7 @@ export function CommandPalette({
       }
       await session.changePath({ kind: "retitle", title: query.trim() });
     });
-  }, [activeId, currentNote, query, runAction]);
+  };
 
   // `create` de-duplicates by appending a counter, so a stale index or a
   // title that differs from its filename never overwrites the existing note.

@@ -9,6 +9,8 @@ import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { hasString } from "@/components/editor/attrs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { isNotePath, isRelativeDestination } from "@/core/links";
@@ -17,13 +19,15 @@ import { styleNonce } from "@/lib/style-nonce";
 import { readCodeClipboard } from "@/lib/ui/code-clipboard";
 import { reasonOf } from "@/lib/ui/failure";
 import { attachmentDestination } from "@/lib/utils/attachments";
+
 import {
   createEditorExtensions,
   fileMarkdown,
   normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
-import { createFindHandle, Find, type FindHandle } from "./find";
+import { createFindHandle, Find } from "./find";
+import type { FindHandle } from "./find";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
@@ -71,13 +75,18 @@ function wordsAt(state: EditorState) {
     : state.doc.textBetween(from, to);
 }
 
+/** `readAsDataURL` settles with a string; the type also covers the other readers. */
+function isDataUrl(result: FileReader["result"]): result is string {
+  return typeof result === "string";
+}
+
 /**
  * What the panel says about the thing under the pointer. A markdown link
  * carries its destination; a wikilink resolves by title, so its own text says
  * nothing useful and the note it lands on does.
  */
 function hoverStateFor(
-  target: Element,
+  target: HTMLElement,
   markHref: string,
   resolveWikilink?: (title: string) => string | undefined
 ) {
@@ -93,7 +102,7 @@ function hoverStateFor(
     };
   }
 
-  const title = target.getAttribute("data-wikilink") ?? target.textContent;
+  const title = target.dataset.wikilink ?? target.textContent;
 
   if (resolveWikilink === undefined || title === null || title === "") {
     return null;
@@ -117,7 +126,9 @@ function hrefAt(state: EditorState, pos: number) {
     .marks()
     .find((mark) => mark.type.name === "link");
 
-  return typeof link?.attrs.href === "string" ? link.attrs.href : "";
+  const attrs = link?.attrs;
+
+  return hasString(attrs, "href") ? attrs.href : "";
 }
 
 /**
@@ -147,6 +158,7 @@ function followLink(
     return;
   }
 
+  // oxlint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks, anti-slop/no-unknown-parameters -- ProseMirror's click handler is synchronous, so the failure toast rides the rejection, whose value is unknown by the language
   openUrl(href).catch((error: unknown) => {
     toast.add({
       description: reasonOf(error),
@@ -171,6 +183,7 @@ function firstTitle(doc: ProseMirrorNode) {
     }
     let from = position + 1;
     let text = "";
+    // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
     node.forEach((child, offset) => {
       if (result !== undefined) {
         return;
@@ -219,6 +232,7 @@ function touchesTitle(transaction: Transaction) {
       return step.from < range.to && step.to > range.from;
     }
     let touched = false;
+    // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror step map, not an array
     step.getMap().forEach((from, to) => {
       touched ||= from < range.to && to > range.from;
     });
@@ -330,6 +344,7 @@ interface EditorProps {
  * read through refs. The session applies document changes through the handle
  * and owns history when `onHistory` is supplied. Frontmatter stays in the session.
  */
+// oxlint-disable-next-line react-doctor/no-giant-component -- the split is tracked in #203
 export function Editor({
   findOpen = false,
   focusModeEnabled = false,
@@ -353,20 +368,39 @@ export function Editor({
     focusModeRef.current = focusModeEnabled && !findOpen;
   });
 
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const closeHoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const keepHover = useCallback(() => {
+    if (closeHoverRef.current !== null) {
+      clearTimeout(closeHoverRef.current);
+      closeHoverRef.current = null;
+    }
+  }, []);
+
+  const closeHoverLater = useCallback(() => {
+    keepHover();
+    closeHoverRef.current = setTimeout(
+      () => setLinkHover(null),
+      HOVER_CLOSE_MS
+    );
+  }, [keepHover]);
+
+  useEffect(() => keepHover, [keepHover]);
   const [reading, setReading] = useState(false);
-  const [linkShortcut] = useState(() => {
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
+  const [linkShortcut] = useState(() =>
     // ⌘K belongs to the palette, so the link keys sit under ⌘⇧: K makes one, O
     // follows the one at the caret, which is the only way there without a mouse.
-    return Extension.create({
+    Extension.create({
       addKeyboardShortcuts: () => ({
         "Mod-Shift-k": ({ editor: instance }) => {
           const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
-          const url = typeof attrs.href === "string" ? attrs.href : "";
+          const url = hasString(attrs, "href") ? attrs.href : "";
           const coords = instance.view.coordsAtPos(head);
 
           setLinkEditor((previous) => ({
@@ -383,7 +417,7 @@ export function Editor({
         "Mod-Shift-o": ({ editor: instance }) => {
           const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
-          const href = typeof attrs.href === "string" ? attrs.href : "";
+          const href = hasString(attrs, "href") ? attrs.href : "";
 
           if (href !== "") {
             followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
@@ -403,13 +437,11 @@ export function Editor({
         },
       }),
       name: "linkShortcut",
-    });
-  });
-  const [typewriter] = useState(() =>
-    createTypewriter({
-      enabled: () => focusModeRef.current,
-      scroller: () => scrollerRef.current,
     })
+  );
+  // oxlint-disable-next-line react/hook-use-state, react/refs -- a once-built instance has no setter, and the refs it takes are read after mount
+  const [typewriter] = useState(() =>
+    createTypewriter({ enabled: focusModeRef, scroller: scrollerRef })
   );
 
   const editor = useEditor({
@@ -496,7 +528,7 @@ export function Editor({
         mouseover: (view, event) => {
           const target =
             event.target instanceof Element
-              ? event.target.closest("a[href], [data-wikilink]")
+              ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
               : null;
 
           if (target === null) {
@@ -566,8 +598,7 @@ export function Editor({
               });
             });
             reader.addEventListener("load", async () => {
-              const result =
-                typeof reader.result === "string" ? reader.result : "";
+              const result = isDataUrl(reader.result) ? reader.result : "";
               const base64 = result.split(",")[1] ?? "";
 
               if (base64 === "") {
@@ -710,7 +741,6 @@ export function Editor({
     },
     onSelectionUpdate: ({ editor: instance }) => {
       setReading(selectionSpansBlocks(instance.state));
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
       if (!suppressChangeRef.current && config.onSelect !== undefined) {
         const { selection } = instance.state;
         const anchor = sourceOffset(instance, selection.anchor);
@@ -727,7 +757,6 @@ export function Editor({
       transaction,
       appendedTransactions,
     }) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
       if (suppressChangeRef.current || transaction.getMeta("preventUpdate")) {
         return;
       }
@@ -741,8 +770,8 @@ export function Editor({
         ? anchor
         : sourceOffset(instance, selection.head);
       config.onChange(serializeMarkdown(instance), {
+        selection: anchor >= 0 && head >= 0 ? { anchor, head } : undefined,
         titleEdited: transactions.some(touchesTitle),
-        ...(anchor >= 0 && head >= 0 ? { selection: { anchor, head } } : {}),
       });
     },
   });
@@ -910,23 +939,6 @@ export function Editor({
     setLinkEditor(null);
     editor?.chain().focus().extendMarkRange("link").unsetLink().run();
   }, [editor]);
-
-  const keepHover = useCallback(() => {
-    if (closeHoverRef.current !== null) {
-      clearTimeout(closeHoverRef.current);
-      closeHoverRef.current = null;
-    }
-  }, []);
-
-  const closeHoverLater = useCallback(() => {
-    keepHover();
-    closeHoverRef.current = setTimeout(
-      () => setLinkHover(null),
-      HOVER_CLOSE_MS
-    );
-  }, [keepHover]);
-
-  useEffect(() => keepHover, [keepHover]);
 
   // The panel opens the editor where it already sits, so the two are one
   // surface rather than two places a link is changed from.

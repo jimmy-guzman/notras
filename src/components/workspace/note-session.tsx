@@ -6,7 +6,6 @@ import {
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "cn";
 import {
-  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -14,7 +13,9 @@ import {
   useRef,
   useState,
 } from "react";
+import type { RefObject } from "react";
 import { flushSync } from "react-dom";
+
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import type { FindHandle } from "@/components/editor/find";
@@ -48,11 +49,8 @@ import {
   isRelativeDestination,
   linkResolver,
 } from "@/core/links";
-import {
-  type ConflictStash,
-  clearConflictStash,
-  stashConflict,
-} from "@/data/conflict-stash";
+import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
+import type { ConflictStash } from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import { openExternalFile } from "@/data/open-external-file";
@@ -184,6 +182,7 @@ function imageSrc(
  * Several are alive at once, so nothing here may register a window listener or
  * a hotkey: those belong to the workspace, and `D53` says why.
  */
+// oxlint-disable-next-line react-doctor/no-giant-component -- the split is tracked in #203
 function SessionBuffer({
   active,
   file,
@@ -216,6 +215,30 @@ function SessionBuffer({
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
+  const replaceDocument = useCallback(
+    (
+      content: string,
+      selection: { anchor: number; head: number } | undefined,
+      sourceMode: boolean
+    ) => {
+      if (sourceMode) {
+        return;
+      }
+      const currentBody = parseNote(content).body;
+      const prefix = bodyPrefix(content);
+      editorRef.current?.replaceContent(
+        currentBody,
+        selection === undefined
+          ? undefined
+          : {
+              anchor: Math.max(0, selection.anchor - prefix),
+              head: Math.max(0, selection.head - prefix),
+            }
+      );
+    },
+    []
+  );
+  // oxlint-disable-next-line react/hook-use-state, react/refs -- a once-built instance has no setter, and the refs it takes are read after mount
   const [persistence] = useState(() =>
     createNotePersistence(
       { ...file, path: tab.path, stash: stash ?? undefined },
@@ -229,21 +252,7 @@ function SessionBuffer({
           );
         },
         onCleanFileMissing: () => closeTab(id),
-        onDocumentChanged: (content, selection) => {
-          if (!persistence.store.state.sourceMode) {
-            const currentBody = parseNote(content).body;
-            const prefix = bodyPrefix(content);
-            editorRef.current?.replaceContent(
-              currentBody,
-              selection === undefined
-                ? undefined
-                : {
-                    anchor: Math.max(0, selection.anchor - prefix),
-                    head: Math.max(0, selection.head - prefix),
-                  }
-            );
-          }
-        },
+        onDocumentChanged: replaceDocument,
         onPathChanged: renameTab,
         stash: async (path, review) => {
           await stashConflict(tab.kind, path, review);
@@ -276,11 +285,9 @@ function SessionBuffer({
   useLayoutEffect(() => {
     reviewingRef.current = showReview;
   }, [showReview]);
-  useEffect(() => {
-    if (status !== "conflict") {
-      setReviewing(false);
-    }
-  }, [status]);
+  if (reviewing && status !== "conflict") {
+    setReviewing(false);
+  }
   const openReview = useCallback(() => setReviewing(true), []);
   const backFromReview = useCallback(() => {
     flushSync(() => setReviewing(false));
@@ -740,31 +747,27 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
   const { data, error, refetch } = useQuery(noteQueries.file(kind, path));
   const stash = useQuery(noteQueries.conflict(kind, path));
+  const { refetch: refetchStash } = stash;
   const retry = useCallback(() => {
     refetch();
-    stash.refetch();
-  }, [refetch, stash.refetch]);
+    refetchStash();
+  }, [refetch, refetchStash]);
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.
-  const lastRead = useRef<SessionFile | undefined>(undefined);
+  const [lastRead, setLastRead] = useState(data);
+  if (data !== undefined && data !== lastRead) {
+    setLastRead(data);
+  }
   // The stored review is keyed by path too, so a rename would otherwise leave
   // the gate below with nothing and unmount the buffer mid-session.
-  const lastStash = useRef<ConflictStash | null | undefined>(undefined);
+  const [lastStash, setLastStash] = useState(stash.data);
+  if (stash.data !== undefined && stash.data !== lastStash) {
+    setLastStash(stash.data);
+  }
 
-  useEffect(() => {
-    if (data !== undefined) {
-      lastRead.current = data;
-    }
-  }, [data]);
-  useEffect(() => {
-    if (stash.data !== undefined) {
-      lastStash.current = stash.data;
-    }
-  }, [stash.data]);
-
-  const file = data ?? lastRead.current;
-  const stored = stash.data === undefined ? lastStash.current : stash.data;
+  const file = data ?? lastRead;
+  const stored = stash.data === undefined ? lastStash : stash.data;
 
   // Only a missing file is a deletion. A permission or IO failure leaves the
   // note where it was, so the tab keeps what it last read (`D55`).

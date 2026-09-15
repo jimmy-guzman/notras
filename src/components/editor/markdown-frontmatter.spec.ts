@@ -45,7 +45,7 @@ describe("markdown with frontmatter", () => {
     );
     expect(
       tokens[2]?.every(({ color }) => color === "var(--syntax-punctuation)")
-    ).toBe(true);
+    ).toBeTruthy();
   });
 
   it("should leave later separators outside the frontmatter grammar", async () => {
@@ -56,7 +56,7 @@ describe("markdown with frontmatter", () => {
       theme: "notras",
     });
 
-    expect(tokens[7]).toEqual([
+    expect(tokens[7]).toStrictEqual([
       expect.objectContaining({
         color: "var(--foreground)",
         content: "after: text",

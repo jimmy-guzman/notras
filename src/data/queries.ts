@@ -5,6 +5,7 @@ import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
 import type { Tab } from "@/lib/tabs/tab";
 import type { GraphTarget } from "@/server/adapters/bindings";
+
 import { readConflictStash } from "./conflict-stash";
 import { readExternalNote } from "./external-note";
 import { getMentions } from "./get-mentions";
@@ -13,6 +14,12 @@ import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
 import { getNotesDir } from "./notes-dir";
 import { searchNotes } from "./search-notes";
+
+declare module "@tanstack/react-query" {
+  interface Register {
+    queryMeta: { what?: string };
+  }
+}
 
 // Not members: reading the object while it is still being built widens it
 // to `any`.

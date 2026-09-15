@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+
 import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
@@ -68,7 +69,7 @@ function Welcome({ onNew }: { onNew: () => void }) {
           />
         </picture>
         <div className="flex flex-col gap-5">
-          <h1 className="font-mono font-normal text-5xl leading-none tracking-[-0.06em]">
+          <h1 className="font-mono text-5xl leading-none font-normal tracking-[-0.06em]">
             notras
           </h1>
           <p className="text-muted-foreground text-xl leading-[1.3] tracking-[-0.025em]">
@@ -76,7 +77,7 @@ function Welcome({ onNew }: { onNew: () => void }) {
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-4 text-muted-foreground text-sm">
+      <div className="text-muted-foreground flex items-center gap-4 text-sm">
         <Button onClick={onNew} variant="outline">
           new note <Chord hotkey="Mod+N" />
         </Button>
@@ -89,44 +90,44 @@ function Welcome({ onNew }: { onNew: () => void }) {
 }
 
 function RecentNote({ initialTabs }: { initialTabs: TabState }) {
-  const [finished, setFinished] = useState(false);
   const latest = useQuery({
     ...noteQueries.list({ limit: 1, sort: "updated" }),
-    enabled: !finished,
+    staleTime: Number.POSITIVE_INFINITY,
   });
+  const opened = useRef(false);
   useEffect(() => {
-    if (latest.isSuccess && !finished) {
-      setFinished(true);
+    if (latest.isSuccess && !opened.current) {
+      opened.current = true;
       const [note] = latest.data;
       if (note !== undefined && getTabState() === initialTabs) {
         openNote(note.path);
       }
     }
-  }, [finished, initialTabs, latest.data, latest.isSuccess]);
+  }, [initialTabs, latest.data, latest.isSuccess]);
   const indexStatus = useQuery(indexStatusQuery);
   const retry = useCallback(async () => {
     await latest.refetch();
   }, [latest]);
-  if (finished) {
+  if (latest.isSuccess) {
     return null;
   }
   if (latest.isError) {
     return (
-      <div className="p-3 text-center text-sm" role="status">
+      <output className="block p-3 text-center text-sm">
         <p>could not open the recent note</p>
         <p>{reasonOf(latest.error)}</p>
         <Button onClick={retry} size="sm" variant="ghost">
           retry
         </Button>
-      </div>
+      </output>
     );
   }
   return (
-    <p className="p-3 text-center text-muted-foreground text-xs" role="status">
+    <output className="text-muted-foreground block p-3 text-center text-xs">
       {indexStatus.data?.state === "scanning"
         ? "indexing notes..."
         : "loading recent note..."}
-    </p>
+    </output>
   );
 }
 

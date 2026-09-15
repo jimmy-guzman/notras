@@ -3,6 +3,8 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+
+import { hasString } from "@/components/editor/attrs";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
@@ -15,8 +17,7 @@ export function CodeBlockView({
   node,
   updateAttributes,
 }: ReactNodeViewProps) {
-  const language =
-    typeof node.attrs.language === "string" ? node.attrs.language : "";
+  const language = hasString(node.attrs, "language") ? node.attrs.language : "";
   const languageLabel = language === "" ? "plain" : language;
   const [copied, setCopied] = useState(false);
   const clearCopied = useDebouncedCallback(

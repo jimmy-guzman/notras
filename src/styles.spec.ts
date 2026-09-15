@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -8,18 +8,20 @@ import { describe, expect, it } from "vitest";
  * resolution, so a `?raw` import of `styles.css` resolves to an empty string.
  */
 const projectFile = (...segments: string[]) =>
-  readFileSync(join(process.cwd(), ...segments), "utf8");
+  readFileSync(path.join(process.cwd(), ...segments), "utf-8");
 
 const source = projectFile("src", "styles.css");
 
 const LIGHT_MARKER = "@media (prefers-color-scheme: light)";
 
-const TOKEN = /--([\w-]+):\s*(#[\da-f]{6})\b/g;
+const TOKEN = /--(?<name>[\w-]+):\s*(?<value>#[\da-f]{6})\b/gu;
 
 const readTokens = (css: string) => {
   const tokens = new Map<string, string>();
 
-  for (const [, name, value] of css.matchAll(TOKEN)) {
+  for (const { groups } of css.matchAll(TOKEN)) {
+    const name = groups?.name;
+    const value = groups?.value;
     if (name !== undefined && value !== undefined) {
       tokens.set(name, value);
     }
@@ -36,7 +38,7 @@ const lightTokens = readTokens(source.slice(markerAt));
 const toChannel = (byte: number) => {
   const ratio = byte / 255;
 
-  return ratio <= 0.039_28 ? ratio / 12.92 : ((ratio + 0.055) / 1.055) ** 2.4;
+  return ratio <= 0.03928 ? ratio / 12.92 : ((ratio + 0.055) / 1.055) ** 2.4;
 };
 
 const luminance = (hex: string) => {
@@ -74,8 +76,7 @@ const tokenValue = (
 
 const firstMatch = (pattern: RegExp, text: string, what: string) => {
   const found = pattern.exec(text);
-  // biome-ignore lint/suspicious/noUnnecessaryConditions: RegExp.exec returns RegExpExecArray | null
-  const value = found?.[1];
+  const value = found?.groups?.value;
 
   if (value === undefined) {
     throw new Error(`could not read ${what}`);
@@ -176,8 +177,8 @@ describe.each([
   });
 });
 
-const COMMENT = /\/\*[\s\S]*?\*\//g;
-const URL_VALUE = /url\([^)]*\)/g;
+const COMMENT = /\/\*[\s\S]*?\*\//gu;
+const URL_VALUE = /url\([^)]*\)/gu;
 
 /**
  * Every rule as its prelude and the declarations it holds, whitespace collapsed
@@ -198,7 +199,7 @@ const rulesOf = (css: string) => {
     .replaceAll(URL_VALUE, "")) {
     if (character === "{") {
       open.push(
-        (buffer.split(";").at(-1) ?? "").trim().replaceAll(/\s+/g, " ")
+        (buffer.split(";").at(-1) ?? "").trim().replaceAll(/\s+/gu, " ")
       );
       buffer = "";
     } else if (character === "}") {
@@ -216,7 +217,7 @@ const preludesOf = (css: string) => rulesOf(css).map(({ prelude }) => prelude);
 
 const TASK_LIST = 'ul[data-type="taskList"]';
 
-const LIST_ITEM = /\bli\b/;
+const LIST_ITEM = /\bli\b/u;
 
 const taskRowSelectors = preludesOf(source).filter(
   (prelude) => prelude.includes(TASK_LIST) && LIST_ITEM.test(prelude)
@@ -228,7 +229,7 @@ const taskRowSelectors = preludesOf(source).filter(
  * somewhere in the prelude would pass on the safe half alone, which is why the
  * descendant form is rejected outright rather than left to the positive check.
  */
-const DESCENDANT_ROW = /ul\[data-type="taskList"\]\s+li\b/;
+const DESCENDANT_ROW = /ul\[data-type="taskList"\]\s+li\b/u;
 
 /**
  * A task item holds `paragraph block*`, so a list nested inside one renders as
@@ -262,10 +263,10 @@ const TEXT_TONES = ["destructive", "faint", "foreground", "muted-foreground"];
  */
 const typesetRole = (role: string) => {
   const found = new RegExp(
-    String.raw`--typeset-${role}:\s*var\(\s*--color-([\w-]+)`
+    String.raw`--typeset-${role}:\s*var\(\s*--color-(?<token>[\w-]+)`,
+    "u"
   ).exec(typeset);
-  // biome-ignore lint/suspicious/noUnnecessaryConditions: RegExp.exec returns RegExpExecArray | null
-  const token = found?.[1];
+  const token = found?.groups?.token;
 
   if (token === undefined) {
     throw new Error(`--typeset-${role} does not read a --color-* token`);
@@ -274,13 +275,14 @@ const typesetRole = (role: string) => {
   return token;
 };
 
-const MARKER_COLOUR = /::marker\s*\{\s*color:\s*var\(--typeset-([\w-]+)\)/g;
+const MARKER_COLOUR =
+  /::marker\s*\{\s*color:\s*var\(--typeset-(?<role>[\w-]+)\)/gu;
 
 const INLINE_CODE_COLOUR =
-  /\.typeset-note :not\(pre\) > code \{[^}]*?\bcolor: var\(--([\w-]+)\)/;
+  /\.typeset-note :not\(pre\) > code \{[^}]*?\bcolor: var\(--(?<value>[\w-]+)\)/u;
 
 const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(
-  ([, role]) => role
+  ({ groups }) => groups?.role
 );
 
 /**
@@ -408,8 +410,8 @@ describe("the note preset", () => {
     expect(blockOf(source, ".typeset-note h3")).toContain(
       "--heading-scale: 1.33;"
     );
-    expect(source.match(/\[data-heading/g)).toHaveLength(
-      source.match(/:where\(\[data-heading/g)?.length ?? 0
+    expect(source.match(/\[data-heading/gu)).toHaveLength(
+      source.match(/:where\(\[data-heading/gu)?.length ?? 0
     );
   });
 });
@@ -451,7 +453,7 @@ describe("reading typography", () => {
   });
 
   it("should keep the same prose size across window widths and print", () => {
-    expect(source.match(/--typeset-size:\s*[^;]+;/g)).toEqual([
+    expect(source.match(/--typeset-size:\s*[^;]+;/gu)).toStrictEqual([
       "--typeset-size: 1rem;",
     ]);
   });
@@ -480,12 +482,12 @@ describe("reading typography", () => {
  * stylesheet, so neither has to stay unenforced: the pull-back has to cancel
  * exactly the box and the gap, or the marker column moves with nothing failing.
  */
-const CHECKBOX_WIDTH = /> label > input \{[^}]*?width:\s*([\d.]+)em/;
+const CHECKBOX_WIDTH = /> label > input \{[^}]*?width:\s*(?<value>[\d.]+)em/u;
 
-const TASK_ROW_GAP = /taskList"\] > li \{[^}]*?gap:\s*([\d.]+)em/;
+const TASK_ROW_GAP = /taskList"\] > li \{[^}]*?gap:\s*(?<value>[\d.]+)em/u;
 
 const TASK_LIST_PADDING =
-  /taskList"\] \{[^}]*?padding-inline-start:\s*([\d.]+)em/;
+  /taskList"\] \{[^}]*?padding-inline-start:\s*(?<value>[\d.]+)em/u;
 
 describe("task list ladder", () => {
   it("should cancel exactly the checkbox and the gap beside it", () => {
@@ -520,19 +522,19 @@ describe("task list ladder", () => {
  * together or a nested bullet drifts away from the rows around it.
  */
 const TYPESET_NESTED_STEP =
-  /li > ol\) \{[^}]*?margin-block-start:\s*([\d.]+em)/;
+  /li > ol\) \{[^}]*?margin-block-start:\s*(?<value>[\d.]+em)/u;
 
 const TASK_NESTED_QUOTE =
-  /> div > blockquote \{\s*margin-block-start:\s*([\d.]+em)/;
+  /> div > blockquote \{\s*margin-block-start:\s*(?<value>[\d.]+em)/u;
 
 const TASK_NESTED_LIST =
-  /> :where\(ol, ul:not\(\[data-type="taskList"\]\)\) \{\s*margin-block-start:\s*([\d.]+em)/;
+  /> :where\(ol, ul:not\(\[data-type="taskList"\]\)\) \{\s*margin-block-start:\s*(?<value>[\d.]+em)/u;
 
 const NESTED_TASK_LIST =
-  /taskList"\] ul\[data-type="taskList"\] \{\s*margin-block:\s*([\d.]+em)/;
+  /taskList"\] ul\[data-type="taskList"\] \{\s*margin-block:\s*(?<value>[\d.]+em)/u;
 
 const TYPESET_NESTED_FENCE =
-  /li > pre\) \{[^}]*?margin-block-start:\s*(calc\([^)]*\))/;
+  /li > pre\) \{[^}]*?margin-block-start:\s*(?<value>calc\([^)]*\))/u;
 
 describe("nested block rhythm", () => {
   it("should restate typeset's nested step for a quote under a task row", () => {
@@ -556,25 +558,25 @@ describe("nested block rhythm", () => {
 
 const rustBackground = (rustSource: string, name: string) => {
   const pattern = new RegExp(
-    String.raw`${name}: Color = Color\(\s*0x([\da-f]{2}),\s*0x([\da-f]{2}),\s*0x([\da-f]{2})`
+    String.raw`${name}: Color = Color\(\s*0x(?<red>[\da-f]{2}),\s*0x(?<green>[\da-f]{2}),\s*0x(?<blue>[\da-f]{2})`,
+    "u"
   );
   const found = pattern.exec(rustSource);
 
-  // biome-ignore lint/suspicious/noUnnecessaryConditions: RegExp.exec returns RegExpExecArray | null
   if (found === null) {
     throw new Error(`could not read ${name} from src-tauri/src/lib.rs`);
   }
 
-  return `#${found.slice(1, 4).join("")}`;
+  return `#${found.groups?.red}${found.groups?.green}${found.groups?.blue}`;
 };
 
-const BACKGROUND = /background-color:\s*(#[\da-f]{6})\b/;
+const BACKGROUND = /background-color:\s*(?<value>#[\da-f]{6})\b/u;
 
-const TAURI_BACKGROUND = /"backgroundColor":\s*"(#[\da-f]{6})"/;
+const TAURI_BACKGROUND = /"backgroundColor":\s*"(?<value>#[\da-f]{6})"/u;
 
 /** Attribute order is the formatter's business, so the tag is found by name. */
 const COLOR_SCHEME_META =
-  /<meta(?=[^>]*name="color-scheme")[^>]*content="([^"]+)"/;
+  /<meta(?=[^>]*name="color-scheme")[^>]*content="(?<value>[^"]+)"/u;
 
 const html = projectFile("index.html");
 const htmlMarkerAt = html.indexOf(LIGHT_MARKER);
@@ -642,7 +644,7 @@ describe("launch background", () => {
  * rather than a review note: TipTap cancels its `mousedown`, so Tab is the only
  * way to reach it and the outline is the only state it has.
  */
-const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/;
+const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/u;
 
 /**
  * The mark `DESIGN.md` documents, read as declarations rather than as the
@@ -650,10 +652,10 @@ const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/;
  * then paints nothing, or offsets an outline it never draws, leaves the control
  * exactly as bare as no rule at all.
  */
-const DRAWS_THE_MARK = /outline:\s*2px\s+solid\s+var\(--ring\)/;
+const DRAWS_THE_MARK = /outline:\s*2px\s+solid\s+var\(--ring\)/u;
 
 /** Signed, since a control filling a scrolling surface takes the mark inset. */
-const OFFSETS_THE_MARK = /outline-offset:\s*-?[\d.]+px/;
+const OFFSETS_THE_MARK = /outline-offset:\s*-?[\d.]+px/u;
 
 const selectorsOf = (prelude: string) =>
   prelude

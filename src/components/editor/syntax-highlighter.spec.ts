@@ -10,7 +10,7 @@ describe("syntax highlighting", () => {
     const highlighter = await loadSyntaxHighlighter(["typescript"]);
     const tokens = highlighter
       .codeToTokensBase(
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: This is source text for the highlighter, not a test template.
+        // oxlint-disable-next-line no-template-curly-in-string -- source text for the highlighter, not a test template
         'import { readFile } from "node:fs/promises";\nexport async function read(path: string): Promise<string> {\n const text = await readFile(path, "utf8");\n if (text) return `${path}: ${text}`;\n}',
         { lang: "typescript", theme: "notras" }
       )
@@ -28,7 +28,7 @@ describe("syntax highlighting", () => {
       ["Promise", "var(--syntax-type)"],
       ["path", "var(--foreground)"],
     ]) {
-      expect(tokens, content).toContainEqual(
+      expect(tokens).toContainEqual(
         expect.objectContaining({ color, content })
       );
     }
@@ -36,13 +36,13 @@ describe("syntax highlighting", () => {
       tokens.every(
         ({ fontStyle }) => fontStyle === 0 || fontStyle === undefined
       )
-    ).toBe(true);
+    ).toBeTruthy();
   });
 
   it("should keep interpolation variables separate from string text", async () => {
     const highlighter = await loadSyntaxHighlighter(["typescript"]);
     const tokens = highlighter
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: The interpolation must reach the grammar verbatim.
+      // oxlint-disable-next-line no-template-curly-in-string -- the interpolation must reach the grammar verbatim
       .codeToTokensBase("`hello ${name}`", {
         lang: "typescript",
         theme: "notras",
@@ -74,7 +74,7 @@ describe("syntax highlighting", () => {
         tokens.every(
           ({ fontStyle }) => fontStyle === 0 || fontStyle === undefined
         )
-      ).toBe(true);
+      ).toBeTruthy();
     }
   });
 

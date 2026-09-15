@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+
 import { PaletteSearch } from "@/components/palette-search";
 import { Command, CommandList } from "@/components/ui/command";
 import type { NoteMeta } from "@/core/notes";
@@ -39,9 +41,9 @@ function mount(query: string, error?: Error) {
           CommandList,
           null,
           createElement(PaletteSearch, {
-            onCreate: () => undefined,
-            onQueryChange: () => undefined,
-            onSelectNote: () => undefined,
+            onCreate: () => {},
+            onQueryChange: () => {},
+            onSelectNote: () => {},
             query: value,
           })
         )
@@ -56,7 +58,7 @@ function mount(query: string, error?: Error) {
 
 describe("palette search states", () => {
   it("should request the twenty most recently updated notes while idle", async () => {
-    const list = vi.fn((_payload: unknown) => [
+    const recent = [
       {
         createdAt: 0,
         folder: "",
@@ -67,7 +69,8 @@ describe("palette search states", () => {
         title: "Recent",
         updatedAt: 1,
       },
-    ]);
+    ];
+    const list = vi.fn<(payload?: InvokeArgs) => typeof recent>(() => recent);
     mockIPC((command, payload) => {
       if (command === "list_notes") {
         return list(payload);
@@ -77,9 +80,9 @@ describe("palette search states", () => {
     onTestFinished(clearMocks);
     mount("");
 
-    expect(
-      await screen.findByRole("option", { name: "Recent" })
-    ).toBeInTheDocument();
+    await expect(
+      screen.findByRole("option", { name: "Recent" })
+    ).resolves.toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({
       filters: {
         folder: null,
@@ -100,6 +103,7 @@ describe("palette search states", () => {
     expect(host.textContent).not.toContain("nothing found");
     expect(host.textContent).not.toContain("create");
   });
+
   it("should say indexing while a first search waits on the scan", async () => {
     const client = new QueryClient({
       defaultOptions: {
@@ -110,7 +114,7 @@ describe("palette search states", () => {
     client.setQueryData(noteQueries.tags().queryKey, []);
     mockIPC((command) => {
       if (command === "search_notes") {
-        return new Promise(() => undefined);
+        return Promise.withResolvers().promise;
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -129,9 +133,9 @@ describe("palette search states", () => {
             CommandList,
             null,
             createElement(PaletteSearch, {
-              onCreate: () => undefined,
-              onQueryChange: () => undefined,
-              onSelectNote: () => undefined,
+              onCreate: () => {},
+              onQueryChange: () => {},
+              onSelectNote: () => {},
               query: "budget",
             })
           )
@@ -150,16 +154,19 @@ describe("palette search states", () => {
     });
     expect(container.textContent).not.toContain("nothing found");
   });
+
   it("should show incomplete input without offering creation", () => {
     const { host } = mount("folder:");
     expect(host.textContent).toContain("incomplete filter");
     expect(host.textContent).not.toContain("create");
   });
+
   it("should show an unresolved filter as empty without offering creation", () => {
     const { host } = mount("folder:missing");
     expect(host.textContent).toContain("nothing found");
     expect(host.textContent).not.toContain("create");
   });
+
   it("should show the read failure reason without offering creation", () => {
     const { host } = mount("folder:work", new Error("index unavailable"));
     expect(host.textContent).toContain("could not search notes");
@@ -168,59 +175,63 @@ describe("palette search states", () => {
   });
 });
 
-it("should start an initial filtered search without unrelated recent rows", () => {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
-  client.setQueryData(noteQueries.list().queryKey, [
-    {
-      createdAt: new Date(0),
-      folder: "",
-      path: "recent.md",
-      pinned: false,
-      snippet: null,
-      tags: ["work"],
-      title: "Recent",
-      updatedAt: new Date(0),
-    },
-  ]);
-  const read = Promise.withResolvers<NoteMeta[]>();
-  const request = Promise.allSettled([
-    client.fetchQuery({
-      ...noteQueries.search(parseSearch("#missing")),
-      queryFn: () => read.promise,
-    }),
-  ]);
-  onTestFinished(async () => {
-    await act(async () => {
-      read.resolve([]);
-      await request;
+describe("palette search", () => {
+  it("should start an initial filtered search without unrelated recent rows", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
     });
-    client.clear();
-  });
-  const { container: host } = render(
-    createElement(
-      QueryClientProvider,
-      { client },
+    client.setQueryData(noteQueries.tags().queryKey, [
+      { count: 1, tag: "work" },
+    ]);
+    client.setQueryData(noteQueries.list().queryKey, [
+      {
+        createdAt: new Date(0),
+        folder: "",
+        path: "recent.md",
+        pinned: false,
+        snippet: null,
+        tags: ["work"],
+        title: "Recent",
+        updatedAt: new Date(0),
+      },
+    ]);
+    const read = Promise.withResolvers<NoteMeta[]>();
+    const request = Promise.allSettled([
+      client.fetchQuery({
+        ...noteQueries.search(parseSearch("#missing")),
+        queryFn: () => read.promise,
+      }),
+    ]);
+    onTestFinished(async () => {
+      await act(async () => {
+        read.resolve([]);
+        await request;
+      });
+      client.clear();
+    });
+    const { container: host } = render(
       createElement(
-        Command,
-        { shouldFilter: false },
+        QueryClientProvider,
+        { client },
         createElement(
-          CommandList,
-          null,
-          createElement(PaletteSearch, {
-            onCreate: () => undefined,
-            onQueryChange: () => undefined,
-            onSelectNote: () => undefined,
-            query: "#missing",
-          })
+          Command,
+          { shouldFilter: false },
+          createElement(
+            CommandList,
+            null,
+            createElement(PaletteSearch, {
+              onCreate: () => {},
+              onQueryChange: () => {},
+              onSelectNote: () => {},
+              query: "#missing",
+            })
+          )
         )
       )
-    )
-  );
-  expect(screen.queryByRole("option")).not.toBeInTheDocument();
-  expect(host.textContent).not.toContain("Recent");
-  expect(host.textContent).not.toContain("nothing found");
-  expect(host.textContent).not.toContain("searching notes");
+    );
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(host.textContent).not.toContain("Recent");
+    expect(host.textContent).not.toContain("nothing found");
+    expect(host.textContent).not.toContain("searching notes");
+  });
 });
