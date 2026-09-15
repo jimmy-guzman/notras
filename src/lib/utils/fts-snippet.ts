@@ -1,7 +1,8 @@
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 
 const SNIPPET_SPLIT_RE = new RegExp(
-  `(${RegExp.escape(SNIPPET_START)}|${RegExp.escape(SNIPPET_END)})`
+  `(${RegExp.escape(SNIPPET_START)}|${RegExp.escape(SNIPPET_END)})`,
+  "u"
 );
 
 interface SnippetPart {

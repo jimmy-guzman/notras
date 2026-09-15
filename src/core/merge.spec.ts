@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { composeResolution, mergeDocuments } from "@/core/merge";
 
 const base = "# Plan\n\nfirst paragraph\n\nsecond paragraph\n";
@@ -8,7 +9,7 @@ describe("three-way merge", () => {
     const ours = "# Plan\n\nfirst paragraph, mine\n\nsecond paragraph\n";
     const theirs = "# Plan\n\nfirst paragraph\n\nsecond paragraph, theirs\n";
 
-    expect(mergeDocuments(ours, base, theirs)).toEqual({
+    expect(mergeDocuments(ours, base, theirs)).toStrictEqual({
       content: "# Plan\n\nfirst paragraph, mine\n\nsecond paragraph, theirs\n",
       kind: "merged",
     });
@@ -20,7 +21,7 @@ describe("three-way merge", () => {
 
     const result = mergeDocuments(ours, base, theirs);
 
-    expect(result).toEqual({
+    expect(result).toStrictEqual({
       kind: "conflict",
       newline: "\n",
       regions: [
@@ -39,7 +40,7 @@ describe("three-way merge", () => {
   it("should accept identical edits on both sides without a hunk", () => {
     const both = "# Plan\n\nfirst paragraph, same\n\nsecond paragraph\n";
 
-    expect(mergeDocuments(both, base, both)).toEqual({
+    expect(mergeDocuments(both, base, both)).toStrictEqual({
       content: both,
       kind: "merged",
     });
@@ -52,7 +53,7 @@ describe("three-way merge", () => {
     const result = mergeDocuments(ours, base, theirs);
 
     expect(result.kind).toBe("conflict");
-    expect(mergeDocuments(ours, base, base)).toEqual({
+    expect(mergeDocuments(ours, base, base)).toStrictEqual({
       content: ours,
       kind: "merged",
     });
@@ -66,7 +67,7 @@ describe("three-way merge", () => {
       "second paragraph, theirs"
     );
 
-    expect(mergeDocuments(ours, crlfBase, theirs)).toEqual({
+    expect(mergeDocuments(ours, crlfBase, theirs)).toStrictEqual({
       content:
         "# Plan\r\n\r\nfirst paragraph, mine\r\n\r\nsecond paragraph, theirs\r\n",
       kind: "merged",

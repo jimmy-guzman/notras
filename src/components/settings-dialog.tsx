@@ -7,6 +7,7 @@ import {
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect } from "react";
+
 import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +64,7 @@ export function SettingsDialog({
         title: "choose your notes folder",
       });
 
-      if (typeof selected !== "string") {
+      if (selected === null) {
         return;
       }
 
@@ -121,7 +122,7 @@ export function SettingsDialog({
           <div className="flex flex-col gap-1.5">
             <Label>notes folder</Label>
             <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
+              <code className="bg-muted min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-xs">
                 {notesDir}
               </code>
               <Button onClick={changeNotesDir} size="sm" variant="outline">

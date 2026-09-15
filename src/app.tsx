@@ -30,7 +30,7 @@ const queryClient = new QueryClient({
     onError: (error, query) => {
       const what = query.meta?.what;
 
-      if (typeof what === "string" && query.state.data !== undefined) {
+      if (what !== undefined && query.state.data !== undefined) {
         toast.add({ description: reasonOf(error), title: what, type: "error" });
       }
     },
@@ -42,6 +42,7 @@ const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
 );
 
 export function App() {
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- the cleanup below stops the listener once its promise settles
   useEffect(() => {
     if (isCaptureWindow) {
       return;

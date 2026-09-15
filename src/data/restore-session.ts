@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+
 import { adoptVaultNotes, getTabState, restoreTabs } from "@/lib/tabs/store";
 import { commands } from "@/server/adapters/bindings";
 

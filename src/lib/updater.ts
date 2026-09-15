@@ -1,5 +1,7 @@
 import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { check } from "@tauri-apps/plugin-updater";
+import type { Update } from "@tauri-apps/plugin-updater";
+
 import { toast } from "@/components/ui/toast";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { reasonOf } from "@/lib/ui/failure";

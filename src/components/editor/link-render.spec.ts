@@ -36,11 +36,7 @@ describe("a rendered link", () => {
   });
 
   it("should read as internal for a file beside the note and not for a url", () => {
-    expect(render("[spec](docs/spec.pdf)")?.hasAttribute("data-note")).toBe(
-      true
-    );
-    expect(
-      render("[site](https://example.com)")?.hasAttribute("data-note")
-    ).toBe(false);
+    expect(render("[spec](docs/spec.pdf)")?.dataset.note).toBeDefined();
+    expect(render("[site](https://example.com)")?.dataset.note).toBeUndefined();
   });
 });

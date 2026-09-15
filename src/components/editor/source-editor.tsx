@@ -1,6 +1,8 @@
 import type { Editor } from "@tiptap/core";
 import { useLayoutEffect, useRef, useState } from "react";
-import { createFindHandle, type FindHandle } from "@/components/editor/find";
+
+import { createFindHandle } from "@/components/editor/find";
+import type { FindHandle } from "@/components/editor/find";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface SourceEditorHandle {
@@ -25,6 +27,7 @@ export function SourceEditor({
   initialCursor = 0,
   onReady,
 }: SourceEditorProps) {
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => ({ focusOnMount, initialCursor, onReady }));
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {

@@ -1,5 +1,6 @@
 import { error as logError } from "@tauri-apps/plugin-log";
-import { FileError } from "@/core/errors";
+
+import { FileError, isNativeFailure, isNativeMessage } from "@/core/errors";
 
 /** Preserve expected native failures; log unexpected defects before reporting them. */
 export async function nativeCommand<T>(
@@ -7,31 +8,26 @@ export async function nativeCommand<T>(
 ): Promise<T> {
   try {
     return await operation();
-  } catch (cause) {
+  } catch (error) {
     if (
-      typeof cause === "object" &&
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: rejected JavaScript promises can carry null, including malformed IPC failures
-      cause !== null &&
-      "kind" in cause &&
-      (cause.kind === "failed" || cause.kind === "not-found") &&
-      "message" in cause &&
-      typeof cause.message === "string"
+      isNativeFailure(error) &&
+      (error.kind === "failed" || error.kind === "not-found")
     ) {
       throw new FileError(
-        { kind: cause.kind, message: cause.message },
-        { cause }
+        { kind: error.kind, message: error.message },
+        { cause: error }
       );
     }
-    if (typeof cause === "string") {
-      throw new FileError({ kind: "failed", message: cause }, { cause });
+    if (isNativeMessage(error)) {
+      throw new FileError({ kind: "failed", message: error }, { cause: error });
     }
     try {
       await logError(
-        cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)
+        error instanceof Error ? (error.stack ?? error.message) : String(error)
       );
     } catch {
       // The caller must still receive the failure if the log sink is unavailable.
     }
-    throw new Error("an unexpected error", { cause });
+    throw new Error("an unexpected error", { cause: error });
   }
 }

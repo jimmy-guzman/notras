@@ -2,6 +2,7 @@ import type {
   Announcements,
   DragEndEvent,
   DragStartEvent,
+  Data,
 } from "@dnd-kit/core";
 import {
   closestCenter,
@@ -22,6 +23,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import {
   ContextMenu,
   ContextMenuContent,
@@ -55,20 +57,24 @@ import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
 
-const STEPS: Record<string, TabStep> = {
-  ArrowLeft: "previous",
-  ArrowRight: "next",
-  End: "end",
-  Home: "start",
-};
+const STEPS = new Map<string, TabStep>([
+  ["ArrowLeft", "previous"],
+  ["ArrowRight", "next"],
+  ["End", "end"],
+  ["Home", "start"],
+]);
 
 const ACTIVATION_DISTANCE_PX = 4;
 
 /** dnd-kit defaults to 250ms; `DESIGN.md` names 0.15s for chrome. */
 const TAB_TRANSITION = { duration: 150, easing: "ease" };
 
-function draggedLabel(data: Record<string, unknown> | undefined) {
-  return typeof data?.label === "string" ? data.label : "";
+function isTabDrag(data: Data | undefined): data is { label: string } {
+  return typeof data?.label === "string";
+}
+
+function draggedLabel(data: Data | undefined) {
+  return isTabDrag(data) ? data.label : "";
 }
 
 /** dnd-kit's defaults announce the minted id (`D56`). */
@@ -170,7 +176,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "group flex h-6 min-w-24 max-w-56 flex-1 basis-0 items-center self-center rounded-md ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring has-[:focus-visible]:-outline-offset-2",
+              "group has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center self-center rounded-md ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
               active
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-muted/40",
@@ -194,7 +200,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         }
       >
         {snapshot?.status === "failed" || snapshot?.status === "conflict" ? (
-          <span className="me-1.5 size-1.5 shrink-0 rounded-full bg-destructive">
+          <span className="bg-destructive me-1.5 size-1.5 shrink-0 rounded-full">
             <span className="sr-only">
               {[
                 snapshot.status === "failed"
@@ -226,7 +232,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         <button
           aria-label={`close ${label}`}
           className={cn(
-            "ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity duration-150 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
+            "hover:text-foreground ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100",
             active && "opacity-60"
           )}
           data-tab-close
@@ -280,7 +286,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
         render={
           <button
             aria-label={`${hidden.length} tabs out of view`}
-            className="ms-1 inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-md px-1 text-muted-foreground text-xs tabular-nums transition-colors duration-150 hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground ms-1 inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-md px-1 text-xs tabular-nums transition-colors duration-150"
             type="button"
           />
         }
@@ -311,7 +317,7 @@ function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
           <button
             aria-label="new note"
             className={cn(
-              "inline-flex size-6 shrink-0 select-none items-center justify-center self-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground",
+              "text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-6 shrink-0 items-center justify-center self-center rounded-md transition-colors duration-150 select-none",
               className
             )}
             onClick={onNew}
@@ -362,18 +368,20 @@ function TabList({ activeId, tabs }: TabListProps) {
     const measure = () => {
       const open = new Set(ids);
 
-      const next = [...list.querySelectorAll<HTMLElement>("[data-tab-id]")]
-        .filter(
-          (item) =>
-            // Not a rect: a drag transforms a tab out of its slot, and a rect
-            // would call it hidden for being mid-slide.
-            item.offsetLeft + item.offsetWidth <= list.scrollLeft + 1 ||
-            item.offsetLeft >= list.scrollLeft + list.clientWidth - 1
-        )
-        .map((item) => item.dataset.tabId ?? "")
+      const next: string[] = [];
+      for (const item of list.querySelectorAll<HTMLElement>("[data-tab-id]")) {
+        // Not a rect: a drag transforms a tab out of its slot, and a rect
+        // would call it hidden for being mid-slide.
+        const outOfView =
+          item.offsetLeft + item.offsetWidth <= list.scrollLeft + 1 ||
+          item.offsetLeft >= list.scrollLeft + list.clientWidth - 1;
+        const id = item.dataset.tabId ?? "";
         // A tab closed between the measurement and this frame still has a
         // node until React commits.
-        .filter((id) => open.has(id));
+        if (outOfView && open.has(id)) {
+          next.push(id);
+        }
+      }
 
       // Scrolling fires this every frame; only a real change may re-render.
       setHidden((current) =>
@@ -399,7 +407,7 @@ function TabList({ activeId, tabs }: TabListProps) {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      const step = STEPS[event.key];
+      const step = STEPS.get(event.key);
 
       if (step === undefined) {
         return;
@@ -439,6 +447,8 @@ function TabList({ activeId, tabs }: TabListProps) {
     [ids]
   );
 
+  const hiddenIds = new Set(hidden);
+
   return (
     <>
       <DndContext
@@ -458,6 +468,7 @@ function TabList({ activeId, tabs }: TabListProps) {
             onKeyDown={handleKeyDown}
             ref={listRef}
             role="tablist"
+            tabIndex={-1}
           >
             {tabs.map((tab) => (
               <TabItem
@@ -471,7 +482,7 @@ function TabList({ activeId, tabs }: TabListProps) {
           </div>
         </SortableContext>
       </DndContext>
-      <OverflowMenu hidden={tabs.filter((tab) => hidden.includes(tab.id))} />
+      <OverflowMenu hidden={tabs.filter((tab) => hiddenIds.has(tab.id))} />
     </>
   );
 }

@@ -61,7 +61,9 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
 
     editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
-    expect(tokenize.mock.calls.map(([text]) => text)).toEqual(["let a = 1;"]);
+    expect(tokenize.mock.calls.map(([text]) => text)).toStrictEqual([
+      "let a = 1;",
+    ]);
     expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
   });
 
@@ -77,7 +79,7 @@ describe("code block highlighting", () => {
     editor.commands.setTextSelection(1);
     editor.commands.setParagraph();
     expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
-    expect(editor.commands.undo()).toBe(true);
+    expect(editor.commands.undo()).toBeTruthy();
     expect(coloredText(editor, "syntax-keyword")).toBe("const");
   });
 
@@ -96,13 +98,13 @@ describe("code block highlighting", () => {
     await vi.waitFor(() =>
       expect(coloredText(editor, "syntax-keyword")).toBe("constconst")
     );
-    expect(editor.getJSON()).toEqual(doc);
-    expect(editor.state.selection.toJSON()).toEqual(selection);
+    expect(editor.getJSON()).toStrictEqual(doc);
+    expect(editor.state.selection.toJSON()).toStrictEqual(selection);
     expect(updates).toHaveLength(1);
-    expect(editor.commands.undo()).toBe(true);
+    expect(editor.commands.undo()).toBeTruthy();
     expect(editor.state.doc.textContent).toBe("const a = 1;");
-    expect(editor.commands.redo()).toBe(true);
-    expect(editor.getJSON()).toEqual(doc);
+    expect(editor.commands.redo()).toBeTruthy();
+    expect(editor.getJSON()).toStrictEqual(doc);
   });
 
   it("should follow a language change made while the first grammar loads", async ({

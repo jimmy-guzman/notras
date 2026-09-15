@@ -22,7 +22,7 @@ export type MergeResult = { content: string; kind: "merged" } | MergeConflict;
 
 export type HunkChoice = "ours" | "theirs" | { edited: string };
 
-const LINE_BREAK = /\r?\n/;
+const LINE_BREAK = /\r?\n/u;
 
 function lines(text: string) {
   return text.split(LINE_BREAK);

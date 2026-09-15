@@ -2418,7 +2418,10 @@
         }
       ]
     ],
-    "expected": [["a.md", "see [[Atlas]]"], ["b.md", "Atlas here"]]
+    "expected": [
+      ["a.md", "see [[Atlas]]"],
+      ["b.md", "Atlas here"]
+    ]
   },
   {
     "operation": "searchFilterMatches",

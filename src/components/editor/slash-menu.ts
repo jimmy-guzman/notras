@@ -5,7 +5,6 @@ import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
-
 import { SuggestionMenu } from "./suggestion-menu";
 
 interface SlashCommand {

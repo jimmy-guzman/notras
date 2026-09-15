@@ -6,13 +6,13 @@ Apply these when writing or changing code, and when writing prose in this repo. 
 
 The context for this repo lives in the five documents below. Read the ones your change touches before changing anything.
 
-| Doc               | What it holds                                                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ARCHITECTURE.md` | How the system is built: stack, files as the source of truth, the index schema, structure, layer boundaries, key patterns, invariants.                       |
-| `DESIGN.md`       | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
-| `DECISIONS.md`    | A log of decisions made, each with its rationale and what it rejected. A record, not a rulebook.                                                             |
-| `SPEC.md`         | What the app does, as claims a reader can check against a running build.                                                                                     |
-| `README.md`       | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns.                                                                 |
+| Doc | What it holds |
+| --- | --- |
+| `ARCHITECTURE.md` | How the system is built: stack, files as the source of truth, the index schema, structure, layer boundaries, key patterns, invariants. |
+| `DESIGN.md` | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
+| `DECISIONS.md` | A log of decisions made, each with its rationale and what it rejected. A record, not a rulebook. |
+| `SPEC.md` | What the app does, as claims a reader can check against a running build. |
+| `README.md` | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns. |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files above, so a stack detail, a pattern, or a color token added here is in the wrong place.
 
@@ -40,13 +40,13 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **A comment carries a why, never a what.** Doc comments, meaning JSDoc and rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line comment earns its place when it holds reasoning the code cannot: a platform quirk, a race, a measured value, or the rejected alternative sitting one line away. Delete the ones that restate what the line below already says, since those are the ones that drift into lies. Naming and structure carry everything else.
 
-- **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and diff cleanly, so it is exempt from the comment rule above and excluded in `biome.jsonc`'s `files.includes` (`D40`). Change the note surface through the `.typeset-note` preset in `src/styles.css`, never in the vendored file.
+- **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and diff cleanly, so it is exempt from the comment rule above and excluded in `oxlint.config.ts` and `oxfmt.config.ts` (`D40`). Change the note surface through the `.typeset-note` preset in `src/styles.css`, never in the vendored file.
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **Ultracite, a Biome preset, is the only JS/TS formatter and linter** (`D15`, `D41`), and it is dev tooling only. Rust uses rustfmt and Clippy. No Prettier and no ESLint. Do not silence a lint error with a config override: suppress a false positive at the call site with `biome-ignore` and a reason. `noJsxPropsBind` is intentionally disabled across the project: inline event handlers are allowed, and callback memoization needs a measured benefit or a consumer that relies on stable identity. The Shadcn `src/components/ui/**` override turns off the rules with no autofix because `scripts/update-shadcn.sh` regenerates those files (`D19`, `D37`).
+- **Ultracite, on oxlint and oxfmt, is the only JS/TS formatter and linter** (`D15`, `D41`, `D82`), and it is dev tooling only. Rust uses rustfmt and Clippy. No Prettier and no ESLint. A rule is turned off or narrowed only in `oxlint.config.ts`, with the reason on the line above it. Everywhere else a false positive is suppressed at the call site with `oxlint-disable-next-line` and a reason after `--`. Inline event handlers are allowed, and callback memoization needs a measured benefit or a consumer that relies on stable identity. The Shadcn `src/components/ui/**` override turns off the rules with no autofix because `scripts/update-shadcn.sh` regenerates those files (`D19`, `D37`).
 
-- **Sort object keys and imports alphabetically.** Biome's `organizeImports` assist runs on save; `useSortedKeys` runs at `pnpm check` and in the commit hook, since neither editor config wires it.
+- **Sort object keys and imports alphabetically.** oxfmt sorts imports and the `sort-keys` fix sorts keys, both on save through the editors' oxc actions and again at `pnpm check` and in the commit hook.
 
 - **Icons come from `lucide-react`, always the `Icon`-suffixed export.** Use `cn()` from the `cn` package for conditional Tailwind classes.
 

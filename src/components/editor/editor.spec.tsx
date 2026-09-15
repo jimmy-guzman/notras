@@ -8,8 +8,10 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { Selection } from "@tiptap/pm/state";
-import { type ComponentProps, createElement, StrictMode } from "react";
+import { createElement, StrictMode } from "react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { SENTINEL } from "@/components/editor/sentinel";
 
@@ -28,7 +30,7 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   const { container: host } = render(
     createElement(Editor, {
       initialContent: "first\n\nsecond",
-      onChange: () => undefined,
+      onChange: () => {},
       ...props,
       onReady: (ready) => {
         handles.push(ready);
@@ -75,6 +77,7 @@ describe("focus mode reading state", () => {
     expect(handle.getContent()).toContain("# a longer title");
     expect(handle.getContent()).not.toContain("plus typing");
   });
+
   it("should lift the dim while scrolling", async () => {
     const { scroller } = await mount({ focusModeEnabled: true });
 
@@ -277,7 +280,7 @@ describe("code block clipboard", () => {
 
     expect(language.value).toBe("typescript");
     expect(handle.getContent().trimEnd()).toBe("```typescript\ngraph TD\n```");
-    expect(await navigator.clipboard.readText()).toBe(
+    await expect(navigator.clipboard.readText()).resolves.toBe(
       "```typescript\ngraph TD\n```"
     );
 
@@ -330,8 +333,9 @@ describe("document selection mapping", () => {
   });
 
   it("should deliver document edits without a selection when source mapping fails", async () => {
-    const onChange = vi.fn();
-    const onSelect = vi.fn();
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const onSelect =
+      vi.fn<NonNullable<ComponentProps<typeof Editor>["onSelect"]>>();
     const { editor } = await mount({
       initialContent: "body",
       onChange,
@@ -355,7 +359,7 @@ describe("document selection mapping", () => {
     act(() => {
       editor.commands.insertContent("new ");
     });
-    expect(onChange).toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledOnce();
     expect(onChange.mock.lastCall?.[0]).toContain("new body");
     expect(onChange.mock.lastCall?.[1].selection).toBeUndefined();
     expect(onSelect).not.toHaveBeenCalled();
@@ -367,7 +371,7 @@ describe("document selection mapping", () => {
     act(() => {
       editor.commands.insertContent("old");
     });
-    expect(onChange.mock.lastCall?.[1].selection).toEqual({
+    expect(onChange.mock.lastCall?.[1].selection).toStrictEqual({
       anchor: 3,
       head: 3,
     });
@@ -421,7 +425,7 @@ describe("caret on mount", () => {
         createElement(Editor, {
           focusOnMount: true,
           initialContent: `# title\n\nbo${SENTINEL}dy`,
-          onChange: () => undefined,
+          onChange: () => {},
           onReady: (ready) => {
             handles.push(ready);
           },

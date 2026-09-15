@@ -7,12 +7,15 @@ import { listen } from "@tauri-apps/api/event";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import { CommandPalette, type PaletteMode } from "@/components/command-palette";
+import type { FallbackProps } from "react-error-boundary";
+
+import { CommandPalette } from "@/components/command-palette";
+import type { PaletteMode } from "@/components/command-palette";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Workspace } from "@/components/workspace/workspace";
 import { WorkspaceError } from "@/components/workspace-error";
+import { Workspace } from "@/components/workspace/workspace";
 import { createNote } from "@/data/create-note";
 import { applyIndexStatus } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
@@ -122,6 +125,7 @@ function MainWindow() {
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   // No paths means the whole vault.
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- disposeLater stops both listeners once their promises settle
   useEffect(() => {
     const unlisten = events.notesChanged.listen((event) => {
       const { paths } = event.payload;
@@ -277,7 +281,7 @@ function MainWindow() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-svh flex-col bg-background text-foreground">
+      <div className="bg-background text-foreground flex h-svh flex-col">
         <Workspace initialTabs={initialTabs} onFilterTag={setTag} />
       </div>
       <CommandPalette
@@ -299,19 +303,15 @@ function MainWindow() {
   );
 }
 
+function renderWorkspaceError({ error, resetErrorBoundary }: FallbackProps) {
+  return <WorkspaceError reason={reasonOf(error)} retry={resetErrorBoundary} />;
+}
+
 export function Layout() {
   return (
     <QueryErrorResetBoundary>
       {({ reset }) => (
-        <ErrorBoundary
-          fallbackRender={({ error, resetErrorBoundary }) => (
-            <WorkspaceError
-              reason={reasonOf(error)}
-              retry={resetErrorBoundary}
-            />
-          )}
-          onReset={reset}
-        >
+        <ErrorBoundary fallbackRender={renderWorkspaceError} onReset={reset}>
           <Suspense fallback={null}>
             <MainWindow />
           </Suspense>

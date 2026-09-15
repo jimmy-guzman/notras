@@ -2,11 +2,13 @@ import {
   detectPlatform,
   formatForDisplay,
   getHotkeyManager,
-  type Hotkey,
-  type HotkeyCallback,
-  type HotkeyRegistrationHandle,
   normalizeRegisterableHotkey,
   useHotkeyRegistrations,
+} from "@tanstack/react-hotkeys";
+import type {
+  Hotkey,
+  HotkeyCallback,
+  HotkeyRegistrationHandle,
 } from "@tanstack/react-hotkeys";
 import { useLayoutEffect, useRef } from "react";
 

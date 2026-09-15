@@ -1,7 +1,5 @@
 import { cn } from "cn";
 import {
-  type ChangeEvent,
-  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -9,6 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ChangeEvent, ReactNode } from "react";
+
 import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,18 +20,18 @@ import {
 import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  composeResolution,
-  type Hunk,
-  type HunkChoice,
-  type MergeConflict,
-  mergeDocuments,
-  type Newline,
-} from "@/core/merge";
+import { composeResolution, mergeDocuments } from "@/core/merge";
+import type { Hunk, HunkChoice, MergeConflict, Newline } from "@/core/merge";
 import { useHotkeys } from "@/lib/ui/shortcuts";
 
+interface ReviewRows {
+  choices: HunkChoice[];
+  remaining: number;
+  rows: ReactNode[];
+}
+
 const FOLD_AFTER_LINES = 6;
-const HEADING_LINE = /^#{1,6} /;
+const HEADING_LINE = /^#{1,6} /u;
 
 interface ContextRunProps {
   lines: string[];
@@ -43,7 +43,7 @@ function ContextRun({ lines }: ContextRunProps) {
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
       <Button
-        className="self-start font-sans text-muted-foreground"
+        className="text-muted-foreground self-start font-sans"
         onClick={expand}
         size="xs"
         variant="link"
@@ -53,7 +53,7 @@ function ContextRun({ lines }: ContextRunProps) {
     );
   }
   return (
-    <div className="whitespace-pre-wrap text-muted-foreground">
+    <div className="text-muted-foreground whitespace-pre-wrap">
       {lines.join("\n")}
     </div>
   );
@@ -88,7 +88,7 @@ interface SideProps {
 function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
   return (
     <>
-      <div className="flex items-center justify-between font-sans text-muted-foreground text-xs">
+      <div className="text-muted-foreground flex items-center justify-between font-sans text-xs">
         <span>{label}</span>
         <Button aria-label={useLabel} onClick={onUse} size="xs" variant="ghost">
           use this
@@ -96,7 +96,7 @@ function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
       </div>
       <div
         className={cn(
-          "whitespace-pre-wrap rounded-lg bg-card px-4 py-3",
+          "bg-card rounded-lg px-4 py-3 whitespace-pre-wrap",
           lines.length === 0 && "text-muted-foreground"
         )}
         data-heading={heading ? "1" : undefined}
@@ -176,13 +176,13 @@ function Place({
         useLabel="use this, mine"
       />
       <Label
-        className="font-normal font-sans text-muted-foreground text-xs"
+        className="text-muted-foreground font-sans text-xs font-normal"
         htmlFor={resultId}
       >
         result<span className="sr-only"> for place {number}</span>
       </Label>
       <Textarea
-        className="rounded-lg placeholder:font-normal placeholder:font-sans placeholder:text-sm"
+        className="rounded-lg placeholder:font-sans placeholder:text-sm placeholder:font-normal"
         data-heading={heading ? "1" : undefined}
         id={resultId}
         onChange={edit}
@@ -236,11 +236,7 @@ export function ConflictReview({
   }, [open]);
 
   const { choices, remaining, rows } = useMemo(() => {
-    const built: {
-      choices: HunkChoice[];
-      remaining: number;
-      rows: ReactNode[];
-    } = { choices: [], remaining: 0, rows: [] };
+    const built: ReviewRows = { choices: [], remaining: 0, rows: [] };
     if (merge.kind !== "conflict") {
       return built;
     }
@@ -295,7 +291,7 @@ export function ConflictReview({
     <section
       aria-label="review overlapping edits"
       className={cn(
-        "absolute inset-0 overflow-auto bg-background",
+        "bg-background absolute inset-0 overflow-auto",
         !open && "pointer-events-none invisible"
       )}
       ref={container}
@@ -312,7 +308,7 @@ export function ConflictReview({
           </Empty>
         ) : (
           <div className="flex flex-col gap-1">
-            <h2 className="font-medium text-sm">
+            <h2 className="text-sm font-medium">
               {`${places} ${places === 1 ? "place" : "places"} changed here and on disk`}
             </h2>
             <p className="text-muted-foreground text-xs">
@@ -341,7 +337,7 @@ export function ConflictReview({
               ? `${remaining} of ${places} still need a result`
               : "every place has a result"}
           </span>
-          <span className="ms-auto flex items-center gap-3 text-muted-foreground text-xs">
+          <span className="text-muted-foreground ms-auto flex items-center gap-3 text-xs">
             <KbdGroup>
               <Chord hotkey="Escape" />
               <span>back</span>

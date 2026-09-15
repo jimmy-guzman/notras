@@ -22,7 +22,7 @@ interface TitlebarProps {
 export function Titlebar({ children }: TitlebarProps) {
   return (
     <div
-      className="flex h-9 shrink-0 items-center bg-card ps-titlebar pe-3 shadow-[inset_0_-1px_0_var(--border)]"
+      className="bg-card ps-titlebar flex h-9 shrink-0 items-center pe-3 shadow-[inset_0_-1px_0_var(--border)]"
       data-tauri-drag-region="deep"
     >
       {children}

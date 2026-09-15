@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+
 import { Chord } from "@/components/chord";
 import {
   CommandEmpty,
@@ -62,7 +63,7 @@ export function ActionsView({ actions, chordsByName }: ActionsViewProps) {
                     // A selected row is `bg-muted`, which the chip otherwise
                     // matches exactly and disappears into.
                     <Chord
-                      className="tracking-normal group-data-selected/command-item:bg-background"
+                      className="group-data-selected/command-item:bg-background tracking-normal"
                       hotkey={hotkey}
                       key={id}
                     />

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+
 import { reasonOf } from "./failure";
 
-describe("reasonOf", () => {
+describe(reasonOf, () => {
   it("should return the trimmed reason from a serialized native failure", () => {
     expect(reasonOf({ kind: "failed", message: "  permission denied  " })).toBe(
       "permission denied"
@@ -30,7 +31,6 @@ describe("reasonOf", () => {
   });
 
   it("should return nothing when the error's message is blank", () => {
-    // biome-ignore lint/suspicious/useErrorMessage: the blank message is the case under test, and it reaches the app from Rust rather than from a `new Error` lint can see
     expect(reasonOf(new Error("   "))).toBeUndefined();
   });
 

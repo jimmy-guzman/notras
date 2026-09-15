@@ -15,8 +15,8 @@ import {
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-const BACKTICK_RUN = /`+/g;
-const TILDE_RUN = /~+/g;
+const BACKTICK_RUN = /`+/gu;
+const TILDE_RUN = /~+/gu;
 
 function codeBlocks(doc: Node) {
   return findChildren(doc, (node) => node.type.name === "codeBlock");
@@ -46,28 +46,29 @@ function decorationsFor(
     return [];
   }
 
+  const loaded = new Set(highlighter.getLoadedLanguages());
+
   return blocks.flatMap(({ node, pos }) => {
     const language = syntaxLanguage(node.attrs.language);
 
-    if (
-      language === undefined ||
-      !highlighter.getLoadedLanguages().includes(language)
-    ) {
+    if (language === undefined || !loaded.has(language)) {
       return [];
     }
 
     return highlighter
       .codeToTokensBase(node.textContent, { lang: language, theme: "notras" })
       .flatMap((line) =>
-        line
-          .filter((token) => token.content.length > 0)
-          .map((token) =>
-            Decoration.inline(
-              pos + 1 + token.offset,
-              pos + 1 + token.offset + token.content.length,
-              { class: "syntax-token", style: `color: ${token.color}` }
-            )
-          )
+        line.flatMap((token) =>
+          token.content.length === 0
+            ? []
+            : [
+                Decoration.inline(
+                  pos + 1 + token.offset,
+                  pos + 1 + token.offset + token.content.length,
+                  { class: "syntax-token", style: `color: ${token.color}` }
+                ),
+              ]
+        )
       );
   });
 }
@@ -90,20 +91,21 @@ function refreshChangedDecorations(
     };
   });
   const unchangedPositions = new Set(
-    previousBlocks
-      .filter((block) => block.unchanged)
-      .map((block) => block.mappedPos)
+    previousBlocks.flatMap((block) =>
+      block.unchanged ? [block.mappedPos] : []
+    )
   );
-  const obsolete = previousBlocks
-    .filter((block) => !block.unchanged)
-    .flatMap(({ node, pos }) => decorations.find(pos, pos + node.nodeSize));
+  const obsolete = previousBlocks.flatMap(
+    ({ node, pos, unchanged }) =>
+      unchanged ? [] : decorations.find(pos, pos + node.nodeSize) // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
+  );
   const changed = codeBlocks(transaction.doc).filter(
     ({ pos }) => !unchangedPositions.has(pos)
   );
 
   return decorations
     .remove(obsolete)
-    .map(transaction.mapping, transaction.doc)
+    .map(transaction.mapping, transaction.doc) // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
     .add(transaction.doc, decorationsFor(changed, highlighter));
 }
 
@@ -174,7 +176,7 @@ function syntaxPlugin() {
               previous.doc,
               highlighter
             )
-          : decorations.map(transaction.mapping, transaction.doc);
+          : decorations.map(transaction.mapping, transaction.doc); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
       },
       init: () => DecorationSet.empty,
     },
@@ -203,9 +205,11 @@ export const CodeBlockShiki = CodeBlock.extend({
     // Backtick fences cannot carry a backtick in their info string.
     const marker = language.includes("`") ? "~" : "`";
     // A literal fence in an example must not close the block enclosing it.
-    const length = (
-      body.match(marker === "~" ? TILDE_RUN : BACKTICK_RUN) ?? []
-    ).reduce((minimum, run) => Math.max(minimum, run.length + 1), 3);
+    const runs = body.match(marker === "~" ? TILDE_RUN : BACKTICK_RUN) ?? [];
+    let length = 3;
+    for (const run of runs) {
+      length = Math.max(length, run.length + 1);
+    }
     const fence = marker.repeat(length);
 
     return [`${fence}${language}`, body, fence].join("\n");

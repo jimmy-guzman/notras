@@ -7,7 +7,7 @@ import {
   encodeAttachmentPath,
 } from "./attachments";
 
-describe("attachmentLink", () => {
+describe(attachmentLink, () => {
   it("should embed an image whose name carries spaces", () => {
     expect(
       attachmentLink(

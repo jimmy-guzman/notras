@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import type { TabState } from "./tab";
-
 import {
   adoptNote,
   closeTab,
@@ -18,7 +17,7 @@ import {
   tabPanelId,
 } from "./tab";
 
-const WHITESPACE = /\s/;
+const WHITESPACE = /\s/u;
 
 /** Ids are opaque (`D56`), so the specs use a readable one per path. */
 const note = (path: string) =>
@@ -46,7 +45,7 @@ describe("tabButtonId and tabPanelId", () => {
   });
 });
 
-describe("tabFullPath", () => {
+describe(tabFullPath, () => {
   it("should put the notes dir in front of a note's path", () => {
     expect(
       tabFullPath({ id: "t1", kind: "note", path: "a.md" }, "/Users/me/notras")
@@ -72,7 +71,7 @@ describe("tabFullPath", () => {
   });
 });
 
-describe("openTab", () => {
+describe(openTab, () => {
   it("should replace the active tab by default", () => {
     const next = openTab(three, note("d.md"));
 
@@ -122,7 +121,7 @@ describe("openTab", () => {
   });
 });
 
-describe("closeTab", () => {
+describe(closeTab, () => {
   it("should hand focus to the tab on the right", () => {
     const next = closeTab(three, "id-b.md");
 
@@ -157,7 +156,7 @@ describe("closeTab", () => {
   });
 });
 
-describe("replaceNotePath", () => {
+describe(replaceNotePath, () => {
   it("should move the tab to the new path in place", () => {
     const next = replaceNotePath(three, "b.md", "work/b.md");
 
@@ -200,7 +199,7 @@ describe("replaceNotePath", () => {
   });
 });
 
-describe("adoptNote", () => {
+describe(adoptNote, () => {
   it("should turn the external tab into the note, keeping its id", () => {
     const state: TabState = {
       activeId: "id-external-/vault/b.md",
@@ -233,7 +232,7 @@ describe("adoptNote", () => {
   });
 });
 
-describe("stepTab", () => {
+describe(stepTab, () => {
   it("should move to the next tab", () => {
     expect(stepTab(three, "next")?.path).toBe("c.md");
   });
@@ -264,7 +263,7 @@ describe("stepTab", () => {
   });
 });
 
-describe("moveTabTo", () => {
+describe(moveTabTo, () => {
   it("should move a tab later in the strip", () => {
     expect(
       moveTabTo(three, "id-a.md", 2).tabs.map((tab) => tab.path)
@@ -295,7 +294,7 @@ describe("moveTabTo", () => {
   });
 });
 
-describe("pushClosed", () => {
+describe(pushClosed, () => {
   it("should put the most recent first", () => {
     const closed = pushClosed(pushClosed([], note("a.md"), 0), note("b.md"), 1);
 
@@ -326,9 +325,10 @@ describe("pushClosed", () => {
   });
 
   it("should bound the stack at ten", () => {
-    const closed = Array.from({ length: 14 }).reduce<
-      ReturnType<typeof pushClosed>
-    >((stack, _, index) => pushClosed(stack, note(`${index}.md`), index), []);
+    let closed: ReturnType<typeof pushClosed> = [];
+    for (let index = 0; index < 14; index += 1) {
+      closed = pushClosed(closed, note(`${index}.md`), index);
+    }
 
     expect(closed).toHaveLength(10);
     expect(closed[0]?.tab.path).toBe("13.md");
@@ -342,18 +342,18 @@ describe("reopening a batch", () => {
    */
   it("should rebuild the strip in order when a batch is reopened", () => {
     const tabs = [note("a.md"), note("b.md"), note("c.md"), note("d.md")];
-    const closedRightmostFirst = [3, 2, 1].reduce<
-      ReturnType<typeof pushClosed>
-    >((stack, index) => {
+    let closedRightmostFirst: ReturnType<typeof pushClosed> = [];
+    for (const index of [3, 2, 1]) {
       const tab = tabs[index];
+      if (tab !== undefined) {
+        closedRightmostFirst = pushClosed(closedRightmostFirst, tab, index);
+      }
+    }
 
-      return tab === undefined ? stack : pushClosed(stack, tab, index);
-    }, []);
-
-    const rebuilt = closedRightmostFirst.reduce<TabState>(
-      (state, entry) => openTabAt(state, entry.tab, entry.index),
-      { activeId: "id-a.md", tabs: [note("a.md")] }
-    );
+    let rebuilt: TabState = { activeId: "id-a.md", tabs: [note("a.md")] };
+    for (const entry of closedRightmostFirst) {
+      rebuilt = openTabAt(rebuilt, entry.tab, entry.index);
+    }
 
     expect(rebuilt.tabs.map((tab) => tab.path)).toStrictEqual([
       "a.md",
@@ -364,7 +364,7 @@ describe("reopening a batch", () => {
   });
 });
 
-describe("openTabAt", () => {
+describe(openTabAt, () => {
   it("should put a tab back in the slot it came out of", () => {
     const closedAt = 1;
     const without = closeTab(three, "id-b.md");
@@ -396,7 +396,7 @@ describe("openTabAt", () => {
   });
 });
 
-describe("parseTabs", () => {
+describe(parseTabs, () => {
   it("should reject a set holding one id twice", () => {
     const raw = JSON.stringify({
       activeId: "same",

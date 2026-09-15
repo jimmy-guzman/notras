@@ -1,18 +1,19 @@
 import { Debouncer } from "@tanstack/react-pacer";
 import { createStore } from "@tanstack/react-store";
-import {
-  composeNote,
-  type FrontmatterPatch,
-  parseNote,
-  updateFrontmatter,
-} from "@/core/frontmatter";
+
+import { composeNote, parseNote, updateFrontmatter } from "@/core/frontmatter";
+import type { FrontmatterPatch } from "@/core/frontmatter";
 import { mergeDocuments } from "@/core/merge";
 import { resolveTitle } from "@/core/notes";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { reasonOf } from "@/lib/ui/failure";
 import { countWords } from "@/lib/utils/word-count";
 import type { SaveName } from "@/server/adapters/bindings";
-import { createNoteDocument, type DocumentEdit } from "./note-document";
+
+import { createNoteDocument } from "./note-document";
+import type { DocumentEdit } from "./note-document";
+
+const BODY_EDIT: DocumentEdit = { titleEdited: false };
 
 export type SaveStatus = "conflict" | "dirty" | "failed" | "saved" | "saving";
 export type PathChange =
@@ -50,7 +51,8 @@ interface PersistencePorts {
   onCleanFileMissing?: () => void;
   onDocumentChanged?: (
     content: string,
-    selection?: { anchor: number; head: number }
+    selection: { anchor: number; head: number } | undefined,
+    sourceMode: boolean
   ) => void;
   onPathChanged: (from: string, to: string) => void;
   stash: (path: string, stash: ConflictStash) => Promise<void>;
@@ -79,6 +81,10 @@ interface PersistenceState {
 
 export type NotePersistence = ReturnType<typeof createNotePersistence>;
 
+function refused() {
+  return new Error("this note needs review before it can move");
+}
+
 /** A session's document and ordered writes; save receipts never edit its history. */
 export function createNotePersistence(
   initial: FileContent & {
@@ -91,6 +97,7 @@ export function createNotePersistence(
   const document = createNoteDocument(
     resumed?.ours ?? initial.content,
     initial.path.split("/").at(-1) ?? initial.path,
+    // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
     () => changed()
   );
   // A resumed review starts at its stored base and timestamp, so the file on
@@ -166,6 +173,7 @@ export function createNotePersistence(
       reason: undefined,
       status: "dirty",
     }));
+    // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
     debouncer.maybeExecute();
   };
   const followPath = (receipt: SaveReceipt) => {
@@ -238,6 +246,7 @@ export function createNotePersistence(
           status: "dirty",
           writing: false,
         }));
+        // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
         absorb(outcome.file);
         return;
       }
@@ -272,6 +281,7 @@ export function createNotePersistence(
       }));
       throw error;
     } finally {
+      // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
       reconcileFile();
     }
   };
@@ -284,6 +294,7 @@ export function createNotePersistence(
         return false;
       }
     };
+    // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
     const next = tail.then(run, run);
     tail = next;
     return next;
@@ -297,10 +308,7 @@ export function createNotePersistence(
   if (resumed !== undefined) {
     debouncer.maybeExecute();
   }
-  const edit = (
-    content: EditorContent,
-    details: DocumentEdit = { titleEdited: false }
-  ) => {
+  const edit = (content: EditorContent, details: DocumentEdit = BODY_EDIT) => {
     const full =
       content.mode === "document"
         ? content.content
@@ -313,11 +321,16 @@ export function createNotePersistence(
     if (change.kind === "retitle") {
       document.rename(change.title);
       changed();
-      ports.onDocumentChanged?.(document.content());
+      ports.onDocumentChanged?.(
+        document.content(),
+        undefined,
+        state.state.sourceMode
+      );
       debouncer.cancel();
       const run = async () => {
         await write();
       };
+      // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
       const next = tail.then(run, run);
       tail = next;
       return next;
@@ -331,8 +344,6 @@ export function createNotePersistence(
         if (state.state.missing) {
           throw new Error("no such file");
         }
-        const refused = () =>
-          new Error("this note needs review before it can move");
         if (inConflict()) {
           throw refused();
         }
@@ -352,9 +363,11 @@ export function createNotePersistence(
           ...previous,
           pendingPaths: previous.pendingPaths - 1,
         }));
+        // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
         reconcileFile();
       }
     };
+    // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
     const next = tail.then(run, run);
     tail = next;
     return next;
@@ -362,7 +375,7 @@ export function createNotePersistence(
   const flush = async () => {
     debouncer.cancel();
     while (!inConflict()) {
-      // biome-ignore lint/performance/noAwaitInLoops: quit must drain edits that arrived during the preceding write
+      // oxlint-disable-next-line no-await-in-loop -- quit must drain edits that arrived during the preceding write
       if (!(await save())) {
         return false;
       }
@@ -380,12 +393,20 @@ export function createNotePersistence(
       return false;
     }
     changed();
-    ports.onDocumentChanged?.(document.content(), document.selection());
+    ports.onDocumentChanged?.(
+      document.content(),
+      document.selection(),
+      state.state.sourceMode
+    );
     return true;
   };
   const replaceDocument = (content: string) => {
     document.replace(content);
-    ports.onDocumentChanged?.(document.content());
+    ports.onDocumentChanged?.(
+      document.content(),
+      undefined,
+      state.state.sourceMode
+    );
   };
   const absorb = (file: FileContent) => {
     const current = state.state;
@@ -521,7 +542,11 @@ export function createNotePersistence(
     const next = updateFrontmatter(document.content(), patch);
     document.edit(next, { separate: true, titleEdited: false });
     changed();
-    ports.onDocumentChanged?.(document.content());
+    ports.onDocumentChanged?.(
+      document.content(),
+      undefined,
+      state.state.sourceMode
+    );
     if (!(await flush())) {
       throw new Error(state.state.reason ?? "the note could not be saved");
     }

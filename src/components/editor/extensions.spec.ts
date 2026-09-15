@@ -35,7 +35,7 @@ describe("task item DOM", () => {
     );
 
     expect(nested).toHaveLength(1);
-    expect(nested[0]?.matches(TASK_LIST)).toBe(false);
+    expect(nested[0]?.matches(TASK_LIST)).toBeFalsy();
     expect(nested[0]?.querySelectorAll("li")).toHaveLength(1);
     expect(nested[0]?.querySelectorAll("input")).toHaveLength(0);
   });
@@ -52,8 +52,8 @@ describe("task item DOM", () => {
   it("should identify a task row by its checked state, not by a node type", () => {
     const row = render("- [x] done").querySelector(`${TASK_LIST} > li`);
 
-    expect(row?.matches('li[data-checked="true"]')).toBe(true);
-    expect(row?.matches('li[data-type="taskItem"]')).toBe(false);
+    expect(row?.matches('li[data-checked="true"]')).toBeTruthy();
+    expect(row?.matches('li[data-type="taskItem"]')).toBeFalsy();
   });
 });
 

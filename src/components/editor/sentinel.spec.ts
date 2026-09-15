@@ -92,7 +92,7 @@ describe("rich -> source caret mapping", () => {
     expect(offset).not.toBe(-1);
     // The characters before the source offset end with the visible text
     // that preceded the caret.
-    expect(md.slice(0, offset).endsWith(needle.slice(-3))).toBe(true);
+    expect(md.slice(0, offset).endsWith(needle.slice(-3))).toBeTruthy();
 
     editor.destroy();
   });
@@ -120,7 +120,7 @@ describe("source -> rich caret mapping", () => {
       editor.state.doc
         .textBetween(Math.max(0, pos - before.length), pos, "", " ")
         .endsWith(before.slice(-3))
-    ).toBe(true);
+    ).toBeTruthy();
 
     // The stripped buffer serializes to the canonical clean form -- the
     // same comparison the runtime corruption guard makes (must NOT fire).

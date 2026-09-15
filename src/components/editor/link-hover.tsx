@@ -55,8 +55,6 @@ export function LinkHover({
   return (
     // Resting the pointer here holds the panel open: it is the only way to
     // reach the button, since the pointer has to cross editor to get here.
-    // biome-ignore lint/a11y/noStaticElementInteractions: hover lifetime; the button inside is the control
-    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover lifetime; the button inside is the control
     <div
       className="link-hover"
       onMouseEnter={onPointerOver}

@@ -1,5 +1,6 @@
 import { useSelector } from "@tanstack/react-store";
 import { useEffect } from "react";
+
 import type { NotePersistence } from "@/components/editor/note-persistence";
 import { registerPendingFlush } from "@/lib/pending-flush";
 

@@ -85,15 +85,16 @@ export function StatusBar({
 
   const handleToggleChange = useCallback(
     (next: string[]) => {
+      const pressed = new Set(next);
       toggles
-        .find((toggle) => next.includes(toggle.value) !== toggle.pressed)
+        .find((toggle) => pressed.has(toggle.value) !== toggle.pressed)
         ?.onToggle();
     },
     [toggles]
   );
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-1 bg-card px-3 text-muted-foreground text-xs shadow-[inset_0_1px_0_var(--border)]">
+    <footer className="bg-card text-muted-foreground flex h-7 shrink-0 items-center gap-1 px-3 text-xs shadow-[inset_0_1px_0_var(--border)]">
       {note === undefined ? null : (
         <>
           <NoteTags onFilter={onFilterTag} path={note.path} tags={note.tags} />
@@ -109,9 +110,9 @@ export function StatusBar({
         onValueChange={handleToggleChange}
         size="icon-xs"
         spacing={0.5}
-        value={toggles
-          .filter((toggle) => toggle.pressed)
-          .map((toggle) => toggle.value)}
+        value={toggles.flatMap((toggle) =>
+          toggle.pressed ? [toggle.value] : []
+        )}
       >
         {toggles.map(({ hotkey, icon: Icon, label, value }) => (
           <Tooltip key={value}>

@@ -189,8 +189,8 @@ export function engageTypewriterPadding(
 
 interface TypewriterOptions {
   /** Live read of the pref -- the editor config is frozen at mount. */
-  enabled: () => boolean;
-  scroller: () => HTMLElement | null;
+  enabled: { readonly current: boolean };
+  scroller: { readonly current: HTMLElement | null };
 }
 
 /**
@@ -203,7 +203,7 @@ export function createTypewriter(options: TypewriterOptions): Extension {
     {
       props: {
         handleScrollToSelection: (view) => {
-          if (!options.enabled() || view.composing) {
+          if (!options.enabled.current || view.composing) {
             return false;
           }
 
@@ -211,7 +211,7 @@ export function createTypewriter(options: TypewriterOptions): Extension {
             return false;
           }
 
-          const scroller = options.scroller();
+          const scroller = options.scroller.current;
 
           if (scroller === null) {
             return false;

@@ -1,6 +1,8 @@
 import { useSelector } from "@tanstack/react-store";
 import { ArrowDownIcon, ArrowUpIcon, XIcon } from "lucide-react";
-import { type ChangeEvent, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import type { ChangeEvent } from "react";
+
 import {
   InputGroup,
   InputGroupAddon,
@@ -76,7 +78,7 @@ export function FindBar({ controller }: FindBarProps) {
     return null;
   }
   return (
-    <div className="note-find-bar absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-4xl bg-popover shadow-md">
+    <div className="note-find-bar bg-popover absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-4xl shadow-md">
       <InputGroup aria-label="find in note">
         <InputGroupInput
           aria-label="find text"
@@ -110,7 +112,7 @@ export function FindBar({ controller }: FindBarProps) {
           </InputGroupButton>
           <InputGroupButton
             aria-label="close find"
-            onClick={controller.close}
+            onClick={() => controller.close()}
             size="icon-xs"
           >
             <XIcon />
