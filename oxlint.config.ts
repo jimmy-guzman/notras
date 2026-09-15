@@ -10,8 +10,9 @@ const jsPlugins = selectJsPlugins(["react-doctor"]);
 
 export default defineConfig({
   extends: [core, react, vitest, tanstackJsPlugins, antiSlop, jsPlugins],
+  // The preset always sets its list; oxlint's config type leaves the field optional.
   ignorePatterns: [
-    ...core.ignorePatterns,
+    ...(core.ignorePatterns ?? []),
     "src/server/adapters/bindings.ts",
     "src/typeset.css",
     "assets",
