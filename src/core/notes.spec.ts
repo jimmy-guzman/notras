@@ -6,12 +6,25 @@ import { parseNote } from "./frontmatter";
 import {
   bodyTitle,
   filenameFromTitle,
+  noteTitle,
   resolveTitle,
   retitleLeadingHeading,
   titleSource,
 } from "./notes";
 
 const VALID_FILENAME = /^(?!\.)[^/\\:]+$/;
+
+describe("noteTitle", () => {
+  it.each([
+    [String.raw`C:\notes\draft.md`, "draft"],
+    [String.raw`\\server\notes\draft.Markdown`, "draft"],
+    ["/notes/draft.md", "draft"],
+    ["notes/draft.markdown", "draft"],
+    ["draft.txt", "draft.txt"],
+  ])("should use the filename stem of %s", (path, expected) => {
+    expect(noteTitle(path)).toBe(expected);
+  });
+});
 
 describe("resolveTitle", () => {
   it.each(titleCases)(

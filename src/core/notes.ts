@@ -30,7 +30,7 @@ const NOTE_NAME_MAX_LENGTH = 120;
 const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
 
 export function noteTitle(path: string) {
-  const name = path.split("/").at(-1) ?? path;
+  const name = path.replaceAll("\\", "/").split("/").at(-1) ?? path;
 
   return name.replace(MARKDOWN_EXTENSION, "");
 }
