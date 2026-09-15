@@ -963,9 +963,10 @@ mod tests {
             })
             .is_err());
         let file = core.read_note("fresh.md".into()).unwrap();
-        assert_eq!(file.title, "Fresh");
-        assert!(file.pinned);
-        assert_eq!(file.tags, ["z", "a"]);
+        assert_eq!(
+            file.content,
+            "---\npinned: true\ntags: [z, a]\n---\n# Fresh"
+        );
     }
 
     #[test]
@@ -1014,9 +1015,15 @@ mod tests {
                     save(&core, &note.path, "", 0);
                 }
                 for bare in args[3].as_array().unwrap() {
+                    let line = bare["line"].as_u64().unwrap() as usize;
+                    let title = notes
+                        .iter()
+                        .find(|note| note.path == bare["path"].as_str().unwrap())
+                        .unwrap();
                     let content = format!(
-                        "{}{}",
-                        "\n".repeat(bare["line"].as_u64().unwrap() as usize - 1),
+                        "# {}{}{}",
+                        title.title,
+                        "\n".repeat(line - 1),
                         bare["context"].as_str().unwrap()
                     );
                     save(&core, bare["path"].as_str().unwrap(), &content, 1);

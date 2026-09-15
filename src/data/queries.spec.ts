@@ -7,25 +7,19 @@ import { noteQueries } from "@/data/queries";
 afterEach(clearMocks);
 
 describe("saved query boundary", () => {
-  it("should use native persisted metadata and preserve missing-file failures", async () => {
+  it("should read file content and revision and preserve missing-file failures", async () => {
     const calls: unknown[] = [];
     mockIPC((command, args) => {
       calls.push({ args, command });
       return {
         content: "# file bytes",
-        path: "a.md",
-        pinned: true,
-        tags: ["z", "a"],
-        title: "saved title",
+        revision: "r1",
         updatedAt: 1000,
       };
     });
     expect(await getNote("a.md")).toEqual({
       content: "# file bytes",
-      path: "a.md",
-      pinned: true,
-      tags: ["z", "a"],
-      title: "saved title",
+      revision: "r1",
       updatedAt: new Date(1000),
     });
     expect(calls).toEqual([{ args: { path: "a.md" }, command: "read_note" }]);
@@ -80,10 +74,7 @@ describe("saved query boundary", () => {
       if (command === "read_note") {
         return {
           content: "# Atlas",
-          path: "atlas.md",
-          pinned: false,
-          tags: [],
-          title: "Atlas",
+          revision: "r1",
           updatedAt: 1000,
         };
       }

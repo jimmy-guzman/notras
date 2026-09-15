@@ -24,7 +24,7 @@ use cap_std::{ambient_authority, fs::Dir};
 pub use application::{
     external_file, external_image, external_note, read_external, write_external, CommandError,
     CreateNote, DeleteReceipt, ErrorKind, MutationReceipt, MutationWarning, NoteFile, NoteName,
-    OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome, SavedNote,
+    OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome,
 };
 pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
 pub use queries::{

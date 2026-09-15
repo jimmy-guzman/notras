@@ -66,7 +66,7 @@ describe("native command boundary", () => {
       expect(args).toEqual({
         content: "# Weekend errands",
         expected: "r0",
-        name: { kind: "heading" },
+        name: { kind: "content" },
         path: "shopping.md",
       });
       return {
@@ -80,7 +80,7 @@ describe("native command boundary", () => {
       };
     });
     await expect(
-      saveNote("shopping.md", "# Weekend errands", { kind: "heading" }, "r0")
+      saveNote("shopping.md", "# Weekend errands", { kind: "content" }, "r0")
     ).resolves.toMatchObject({
       receipt: { path: "weekend-errands-2.md", updatedAt: new Date(1234) },
     });

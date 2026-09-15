@@ -1,75 +1,50 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../../fixtures/note-mutations.json";
+import titleCases from "../../fixtures/note-titles.json";
 
 import { parseNote } from "./frontmatter";
 import {
+  bodyTitle,
   filenameFromTitle,
   resolveTitle,
   retitleLeadingHeading,
+  titleSource,
 } from "./notes";
 
 const VALID_FILENAME = /^(?!\.)[^/\\:]+$/;
 
-// Mirrors should_resolve_heading_then_imported_title_then_filename in
-// crates/notras-core/src/markdown.rs so both runtimes choose the same title.
-const cases: [content: string, path: string, expected: string][] = [
-  // The heading wins over an imported title that disagrees.
-  [
-    "---\ntitle: from frontmatter\n---\n# from heading\n",
-    "note.md",
-    "from heading",
-  ],
-  [
-    '---\ntitle: "effect: a primer"\n---\nbody\n',
-    "note.md",
-    "effect: a primer",
-  ],
-  ["---\ntitle: effect: a primer\n---\nbody\n", "note.md", "effect: a primer"],
-  // An empty imported title does not change heading precedence.
-  ["---\ntitle:\n---\n# from heading\n", "note.md", "from heading"],
-  // Heading beats the filename.
-  ["# from heading\n", "note.md", "from heading"],
-  ["\n\n# after blank lines\n", "note.md", "after blank lines"],
-  ["   # three spaces\n", "note.md", "three spaces"],
-  ["# closed form #\n", "note.md", "closed form"],
-  ["# closed form ###\n", "note.md", "closed form"],
-  // No whitespace before the trailing run, so it is part of the text.
-  ["# C#\n", "note.md", "C#"],
-  ["#\ttab after hash\n", "note.md", "tab after hash"],
-  // Not headings: too much indent, deeper level, no space, empty.
-  ["    # four spaces\n", "note.md", "note"],
-  ["## level two\n", "note.md", "note"],
-  ["#nospace\n", "note.md", "note"],
-  ["#\n", "note.md", "note"],
-  // A heading below content is a section heading, not the title.
-  ["intro paragraph\n\n# a section\n", "note.md", "note"],
-  // A fence opener cannot match, so code blocks need no tracking.
-  ["```\n# not a heading\n```\n", "note.md", "note"],
-  // Filename fallback.
-  ["just an idea\n", "work/ideas.md", "ideas"],
-  ["", "untitled.md", "untitled"],
-  ["# crlf heading\r\n", "note.md", "crlf heading"],
-  ["---\r\ntitle: crlf fm\r\n---\r\nbody\r\n", "note.md", "crlf fm"],
-];
-
 describe("resolveTitle", () => {
-  it.each(cases)("should resolve %j at %j to %j", (content, path, expected) => {
-    const parsed = parseNote(content);
-
-    expect(resolveTitle(path, parsed.body, parsed.frontmatter.title)).toBe(
-      expected
-    );
-  });
+  it.each(titleCases)(
+    "should resolve $name consistently with Rust",
+    ({ content, path, expected, line }) => {
+      const parsed = parseNote(content);
+      expect(resolveTitle(path, parsed.body, parsed.frontmatter.title)).toBe(
+        expected
+      );
+      expect(bodyTitle(parsed.body)?.line ?? null).toBe(line);
+      const source = titleSource(content);
+      expect(source?.title).toBe(
+        line !== null || parsed.frontmatter.title !== undefined
+          ? expected
+          : undefined
+      );
+      if (source !== undefined && line !== null) {
+        expect(content.slice(source.from, source.to)).toBe(
+          parsed.body.split("\n")[line]
+        );
+      }
+    }
+  );
 
   // Mirrors `should_strip_the_markdown_extension_case_insensitively` in
   // `crates/notras-core/src/markdown.rs`, case for case, so the two cannot drift.
   it("should strip the markdown extension case-insensitively", () => {
-    expect(resolveTitle("NOTE.MD", "body\n")).toBe("NOTE");
-    expect(resolveTitle("note.md", "body\n")).toBe("note");
-    expect(resolveTitle("Note.Markdown", "body\n")).toBe("Note");
-    expect(resolveTitle("note.markdown", "body\n")).toBe("note");
-    expect(resolveTitle("notes.txt", "body\n")).toBe("notes.txt");
-    expect(resolveTitle(".md", "body\n")).toBe("");
+    expect(resolveTitle("NOTE.MD", "")).toBe("NOTE");
+    expect(resolveTitle("note.md", "")).toBe("note");
+    expect(resolveTitle("Note.Markdown", "")).toBe("Note");
+    expect(resolveTitle("note.markdown", "")).toBe("note");
+    expect(resolveTitle("notes.txt", "")).toBe("notes.txt");
+    expect(resolveTitle(".md", "")).toBe("");
   });
 });
 

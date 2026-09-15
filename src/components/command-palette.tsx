@@ -320,14 +320,6 @@ export function CommandPalette({
     });
   }, [activeId, currentNote, query, runAction]);
 
-  const newNote = useCallback(() => {
-    runAction("could not create note", async () => {
-      const path = await createNote();
-
-      openInTab(path, true);
-    });
-  }, [runAction]);
-
   // `create` de-duplicates by appending a counter, so a stale index or a
   // title that differs from its filename never overwrites the existing note.
   const createFromQuery = useCallback(() => {
@@ -340,145 +332,17 @@ export function CommandPalette({
     });
   }, [query, runAction]);
 
-  const togglePin = useCallback(() => {
-    if (currentNote === undefined) {
-      return;
-    }
-
-    runAction("could not update pin", () =>
-      changeNoteMetadata(currentNote.path, { pinned: !currentNote.pinned })
-    );
-  }, [currentNote, runAction]);
-
-  const startEditTags = useCallback(() => {
-    setQuery("");
-    setView("tags");
-  }, []);
-
-  const startRename = useCallback(() => {
-    setQuery(currentNote?.title ?? "");
-    setView("rename");
-  }, [currentNote]);
-
-  const startMove = useCallback(() => {
-    setQuery("");
-    setView("move");
-  }, []);
-
-  const startDelete = useCallback(() => {
-    setQuery("");
-    setView("delete");
-  }, []);
-
-  const revealInFinder = useCallback(() => {
-    if (currentNote === undefined) {
-      return;
-    }
-
-    runAction("could not reveal note", () =>
-      revealItemInDir(`${notesDir}/${currentNote.path}`)
-    );
-  }, [currentNote, notesDir, runAction]);
-
-  const openSettings = useCallback(() => {
-    close();
-    onOpenSettings();
-  }, [close, onOpenSettings]);
-
   const focusModeEnabled = useFocusMode();
-
-  const toggleFocus = useCallback(() => {
-    close();
-    toggleFocusMode();
-  }, [close]);
-
-  const closeOthers = useCallback(() => {
-    close();
-    closeOtherTabs(activeId);
-  }, [activeId, close]);
-
-  const closeAfter = useCallback(() => {
-    close();
-    closeTabsAfter(activeId);
-  }, [activeId, close]);
-
-  const copyPath = useCallback(() => {
-    close();
-
-    if (activeTab !== undefined) {
-      copyTabPath(tabFullPath(activeTab, notesDir));
-    }
-  }, [activeTab, close, notesDir]);
-
-  const closeActive = useCallback(() => {
-    close();
-    closeTab(activeId);
-  }, [activeId, close]);
-
-  const reopenClosed = useCallback(() => {
-    close();
-    reopenTab();
-  }, [close]);
-
-  const toggleSource = useCallback(() => {
-    close();
-    getTabHandles(activeId)?.toggleSource();
-  }, [activeId, close]);
-
-  const findInNote = useCallback(() => {
-    close();
-    openNoteFind();
-  }, [close]);
-
-  const showMentions = useCallback(() => {
-    close();
-    setMentionsOpen(true);
-  }, [close]);
-
-  const toggleGraphView = useCallback(() => {
-    close();
-    toggleGraph(activeId);
-  }, [activeId, close]);
-
-  const quickCapture = useCallback(() => {
-    runAction("could not open quick capture", commands.showCapture);
-  }, [runAction]);
-
-  const reindex = useCallback(() => {
-    runAction("could not reindex", async () => {
-      await reindexAll();
-      toast.add({ title: "library reindexed", type: "success" });
-    });
-  }, [runAction]);
-
-  // Unlike the launch check, this one was asked for, so it reports either way,
-  // including the way a development build cannot report on: it never ran.
-  const checkForUpdates = useCallback(() => {
-    runAction("could not check for updates", async () => {
-      if (!updatesSupported()) {
-        toast.add({ title: "update checks are off in development" });
-
-        return;
-      }
-
-      const update = await findUpdate();
-
-      if (update === null) {
-        toast.add({ title: "notras is up to date", type: "success" });
-
-        return;
-      }
-
-      offerUpdate(update);
-    });
-  }, [runAction]);
 
   const actions: PaletteAction[] = [
     {
       Icon: SearchIcon,
       label: "find in note",
       needs: "editor",
-      onSelect: findInNote,
+      onSelect: () => {
+        close();
+        openNoteFind();
+      },
       text: "find in note",
       value: "find-in-note",
     },
@@ -486,7 +350,13 @@ export function CommandPalette({
       Icon: FilePlusIcon,
       label: "new note",
       needs: "none",
-      onSelect: newNote,
+      onSelect: () => {
+        runAction("could not create note", async () => {
+          const path = await createNote();
+
+          openInTab(path, true);
+        });
+      },
       text: "new note",
       value: "new-note",
     },
@@ -494,7 +364,15 @@ export function CommandPalette({
       Icon: PinIcon,
       label: "pin",
       needs: "note",
-      onSelect: togglePin,
+      onSelect: () => {
+        if (currentNote === undefined) {
+          return;
+        }
+
+        runAction("could not update pin", () =>
+          changeNoteMetadata(currentNote.path, { pinned: !currentNote.pinned })
+        );
+      },
       text: currentNote?.pinned ? "unpin note" : "pin note",
       value: "toggle-pin",
     },
@@ -502,7 +380,10 @@ export function CommandPalette({
       Icon: TagPlusIcon,
       label: "edit tags",
       needs: "note",
-      onSelect: startEditTags,
+      onSelect: () => {
+        setQuery("");
+        setView("tags");
+      },
       text: "edit tags...",
       value: "edit-tags",
     },
@@ -510,7 +391,10 @@ export function CommandPalette({
       Icon: Link2Icon,
       label: "show mentions",
       needs: "note",
-      onSelect: showMentions,
+      onSelect: () => {
+        close();
+        setMentionsOpen(true);
+      },
       text: "show mentions",
       value: "show-mentions",
     },
@@ -518,7 +402,10 @@ export function CommandPalette({
       Icon: PencilIcon,
       label: "rename note",
       needs: "note",
-      onSelect: startRename,
+      onSelect: () => {
+        setQuery(currentNote?.title ?? "");
+        setView("rename");
+      },
       text: "rename note...",
       value: "rename-note",
     },
@@ -526,7 +413,10 @@ export function CommandPalette({
       Icon: FolderInputIcon,
       label: "move to folder",
       needs: "note",
-      onSelect: startMove,
+      onSelect: () => {
+        setQuery("");
+        setView("move");
+      },
       text: "move to folder...",
       value: "move-note",
     },
@@ -534,7 +424,10 @@ export function CommandPalette({
       Icon: Trash2Icon,
       label: "delete note",
       needs: "note",
-      onSelect: startDelete,
+      onSelect: () => {
+        setQuery("");
+        setView("delete");
+      },
       text: "delete note...",
       value: "delete-note",
     },
@@ -542,7 +435,15 @@ export function CommandPalette({
       Icon: FolderSearchIcon,
       label: "reveal in finder",
       needs: "note",
-      onSelect: revealInFinder,
+      onSelect: () => {
+        if (currentNote === undefined) {
+          return;
+        }
+
+        runAction("could not reveal note", () =>
+          revealItemInDir(`${notesDir}/${currentNote.path}`)
+        );
+      },
       text: "reveal in finder",
       value: "reveal-in-finder",
     },
@@ -550,7 +451,10 @@ export function CommandPalette({
       Icon: FocusIcon,
       label: "focus mode",
       needs: "none",
-      onSelect: toggleFocus,
+      onSelect: () => {
+        close();
+        toggleFocusMode();
+      },
       text: toggleActionText(focusModeEnabled, "focus mode"),
       value: "toggle-focus-mode",
     },
@@ -558,7 +462,10 @@ export function CommandPalette({
       Icon: CodeIcon,
       label: "markdown source",
       needs: "tab",
-      onSelect: toggleSource,
+      onSelect: () => {
+        close();
+        getTabHandles(activeId)?.toggleSource();
+      },
       text: toggleActionText(
         activeSnapshot?.sourceMode ?? false,
         "markdown source"
@@ -569,7 +476,10 @@ export function CommandPalette({
       Icon: WaypointsIcon,
       label: "graph view",
       needs: "note",
-      onSelect: toggleGraphView,
+      onSelect: () => {
+        close();
+        toggleGraph(activeId);
+      },
       text: toggleActionText(graphEnabled, "graph view"),
       value: "toggle-graph",
     },
@@ -577,7 +487,10 @@ export function CommandPalette({
       Icon: XIcon,
       label: "close tab",
       needs: "tab",
-      onSelect: closeActive,
+      onSelect: () => {
+        close();
+        closeTab(activeId);
+      },
       text: "close tab",
       value: "close-tab",
     },
@@ -585,7 +498,10 @@ export function CommandPalette({
       Icon: ListXIcon,
       label: "close other tabs",
       needs: "tab",
-      onSelect: closeOthers,
+      onSelect: () => {
+        close();
+        closeOtherTabs(activeId);
+      },
       text: "close other tabs",
       value: "close-other-tabs",
     },
@@ -593,7 +509,10 @@ export function CommandPalette({
       Icon: PanelRightCloseIcon,
       label: "close tabs to the right",
       needs: "tab",
-      onSelect: closeAfter,
+      onSelect: () => {
+        close();
+        closeTabsAfter(activeId);
+      },
       text: "close tabs to the right",
       value: "close-tabs-after",
     },
@@ -601,7 +520,13 @@ export function CommandPalette({
       Icon: ClipboardIcon,
       label: "copy path",
       needs: "tab",
-      onSelect: copyPath,
+      onSelect: () => {
+        close();
+
+        if (activeTab !== undefined) {
+          copyTabPath(tabFullPath(activeTab, notesDir));
+        }
+      },
       text: "copy path",
       value: "copy-path",
     },
@@ -609,7 +534,10 @@ export function CommandPalette({
       Icon: Undo2Icon,
       label: "reopen last closed tab",
       needs: "none",
-      onSelect: reopenClosed,
+      onSelect: () => {
+        close();
+        reopenTab();
+      },
       text: "reopen last closed tab",
       value: "reopen-tab",
     },
@@ -617,7 +545,9 @@ export function CommandPalette({
       Icon: NotebookPenIcon,
       label: "quick capture",
       needs: "none",
-      onSelect: quickCapture,
+      onSelect: () => {
+        runAction("could not open quick capture", commands.showCapture);
+      },
       text: "quick capture",
       value: "quick-capture",
     },
@@ -625,7 +555,10 @@ export function CommandPalette({
       Icon: SettingsIcon,
       label: "settings",
       needs: "none",
-      onSelect: openSettings,
+      onSelect: () => {
+        close();
+        onOpenSettings();
+      },
       text: "settings",
       value: "settings",
     },
@@ -633,7 +566,12 @@ export function CommandPalette({
       Icon: RefreshCwIcon,
       label: "reindex library",
       needs: "none",
-      onSelect: reindex,
+      onSelect: () => {
+        runAction("could not reindex", async () => {
+          await reindexAll();
+          toast.add({ title: "library reindexed", type: "success" });
+        });
+      },
       text: "reindex library",
       value: "reindex",
     },
@@ -641,7 +579,26 @@ export function CommandPalette({
       Icon: DownloadIcon,
       label: "check for updates",
       needs: "none",
-      onSelect: checkForUpdates,
+      // An explicit check reports whether it ran, including in development.
+      onSelect: () => {
+        runAction("could not check for updates", async () => {
+          if (!updatesSupported()) {
+            toast.add({ title: "update checks are off in development" });
+
+            return;
+          }
+
+          const update = await findUpdate();
+
+          if (update === null) {
+            toast.add({ title: "notras is up to date", type: "success" });
+
+            return;
+          }
+
+          offerUpdate(update);
+        });
+      },
       text: "check for updates...",
       value: "check-for-updates",
     },

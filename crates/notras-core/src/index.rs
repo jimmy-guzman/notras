@@ -7,9 +7,7 @@ use serde::Serialize;
 
 use crate::{
     frontmatter,
-    markdown::{
-        bare_mentions, destinations, is_note_path, leading_heading, resolve_title, wikilinks,
-    },
+    markdown::{bare_mentions, destinations, is_note_path, resolve_title, wikilinks},
     note_file::{timestamp_millis, OpenedNote},
     relative_path::RelativePath,
 };
@@ -53,7 +51,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 8;
+const SCHEMA_VERSION: i64 = 9;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -215,7 +213,7 @@ pub fn scan_prose(
     conn: &Connection,
     candidates: Vec<String>,
     title: &str,
-    include_headings: bool,
+    include_title_line: bool,
 ) -> Result<Vec<BareMention>, IndexError> {
     let mut found = Vec::new();
     let mut statement = conn.prepare(
@@ -231,9 +229,8 @@ pub fn scan_prose(
         let Some((body, body_line_offset)) = row else {
             continue;
         };
-        let heading_names_note = !include_headings && leading_heading(&body).is_some();
         found.extend(
-            bare_mentions(&body, title, heading_names_note)
+            bare_mentions(&body, title, !include_title_line)
                 .into_iter()
                 .map(|(line, context)| BareMention {
                     context: context.to_string(),
@@ -843,6 +840,31 @@ mod tests {
     }
 
     #[test]
+    fn should_rebuild_version_eight_titles_without_renaming_unchanged_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("imported.md");
+        let content = "buy **milk**\n\nbody";
+        fs::write(&path, content).unwrap();
+        {
+            let core =
+                crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+            core.scan_complete().unwrap();
+            core.conn
+                .execute_batch("UPDATE note SET title = 'imported'; PRAGMA user_version = 8;")
+                .unwrap();
+        }
+        let core =
+            crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        core.scan_complete().unwrap();
+        assert_eq!(
+            select(&core.conn, "SELECT path, title FROM note", &[]).unwrap(),
+            vec![vec![json!("imported.md"), json!("buy milk")]]
+        );
+        assert_eq!(fs::read_to_string(path).unwrap(), content);
+        assert!(!directory.path().join("buy-milk.md").exists());
+    }
+
+    #[test]
     fn should_rebuild_version_seven_with_original_prose_line_numbers() {
         let directory = tempfile::tempdir().unwrap();
         let content = "---\ntags: [work]\n---\n# Source\nAda wrote this.";
@@ -959,11 +981,11 @@ mod tests {
         .unwrap();
         fs::write(
             dir.join("g.md"),
-            "snake_case is a symbol, but the snake is an animal\n",
+            "# Symbols\n\nsnake_case is a symbol, but the snake is an animal\n",
         )
         .unwrap();
         fs::write(dir.join("q.md"), "# say \"hi\"\n").unwrap();
-        fs::write(dir.join("r.md"), "he did say \"hi\" twice\n").unwrap();
+        fs::write(dir.join("r.md"), "# Quote\n\nhe did say \"hi\" twice\n").unwrap();
         let linked = "see [the graph view](graph%20view.md) and [graph view](http://x)\n";
         fs::write(dir.join("h.md"), linked).unwrap();
 
@@ -988,7 +1010,6 @@ mod tests {
         assert_eq!(
             rows,
             vec![
-                ("a.md", 4, "the Graph View is next"),
                 ("a.md", 14, "see graph view twice, Graph View"),
                 ("a.md", 14, "see graph view twice, Graph View"),
                 ("b.md", 3, "see graph view here"),
@@ -1216,8 +1237,8 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let dir = directory.path();
         fs::write(dir.join("ada.md"), "# Ada\n\nAda\u{e000}").unwrap();
-        fs::write(dir.join("fallback.md"), "Ada\u{e000}\n").unwrap();
-        fs::write(dir.join("fts.md"), "Ada\n").unwrap();
+        fs::write(dir.join("fallback.md"), "# Fallback\n\nAda\u{e000}\n").unwrap();
+        fs::write(dir.join("fts.md"), "# FTS\n\nAda\n").unwrap();
         fs::write(dir.join("unrelated.md"), "ordinary prose").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();

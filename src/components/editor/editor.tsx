@@ -156,44 +156,65 @@ function followLink(
   });
 }
 
-function firstHeading(doc: ProseMirrorNode) {
-  let result: { from: number; to: number; node: ProseMirrorNode } | undefined;
-  let found = false;
-  doc.forEach((node, offset) => {
+function firstTitle(doc: ProseMirrorNode) {
+  let result: { from: number; to: number } | undefined;
+  doc.descendants((node, position) => {
     if (
-      found ||
-      (node.type.name === "paragraph" && node.textContent.trim() === "")
+      result !== undefined ||
+      node.type.name === "codeBlock" ||
+      node.type.name === "table"
     ) {
+      return false;
+    }
+    if (node.type.name !== "paragraph" && node.type.name !== "heading") {
       return;
     }
-    found = true;
-    if (node.type.name === "heading" && node.attrs.level === 1) {
-      result = {
-        from: offset,
-        node,
-        to: offset + node.nodeSize,
-      };
+    let from = position + 1;
+    let text = "";
+    node.forEach((child, offset) => {
+      if (result !== undefined) {
+        return;
+      }
+      if (child.type.name === "hardBreak") {
+        if (text.trim() !== "") {
+          result = { from, to: position + 1 + offset };
+        }
+        from = position + 1 + offset + child.nodeSize;
+        text = "";
+      } else if (child.type.name === "wikilink") {
+        text += String(child.attrs.title);
+      } else if (child.isText) {
+        text += child.textContent;
+      }
+    });
+    if (result === undefined && text.trim() !== "") {
+      result = { from, to: position + 1 + node.content.size };
     }
+    return false;
   });
   return result;
 }
 
-function touchesHeading(transaction: Transaction) {
-  const old = firstHeading(transaction.before);
-  const next = firstHeading(transaction.doc);
+function touchesTitle(transaction: Transaction) {
+  const old = firstTitle(transaction.before);
+  const next = firstTitle(transaction.doc);
   if (
     (old === undefined) !== (next === undefined) ||
-    (old !== undefined && next !== undefined && !old.node.eq(next.node))
+    (old !== undefined &&
+      next !== undefined &&
+      !transaction.before
+        .slice(old.from, old.to)
+        .eq(transaction.doc.slice(next.from, next.to)))
   ) {
     return true;
   }
   return transaction.steps.some((step, index) => {
     const before = transaction.docs[index];
-    const range = before === undefined ? undefined : firstHeading(before);
+    const range = before === undefined ? undefined : firstTitle(before);
     if (range === undefined) {
       return false;
     }
-    // Mark steps have empty position maps even though they edit the heading.
+    // Formatting steps have empty maps but still touch the title.
     if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
       return step.from < range.to && step.to > range.from;
     }
@@ -720,7 +741,7 @@ export function Editor({
         ? anchor
         : sourceOffset(instance, selection.head);
       config.onChange(serializeMarkdown(instance), {
-        headingEdited: transactions.some(touchesHeading),
+        titleEdited: transactions.some(touchesTitle),
         ...(anchor >= 0 && head >= 0 ? { selection: { anchor, head } } : {}),
       });
     },

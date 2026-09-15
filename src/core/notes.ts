@@ -1,3 +1,7 @@
+import { decodeHTML } from "entities";
+import { Marked, type Token } from "marked";
+import { parseNote } from "@/core/frontmatter";
+
 export interface NoteMeta {
   createdAt: Date;
   folder: string;
@@ -38,49 +42,7 @@ export function noteTitle(path: string) {
  */
 export const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/;
 
-const ATX_OPENING_HASH = /^ {0,3}#/;
-
-const ATX_CLOSING_RUN = /\s+#+$/;
-
-const TRAILING_CR = /\r$/;
-
 const LINE_BREAK = /[\n\r]/;
-
-/**
- * Index of the body's first non-blank line, or -1.
- *
- * Only that line can carry the title, which is what lets the two functions
- * below skip fenced code blocks without tracking them: a fence opener cannot
- * match `ATX_HEADING`.
- */
-function firstContentLine(lines: string[]) {
-  return lines.findIndex((line) => line.trim() !== "");
-}
-
-/**
- * The body's leading `#` heading, when it has one. Kept in parity with
- * `leading_heading` in `src-tauri/src/index.rs`.
- */
-export function leadingHeading(body: string) {
-  const lines = body.split("\n");
-  const index = firstContentLine(lines);
-  const line =
-    index === -1 ? undefined : lines[index]?.replace(TRAILING_CR, "");
-
-  if (line === undefined || !ATX_HEADING.test(line)) {
-    return;
-  }
-
-  // Closed ATX form: `# title #`. The closing run has to be preceded by
-  // whitespace, so `# C#` keeps its trailing character.
-  const text = line
-    .replace(ATX_OPENING_HASH, "")
-    .trim()
-    .replace(ATX_CLOSING_RUN, "")
-    .trim();
-
-  return text === "" ? undefined : text;
-}
 
 /**
  * Rewrite the body's leading `#` heading to `title`, or return `body`
@@ -92,7 +54,7 @@ export function leadingHeading(body: string) {
  */
 export function retitleLeadingHeading(body: string, title: string) {
   const lines = body.split("\n");
-  const index = firstContentLine(lines);
+  const index = lines.findIndex((candidate) => candidate.trim() !== "");
   const raw = index === -1 ? undefined : lines[index];
 
   // A title carrying a line break would split the heading in two.
@@ -136,17 +98,117 @@ export function filenameFromTitle(title: string) {
   return slug === "" ? "untitled" : slug;
 }
 
-/**
- * A note's display title: the leading `#` heading, then imported frontmatter `title:`,
- * then the filename stem. Kept in parity with `resolve_title` in
- * `crates/notras-core/src/markdown.rs`.
- */
+const WIKILINK_TITLE = /^\[\[([^\n[\]]+)\]\]/;
+const TITLE_SPACE = /\s+/g;
+const FRONTMATTER_TITLE = /^title\s*:/;
+
+const titleMarkdown = new Marked({
+  extensions: [
+    {
+      level: "inline",
+      name: "codespan",
+      start: (source) => source.indexOf("[["),
+      tokenizer: (source) => {
+        const match = WIKILINK_TITLE.exec(source);
+        return match === null
+          ? undefined
+          : { raw: match[0], text: match[1], type: "codespan" };
+      },
+    },
+  ],
+  gfm: true,
+});
+
+function lineBreaks(text: string) {
+  return text.split("\n").length - 1;
+}
+
+function inlineTitle(tokens: Token[]): string {
+  return tokens
+    .map((token) => {
+      switch (token.type) {
+        case "image":
+        case "html":
+          return "\n".repeat(lineBreaks(token.raw));
+        case "br":
+          return "\n";
+        case "codespan":
+          return token.text;
+        default:
+          if ("tokens" in token && token.tokens !== undefined) {
+            return inlineTitle(token.tokens);
+          }
+          return "text" in token ? decodeHTML(token.text) : "";
+      }
+    })
+    .join("");
+}
+
+function tokenTitle(
+  tokens: Token[],
+  firstLine: number
+): { line: number; title: string } | undefined {
+  let line = firstLine;
+  for (const token of tokens) {
+    if (token.type === "list") {
+      const title = tokenTitle(token.items, line);
+      if (title !== undefined) {
+        return title;
+      }
+    } else if (token.type === "blockquote" || token.type === "list_item") {
+      const title = tokenTitle(token.tokens ?? [], line);
+      if (title !== undefined) {
+        return title;
+      }
+    } else if (
+      token.type === "heading" ||
+      token.type === "paragraph" ||
+      token.type === "text"
+    ) {
+      const lines = inlineTitle(token.tokens ?? []).split("\n");
+      const first = [...lines.entries()].find(([, text]) => text.trim() !== "");
+      if (first !== undefined) {
+        return {
+          line: line + first[0],
+          title: first[1].trim().replaceAll(TITLE_SPACE, " "),
+        };
+      }
+    }
+    line += lineBreaks(token.raw);
+  }
+}
+
+/** The first readable source line, excluding code, images, HTML and tables. */
+export function bodyTitle(body: string) {
+  return tokenTitle(titleMarkdown.lexer(body), 0);
+}
+
+/** The content supplying a title and its complete source-line range. */
+export function titleSource(content: string) {
+  const parsed = parseNote(content);
+  const candidate = bodyTitle(parsed.body);
+  const lines = content.split("\n");
+  const prefix = content.slice(0, content.length - parsed.body.length);
+  const line =
+    candidate === undefined
+      ? prefix.split("\n").findLastIndex((text) => FRONTMATTER_TITLE.test(text))
+      : lineBreaks(prefix) + candidate.line;
+  const title = candidate?.title ?? parsed.frontmatter.title;
+  const titleLine = lines[line];
+  if (title === undefined || titleLine === undefined) {
+    return;
+  }
+  const from = lines.slice(0, line).join("\n").length + (line === 0 ? 0 : 1);
+  return { from, title, to: from + titleLine.length };
+}
+
+/** Readable body title, imported title, then filename stem, matching Rust. */
 export function resolveTitle(
   path: string,
   body: string,
   frontmatterTitle?: string
 ) {
-  return leadingHeading(body) ?? frontmatterTitle ?? noteTitle(path);
+  return bodyTitle(body)?.title ?? frontmatterTitle ?? noteTitle(path);
 }
 
 export function noteFolder(path: string) {

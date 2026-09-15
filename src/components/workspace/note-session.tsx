@@ -218,7 +218,7 @@ function SessionBuffer({
   const sourceRef = useRef<null | SourceEditorHandle>(null);
   const [persistence] = useState(() =>
     createNotePersistence(
-      { ...file, kind: tab.kind, path: tab.path, stash: stash ?? undefined },
+      { ...file, path: tab.path, stash: stash ?? undefined },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
         clearStash: async (path) => {

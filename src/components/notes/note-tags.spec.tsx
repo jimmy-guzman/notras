@@ -27,7 +27,6 @@ it.each(["combobox", "palette"])(
     const note = createNotePersistence(
       {
         content: "# Note",
-        kind: "note",
         path: "note.md",
         revision: "r0",
         updatedAt: new Date(0),

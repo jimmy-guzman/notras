@@ -83,7 +83,6 @@ export type NotePersistence = ReturnType<typeof createNotePersistence>;
 export function createNotePersistence(
   initial: FileContent & {
     path: string;
-    kind: "note" | "external";
     stash?: ConflictStash;
   },
   ports: PersistencePorts
@@ -140,10 +139,7 @@ export function createNotePersistence(
       sourceMode: current.sourceMode,
       status: current.status,
       tags: parsed.frontmatter.tags,
-      title:
-        initial.kind === "external"
-          ? (current.path.split("/").at(-1) ?? current.path)
-          : resolveTitle(current.path, parsed.body, parsed.frontmatter.title),
+      title: resolveTitle(current.path, parsed.body, parsed.frontmatter.title),
       words: countWords(current.content),
     };
   });
@@ -303,7 +299,7 @@ export function createNotePersistence(
   }
   const edit = (
     content: EditorContent,
-    details: DocumentEdit = { headingEdited: false }
+    details: DocumentEdit = { titleEdited: false }
   ) => {
     const full =
       content.mode === "document"
@@ -523,7 +519,7 @@ export function createNotePersistence(
   };
   const editMetadata = async (patch: FrontmatterPatch) => {
     const next = updateFrontmatter(document.content(), patch);
-    document.edit(next, { headingEdited: false, separate: true });
+    document.edit(next, { separate: true, titleEdited: false });
     changed();
     ports.onDocumentChanged?.(document.content());
     if (!(await flush())) {

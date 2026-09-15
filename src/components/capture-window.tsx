@@ -1,6 +1,5 @@
 import { useSelector } from "@tanstack/react-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { format } from "date-fns";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Chord } from "@/components/chord";
 import type { EditorHandle } from "@/components/editor/editor";
@@ -37,7 +36,7 @@ export function CaptureWindow() {
 
   const saveAndHide = async () => {
     // Esc and ⌘⏎ both land here, and a fast double press would otherwise
-    // write the jot twice (the timestamp title collides and dedupes to -2).
+    // write the jot twice, with the second copy taking a collision suffix.
     // biome-ignore lint/suspicious/noUnnecessaryConditions: the asynchronous save sets this ref while a second shortcut can read it
     if (savingRef.current) {
       return;
@@ -51,7 +50,6 @@ export function CaptureWindow() {
       try {
         await createNote({
           content,
-          filename: format(new Date(), "yyyy-MM-dd-HHmmss"),
           folder: "inbox",
         });
       } catch (error) {

@@ -96,12 +96,6 @@ const ANNOUNCEMENTS: Announcements = {
 const animateLayoutChanges: AnimateLayoutChanges = (args) =>
   args.isSorting || args.wasDragging ? defaultAnimateLayoutChanges(args) : true;
 
-function fallbackTitle(tab: Tab) {
-  return tab.kind === "external"
-    ? (tab.path.split("/").at(-1) ?? tab.path)
-    : noteTitle(tab.path);
-}
-
 interface TabItemProps {
   active: boolean;
   notesDir: string;
@@ -114,7 +108,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   const id = tabId(tab);
   const snapshot = useTabSnapshot(id);
   const ref = useRef<HTMLSpanElement | null>(null);
-  const label = snapshot?.title ?? fallbackTitle(tab);
+  const label = snapshot?.title ?? noteTitle(tab.path);
   const {
     isDragging,
     listeners,
@@ -222,10 +216,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         <button
           aria-controls={tabPanelId(id)}
           aria-selected={active}
-          className={cn(
-            "min-w-0 flex-1 truncate text-start text-sm focus-visible:outline-none",
-            tab.kind === "external" && "font-mono text-xs"
-          )}
+          className="min-w-0 flex-1 truncate text-start text-sm focus-visible:outline-none"
           data-tauri-drag-region={sole || undefined}
           id={tabButtonId(id)}
           onClick={select}
@@ -271,7 +262,7 @@ interface OverflowItemProps {
 
 function OverflowItem({ tab }: OverflowItemProps) {
   const snapshot = useTabSnapshot(tabId(tab));
-  const label = snapshot?.title ?? fallbackTitle(tab);
+  const label = snapshot?.title ?? noteTitle(tab.path);
   const select = useCallback(() => {
     activateTab(tabId(tab));
   }, [tab]);
