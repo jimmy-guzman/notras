@@ -566,7 +566,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         let owner = Arc::new(LibraryOwner::new(library, |_| {}));
         let paused = owner.read();
         let mut scan = paused.begin_scan(true);
@@ -593,7 +595,13 @@ mod tests {
                 if state.library.advance_scan(&mut scan).unwrap() {
                     state.library.finish_scan(scan).unwrap();
                     assert_eq!(
-                        state.library.list_notes(&Default::default()).unwrap()[0].title,
+                        state
+                            .library
+                            .read_view()
+                            .unwrap()
+                            .list_notes(&Default::default())
+                            .unwrap()[0]
+                            .title,
                         "After"
                     );
                     break;
@@ -716,7 +724,9 @@ mod tests {
         let fresh = tempfile::tempdir().unwrap();
         fs::write(fresh.path().join("new.md"), "# New").unwrap();
         let replacement = Library::open(fresh.path(), &fresh.path().join(".index")).unwrap();
-        replacement.scan_complete().unwrap();
+        let mut preparation = replacement.begin_scan(false);
+        while !replacement.advance_scan(&mut preparation).unwrap() {}
+        replacement.finish_scan(preparation).unwrap();
 
         let result = owner.query(|view| {
             assert!(owner.try_read().is_some());
@@ -780,7 +790,9 @@ mod tests {
         let fresh = tempfile::tempdir().unwrap();
         fs::write(fresh.path().join("new.md"), "# New").unwrap();
         let replacement = Library::open(fresh.path(), &fresh.path().join(".index")).unwrap();
-        replacement.scan_complete().unwrap();
+        let mut preparation = replacement.begin_scan(false);
+        while !replacement.advance_scan(&mut preparation).unwrap() {}
+        replacement.finish_scan(preparation).unwrap();
         owner.replace_scanned(replacement);
 
         assert!(owner.run_steps(0, completion.clone(), scan).is_err());
@@ -873,7 +885,9 @@ mod tests {
         );
         let fresh = tempfile::tempdir().unwrap();
         let replacement = Library::open(fresh.path(), &fresh.path().join(".index")).unwrap();
-        replacement.scan_complete().unwrap();
+        let mut preparation = replacement.begin_scan(false);
+        while !replacement.advance_scan(&mut preparation).unwrap() {}
+        replacement.finish_scan(preparation).unwrap();
         owner.replace_scanned(replacement);
 
         owner.report(stale);
@@ -911,7 +925,9 @@ mod tests {
         assert!(matches!(owner.status(), IndexStatus::Failed { .. }));
         let fresh = tempfile::tempdir().unwrap();
         let replacement = Library::open(fresh.path(), &fresh.path().join(".index")).unwrap();
-        replacement.scan_complete().unwrap();
+        let mut preparation = replacement.begin_scan(false);
+        while !replacement.advance_scan(&mut preparation).unwrap() {}
+        replacement.finish_scan(preparation).unwrap();
 
         owner.replace_scanned(replacement);
 
@@ -1175,7 +1191,14 @@ mod tests {
         };
         {
             let library = owner.read();
-            while library.list_notes(&Default::default()).unwrap().len() < 2 {
+            while library
+                .read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()
+                .len()
+                < 2
+            {
                 assert!(!library.advance_scan(&mut scan).unwrap());
             }
         }

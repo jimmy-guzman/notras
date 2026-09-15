@@ -927,13 +927,6 @@ pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> 
 }
 
 impl Library {
-    pub(crate) fn ensure_index(&self) -> Result<(), CommandError> {
-        if self.index_dirty.get() {
-            self.reindex_all()?;
-        }
-        Ok(())
-    }
-
     pub fn read_note(&self, path: String) -> Result<NoteFile, CommandError> {
         let relative = RelativePath::parse(&path)?;
         let file = OpenedNote::new(relative.resolve(&self.root)?.open_read()?);
@@ -1167,12 +1160,6 @@ impl Library {
         };
         target.create_new()?.write_all(&bytes)?;
         Ok(relative.into_string())
-    }
-
-    pub fn reindex_all(&self) -> Result<Vec<String>, CommandError> {
-        let mut scan = self.begin_scan(true);
-        while !self.advance_scan(&mut scan)? {}
-        self.finish_scan(scan)
     }
 }
 
@@ -1409,7 +1396,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.conn.execute_batch("DROP TABLE note").unwrap();
-        let error = library.list_notes(&Default::default()).unwrap_err();
+        let error = library
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap_err();
 
         assert_eq!(
             serde_json::to_value(&error).unwrap(),
@@ -1471,7 +1462,9 @@ mod tests {
         assert_eq!(third.path, "weekend-errands.md");
         assert!(!directory.path().join("weekend-errands-2.md").exists());
         assert_eq!(
-            core.list_notes(&Default::default())
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| note.path)
@@ -1685,14 +1678,28 @@ mod tests {
         core.index_dirty.set(true);
         fs::write(directory.path().join("good.md"), "readable").unwrap();
         fs::write(directory.path().join("bad.md"), [0xff]).unwrap();
-        assert!(core.list_notes(&Default::default()).is_err());
+        assert!(core.read_view().is_err());
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        assert!(core.finish_scan(scan).is_err());
+        assert!(core.read_view().is_err());
         assert!(core.index_dirty.get());
         assert_eq!(
             core.read_note("good.md".into()).unwrap().content,
             "readable"
         );
         fs::write(directory.path().join("bad.md"), "fixed").unwrap();
-        assert_eq!(core.list_notes(&Default::default()).unwrap().len(), 2);
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
+        assert_eq!(
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     proptest! {
@@ -1717,10 +1724,15 @@ mod tests {
             matches!(receipt.warnings.as_slice(), [MutationWarning::Index { path, .. }] if path == "a.md")
         );
         assert_eq!(core.read_note("a.md".into()).unwrap().content, "# saved");
-        assert!(core.list_notes(&Default::default()).is_err());
+        assert!(core.read_view().is_err());
         core.conn.execute_batch("PRAGMA query_only = OFF").unwrap();
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         assert_eq!(
-            core.list_notes(&Default::default())
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| note.title)
@@ -1778,7 +1790,9 @@ mod tests {
         assert_eq!(read.content, "# title\nbody");
         assert_eq!(read.updated_at, receipt.updated_at);
         assert_eq!(
-            core.list_notes(&Default::default())
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| (note.path, note.title))
@@ -2031,7 +2045,9 @@ mod tests {
             .unwrap()
             .resolve(&core.root)
             .unwrap();
-        core.scan().unwrap();
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         fs::rename(
             directory.path().join("folder"),
             outside.path().join("folder"),
@@ -2045,8 +2061,15 @@ mod tests {
             "written"
         );
         assert!(!directory.path().join("folder").exists());
-        core.scan().unwrap();
-        assert!(core.list_notes(&Default::default()).unwrap().is_empty());
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
+        assert!(core
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap()
+            .is_empty());
     }
 
     #[cfg(windows)]

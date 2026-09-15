@@ -52,13 +52,7 @@ import {
   useTabSnapshot,
 } from "@/lib/tabs/store";
 import type { Tab, TabStep } from "@/lib/tabs/tab";
-import {
-  stepTab,
-  tabButtonId,
-  tabFullPath,
-  tabId,
-  tabPanelId,
-} from "@/lib/tabs/tab";
+import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
 
 const STEPS: Record<string, TabStep> = {
@@ -105,7 +99,7 @@ interface TabItemProps {
 }
 
 function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
-  const id = tabId(tab);
+  const { id } = tab;
   const snapshot = useTabSnapshot(id);
   const ref = useRef<HTMLSpanElement | null>(null);
   const label = snapshot?.title ?? noteTitle(tab.path);
@@ -261,10 +255,10 @@ interface OverflowItemProps {
 }
 
 function OverflowItem({ tab }: OverflowItemProps) {
-  const snapshot = useTabSnapshot(tabId(tab));
+  const snapshot = useTabSnapshot(tab.id);
   const label = snapshot?.title ?? noteTitle(tab.path);
   const select = useCallback(() => {
-    activateTab(tabId(tab));
+    activateTab(tab.id);
   }, [tab]);
 
   return <DropdownMenuItem onClick={select}>{label}</DropdownMenuItem>;
@@ -296,7 +290,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {hidden.map((tab) => (
-          <OverflowItem key={tabId(tab)} tab={tab} />
+          <OverflowItem key={tab.id} tab={tab} />
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -349,7 +343,7 @@ function TabList({ activeId, tabs }: TabListProps) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
-  const ids = useMemo(() => tabs.map(tabId), [tabs]);
+  const ids = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
   // No keyboard sensor: it wants the `attributes` spread, which would overwrite
   // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D60`).
   const sensors = useSensors(
@@ -418,13 +412,11 @@ function TabList({ activeId, tabs }: TabListProps) {
       }
 
       event.preventDefault();
-      activateTab(tabId(target));
+      activateTab(target.id);
       // Focus follows, or `tabIndex` moves to the new tab while focus stays on
       // the old one and Enter fires whichever button was left behind.
       listRef.current
-        ?.querySelector<HTMLElement>(
-          `#${CSS.escape(tabButtonId(tabId(target)))}`
-        )
+        ?.querySelector<HTMLElement>(`#${CSS.escape(tabButtonId(target.id))}`)
         ?.focus();
     },
     [activeId, tabs]
@@ -469,8 +461,8 @@ function TabList({ activeId, tabs }: TabListProps) {
           >
             {tabs.map((tab) => (
               <TabItem
-                active={tabId(tab) === activeId}
-                key={tabId(tab)}
+                active={tab.id === activeId}
+                key={tab.id}
                 notesDir={notesDir}
                 sole={tabs.length === 1}
                 tab={tab}
@@ -479,9 +471,7 @@ function TabList({ activeId, tabs }: TabListProps) {
           </div>
         </SortableContext>
       </DndContext>
-      <OverflowMenu
-        hidden={tabs.filter((tab) => hidden.includes(tabId(tab)))}
-      />
+      <OverflowMenu hidden={tabs.filter((tab) => hidden.includes(tab.id))} />
     </>
   );
 }

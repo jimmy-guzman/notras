@@ -930,7 +930,9 @@ mod tests {
         )
         .unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {

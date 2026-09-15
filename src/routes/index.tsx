@@ -33,7 +33,7 @@ import {
   useTabState,
 } from "@/lib/tabs/store";
 import type { Tab, TabState } from "@/lib/tabs/tab";
-import { stepTab, tabId } from "@/lib/tabs/tab";
+import { stepTab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
@@ -171,7 +171,7 @@ interface ActiveProps {
  * number of open tabs.
  */
 function ActiveControls({ tab }: ActiveProps) {
-  const snapshot = useTabSnapshot(tabId(tab));
+  const snapshot = useTabSnapshot(tab.id);
 
   return (
     <NoteControls
@@ -202,7 +202,7 @@ function ActiveStatusBar({
   onToggleSource,
   tab,
 }: ActiveStatusBarProps) {
-  const snapshot = useTabSnapshot(tabId(tab));
+  const snapshot = useTabSnapshot(tab.id);
   const focusModeEnabled = useFocusMode();
 
   return (
@@ -239,7 +239,7 @@ function Workspace() {
   const startupTabs = Route.useLoaderData();
   const [initialTabs] = useState(startupTabs);
 
-  const activeTab = tabs.find((tab) => tabId(tab) === activeId);
+  const activeTab = tabs.find((tab) => tab.id === activeId);
   const graphMode = useGraphMode(activeId);
 
   const newNote = useCallback(async () => {
@@ -270,7 +270,7 @@ function Workspace() {
 
   const toggleGraphView = useCallback(() => {
     const state = getTabState();
-    const tab = state.tabs.find((entry) => tabId(entry) === state.activeId);
+    const tab = state.tabs.find((entry) => entry.id === state.activeId);
 
     if (tab?.kind === "note") {
       toggleGraph(state.activeId);
@@ -359,7 +359,7 @@ function Workspace() {
     const target = getTabState().tabs.at(index);
 
     if (target !== undefined) {
-      activateTab(tabId(target));
+      activateTab(target.id);
     }
   }, []);
 
@@ -367,13 +367,13 @@ function Workspace() {
     const target = stepTab(getTabState(), direction);
 
     if (target !== undefined) {
-      activateTab(tabId(target));
+      activateTab(target.id);
     }
   }, []);
 
   const carryTab = useCallback((offset: number) => {
     const state = getTabState();
-    const index = state.tabs.findIndex((tab) => tabId(tab) === state.activeId);
+    const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
 
     if (index !== -1) {
       moveTab(state.activeId, index + offset);
@@ -427,11 +427,7 @@ function Workspace() {
       ) : (
         <div className="relative min-h-0 flex-1">
           {tabs.map((tab) => (
-            <NoteSession
-              active={tabId(tab) === activeId}
-              key={tabId(tab)}
-              tab={tab}
-            />
+            <NoteSession active={tab.id === activeId} key={tab.id} tab={tab} />
           ))}
           {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
           {activeTab?.kind === "note" && graphMode ? (

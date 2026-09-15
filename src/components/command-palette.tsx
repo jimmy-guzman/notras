@@ -63,7 +63,7 @@ import {
   useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
-import { tabFullPath, tabId } from "@/lib/tabs/tab";
+import { tabFullPath } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
@@ -132,7 +132,7 @@ export function CommandPalette({
   const activeSnapshot = useTabSnapshot(open ? activeId : "");
   const graphEnabled = useGraphMode(activeId);
   const chordsByName = useChordsByName();
-  const activeTab = tabs.find((tab) => tabId(tab) === activeId);
+  const activeTab = tabs.find((tab) => tab.id === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
   const currentNote =
     currentPath === undefined || activeSnapshot === undefined

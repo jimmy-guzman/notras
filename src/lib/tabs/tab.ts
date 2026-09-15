@@ -20,10 +20,6 @@ export interface TabState {
   tabs: Tab[];
 }
 
-export function tabId(tab: Tab) {
-  return tab.id;
-}
-
 /**
  * Where a tab's file is on disk. A note's path is relative to the notes dir
  * and an external file's is already absolute, so the two need joining before

@@ -21,7 +21,6 @@ import {
   pushClosed,
   replaceNotePath,
   serializeTabs,
-  tabId,
 } from "./tab";
 
 const STORAGE_KEY = "tabs";
@@ -81,7 +80,7 @@ function setState(next: TabState) {
   // A tab that left takes both with it. Doing this here rather than at each
   // call site is what covers `openTab` replacing the active tab, where a
   // survivor would let the chrome read a destroyed session.
-  const open = new Set(next.tabs.map(tabId));
+  const open = new Set(next.tabs.map((tab) => tab.id));
 
   for (const id of handles.keys()) {
     if (!open.has(id)) {
@@ -115,7 +114,7 @@ export function persistTabs() {
   const carets: Record<string, number> = {};
 
   for (const tab of getTabState().tabs) {
-    const id = tabId(tab);
+    const { id } = tab;
     const caret = handles.get(id)?.getCaret() ?? -1;
 
     if (caret >= 0) {
@@ -281,7 +280,7 @@ export function closeNoteTab(path: string) {
 }
 
 export function closeTab(id: string) {
-  const index = getTabState().tabs.findIndex((entry) => tabId(entry) === id);
+  const index = getTabState().tabs.findIndex((entry) => entry.id === id);
   const tab = getTabState().tabs[index];
 
   if (tab !== undefined) {
@@ -305,7 +304,7 @@ export function reopenTab() {
 
 /** Close every tab but `id`, which becomes active. */
 export function closeOtherTabs(id: string) {
-  const keep = getTabState().tabs.find((tab) => tabId(tab) === id);
+  const keep = getTabState().tabs.find((tab) => tab.id === id);
 
   if (keep === undefined) {
     return;
@@ -314,7 +313,7 @@ export function closeOtherTabs(id: string) {
   // Rightmost first, so the leftmost ends up on top and reopening walks back
   // left to right into a strip that regrows under it.
   for (const [index, tab] of [...getTabState().tabs.entries()].reverse()) {
-    if (tabId(tab) !== id) {
+    if (tab.id !== id) {
       closed = pushClosed(closed, tab, index);
     }
   }
@@ -324,14 +323,14 @@ export function closeOtherTabs(id: string) {
 
 /** Close everything to the right of `id`. */
 export function closeTabsAfter(id: string) {
-  const index = getTabState().tabs.findIndex((tab) => tabId(tab) === id);
+  const index = getTabState().tabs.findIndex((tab) => tab.id === id);
 
   if (index === -1) {
     return;
   }
 
   const kept = getTabState().tabs.slice(0, index + 1);
-  const active = kept.some((tab) => tabId(tab) === getTabState().activeId)
+  const active = kept.some((tab) => tab.id === getTabState().activeId)
     ? getTabState().activeId
     : id;
 

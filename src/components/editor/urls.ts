@@ -13,14 +13,6 @@ const SAFE_SCHEMES = new Set([
   "tel",
 ]);
 
-function parseUrl(url: string) {
-  try {
-    return new URL(url);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * The scheme of a URL, or null when it carries none.
  *
@@ -29,7 +21,7 @@ function parseUrl(url: string) {
  * sneak past as schemeless the way a hand-rolled regex lets it.
  */
 function schemeOf(url: string) {
-  const parsed = parseUrl(url);
+  const parsed = URL.parse(url);
 
   if (parsed === null) {
     return null;

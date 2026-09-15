@@ -435,24 +435,6 @@ pub struct ScanReport {
     pub failures: Vec<IndexError>,
 }
 
-/// Scan every saved file, failing on the first file that cannot be indexed.
-pub fn scan_complete(
-    conn: &Connection,
-    root: &Dir,
-    notes_dir: &Path,
-) -> Result<Vec<String>, IndexError> {
-    let report = scan_all(conn, root, notes_dir)?;
-    if let Some(error) = report.failures.into_iter().next() {
-        return Err(error);
-    }
-    Ok(report.changed)
-}
-
-/// Scan every saved file, retaining per-file failures in the report.
-pub fn scan_all(conn: &Connection, root: &Dir, notes_dir: &Path) -> Result<ScanReport, IndexError> {
-    crate::Scan::new(notes_dir, false).run(conn, root)
-}
-
 #[cfg(test)]
 mod tests {
     use crate::markdown::markdown_links;
@@ -463,6 +445,12 @@ mod tests {
     use cap_std::ambient_authority;
 
     use super::*;
+
+    fn scan_all(conn: &Connection, root: &Dir, notes_dir: &Path) -> Result<ScanReport, IndexError> {
+        let mut scan = crate::Scan::new(notes_dir, false);
+        while !scan.step(conn, root)? {}
+        Ok(scan.finish())
+    }
 
     fn root(directory: &Path) -> Dir {
         Dir::open_ambient_dir(directory, ambient_authority()).unwrap()
@@ -639,14 +627,10 @@ mod tests {
             .unwrap();
         assert_eq!(stale, "agent-note");
 
-        assert_eq!(
-            crate::Scan::new(&dir, true)
-                .run(&conn, &root(&dir))
-                .unwrap()
-                .changed
-                .len(),
-            1
-        );
+        let mut scan = crate::Scan::new(&dir, true);
+        let root = root(&dir);
+        while !scan.step(&conn, &root).unwrap() {}
+        assert_eq!(scan.finish().changed.len(), 1);
         let fresh: String = conn
             .query_row("SELECT title FROM note", [], |row| row.get(0))
             .unwrap();
@@ -848,14 +832,18 @@ mod tests {
         {
             let core =
                 crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-            core.scan_complete().unwrap();
+            let mut scan = core.begin_scan(false);
+            while !core.advance_scan(&mut scan).unwrap() {}
+            core.finish_scan(scan).unwrap();
             core.conn
                 .execute_batch("UPDATE note SET title = 'imported'; PRAGMA user_version = 8;")
                 .unwrap();
         }
         let core =
             crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        core.scan_complete().unwrap();
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         assert_eq!(
             select(&core.conn, "SELECT path, title FROM note", &[]).unwrap(),
             vec![vec![json!("imported.md"), json!("buy milk")]]
@@ -872,7 +860,9 @@ mod tests {
         {
             let library =
                 crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-            library.scan_complete().unwrap();
+            let mut scan = library.begin_scan(false);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap();
             library
                 .conn
                 .execute_batch(
@@ -883,7 +873,9 @@ mod tests {
 
         let library =
             crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
 
         let found = scan_prose(&library.conn, vec!["source.md".into()], "Ada", true).unwrap();
         assert_eq!(found.len(), 1);
@@ -923,8 +915,12 @@ mod tests {
         drop(conn);
 
         let core = crate::Library::open(directory.path(), &cache).unwrap();
-        assert_eq!(core.scan().unwrap(), ["note.md"]);
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        assert_eq!(core.finish_scan(scan).unwrap(), ["note.md"]);
         let notes = core
+            .read_view()
+            .unwrap()
             .list_notes(&crate::NoteFilters {
                 query: Some("fresh".into()),
                 ..Default::default()
@@ -938,6 +934,8 @@ mod tests {
             Some("# Current\n[[hl]]fresh[[/hl]] [[Other]]")
         );
         assert!(core
+            .read_view()
+            .unwrap()
             .list_notes(&crate::NoteFilters {
                 query: Some("stale".into()),
                 ..Default::default()

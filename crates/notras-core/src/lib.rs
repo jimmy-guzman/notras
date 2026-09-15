@@ -81,59 +81,6 @@ impl Library {
         self.index_dir.join(index::DATABASE)
     }
 
-    /// Scan saved files, retaining successful changes when individual files fail.
-    /// Failed scans mark indexed reads for recovery before they return results.
-    pub fn scan(&self) -> Result<Vec<String>, CommandError> {
-        match index::scan_all(&self.conn, &self.root, &self.notes_dir) {
-            Ok(report) => {
-                self.index_dirty.set(!report.failures.is_empty());
-                Ok(report.changed)
-            }
-            Err(error) => {
-                self.index_dirty.set(true);
-                Err(error.into())
-            }
-        }
-    }
-
-    /// Scan every saved file, rejecting a library switch if any file cannot be indexed.
-    pub fn scan_complete(&self) -> Result<(), CommandError> {
-        index::scan_complete(&self.conn, &self.root, &self.notes_dir)?;
-        Ok(())
-    }
-
-    /// Reconcile host observations synchronously. Native hosts use the same scan
-    /// through `begin_observations` and `advance_scan` to interleave commands.
-    pub fn reconcile_paths<'a>(
-        &self,
-        paths: impl IntoIterator<Item = &'a Path>,
-    ) -> Option<Vec<String>> {
-        let scan = Scan::observed(
-            &self.notes_dir,
-            paths.into_iter().map(Path::to_owned).collect(),
-        );
-        match scan.run(&self.conn, &self.root) {
-            Ok(report) => {
-                if !report.failures.is_empty() {
-                    self.index_dirty.set(true);
-                }
-                let mut changed = report.changed;
-                changed.sort();
-                changed.dedup();
-                if self.index_dirty.get() {
-                    Some(Vec::new())
-                } else {
-                    (!changed.is_empty()).then_some(changed)
-                }
-            }
-            Err(error) => {
-                self.index_dirty.set(true);
-                log::error!("could not reconcile observed paths: {error}");
-                Some(Vec::new())
-            }
-        }
-    }
-
     /// Whether indexed reads require a successful forced scan.
     pub fn index_needs_rebuild(&self) -> bool {
         self.index_dirty.get()
@@ -207,19 +154,27 @@ mod tests {
             })
             .unwrap();
         let saved_path = library.directory().join(saved.path);
-        assert_eq!(library.reconcile_paths([saved_path.as_path()]), None);
+        let mut scan = library.begin_observations(vec![saved_path]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        assert!(library.finish_scan(scan).unwrap().is_empty());
 
         let external = library.directory().join("external.md");
         fs::write(&external, "# external").unwrap();
+        let mut scan = library.begin_observations(vec![external.clone(), external.clone()]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        assert_eq!(library.finish_scan(scan).unwrap(), ["external.md"]);
         assert_eq!(
-            library.reconcile_paths([external.as_path(), external.as_path()]),
-            Some(vec!["external.md".into()])
-        );
-        assert_eq!(
-            library.list_notes(&NoteFilters::default()).unwrap().len(),
+            library
+                .read_view()
+                .unwrap()
+                .list_notes(&NoteFilters::default())
+                .unwrap()
+                .len(),
             2
         );
-        assert_eq!(library.reconcile_paths([external.as_path()]), None);
+        let mut scan = library.begin_observations(vec![external]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        assert!(library.finish_scan(scan).unwrap().is_empty());
     }
 
     #[test]
@@ -233,7 +188,19 @@ mod tests {
         library.abandon_scan(scan);
 
         assert!(library.index_needs_rebuild());
-        assert_eq!(library.list_notes(&Default::default()).unwrap().len(), 1);
+        assert!(library.read_view().is_err());
+        let mut scan = library.begin_scan(true);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+        assert_eq!(
+            library
+                .read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()
+                .len(),
+            1
+        );
         assert!(!library.index_needs_rebuild());
     }
 
@@ -245,37 +212,53 @@ mod tests {
         let destination = library.directory().join("after");
         fs::create_dir(&source).unwrap();
         fs::write(source.join("note.md"), "# note").unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
 
         fs::rename(&source, &destination).unwrap();
 
-        assert_eq!(
-            library.reconcile_paths([source.as_path(), destination.as_path()]),
-            Some(vec!["after/note.md".into(), "before/note.md".into()])
-        );
-        let notes = library.list_notes(&NoteFilters::default()).unwrap();
+        let mut scan = library.begin_observations(vec![source, destination]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        let mut changed = library.finish_scan(scan).unwrap();
+        changed.sort();
+        assert_eq!(changed, ["after/note.md", "before/note.md"]);
+        let notes = library
+            .read_view()
+            .unwrap()
+            .list_notes(&NoteFilters::default())
+            .unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].path, "after/note.md");
     }
 
     #[test]
-    fn should_request_full_refresh_after_an_observed_file_cannot_be_indexed() {
+    fn should_require_recovery_after_an_observed_file_cannot_be_indexed() {
         let directory = tempfile::tempdir().unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let unreadable = library.directory().join("broken.md");
         fs::write(&unreadable, [0xff]).unwrap();
 
-        assert_eq!(
-            library.reconcile_paths([unreadable.as_path()]),
-            Some(vec![])
-        );
-        assert!(library.list_notes(&NoteFilters::default()).is_err());
+        let mut scan = library.begin_observations(vec![unreadable.clone()]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        assert!(library.finish_scan(scan).is_err());
+        assert!(library.index_needs_rebuild());
+        assert!(library.read_view().is_err());
 
         fs::write(&unreadable, "# readable").unwrap();
-        let notes = library.list_notes(&NoteFilters::default()).unwrap();
+        let mut scan = library.begin_scan(true);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+        let notes = library
+            .read_view()
+            .unwrap()
+            .list_notes(&NoteFilters::default())
+            .unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, "readable");
-        assert_eq!(library.reconcile_paths([unreadable.as_path()]), None);
+        let mut scan = library.begin_observations(vec![unreadable]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        assert!(library.finish_scan(scan).unwrap().is_empty());
     }
 
     #[test]
@@ -285,13 +268,20 @@ mod tests {
         fs::write(directory.path().join("note.md"), "# Note").unwrap();
         let library = Library::open(directory.path(), cache.path()).unwrap();
 
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
 
         assert!(!directory.path().join(".notras").exists());
         assert!(library.index_path().starts_with(cache.path()));
         assert!(library.index_path().is_file());
         assert_eq!(
-            library.list_notes(&NoteFilters::default()).unwrap().len(),
+            library
+                .read_view()
+                .unwrap()
+                .list_notes(&NoteFilters::default())
+                .unwrap()
+                .len(),
             1
         );
     }
@@ -324,10 +314,9 @@ mod tests {
         let note = root.canonicalize().unwrap().join("note.md");
         fs::write(&note, "# note").unwrap();
 
-        assert_eq!(
-            library.reconcile_paths([note.as_path()]),
-            Some(vec!["note.md".into()])
-        );
+        let mut scan = library.begin_observations(vec![note]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        assert_eq!(library.finish_scan(scan).unwrap(), ["note.md"]);
         assert_eq!(
             library.read_note("note.md".into()).unwrap().content,
             "# note"
