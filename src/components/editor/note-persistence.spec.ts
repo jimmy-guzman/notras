@@ -47,9 +47,6 @@ describe("note persistence", () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
-      onDocumentChanged: (content) => {
-        changes.push(content);
-      },
       onPathChanged: () => {},
       stash: async () => {},
       write: async (path, content, name) => {
@@ -61,6 +58,9 @@ describe("note persistence", () => {
               receipt: { path, revision: "r2", updatedAt: new Date(2) },
             });
       },
+    });
+    note.onDocumentChanged((content) => {
+      changes.push(content);
     });
     const renaming = note.changePath({
       kind: "retitle",
@@ -333,9 +333,6 @@ describe("note persistence", () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
-      onDocumentChanged: (content) => {
-        observed.push(content);
-      },
       onPathChanged: () => {},
       stash: async () => {},
       write: async (path, content) => {
@@ -345,6 +342,9 @@ describe("note persistence", () => {
           receipt: { path, revision: "r2", updatedAt: new Date(2) },
         };
       },
+    });
+    note.onDocumentChanged((content) => {
+      observed.push(content);
     });
     const externalContent = "---\ntags: [external]\n---\n# Errands\n\nbody";
     note.receiveFile(

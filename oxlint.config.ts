@@ -33,6 +33,7 @@ export default defineConfig({
         "react-doctor/only-export-components": "off",
         "react/jsx-no-constructed-context-values": "off",
         "react/no-object-type-as-default-prop": "off",
+        "react/todo": "off",
         "typescript/no-unsafe-type-assertion": "off",
         "typescript/prefer-nullish-coalescing": "off",
       },
@@ -63,8 +64,6 @@ export default defineConfig({
         unnamedComponents: "function-expression",
       },
     ],
-    // Reports what the React Compiler cannot compile, and the compiler is not in use.
-    "react/todo": "off",
     "unicorn/no-useless-undefined": ["error", { checkArguments: false }],
   },
   settings: jsPluginSettings,

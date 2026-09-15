@@ -1,3 +1,4 @@
+import { useDebouncer } from "@tanstack/react-pacer";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
@@ -8,7 +9,7 @@ import { Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { contentOf, hasString } from "@/components/editor/attrs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -350,43 +351,34 @@ export function Editor({
 }: EditorProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const attachScrollArea = useCallback((root: HTMLDivElement | null) => {
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
+  const [typewriter] = useState(createTypewriter);
+  const attachScrollArea = (root: HTMLDivElement | null) => {
     scrollAreaRef.current = root;
     scrollerRef.current =
       root?.querySelector<HTMLDivElement>(
         '[data-slot="scroll-area-viewport"]'
       ) ?? null;
-  }, []);
+    typewriter.setScroller(scrollerRef.current);
+  };
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
-  const focusModeRef = useRef(focusModeEnabled && !findOpen);
   const previousFocusModeRef = useRef(focusModeEnabled);
 
   useEffect(() => {
-    focusModeRef.current = focusModeEnabled && !findOpen;
-  });
+    typewriter.setEnabled(focusModeEnabled && !findOpen);
+  }, [findOpen, focusModeEnabled, typewriter]);
 
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
-  const closeHoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const keepHover = useCallback(() => {
-    if (closeHoverRef.current !== null) {
-      clearTimeout(closeHoverRef.current);
-      closeHoverRef.current = null;
-    }
-  }, []);
-
-  const closeHoverLater = useCallback(() => {
-    keepHover();
-    closeHoverRef.current = setTimeout(() => {
+  const closeHover = useDebouncer(
+    () => {
       setLinkHover(null);
-    }, HOVER_CLOSE_MS);
-  }, [keepHover]);
-
-  useEffect(() => keepHover, [keepHover]);
+    },
+    { wait: HOVER_CLOSE_MS }
+  );
   const [reading, setReading] = useState(false);
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [linkShortcut] = useState(() =>
@@ -436,11 +428,6 @@ export function Editor({
       name: "linkShortcut",
     })
   );
-  // oxlint-disable-next-line react/hook-use-state, react/refs -- a once-built instance has no setter, and the refs it takes are read after mount
-  const [typewriter] = useState(() =>
-    createTypewriter({ enabled: focusModeRef, scroller: scrollerRef })
-  );
-
   const editor = useEditor({
     content: config.initialContent,
     contentType: "markdown",
@@ -518,7 +505,7 @@ export function Editor({
         // to cross a strip of editor to get to it, and closing on the way out
         // of the link would take it away mid-journey.
         mouseout: () => {
-          closeHoverLater();
+          closeHover.maybeExecute();
 
           return false;
         },
@@ -545,7 +532,7 @@ export function Editor({
 
           const rect = target.getBoundingClientRect();
 
-          keepHover();
+          closeHover.cancel();
           setLinkHover({
             ...state,
             left: rect.left,
@@ -648,7 +635,7 @@ export function Editor({
       }),
       Find,
       linkShortcut,
-      typewriter,
+      typewriter.extension,
     ],
     immediatelyRender: false,
     injectNonce: styleNonce,
@@ -734,9 +721,11 @@ export function Editor({
           suppressChangeRef.current = true;
           try {
             instance.view.dispatch(transaction.setMeta("addToHistory", false));
-          } finally {
+          } catch (error) {
             suppressChangeRef.current = false;
+            throw error;
           }
+          suppressChangeRef.current = false;
         },
       });
     },
@@ -939,19 +928,19 @@ export function Editor({
     };
   }, [focusModeEnabled]);
 
-  const cancelLink = useCallback(() => {
+  const cancelLink = () => {
     setLinkEditor(null);
     editor?.commands.focus();
-  }, [editor]);
+  };
 
-  const removeLink = useCallback(() => {
+  const removeLink = () => {
     setLinkEditor(null);
     editor?.chain().focus().extendMarkRange("link").unsetLink().run();
-  }, [editor]);
+  };
 
   // The panel opens the editor where it already sits, so the two are one
   // surface rather than two places a link is changed from.
-  const editHoveredLink = useCallback(() => {
+  const editHoveredLink = () => {
     if (editor === null || linkHover === null) {
       return;
     }
@@ -975,64 +964,61 @@ export function Editor({
       top: linkHover.top,
       url: title === null ? linkHover.url : "",
     }));
-  }, [editor, linkHover]);
+  };
 
-  const submitLink = useCallback(
-    (rawUrl: string, text?: string) => {
-      if (editor === null) {
-        return;
-      }
+  const submitLink = (rawUrl: string, text?: string) => {
+    if (editor === null) {
+      return;
+    }
 
-      // A wikilink has no url: its title is both what it says and where it
-      // goes, so submitting one renames the target.
-      if (linkEditor?.kind === "wikilink") {
-        setLinkEditor(null);
-
-        if (text !== undefined && text.trim() !== "") {
-          editor
-            .chain()
-            .focus()
-            .updateAttributes("wikilink", { title: text.trim() })
-            .run();
-        } else {
-          editor.commands.focus();
-        }
-
-        return;
-      }
-
-      const href = normalizeUrl(rawUrl);
-
+    // A wikilink has no url: its title is both what it says and where it
+    // goes, so submitting one renames the target.
+    if (linkEditor?.kind === "wikilink") {
       setLinkEditor(null);
-      if (href === null) {
-        if (rawUrl.trim() !== "") {
-          toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
-        }
 
-        editor.commands.focus();
-
-        return;
-      }
-
-      if (text === undefined || text.trim() === "") {
-        editor.commands.focus();
-      } else {
+      if (text !== undefined && text.trim() !== "") {
         editor
           .chain()
           .focus()
-          // Covers the whole link so the words are replaced rather than added
-          // to; on a selection with no link yet it changes nothing.
-          .extendMarkRange("link")
-          .insertContent({
-            marks: [{ attrs: { href }, type: "link" }],
-            text: text.trim(),
-            type: "text",
-          })
+          .updateAttributes("wikilink", { title: text.trim() })
           .run();
+      } else {
+        editor.commands.focus();
       }
-    },
-    [editor, linkEditor]
-  );
+
+      return;
+    }
+
+    const href = normalizeUrl(rawUrl);
+
+    setLinkEditor(null);
+    if (href === null) {
+      if (rawUrl.trim() !== "") {
+        toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
+      }
+
+      editor.commands.focus();
+
+      return;
+    }
+
+    if (text === undefined || text.trim() === "") {
+      editor.commands.focus();
+    } else {
+      editor
+        .chain()
+        .focus()
+        // Covers the whole link so the words are replaced rather than added
+        // to; on a selection with no link yet it changes nothing.
+        .extendMarkRange("link")
+        .insertContent({
+          marks: [{ attrs: { href }, type: "link" }],
+          text: text.trim(),
+          type: "text",
+        })
+        .run();
+    }
+  };
 
   return (
     <ScrollArea
@@ -1048,8 +1034,12 @@ export function Editor({
       {linkHover === null || linkEditor !== null ? null : (
         <LinkHover
           onEdit={editHoveredLink}
-          onPointerLeave={closeHoverLater}
-          onPointerOver={keepHover}
+          onPointerLeave={() => {
+            closeHover.maybeExecute();
+          }}
+          onPointerOver={() => {
+            closeHover.cancel();
+          }}
           state={linkHover}
         />
       )}

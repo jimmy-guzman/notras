@@ -7,9 +7,8 @@ import {
   TagPlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useCallback } from "react";
 
-import { useNoteTags } from "@/components/notes/use-note-tags";
+import { changeNoteTags } from "@/components/notes/change-note-tags";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { filenameFromTitle } from "@/core/notes";
@@ -28,9 +27,9 @@ interface FolderItemProps {
 
 function FolderItem({ count, folder, onMove }: FolderItemProps) {
   const label = folder === "/" ? "notes root" : folder;
-  const move = useCallback(() => {
+  const move = () => {
     onMove(folder === "/" ? "" : folder);
-  }, [folder, onMove]);
+  };
 
   return (
     <CommandItem onSelect={move} value={`move-${folder}`}>
@@ -54,9 +53,9 @@ function TagChoiceItem({
   name,
   onToggle,
 }: TagChoiceItemProps) {
-  const toggle = useCallback(() => {
+  const toggle = () => {
     onToggle(name);
-  }, [name, onToggle]);
+  };
 
   return (
     <CommandItem
@@ -106,9 +105,9 @@ export function MoveView({
   query,
 }: MoveViewProps) {
   const notes = useQuery(noteQueries.list());
-  const retry = useCallback(async () => {
+  const retry = async () => {
     await notes.refetch();
-  }, [notes]);
+  };
   if (notes.data === undefined) {
     return (
       <output className="block p-4 text-sm">
@@ -221,7 +220,6 @@ export function TagsView({
   title,
 }: TagsViewProps) {
   const vocabulary = useQuery(noteQueries.tags());
-  const { changeTags } = useNoteTags(path, attached);
   const counts = new Map(
     vocabulary.data?.map(({ count, tag }) => [tag, count])
   );
@@ -229,19 +227,16 @@ export function TagsView({
   const choices = [...new Set([...counts.keys(), ...attached])]
     .toSorted()
     .filter((name) => name.includes(draftTag));
-  const toggle = useCallback(
-    async (name: string) => {
-      await changeTags((current) =>
-        current.includes(name)
-          ? current.filter((tag) => tag !== name)
-          : [...current, name]
-      );
-    },
-    [changeTags]
-  );
+  const toggle = async (name: string) => {
+    await changeNoteTags(path, (current) =>
+      current.includes(name)
+        ? current.filter((tag) => tag !== name)
+        : [...current, name]
+    );
+  };
   const add = async () => {
     onQueryChange("");
-    await changeTags((current) => [...current, draftTag]);
+    await changeNoteTags(path, (current) => [...current, draftTag]);
   };
   const retry = async () => {
     await vocabulary.refetch();

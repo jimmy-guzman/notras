@@ -213,6 +213,7 @@ Mutation tests cover native file and index outcomes, shared normalization fixtur
 - [notify](https://github.com/notify-rs/notify)
 - [Vite](https://vite.dev) 8
 - [React](https://react.dev) 19
+- [React Compiler](https://react.dev/learn/react-compiler)
 - [TipTap](https://tiptap.dev) 3
 - [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown)
 - [SQLite](https://sqlite.org) FTS5

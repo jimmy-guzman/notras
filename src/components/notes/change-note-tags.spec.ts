@@ -1,5 +1,3 @@
-import { useSelector } from "@tanstack/react-store";
-import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { createNotePersistence } from "@/components/editor/note-persistence";
@@ -12,9 +10,9 @@ import {
   registerTabHandles,
 } from "@/lib/tabs/store";
 
-import { useNoteTags } from "./use-note-tags";
+import { changeNoteTags } from "./change-note-tags";
 
-describe("use note tags", () => {
+describe("change note tags", () => {
   it("should preserve successive tag edits before a rerender or save completes", async ({
     onTestFinished,
   }) => {
@@ -49,41 +47,35 @@ describe("use note tags", () => {
       insertText: () => {},
       toggleSource: () => {},
     });
-    const { result } = renderHook(() => {
-      const state = useSelector(note.store);
-      return useNoteTags(state.path, parseNote(state.content).frontmatter.tags);
-    });
+    const changeTags = async (update: (current: string[]) => string[]) => {
+      await changeNoteTags(note.store.state.path, update);
+    };
     onTestFinished(() => {
       closeTab(id);
     });
     const changing: Promise<void>[] = [];
-    act(() => {
-      const { changeTags } = result.current;
-      changing.push(
-        changeTags((current) => [...current, "first"]),
-        changeTags((current) => [...current, "second"]),
-        changeTags((current) => current.filter((tag) => tag !== "removed")),
-        changeTags((current) => [...current, "temporary"])
-      );
-      expect(parseNote(note.store.state.content).frontmatter.tags).toContain(
-        "temporary"
-      );
-      changing.push(
-        changeTags((current) => current.filter((tag) => tag !== "temporary"))
-      );
-    });
+    changing.push(
+      changeTags((current) => [...current, "first"]),
+      changeTags((current) => [...current, "second"]),
+      changeTags((current) => current.filter((tag) => tag !== "removed")),
+      changeTags((current) => [...current, "temporary"])
+    );
+    expect(parseNote(note.store.state.content).frontmatter.tags).toContain(
+      "temporary"
+    );
+    changing.push(
+      changeTags((current) => current.filter((tag) => tag !== "temporary"))
+    );
     expect(parseNote(note.store.state.content).frontmatter.tags).toStrictEqual([
       "kept",
       "first",
       "second",
     ]);
-    await act(async () => {
-      held.resolve({
-        kind: "committed",
-        receipt: { path: "errands.md", revision: "r1", updatedAt: new Date(1) },
-      });
-      await Promise.all(changing);
+    held.resolve({
+      kind: "committed",
+      receipt: { path: "errands.md", revision: "r1", updatedAt: new Date(1) },
     });
+    await Promise.all(changing);
     expect(parseNote(writes.at(-1) ?? "").frontmatter.tags).toStrictEqual([
       "kept",
       "first",
@@ -122,25 +114,19 @@ describe("use note tags", () => {
       insertText: () => {},
       toggleSource: () => {},
     });
-    const { result } = renderHook(() => {
-      const state = useSelector(note.store);
-      return useNoteTags(state.path, parseNote(state.content).frontmatter.tags);
-    });
+    const changeTags = async (update: (current: string[]) => string[]) => {
+      await changeNoteTags(note.store.state.path, update);
+    };
     onTestFinished(() => {
       closeTab(id);
     });
-    let changing: Promise<void> | undefined;
-    act(() => {
-      changing = result.current.changeTags((current) => [...current, "added"]);
-    });
+    const changing = changeTags((current) => [...current, "added"]);
     expect(parseNote(note.store.state.content).frontmatter.tags).toStrictEqual([
       "kept",
       "added",
     ]);
-    await act(async () => {
-      held.reject(new Error("disk full"));
-      await changing;
-    });
+    held.reject(new Error("disk full"));
+    await changing;
     expect(parseNote(note.store.state.content).frontmatter.tags).toStrictEqual([
       "kept",
       "added",

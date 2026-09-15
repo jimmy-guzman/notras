@@ -1,6 +1,6 @@
 import { useSelector } from "@tanstack/react-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Chord } from "@/components/chord";
 import type { EditorHandle } from "@/components/editor/editor";
@@ -55,6 +55,7 @@ export function CaptureWindow() {
           folder: "inbox",
         });
       } catch (error) {
+        savingRef.current = false;
         // Keep the jot on screen -- hiding would lose it.
         toast.add({
           description: reasonOf(error),
@@ -63,9 +64,9 @@ export function CaptureWindow() {
         });
 
         return;
-      } finally {
-        savingRef.current = false;
       }
+
+      savingRef.current = false;
     }
 
     find.close();
@@ -73,10 +74,10 @@ export function CaptureWindow() {
     await getCurrentWindow().hide();
   };
 
-  const attachEditor = useCallback((handle: EditorHandle) => {
+  const attachEditor = (handle: EditorHandle) => {
     editorRef.current = handle;
     setFindHandle(handle.find);
-  }, []);
+  };
 
   useHotkeys([
     {

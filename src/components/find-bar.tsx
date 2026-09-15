@@ -1,6 +1,6 @@
 import { useSelector } from "@tanstack/react-store";
 import { ArrowDownIcon, ArrowUpIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ChangeEvent } from "react";
 
 import {
@@ -29,18 +29,15 @@ interface FindBarProps {
 export function FindBar({ controller }: FindBarProps) {
   const state = useSelector(controller.store);
   const input = useRef<HTMLInputElement>(null);
-  const change = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      controller.setQuery(event.target.value);
-    },
-    [controller]
-  );
-  const previous = useCallback(() => {
+  const change = (event: ChangeEvent<HTMLInputElement>) => {
+    controller.setQuery(event.target.value);
+  };
+  const previous = () => {
     controller.navigate(-1);
-  }, [controller]);
-  const next = useCallback(() => {
+  };
+  const next = () => {
     controller.navigate(1);
-  }, [controller]);
+  };
   useEffect(() => {
     if (state.open && state.available && state.focusRequest > 0) {
       input.current?.focus({ preventScroll: true });

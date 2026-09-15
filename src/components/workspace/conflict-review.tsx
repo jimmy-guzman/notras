@@ -1,12 +1,5 @@
 import { cn } from "cn";
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 
 import { Chord } from "@/components/chord";
@@ -21,7 +14,13 @@ import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { composeResolution, mergeDocuments } from "@/core/merge";
-import type { Hunk, HunkChoice, MergeConflict, Newline } from "@/core/merge";
+import type {
+  Hunk,
+  HunkChoice,
+  MergeConflict,
+  MergeResult,
+  Newline,
+} from "@/core/merge";
 import { useHotkeys } from "@/lib/ui/shortcuts";
 
 interface ReviewRows {
@@ -39,9 +38,9 @@ interface ContextRunProps {
 
 function ContextRun({ lines }: ContextRunProps) {
   const [expanded, setExpanded] = useState(false);
-  const expand = useCallback(() => {
+  const expand = () => {
     setExpanded(true);
-  }, []);
+  };
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
       <Button
@@ -148,20 +147,17 @@ function Place({
   const heading = isHeadingHunk(hunk);
   const resultId = useId();
   const resultRef = useRef<HTMLTextAreaElement>(null);
-  const useTheirs = useCallback(() => {
+  const useTheirs = () => {
     onChange(resultKey, "theirs");
     resultRef.current?.focus();
-  }, [onChange, resultKey]);
-  const useOurs = useCallback(() => {
+  };
+  const useOurs = () => {
     onChange(resultKey, "ours");
     resultRef.current?.focus();
-  }, [onChange, resultKey]);
-  const edit = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) => {
-      onChange(resultKey, { edited: event.target.value });
-    },
-    [onChange, resultKey]
-  );
+  };
+  const edit = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    onChange(resultKey, { edited: event.target.value });
+  };
   return (
     <section aria-label={`place ${number} of ${total}`} className="grid gap-2">
       <Side
@@ -197,6 +193,47 @@ function Place({
   );
 }
 
+function reviewRows(
+  merge: MergeResult,
+  results: Record<string, HunkChoice>,
+  setResult: (key: string, choice: HunkChoice) => void
+) {
+  const built: ReviewRows = { choices: [], remaining: 0, rows: [] };
+  if (merge.kind !== "conflict") {
+    return built;
+  }
+  const total = hunkCount(merge);
+  let position = 0;
+  for (const region of merge.regions) {
+    position += 1;
+    if (region.kind === "ok") {
+      built.rows.push(
+        <ContextRun key={`${position}:ok`} lines={region.lines} />
+      );
+      continue;
+    }
+    const key = hunkKey(position, region);
+    const choice = results[key];
+    if (choice === undefined) {
+      built.remaining += 1;
+    }
+    built.choices.push(choice ?? { edited: "" });
+    built.rows.push(
+      <Place
+        choice={choice}
+        hunk={region}
+        key={key}
+        newline={merge.newline}
+        number={built.choices.length}
+        onChange={setResult}
+        resultKey={key}
+        total={total}
+      />
+    );
+  }
+  return built;
+}
+
 interface ConflictReviewProps {
   base: string;
   changedAgain: boolean;
@@ -218,14 +255,11 @@ export function ConflictReview({
   ours,
   theirs,
 }: ConflictReviewProps) {
-  const merge = useMemo(
-    () => mergeDocuments(ours, base, theirs),
-    [ours, base, theirs]
-  );
+  const merge = mergeDocuments(ours, base, theirs);
   const [results, setResults] = useState<Record<string, HunkChoice>>({});
-  const setResult = useCallback((key: string, choice: HunkChoice) => {
+  const setResult = (key: string, choice: HunkChoice) => {
     setResults((previous) => ({ ...previous, [key]: choice }));
-  }, []);
+  };
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open) {
@@ -236,44 +270,9 @@ export function ConflictReview({
     }
   }, [open]);
 
-  const { choices, remaining, rows } = useMemo(() => {
-    const built: ReviewRows = { choices: [], remaining: 0, rows: [] };
-    if (merge.kind !== "conflict") {
-      return built;
-    }
-    const total = hunkCount(merge);
-    let position = 0;
-    for (const region of merge.regions) {
-      position += 1;
-      if (region.kind === "ok") {
-        built.rows.push(
-          <ContextRun key={`${position}:ok`} lines={region.lines} />
-        );
-        continue;
-      }
-      const key = hunkKey(position, region);
-      const choice = results[key];
-      if (choice === undefined) {
-        built.remaining += 1;
-      }
-      built.choices.push(choice ?? { edited: "" });
-      built.rows.push(
-        <Place
-          choice={choice}
-          hunk={region}
-          key={key}
-          newline={merge.newline}
-          number={built.choices.length}
-          onChange={setResult}
-          resultKey={key}
-          total={total}
-        />
-      );
-    }
-    return built;
-  }, [merge, results, setResult]);
+  const { choices, remaining, rows } = reviewRows(merge, results, setResult);
   const places = choices.length;
-  const resolve = useCallback(() => {
+  const resolve = () => {
     if (remaining > 0) {
       return;
     }
@@ -282,7 +281,7 @@ export function ConflictReview({
         ? merge.content
         : composeResolution(merge, choices)
     );
-  }, [choices, merge, onResolve, remaining]);
+  };
   useHotkeys([
     { callback: onBack, hotkey: "Escape", options: { enabled: open } },
     { callback: resolve, hotkey: "Mod+Enter", options: { enabled: open } },

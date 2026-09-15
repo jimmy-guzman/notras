@@ -6,6 +6,17 @@ import { registerPendingFlush } from "@/lib/pending-flush";
 
 export type { SaveStatus } from "@/components/editor/note-persistence";
 
+async function releaseThenUnregister(
+  release: () => Promise<void>,
+  unregister: () => void
+) {
+  try {
+    await release();
+  } finally {
+    unregister();
+  }
+}
+
 /** Bind window lifecycle to the session; editing and scheduling live in the session. */
 export function useAutosave(persistence: NotePersistence) {
   const state = useSelector(persistence.store);
@@ -19,14 +30,7 @@ export function useAutosave(persistence: NotePersistence) {
     const unregister = registerPendingFlush(flush);
     return () => {
       window.removeEventListener("blur", blur);
-      const finish = async () => {
-        try {
-          await release();
-        } finally {
-          unregister();
-        }
-      };
-      void finish();
+      void releaseThenUnregister(release, unregister);
     };
   }, [persistence]);
   return {

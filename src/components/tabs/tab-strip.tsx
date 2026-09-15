@@ -22,7 +22,7 @@ import {
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ContextMenu,
@@ -131,42 +131,36 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
     }
   }, [active]);
 
-  const setRefs = useCallback(
-    (node: HTMLSpanElement | null) => {
-      ref.current = node;
-      setNodeRef(node);
-    },
-    [setNodeRef]
-  );
+  const setRefs = (node: HTMLSpanElement | null) => {
+    ref.current = node;
+    setNodeRef(node);
+  };
 
-  const select = useCallback(() => {
+  const select = () => {
     activateTab(id);
-  }, [id]);
+  };
 
   /** A press selects, the way a native tab does, before any drag begins. */
-  const startPress = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
-      select();
-      listeners?.onPointerDown?.(event);
-    },
-    [listeners, select]
-  );
+  const startPress = (event: React.PointerEvent<HTMLButtonElement>) => {
+    select();
+    listeners?.onPointerDown?.(event);
+  };
 
-  const close = useCallback(() => {
+  const close = () => {
     closeTab(id);
-  }, [id]);
+  };
 
-  const closeOthers = useCallback(() => {
+  const closeOthers = () => {
     closeOtherTabs(id);
-  }, [id]);
+  };
 
-  const closeAfter = useCallback(() => {
+  const closeAfter = () => {
     closeTabsAfter(id);
-  }, [id]);
+  };
 
-  const copyPath = useCallback(() => {
+  const copyPath = () => {
     void copyTabPath(tabFullPath(tab, notesDir));
-  }, [notesDir, tab]);
+  };
 
   return (
     <ContextMenu>
@@ -263,9 +257,9 @@ interface OverflowItemProps {
 function OverflowItem({ tab }: OverflowItemProps) {
   const snapshot = useTabSnapshot(tab.id);
   const label = snapshot?.title ?? noteTitle(tab.path);
-  const select = useCallback(() => {
+  const select = () => {
     activateTab(tab.id);
-  }, [tab]);
+  };
 
   return <DropdownMenuItem onClick={select}>{label}</DropdownMenuItem>;
 }
@@ -337,6 +331,10 @@ interface TabListProps {
   tabs: Tab[];
 }
 
+function handleDragStart(event: DragStartEvent) {
+  activateTab(String(event.active.id));
+}
+
 /**
  * The open tabs, in the title bar where the note's title used to sit (`D52`).
  *
@@ -349,7 +347,7 @@ function TabList({ activeId, tabs }: TabListProps) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
-  const ids = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
+  const ids = tabs.map((tab) => tab.id);
   // No keyboard sensor: it wants the `attributes` spread, which would overwrite
   // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D60`).
   const sensors = useSensors(
@@ -404,47 +402,37 @@ function TabList({ activeId, tabs }: TabListProps) {
     };
   }, [ids]);
 
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
-      const step = STEPS.get(event.key);
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    const step = STEPS.get(event.key);
 
-      if (step === undefined) {
-        return;
-      }
+    if (step === undefined) {
+      return;
+    }
 
-      const target = stepTab({ activeId, tabs }, step);
+    const target = stepTab({ activeId, tabs }, step);
 
-      if (target === undefined) {
-        return;
-      }
+    if (target === undefined) {
+      return;
+    }
 
-      event.preventDefault();
-      activateTab(target.id);
-      // Focus follows, or `tabIndex` moves to the new tab while focus stays on
-      // the old one and Enter fires whichever button was left behind.
-      listRef.current
-        ?.querySelector<HTMLElement>(`#${CSS.escape(tabButtonId(target.id))}`)
-        ?.focus();
-    },
-    [activeId, tabs]
-  );
+    event.preventDefault();
+    activateTab(target.id);
+    // Focus follows, or `tabIndex` moves to the new tab while focus stays on
+    // the old one and Enter fires whichever button was left behind.
+    listRef.current
+      ?.querySelector<HTMLElement>(`#${CSS.escape(tabButtonId(target.id))}`)
+      ?.focus();
+  };
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    activateTab(String(event.active.id));
-  }, []);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
+    if (over === null || active.id === over.id) {
+      return;
+    }
 
-      if (over === null || active.id === over.id) {
-        return;
-      }
-
-      moveTab(String(active.id), ids.indexOf(String(over.id)));
-    },
-    [ids]
-  );
+    moveTab(String(active.id), ids.indexOf(String(over.id)));
+  };
 
   const hiddenIds = new Set(hidden);
 

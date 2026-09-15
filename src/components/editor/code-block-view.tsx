@@ -2,12 +2,23 @@ import { useDebouncedCallback } from "@tanstack/react-pacer";
 import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { contentOf, hasString } from "@/components/editor/attrs";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
+
+function markdownOf({
+  editor,
+  node,
+}: Pick<ReactNodeViewProps, "editor" | "node">) {
+  if (editor.markdown === undefined) {
+    throw new Error("the markdown serializer is unavailable");
+  }
+
+  return editor.markdown.serialize(contentOf(node));
+}
 
 /**
  * Copy a block as markdown and edit its fence language from a hover toolbar.
@@ -29,23 +40,15 @@ export function CodeBlockView({
 
   // A fence can name a language the highlighter does not know. Keep it
   // in the list, or the picker would silently rewrite it to "plain".
-  const languages = useMemo(() => {
-    const known = codeLanguages;
+  const languages = (
+    language === "" || codeLanguages.includes(language)
+      ? codeLanguages
+      : [...codeLanguages, language]
+  ).toSorted();
 
-    return (
-      language === "" || known.includes(language) ? known : [...known, language]
-    ).toSorted();
-  }, [language]);
-
-  const copy = useCallback(async () => {
+  const copy = async () => {
     try {
-      const manager = editor.markdown;
-
-      if (manager === undefined) {
-        throw new Error("the markdown serializer is unavailable");
-      }
-
-      await navigator.clipboard.writeText(manager.serialize(contentOf(node)));
+      await navigator.clipboard.writeText(markdownOf({ editor, node }));
       setCopied(true);
       clearCopied();
     } catch (error) {
@@ -55,14 +58,11 @@ export function CodeBlockView({
         type: "error",
       });
     }
-  }, [clearCopied, editor, node]);
+  };
 
-  const changeLanguage = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      updateAttributes({ language: event.target.value });
-    },
-    [updateAttributes]
-  );
+  const changeLanguage = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    updateAttributes({ language: event.target.value });
+  };
 
   return (
     <NodeViewWrapper as="div" className="code-block-wrapper">

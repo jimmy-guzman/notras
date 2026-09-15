@@ -49,11 +49,6 @@ export interface PersistencePorts {
   ) => Promise<{ path: string; file: FileContent }>;
   clearStash: (path: string) => Promise<void>;
   onCleanFileMissing?: () => void;
-  onDocumentChanged?: (
-    content: string,
-    selection: { anchor: number; head: number } | undefined,
-    sourceMode: boolean
-  ) => void;
   onPathChanged: (from: string, to: string) => void;
   stash: (path: string, stash: ConflictStash) => Promise<void>;
   write: (
@@ -81,6 +76,12 @@ interface PersistenceState {
 
 export type NotePersistence = ReturnType<typeof createNotePersistence>;
 
+type DocumentListener = (
+  content: string,
+  selection: { anchor: number; head: number } | undefined,
+  sourceMode: boolean
+) => void;
+
 function refused() {
   return new Error("this note needs review before it can move");
 }
@@ -94,6 +95,7 @@ export function createNotePersistence(
   ports: PersistencePorts
 ) {
   const resumed = initial.stash;
+  let documentListener: DocumentListener | undefined;
   const document = createNoteDocument(
     resumed?.ours ?? initial.content,
     initial.path.split("/").at(-1) ?? initial.path,
@@ -323,11 +325,7 @@ export function createNotePersistence(
     if (change.kind === "retitle") {
       document.rename(change.title);
       changed();
-      ports.onDocumentChanged?.(
-        document.content(),
-        undefined,
-        state.state.sourceMode
-      );
+      documentListener?.(document.content(), undefined, state.state.sourceMode);
       debouncer.cancel();
       const run = async () => {
         await write();
@@ -396,7 +394,7 @@ export function createNotePersistence(
       return false;
     }
     changed();
-    ports.onDocumentChanged?.(
+    documentListener?.(
       document.content(),
       document.selection(),
       state.state.sourceMode
@@ -405,11 +403,7 @@ export function createNotePersistence(
   };
   const replaceDocument = (content: string) => {
     document.replace(content);
-    ports.onDocumentChanged?.(
-      document.content(),
-      undefined,
-      state.state.sourceMode
-    );
+    documentListener?.(document.content(), undefined, state.state.sourceMode);
   };
   const absorb = (file: FileContent) => {
     const current = state.state;
@@ -545,11 +539,7 @@ export function createNotePersistence(
     const next = updateFrontmatter(document.content(), patch);
     document.edit(next, { separate: true, titleEdited: false });
     changed();
-    ports.onDocumentChanged?.(
-      document.content(),
-      undefined,
-      state.state.sourceMode
-    );
+    documentListener?.(document.content(), undefined, state.state.sourceMode);
     if (!(await flush())) {
       throw new Error(state.state.reason ?? "the note could not be saved");
     }
@@ -560,6 +550,13 @@ export function createNotePersistence(
     edit,
     editMetadata,
     flush,
+    /** Hear every document replacement the session did not type, until the returned unsubscribe runs. */
+    onDocumentChanged: (listener: DocumentListener) => {
+      documentListener = listener;
+      return () => {
+        documentListener = undefined;
+      };
+    },
     receiveFile,
     resolve,
     retain: () => {

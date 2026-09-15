@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { PinIcon, PinOffIcon } from "lucide-react";
-import { useCallback } from "react";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import { SaveIndicator } from "@/components/notes/save-indicator";
@@ -21,7 +20,7 @@ interface PinToggleProps {
 }
 
 function PinToggle({ path, pinned }: PinToggleProps) {
-  const togglePinned = useCallback(async () => {
+  const togglePinned = async () => {
     try {
       await changeNoteMetadata(path, { pinned: !pinned });
     } catch (error) {
@@ -31,7 +30,7 @@ function PinToggle({ path, pinned }: PinToggleProps) {
         type: "error",
       });
     }
-  }, [pinned, path]);
+  };
 
   return (
     <Tooltip>
