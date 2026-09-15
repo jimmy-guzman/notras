@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+
 import { toast } from "@/components/ui/toast";
 import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";

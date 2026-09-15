@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+
 import { getSnippetParts } from "./fts-snippet";
 
-describe("getSnippetParts", () => {
+describe(getSnippetParts, () => {
   it("should split plain snippet text without matches", () => {
     const parts = getSnippetParts("hello world");
 

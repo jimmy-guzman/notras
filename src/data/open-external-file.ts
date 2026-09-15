@@ -6,5 +6,7 @@ export async function openExternalFile(
   document: string,
   destination: string
 ): Promise<void> {
-  await nativeCommand(() => commands.openExternalFile(document, destination));
+  await nativeCommand(
+    async () => await commands.openExternalFile(document, destination)
+  );
 }

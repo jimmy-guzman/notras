@@ -20,11 +20,11 @@ export interface LinkResolver {
   title: (target: string, from: string) => NoteMeta | undefined;
 }
 
-const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+const SCHEME = /^[a-z][a-z0-9+.-]*:/iu;
 
-const NOTE_EXTENSION = /\.(?:md|markdown)$/i;
+const NOTE_EXTENSION = /\.(?:md|markdown)$/iu;
 
-const FRAGMENT_OR_QUERY = /[#?]/;
+const FRAGMENT_OR_QUERY = /[#?]/u;
 
 /** A destination the webview can fetch on its own: `https:`, `data:`, `asset:`. */
 export function hasScheme(destination: string) {
@@ -56,7 +56,7 @@ export function isNotePath(destination: string) {
  * A library path refuses a hidden segment and these characters, so a `..\\`
  * cannot read as a climb elsewhere and a dotfile stays out of reach.
  */
-const REFUSED_SEGMENT = /^\.|[\\:\0]/;
+const REFUSED_SEGMENT = /^\.|[\\:\0]/u;
 
 /**
  * Fold a decoded relative path onto the folder of `from`, `.` and `..`
@@ -64,6 +64,7 @@ const REFUSED_SEGMENT = /^\.|[\\:\0]/;
  */
 export function foldPath(path: string, from: string): string | undefined {
   const segments: string[] = [];
+  let refused = false;
 
   for (const segment of [...noteFolder(from).split("/"), ...path.split("/")]) {
     if (segment === "" || segment === ".") {
@@ -72,20 +73,22 @@ export function foldPath(path: string, from: string): string | undefined {
 
     if (segment === "..") {
       if (segments.pop() === undefined) {
-        return;
+        refused = true;
+        break;
       }
 
       continue;
     }
 
     if (REFUSED_SEGMENT.test(segment)) {
-      return;
+      refused = true;
+      break;
     }
 
     segments.push(segment);
   }
 
-  return segments.join("/");
+  return refused ? undefined : segments.join("/");
 }
 
 /** Resolve a destination's path segments without looking up an indexed note. */

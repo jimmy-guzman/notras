@@ -4,6 +4,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+
 import { toast } from "@/components/ui/toast";
 import type { Hub, HubPill, Picture, RingMember } from "@/core/graph";
 import type { Mention } from "@/core/links";
@@ -11,6 +12,7 @@ import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
 import { getTabState } from "@/lib/tabs/store";
+
 import { NoteGraph, TabGraph } from "./note-graph";
 
 // happy-dom lays nothing out, so the stage's size stays zero and the hairlines
@@ -18,9 +20,12 @@ import { NoteGraph, TabGraph } from "./note-graph";
 if (typeof ResizeObserver === "undefined") {
   Object.assign(globalThis, {
     ResizeObserver: class {
+      // oxlint-disable-next-line class-methods-use-this -- a stub of the platform observer, whose methods hold no state
       disconnect() {
         // Nothing was observed.
       }
+
+      // oxlint-disable-next-line class-methods-use-this -- a stub of the platform observer, whose methods hold no state
       observe() {
         // Nothing lays out, so nothing to report.
       }
@@ -84,17 +89,17 @@ interface Handlers {
 function mount(picture: Picture, handlers: Handlers = {}) {
   const { container } = render(
     createElement(NoteGraph, {
-      onHop: handlers.onHop ?? (() => undefined),
-      onHub: handlers.onHub ?? (() => undefined),
-      onLeave: handlers.onLeave ?? (() => undefined),
-      onShowMentions: handlers.onShowMentions ?? (() => undefined),
+      onHop: handlers.onHop ?? (() => {}),
+      onHub: handlers.onHub ?? (() => {}),
+      onLeave: handlers.onLeave ?? (() => {}),
+      onShowMentions: handlers.onShowMentions ?? (() => {}),
       picture,
     })
   );
   return container;
 }
 
-describe("NoteGraph", () => {
+describe(NoteGraph, () => {
   it("should fan what mentions it on the left and what it links to on the right", () => {
     const host = mount(
       notePicture({
@@ -104,13 +109,19 @@ describe("NoteGraph", () => {
     );
 
     expect(
-      Number.parseFloat(screen.getByRole("button", { name: "a" }).style.left)
+      Number(
+        screen.getByRole("button", { name: "a" }).style.left.replace("%", "")
+      )
     ).toBeLessThan(50);
     expect(
-      Number.parseFloat(screen.getByRole("button", { name: "b" }).style.left)
+      Number(
+        screen.getByRole("button", { name: "b" }).style.left.replace("%", "")
+      )
     ).toBeLessThan(50);
     expect(
-      Number.parseFloat(screen.getByRole("button", { name: "d" }).style.left)
+      Number(
+        screen.getByRole("button", { name: "d" }).style.left.replace("%", "")
+      )
     ).toBeGreaterThan(50);
     expect(screen.getByRole("button", { name: "c" }).style.left).toBe("50%");
     expect(host.textContent).toContain("mentions");
@@ -128,10 +139,10 @@ describe("NoteGraph", () => {
     const work = screen.getByRole("button", { name: "work 3" });
     const q3 = screen.getByRole("button", { name: "#q3 7" });
 
-    expect(Number.parseFloat(work.style.top)).toBeLessThan(50);
-    expect(Number.parseFloat(q3.style.top)).toBeLessThan(50);
-    expect(Number.parseFloat(work.style.left)).toBeLessThan(
-      Number.parseFloat(q3.style.left)
+    expect(Number(work.style.top.replace("%", ""))).toBeLessThan(50);
+    expect(Number(q3.style.top.replace("%", ""))).toBeLessThan(50);
+    expect(Number(work.style.left.replace("%", ""))).toBeLessThan(
+      Number(q3.style.left.replace("%", ""))
     );
     expect(work.querySelector("svg")).not.toBeNull();
   });
@@ -151,26 +162,34 @@ describe("NoteGraph", () => {
       })
     );
 
-    act(() => screen.getByRole("button", { name: "c" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "c" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "d" })).toHaveFocus();
 
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "e" })).toHaveFocus();
 
-    act(() => screen.getByRole("button", { name: "e" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "e" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "b" })).toHaveFocus();
 
-    act(() => screen.getByRole("button", { name: "b" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "b" }).focus();
+    });
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("button", { name: "e" })).toHaveFocus();
   });
 
   it("should hop on a click, and beside with ⌘", async () => {
     const user = userEvent.setup();
-    const onHop = vi.fn();
+    const onHop = vi.fn<(path: string, beside: boolean) => void>();
     mount(notePicture({ outgoing: [mention("d.md")] }), {
       onHop,
     });
@@ -178,14 +197,16 @@ describe("NoteGraph", () => {
     await user.click(screen.getByRole("button", { name: "d" }));
     expect(onHop).toHaveBeenLastCalledWith("d.md", false);
 
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{Meta>}{Enter}{/Meta}");
     expect(onHop).toHaveBeenLastCalledWith("d.md", true);
   });
 
   it("should re-centre on a hub when one is picked", async () => {
     const user = userEvent.setup();
-    const onHub = vi.fn();
+    const onHub = vi.fn<(hub: Hub) => void>();
     mount(notePicture({ hubs: [tag("q3")] }), { onHub });
 
     await user.click(screen.getByRole("button", { name: "#q3 2" }));
@@ -194,14 +215,16 @@ describe("NoteGraph", () => {
 
   it("should leave on esc, and on the centre", async () => {
     const user = userEvent.setup();
-    const onLeave = vi.fn();
+    const onLeave = vi.fn<() => void>();
     mount(notePicture({ outgoing: [mention("d.md")] }), {
       onLeave,
     });
 
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{Escape}");
-    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onLeave).toHaveBeenCalledOnce();
 
     await user.click(screen.getByRole("button", { name: "c" }));
     expect(onLeave).toHaveBeenCalledTimes(2);
@@ -209,8 +232,8 @@ describe("NoteGraph", () => {
 
   it("should ring a hub with its members and read the hub at the centre", async () => {
     const user = userEvent.setup();
-    const onHop = vi.fn();
-    const onHub = vi.fn();
+    const onHop = vi.fn<(path: string, beside: boolean) => void>();
+    const onHub = vi.fn<(hub: Hub) => void>();
     const host = mount(
       hubPicture(folder("work", 3), [
         { kind: "hub", pill: folder("work/sub", 1) },
@@ -248,17 +271,19 @@ describe("NoteGraph", () => {
     expect(placeholder?.closest("button")).toBeNull();
     expect(
       screen.getAllByRole("button").map((button) => button.textContent)
-    ).toEqual(["c", "d"]);
+    ).toStrictEqual(["c", "d"]);
 
     // The arrows walk d alone: a placeholder is not on the ring.
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "d" })).toHaveFocus();
   });
 
   it("should fold a crowded left side into a count that opens the mentions list", async () => {
     const user = userEvent.setup();
-    const onShowMentions = vi.fn();
+    const onShowMentions = vi.fn<() => void>();
     mount(
       notePicture({
         incoming: Array.from({ length: 14 }, (_, index) =>
@@ -269,8 +294,8 @@ describe("NoteGraph", () => {
     );
 
     expect(screen.getAllByRole("button")).toHaveLength(1 + 11 + 1);
-    await user.click(screen.getByRole("button", { name: "+3" }));
-    expect(onShowMentions).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "3 more mentions" }));
+    expect(onShowMentions).toHaveBeenCalledOnce();
   });
 
   it("should fold a crowded right side into a count that lists every link", async () => {
@@ -284,7 +309,7 @@ describe("NoteGraph", () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "+3" }));
+    await user.click(screen.getByRole("button", { name: "3 more links" }));
 
     const rows = screen.getAllByRole("menuitem");
 
@@ -309,12 +334,12 @@ describe("NoteGraph", () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "+2" }));
+    await user.click(screen.getByRole("button", { name: "2 more links" }));
 
     const rows = screen.getAllByRole("menuitem");
 
     expect(rows).toHaveLength(14);
-    expect(rows.slice(11).map((row) => row.textContent)).toEqual([
+    expect(rows.slice(11).map((row) => row.textContent)).toStrictEqual([
       "x",
       "y",
       "z",
@@ -324,7 +349,7 @@ describe("NoteGraph", () => {
 
   it("should fold a crowded top into a count that lists every hub", async () => {
     const user = userEvent.setup();
-    const onHub = vi.fn();
+    const onHub = vi.fn<(hub: Hub) => void>();
     mount(
       notePicture({
         hubs: Array.from({ length: 7 }, (_, index) => tag(`t${index}`)),
@@ -334,8 +359,8 @@ describe("NoteGraph", () => {
 
     expect(
       screen.getAllByRole("button").map((button) => button.textContent)
-    ).toEqual(["c", "#t02", "#t12", "#t22", "#t32", "+3"]);
-    await user.click(screen.getByRole("button", { name: "+3" }));
+    ).toStrictEqual(["c", "#t02", "#t12", "#t22", "#t32", "+3"]);
+    await user.click(screen.getByRole("button", { name: "3 more members" }));
 
     const rows = screen.getAllByRole("menuitem");
 
@@ -365,8 +390,10 @@ describe("TabGraph native queries", () => {
       mentionsError: null,
       picture: notePicture(),
     });
-    mockIPC(() =>
-      Promise.reject({ kind: "failed", message: "permission denied" })
+    mockIPC(
+      vi
+        .fn<Parameters<typeof mockIPC>[0]>()
+        .mockRejectedValue({ kind: "failed", message: "permission denied" })
     );
     const reported = vi.spyOn(toast, "add");
     onTestFinished(() => {
@@ -386,13 +413,13 @@ describe("TabGraph native queries", () => {
     await act(async () => {
       await client.invalidateQueries({ queryKey: query.queryKey });
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(reported).toHaveBeenCalledExactlyOnceWith({
         description: "permission denied",
         title: "could not read the graph",
         type: "error",
-      })
-    );
+      });
+    });
     expect(screen.getByRole("button", { name: "c" })).toBeInTheDocument();
   });
 
@@ -404,9 +431,9 @@ describe("TabGraph native queries", () => {
     });
     const response = Promise.withResolvers<unknown>();
     const calls: unknown[] = [];
-    mockIPC((command, args) => {
+    mockIPC(async (command, args) => {
       calls.push({ args, command });
-      return response.promise;
+      return await response.promise;
     });
     const reported = vi.spyOn(toast, "add");
     const initial = notePicture({ note: meta("first.md") });
@@ -482,7 +509,7 @@ describe("TabGraph native queries", () => {
           },
         },
       });
-      await client.fetchQuery(
+      await client.query(
         noteQueries.graph({ kind: "note", path: "second.md" })
       );
     });
@@ -493,7 +520,7 @@ describe("TabGraph native queries", () => {
       title: "could not read the graph",
       type: "error",
     });
-    expect(calls).toEqual([
+    expect(calls).toStrictEqual([
       {
         args: { target: { kind: "note", path: "second.md" } },
         command: "read_graph",

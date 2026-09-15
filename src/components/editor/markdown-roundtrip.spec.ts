@@ -2,6 +2,7 @@ import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
 import { attachmentLink } from "@/lib/utils/attachments";
+
 import {
   createEditorExtensions,
   normalizeMarkdown,
@@ -75,7 +76,7 @@ describe("markdown round-trip", () => {
       editor.destroy();
       const reopened = load(saved);
 
-      expect(reopened.getJSON()).toEqual(before);
+      expect(reopened.getJSON()).toStrictEqual(before);
       expect(serializeMarkdown(reopened)).toBe(saved);
       reopened.destroy();
     }
@@ -150,7 +151,7 @@ describe("markdown round-trip", () => {
       "note.md"
     );
 
-    expect(imageSources(markdown)).toEqual([
+    expect(imageSources(markdown)).toStrictEqual([
       "attachments/Screenshot%202026-08-26%20at%206.25.40%20AM.png",
     ]);
     expect(roundtrip(markdown)).toBe(markdown);
@@ -160,7 +161,7 @@ describe("markdown round-trip", () => {
     const saved = roundtrip("![a](<attachments/my shot.png>)");
 
     expect(saved).toBe("![a](attachments/my%20shot.png)");
-    expect(imageSources(saved)).toEqual(["attachments/my%20shot.png"]);
+    expect(imageSources(saved)).toStrictEqual(["attachments/my%20shot.png"]);
   });
 
   it.each([
@@ -250,19 +251,23 @@ describe("markdown round-trip", () => {
     "should preserve $name across saves",
     ({ markdown }, { onTestFinished }) => {
       const before = load(markdown);
-      onTestFinished(() => before.destroy());
+      onTestFinished(() => {
+        before.destroy();
+      });
       const saved = serializeMarkdown(before);
       const after = load(saved);
-      onTestFinished(() => after.destroy());
+      onTestFinished(() => {
+        after.destroy();
+      });
 
-      expect(after.getJSON()).toEqual(before.getJSON());
+      expect(after.getJSON()).toStrictEqual(before.getJSON());
       expect(serializeMarkdown(after)).toBe(saved);
     }
   );
 
   it("should round-trip tables (cells pad to a canonical width)", () => {
     const markdown = "| a | b |\n| --- | --- |\n| 1 | 2 |";
-    const compact = roundtrip(markdown).replaceAll(/ +/g, " ").trim();
+    const compact = roundtrip(markdown).replaceAll(/ +/gu, " ").trim();
 
     expect(compact).toContain("| a | b |");
     expect(compact).toContain("| 1 | 2 |");
@@ -300,7 +305,7 @@ describe("markdown round-trip", () => {
  * The fence scanner decides where the scrub may run, so a line it mistakes
  * for a closing fence hands the rest of a code block to the scrubber.
  */
-describe("normalizeMarkdown", () => {
+describe(normalizeMarkdown, () => {
   it("should not close a fence on a run carrying an info string", () => {
     const markdown = "```\n```js is not a close\n&nbsp;\n```";
 

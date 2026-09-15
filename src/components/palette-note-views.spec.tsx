@@ -1,9 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createElement, type ReactNode, useCallback } from "react";
+import { createElement, useCallback } from "react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+
 import {
   DeleteView,
   MoveView,
@@ -21,6 +24,14 @@ import {
   useTabSnapshot,
 } from "@/lib/tabs/store";
 
+function savesContent(
+  args: InvokeArgs | undefined
+): args is { content: string } {
+  return (
+    args !== undefined && "content" in args && typeof args.content === "string"
+  );
+}
+
 function SessionTags({
   id,
   onQueryChange,
@@ -31,7 +42,7 @@ function SessionTags({
   query: string;
 }) {
   const snapshot = useTabSnapshot(id);
-  const done = useCallback(() => undefined, []);
+  const done = useCallback(() => {}, []);
   return snapshot === undefined ? null : (
     <TagsView
       attached={snapshot.tags}
@@ -45,7 +56,9 @@ function SessionTags({
 }
 
 function mount(view: ReactNode, client: QueryClient) {
-  onTestFinished(() => client.clear());
+  onTestFinished(() => {
+    client.clear();
+  });
   return render(
     createElement(
       QueryClientProvider,
@@ -59,14 +72,14 @@ function mount(view: ReactNode, client: QueryClient) {
   );
 }
 
-afterEach(() => {
-  for (const tab of getTabState().tabs) {
-    closeTab(tab.id);
-  }
-  clearMocks();
-});
-
 describe("palette note views", () => {
+  afterEach(() => {
+    for (const tab of getTabState().tabs) {
+      closeTab(tab.id);
+    }
+    clearMocks();
+  });
+
   it("should select the matching existing folder without offering root or a duplicate new folder", async () => {
     const user = userEvent.setup();
     const moved: string[] = [];
@@ -90,9 +103,13 @@ describe("palette note views", () => {
     );
     const { container: host } = mount(
       createElement(MoveView, {
-        onCancel: () => undefined,
-        onMove: (folder) => moved.push(folder),
-        onMoveToNewFolder: () => moved.push("new"),
+        onCancel: () => {},
+        onMove: (folder) => {
+          moved.push(folder);
+        },
+        onMoveToNewFolder: () => {
+          moved.push("new");
+        },
         query: "client work",
       }),
       client
@@ -102,7 +119,7 @@ describe("palette note views", () => {
     const selected = screen.getByRole("option", { selected: true });
     expect(selected.textContent).toContain("Client Work");
     await user.click(selected);
-    expect(moved).toEqual(["Client Work"]);
+    expect(moved).toStrictEqual(["Client Work"]);
   });
 
   it.each(["available", "pending", "failed"])(
@@ -110,9 +127,9 @@ describe("palette note views", () => {
     async (state) => {
       const vocabulary = Promise.withResolvers<[]>();
       const writes: string[] = [];
-      mockIPC((command, args) => {
+      mockIPC(async (command, args) => {
         if (command === "list_tags") {
-          return vocabulary.promise;
+          return await vocabulary.promise;
         }
         if (command === "list_notes") {
           return [];
@@ -132,12 +149,7 @@ describe("palette note views", () => {
             updatedAt: 1,
           };
         }
-        if (
-          command === "save_note" &&
-          args !== undefined &&
-          "content" in args &&
-          typeof args.content === "string"
-        ) {
+        if (command === "save_note" && savesContent(args)) {
           writes.push(args.content);
           return {
             kind: "committed",
@@ -168,12 +180,12 @@ describe("palette note views", () => {
         throw new Error("the note did not open");
       }
       onTestFinished(async () => {
-        await act(() => {
+        act(() => {
           vocabulary.resolve([]);
         });
         client.clear();
       });
-      const changeQuery = vi.fn();
+      const changeQuery = vi.fn<(query: string) => void>();
       const view = (query: string) => (
         <QueryClientProvider client={client}>
           <NoteSession active tab={tab} />
@@ -191,24 +203,27 @@ describe("palette note views", () => {
       const { rerender } = render(view(""));
       await screen.findByRole("heading", { name: "Atlas" });
       if (state === "failed") {
-        await act(() => {
+        act(() => {
           vocabulary.reject({
             kind: "failed",
             message: "tag index unavailable",
           });
         });
-        expect(
-          await screen.findByText("could not load tag suggestions")
-        ).toBeInTheDocument();
       }
+      await waitFor(() => {
+        expect(
+          screen.queryByText("could not load tag suggestions") !== null
+        ).toBe(state === "failed");
+      });
       const user = userEvent.setup();
       const attached = screen.getByRole("option", {
         name: state === "available" ? "work 2" : "work",
       });
       expect(attached.textContent).toContain("work");
-      if (state === "available") {
-        expect(attached).toHaveAttribute("aria-selected", "false");
-      }
+      expect(attached).toHaveAttribute(
+        "aria-selected",
+        state === "available" ? "false" : "true"
+      );
       expect(attached).toHaveAttribute("aria-checked", "true");
       await user.click(attached);
       await act(async () => {
@@ -216,7 +231,7 @@ describe("palette note views", () => {
       });
       expect(
         writes.map((content) => parseNote(content).frontmatter.tags)
-      ).toEqual([[]]);
+      ).toStrictEqual([[]]);
       rerender(view("newtag"));
       await user.click(screen.getByRole("option", { name: 'add "newtag"' }));
       await act(async () => {
@@ -224,7 +239,7 @@ describe("palette note views", () => {
       });
       expect(
         writes.map((content) => parseNote(content).frontmatter.tags)
-      ).toEqual([[], ["newtag"]]);
+      ).toStrictEqual([[], ["newtag"]]);
       expect(changeQuery).toHaveBeenCalledWith("");
     }
   );
@@ -235,8 +250,12 @@ describe("palette note views", () => {
     const client = new QueryClient();
     mount(
       createElement(DeleteView, {
-        onCancel: () => actions.push("cancel"),
-        onConfirm: () => actions.push("delete"),
+        onCancel: () => {
+          actions.push("cancel");
+        },
+        onConfirm: () => {
+          actions.push("delete");
+        },
         title: "Atlas",
       }),
       client
@@ -244,6 +263,6 @@ describe("palette note views", () => {
     const selected = screen.getByRole("option", { selected: true });
     expect(selected.textContent).toBe("cancel");
     await user.click(selected);
-    expect(actions).toEqual(["cancel"]);
+    expect(actions).toStrictEqual(["cancel"]);
   });
 });

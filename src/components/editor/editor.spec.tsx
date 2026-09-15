@@ -8,8 +8,10 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { Selection } from "@tiptap/pm/state";
-import { type ComponentProps, createElement, StrictMode } from "react";
+import { createElement, StrictMode } from "react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { SENTINEL } from "@/components/editor/sentinel";
 
@@ -28,7 +30,7 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   const { container: host } = render(
     createElement(Editor, {
       initialContent: "first\n\nsecond",
-      onChange: () => undefined,
+      onChange: () => {},
       ...props,
       onReady: (ready) => {
         handles.push(ready);
@@ -36,7 +38,9 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
     })
   );
 
-  await waitFor(() => expect(handles).toHaveLength(1));
+  await waitFor(() => {
+    expect(handles).toHaveLength(1);
+  });
   const [handle] = handles;
   const scroller = host.firstElementChild;
   const surface = host.querySelector(".ProseMirror");
@@ -64,7 +68,9 @@ describe("focus mode reading state", () => {
       editor.commands.insertContent(" plus typing");
     });
     const offset = editor.state.selection.$from.parentOffset;
-    act(() => handle.replaceContent("# a longer title\n\nbody plus typing"));
+    act(() => {
+      handle.replaceContent("# a longer title\n\nbody plus typing");
+    });
     expect(scroller.querySelector(".ProseMirror")).toBe(editor.view.dom);
     expect(handle.getContent()).toContain("# a longer title");
     expect(handle.getContent()).toContain("body plus typing");
@@ -75,6 +81,7 @@ describe("focus mode reading state", () => {
     expect(handle.getContent()).toContain("# a longer title");
     expect(handle.getContent()).not.toContain("plus typing");
   });
+
   it("should lift the dim while scrolling", async () => {
     const { scroller } = await mount({ focusModeEnabled: true });
 
@@ -277,7 +284,7 @@ describe("code block clipboard", () => {
 
     expect(language.value).toBe("typescript");
     expect(handle.getContent().trimEnd()).toBe("```typescript\ngraph TD\n```");
-    expect(await navigator.clipboard.readText()).toBe(
+    await expect(navigator.clipboard.readText()).resolves.toBe(
       "```typescript\ngraph TD\n```"
     );
 
@@ -303,14 +310,20 @@ describe("document selection mapping", () => {
       }
       return parse(content);
     });
-    onTestFinished(() => failing.mockRestore());
+    onTestFinished(() => {
+      failing.mockRestore();
+    });
 
-    act(() => handle.replaceContent("new body", { anchor: 2, head: 5 }));
+    act(() => {
+      handle.replaceContent("new body", { anchor: 2, head: 5 });
+    });
 
     expect(handle.getContent().trimEnd()).toBe("new body");
     expect(scroller.querySelector(".ProseMirror")).toBe(editor.view.dom);
     failing.mockRestore();
-    act(() => handle.replaceContent("latest body", { anchor: 1, head: 4 }));
+    act(() => {
+      handle.replaceContent("latest body", { anchor: 1, head: 4 });
+    });
     expect(
       editor.state.doc.textBetween(
         editor.state.selection.from,
@@ -321,17 +334,20 @@ describe("document selection mapping", () => {
     const invalid = vi.spyOn(manager, "parse").mockImplementation(() => {
       throw new Error("cannot parse the document");
     });
-    onTestFinished(() => invalid.mockRestore());
-    expect(() =>
-      handle.replaceContent("unreadable", { anchor: 0, head: 0 })
-    ).toThrow("cannot parse the document");
+    onTestFinished(() => {
+      invalid.mockRestore();
+    });
+    expect(() => {
+      handle.replaceContent("unreadable", { anchor: 0, head: 0 });
+    }).toThrow("cannot parse the document");
     invalid.mockRestore();
     expect(handle.getContent().trimEnd()).toBe("latest body");
   });
 
   it("should deliver document edits without a selection when source mapping fails", async () => {
-    const onChange = vi.fn();
-    const onSelect = vi.fn();
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const onSelect =
+      vi.fn<NonNullable<ComponentProps<typeof Editor>["onSelect"]>>();
     const { editor } = await mount({
       initialContent: "body",
       onChange,
@@ -350,12 +366,14 @@ describe("document selection mapping", () => {
         }
         return serialize(document);
       });
-    onTestFinished(() => failing.mockRestore());
+    onTestFinished(() => {
+      failing.mockRestore();
+    });
     onSelect.mockClear();
     act(() => {
       editor.commands.insertContent("new ");
     });
-    expect(onChange).toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledOnce();
     expect(onChange.mock.lastCall?.[0]).toContain("new body");
     expect(onChange.mock.lastCall?.[1].selection).toBeUndefined();
     expect(onSelect).not.toHaveBeenCalled();
@@ -367,7 +385,7 @@ describe("document selection mapping", () => {
     act(() => {
       editor.commands.insertContent("old");
     });
-    expect(onChange.mock.lastCall?.[1].selection).toEqual({
+    expect(onChange.mock.lastCall?.[1].selection).toStrictEqual({
       anchor: 3,
       head: 3,
     });
@@ -421,7 +439,7 @@ describe("caret on mount", () => {
         createElement(Editor, {
           focusOnMount: true,
           initialContent: `# title\n\nbo${SENTINEL}dy`,
-          onChange: () => undefined,
+          onChange: () => {},
           onReady: (ready) => {
             handles.push(ready);
           },
@@ -429,7 +447,9 @@ describe("caret on mount", () => {
         })
       )
     );
-    await waitFor(() => expect(handles).toHaveLength(1));
+    await waitFor(() => {
+      expect(handles).toHaveLength(1);
+    });
     const surface = container.querySelector(".ProseMirror");
     if (
       surface === null ||

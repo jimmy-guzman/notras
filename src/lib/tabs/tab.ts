@@ -62,10 +62,6 @@ export type TabStep = "end" | "next" | "previous" | "start";
 export function stepTab(state: TabState, step: TabStep): Tab | undefined {
   const count = state.tabs.length;
 
-  if (count === 0) {
-    return;
-  }
-
   if (step === "start") {
     return state.tabs[0];
   }
@@ -283,18 +279,37 @@ export function serializeTabs(value: PersistedTabs) {
   return JSON.stringify(value);
 }
 
-function toTab(value: unknown): PersistedTab | undefined {
-  if (typeof value !== "object" || value === null) {
-    return;
-  }
+function isPersistedTab(value: unknown): value is PersistedTab {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "kind" in value &&
+    (value.kind === "external" || value.kind === "note") &&
+    "path" in value &&
+    typeof value.path === "string" &&
+    (!("id" in value) || typeof value.id === "string")
+  );
+}
 
-  const { id, kind, path } = value as Record<string, unknown>;
+function isStoredTabs(
+  value: unknown
+): value is { activeId: string; tabs: unknown[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "activeId" in value &&
+    typeof value.activeId === "string" &&
+    "tabs" in value &&
+    Array.isArray(value.tabs)
+  );
+}
 
-  if ((kind !== "external" && kind !== "note") || typeof path !== "string") {
-    return;
-  }
+function isObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
 
-  return typeof id === "string" ? { id, kind, path } : { kind, path };
+function isOffset(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 /**
@@ -304,7 +319,7 @@ function toTab(value: unknown): PersistedTab | undefined {
  * set is not a state anyone chose, and the caller already has a launch
  * behaviour for having no tabs.
  */
-function readJson(raw: string): unknown {
+function readJson(raw: string) {
   try {
     return JSON.parse(raw);
   } catch {
@@ -342,37 +357,17 @@ function hasDuplicateTab(tabs: PersistedTab[]) {
 export function parseTabs(raw: string): PersistedTabs | undefined {
   const parsed = readJson(raw);
 
-  if (typeof parsed !== "object" || parsed === null) {
-    return;
-  }
-
-  const { activeId, carets, tabs } = parsed as Record<string, unknown>;
-
-  if (typeof activeId !== "string" || !Array.isArray(tabs)) {
-    return;
-  }
-
-  const read = tabs.map(toTab);
-
-  if (read.some((tab) => tab === undefined)) {
-    return;
-  }
-
-  const open = read.filter((tab) => tab !== undefined);
-
-  if (hasDuplicateTab(open)) {
-    return;
-  }
-
-  const offsets: Record<string, number> = {};
-
-  if (typeof carets === "object" && carets !== null) {
-    for (const [id, offset] of Object.entries(carets)) {
-      if (typeof offset === "number" && Number.isFinite(offset)) {
-        offsets[id] = offset;
+  return isStoredTabs(parsed) &&
+    parsed.tabs.every(isPersistedTab) &&
+    !hasDuplicateTab(parsed.tabs)
+    ? {
+        activeId: parsed.activeId,
+        carets: Object.fromEntries(
+          Object.entries(
+            "carets" in parsed && isObject(parsed.carets) ? parsed.carets : {}
+          ).filter((entry): entry is [string, number] => isOffset(entry[1]))
+        ),
+        tabs: parsed.tabs,
       }
-    }
-  }
-
-  return { activeId, carets: offsets, tabs: open };
+    : undefined;
 }

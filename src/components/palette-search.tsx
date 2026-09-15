@@ -7,7 +7,9 @@ import {
   HashIcon,
   PinIcon,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useCallback, useLayoutEffect, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import {
@@ -17,14 +19,15 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { filenameFromTitle, type NoteMeta } from "@/core/notes";
+import { filenameFromTitle } from "@/core/notes";
+import type { NoteMeta } from "@/core/notes";
 import {
   insertSearchFilter,
   parseSearch,
-  type SearchFilter,
   searchFolders,
   searchSuggestion,
 } from "@/core/search";
+import type { SearchFilter } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { reasonOf } from "@/lib/ui/failure";
@@ -32,11 +35,11 @@ import { getSnippetParts } from "@/lib/utils/fts-snippet";
 
 function Snippet({ snippet }: { snippet: string }) {
   return (
-    <span className="truncate text-muted-foreground text-xs">
+    <span className="text-muted-foreground truncate text-xs">
       {getSnippetParts(snippet).map((part) =>
         part.match ? (
           <mark
-            className="rounded-xs bg-primary/20 text-foreground"
+            className="bg-primary/20 text-foreground rounded-xs"
             key={part.id}
           >
             {part.text}
@@ -90,14 +93,14 @@ function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
           {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
           {note.folder === "" ? null : (
             <span
-              className="max-w-1/3 shrink-0 truncate text-muted-foreground text-xs"
+              className="text-muted-foreground max-w-1/3 shrink-0 truncate text-xs"
               title={note.path}
             >
               · {note.folder}
             </span>
           )}
           {note.tags.length === 0 ? null : (
-            <span className="truncate text-muted-foreground text-xs">
+            <span className="text-muted-foreground truncate text-xs">
               · {tagLabel(note.tags)}
             </span>
           )}
@@ -119,59 +122,56 @@ interface PickerChoice {
   value: string;
 }
 
+const NOTES_TO_FILTER = { Icon: FileTextIcon, heading: "notes to filter by" };
+
+const PRESENTATION: Record<
+  SearchFilter["kind"],
+  { Icon: LucideIcon; heading: string }
+> = {
+  folder: { Icon: FolderIcon, heading: "folders" },
+  from: NOTES_TO_FILTER,
+  link: NOTES_TO_FILTER,
+  mention: NOTES_TO_FILTER,
+  tag: { Icon: HashIcon, heading: "tags" },
+  to: NOTES_TO_FILTER,
+};
 function pickerChoices(
-  filter: SearchFilter | undefined,
+  filter: SearchFilter,
   notes: NoteMeta[],
   tags: { count: number; tag: string }[]
 ) {
-  if (filter === undefined) {
-    return;
-  }
   const choices: PickerChoice[] = (() => {
-    switch (filter.kind) {
-      case "folder":
-        return searchFolders(notes).map(({ count, folder }) => ({
-          count,
-          label: folderLabel(folder),
-          value: folder,
-        }));
-      case "tag":
-        return tags.map(({ count, tag }) => ({
-          count,
-          label: tag,
-          value: tag,
-        }));
-      case "to":
-      case "from":
-        return notes.map(({ path, title }) => ({
-          detail: path,
-          label: title,
-          value: path,
-        }));
-      default:
-        return [];
+    if (filter.kind === "folder") {
+      return searchFolders(notes).map(({ count, folder }) => ({
+        count,
+        label: folderLabel(folder),
+        value: folder,
+      }));
     }
-  })();
-  if (choices.some(({ value }) => value === filter.value)) {
-    return;
-  }
-  const presentation = (() => {
-    switch (filter.kind) {
-      case "folder":
-        return { heading: "folders", Icon: FolderIcon };
-      case "tag":
-        return { heading: "tags", Icon: HashIcon };
-      default:
-        return { heading: "notes to filter by", Icon: FileTextIcon };
+    if (filter.kind === "tag") {
+      return tags.map(({ count, tag }) => ({
+        count,
+        label: tag,
+        value: tag,
+      }));
     }
+    if (filter.kind === "to" || filter.kind === "from") {
+      return notes.map(({ path, title }) => ({
+        detail: path,
+        label: title,
+        value: path,
+      }));
+    }
+    return [];
   })();
+  const taken = choices.some(({ value }) => value === filter.value);
+  const presentation = PRESENTATION[filter.kind];
   const offered = choices.filter(({ label, value }) =>
     `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
   );
-  if (offered.length === 0) {
-    return;
-  }
-  return { ...presentation, choices: offered };
+  return taken || offered.length === 0
+    ? undefined
+    : { ...presentation, choices: offered };
 }
 
 function filterHelp(kind: SearchFilter["kind"] | undefined) {
@@ -192,6 +192,7 @@ function stopCommandKeys(event: React.KeyboardEvent) {
   }
 }
 
+// oxlint-disable-next-line complexity -- the split is tracked in #203
 function useSearchResults(query: string, showPicker: boolean) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
@@ -211,19 +212,21 @@ function useSearchResults(query: string, showPicker: boolean) {
   const failed = (idle || debounced === query) && result.isError;
   const currentNotes =
     search.incomplete || showPicker ? NO_NOTES : (result.data ?? NO_NOTES);
+  const readyNotes = idle ? currentNotes.slice(0, 20) : currentNotes;
   const [displayed, setDisplayed] = useState({
-    notes: idle ? currentNotes.slice(0, 20) : NO_NOTES,
+    from: currentNotes,
+    idle,
+    notes: readyNotes,
     query,
   });
-  useLayoutEffect(() => {
-    if (!pending) {
-      setDisplayed({
-        notes: idle ? currentNotes.slice(0, 20) : currentNotes,
-        query,
-      });
-    }
-  }, [currentNotes, idle, pending, query]);
-  const readyNotes = idle ? currentNotes.slice(0, 20) : currentNotes;
+  if (
+    !pending &&
+    (displayed.from !== currentNotes ||
+      displayed.idle !== idle ||
+      displayed.query !== query)
+  ) {
+    setDisplayed({ from: currentNotes, idle, notes: readyNotes, query });
+  }
   const visible = pending ? displayed.notes : readyNotes;
   const resultQuery = pending ? displayed.query : query;
   const reading = showingResults && !waitingForDebounce && result.isFetching;
@@ -260,11 +263,10 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
     needsChoices && choicesQuery.data === undefined && choicesQuery.isPending;
   const choicesFailed =
     needsChoices && choicesQuery.data === undefined && choicesQuery.isError;
-  const picker = pickerChoices(
-    candidate,
-    suggestions.data ?? NO_NOTES,
-    tags.data ?? []
-  );
+  const picker =
+    candidate === undefined
+      ? undefined
+      : pickerChoices(candidate, suggestions.data ?? NO_NOTES, tags.data ?? []);
   const retryChoices = useCallback(async () => {
     await choicesQuery.refetch();
   }, [choicesQuery]);
@@ -281,13 +283,14 @@ interface PaletteSearchProps {
   query: string;
 }
 
+// oxlint-disable-next-line complexity -- the split is tracked in #203
 export function PaletteSearch({
   cursor,
   onCreate,
   onLoadingChange,
   onQueryChange,
-  onResultQueryChange,
   onSelectNote,
+  onResultQueryChange,
   query,
 }: PaletteSearchProps) {
   const search = parseSearch(query);
@@ -307,14 +310,16 @@ export function PaletteSearch({
     visible,
   } = useSearchResults(query, choosingFilter);
   useLayoutEffect(() => {
+    // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect -- the parent resets its list's scroll position and sets no state
     onResultQueryChange?.(resultQuery);
   }, [onResultQueryChange, resultQuery]);
   useLayoutEffect(() => {
     onLoadingChange?.(false);
-    if (readingQuery === undefined) {
-      return;
-    }
-    const timer = setTimeout(() => onLoadingChange?.(true), 500);
+    const timer = setTimeout(() => {
+      if (readingQuery !== undefined) {
+        onLoadingChange?.(true);
+      }
+    }, 500);
     return () => {
       clearTimeout(timer);
       onLoadingChange?.(false);
@@ -362,35 +367,47 @@ export function PaletteSearch({
   return (
     <div aria-busy={pending || choicesPending}>
       {choicesPending ? (
-        <p className="p-4 text-muted-foreground text-sm" role="status">
+        <output className="text-muted-foreground block p-4 text-sm">
           loading suggestions...
-        </p>
+        </output>
       ) : null}
       {choicesFailed ? (
-        <div className="p-4 text-sm" role="status">
-          <p>could not load suggestions</p>
-          <p>{reasonOf(choicesQuery.error)}</p>
-          <Button onClick={retryChoices} size="sm" variant="ghost">
+        <output className="block p-4 text-sm">
+          <span className="block">could not load suggestions</span>
+          <span className="block">{reasonOf(choicesQuery.error)}</span>
+          <Button
+            onClick={() => {
+              void retryChoices();
+            }}
+            size="sm"
+            variant="ghost"
+          >
             retry
           </Button>
-        </div>
+        </output>
       ) : null}
       {indexing ? (
-        <p className="p-4 text-muted-foreground text-sm" role="status">
+        <output className="text-muted-foreground block p-4 text-sm">
           indexing notes...
-        </p>
+        </output>
       ) : null}
       {!(choosingFilter || pending) &&
       (visible.length === 0 || failed) &&
       !offerCreate ? (
-        <Empty className="p-6" role="status">
+        <Empty aria-live="polite" className="p-6">
           <EmptyHeader>
             <EmptyTitle>{status.title}</EmptyTitle>
             <EmptyDescription>{status.description}</EmptyDescription>
           </EmptyHeader>
           {failed && !search.incomplete ? (
             <EmptyContent onKeyDown={stopCommandKeys}>
-              <Button onClick={retry} size="sm" variant="outline">
+              <Button
+                onClick={() => {
+                  void retry();
+                }}
+                size="sm"
+                variant="outline"
+              >
                 retry
               </Button>
             </EmptyContent>
@@ -411,7 +428,7 @@ export function PaletteSearch({
             <CommandItem onSelect={onCreate} value="create-note">
               <FilePlusIcon />
               <span className="truncate">
-                create "{query.trim()}"{" "}
+                create &quot;{query.trim()}&quot;{" "}
                 <span className="text-muted-foreground">
                   · {filenameFromTitle(query.trim())}.md
                 </span>
@@ -428,7 +445,7 @@ export function PaletteSearch({
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">{label}</span>
                 {detail === undefined ? null : (
-                  <span className="truncate text-muted-foreground text-xs">
+                  <span className="text-muted-foreground truncate text-xs">
                     {detail}
                   </span>
                 )}

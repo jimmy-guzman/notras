@@ -28,7 +28,7 @@ export function registerPendingFlush(flush: Flush) {
  */
 export async function flushPendingWrites() {
   const results = await Promise.allSettled(
-    [...flushes].map((flush) => flush())
+    [...flushes].map(async (flush) => await flush())
   );
 
   return results.every(

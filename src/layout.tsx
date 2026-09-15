@@ -7,12 +7,15 @@ import { listen } from "@tauri-apps/api/event";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import { CommandPalette, type PaletteMode } from "@/components/command-palette";
+import type { FallbackProps } from "react-error-boundary";
+
+import { CommandPalette } from "@/components/command-palette";
+import type { PaletteMode } from "@/components/command-palette";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Workspace } from "@/components/workspace/workspace";
 import { WorkspaceError } from "@/components/workspace-error";
+import { Workspace } from "@/components/workspace/workspace";
 import { createNote } from "@/data/create-note";
 import { applyIndexStatus } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
@@ -25,6 +28,21 @@ import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands, events } from "@/server/adapters/bindings";
 
 /** `listen` resolves to its own unsubscribe, which every effect here drops. */
+/** The menu item and the hotkey both land here; a failure reports and opens nothing. */
+async function createNewNote() {
+  try {
+    const path = await createNote();
+
+    openNote(path, true);
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not create note",
+      type: "error",
+    });
+  }
+}
+
 function disposeLater(...pending: Promise<() => void>[]) {
   return () => {
     for (const unlisten of pending) {
@@ -40,7 +58,7 @@ function disposeLater(...pending: Promise<() => void>[]) {
         }
       };
 
-      dispose();
+      void dispose();
     }
   };
 }
@@ -117,32 +135,33 @@ function MainWindow() {
       }
     };
 
-    checkOnLaunch();
+    void checkOnLaunch();
   }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
   // No paths means the whole vault.
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- disposeLater stops both listeners once their promises settle
   useEffect(() => {
     const unlisten = events.notesChanged.listen((event) => {
       const { paths } = event.payload;
 
       if (paths.length === 0) {
-        queryClient.invalidateQueries({ queryKey: noteQueries.all });
+        void queryClient.invalidateQueries({ queryKey: noteQueries.all });
 
         return;
       }
 
-      queryClient.invalidateQueries({ queryKey: noteQueries.index });
+      void queryClient.invalidateQueries({ queryKey: noteQueries.index });
 
       for (const path of paths) {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: noteQueries.fileKey("note", path),
         });
       }
     });
 
-    const unlistenStatus = events.indexStatus.listen(async (event) => {
-      await applyIndexStatus(queryClient, event.payload);
+    const unlistenStatus = events.indexStatus.listen((event) => {
+      void applyIndexStatus(queryClient, event.payload);
     });
 
     return disposeLater(unlisten, unlistenStatus);
@@ -169,24 +188,14 @@ function MainWindow() {
       }
     };
 
-    const unlistenNew = listen("menu-new-note", async () => {
-      try {
-        const path = await createNote();
-
-        openNote(path, true);
-      } catch (error) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not create note",
-          type: "error",
-        });
-      }
+    const unlistenNew = listen("menu-new-note", () => {
+      void createNewNote();
     });
     const unlistenOpen = listen("open-file", () => {
-      drainPendingOpens();
+      void drainPendingOpens();
     });
 
-    drainPendingOpens();
+    void drainPendingOpens();
 
     return disposeLater(unlistenNew, unlistenOpen);
   }, []);
@@ -194,7 +203,7 @@ function MainWindow() {
   // Quit is held open by Rust until the buffers are on disk -- and called off
   // entirely if one of them could not be written.
   useEffect(() => {
-    const unlisten = listen("app-quit", async () => {
+    const persistBeforeQuit = async () => {
       // Carets are read off the live sessions, so the set has to be written
       // here rather than only when it last changed. One that could not be
       // written is no reason to hold the quit.
@@ -238,6 +247,10 @@ function MainWindow() {
           type: "error",
         });
       }
+    };
+
+    const unlisten = listen("app-quit", () => {
+      void persistBeforeQuit();
     });
 
     return disposeLater(unlisten);
@@ -252,18 +265,8 @@ function MainWindow() {
   });
   useHotkey(
     "Mod+N",
-    async () => {
-      try {
-        const path = await createNote();
-
-        openNote(path, true);
-      } catch (error) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not create note",
-          type: "error",
-        });
-      }
+    () => {
+      void createNewNote();
     },
     { meta: { name: "new note" } }
   );
@@ -277,7 +280,7 @@ function MainWindow() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-svh flex-col bg-background text-foreground">
+      <div className="bg-background text-foreground flex h-svh flex-col">
         <Workspace initialTabs={initialTabs} onFilterTag={setTag} />
       </div>
       <CommandPalette
@@ -299,19 +302,15 @@ function MainWindow() {
   );
 }
 
+function renderWorkspaceError({ error, resetErrorBoundary }: FallbackProps) {
+  return <WorkspaceError reason={reasonOf(error)} retry={resetErrorBoundary} />;
+}
+
 export function Layout() {
   return (
     <QueryErrorResetBoundary>
       {({ reset }) => (
-        <ErrorBoundary
-          fallbackRender={({ error, resetErrorBoundary }) => (
-            <WorkspaceError
-              reason={reasonOf(error)}
-              retry={resetErrorBoundary}
-            />
-          )}
-          onReset={reset}
-        >
+        <ErrorBoundary fallbackRender={renderWorkspaceError} onReset={reset}>
           <Suspense fallback={null}>
             <MainWindow />
           </Suspense>

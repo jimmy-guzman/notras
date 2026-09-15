@@ -1,9 +1,12 @@
-import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
+
 import { nativeCommand } from "@/data/native-command";
-import { commands, type IndexStatus } from "@/server/adapters/bindings";
+import { commands } from "@/server/adapters/bindings";
+import type { IndexStatus } from "@/server/adapters/bindings";
 
 export async function getIndexStatus(): Promise<IndexStatus> {
-  return await nativeCommand(commands.indexStatus);
+  return await nativeCommand(async () => await commands.indexStatus());
 }
 
 export const indexStatusQuery = queryOptions({

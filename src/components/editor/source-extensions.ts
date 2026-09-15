@@ -1,8 +1,10 @@
-import { Extension, type Extensions } from "@tiptap/core";
+import { Extension } from "@tiptap/core";
+import type { Extensions } from "@tiptap/core";
 import { Document } from "@tiptap/extension-document";
 import { Text } from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions";
 import type { Plugin, Transaction } from "@tiptap/pm/state";
+
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { Find } from "@/components/editor/find";
 import { titleSource } from "@/core/notes";
@@ -60,6 +62,7 @@ export function touchesSourceTitle(transaction: Transaction) {
       return false;
     }
     let touched = false;
+    // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror step map, not an array
     step.getMap().forEach((from, to) => {
       touched ||= from - 1 <= range.to && to - 1 >= range.from;
     });

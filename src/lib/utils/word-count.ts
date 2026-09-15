@@ -2,7 +2,7 @@ import { parseNote } from "@/core/frontmatter";
 
 const WORDS_PER_MINUTE = 200;
 
-const WHITESPACE_RUN = /\s+/;
+const WHITESPACE_RUN = /\s+/u;
 
 export function countWords(content: string) {
   const { body } = parseNote(content);

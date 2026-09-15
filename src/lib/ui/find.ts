@@ -1,9 +1,10 @@
 import { createStore, useSelector } from "@tanstack/react-store";
+
 import type { FindHandle } from "@/components/editor/find";
 import { getTabHandles, getTabState } from "@/lib/tabs/store";
 import { hideGraph } from "@/lib/ui/graph";
 
-const SINGLE_LINE = /[\r\n]/;
+const SINGLE_LINE = /[\r\n]/u;
 
 /** One controller per window, lending navigation only to its active editor. */
 export function createFindController() {
@@ -79,7 +80,7 @@ export function createFindController() {
       }));
     },
     navigate: (direction: -1 | 1) => {
-      if (!target?.alive() || store.state.query === "") {
+      if (target?.alive() !== true || store.state.query === "") {
         return;
       }
       if (!store.state.open) {

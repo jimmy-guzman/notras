@@ -13,7 +13,9 @@ export async function readConflictStash(
   kind: Tab["kind"],
   path: string
 ): Promise<ConflictStash | null> {
-  const stash = await nativeCommand(() => commands.readConflict(kind, path));
+  const stash = await nativeCommand(
+    async () => await commands.readConflict(kind, path)
+  );
 
   return stash === null
     ? null
@@ -29,11 +31,12 @@ export async function stashConflict(
   path: string,
   stash: ConflictStash
 ): Promise<void> {
-  await nativeCommand(() =>
-    commands.stashConflict(kind, path, {
-      base: { ...stash.base, updatedAt: stash.base.updatedAt.getTime() },
-      ours: stash.ours,
-    })
+  await nativeCommand(
+    async () =>
+      await commands.stashConflict(kind, path, {
+        base: { ...stash.base, updatedAt: stash.base.updatedAt.getTime() },
+        ours: stash.ours,
+      })
   );
 }
 
@@ -42,5 +45,5 @@ export async function clearConflictStash(
   kind: Tab["kind"],
   path: string
 ): Promise<void> {
-  await nativeCommand(() => commands.clearConflict(kind, path));
+  await nativeCommand(async () => await commands.clearConflict(kind, path));
 }

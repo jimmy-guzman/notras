@@ -70,8 +70,7 @@ export function LinkEditor({
 
   return (
     // Keys are handled on the container so Escape works from the buttons too.
-    // biome-ignore lint/a11y/noStaticElementInteractions: popover-level key handling; focus always sits on a real control inside
-    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: popover-level key handling; focus always sits on a real control inside
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- popover-level key handling; focus always sits on a real control inside
     <div
       className="link-editor"
       onKeyDown={(event) => {
@@ -89,7 +88,9 @@ export function LinkEditor({
       <input
         aria-label={state.kind === "wikilink" ? "note title" : "link text"}
         className="link-editor-input"
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+        }}
         placeholder={
           state.kind === "wikilink" ? "note title..." : "link text..."
         }
@@ -100,7 +101,9 @@ export function LinkEditor({
         <input
           aria-label="link url"
           className="link-editor-input"
-          onChange={(event) => setUrl(event.target.value)}
+          onChange={(event) => {
+            setUrl(event.target.value);
+          }}
           placeholder="enter url..."
           type="url"
           value={url}

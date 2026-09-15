@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FileTextIcon } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useRef } from "react";
+
 import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -75,7 +76,7 @@ export function MentionItem({ mention }: MentionItemProps) {
             </span>
           )}
         </span>
-        <span className="truncate text-muted-foreground text-xs">
+        <span className="text-muted-foreground truncate text-xs">
           {contextFrom(first)}
         </span>
       </div>
@@ -110,7 +111,12 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
 
   // The store outlives this component, and a list left open over a note that
   // closed would greet the next one.
-  useEffect(() => () => setMentionsOpen(false), []);
+  useEffect(
+    () => () => {
+      setMentionsOpen(false);
+    },
+    []
+  );
 
   if (count === 0) {
     return null;
@@ -124,8 +130,13 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
             <DropdownMenuTrigger
               render={
                 <Badge
-                  className="text-muted-foreground tabular-nums outline-none hover:text-foreground"
-                  render={<button type="button" />}
+                  className="text-muted-foreground hover:text-foreground tabular-nums outline-none"
+                  render={
+                    <button
+                      aria-label={`${count} ${count === 1 ? "mention" : "mentions"}`}
+                      type="button"
+                    />
+                  }
                   variant="ghost"
                 />
               }
@@ -140,7 +151,7 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
       </Tooltip>
       <DropdownMenuContent
         align="start"
-        className="w-72 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
+        className="border-border w-72 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
         side="top"
       >
         {mentions.map((mention) => (

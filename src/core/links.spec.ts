@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import queryFixtures from "../../fixtures/note-queries.json";
 
+import queryFixtures from "../../fixtures/note-queries.json";
 import {
   foldPath,
   isNotePath,
@@ -64,61 +64,59 @@ describe("linkResolver, by title", () => {
   });
 });
 
-describe("isNotePath", () => {
-  it("should accept a relative markdown destination and nothing else", () => {
-    for (const yes of [
-      "b.md",
-      "./b.md",
-      "../b.md",
-      "sub/b%20c.md",
-      "B.MD",
-      "b.markdown",
-      "b.md#h",
-      "b.md?x=1",
-      "b.MD.md",
-    ]) {
-      expect(isNotePath(yes), yes).toBe(true);
-    }
-    for (const no of [
-      "http://x/b.md",
-      "mailto:x@y.z",
-      "file:///b.md",
-      "#h",
-      "/abs/b.md",
-      "b.txt",
-      "b.md.txt",
-      ".md",
-      ".hidden.md",
-    ]) {
-      expect(isNotePath(no), no).toBe(false);
-    }
+describe(isNotePath, () => {
+  it.each([
+    "b.md",
+    "./b.md",
+    "../b.md",
+    "sub/b%20c.md",
+    "B.MD",
+    "b.markdown",
+    "b.md#h",
+    "b.md?x=1",
+    "b.MD.md",
+  ])("should accept %s as a relative markdown destination", (yes) => {
+    expect(isNotePath(yes)).toBeTruthy();
+  });
+
+  it.each([
+    "http://x/b.md",
+    "mailto:x@y.z",
+    "file:///b.md",
+    "#h",
+    "/abs/b.md",
+    "b.txt",
+    "b.md.txt",
+    ".md",
+    ".hidden.md",
+  ])("should reject %s as a relative markdown destination", (no) => {
+    expect(isNotePath(no)).toBeFalsy();
   });
 });
 
-describe("isRelativeDestination", () => {
-  it("should accept a path beside the note and nothing with a scheme, an anchor or a root", () => {
-    for (const yes of [
-      "spec.pdf",
-      "./spec.pdf",
-      "../docs/my%20spec.pdf",
-      "attachments/notes.pdf",
-      "b.md",
-    ]) {
-      expect(isRelativeDestination(yes), yes).toBe(true);
-    }
-    for (const no of [
-      "https://x/spec.pdf",
-      "mailto:x@y.z",
-      "data:image/png;base64,AA==",
-      "#h",
-      "/abs/spec.pdf",
-    ]) {
-      expect(isRelativeDestination(no), no).toBe(false);
-    }
+describe(isRelativeDestination, () => {
+  it.each([
+    "spec.pdf",
+    "./spec.pdf",
+    "../docs/my%20spec.pdf",
+    "attachments/notes.pdf",
+    "b.md",
+  ])("should accept %s as a path beside the note", (yes) => {
+    expect(isRelativeDestination(yes)).toBeTruthy();
+  });
+
+  it.each([
+    "https://x/spec.pdf",
+    "mailto:x@y.z",
+    "data:image/png;base64,AA==",
+    "#h",
+    "/abs/spec.pdf",
+  ])("should reject %s as a path beside the note", (no) => {
+    expect(isRelativeDestination(no)).toBeFalsy();
   });
 });
 
-describe("foldPath", () => {
+describe(foldPath, () => {
   it("should fold a decoded path onto the note's folder", () => {
     expect(foldPath("../docs/my spec.pdf", "projects/a.md")).toBe(
       "docs/my spec.pdf"

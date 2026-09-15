@@ -1,4 +1,6 @@
-import { type CodeClipboard, commands } from "@/server/adapters/bindings";
+import { hasMessage } from "@/core/errors";
+import { commands } from "@/server/adapters/bindings";
+import type { CodeClipboard } from "@/server/adapters/bindings";
 
 export type { CodeClipboard } from "@/server/adapters/bindings";
 
@@ -11,13 +13,7 @@ export async function readCodeClipboard(
   try {
     return await commands.readCodeClipboard(text);
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: a native rejection is unknown, and typeof null is "object".
-      error !== null &&
-      "message" in error &&
-      typeof error.message === "string"
-    ) {
+    if (hasMessage(error)) {
       throw new Error(error.message, { cause: error });
     }
     throw error;

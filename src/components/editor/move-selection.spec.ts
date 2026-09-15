@@ -99,7 +99,7 @@ function stepTargetFor(range: NodeRange) {
   return next === null ? null : range.end + next.nodeSize;
 }
 
-describe("moveRangeByStep", () => {
+describe(moveRangeByStep, () => {
   it("should move a paragraph below its successor", () => {
     expect(stepIn("one\n\ntwo", "paragraph", 0, false)).toBe("two\n\none");
   });
@@ -388,7 +388,7 @@ describe("moveRange over a selection", () => {
 
     editor.destroy();
 
-    expect(empty).toBe(true);
+    expect(empty).toBeTruthy();
     expect(text).toBe("one");
   });
 
@@ -399,15 +399,13 @@ describe("moveRange over a selection", () => {
     editor.commands.setTextSelection({ from: at, to: at });
 
     const tr = moveRangeByStep(editor.state, false);
-    const pointer = tr?.getMeta("pointer");
-
     editor.destroy();
 
-    expect(pointer).toBeUndefined();
+    expect(tr?.getMeta("pointer")).toBeUndefined();
   });
 });
 
-describe("dragRange", () => {
+describe(dragRange, () => {
   it("should refuse a selection inside one block", () => {
     // Widening two words to their paragraph moves more than the highlight
     // promised, so the press is left to ProseMirror's text drag.
@@ -508,7 +506,7 @@ describe("dragRange", () => {
   });
 });
 
-describe("textDropTarget", () => {
+describe(textDropTarget, () => {
   it("should refuse a point inside the words themselves", () => {
     const editor = load("one two three");
     const at = inside(editor.state.doc, "paragraph", 0);
@@ -521,7 +519,7 @@ describe("textDropTarget", () => {
   });
 });
 
-describe("moveText", () => {
+describe(moveText, () => {
   it("should land the words at the point and leave them selected", () => {
     const editor = load("one two three\n\nfour");
     const first = inside(editor.state.doc, "paragraph", 0);
@@ -676,7 +674,7 @@ describe("tables", () => {
 
     editor.destroy();
 
-    expect(empty).toBe(true);
+    expect(empty).toBeTruthy();
     expect(cell).toBe("tableCell");
   });
 
@@ -710,7 +708,7 @@ describe("tables", () => {
 
     editor.destroy();
 
-    expect(empty).toBe(true);
+    expect(empty).toBeTruthy();
     expect(cell).toBe("tableCell");
   });
 
@@ -738,7 +736,7 @@ describe("tables", () => {
 
     editor.destroy();
 
-    expect(empty).toBe(true);
+    expect(empty).toBeTruthy();
     expect(cell).toBe("tableCell");
   });
 

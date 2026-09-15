@@ -1,3 +1,4 @@
+import type { ThemedToken } from "shiki";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,12 +6,15 @@ import {
   syntaxLanguage,
 } from "@/components/editor/syntax-highlighter";
 
+/** Shiki's enum for a token with no font style; the enum itself is not re-exported. */
+const PLAIN: ThemedToken["fontStyle"] = 0;
+
 describe("syntax highlighting", () => {
   it("should distinguish declarations, imports, flow, types, and functions", async () => {
     const highlighter = await loadSyntaxHighlighter(["typescript"]);
     const tokens = highlighter
       .codeToTokensBase(
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: This is source text for the highlighter, not a test template.
+        // oxlint-disable-next-line no-template-curly-in-string -- source text for the highlighter, not a test template
         'import { readFile } from "node:fs/promises";\nexport async function read(path: string): Promise<string> {\n const text = await readFile(path, "utf8");\n if (text) return `${path}: ${text}`;\n}',
         { lang: "typescript", theme: "notras" }
       )
@@ -28,21 +32,21 @@ describe("syntax highlighting", () => {
       ["Promise", "var(--syntax-type)"],
       ["path", "var(--foreground)"],
     ]) {
-      expect(tokens, content).toContainEqual(
+      expect(tokens).toContainEqual(
         expect.objectContaining({ color, content })
       );
     }
     expect(
       tokens.every(
-        ({ fontStyle }) => fontStyle === 0 || fontStyle === undefined
+        ({ fontStyle }) => fontStyle === PLAIN || fontStyle === undefined
       )
-    ).toBe(true);
+    ).toBeTruthy();
   });
 
   it("should keep interpolation variables separate from string text", async () => {
     const highlighter = await loadSyntaxHighlighter(["typescript"]);
     const tokens = highlighter
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: The interpolation must reach the grammar verbatim.
+      // oxlint-disable-next-line no-template-curly-in-string -- the interpolation must reach the grammar verbatim
       .codeToTokensBase("`hello ${name}`", {
         lang: "typescript",
         theme: "notras",
@@ -72,9 +76,9 @@ describe("syntax highlighting", () => {
       expect(tokens.map(({ content }) => content).join("")).not.toBe("");
       expect(
         tokens.every(
-          ({ fontStyle }) => fontStyle === 0 || fontStyle === undefined
+          ({ fontStyle }) => fontStyle === PLAIN || fontStyle === undefined
         )
-      ).toBe(true);
+      ).toBeTruthy();
     }
   });
 

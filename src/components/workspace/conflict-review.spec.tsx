@@ -1,13 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
 import { ConflictReview } from "./conflict-review";
 
-describe("ConflictReview", () => {
+describe(ConflictReview, () => {
   it("should offer to apply the combined text once nothing overlaps", async () => {
     const user = userEvent.setup();
-    const onBack = vi.fn();
-    const onResolve = vi.fn();
+    const onBack = vi.fn<() => void>();
+    const onResolve = vi.fn<(content: string) => void>();
     render(
       <ConflictReview
         base={"# Errands\n\nbody"}
@@ -29,8 +30,8 @@ describe("ConflictReview", () => {
 
   it("should keep a blank line when the used side is one blank line", async () => {
     const user = userEvent.setup();
-    const onBack = vi.fn();
-    const onResolve = vi.fn();
+    const onBack = vi.fn<() => void>();
+    const onResolve = vi.fn<(content: string) => void>();
     render(
       <ConflictReview
         base={"a\nbase\nz"}

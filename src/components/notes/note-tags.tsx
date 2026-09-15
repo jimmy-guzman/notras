@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useCallback, useState } from "react";
+
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,8 @@ function TagBadge({ onFilter, tag }: TagBadgeProps) {
 
   return (
     <Badge
-      className="text-muted-foreground outline-none hover:text-foreground"
-      render={<button onClick={filter} type="button" />}
+      className="text-muted-foreground hover:text-foreground outline-none"
+      render={<button aria-label={`#${tag}`} onClick={filter} type="button" />}
       variant="ghost"
     >
       {`#${tag}`}
@@ -78,13 +79,11 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
     (nextTags: string[]) => {
       setQuery("");
       // The combobox reports a replacement for its rendered value, so recover the toggled items here.
-      const toggled = [
-        ...nextTags.filter((tag) => !optimisticTags.includes(tag)),
-        ...optimisticTags.filter((tag) => !nextTags.includes(tag)),
-      ];
-      changeTags((current) => [
-        ...current.filter((tag) => !toggled.includes(tag)),
-        ...toggled.filter((tag) => !current.includes(tag)),
+      const toggled = new Set(nextTags).symmetricDifference(
+        new Set(optimisticTags)
+      );
+      void changeTags((current) => [
+        ...new Set(current).symmetricDifference(toggled),
       ]);
     },
     [changeTags, optimisticTags]
@@ -122,8 +121,8 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
           className="[&>svg:last-child]:hidden"
           render={
             <Badge
-              className="text-muted-foreground outline-none hover:text-foreground"
-              render={<button type="button" />}
+              className="text-muted-foreground hover:text-foreground outline-none"
+              render={<button aria-label="add tag" type="button" />}
               variant="ghost"
             />
           }
@@ -133,26 +132,29 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         </ComboboxTrigger>
         <ComboboxContent
           align="start"
-          className="w-56 min-w-56 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
+          className="border-border w-56 min-w-56 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
           side="top"
         >
           <ComboboxInput placeholder="filter tags..." showTrigger={false} />
           {allTags.data === undefined && allTags.isPending ? (
-            <p
-              className="px-3 py-2 text-muted-foreground text-xs"
-              role="status"
-            >
+            <output className="text-muted-foreground block px-3 py-2 text-xs">
               loading tag suggestions...
-            </p>
+            </output>
           ) : null}
           {allTags.isError ? (
-            <div className="px-3 py-2 text-xs" role="status">
-              <p>could not load tag suggestions</p>
-              <p>{reasonOf(allTags.error)}</p>
-              <Button onClick={retry} size="sm" variant="ghost">
+            <output className="block px-3 py-2 text-xs">
+              <span className="block">could not load tag suggestions</span>
+              <span className="block">{reasonOf(allTags.error)}</span>
+              <Button
+                onClick={() => {
+                  void retry();
+                }}
+                size="sm"
+                variant="ghost"
+              >
                 retry
               </Button>
-            </div>
+            </output>
           ) : null}
           {allTags.isSuccess ? (
             <ComboboxEmpty className="flex-col gap-0.5">
@@ -165,7 +167,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
               <ComboboxItem key={tag} value={tag}>
                 <HashIcon className="text-muted-foreground" />
                 <span className="truncate">{tag}</span>
-                <span className="ml-auto text-faint">
+                <span className="text-faint ml-auto">
                   {counts.get(tag) ?? (allTags.data === undefined ? "" : "new")}
                 </span>
               </ComboboxItem>

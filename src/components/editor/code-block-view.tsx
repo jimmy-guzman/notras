@@ -3,6 +3,8 @@ import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+
+import { contentOf, hasString } from "@/components/editor/attrs";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
@@ -15,8 +17,7 @@ export function CodeBlockView({
   node,
   updateAttributes,
 }: ReactNodeViewProps) {
-  const language =
-    typeof node.attrs.language === "string" ? node.attrs.language : "";
+  const language = hasString(node.attrs, "language") ? node.attrs.language : "";
   const languageLabel = language === "" ? "plain" : language;
   const [copied, setCopied] = useState(false);
   const clearCopied = useDebouncedCallback(
@@ -44,7 +45,7 @@ export function CodeBlockView({
         throw new Error("the markdown serializer is unavailable");
       }
 
-      await navigator.clipboard.writeText(manager.serialize(node.toJSON()));
+      await navigator.clipboard.writeText(manager.serialize(contentOf(node)));
       setCopied(true);
       clearCopied();
     } catch (error) {
@@ -69,7 +70,9 @@ export function CodeBlockView({
         <button
           aria-label="copy code"
           className="code-block-button"
-          onClick={copy}
+          onClick={() => {
+            void copy();
+          }}
           type="button"
         >
           {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}

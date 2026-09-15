@@ -24,11 +24,9 @@ import {
   XIcon,
 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import {
-  ActionsView,
-  type PaletteAction,
-  type PaletteScope,
-} from "@/components/palette-actions";
+
+import { ActionsView } from "@/components/palette-actions";
+import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
 import { PaletteFilters } from "@/components/palette-filters";
 import {
   DeleteView,
@@ -118,6 +116,7 @@ interface CommandPaletteProps {
   tag?: string;
 }
 
+// oxlint-disable-next-line complexity, react-doctor/no-giant-component -- the split is tracked in #203
 export function CommandPalette({
   mode,
   notesDir,
@@ -273,59 +272,56 @@ export function CommandPalette({
   const matchesQuery = (label: string) =>
     label.toLowerCase().includes(query.trim().toLowerCase());
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (currentNote === undefined) {
       return;
     }
 
-    runAction("could not delete note", async () => {
+    void runAction("could not delete note", async () => {
       await deleteNote(currentNote.path);
       closeNoteTab(currentNote.path);
       toast.add({ title: "note deleted", type: "success" });
     });
-  }, [currentNote, runAction]);
+  };
 
-  const moveToFolder = useCallback(
-    (folder: string) => {
-      if (currentNote === undefined) {
-        return;
-      }
-
-      runAction("could not move note", async () => {
-        const session = getTabHandles(activeId);
-        if (session?.changePath === undefined) {
-          throw new Error("the note is still opening");
-        }
-        await session.changePath({ folder, kind: "move" });
-      });
-    },
-    [activeId, currentNote, runAction]
-  );
-
-  const moveToNewFolder = useCallback(() => {
-    moveToFolder(query.trim());
-  }, [moveToFolder, query]);
-
-  const confirmRename = useCallback(() => {
+  const moveToFolder = (folder: string) => {
     if (currentNote === undefined) {
       return;
     }
 
-    runAction("could not rename note", async () => {
+    void runAction("could not move note", async () => {
+      const session = getTabHandles(activeId);
+      if (session?.changePath === undefined) {
+        throw new Error("the note is still opening");
+      }
+      await session.changePath({ folder, kind: "move" });
+    });
+  };
+
+  const moveToNewFolder = () => {
+    moveToFolder(query.trim());
+  };
+
+  const confirmRename = () => {
+    if (currentNote === undefined) {
+      return;
+    }
+
+    void runAction("could not rename note", async () => {
       const session = getTabHandles(activeId);
       if (session?.changePath === undefined) {
         throw new Error("the note is still opening");
       }
       await session.changePath({ kind: "retitle", title: query.trim() });
     });
-  }, [activeId, currentNote, query, runAction]);
+  };
 
   // `create` de-duplicates by appending a counter, so a stale index or a
   // title that differs from its filename never overwrites the existing note.
   const createFromQuery = useCallback(() => {
     const title = query.trim();
 
-    runAction("could not create note", async () => {
+    void runAction("could not create note", async () => {
       const path = await createNote({ title });
 
       openInTab(path, true);
@@ -351,7 +347,7 @@ export function CommandPalette({
       label: "new note",
       needs: "none",
       onSelect: () => {
-        runAction("could not create note", async () => {
+        void runAction("could not create note", async () => {
           const path = await createNote();
 
           openInTab(path, true);
@@ -369,11 +365,13 @@ export function CommandPalette({
           return;
         }
 
-        runAction("could not update pin", () =>
-          changeNoteMetadata(currentNote.path, { pinned: !currentNote.pinned })
-        );
+        void runAction("could not update pin", async () => {
+          await changeNoteMetadata(currentNote.path, {
+            pinned: !currentNote.pinned,
+          });
+        });
       },
-      text: currentNote?.pinned ? "unpin note" : "pin note",
+      text: currentNote?.pinned === true ? "unpin note" : "pin note",
       value: "toggle-pin",
     },
     {
@@ -440,9 +438,9 @@ export function CommandPalette({
           return;
         }
 
-        runAction("could not reveal note", () =>
-          revealItemInDir(`${notesDir}/${currentNote.path}`)
-        );
+        void runAction("could not reveal note", async () => {
+          await revealItemInDir(`${notesDir}/${currentNote.path}`);
+        });
       },
       text: "reveal in finder",
       value: "reveal-in-finder",
@@ -524,7 +522,7 @@ export function CommandPalette({
         close();
 
         if (activeTab !== undefined) {
-          copyTabPath(tabFullPath(activeTab, notesDir));
+          void copyTabPath(tabFullPath(activeTab, notesDir));
         }
       },
       text: "copy path",
@@ -546,7 +544,9 @@ export function CommandPalette({
       label: "quick capture",
       needs: "none",
       onSelect: () => {
-        runAction("could not open quick capture", commands.showCapture);
+        void runAction("could not open quick capture", async () => {
+          await commands.showCapture();
+        });
       },
       text: "quick capture",
       value: "quick-capture",
@@ -567,7 +567,7 @@ export function CommandPalette({
       label: "reindex library",
       needs: "none",
       onSelect: () => {
-        runAction("could not reindex", async () => {
+        void runAction("could not reindex", async () => {
           await reindexAll();
           toast.add({ title: "library reindexed", type: "success" });
         });
@@ -581,7 +581,7 @@ export function CommandPalette({
       needs: "none",
       // An explicit check reports whether it ran, including in development.
       onSelect: () => {
-        runAction("could not check for updates", async () => {
+        void runAction("could not check for updates", async () => {
           if (!updatesSupported()) {
             toast.add({ title: "update checks are off in development" });
 

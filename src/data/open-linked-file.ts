@@ -6,5 +6,7 @@ export async function openLinkedFile(
   from: string,
   destination: string
 ): Promise<void> {
-  await nativeCommand(() => commands.openLinkedFile(from, destination));
+  await nativeCommand(
+    async () => await commands.openLinkedFile(from, destination)
+  );
 }

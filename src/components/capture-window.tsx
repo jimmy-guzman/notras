@@ -1,6 +1,7 @@
 import { useSelector } from "@tanstack/react-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { Chord } from "@/components/chord";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
@@ -13,7 +14,9 @@ import { reasonOf } from "@/lib/ui/failure";
 import { createFindController } from "@/lib/ui/find";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 
-const NOOP = () => undefined;
+const NOOP = () => {
+  // The capture window reads its editor at save time, not on every edit.
+};
 
 /**
  * The quick-capture window: a bare editor. Esc (or ⌘⏎) saves the jot into
@@ -24,20 +27,19 @@ export function CaptureWindow() {
   const editorRef = useRef<EditorHandle | null>(null);
   const savingRef = useRef<boolean>(false);
   const [session, setSession] = useState(0);
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [find] = useState(createFindController);
   const findState = useSelector(find.store);
   const [findHandle, setFindHandle] = useState<FindHandle | null>(null);
-  useEffect(() => {
-    if (findHandle !== null) {
-      return find.bind(findHandle);
-    }
-  }, [find, findHandle]);
+  useEffect(
+    () => (findHandle === null ? undefined : find.bind(findHandle)),
+    [find, findHandle]
+  );
   useHotkey("Mod+F", find.open, { meta: { name: "find in note" } });
 
   const saveAndHide = async () => {
     // Esc and ⌘⏎ both land here, and a fast double press would otherwise
     // write the jot twice, with the second copy taking a collision suffix.
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: the asynchronous save sets this ref while a second shortcut can read it
     if (savingRef.current) {
       return;
     }
@@ -78,15 +80,22 @@ export function CaptureWindow() {
 
   useHotkeys([
     {
-      callback: saveAndHide,
+      callback: () => {
+        void saveAndHide();
+      },
       hotkey: "Escape",
       options: { enabled: !findState.open },
     },
-    { callback: saveAndHide, hotkey: "Mod+Enter" },
+    {
+      callback: () => {
+        void saveAndHide();
+      },
+      hotkey: "Mod+Enter",
+    },
   ]);
 
   return (
-    <div className="flex h-svh flex-col bg-background text-foreground">
+    <div className="bg-background text-foreground flex h-svh flex-col">
       <Titlebar />
       <div className="relative flex min-h-0 flex-1 flex-col">
         <Editor
@@ -100,7 +109,7 @@ export function CaptureWindow() {
         />
         <FindBar controller={find} />
       </div>
-      <footer className="flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-muted-foreground text-xs">
+      <footer className="text-muted-foreground flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs">
         <Chord hotkey="Escape" /> saves to inbox
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}

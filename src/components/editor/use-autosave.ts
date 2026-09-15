@@ -1,5 +1,6 @@
 import { useSelector } from "@tanstack/react-store";
 import { useEffect } from "react";
+
 import type { NotePersistence } from "@/components/editor/note-persistence";
 import { registerPendingFlush } from "@/lib/pending-flush";
 
@@ -12,7 +13,7 @@ export function useAutosave(persistence: NotePersistence) {
     const release = persistence.retain();
     const flush = async () => await persistence.flush();
     const blur = () => {
-      flush();
+      void flush();
     };
     window.addEventListener("blur", blur);
     const unregister = registerPendingFlush(flush);
@@ -25,7 +26,7 @@ export function useAutosave(persistence: NotePersistence) {
           unregister();
         }
       };
-      finish();
+      void finish();
     };
   }, [persistence]);
   return {

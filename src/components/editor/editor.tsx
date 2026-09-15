@@ -9,6 +9,8 @@ import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { contentOf, hasString } from "@/components/editor/attrs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { isNotePath, isRelativeDestination } from "@/core/links";
@@ -17,13 +19,15 @@ import { styleNonce } from "@/lib/style-nonce";
 import { readCodeClipboard } from "@/lib/ui/code-clipboard";
 import { reasonOf } from "@/lib/ui/failure";
 import { attachmentDestination } from "@/lib/utils/attachments";
+
 import {
   createEditorExtensions,
   fileMarkdown,
   normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
-import { createFindHandle, Find, type FindHandle } from "./find";
+import { createFindHandle, Find } from "./find";
+import type { FindHandle } from "./find";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
@@ -49,10 +53,8 @@ const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
  */
 function wikilinkTitleAt(state: EditorState, head: number) {
   const after = state.doc.nodeAt(head);
-  const node =
-    after?.type.name === "wikilink"
-      ? after
-      : (head > 0 && state.doc.nodeAt(head - 1)) || null;
+  const before = head > 0 ? state.doc.nodeAt(head - 1) : null;
+  const node = after?.type.name === "wikilink" ? after : before;
 
   return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
 }
@@ -71,13 +73,18 @@ function wordsAt(state: EditorState) {
     : state.doc.textBetween(from, to);
 }
 
+/** `readAsDataURL` settles with a string; the type also covers the other readers. */
+function isDataUrl(result: FileReader["result"]): result is string {
+  return typeof result === "string";
+}
+
 /**
  * What the panel says about the thing under the pointer. A markdown link
  * carries its destination; a wikilink resolves by title, so its own text says
  * nothing useful and the note it lands on does.
  */
 function hoverStateFor(
-  target: Element,
+  target: HTMLElement,
   markHref: string,
   resolveWikilink?: (title: string) => string | undefined
 ) {
@@ -93,7 +100,7 @@ function hoverStateFor(
     };
   }
 
-  const title = target.getAttribute("data-wikilink") ?? target.textContent;
+  const title = target.dataset.wikilink ?? target.textContent;
 
   if (resolveWikilink === undefined || title === null || title === "") {
     return null;
@@ -117,7 +124,9 @@ function hrefAt(state: EditorState, pos: number) {
     .marks()
     .find((mark) => mark.type.name === "link");
 
-  return typeof link?.attrs.href === "string" ? link.attrs.href : "";
+  const attrs = link?.attrs;
+
+  return hasString(attrs, "href") ? attrs.href : "";
 }
 
 /**
@@ -147,6 +156,7 @@ function followLink(
     return;
   }
 
+  // oxlint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks, anti-slop/no-unknown-parameters -- ProseMirror's click handler is synchronous, so the failure toast rides the rejection, whose value is unknown by the language
   openUrl(href).catch((error: unknown) => {
     toast.add({
       description: reasonOf(error),
@@ -167,10 +177,11 @@ function firstTitle(doc: ProseMirrorNode) {
       return false;
     }
     if (node.type.name !== "paragraph" && node.type.name !== "heading") {
-      return;
+      return true;
     }
     let from = position + 1;
     let text = "";
+    // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
     node.forEach((child, offset) => {
       if (result !== undefined) {
         return;
@@ -219,6 +230,7 @@ function touchesTitle(transaction: Transaction) {
       return step.from < range.to && step.to > range.from;
     }
     let touched = false;
+    // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror step map, not an array
     step.getMap().forEach((from, to) => {
       touched ||= from < range.to && to > range.from;
     });
@@ -248,7 +260,7 @@ function sourceOffset(editor: TiptapEditor, position: number) {
     const marked = editor.state.tr.insertText(SENTINEL, position);
     return fileMarkdown(
       manager,
-      normalizeMarkdown(manager.serialize(marked.doc.toJSON()))
+      normalizeMarkdown(manager.serialize(contentOf(marked.doc)))
     ).indexOf(SENTINEL);
   } catch {
     return -1;
@@ -330,6 +342,7 @@ interface EditorProps {
  * read through refs. The session applies document changes through the handle
  * and owns history when `onHistory` is supplied. Frontmatter stays in the session.
  */
+// oxlint-disable-next-line react-doctor/no-giant-component -- the split is tracked in #203
 export function Editor({
   findOpen = false,
   focusModeEnabled = false,
@@ -353,20 +366,38 @@ export function Editor({
     focusModeRef.current = focusModeEnabled && !findOpen;
   });
 
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const closeHoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const keepHover = useCallback(() => {
+    if (closeHoverRef.current !== null) {
+      clearTimeout(closeHoverRef.current);
+      closeHoverRef.current = null;
+    }
+  }, []);
+
+  const closeHoverLater = useCallback(() => {
+    keepHover();
+    closeHoverRef.current = setTimeout(() => {
+      setLinkHover(null);
+    }, HOVER_CLOSE_MS);
+  }, [keepHover]);
+
+  useEffect(() => keepHover, [keepHover]);
   const [reading, setReading] = useState(false);
-  const [linkShortcut] = useState(() => {
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
+  const [linkShortcut] = useState(() =>
     // ⌘K belongs to the palette, so the link keys sit under ⌘⇧: K makes one, O
     // follows the one at the caret, which is the only way there without a mouse.
-    return Extension.create({
+    Extension.create({
       addKeyboardShortcuts: () => ({
         "Mod-Shift-k": ({ editor: instance }) => {
           const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
-          const url = typeof attrs.href === "string" ? attrs.href : "";
+          const url = hasString(attrs, "href") ? attrs.href : "";
           const coords = instance.view.coordsAtPos(head);
 
           setLinkEditor((previous) => ({
@@ -383,7 +414,7 @@ export function Editor({
         "Mod-Shift-o": ({ editor: instance }) => {
           const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
-          const href = typeof attrs.href === "string" ? attrs.href : "";
+          const href = hasString(attrs, "href") ? attrs.href : "";
 
           if (href !== "") {
             followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
@@ -403,13 +434,11 @@ export function Editor({
         },
       }),
       name: "linkShortcut",
-    });
-  });
-  const [typewriter] = useState(() =>
-    createTypewriter({
-      enabled: () => focusModeRef.current,
-      scroller: () => scrollerRef.current,
     })
+  );
+  // oxlint-disable-next-line react/hook-use-state, react/refs -- a once-built instance has no setter, and the refs it takes are read after mount
+  const [typewriter] = useState(() =>
+    createTypewriter({ enabled: focusModeRef, scroller: scrollerRef })
   );
 
   const editor = useEditor({
@@ -438,7 +467,7 @@ export function Editor({
           return manager
             ? fileMarkdown(
                 manager,
-                normalizeMarkdown(manager.serialize(doc.toJSON()))
+                normalizeMarkdown(manager.serialize(contentOf(doc)))
               )
             : fallback;
         } catch {
@@ -496,7 +525,7 @@ export function Editor({
         mouseover: (view, event) => {
           const target =
             event.target instanceof Element
-              ? event.target.closest("a[href], [data-wikilink]")
+              ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
               : null;
 
           if (target === null) {
@@ -565,9 +594,8 @@ export function Editor({
                 type: "error",
               });
             });
-            reader.addEventListener("load", async () => {
-              const result =
-                typeof reader.result === "string" ? reader.result : "";
+            const attachRead = async () => {
+              const result = isDataUrl(reader.result) ? reader.result : "";
               const base64 = result.split(",")[1] ?? "";
 
               if (base64 === "") {
@@ -596,6 +624,10 @@ export function Editor({
                   type: "error",
                 });
               }
+            };
+
+            reader.addEventListener("load", () => {
+              void attachRead();
             });
             reader.readAsDataURL(blob);
 
@@ -644,7 +676,7 @@ export function Editor({
               SENTINEL,
               instance.state.selection.head
             );
-            const md: string = manager.serialize(marked.doc.toJSON());
+            const md: string = manager.serialize(contentOf(marked.doc));
 
             // Source mode shows the file form, so the offset has to index it.
             return fileMarkdown(manager, normalizeMarkdown(md)).indexOf(
@@ -710,7 +742,6 @@ export function Editor({
     },
     onSelectionUpdate: ({ editor: instance }) => {
       setReading(selectionSpansBlocks(instance.state));
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
       if (!suppressChangeRef.current && config.onSelect !== undefined) {
         const { selection } = instance.state;
         const anchor = sourceOffset(instance, selection.anchor);
@@ -727,8 +758,10 @@ export function Editor({
       transaction,
       appendedTransactions,
     }) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes in editor and mode-switch callbacks
-      if (suppressChangeRef.current || transaction.getMeta("preventUpdate")) {
+      if (
+        suppressChangeRef.current ||
+        transaction.getMeta("preventUpdate") === true
+      ) {
         return;
       }
       const transactions = [transaction, ...appendedTransactions];
@@ -741,8 +774,8 @@ export function Editor({
         ? anchor
         : sourceOffset(instance, selection.head);
       config.onChange(serializeMarkdown(instance), {
+        selection: anchor >= 0 && head >= 0 ? { anchor, head } : undefined,
         titleEdited: transactions.some(touchesTitle),
-        ...(anchor >= 0 && head >= 0 ? { selection: { anchor, head } } : {}),
       });
     },
   });
@@ -836,33 +869,37 @@ export function Editor({
     const scroller = scrollerRef.current;
     const content = editor?.view.dom.parentElement;
 
-    if (
-      !focusModeEnabled ||
+    const engage = (
+      instance: TiptapEditor,
+      area: HTMLElement,
+      body: HTMLElement
+    ) => {
+      const recenter = () => {
+        if (instance.isDestroyed) {
+          return;
+        }
+
+        instance
+          .chain()
+          .setMeta(TYPEWRITER_SCROLL, "center")
+          .scrollIntoView()
+          .run();
+      };
+      const disengage = engageTypewriterPadding(area, body, recenter);
+
+      if (!wasEnabled) {
+        recenter();
+      }
+
+      return disengage;
+    };
+
+    return !focusModeEnabled ||
       editor === null ||
       scroller === null ||
       !(content instanceof HTMLElement)
-    ) {
-      return;
-    }
-
-    const recenter = () => {
-      if (editor.isDestroyed) {
-        return;
-      }
-
-      editor
-        .chain()
-        .setMeta(TYPEWRITER_SCROLL, "center")
-        .scrollIntoView()
-        .run();
-    };
-    const disengage = engageTypewriterPadding(scroller, content, recenter);
-
-    if (!wasEnabled) {
-      recenter();
-    }
-
-    return disengage;
+      ? undefined
+      : engage(editor, scroller, content);
   }, [editor, focusModeEnabled]);
 
   // Wheel and touchmove, never scroll: scroll also fires for the typewriter
@@ -870,11 +907,7 @@ export function Editor({
   // every keystroke (`D64`).
   useEffect(() => {
     const surface = scrollAreaRef.current;
-
-    if (!focusModeEnabled || surface === null) {
-      return;
-    }
-
+    const watched = focusModeEnabled && surface !== null;
     const engage = () => {
       setReading(true);
     };
@@ -889,11 +922,16 @@ export function Editor({
       setReading(instance !== null && selectionSpansBlocks(instance.state));
     };
 
-    surface.addEventListener("wheel", engage, { passive: true });
-    surface.addEventListener("touchmove", engage, { passive: true });
-    surface.addEventListener("click", restore);
+    if (watched) {
+      surface.addEventListener("wheel", engage, { passive: true });
+      surface.addEventListener("touchmove", engage, { passive: true });
+      surface.addEventListener("click", restore);
+    }
 
     return () => {
+      if (!watched) {
+        return;
+      }
       surface.removeEventListener("wheel", engage);
       surface.removeEventListener("touchmove", engage);
       surface.removeEventListener("click", restore);
@@ -910,23 +948,6 @@ export function Editor({
     setLinkEditor(null);
     editor?.chain().focus().extendMarkRange("link").unsetLink().run();
   }, [editor]);
-
-  const keepHover = useCallback(() => {
-    if (closeHoverRef.current !== null) {
-      clearTimeout(closeHoverRef.current);
-      closeHoverRef.current = null;
-    }
-  }, []);
-
-  const closeHoverLater = useCallback(() => {
-    keepHover();
-    closeHoverRef.current = setTimeout(
-      () => setLinkHover(null),
-      HOVER_CLOSE_MS
-    );
-  }, [keepHover]);
-
-  useEffect(() => keepHover, [keepHover]);
 
   // The panel opens the editor where it already sits, so the two are one
   // surface rather than two places a link is changed from.

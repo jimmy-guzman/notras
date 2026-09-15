@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+
 import { adoptVaultNotes, getTabState, restoreTabs } from "@/lib/tabs/store";
 import { commands } from "@/server/adapters/bindings";
 
@@ -12,7 +13,9 @@ async function restoreSession() {
   const restored = restoreTabs();
 
   if (restored) {
-    await adoptVaultNotes(commands.classifyOpenPaths);
+    await adoptVaultNotes(
+      async (paths) => await commands.classifyOpenPaths(paths)
+    );
   }
 
   return restored ? null : getTabState();

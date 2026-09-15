@@ -107,35 +107,35 @@ Signing and notarization are tracked in [issue #171](https://github.com/jimmy-gu
 
 ## Keyboard shortcuts
 
-| Shortcut  | Action                           |
-| --------- | -------------------------------- |
-| `⌘P`      | find a note                      |
-| `⌘⇧P`     | run an action                    |
-| `⌘N`/`⌘T` | new note, in a new tab           |
-| `⌘⏎`      | (palette) open in a new tab      |
-| `⌘W`      | close tab                        |
-| `⌘⌥⇧W`    | close other tabs                 |
-| `⌘⇧T`     | reopen the last closed tab       |
-| `⌘1`-`⌘9` | nth tab; `⌘9` is the last one    |
-| `⌃⇥`      | next tab (`⌃⇧⇥` for previous)    |
-| `⌘⌥→`     | next tab (`⌘⌥←` for previous)    |
-| `⌘⌥⇧→`    | move the tab right (`⌘⌥⇧←` left) |
-| `⌘E`      | toggle raw markdown source       |
-| `⌘D`      | toggle focus mode                |
-| `⌘F`      | find in the current buffer       |
-| `⌘G` / `⌘⇧G` | next / previous match       |
-| `⌘⌥G`     | toggle graph view                |
-| `⌥↑`/`⌥↓` | move the selected blocks         |
-| `⌘⇧K`     | add / edit link                  |
-| `⌘⇧O`     | open the link at the caret       |
-| `⌘⇧L`     | show mentions                    |
-| `⌘⇧Y`     | edit tags                        |
-| `⌘,`      | settings                         |
-| `⌘⇧N`     | global quick capture             |
-| `esc`     | (capture window) save + hide     |
-| `⌘⏎`      | (capture window) save + hide     |
-| `esc`     | (review) back to the note        |
-| `⌘⏎`      | (review) resolve                 |
+| Shortcut     | Action                           |
+| ------------ | -------------------------------- |
+| `⌘P`         | find a note                      |
+| `⌘⇧P`        | run an action                    |
+| `⌘N`/`⌘T`    | new note, in a new tab           |
+| `⌘⏎`         | (palette) open in a new tab      |
+| `⌘W`         | close tab                        |
+| `⌘⌥⇧W`       | close other tabs                 |
+| `⌘⇧T`        | reopen the last closed tab       |
+| `⌘1`-`⌘9`    | nth tab; `⌘9` is the last one    |
+| `⌃⇥`         | next tab (`⌃⇧⇥` for previous)    |
+| `⌘⌥→`        | next tab (`⌘⌥←` for previous)    |
+| `⌘⌥⇧→`       | move the tab right (`⌘⌥⇧←` left) |
+| `⌘E`         | toggle raw markdown source       |
+| `⌘D`         | toggle focus mode                |
+| `⌘F`         | find in the current buffer       |
+| `⌘G` / `⌘⇧G` | next / previous match            |
+| `⌘⌥G`        | toggle graph view                |
+| `⌥↑`/`⌥↓`    | move the selected blocks         |
+| `⌘⇧K`        | add / edit link                  |
+| `⌘⇧O`        | open the link at the caret       |
+| `⌘⇧L`        | show mentions                    |
+| `⌘⇧Y`        | edit tags                        |
+| `⌘,`         | settings                         |
+| `⌘⇧N`        | global quick capture             |
+| `esc`        | (capture window) save + hide     |
+| `⌘⏎`         | (capture window) save + hide     |
+| `esc`        | (review) back to the note        |
+| `⌘⏎`         | (review) resolve                 |
 
 - `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
 - `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
@@ -161,24 +161,23 @@ pnpm dev
 
 On first launch notras creates `~/notras` and seeds the index. Change the folder any time in settings (⌘,).
 
-| Script           | Description                         |
-| ---------------- | ----------------------------------- |
-| `pnpm dev`       | run the desktop app (`tauri dev`)   |
-| `pnpm build`     | build the desktop bundle            |
-| `pnpm dev:web`   | run only the web shell (Vite)       |
-| `pnpm build:web` | build only the web shell            |
-| `pnpm bindings` | regenerate the Rust command and event client |
+| Script                | Description                                       |
+| --------------------- | ------------------------------------------------- |
+| `pnpm dev`            | run the desktop app (`tauri dev`)                 |
+| `pnpm build`          | build the desktop bundle                          |
+| `pnpm dev:web`        | run only the web shell (Vite)                     |
+| `pnpm build:web`      | build only the web shell                          |
+| `pnpm bindings`       | regenerate the Rust command and event client      |
 | `pnpm bindings:check` | fail if a temporary native binding export differs |
-| `pnpm check`     | lint and format check (Ultracite)   |
-| `pnpm fix`       | lint and format, auto-fixing        |
-| `pnpm typecheck` | type check (tsc)                    |
-| `pnpm test`      | run tests (Vitest, watches)         |
-| `pnpm coverage`  | tests with coverage                 |
-| `pnpm knip`      | unused code/deps, test-only exports |
-| `pnpm icons`     | generate icons and hero from SVG + theme tokens |
-| `pnpm clean`     | remove build output                 |
-| `pnpm prepare`   | install the git hooks (lefthook)    |
-| `pnpm tauri`     | run the tauri cli directly          |
+| `pnpm check`          | type-aware lint, type check and format check      |
+| `pnpm fix`            | lint and format, auto-fixing                      |
+| `pnpm test`           | run tests (Vitest, watches)                       |
+| `pnpm coverage`       | tests with coverage                               |
+| `pnpm knip`           | unused code/deps, test-only exports               |
+| `pnpm icons`          | generate icons and hero from SVG + theme tokens   |
+| `pnpm clean`          | remove build output                               |
+| `pnpm prepare`        | install the git hooks (lefthook)                  |
+| `pnpm tauri`          | run the tauri cli directly                        |
 
 Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
 
@@ -190,7 +189,7 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 ```
 
 | Command | Description |
-| ------- | ----------- |
+| --- | --- |
 | `cargo machete` | unused Rust dependencies |
 | `cargo fmt --all -- --check` | Rust formatting check |
 | `cargo fmt --all` | format Rust sources |
@@ -203,7 +202,7 @@ Both crates inherit checks requiring explicit unsafe operations, safety comments
 
 On Windows MSVC, `src-tauri/build.rs` embeds `windows_manifest.xml` through the linker for both the application and shell test executables. It declares the Common Controls v6 dependency required by Tauri. Without that manifest, Windows can reject the test executable with `STATUS_ENTRYPOINT_NOT_FOUND` before any tests run.
 
-Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. Biome excludes that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
+Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. `oxlint.config.ts` and `oxfmt.config.ts` exclude that file. Run `pnpm bindings:check` before `pnpm check`; run `pnpm bindings` to update the committed client after a native contract change.
 
 Mutation tests cover native file and index outcomes, shared normalization fixtures, and session persistence with delayed writes and path changes. A file that committed remains saved when indexing fails. The main window reports the warning, and the next index read attempts recovery.
 
@@ -224,13 +223,13 @@ Mutation tests cover native file and index outcomes, shared normalization fixtur
 
 ## Docs
 
-| Doc                                | What it holds                                                                          |
-| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| Doc | What it holds |
+| --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The stack, the index schema, project structure, layer boundaries, patterns, invariants |
-| [DESIGN.md](DESIGN.md)             | Typography, color, space, motion, interaction, the editor surface, copy                |
-| [DECISIONS.md](DECISIONS.md)       | A log of decisions, each with its rationale and what it rejected                       |
-| [SPEC.md](SPEC.md)                 | What the app does, as claims you can check against a running build                     |
-| [AGENTS.md](AGENTS.md)             | The rules for changing any of it, and the map of which doc holds which fact            |
+| [DESIGN.md](DESIGN.md) | Typography, color, space, motion, interaction, the editor surface, copy |
+| [DECISIONS.md](DECISIONS.md) | A log of decisions, each with its rationale and what it rejected |
+| [SPEC.md](SPEC.md) | What the app does, as claims you can check against a running build |
+| [AGENTS.md](AGENTS.md) | The rules for changing any of it, and the map of which doc holds which fact |
 
 Actionable future work is tracked in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).
 

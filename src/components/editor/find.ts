@@ -1,13 +1,11 @@
-import { type Editor, Extension } from "@tiptap/core";
+import { Extension } from "@tiptap/core";
+import type { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
-import {
-  type EditorState,
-  Plugin,
-  PluginKey,
-  type SelectionBookmark,
-  TextSelection,
-} from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+
+import { hasString } from "@/components/editor/attrs";
 
 interface Match {
   from: number;
@@ -34,15 +32,26 @@ export interface FindHandle {
 }
 
 const findKey = new PluginKey<FindState>("noteFind");
-const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/g;
+
+function isFindState(value: unknown): value is FindState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "matches" in value &&
+    "query" in value
+  );
+}
+const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
 
 function isFindOpen(state: EditorState) {
-  return typeof findKey.getState(state)?.query === "string";
+  const query = findKey.getState(state)?.query;
+
+  return query !== undefined && query !== null;
 }
 
 function textOf(node: Node) {
-  return node.type.name === "wikilink" && typeof node.attrs.title === "string"
+  return node.type.name === "wikilink" && hasString(node.attrs, "title")
     ? node.attrs.title
     : node.textContent;
 }
@@ -61,10 +70,11 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
       }
     } else if (node.isLeaf) {
       const text = node.type.name === "wikilink" ? textOf(node) : "\n";
-      for (const character of text.split("")) {
+      // Code units, not code points: `match.index` counts the former.
+      for (let i = 0; i < text.length; i += 1) {
         units.push({
           from: position + 1 + offset,
-          text: character,
+          text: text.charAt(i),
           to: position + 1 + offset + node.nodeSize,
         });
       }
@@ -271,8 +281,8 @@ export const Find = Extension.create({
         },
         state: {
           apply: (transaction, previous) => {
-            const meta: FindState | undefined = transaction.getMeta(findKey);
-            if (meta !== undefined) {
+            const meta: unknown = transaction.getMeta(findKey);
+            if (isFindState(meta)) {
               return meta;
             }
             if (!transaction.docChanged) {

@@ -8,6 +8,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useCallback } from "react";
+
 import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
@@ -110,19 +111,25 @@ export function MoveView({
   }, [notes]);
   if (notes.data === undefined) {
     return (
-      <div className="p-4 text-sm" role="status">
+      <output className="block p-4 text-sm">
         {notes.isError ? (
           <>
-            <p>could not load folders</p>
-            <p>{reasonOf(notes.error)}</p>
-            <Button onClick={retry} size="sm" variant="ghost">
+            <span className="block">could not load folders</span>
+            <span className="block">{reasonOf(notes.error)}</span>
+            <Button
+              onClick={() => {
+                void retry();
+              }}
+              size="sm"
+              variant="ghost"
+            >
               retry
             </Button>
           </>
         ) : (
           "loading folders..."
         )}
-      </div>
+      </output>
     );
   }
   const folders = searchFolders(notes.data);
@@ -150,7 +157,7 @@ export function MoveView({
       {draftFolder === "" || exists ? null : (
         <CommandItem onSelect={onMoveToNewFolder} value="move-new">
           <FolderInputIcon />
-          new folder "{draftFolder}"
+          new folder &quot;{draftFolder}&quot;
         </CommandItem>
       )}
       <CommandItem onSelect={onCancel} value="cancel-move">
@@ -181,7 +188,7 @@ export function RenameView({
         <CommandItem onSelect={onConfirm} value="confirm-rename">
           <PencilIcon />
           <span className="truncate">
-            rename to "{draftTitle}"
+            rename to &quot;{draftTitle}&quot;
             <span className="text-muted-foreground">
               {" · "}
               {filenameFromTitle(draftTitle)}.md
@@ -232,33 +239,41 @@ export function TagsView({
     },
     [changeTags]
   );
-  const add = useCallback(async () => {
+  const add = async () => {
     onQueryChange("");
     await changeTags((current) => [...current, draftTag]);
-  }, [changeTags, draftTag, onQueryChange]);
-  const retry = useCallback(async () => {
+  };
+  const retry = async () => {
     await vocabulary.refetch();
-  }, [vocabulary]);
+  };
+  const attachedNames = new Set(attached);
+
   return (
     <>
       {vocabulary.isPending ? (
-        <p className="p-4 text-muted-foreground text-sm" role="status">
+        <output className="text-muted-foreground block p-4 text-sm">
           loading tag suggestions...
-        </p>
+        </output>
       ) : null}
       {vocabulary.isError ? (
-        <div className="p-4 text-sm" role="status">
-          <p>could not load tag suggestions</p>
-          <p>{reasonOf(vocabulary.error)}</p>
-          <Button onClick={retry} size="sm" variant="ghost">
+        <output className="block p-4 text-sm">
+          <span className="block">could not load tag suggestions</span>
+          <span className="block">{reasonOf(vocabulary.error)}</span>
+          <Button
+            onClick={() => {
+              void retry();
+            }}
+            size="sm"
+            variant="ghost"
+          >
             retry
           </Button>
-        </div>
+        </output>
       ) : null}
       <CommandGroup heading={`tags for "${title}"`}>
         {choices.map((name) => (
           <TagChoiceItem
-            attached={attached.includes(name)}
+            attached={attachedNames.has(name)}
             count={
               vocabulary.data === undefined
                 ? undefined
@@ -266,13 +281,20 @@ export function TagsView({
             }
             key={name}
             name={name}
-            onToggle={toggle}
+            onToggle={(tag) => {
+              void toggle(tag);
+            }}
           />
         ))}
         {draftTag === "" || choices.includes(draftTag) ? null : (
-          <CommandItem onSelect={add} value="tag-new">
+          <CommandItem
+            onSelect={() => {
+              void add();
+            }}
+            value="tag-new"
+          >
             <TagPlusIcon />
-            add "{draftTag}"
+            add &quot;{draftTag}&quot;
           </CommandItem>
         )}
         <CommandItem onSelect={onDone} value="cancel-tags">

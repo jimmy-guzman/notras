@@ -1,25 +1,27 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createNotePersistence } from "@/components/editor/note-persistence";
+
 import { useAutosave } from "./use-autosave";
 
 const AUTOSAVE_DELAY_MS = 800;
 
+interface AutosaveProps {
+  duringCommit?: () => void;
+  enabled: boolean;
+}
+
 function mountAutosave(
   write: (path: string, content: string) => Promise<Date>
 ) {
-  const initialProps: { enabled: boolean; duringCommit?: () => void } = {
+  const initialProps: AutosaveProps = {
     enabled: true,
   };
   const { result, rerender } = renderHook(
-    ({
-      enabled,
-      duringCommit,
-    }: {
-      enabled: boolean;
-      duringCommit?: () => void;
-    }) => {
+    ({ enabled, duringCommit }: AutosaveProps) => {
+      // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
       const [persistence] = useState(() =>
         createNotePersistence(
           {
@@ -29,11 +31,12 @@ function mountAutosave(
             updatedAt: new Date(0),
           },
           {
-            changePath: () =>
-              Promise.reject(new Error("no path action requested")),
-            clearStash: () => Promise.resolve(),
-            onPathChanged: () => undefined,
-            stash: () => Promise.resolve(),
+            changePath: () => {
+              throw new Error("no path action requested");
+            },
+            clearStash: async () => {},
+            onPathChanged: () => {},
+            stash: async () => {},
             write: async (path, content) => ({
               kind: "committed",
               receipt: {
@@ -75,7 +78,9 @@ function mountAutosave(
     async setEnabledMidCommit(enabled: boolean) {
       // A layout effect lets the timer fire before passive effects, even though renderHook flushes both.
       rerender({
-        duringCommit: () => vi.advanceTimersByTime(AUTOSAVE_DELAY_MS),
+        duringCommit: () => {
+          vi.advanceTimersByTime(AUTOSAVE_DELAY_MS);
+        },
         enabled,
       });
       await Promise.resolve();
@@ -85,19 +90,28 @@ function mountAutosave(
         await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
       });
     },
-    startFlush() {
-      return result.current.flush();
+    async startFlush() {
+      return await result.current.flush();
     },
     get status() {
       return result.current.status;
     },
     type(content: string) {
-      act(() => result.current.onChange({ content, mode: "body" }));
+      act(() => {
+        result.current.onChange({ content, mode: "body" });
+      });
     },
   };
 }
 
-describe("useAutosave", () => {
+/** Run every chain link that can run, without landing a write. */
+async function advance() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+describe(useAutosave, () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -109,10 +123,10 @@ describe("useAutosave", () => {
 
   it("should write the buffer once the debounce elapses", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("hello");
@@ -124,10 +138,10 @@ describe("useAutosave", () => {
 
   it("should not write while disabled", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.setEnabled(false);
@@ -139,10 +153,10 @@ describe("useAutosave", () => {
 
   it("should report the buffer safe to quit while holding text it cannot write", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.setEnabled(false);
@@ -150,16 +164,16 @@ describe("useAutosave", () => {
 
     // A false here cancels the quit, which would leave the app unquittable
     // while the tab is open, so the buffer is abandoned rather than blocking.
-    await expect(harness.flush()).resolves.toBe(true);
+    await expect(harness.flush()).resolves.toBeTruthy();
     expect(written).toStrictEqual([]);
   });
 
   it("should not write through a timer that fires before effects flush", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("about to be deleted");
@@ -171,10 +185,10 @@ describe("useAutosave", () => {
 
   it("should write what is on screen after being re-enabled", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("first");
@@ -193,23 +207,16 @@ describe("useAutosave", () => {
 
   it("should land overlapping writes in the order they were flushed", async () => {
     const written: string[] = [];
-    const landWrite: Array<() => void> = [];
-    const harness = mountAutosave((_path, content) => {
+    const landWrite: (() => void)[] = [];
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return new Promise<Date>((resolve) => {
-        landWrite.push(() => {
-          resolve(new Date(1));
-        });
+      const { promise, resolve } = Promise.withResolvers<Date>();
+      landWrite.push(() => {
+        resolve(new Date(1));
       });
+      return await promise;
     });
-
-    /** Run every chain link that can run, without landing a write. */
-    const advance = async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
-    };
 
     /** Let the write the fake is holding at `index` resolve. */
     const land = async (index: number) => {
@@ -245,24 +252,24 @@ describe("useAutosave", () => {
 
     await land(1);
 
-    await expect(firstFlush).resolves.toBe(true);
-    await expect(secondFlush).resolves.toBe(true);
+    await expect(firstFlush).resolves.toBeTruthy();
+    await expect(secondFlush).resolves.toBeTruthy();
     expect(harness.status).toBe("saved");
   });
 
   it("should write again after a write fails", async () => {
     const written: string[] = [];
     let failNext = true;
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
       if (failNext) {
         failNext = false;
 
-        return Promise.reject(new Error("the disk said no"));
+        throw new Error("the disk said no");
       }
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("hello");
@@ -272,21 +279,21 @@ describe("useAutosave", () => {
     expect(harness.status).toBe("failed");
 
     // The failed write handed its content back, and the chain still runs.
-    await expect(harness.flush()).resolves.toBe(true);
+    await expect(harness.flush()).resolves.toBeTruthy();
     expect(written).toStrictEqual(["hello", "hello"]);
     expect(harness.status).toBe("saved");
   });
 
   it("should say why the write failed while it is failed", async () => {
     let failNext = true;
-    const harness = mountAutosave(() => {
+    const harness = mountAutosave(async () => {
       if (failNext) {
         failNext = false;
 
-        return Promise.reject(new Error("the disk is full"));
+        throw new Error("the disk is full");
       }
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("hello");
@@ -295,19 +302,19 @@ describe("useAutosave", () => {
     expect(harness.status).toBe("failed");
     expect(harness.reason).toBe("the disk is full");
 
-    await expect(harness.flush()).resolves.toBe(true);
+    await expect(harness.flush()).resolves.toBeTruthy();
     expect(harness.reason).toBeUndefined();
   });
 
   it("should report the buffer unsafe to quit when its write fails", async () => {
-    const harness = mountAutosave(() =>
-      Promise.reject(new Error("the disk said no"))
-    );
+    const harness = mountAutosave(() => {
+      throw new Error("the disk said no");
+    });
 
     harness.type("hello");
 
     // This false is what cancels a quit, unlike the one a gone file reports.
-    await expect(harness.flush()).resolves.toBe(false);
+    await expect(harness.flush()).resolves.toBeFalsy();
     expect(harness.status).toBe("failed");
   });
 });

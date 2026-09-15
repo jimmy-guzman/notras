@@ -21,12 +21,13 @@ describe("markdown with frontmatter", () => {
           content: "pinned",
         })
       );
-      expect(tokens[3]).toContainEqual(
-        expect.objectContaining({
-          color: "var(--syntax-keyword)",
-          content: expect.stringContaining("a title"),
-        })
-      );
+      expect(
+        tokens[3]?.some(
+          (token) =>
+            token.color === "var(--syntax-keyword)" &&
+            token.content.includes("a title")
+        )
+      ).toBeTruthy();
     }
   );
 
@@ -45,7 +46,7 @@ describe("markdown with frontmatter", () => {
     );
     expect(
       tokens[2]?.every(({ color }) => color === "var(--syntax-punctuation)")
-    ).toBe(true);
+    ).toBeTruthy();
   });
 
   it("should leave later separators outside the frontmatter grammar", async () => {
@@ -56,7 +57,7 @@ describe("markdown with frontmatter", () => {
       theme: "notras",
     });
 
-    expect(tokens[7]).toEqual([
+    expect(tokens[7]).toStrictEqual([
       expect.objectContaining({
         color: "var(--foreground)",
         content: "after: text",

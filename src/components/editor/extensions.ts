@@ -1,5 +1,4 @@
-import type { Editor, Extensions } from "@tiptap/core";
-
+import type { CommandProps, Editor, Extensions } from "@tiptap/core";
 import {
   Extension,
   InputRule,
@@ -9,17 +8,20 @@ import {
 } from "@tiptap/core";
 import { Code } from "@tiptap/extension-code";
 import { Image } from "@tiptap/extension-image";
+import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
-import TaskItem from "@tiptap/extension-task-item";
-import TaskList from "@tiptap/extension-task-list";
+import { TaskItem } from "@tiptap/extension-task-item";
+import { TaskList } from "@tiptap/extension-task-list";
 import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { encode } from "mdurl";
+
+import { hasString } from "@/components/editor/attrs";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { isRelativeDestination } from "@/core/links";
@@ -28,6 +30,7 @@ import {
   escapeMarkdownLabel,
   escapeMarkdownTitle,
 } from "@/lib/utils/attachments";
+
 import { CodeBlockView } from "./code-block-view";
 import { DragSelection } from "./drag-selection";
 import { MoveSelectionKeys } from "./move-selection-keys";
@@ -50,9 +53,9 @@ export interface EditorExtensionOptions {
 const NoteCode = Code.extend({ excludes: "" });
 
 /** marked's GFM `del` takes one tilde or two; TipTap's rules take only two. */
-const SINGLE_TILDE = /(~(?=[^\s~])([^~]*[^\s~])~(?!~))$/;
+const SINGLE_TILDE = /(?<mark>~(?=[^\s~])(?<text>[^~]*[^\s~])~(?!~))$/u;
 
-const SINGLE_TILDE_PASTE = /(~(?=[^\s~])([^~]*[^\s~])~(?!~))/g;
+const SINGLE_TILDE_PASTE = /(?<mark>~(?=[^\s~])(?<text>[^~]*[^\s~])~(?!~))/gu;
 
 const NoteStrike = Strike.extend({
   addInputRules() {
@@ -101,12 +104,12 @@ function bareDestination(url: string) {
   return encode(url);
 }
 
-const NoteImage = Image.extend<
-  Record<string, unknown> & {
-    HTMLAttributes: Record<string, unknown>;
-    resolveSrc: (src: string) => string;
-  }
->({
+interface NoteImageOptions extends Partial<ImageOptions> {
+  HTMLAttributes: ImageOptions["HTMLAttributes"];
+  resolveSrc: (src: string) => string;
+}
+
+const NoteImage = Image.extend<NoteImageOptions>({
   addOptions() {
     return {
       HTMLAttributes: {},
@@ -115,8 +118,7 @@ const NoteImage = Image.extend<
     };
   },
   renderHTML({ HTMLAttributes }) {
-    const src =
-      typeof HTMLAttributes.src === "string" ? HTMLAttributes.src : "";
+    const src = hasString(HTMLAttributes, "src") ? HTMLAttributes.src : "";
 
     // The doc attribute keeps the relative path so markdown serialization
     // stays faithful; only the rendered element gets the resolved URL.
@@ -129,9 +131,9 @@ const NoteImage = Image.extend<
   },
   // Upstream's shape with the destination escaped; `this.parent` is untyped here.
   renderMarkdown(node) {
-    const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
-    const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
-    const title = typeof node.attrs?.title === "string" ? node.attrs.title : "";
+    const src = hasString(node.attrs, "src") ? node.attrs.src : "";
+    const alt = hasString(node.attrs, "alt") ? node.attrs.alt : "";
+    const title = hasString(node.attrs, "title") ? node.attrs.title : "";
     const destination = bareDestination(src);
     const label = escapeMarkdownLabel(alt);
 
@@ -148,8 +150,7 @@ const NoteLink = Link.extend({
    * kept here as well as at the click.
    */
   renderHTML({ HTMLAttributes }) {
-    const href =
-      typeof HTMLAttributes.href === "string" ? HTMLAttributes.href : "";
+    const href = hasString(HTMLAttributes, "href") ? HTMLAttributes.href : "";
     const allowed = this.options.isAllowedUri(href, {
       defaultProtocol: this.options.defaultProtocol,
       defaultValidate: (url: string) => isSafeUrl(url),
@@ -168,8 +169,8 @@ const NoteLink = Link.extend({
     ];
   },
   renderMarkdown(node, helpers) {
-    const href = typeof node.attrs?.href === "string" ? node.attrs.href : "";
-    const title = typeof node.attrs?.title === "string" ? node.attrs.title : "";
+    const href = hasString(node.attrs, "href") ? node.attrs.href : "";
+    const title = hasString(node.attrs, "title") ? node.attrs.title : "";
     const text = helpers.renderChildren(node);
     const destination = bareDestination(href);
 
@@ -179,7 +180,7 @@ const NoteLink = Link.extend({
   },
 });
 
-const MARKDOWN_LINK = /\[([^\]]+)\]\(([^\s)]+)\)$/;
+const MARKDOWN_LINK = /\[(?<text>[^\]]+)\]\((?<url>[^\s)]+)\)$/u;
 
 /** Typing `[text](url)` converts into a real link as you close the paren. */
 const MarkdownLinkInputRule = Extension.create({
@@ -188,7 +189,8 @@ const MarkdownLinkInputRule = Extension.create({
       new InputRule({
         find: MARKDOWN_LINK,
         handler: ({ commands, match, range, state }) => {
-          const [, text, url] = match;
+          const text = match.groups?.text;
+          const url = match.groups?.url;
 
           if (text === undefined || url === undefined) {
             return;
@@ -221,13 +223,13 @@ const MarkdownLinkInputRule = Extension.create({
  * a leading tab makes the line an indented code block instead. Matching the
  * indent here rather than trimming it keeps tabs out.
  */
-const FENCE_RUN = /^ {0,3}(`{3,}|~{3,})/;
+const FENCE_RUN = /^ {0,3}(?<run>`{3,}|~{3,})/u;
 
-const BACKTICK_RUN = /^`+/;
+const BACKTICK_RUN = /^`+/u;
 
 /** The fence run opening a line, or null when there is none. */
 function fenceRun(line: string) {
-  return FENCE_RUN.exec(line)?.[1] ?? null;
+  return FENCE_RUN.exec(line)?.groups?.run ?? null;
 }
 
 /**
@@ -243,7 +245,7 @@ function closesFence(line: string, open: string) {
     return false;
   }
 
-  const run = match[1] ?? "";
+  const run = match.groups?.run ?? "";
 
   return (
     run.startsWith(open.charAt(0)) &&
@@ -253,7 +255,7 @@ function closesFence(line: string, open: string) {
 }
 
 function scrubEntities(text: string) {
-  return text.replaceAll(/&nbsp;|&#160;/g, " ");
+  return text.replaceAll(/&nbsp;|&#160;/gu, " ");
 }
 
 /**
@@ -416,7 +418,7 @@ export function createEditorExtensions(
             addCommands: () => ({
               redo:
                 () =>
-                ({ dispatch, tr }: import("@tiptap/core").CommandProps) => {
+                ({ dispatch, tr }: CommandProps) => {
                   tr.setMeta("preventDispatch", true);
                   return (
                     options.onHistory?.("redo", dispatch !== undefined) ?? false
@@ -424,7 +426,7 @@ export function createEditorExtensions(
                 },
               undo:
                 () =>
-                ({ dispatch, tr }: import("@tiptap/core").CommandProps) => {
+                ({ dispatch, tr }: CommandProps) => {
                   tr.setMeta("preventDispatch", true);
                   return (
                     options.onHistory?.("undo", dispatch !== undefined) ?? false

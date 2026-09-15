@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+
 import fixtures from "../../fixtures/note-mutations.json";
 import titleCases from "../../fixtures/note-titles.json";
-
 import { parseNote } from "./frontmatter";
 import {
   bodyTitle,
@@ -12,9 +12,9 @@ import {
   titleSource,
 } from "./notes";
 
-const VALID_FILENAME = /^(?!\.)[^/\\:]+$/;
+const VALID_FILENAME = /^(?!\.)[^/\\:]+$/u;
 
-describe("noteTitle", () => {
+describe(noteTitle, () => {
   it.each([
     [String.raw`C:\notes\draft.md`, "draft"],
     [String.raw`\\server\notes\draft.Markdown`, "draft"],
@@ -26,7 +26,7 @@ describe("noteTitle", () => {
   });
 });
 
-describe("resolveTitle", () => {
+describe(resolveTitle, () => {
   it.each(titleCases)(
     "should resolve $name consistently with Rust",
     ({ content, path, expected, line }) => {
@@ -41,11 +41,11 @@ describe("resolveTitle", () => {
           ? expected
           : undefined
       );
-      if (source !== undefined && line !== null) {
-        expect(content.slice(source.from, source.to)).toBe(
-          parsed.body.split("\n")[line]
-        );
-      }
+      expect(
+        source === undefined || line === null
+          ? null
+          : content.slice(source.from, source.to)
+      ).toBe(line === null ? null : parsed.body.split("\n")[line]);
     }
   );
 
@@ -61,7 +61,7 @@ describe("resolveTitle", () => {
   });
 });
 
-describe("retitleLeadingHeading", () => {
+describe(retitleLeadingHeading, () => {
   it("should rewrite an existing leading heading", () => {
     expect(retitleLeadingHeading("# old\n\nbody\n", "new")).toBe(
       "# new\n\nbody\n"
@@ -105,19 +105,21 @@ describe("retitleLeadingHeading", () => {
   });
 });
 
-describe("filenameFromTitle", () => {
+describe(filenameFromTitle, () => {
   it("should leave a whole Unicode character at the filename limit", () => {
     expect(filenameFromTitle(`${"a".repeat(119)}😀`)).toBe("a".repeat(119));
     expect(filenameFromTitle(`${"a".repeat(118)}😀`)).toBe(
       `${"a".repeat(118)}😀`
     );
   });
+
   it.each(fixtures.filenames)(
     "should preserve the shared filename for $title",
     ({ title, expected }) => {
       expect(filenameFromTitle(title)).toBe(expected);
     }
   );
+
   it.each([
     ["team sync", "team-sync"],
     ["Effect: A Primer", "effect-a-primer"],
@@ -139,7 +141,7 @@ describe("filenameFromTitle", () => {
     const filename = filenameFromTitle(`${"a".repeat(119)} tail`);
 
     expect(filename).toHaveLength(119);
-    expect(filename.endsWith("-")).toBe(false);
+    expect(filename.endsWith("-")).toBeFalsy();
   });
 
   it("should always produce a legal path segment", () => {

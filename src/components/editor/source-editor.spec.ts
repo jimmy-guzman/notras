@@ -1,11 +1,10 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
+
 import { createNoteDocument } from "@/components/editor/note-document";
-import {
-  SourceEditor,
-  type SourceEditorHandle,
-} from "@/components/editor/source-editor";
+import { SourceEditor } from "@/components/editor/source-editor";
+import type { SourceEditorHandle } from "@/components/editor/source-editor";
 
 describe("source editor focus", () => {
   it("should patch both title fields without replacing source selection or undo history", ({
@@ -13,13 +12,17 @@ describe("source editor focus", () => {
   }) => {
     const source = "---\ntitle: old\n---\n# old\nbody";
     const note = createNoteDocument(source, "old.md");
-    onTestFinished(() => note.destroy());
+    onTestFinished(() => {
+      note.destroy();
+    });
     const handles: SourceEditorHandle[] = [];
     const { container } = render(
       createElement(SourceEditor, {
         editor: note.editor,
         initialCursor: source.length,
-        onReady: (ready) => handles.push(ready),
+        onReady: (ready) => {
+          handles.push(ready);
+        },
       })
     );
     const [handle] = handles;
@@ -28,8 +31,10 @@ describe("source editor focus", () => {
     }
     const surface = container.querySelector(".ProseMirror");
     expect(surface).toBeInTheDocument();
-    act(() => handle.insertText(" plus typing"));
-    act(() =>
+    act(() => {
+      handle.insertText(" plus typing");
+    });
+    act(() => {
       note.editor.view.dispatch(
         note.editor.state.tr
           .insertText(
@@ -38,8 +43,8 @@ describe("source editor focus", () => {
             source.indexOf("body") + 1
           )
           .setMeta("addToHistory", false)
-      )
-    );
+      );
+    });
     const expected =
       "---\ntitle: longer title\n---\n# longer title\nbody plus typing";
     expect(surface?.textContent).toBe(expected);
@@ -96,70 +101,88 @@ describe("source editor focus", () => {
   });
 });
 
-it("should retain source text and caret while highlighting and inserting text", async ({
-  onTestFinished,
-}) => {
-  const changes: string[] = [];
-  const handles: SourceEditorHandle[] = [];
-  const source =
-    "---\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```";
-  const note = createNoteDocument(source, "a.md", () =>
-    changes.push(note.content())
-  );
-  onTestFinished(() => note.destroy());
-  const { container } = render(
-    createElement(SourceEditor, {
-      editor: note.editor,
-      initialCursor: 4,
-      onReady: (ready) => handles.push(ready),
-    })
-  );
-  await waitFor(() =>
-    expect(container.querySelector(".syntax-token")).toBeInTheDocument()
-  );
-  const [handle] = handles;
-  if (handle === undefined) {
-    throw new Error("source editor missing");
-  }
-  expect(container.querySelector("pre")?.textContent).toBe(source);
-  expect(handle.getCursorOffset()).toBe(4);
-  expect(changes).toEqual([]);
-  act(() => handle.insertText("# a comment\n"));
-  expect(changes).toEqual([
-    "---\n# a comment\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```",
-  ]);
-  expect(handle.getCursorOffset()).toBe(16);
-});
+describe("source editor", () => {
+  it("should retain source text and caret while highlighting and inserting text", async ({
+    onTestFinished,
+  }) => {
+    const changes: string[] = [];
+    const handles: SourceEditorHandle[] = [];
+    const source =
+      "---\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```";
+    const note = createNoteDocument(source, "a.md", () => {
+      changes.push(note.content());
+    });
+    onTestFinished(() => {
+      note.destroy();
+    });
+    const { container } = render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        initialCursor: 4,
+        onReady: (ready) => {
+          handles.push(ready);
+        },
+      })
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".syntax-token")).toBeInTheDocument()
+    );
+    const [handle] = handles;
+    if (handle === undefined) {
+      throw new Error("source editor missing");
+    }
+    expect(container.querySelector("pre")?.textContent).toBe(source);
+    expect(handle.getCursorOffset()).toBe(4);
+    expect(changes).toStrictEqual([]);
+    act(() => {
+      handle.insertText("# a comment\n");
+    });
+    expect(changes).toStrictEqual([
+      "---\n# a comment\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```",
+    ]);
+    expect(handle.getCursorOffset()).toBe(16);
+  });
 
-it("should release find navigation when its view detaches and search again after remount", ({
-  onTestFinished,
-}) => {
-  const note = createNoteDocument("needle needle", "a.md");
-  onTestFinished(() => note.destroy());
-  const handles: SourceEditorHandle[] = [];
-  const { rerender } = render(
-    createElement(SourceEditor, {
-      editor: note.editor,
-      onReady: (handle) => handles.push(handle),
-    })
-  );
-  const [first] = handles;
-  if (first === undefined) {
-    throw new Error("source did not mount");
-  }
-  act(() => first.find.setQuery("needle"));
-  expect(first.find.snapshot().total).toBe(2);
-  rerender(null);
-  expect(first.find.alive()).toBe(false);
-  expect(() => first.find.navigate(1)).not.toThrow();
-  rerender(
-    createElement(SourceEditor, {
-      editor: note.editor,
-      onReady: (handle) => handles.push(handle),
-    })
-  );
-  const second = handles.at(-1);
-  expect(second?.find.alive()).toBe(true);
-  act(() => second?.find.setQuery("needle"));
-  expect(second?.find.snapshot().total).toBe(2);
+  it("should release find navigation when its view detaches and search again after remount", ({
+    onTestFinished,
+  }) => {
+    const note = createNoteDocument("needle needle", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    const handles: SourceEditorHandle[] = [];
+    const { rerender } = render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        onReady: (handle) => {
+          handles.push(handle);
+        },
+      })
+    );
+    const [first] = handles;
+    if (first === undefined) {
+      throw new Error("source did not mount");
+    }
+    act(() => {
+      first.find.setQuery("needle");
+    });
+    expect(first.find.snapshot().total).toBe(2);
+    rerender(null);
+    expect(first.find.alive()).toBeFalsy();
+    expect(() => {
+      first.find.navigate(1);
+    }).not.toThrow();
+    rerender(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        onReady: (handle) => {
+          handles.push(handle);
+        },
+      })
+    );
+    const second = handles.at(-1);
+    expect(second?.find.alive()).toBeTruthy();
+    act(() => second?.find.setQuery("needle"));
+    expect(second?.find.snapshot().total).toBe(2);
+  });
 });

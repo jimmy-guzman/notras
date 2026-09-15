@@ -1,6 +1,8 @@
 import type { Editor } from "@tiptap/core";
 import { useLayoutEffect, useRef, useState } from "react";
-import { createFindHandle, type FindHandle } from "@/components/editor/find";
+
+import { createFindHandle } from "@/components/editor/find";
+import type { FindHandle } from "@/components/editor/find";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface SourceEditorHandle {
@@ -25,50 +27,52 @@ export function SourceEditor({
   initialCursor = 0,
   onReady,
 }: SourceEditorProps) {
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => ({ focusOnMount, initialCursor, onReady }));
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    if (host.current === null) {
-      return;
-    }
-    editor.setOptions({
-      editorProps: {
-        ...editor.options.editorProps,
-        attributes: {
-          autocapitalize: "off",
-          autocorrect: "off",
-          class: "mx-auto w-full max-w-2xl px-6 py-6 focus:outline-none",
-          spellcheck: "false",
+    const element = host.current;
+    const mount = (target: HTMLDivElement) => {
+      editor.setOptions({
+        editorProps: {
+          ...editor.options.editorProps,
+          attributes: {
+            autocapitalize: "off",
+            autocorrect: "off",
+            class: "mx-auto w-full max-w-2xl px-6 py-6 focus:outline-none",
+            spellcheck: "false",
+          },
         },
-      },
-    });
-    editor.mount(host.current);
-    const chain = editor.chain();
-    if (config.focusOnMount === true) {
-      chain.focus();
-    }
-    chain
-      .setTextSelection(
-        Math.max(
-          0,
-          Math.min(config.initialCursor, editor.state.doc.textContent.length)
-        ) + 1
-      )
-      .scrollIntoView()
-      .run();
-    config.onReady?.({
-      find: createFindHandle(editor),
-      focus: () => {
-        editor.commands.focus();
-      },
-      getCursorOffset: () => Math.max(0, editor.state.selection.from - 1),
-      insertText: (text) => {
-        editor.chain().focus().insertContent(text).run();
-      },
-    });
-    return () => {
-      editor.unmount();
+      });
+      editor.mount(target);
+      const chain = editor.chain();
+      if (config.focusOnMount === true) {
+        chain.focus();
+      }
+      chain
+        .setTextSelection(
+          Math.max(
+            0,
+            Math.min(config.initialCursor, editor.state.doc.textContent.length)
+          ) + 1
+        )
+        .scrollIntoView()
+        .run();
+      config.onReady?.({
+        find: createFindHandle(editor),
+        focus: () => {
+          editor.commands.focus();
+        },
+        getCursorOffset: () => Math.max(0, editor.state.selection.from - 1),
+        insertText: (text) => {
+          editor.chain().focus().insertContent(text).run();
+        },
+      });
+      return () => {
+        editor.unmount();
+      };
     };
+    return element === null ? undefined : mount(element);
   }, [config, editor]);
 
   return (

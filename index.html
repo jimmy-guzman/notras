@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta charset="UTF-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <!--
       The webview paints its own canvas before styles.css exists, and without a
       color-scheme it paints white. The meta tag is read before the document is
@@ -10,31 +10,31 @@
       the stylesheet. Both backgrounds restate --background from src/styles.css,
       and src/styles.spec.ts fails if the copies drift.
     -->
-    <meta content="dark light" name="color-scheme">
+    <meta content="dark light" name="color-scheme" />
     <style>
-    :root {
-      color-scheme: dark light;
-      background-color: #25221f;
-    }
-    @media (prefers-color-scheme: light) {
       :root {
-        background-color: #f7f3ee;
+        color-scheme: dark light;
+        background-color: #25221f;
       }
-    }
+      @media (prefers-color-scheme: light) {
+        :root {
+          background-color: #f7f3ee;
+        }
+      }
     </style>
     <link
       href="/favicon-dark.png"
       media="(prefers-color-scheme: dark)"
       rel="icon"
       type="image/png"
-    >
+    />
     <link
       href="/favicon-light.png"
       media="(prefers-color-scheme: light)"
       rel="icon"
       type="image/png"
-    >
-    <link href="/apple-touch-icon.png" rel="apple-touch-icon">
+    />
+    <link href="/apple-touch-icon.png" rel="apple-touch-icon" />
     <title>notras</title>
   </head>
   <body>
