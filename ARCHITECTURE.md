@@ -17,6 +17,10 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Testing         | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
 | Package manager | pnpm                                                                                                         |
 
+## Linux runtime
+
+Linux CI and release builds use GitHub Actions' `ubuntu-latest` runner. Linux support follows that runner's Ubuntu release with current system updates. Tauri uses the distribution's WebKitGTK runtime, so the build host alone does not establish the user's runtime version. Frontend built-ins must work in that runtime; compatibility fallbacks for older Ubuntu releases and other distributions are outside the support policy.
+
 ## Files are the source of truth
 
 Notes are `.md` or `.markdown` files under the notes dir (default `~/notras`). Folders are directories. `Library::open` resolves the selected root, including a root symlink, and the shell uses that resolved path for watching and attachment access. `pinned` and `tags` live in YAML frontmatter. The SQLite index lives outside the library, at `app_cache_dir()/index/<sha256 of the resolved root>/index.db`, and is derived and disposable: deleting it triggers a rebuild on launch. Library IO opens the resolved root as a directory handle and walks folders without following symlinks, so a path validated once cannot be redirected before its operation runs.

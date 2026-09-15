@@ -237,6 +237,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The main window opens at 960 by 720 and stops at 480 by 360.
 - macOS draws an overlay title bar with the traffic lights inset, and the app draws a 36px drag region holding the tab strip, the save glyph, and the pin.
 - The app bundle declares macOS 26.0 as its minimum system version, so Finder refuses to open it on an older system, and the cask refuses to install below macOS 26.
+- Linux releases support the Ubuntu release used by GitHub Actions' `ubuntu-latest` runner, with current system updates. The app uses the distribution's WebKitGTK runtime; older Ubuntu releases and other Linux distributions are unsupported.
 - The window itself never scrolls, including when content overflows or caret movement asks an ancestor to scroll. The note or source editor has one vertical scrollbar between the two bands. No outer scrollbar runs the full height of the window or crosses either band.
 - The tray menu offers open notras, new note, quick capture, and quit.
 - Closing either window hides it. Quitting is what exits.

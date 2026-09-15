@@ -74,6 +74,8 @@ brew install --cask jimmy-guzman/tap/notras
 
 notras runs on macOS 26 or later. The build is universal, so it runs on Apple silicon and Intel Macs.
 
+Linux support follows the Ubuntu release used by GitHub Actions' `ubuntu-latest` runner, with current system updates. The app uses Ubuntu's WebKitGTK runtime. Older Ubuntu releases and other Linux distributions are outside the support policy.
+
 notras checks for updates on launch. A new version arrives as a toast with an install button, and nothing installs until you press it.
 
 Or download an installer from [releases](https://github.com/jimmy-guzman/notras/releases):
