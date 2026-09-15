@@ -68,7 +68,7 @@ async readConflict(kind: OpenKind, path: string) : Promise<ConflictStash | null>
 async readExternal(path: string) : Promise<NoteFile> {
     return await TAURI_INVOKE("read_external", { path });
 },
-async readNote(path: string) : Promise<SavedNote> {
+async readNote(path: string) : Promise<NoteFile> {
     return await TAURI_INVOKE("read_note", { path });
 },
 async reindexAll() : Promise<string[]> {
@@ -178,12 +178,11 @@ export type PathMutationReceipt = { path: string; file: NoteFile; remainingSourc
 export type PendingOpen = { kind: OpenKind; path: string }
 export type Picture = { kind: "note"; note: NoteMeta; graph: Graph } | { kind: "hub"; hub: HubPill; members: RingMember[] }
 export type RingMember = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta }
-export type SaveName = { kind: "heading" } | { kind: "filename"; value: string }
+export type SaveName = { kind: "content" } | { kind: "filename"; value: string }
 /**
  * What a save did: published at the expected revision, or refused because the file moved on.
  */
 export type SaveOutcome = { kind: "committed"; receipt: MutationReceipt } | { kind: "conflict"; file: NoteFile }
-export type SavedNote = { content: string; path: string; pinned: boolean; revision: string; tags: string[]; title: string; updatedAt: number }
 export type SearchFilter = { kind: "folder"; value: string } | { kind: "from"; value: string } | { kind: "link"; value: string } | { kind: "mention"; value: string } | { kind: "tag"; value: string } | { kind: "to"; value: string }
 
 /** tauri-specta globals **/

@@ -34,34 +34,6 @@ impl Library {
         })?;
         Ok(ReadView { conn })
     }
-
-    pub fn list_notes(&self, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
-        self.ensure_index()?;
-        self.read_view()?.list_notes(filters)
-    }
-
-    pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
-        self.ensure_index()?;
-        self.read_view()?.list_tags()
-    }
-
-    pub fn find_mentions(&self, path: &str) -> Result<Vec<Mention>, CommandError> {
-        self.ensure_index()?;
-        self.read_view()?.find_mentions(path)
-    }
-
-    pub fn read_graph(&self, target: &GraphTarget) -> Result<GraphResult, CommandError> {
-        self.ensure_index()?;
-        self.read_view()?.read_graph(target)
-    }
-
-    pub fn search_notes(&self, search: NoteSearch) -> Result<Vec<NoteMeta>, CommandError> {
-        if search.incomplete {
-            return Ok(Vec::new());
-        }
-        self.ensure_index()?;
-        self.read_view()?.search_notes(search)
-    }
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -499,12 +471,19 @@ mod tests {
             [5, 6]
         );
         assert_eq!(view.list_tags().unwrap()[0].tag, "old");
-        assert!(core.find_mentions("ada.md").unwrap().is_empty());
+        assert!(core
+            .read_view()
+            .unwrap()
+            .find_mentions("ada.md")
+            .unwrap()
+            .is_empty());
         assert_eq!(
-            core.find_mentions("grace.md").unwrap()[0].note.title,
+            core.read_view().unwrap().find_mentions("grace.md").unwrap()[0]
+                .note
+                .title,
             "Changed"
         );
-        assert!(core.list_tags().unwrap().is_empty());
+        assert!(core.read_view().unwrap().list_tags().unwrap().is_empty());
     }
 
     #[test]
@@ -519,9 +498,23 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(core.find_mentions("ada.md").unwrap().len(), 1);
-        core.reindex_all().unwrap();
-        assert!(core.find_mentions("ada.md").unwrap().is_empty());
+        assert_eq!(
+            core.read_view()
+                .unwrap()
+                .find_mentions("ada.md")
+                .unwrap()
+                .len(),
+            1
+        );
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
+        assert!(core
+            .read_view()
+            .unwrap()
+            .find_mentions("ada.md")
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -550,6 +543,8 @@ mod tests {
         }
         core.conn.execute_batch("COMMIT").unwrap();
         let result = core
+            .read_view()
+            .unwrap()
             .read_graph(&GraphTarget::Note {
                 path: "note-0.md".into(),
             })
@@ -573,6 +568,8 @@ mod tests {
         save(&core, "work/new.md", "---\ntags: [a]\n---\n# New", 3);
         save(&core, "work/deep/other.md", "# Other", 4);
         let notes = core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 folder: Some("work".into()),
                 ..Default::default()
@@ -587,6 +584,8 @@ mod tests {
         );
         assert_eq!(notes[0].tags, ["z", "a"]);
         let recent = core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 sort: Some(NoteSort::Updated),
                 limit: Some(1),
@@ -595,6 +594,8 @@ mod tests {
             .unwrap();
         assert_eq!(recent[0].path, "work/deep/other.md");
         let tagged = core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 tag: Some("a".into()),
                 pinned_only: Some(true),
@@ -604,10 +605,12 @@ mod tests {
         assert_eq!(tagged.len(), 1);
         assert_eq!(tagged[0].path, "work/pinned.md");
         assert_eq!(
-            json!(core.list_tags().unwrap()),
+            json!(core.read_view().unwrap().list_tags().unwrap()),
             json!([{"count":2,"tag":"a"},{"count":1,"tag":"z"}])
         );
         assert!(core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 limit: Some(0),
                 ..Default::default()
@@ -619,9 +622,10 @@ mod tests {
     #[test]
     fn should_return_no_results_for_incomplete_search_without_reading_the_index() {
         let (_directory, core) = library();
-        fs::write(core.notes_dir.join("unreadable.md"), [0xff]).unwrap();
-        core.index_dirty.set(true);
+        core.conn.execute_batch("DROP TABLE note").unwrap();
         let result = core
+            .read_view()
+            .unwrap()
             .search_notes(NoteSearch {
                 query: "needle".into(),
                 filters: vec![],
@@ -629,7 +633,6 @@ mod tests {
             })
             .unwrap();
         assert!(result.is_empty());
-        assert!(core.index_dirty.get());
     }
 
     #[test]
@@ -653,6 +656,8 @@ mod tests {
             save(&core, &format!("{folder}/{i}.md"), "---\ntags: [work, review]\n---\n# Budget\nneedle [code](https://GitHub.com/notras)", i);
         }
         let result = core
+            .read_view()
+            .unwrap()
             .search_notes(NoteSearch {
                 query: "needle".into(),
                 incomplete: false,
@@ -673,6 +678,8 @@ mod tests {
             .unwrap()
             .contains("[[hl]]needle[[/hl]]")));
         assert!(core
+            .read_view()
+            .unwrap()
             .search_notes(NoteSearch {
                 query: "needle".into(),
                 filters: vec![],
@@ -707,6 +714,8 @@ mod tests {
             SearchFilter::To("target.md".into()),
         ] {
             let notes = core
+                .read_view()
+                .unwrap()
                 .search_notes(NoteSearch {
                     query: "needle".into(),
                     filters: vec![filter],
@@ -746,13 +755,19 @@ mod tests {
         .unwrap();
         index::reindex_file(&core.conn, &core.root, "kept.md").unwrap();
         fs::remove_file(directory.path().join("removed.md")).unwrap();
-        core.scan_complete().unwrap();
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         core.conn.execute_batch("VACUUM").unwrap();
         drop(core);
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        assert!(core.scan().unwrap().is_empty());
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        assert!(core.finish_scan(scan).unwrap().is_empty());
         for query in ["obsolete", "original"] {
             assert!(core
+                .read_view()
+                .unwrap()
                 .list_notes(&NoteFilters {
                     query: Some(query.into()),
                     ..Default::default()
@@ -761,6 +776,8 @@ mod tests {
                 .is_empty());
         }
         let notes = core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 query: Some("replacement".into()),
                 ..Default::default()
@@ -794,6 +811,8 @@ mod tests {
             100,
         );
         let notes = core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 query: Some("need".into()),
                 ..Default::default()
@@ -807,6 +826,8 @@ mod tests {
             ["pinned.md", "a.md", "b.md", "old.md", "verbose.md"]
         );
         assert!(core
+            .read_view()
+            .unwrap()
             .list_notes(&NoteFilters {
                 query: Some("needle absent".into()),
                 ..Default::default()
@@ -853,6 +874,8 @@ mod tests {
             ("", vec![SearchFilter::From("missing.md".into())], vec![]),
         ] {
             let result = core
+                .read_view()
+                .unwrap()
                 .search_notes(NoteSearch {
                     query: query.into(),
                     filters,
@@ -879,7 +902,7 @@ mod tests {
             "---\ntags: [x]\n---\n# Source\nAtlas in prose\n[[Atlas]] and [map](atlas.md)\n`Atlas`",
             2,
         );
-        let mentions = core.find_mentions("atlas.md").unwrap();
+        let mentions = core.read_view().unwrap().find_mentions("atlas.md").unwrap();
         assert_eq!(mentions.len(), 1);
         assert_eq!(mentions[0].note.path, "source.md");
         assert_eq!(
@@ -892,7 +915,12 @@ mod tests {
         );
         assert_eq!(mentions[0].lines[0].r#match, "Atlas");
         save(&core, "atlas.md", "# Earth", 3);
-        assert_eq!(core.find_mentions("atlas.md").unwrap()[0].lines.len(), 2);
+        assert_eq!(
+            core.read_view().unwrap().find_mentions("atlas.md").unwrap()[0]
+                .lines
+                .len(),
+            2
+        );
     }
 
     #[test]
@@ -905,6 +933,8 @@ mod tests {
             1,
         );
         let result = core
+            .read_view()
+            .unwrap()
             .search_notes(NoteSearch {
                 query: "".into(),
                 incomplete: false,
@@ -916,6 +946,8 @@ mod tests {
             .unwrap();
         assert_eq!(result[0].snippet.as_deref(), Some("First phrase later"));
         let result = core
+            .read_view()
+            .unwrap()
             .search_notes(NoteSearch {
                 query: "".into(),
                 incomplete: false,
@@ -940,32 +972,31 @@ mod tests {
         )
         .unwrap();
         core.index_dirty.set(true);
+        assert!(core.read_view().is_err());
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         assert_eq!(
-            core.list_notes(&NoteFilters::default()).unwrap()[0].title,
+            core.read_view()
+                .unwrap()
+                .list_notes(&NoteFilters::default())
+                .unwrap()[0]
+                .title,
             "Fresh"
         );
         assert!(!core.index_dirty.get());
         fs::write(core.notes_dir.join("bad.md"), [0xff]).unwrap();
         core.index_dirty.set(true);
-        assert!(core.list_notes(&NoteFilters::default()).is_err());
-        assert!(core.list_tags().is_err());
-        assert!(core.find_mentions("fresh.md").is_err());
-        assert!(core
-            .read_graph(&GraphTarget::Note {
-                path: "fresh.md".into()
-            })
-            .is_err());
-        assert!(core
-            .search_notes(NoteSearch {
-                query: "".into(),
-                filters: vec![],
-                incomplete: false
-            })
-            .is_err());
+        assert!(core.read_view().is_err());
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        assert!(core.finish_scan(scan).is_err());
+        assert!(core.read_view().is_err());
         let file = core.read_note("fresh.md".into()).unwrap();
-        assert_eq!(file.title, "Fresh");
-        assert!(file.pinned);
-        assert_eq!(file.tags, ["z", "a"]);
+        assert_eq!(
+            file.content,
+            "---\npinned: true\ntags: [z, a]\n---\n# Fresh"
+        );
     }
 
     #[test]
@@ -979,8 +1010,10 @@ mod tests {
                 [],
             )
             .unwrap();
-        assert!(core.find_mentions("atlas.md").is_err());
+        assert!(core.read_view().unwrap().find_mentions("atlas.md").is_err());
         assert!(core
+            .read_view()
+            .unwrap()
             .search_notes(NoteSearch {
                 query: "".into(),
                 filters: vec![SearchFilter::To("atlas.md".into())],
@@ -988,6 +1021,8 @@ mod tests {
             })
             .is_err());
         let result = core
+            .read_view()
+            .unwrap()
             .read_graph(&GraphTarget::Note {
                 path: "atlas.md".into(),
             })
@@ -1014,9 +1049,15 @@ mod tests {
                     save(&core, &note.path, "", 0);
                 }
                 for bare in args[3].as_array().unwrap() {
+                    let line = bare["line"].as_u64().unwrap() as usize;
+                    let title = notes
+                        .iter()
+                        .find(|note| note.path == bare["path"].as_str().unwrap())
+                        .unwrap();
                     let content = format!(
-                        "{}{}",
-                        "\n".repeat(bare["line"].as_u64().unwrap() as usize - 1),
+                        "# {}{}{}",
+                        title.title,
+                        "\n".repeat(line - 1),
                         bare["context"].as_str().unwrap()
                     );
                     save(&core, bare["path"].as_str().unwrap(), &content, 1);
@@ -1048,6 +1089,8 @@ mod tests {
                     );
                 }
                 let result = core
+                    .read_view()
+                    .unwrap()
                     .search_notes(serde_json::from_value(args[1].clone()).unwrap())
                     .unwrap();
                 assert_eq!(

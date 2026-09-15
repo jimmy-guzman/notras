@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{content_revision, timestamp_millis, Exchange, OpenedNote, TempSibling},
+    note_file::{content_revision, timestamp_millis, Exchange, TempSibling},
     relationships,
     relative_path::{ensure_folder, Located, RelativePath},
     Library,
@@ -139,20 +139,6 @@ impl From<&str> for CommandError {
 pub struct NoteFile {
     pub content: String,
     pub revision: String,
-    #[cfg_attr(feature = "bindings", specta(type = f64))]
-    pub updated_at: i64,
-}
-
-#[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SavedNote {
-    pub content: String,
-    pub path: String,
-    pub pinned: bool,
-    pub revision: String,
-    pub tags: Vec<String>,
-    pub title: String,
     #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub updated_at: i64,
 }
@@ -296,7 +282,7 @@ pub struct DeleteReceipt {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
 pub enum SaveName {
-    Heading,
+    Content,
     Filename(String),
 }
 
@@ -685,8 +671,13 @@ fn save_file(
         return Err("notes must be markdown files".into());
     }
     let filename = match name {
-        Some(SaveName::Heading) => markdown::leading_heading(frontmatter::parse(content).body)
-            .map(|heading| format!("{}.md", filename_from_title(&heading))),
+        Some(SaveName::Content) => {
+            let parsed = frontmatter::parse(content);
+            markdown::body_title(parsed.body)
+                .map(|title| title.text)
+                .or(parsed.frontmatter.title)
+                .map(|title| format!("{}.md", filename_from_title(&title)))
+        }
         Some(SaveName::Filename(filename)) => {
             if !valid_segment(&filename) || !is_markdown(Path::new(&filename)) {
                 return Err("invalid note filename".into());
@@ -757,9 +748,9 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     if !is_markdown(path) {
         return Err("only markdown files can be opened".into());
     }
-    let file = OpenedNote::new(File::open(path)?);
+    let file = File::open(path)?;
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
-    let content = file.read()?;
+    let content = io::read_to_string(file)?;
     Ok(NoteFile {
         revision: content_revision(&content),
         content,
@@ -936,25 +927,12 @@ pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> 
 }
 
 impl Library {
-    pub(crate) fn ensure_index(&self) -> Result<(), CommandError> {
-        if self.index_dirty.get() {
-            self.reindex_all()?;
-        }
-        Ok(())
-    }
-
-    pub fn read_note(&self, path: String) -> Result<SavedNote, CommandError> {
+    pub fn read_note(&self, path: String) -> Result<NoteFile, CommandError> {
         let relative = RelativePath::parse(&path)?;
-        let file = OpenedNote::new(relative.resolve(&self.root)?.open_read()?);
+        let file = relative.resolve(&self.root)?.open_read()?;
         let metadata = file.metadata()?;
-        let content = file.read()?;
-        let parsed = frontmatter::parse(&content);
-        let title = markdown::resolve_title(&parsed, &path);
-        Ok(SavedNote {
-            pinned: parsed.frontmatter.pinned,
-            tags: parsed.frontmatter.tags,
-            title,
-            path,
+        let content = io::read_to_string(file)?;
+        Ok(NoteFile {
             revision: content_revision(&content),
             content,
             updated_at: timestamp_millis(metadata.modified())?,
@@ -974,7 +952,11 @@ impl Library {
                 }
             }
             Some(NoteName::Title(title)) => filename_from_title(&validate_title(title)?),
-            None => "untitled".to_owned(),
+            None => {
+                let parsed = frontmatter::parse(options.content.as_deref().unwrap_or(""));
+                let title = markdown::resolve_title(&parsed, "untitled.md");
+                filename_from_title(&title)
+            }
         };
         let mut path = RelativePath::parse(&note_path(&folder, &base))?;
         let parent = ensure_folder(&self.root, &folder)?;
@@ -1058,10 +1040,10 @@ impl Library {
         };
         let from = RelativePath::parse(&path)?;
         let to = RelativePath::parse(&target)?;
-        let opened = OpenedNote::new(from.resolve(&self.root)?.open_read()?);
+        let opened = from.resolve(&self.root)?.open_read()?;
         let metadata = opened.metadata()?;
         let updated_at = timestamp_millis(metadata.modified())?;
-        let content = opened.read()?;
+        let content = io::read_to_string(opened)?;
         if path == target {
             return Ok(PathMutationReceipt {
                 path,
@@ -1179,12 +1161,6 @@ impl Library {
         target.create_new()?.write_all(&bytes)?;
         Ok(relative.into_string())
     }
-
-    pub fn reindex_all(&self) -> Result<Vec<String>, CommandError> {
-        let mut scan = self.begin_scan(true);
-        while !self.advance_scan(&mut scan)? {}
-        self.finish_scan(scan)
-    }
 }
 
 #[cfg(test)]
@@ -1253,19 +1229,19 @@ mod tests {
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let path = directory.path().join("errands.md");
         fs::write(&path, "# Errands\n\noriginal").unwrap();
-        let reader = OpenedNote::new(File::open(&path).unwrap());
+        let reader = File::open(&path).unwrap();
 
         let receipt = saved(
             &core,
             "errands.md",
             "# Errands\n\nreplacement",
-            Some(SaveName::Heading),
+            Some(SaveName::Content),
         )
         .unwrap();
 
         assert_eq!(receipt.path, "errands.md");
         assert!(receipt.warnings.is_empty());
-        assert_eq!(reader.read().unwrap(), "# Errands\n\noriginal");
+        assert_eq!(io::read_to_string(reader).unwrap(), "# Errands\n\noriginal");
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
             "# Errands\n\nreplacement"
@@ -1309,6 +1285,59 @@ mod tests {
         assert_eq!(saved.revision, content_revision("# Read\n\nchanged"));
         assert_eq!(moved.file.revision, saved.revision);
         assert_ne!(saved.revision, note.revision);
+    }
+
+    #[test]
+    fn should_create_content_names_and_preserve_collision_contents() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        for (content, expected) in [
+            ("- [ ] buy **milk**", "inbox/buy-milk.md"),
+            ("buy milk\n\nsecond capture", "inbox/buy-milk-2.md"),
+            ("# buy milk", "inbox/buy-milk-3.md"),
+            (
+                "---\ntitle: Imported\n---\n```\ncode\n```",
+                "inbox/imported.md",
+            ),
+            ("![image](a.png)", "inbox/untitled.md"),
+            ("```\ncode\n```", "inbox/untitled-2.md"),
+        ] {
+            let receipt = core
+                .create_note(&CreateNote {
+                    content: Some(content.into()),
+                    folder: Some("inbox".into()),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(receipt.path, expected);
+            assert_eq!(
+                fs::read_to_string(directory.path().join(expected)).unwrap(),
+                content
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(directory.path().join("inbox/buy-milk.md")).unwrap(),
+            "- [ ] buy **milk**"
+        );
+    }
+
+    #[test]
+    fn should_rename_content_and_frontmatter_fallbacks_without_changing_the_document() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("imported.md");
+        fs::write(&path, "first thought").unwrap();
+        let content = "- [ ] next **thought**\n\nbody";
+        let receipt = written(&path, content, Some(SaveName::Content)).unwrap();
+        let renamed = Path::new(&receipt.path);
+        assert_eq!(renamed.file_name().unwrap(), "next-thought.md");
+        assert_eq!(fs::read_to_string(renamed).unwrap(), content);
+        let fallback = "---\ntitle: Imported title\n---\n```\ncode\n```";
+        let receipt = written(renamed, fallback, Some(SaveName::Content)).unwrap();
+        assert_eq!(
+            Path::new(&receipt.path).file_name().unwrap(),
+            "imported-title.md"
+        );
+        assert_eq!(fs::read_to_string(&receipt.path).unwrap(), fallback);
     }
 
     #[test]
@@ -1367,7 +1396,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         library.conn.execute_batch("DROP TABLE note").unwrap();
-        let error = library.list_notes(&Default::default()).unwrap_err();
+        let error = library
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap_err();
 
         assert_eq!(
             serde_json::to_value(&error).unwrap(),
@@ -1402,7 +1435,7 @@ mod tests {
             &core,
             "shopping.md",
             "# Weekend errands\n\nbody",
-            Some(SaveName::Heading),
+            Some(SaveName::Content),
         )
         .unwrap();
         assert_eq!(first.path, "weekend-errands-2.md");
@@ -1410,7 +1443,7 @@ mod tests {
             &core,
             &first.path,
             "# Weekend errands\n\nbody",
-            Some(SaveName::Heading),
+            Some(SaveName::Content),
         )
         .unwrap();
         assert_eq!(second.path, "weekend-errands-2.md");
@@ -1423,13 +1456,15 @@ mod tests {
             &core,
             &second.path,
             "# Weekend errands\n\nbody",
-            Some(SaveName::Heading),
+            Some(SaveName::Content),
         )
         .unwrap();
         assert_eq!(third.path, "weekend-errands.md");
         assert!(!directory.path().join("weekend-errands-2.md").exists());
         assert_eq!(
-            core.list_notes(&Default::default())
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| note.path)
@@ -1439,7 +1474,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_filenames_for_reads_body_edits_and_empty_headings() {
+    fn should_keep_filenames_for_reads_body_edits_and_empty_content() {
         let directory = tempfile::tempdir().unwrap();
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("shopping.md"), "# Errands\n\nbody").unwrap();
@@ -1448,7 +1483,7 @@ mod tests {
         assert!(!directory.path().join("errands.md").exists());
         let body = saved(&core, "shopping.md", "# Errands\n\nnew body", None).unwrap();
         assert_eq!(body.path, "shopping.md");
-        let empty = saved(&core, &body.path, "# \n\nbody", Some(SaveName::Heading)).unwrap();
+        let empty = saved(&core, &body.path, "# \n\n", Some(SaveName::Content)).unwrap();
         assert_eq!(empty.path, "shopping.md");
     }
 
@@ -1488,7 +1523,7 @@ mod tests {
         let link = directory.path().join("errands.md");
         fs::write(&source, "# imported").unwrap();
         std::os::unix::fs::symlink(&source, &link).unwrap();
-        let receipt = written(&source, "# Errands", Some(SaveName::Heading)).unwrap();
+        let receipt = written(&source, "# Errands", Some(SaveName::Content)).unwrap();
         assert_eq!(
             Path::new(&receipt.path),
             directory.path().join("errands-2.md")
@@ -1566,7 +1601,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("shopping.md");
         fs::write(&path, "# Errands").unwrap();
-        let receipt = written(&path, "# Weekend errands", Some(SaveName::Heading)).unwrap();
+        let receipt = written(&path, "# Weekend errands", Some(SaveName::Content)).unwrap();
         assert_eq!(
             Path::new(&receipt.path),
             directory.path().join("weekend-errands.md")
@@ -1643,14 +1678,28 @@ mod tests {
         core.index_dirty.set(true);
         fs::write(directory.path().join("good.md"), "readable").unwrap();
         fs::write(directory.path().join("bad.md"), [0xff]).unwrap();
-        assert!(core.list_notes(&Default::default()).is_err());
+        assert!(core.read_view().is_err());
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        assert!(core.finish_scan(scan).is_err());
+        assert!(core.read_view().is_err());
         assert!(core.index_dirty.get());
         assert_eq!(
             core.read_note("good.md".into()).unwrap().content,
             "readable"
         );
         fs::write(directory.path().join("bad.md"), "fixed").unwrap();
-        assert_eq!(core.list_notes(&Default::default()).unwrap().len(), 2);
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
+        assert_eq!(
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     proptest! {
@@ -1675,10 +1724,15 @@ mod tests {
             matches!(receipt.warnings.as_slice(), [MutationWarning::Index { path, .. }] if path == "a.md")
         );
         assert_eq!(core.read_note("a.md".into()).unwrap().content, "# saved");
-        assert!(core.list_notes(&Default::default()).is_err());
+        assert!(core.read_view().is_err());
         core.conn.execute_batch("PRAGMA query_only = OFF").unwrap();
+        let mut scan = core.begin_scan(true);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         assert_eq!(
-            core.list_notes(&Default::default())
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| note.title)
@@ -1736,7 +1790,9 @@ mod tests {
         assert_eq!(read.content, "# title\nbody");
         assert_eq!(read.updated_at, receipt.updated_at);
         assert_eq!(
-            core.list_notes(&Default::default())
+            core.read_view()
+                .unwrap()
+                .list_notes(&Default::default())
                 .unwrap()
                 .into_iter()
                 .map(|note| (note.path, note.title))
@@ -1915,9 +1971,7 @@ mod tests {
             .unwrap();
         swap_folder_for_link(directory.path(), "folder", outside.path());
 
-        let content = OpenedNote::new(located.open_read().unwrap())
-            .read()
-            .unwrap();
+        let content = io::read_to_string(located.open_read().unwrap()).unwrap();
 
         assert_eq!(content, "original");
     }
@@ -1989,7 +2043,9 @@ mod tests {
             .unwrap()
             .resolve(&core.root)
             .unwrap();
-        core.scan().unwrap();
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
         fs::rename(
             directory.path().join("folder"),
             outside.path().join("folder"),
@@ -2003,8 +2059,15 @@ mod tests {
             "written"
         );
         assert!(!directory.path().join("folder").exists());
-        core.scan().unwrap();
-        assert!(core.list_notes(&Default::default()).unwrap().is_empty());
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        core.finish_scan(scan).unwrap();
+        assert!(core
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap()
+            .is_empty());
     }
 
     #[cfg(windows)]
@@ -2595,7 +2658,7 @@ mod tests {
             &library,
             "folder/note.md",
             "# after",
-            Some(SaveName::Heading),
+            Some(SaveName::Content),
         )
         .unwrap();
 
@@ -2636,7 +2699,7 @@ mod tests {
         fs::write(&path, "# on disk").unwrap();
 
         let file =
-            conflicted(write_external(&path, "# mine", Some(SaveName::Heading), "stale").unwrap());
+            conflicted(write_external(&path, "# mine", Some(SaveName::Content), "stale").unwrap());
 
         assert_eq!(file.content, "# on disk");
         assert_eq!(fs::read_to_string(&path).unwrap(), "# on disk");
@@ -2737,7 +2800,7 @@ mod tests {
         )
         .unwrap();
 
-        let receipt = saved(&core, "shopping.md", "# Errands", Some(SaveName::Heading)).unwrap();
+        let receipt = saved(&core, "shopping.md", "# Errands", Some(SaveName::Content)).unwrap();
 
         assert_eq!(receipt.path, "errands.md");
         assert_eq!(

@@ -281,8 +281,7 @@ mod tests {
             invoke(&window, "read_note", json!({"path": "ideas/a.md"})).unwrap(),
             json!({
                 "content": "# first\nbody", "updatedAt": receipt["updatedAt"],
-                "revision": revision, "path": "ideas/a.md", "title": "first",
-                "pinned": false, "tags": []
+                "revision": revision
             })
         );
         assert_eq!(
@@ -340,6 +339,39 @@ mod tests {
             json!([])
         );
         app.unlisten(listener);
+
+        let capture = invoke(
+            &window,
+            "create_note",
+            json!({"options": {
+                "content": "- [ ] buy **milk**", "folder": "inbox"
+            }}),
+        )
+        .unwrap();
+        assert_eq!(capture["path"], "inbox/buy-milk.md");
+        let collision = invoke(
+            &window,
+            "create_note",
+            json!({"options": {
+                "content": "buy milk", "folder": "inbox"
+            }}),
+        )
+        .unwrap();
+        assert_eq!(collision["path"], "inbox/buy-milk-2.md");
+        let renamed = invoke(
+            &window,
+            "save_note",
+            json!({
+                "path": capture["path"], "content": "buy oat milk", "expected": capture["revision"],
+                "name": {"kind": "content"}
+            }),
+        )
+        .unwrap();
+        assert_eq!(renamed["receipt"]["path"], "inbox/buy-oat-milk.md");
+        assert_eq!(
+            fs::read_to_string(directory.path().join("inbox/buy-oat-milk.md")).unwrap(),
+            "buy oat milk"
+        );
     }
 
     #[test]
@@ -383,7 +415,7 @@ mod tests {
         assert!(unlocked);
         assert_eq!(event["warnings"], receipt["warnings"]);
         assert_eq!(receipt["warnings"][0]["kind"], "index");
-        assert_eq!(receipt["path"], "inbox/untitled.md");
+        assert_eq!(receipt["path"], "inbox/a-captured-thought.md");
         assert_eq!(
             invoke(&capture, "read_note", json!({"path": receipt["path"]})).unwrap()["content"],
             "a captured thought"
@@ -392,7 +424,7 @@ mod tests {
         conn.execute_batch("DROP TRIGGER refuse_insert").unwrap();
         let notes = invoke(&capture, "list_notes", json!({"filters": {}})).unwrap();
         assert_eq!(notes.as_array().unwrap().len(), 1);
-        assert_eq!(notes[0]["path"], "inbox/untitled.md");
+        assert_eq!(notes[0]["path"], "inbox/a-captured-thought.md");
     }
 
     #[test]
@@ -898,7 +930,9 @@ mod tests {
         )
         .unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let app = tauri::test::mock_builder()
             .manage(AppState {

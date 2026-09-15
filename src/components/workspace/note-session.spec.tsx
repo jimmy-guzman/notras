@@ -13,7 +13,7 @@ import {
   onTestFinished,
   vi,
 } from "vitest";
-
+import { TabStrip } from "@/components/tabs/tab-strip";
 import { Toaster } from "@/components/ui/toast";
 import { FileError } from "@/core/errors";
 import type { ConflictStash } from "@/data/conflict-stash";
@@ -33,6 +33,8 @@ import { tabPanelId } from "@/lib/tabs/tab";
 import { NoteSession } from "./note-session";
 
 vi.mock("@/data/get-note", () => ({ getNote: vi.fn() }));
+
+const NOOP = () => undefined;
 
 const tab = { id: "t1", kind: "note", path: "a.md" } as const;
 const UNFOLDED_CONTEXT = /# Errands\s+one\s+two/;
@@ -976,7 +978,7 @@ describe("NoteSession", () => {
       });
       expect(writes).toHaveLength(1);
       expect(writes[0]).toMatchObject({
-        name: { kind: "heading" },
+        name: { kind: "content" },
         path: "a.md",
       });
     }
@@ -1006,7 +1008,99 @@ describe("NoteSession", () => {
     await act(async () => {
       await flushPendingWrites();
     });
-    expect(writes.at(-1)).toMatchObject({ name: { kind: "heading" } });
+    expect(writes.at(-1)).toMatchObject({ name: { kind: "content" } });
+  });
+
+  it.each([false, true])(
+    "should rename first-line edits and keep lower-body edits unnamed in source mode %s",
+    async (sourceMode) => {
+      const writes: unknown[] = [];
+      mockIPC((command, args) => {
+        if (command === "save_note") {
+          writes.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "a.md",
+              revision: `r${writes.length}`,
+              updatedAt: writes.length + 1,
+              warnings: [],
+            },
+          };
+        }
+      });
+      mountSession("buy milk\n\nbody");
+      await editor();
+      if (sourceMode) {
+        act(() => sessionHandles().toggleSource());
+      }
+      const surface = await editor();
+      act(() => typeAtEnd(surface, " more"));
+      await act(async () => {
+        await flushPendingWrites();
+      });
+      expect(writes).toMatchObject([{ name: null }]);
+      act(() => {
+        surface.commands.insertContentAt(5, "oat ");
+      });
+      await act(async () => {
+        await flushPendingWrites();
+      });
+      expect(writes.at(-1)).toMatchObject({ name: { kind: "content" } });
+    }
+  );
+
+  it("should label and rename an external tab from its readable first line", async () => {
+    const path = "/outside/imported.md";
+    const outside = { id: "outside-title", kind: "external", path } as const;
+    const writes: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "write_external") {
+        writes.push(args);
+        return {
+          kind: "committed",
+          receipt: {
+            path: "/outside/buy-oat-milk.md",
+            revision: "r1",
+            updatedAt: 2,
+            warnings: [],
+          },
+        };
+      }
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    onTestFinished(() => client.clear());
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.fileKey("external", path), {
+      content: "buy **milk**\n\nbody",
+      revision: "r0",
+      updatedAt: new Date(1),
+    });
+    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
+    render(
+      <QueryClientProvider client={client}>
+        <TabStrip activeId={outside.id} onNew={NOOP} tabs={[outside]} />
+        <NoteSession active tab={outside} />
+      </QueryClientProvider>
+    );
+    await screen.findByRole("tab", { name: "buy milk" });
+    const surface = await editor(outside.id);
+    act(() => {
+      surface.commands.insertContentAt(5, "oat ");
+    });
+    await screen.findByRole("tab", { name: "buy oat milk" });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(writes).toMatchObject([{ name: { kind: "content" }, path }]);
   });
 
   it("should save the complete document from either editor mode", async () => {
@@ -1050,7 +1144,7 @@ describe("NoteSession", () => {
       {
         content: "---\ntags: [edited]\n---\nbody plus typing",
         expected: "r0",
-        name: null,
+        name: { kind: "content" },
         path: "a.md",
       },
     ]);
@@ -1063,7 +1157,7 @@ describe("NoteSession", () => {
     expect(writes.at(-1)).toEqual({
       content: "---\ntags: [edited]\n---\nbody plus typing again",
       expected: "r2",
-      name: null,
+      name: { kind: "content" },
       path: "a.md",
     });
   });
@@ -1132,13 +1226,13 @@ describe("NoteSession", () => {
       {
         content: "---\ntags: [first]\n---\nbody",
         expected: "r0",
-        name: null,
+        name: { kind: "content" },
         path: "a.md",
       },
       {
         content: "---\ntags: [second]\n---\nbody later",
         expected: "r2",
-        name: null,
+        name: { kind: "content" },
         path: "a.md",
       },
     ]);

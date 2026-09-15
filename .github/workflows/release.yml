@@ -83,7 +83,7 @@ jobs:
         include:
           - platform: macos-latest
             args: "--target universal-apple-darwin"
-          - platform: ubuntu-22.04
+          - platform: ubuntu-latest
             args: ""
           - platform: windows-latest
             args: ""
@@ -99,7 +99,7 @@ jobs:
           persist-credentials: false
 
       - name: 🐧 Setup Linux Deps
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \

@@ -13,7 +13,6 @@ use crate::watcher;
 use notras_core::{
     self, CommandError, ConflictStash, CreateNote, DeleteReceipt, Library, MutationReceipt,
     MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome,
-    SavedNote,
 };
 use notras_core::{
     CountedTag, GraphResult, GraphTarget, Mention, NoteFilters, NoteMeta, NoteSearch,
@@ -59,7 +58,7 @@ fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<Stri
 pub async fn read_note<R: Runtime>(
     app: AppHandle<R>,
     path: String,
-) -> Result<SavedNote, CommandError> {
+) -> Result<NoteFile, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();
         let library = state.library();

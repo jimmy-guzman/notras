@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{Event, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::frontmatter;
 
@@ -30,49 +30,84 @@ pub(crate) fn title_of(rel_path: &str) -> String {
         .to_string()
 }
 
-/// The body's leading `#` heading, when it has one.
-///
-/// CommonMark's ATX level-1 shape: up to three spaces of indent, one `#`, then
-/// a space, a tab, or end of line. `##` never matches, and a tab indent makes
-/// the line a code block rather than a heading.
-///
-/// Only the first non-blank line is considered, which is what lets this skip
-/// fenced code blocks without tracking them: a fence opener cannot match the
-/// pattern. Kept in parity with `leadingHeading` in `src/core/notes.ts`.
-pub(crate) fn leading_heading(body: &str) -> Option<String> {
-    let line = body.lines().find(|line| !line.trim().is_empty())?;
-    let indent = line.len() - line.trim_start_matches(' ').len();
-
-    if indent > 3 {
-        return None;
-    }
-
-    let rest = line[indent..].strip_prefix('#')?;
-
-    if !rest.is_empty() && !rest.starts_with(' ') && !rest.starts_with('\t') {
-        return None;
-    }
-
-    let text = rest.trim();
-    // Closed ATX form: `# title #`. The closing run has to be preceded by
-    // whitespace, so `# C#` keeps its trailing character.
-    let text = match text.rsplit_once(char::is_whitespace) {
-        Some((head, tail)) if !tail.is_empty() && tail.chars().all(|c| c == '#') => head.trim_end(),
-        _ => text,
-    };
-
-    if text.is_empty() {
-        None
-    } else {
-        Some(text.to_string())
-    }
+pub(crate) struct BodyTitle {
+    pub text: String,
+    pub line: usize,
 }
 
-/// A note's display title: the leading `#` heading, then imported frontmatter `title:`,
-/// then the filename stem. Kept in parity with `resolveTitle` in
-/// `src/core/notes.ts`.
+/// The first readable source line, matching `bodyTitle` in TypeScript.
+pub(crate) fn body_title(body: &str) -> Option<BodyTitle> {
+    let options = Options::ENABLE_TABLES
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_WIKILINKS;
+    let mut excluded = 0;
+    let mut text = String::new();
+    let mut title_line = None;
+    for (event, range) in Parser::new_ext(body, options).into_offset_iter() {
+        if excluded > 0 {
+            match event {
+                Event::Start(_) => excluded += 1,
+                Event::End(_) => excluded -= 1,
+                _ => {}
+            }
+            continue;
+        }
+        let part = match event {
+            Event::Start(
+                Tag::CodeBlock(_) | Tag::HtmlBlock | Tag::Table(_) | Tag::Image { .. },
+            ) => {
+                excluded = 1;
+                continue;
+            }
+            Event::Start(Tag::Link {
+                link_type: LinkType::WikiLink { .. },
+                ..
+            }) => {
+                excluded = 1;
+                body[range.clone()]
+                    .strip_prefix("[[")
+                    .and_then(|link| link.strip_suffix("]]"))
+                    .expect("a wiki link range includes its delimiters")
+                    .into()
+            }
+            Event::Text(part) | Event::Code(part) => part,
+            Event::SoftBreak
+            | Event::HardBreak
+            | Event::End(TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item) => {
+                if title_line.is_some() {
+                    break;
+                }
+                continue;
+            }
+            _ => continue,
+        };
+        let line = body[..range.start]
+            .bytes()
+            .filter(|byte| *byte == b'\n')
+            .count();
+        if title_line.is_some_and(|previous| previous != line) {
+            break;
+        }
+        if part.chars().any(|ch| !frontmatter::is_space(ch)) {
+            title_line = Some(line);
+        }
+        text.push_str(&part);
+    }
+    title_line.map(|line| BodyTitle {
+        text: text
+            .split(frontmatter::is_space)
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" "),
+        line,
+    })
+}
+
+/// Readable body title, imported title, then filename stem, matching TypeScript.
 pub(crate) fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
-    leading_heading(parsed.body)
+    body_title(parsed.body)
+        .map(|title| title.text)
         .or_else(|| parsed.frontmatter.title.clone())
         .unwrap_or_else(|| title_of(rel_path))
 }
@@ -511,19 +546,18 @@ fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
 }
 
 /// Inside `[[...]]` or a markdown link the title is a link and counted
-/// already, and on the heading that names the note it is the note's name. A
-/// leading heading names the note even when imported frontmatter has a title.
+/// already. The readable line naming the note is excluded from mentions.
 pub(crate) fn bare_mentions<'a>(
     body: &'a str,
     title: &str,
-    heading_names_note: bool,
+    exclude_title_line: bool,
 ) -> Vec<(usize, &'a str)> {
     let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
     let markdown_links = scan(body).link_spans;
-    let heading_line = heading_names_note
-        .then(|| leading_heading(body))
+    let title_line = exclude_title_line
+        .then(|| body_title(body))
         .flatten()
-        .and_then(|_| body.lines().position(|line| !line.trim().is_empty()));
+        .map(|title| title.line);
     let is_word = |ch: char| ch.is_alphanumeric() || ch == '_';
     let mut found = Vec::new();
 
@@ -552,7 +586,7 @@ pub(crate) fn bare_mentions<'a>(
                 .any(|span| start < span.end && end > span.start);
             let (line, context) = line_at(body, start);
 
-            if !bounded || linked || heading_line == Some(line - 1) {
+            if !bounded || linked || title_line == Some(line - 1) {
                 continue;
             }
 
@@ -568,50 +602,24 @@ pub(crate) fn bare_mentions<'a>(
 mod tests {
     use super::*;
 
-    /// The title-resolution parity table. `src/core/notes.spec.ts` asserts the
-    /// same cases in the same order, so the two resolvers can be diffed by eye.
     #[test]
-    fn should_resolve_heading_then_imported_title_then_filename() {
-        // Held one-per-line against rustfmt so this table stays diffable by eye
-        // against its twin in `src/core/notes.spec.ts`.
-        #[rustfmt::skip]
-        let cases: &[(&str, &str, &str)] = &[
-            ("---\ntitle: from frontmatter\n---\n# from heading\n", "note.md", "from heading"),
-            ("---\ntitle: \"effect: a primer\"\n---\nbody\n", "note.md", "effect: a primer"),
-            ("---\ntitle: effect: a primer\n---\nbody\n", "note.md", "effect: a primer"),
-            // An empty title is absent, so the heading takes over.
-            ("---\ntitle:\n---\n# from heading\n", "note.md", "from heading"),
-            // Heading beats the filename.
-            ("# from heading\n", "note.md", "from heading"),
-            ("\n\n# after blank lines\n", "note.md", "after blank lines"),
-            ("   # three spaces\n", "note.md", "three spaces"),
-            ("# closed form #\n", "note.md", "closed form"),
-            ("# closed form ###\n", "note.md", "closed form"),
-            // No whitespace before the trailing run, so it is part of the text.
-            ("# C#\n", "note.md", "C#"),
-            ("#\ttab after hash\n", "note.md", "tab after hash"),
-            // Not headings: too much indent, deeper level, no space, empty.
-            ("    # four spaces\n", "note.md", "note"),
-            ("## level two\n", "note.md", "note"),
-            ("#nospace\n", "note.md", "note"),
-            ("#\n", "note.md", "note"),
-            // A heading below content is a section heading, not the title.
-            ("intro paragraph\n\n# a section\n", "note.md", "note"),
-            // A fence opener cannot match, so code blocks need no tracking.
-            ("```\n# not a heading\n```\n", "note.md", "note"),
-            // Filename fallback.
-            ("just an idea\n", "work/ideas.md", "ideas"),
-            ("", "untitled.md", "untitled"),
-            ("# crlf heading\r\n", "note.md", "crlf heading"),
-            ("---\r\ntitle: crlf fm\r\n---\r\nbody\r\n", "note.md", "crlf fm"),
-        ];
-
-        for (content, rel_path, expected) in cases {
+    fn should_resolve_the_shared_readable_title_cases() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("../../../fixtures/note-titles.json")).unwrap();
+        for case in cases.as_array().unwrap() {
+            let content = case["content"].as_str().unwrap();
             let parsed = frontmatter::parse(content);
             assert_eq!(
-                resolve_title(&parsed, rel_path),
-                *expected,
-                "resolving {content:?} at {rel_path:?}"
+                resolve_title(&parsed, case["path"].as_str().unwrap()),
+                case["expected"].as_str().unwrap(),
+                "{}",
+                case["name"]
+            );
+            assert_eq!(
+                body_title(parsed.body).map(|title| title.line as u64),
+                case["line"].as_u64(),
+                "{}",
+                case["name"]
             );
         }
     }
@@ -620,7 +628,7 @@ mod tests {
     /// TypeScript, so the index and the open note cannot disagree.
     #[test]
     fn should_strip_the_markdown_extension_case_insensitively() {
-        let parsed = frontmatter::parse("body\n");
+        let parsed = frontmatter::parse("");
         assert_eq!(resolve_title(&parsed, "NOTE.MD"), "NOTE");
         assert_eq!(resolve_title(&parsed, "note.md"), "note");
         assert_eq!(resolve_title(&parsed, "Note.Markdown"), "Note");

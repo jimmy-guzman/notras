@@ -10,7 +10,7 @@ interface Frontmatter {
   pinned: boolean;
   tags: string[];
   /**
-   * Imported metadata, preserved verbatim; the heading supplies the name when present.
+   * Imported metadata, preserved verbatim; readable body content supplies the name when present.
    */
   title: string | undefined;
 }

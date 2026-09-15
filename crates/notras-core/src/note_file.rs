@@ -1,5 +1,5 @@
-use std::fs::{File, Metadata};
-use std::io::{self, Read};
+use std::fs::File;
+use std::io;
 use std::process;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -286,27 +286,6 @@ pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> 
     })
 }
 
-/// An opened note, retained while its content and metadata are read.
-pub(crate) struct OpenedNote {
-    file: File,
-}
-
-impl OpenedNote {
-    pub(crate) fn new(file: File) -> Self {
-        Self { file }
-    }
-
-    pub(crate) fn metadata(&self) -> io::Result<Metadata> {
-        self.file.metadata()
-    }
-
-    pub(crate) fn read(mut self) -> io::Result<String> {
-        let mut content = String::new();
-        self.file.read_to_string(&mut content)?;
-        Ok(content)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -468,7 +447,7 @@ mod tests {
             .unwrap()
             .set_times(fs::FileTimes::new().set_modified(original_time))
             .unwrap();
-        let opened = OpenedNote::new(File::open(&path).unwrap());
+        let opened = File::open(&path).unwrap();
         let (mut temp, _) = sibling(&root(directory.path()), "replacement");
         temp.file()
             .set_times(fs::FileTimes::new().set_modified(original_time + Duration::from_secs(60)))
@@ -479,7 +458,7 @@ mod tests {
             opened.metadata().unwrap().modified().unwrap(),
             original_time
         );
-        assert_eq!(opened.read().unwrap(), "original");
+        assert_eq!(io::read_to_string(opened).unwrap(), "original");
         assert_eq!(fs::read_to_string(path).unwrap(), "replacement");
     }
 }

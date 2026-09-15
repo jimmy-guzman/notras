@@ -1,0 +1,261 @@
+[
+  {
+    "name": "heading wins",
+    "content": "---\ntitle: imported\n---\n# **Heading**\n\nbody",
+    "path": "note.md",
+    "expected": "Heading",
+    "line": 0
+  },
+  {
+    "name": "body before imported title",
+    "content": "---\ntitle: imported\n---\nfirst **thought**\nsecond",
+    "path": "note.md",
+    "expected": "first thought",
+    "line": 0
+  },
+  {
+    "name": "imported fallback",
+    "content": "---\ntitle: \"effect: a primer\"\n---\n```\ncode\n```",
+    "path": "note.md",
+    "expected": "effect: a primer",
+    "line": null
+  },
+  {
+    "name": "filename fallback",
+    "content": "",
+    "path": "note.md",
+    "expected": "note",
+    "line": null
+  },
+  {
+    "name": "blank lines",
+    "content": "\n\n# after blanks\n",
+    "path": "note.md",
+    "expected": "after blanks",
+    "line": 2
+  },
+  {
+    "name": "closed heading",
+    "content": "   # C# ###\n",
+    "path": "note.md",
+    "expected": "C#",
+    "line": 0
+  },
+  {
+    "name": "tab heading",
+    "content": "#\ttitle\r\n",
+    "path": "note.md",
+    "expected": "title",
+    "line": 0
+  },
+  {
+    "name": "deeper heading",
+    "content": "## section\n",
+    "path": "note.md",
+    "expected": "section",
+    "line": 0
+  },
+  {
+    "name": "setext heading",
+    "content": "Heading\n=======\n",
+    "path": "note.md",
+    "expected": "Heading",
+    "line": 0
+  },
+  {
+    "name": "hash without space",
+    "content": "#nospace\n",
+    "path": "note.md",
+    "expected": "#nospace",
+    "line": 0
+  },
+  {
+    "name": "later heading",
+    "content": "intro paragraph\n\n# section",
+    "path": "note.md",
+    "expected": "intro paragraph",
+    "line": 0
+  },
+  {
+    "name": "empty heading",
+    "content": "#\n\nnext",
+    "path": "note.md",
+    "expected": "next",
+    "line": 2
+  },
+  {
+    "name": "first source line",
+    "content": "one **line**\nsecond line",
+    "path": "note.md",
+    "expected": "one line",
+    "line": 0
+  },
+  {
+    "name": "task list",
+    "content": "- [ ] **buy** milk\n- next",
+    "path": "note.md",
+    "expected": "buy milk",
+    "line": 0
+  },
+  {
+    "name": "ordered list",
+    "content": "1. first item\n2. second",
+    "path": "note.md",
+    "expected": "first item",
+    "line": 0
+  },
+  {
+    "name": "quote",
+    "content": "> **quoted** text\n> second",
+    "path": "note.md",
+    "expected": "quoted text",
+    "line": 0
+  },
+  {
+    "name": "nested quote code",
+    "content": "> ```\n> code\n> ```\n>\n> first **line**",
+    "path": "note.md",
+    "expected": "first line",
+    "line": 4
+  },
+  {
+    "name": "nested list",
+    "content": "-\n  - nested text",
+    "path": "note.md",
+    "expected": "nested text",
+    "line": 1
+  },
+  {
+    "name": "code block",
+    "content": "```md\n# code\n```\n\nafter code",
+    "path": "note.md",
+    "expected": "after code",
+    "line": 4
+  },
+  {
+    "name": "indented code",
+    "content": "    code\n\nafter code",
+    "path": "note.md",
+    "expected": "after code",
+    "line": 2
+  },
+  {
+    "name": "image",
+    "content": "![alt text](a.png)\n\nafter image",
+    "path": "note.md",
+    "expected": "after image",
+    "line": 2
+  },
+  {
+    "name": "inline image",
+    "content": "before ![alt](a.png) after",
+    "path": "note.md",
+    "expected": "before after",
+    "line": 0
+  },
+  {
+    "name": "html block",
+    "content": "<div>hidden</div>\n\nafter html",
+    "path": "note.md",
+    "expected": "after html",
+    "line": 2
+  },
+  {
+    "name": "inline html",
+    "content": "some <b>bold</b> text",
+    "path": "note.md",
+    "expected": "some bold text",
+    "line": 0
+  },
+  {
+    "name": "table",
+    "content": "| a | b |\n| - | - |\n| c | d |\n\nafter table",
+    "path": "note.md",
+    "expected": "after table",
+    "line": 4
+  },
+  {
+    "name": "rule",
+    "content": "***\n\nafter rule",
+    "path": "note.md",
+    "expected": "after rule",
+    "line": 2
+  },
+  {
+    "name": "link",
+    "content": "[Readable **label**](https://example.com)",
+    "path": "note.md",
+    "expected": "Readable label",
+    "line": 0
+  },
+  {
+    "name": "reference link",
+    "content": "[Readable][ref]\n\n[ref]: https://example.com",
+    "path": "note.md",
+    "expected": "Readable",
+    "line": 0
+  },
+  {
+    "name": "wiki link",
+    "content": "See [[a note]]",
+    "path": "note.md",
+    "expected": "See a note",
+    "line": 0
+  },
+  {
+    "name": "wiki literal label",
+    "content": "[[**note**|alias]]",
+    "path": "note.md",
+    "expected": "**note**|alias",
+    "line": 0
+  },
+  {
+    "name": "inline code",
+    "content": "use `x &amp; y`",
+    "path": "note.md",
+    "expected": "use x &amp; y",
+    "line": 0
+  },
+  {
+    "name": "entities",
+    "content": "A &amp; B &#x1F600; &copy;",
+    "path": "note.md",
+    "expected": "A & B 😀 ©",
+    "line": 0
+  },
+  {
+    "name": "escaped markdown",
+    "content": "\\*literal\\* and \\[brackets\\]",
+    "path": "note.md",
+    "expected": "*literal* and [brackets]",
+    "line": 0
+  },
+  {
+    "name": "whitespace",
+    "content": "\n  first   thought\twith space\r\nsecond",
+    "path": "note.md",
+    "expected": "first thought with space",
+    "line": 1
+  },
+  {
+    "name": "unicode",
+    "content": "你好 café 😀",
+    "path": "note.md",
+    "expected": "你好 café 😀",
+    "line": 0
+  },
+  {
+    "name": "code only",
+    "content": "```\ncode\n```",
+    "path": "note.md",
+    "expected": "note",
+    "line": null
+  },
+  {
+    "name": "image only",
+    "content": "![alt](image.png)",
+    "path": "note.md",
+    "expected": "note",
+    "line": null
+  }
+]

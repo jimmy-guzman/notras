@@ -7,22 +7,21 @@ import {
   undo,
 } from "@tiptap/pm/history";
 import { Plugin, TextSelection, type Transaction } from "@tiptap/pm/state";
-import { parseNote } from "@/core/frontmatter";
-import { leadingHeading } from "@/core/notes";
+import { titleSource } from "@/core/notes";
 import { styleNonce } from "@/lib/style-nonce";
 import { renameDocument } from "./retitle-buffer";
 import {
   createSourceExtensions,
-  touchesSourceHeading,
+  touchesSourceTitle,
 } from "./source-extensions";
 
 export interface DocumentEdit {
-  headingEdited: boolean;
   selection?: { anchor: number; head: number };
   separate?: boolean;
+  titleEdited: boolean;
 }
 
-type Naming = { kind: "heading" } | { kind: "filename"; value: string };
+type Naming = { kind: "content" } | { kind: "filename"; value: string };
 
 function changedText(before: string, after: string) {
   let from = 0;
@@ -65,18 +64,15 @@ export function createNoteDocument(
           tr.docChanged &&
           !isHistoryTransaction(tr) &&
           tr.getMeta("addToHistory") !== false &&
-          (tr.getMeta("headingEdited") === undefined
-            ? touchesSourceHeading(tr)
-            : tr.getMeta("headingEdited") === true)
+          (tr.getMeta("titleEdited") === undefined
+            ? touchesSourceTitle(tr)
+            : tr.getMeta("titleEdited") === true)
       );
-      if (
-        !edited ||
-        leadingHeading(parseNote(state.doc.textContent).body) === undefined
-      ) {
+      if (!edited || titleSource(state.doc.textContent) === undefined) {
         return null;
       }
       nextName += 1;
-      names.set(nextName, { kind: "heading" });
+      names.set(nextName, { kind: "content" });
       return state.tr.setDocAttribute("name", nextName);
     },
   });
@@ -142,16 +138,16 @@ export function createNoteDocument(
     if (patch.from !== patch.to || patch.text !== "") {
       tr.insertText(patch.text, patch.from, patch.to);
     }
-    tr.setMeta("headingEdited", details.headingEdited);
+    tr.setMeta("titleEdited", details.titleEdited);
     // A touch with unchanged text still introduces a naming action.
     if (
-      details.headingEdited &&
+      details.titleEdited &&
       !tr.docChanged &&
-      leadingHeading(parseNote(next).body) !== undefined
+      titleSource(next) !== undefined
     ) {
       nextName += 1;
-      names.set(nextName, { kind: "heading" });
-      tr.setDocAttribute("name", nextName).setMeta("headingEdited", false);
+      names.set(nextName, { kind: "content" });
+      tr.setDocAttribute("name", nextName).setMeta("titleEdited", false);
     }
     if (details.selection !== undefined) {
       tr.setSelection(
@@ -188,8 +184,8 @@ export function createNoteDocument(
     redo: () => redo(editor.state, dispatch),
     rename: (title: string) =>
       edit(renameDocument(content(), title), {
-        headingEdited: true,
         separate: true,
+        titleEdited: true,
       }),
     replace: (next: string) => {
       const patch = changedText(content(), next);

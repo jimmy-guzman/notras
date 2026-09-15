@@ -24,7 +24,6 @@ function mountAutosave(
         createNotePersistence(
           {
             content: "",
-            kind: "note",
             path: "note.md",
             revision: "r0",
             updatedAt: new Date(0),

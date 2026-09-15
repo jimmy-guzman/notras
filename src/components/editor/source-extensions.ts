@@ -5,7 +5,7 @@ import { UndoRedo } from "@tiptap/extensions";
 import type { Plugin, Transaction } from "@tiptap/pm/state";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { Find } from "@/components/editor/find";
-import { headingRange } from "@/components/editor/retitle-buffer";
+import { titleSource } from "@/core/notes";
 
 const INDENT = "  ";
 
@@ -41,20 +41,21 @@ const TabIndent = Extension.create({
   name: "tabIndent",
 });
 
-export function touchesSourceHeading(transaction: Transaction) {
+export function touchesSourceTitle(transaction: Transaction) {
   const before = transaction.before.textContent;
   const after = transaction.doc.textContent;
-  const old = headingRange(before);
-  const next = headingRange(after);
+  const old = titleSource(before);
+  const next = titleSource(after);
   if (
-    before.slice(old?.from, old?.to) !== after.slice(next?.from, next?.to) &&
+    (old?.title !== next?.title ||
+      before.slice(old?.from, old?.to) !== after.slice(next?.from, next?.to)) &&
     (old !== undefined || next !== undefined)
   ) {
     return true;
   }
   return transaction.steps.some((step, index) => {
     const doc = transaction.docs[index];
-    const range = doc === undefined ? undefined : headingRange(doc.textContent);
+    const range = doc === undefined ? undefined : titleSource(doc.textContent);
     if (range === undefined) {
       return false;
     }

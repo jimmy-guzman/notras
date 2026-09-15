@@ -259,11 +259,6 @@ impl Scan {
     pub(crate) fn finish(self) -> ScanReport {
         self.report
     }
-
-    pub(crate) fn run(mut self, conn: &Connection, root: &Dir) -> Result<ScanReport, IndexError> {
-        while !self.step(conn, root)? {}
-        Ok(self.finish())
-    }
 }
 
 #[cfg(test)]
@@ -278,7 +273,9 @@ mod tests {
         fs::write(directory.path().join("keep.md"), "# Keep").unwrap();
         fs::write(directory.path().join("gone.md"), "# Gone").unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         fs::remove_file(directory.path().join("gone.md")).unwrap();
         let mut scan = library.begin_scan(true);
         while scan.deletions.is_none() {
@@ -300,7 +297,11 @@ mod tests {
         while !library.advance_scan(&mut scan).unwrap() {}
         library.finish_scan(scan).unwrap();
 
-        let notes = library.list_notes(&Default::default()).unwrap();
+        let notes = library
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap();
         assert_eq!(notes.len(), 2);
         assert!(notes
             .iter()
@@ -319,7 +320,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Current").unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         library
             .conn
             .execute("UPDATE note SET title = 'Previous'", [])
@@ -327,13 +330,23 @@ mod tests {
 
         let mut scan = library.begin_scan(true);
         assert_eq!(
-            library.list_notes(&Default::default()).unwrap()[0].title,
+            library
+                .read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()[0]
+                .title,
             "Previous"
         );
         while !library.advance_scan(&mut scan).unwrap() {}
         library.finish_scan(scan).unwrap();
         assert_eq!(
-            library.list_notes(&Default::default()).unwrap()[0].title,
+            library
+                .read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()[0]
+                .title,
             "Current"
         );
     }
@@ -343,7 +356,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Before").unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        library.scan_complete().unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         let mut scan = library.begin_scan(true);
         while scan.deletions.is_none() {
             assert!(!library.advance_scan(&mut scan).unwrap());
@@ -373,8 +388,17 @@ mod tests {
             library.read_note("note.md".into()).unwrap().content,
             "# After"
         );
+        assert!(library.read_view().is_err());
+        let mut scan = library.begin_scan(true);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
         assert_eq!(
-            library.list_notes(&Default::default()).unwrap()[0].title,
+            library
+                .read_view()
+                .unwrap()
+                .list_notes(&Default::default())
+                .unwrap()[0]
+                .title,
             "After"
         );
     }

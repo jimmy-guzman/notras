@@ -74,7 +74,7 @@ import {
   restoredCaret,
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
-import { tabButtonId, tabId, tabPanelId } from "@/lib/tabs/tab";
+import { tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { useGraphMode } from "@/lib/ui/graph";
@@ -202,7 +202,7 @@ function SessionBuffer({
     () => (notes === undefined ? undefined : linkResolver(notes)),
     [notes]
   );
-  const id = tabId(tab);
+  const { id } = tab;
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
   const focusOnMount = active && !findState.open;
@@ -218,7 +218,7 @@ function SessionBuffer({
   const sourceRef = useRef<null | SourceEditorHandle>(null);
   const [persistence] = useState(() =>
     createNotePersistence(
-      { ...file, kind: tab.kind, path: tab.path, stash: stash ?? undefined },
+      { ...file, path: tab.path, stash: stash ?? undefined },
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
         clearStash: async (path) => {

@@ -21,37 +21,11 @@ const index = [...all, "index"] as const;
 const fileKey = (kind: Tab["kind"], path: string) =>
   [...all, "file", kind, path] as const;
 
-/** One tab's file as of the last read. An external file reports no pin and no tags (`D54`). */
+/** One tab's file content, revision and timestamp as of the last read. */
 export interface SessionFile {
   content: string;
-  pinned: boolean;
   revision: string;
-  tags: string[];
   updatedAt: Date;
-}
-
-async function readTab(kind: Tab["kind"], path: string): Promise<SessionFile> {
-  if (kind === "external") {
-    const file = await readExternalNote(path);
-
-    return {
-      content: file.content,
-      pinned: false,
-      revision: file.revision,
-      tags: [],
-      updatedAt: file.updatedAt,
-    };
-  }
-
-  const note = await getNote(path);
-
-  return {
-    content: note.content,
-    pinned: note.pinned,
-    revision: note.revision,
-    tags: note.tags,
-    updatedAt: note.updatedAt,
-  };
 }
 
 /** Keyed generic to specific: every invalidation is one prefix. */
@@ -64,7 +38,8 @@ export const noteQueries = {
     }),
   file: (kind: Tab["kind"], path: string) =>
     queryOptions({
-      queryFn: () => readTab(kind, path),
+      queryFn: () =>
+        kind === "external" ? readExternalNote(path) : getNote(path),
       queryKey: fileKey(kind, path),
       // No payload names a path outside the notes dir, so focus is the signal.
       // "always" and not `true`: staleTime is infinite, so a stale check the

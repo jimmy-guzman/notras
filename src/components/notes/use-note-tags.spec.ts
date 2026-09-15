@@ -23,7 +23,6 @@ it("should preserve successive tag edits before a rerender or save completes", a
     {
       content:
         "---\npinned: true\ntags: [kept, removed]\n---\n# Errands\n\nbody",
-      kind: "note",
       path: "errands.md",
       revision: "r0",
       updatedAt: new Date(0),
@@ -96,7 +95,6 @@ it("should edit the live document and keep the chosen tags when saving fails", a
   const note = createNotePersistence(
     {
       content: "---\ntags: [kept]\n---\n# Errands\n\nbody",
-      kind: "note",
       path: "errands.md",
       revision: "r0",
       updatedAt: new Date(0),

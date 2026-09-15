@@ -3,7 +3,6 @@ import { createNotePersistence, type SaveOutcome } from "./note-persistence";
 
 const initial = {
   content: "# Errands\n\nbody",
-  kind: "note",
   path: "shopping.md",
   revision: "r0",
   updatedAt: new Date(0),
@@ -80,7 +79,7 @@ describe("note persistence", () => {
     expect(writes).toEqual([
       {
         content: "# Weekend errands\n\nbody",
-        name: { kind: "heading" },
+        name: { kind: "content" },
         path: "shopping.md",
       },
       {
@@ -150,7 +149,7 @@ describe("note persistence", () => {
       onPathChanged: () => undefined,
       stash: () => Promise.resolve(),
       write: (_path, _content, name) => {
-        expect(name).toEqual({ kind: "heading" });
+        expect(name).toEqual({ kind: "content" });
         attempts += 1;
         return attempts === 1
           ? Promise.reject(new Error("disk full"))
@@ -226,10 +225,10 @@ describe("note persistence", () => {
     });
     note.edit(
       { content: initial.content, mode: "body" },
-      { headingEdited: true }
+      { titleEdited: true }
     );
     await note.flush();
-    expect(writes).toEqual([{ kind: "heading" }]);
+    expect(writes).toEqual([{ kind: "content" }]);
   });
 
   it("should run queued moves from the last committed path without capturing old documents", async () => {
@@ -434,7 +433,7 @@ it("should autosave native source edits and derive the tab state without a React
     expect(writes).toEqual([
       {
         content: "# Weekend\n\nbody",
-        name: { kind: "heading" },
+        name: { kind: "content" },
         path: "shopping.md",
       },
     ]);

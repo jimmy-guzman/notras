@@ -29,6 +29,37 @@ async function mountCapture() {
 }
 
 describe("capture persistence", () => {
+  it("should let native creation name a capture from its content", async () => {
+    const user = userEvent.setup();
+    const writes: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "create_note") {
+        writes.push(args);
+        return {
+          path: "inbox/a-captured-thought.md",
+          updatedAt: 1,
+          warnings: [],
+        };
+      }
+    });
+    const editor = await mountCapture();
+    act(() => {
+      editor.commands.insertContent("a captured thought");
+    });
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(writes).toMatchObject([
+        {
+          options: {
+            content: "a captured thought",
+            folder: "inbox",
+            name: null,
+          },
+        },
+      ]);
+    });
+  });
+
   it("should clear and hide a committed capture when indexing reports a warning", async () => {
     const user = userEvent.setup();
     const writes: unknown[] = [];
