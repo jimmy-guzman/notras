@@ -85,13 +85,16 @@ export function SettingsDialog({
     mutationFn: async (value: boolean) => {
       await (value ? enable() : disable());
     },
-    onError: (error) => {
-      // The OS holds the truth, so a failure reverts by re-reading it.
-      void queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
+    onError: async (error) => {
       toast.add({
         description: reasonOf(error),
         title: "could not update launch at login",
         type: "error",
+      });
+      // The OS holds the truth, so a failure reverts by re-reading it, and the
+      // mutation stays pending until the read lands.
+      await queryClient.invalidateQueries({
+        queryKey: autostartQuery.queryKey,
       });
     },
     onMutate: (value: boolean) => {

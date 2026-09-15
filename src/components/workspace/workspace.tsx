@@ -114,8 +114,8 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
   if (latest.isError) {
     return (
       <output className="block p-3 text-center text-sm">
-        <p>could not open the recent note</p>
-        <p>{reasonOf(latest.error)}</p>
+        <span className="block">could not open the recent note</span>
+        <span className="block">{reasonOf(latest.error)}</span>
         <Button
           onClick={() => {
             void retry();

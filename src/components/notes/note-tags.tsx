@@ -143,8 +143,8 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
           ) : null}
           {allTags.isError ? (
             <output className="block px-3 py-2 text-xs">
-              <p>could not load tag suggestions</p>
-              <p>{reasonOf(allTags.error)}</p>
+              <span className="block">could not load tag suggestions</span>
+              <span className="block">{reasonOf(allTags.error)}</span>
               <Button
                 onClick={() => {
                   void retry();

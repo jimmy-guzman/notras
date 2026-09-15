@@ -114,8 +114,8 @@ export function MoveView({
       <output className="block p-4 text-sm">
         {notes.isError ? (
           <>
-            <p>could not load folders</p>
-            <p>{reasonOf(notes.error)}</p>
+            <span className="block">could not load folders</span>
+            <span className="block">{reasonOf(notes.error)}</span>
             <Button
               onClick={() => {
                 void retry();
@@ -257,8 +257,8 @@ export function TagsView({
       ) : null}
       {vocabulary.isError ? (
         <output className="block p-4 text-sm">
-          <p>could not load tag suggestions</p>
-          <p>{reasonOf(vocabulary.error)}</p>
+          <span className="block">could not load tag suggestions</span>
+          <span className="block">{reasonOf(vocabulary.error)}</span>
           <Button
             onClick={() => {
               void retry();

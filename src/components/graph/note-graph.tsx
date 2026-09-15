@@ -528,7 +528,11 @@ function OverflowPill({
         ringKeyDown(event, item.id, keys);
       }}
       render={
-        <button aria-label={`+${item.count}`} ref={attach} type="button" />
+        <button
+          aria-label={`${item.count} more ${item.more.kind}`}
+          ref={attach}
+          type="button"
+        />
       }
       style={pillStyle(item.position)}
       variant="ghost"

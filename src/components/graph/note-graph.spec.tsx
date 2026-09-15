@@ -294,7 +294,7 @@ describe(NoteGraph, () => {
     );
 
     expect(screen.getAllByRole("button")).toHaveLength(1 + 11 + 1);
-    await user.click(screen.getByRole("button", { name: "+3" }));
+    await user.click(screen.getByRole("button", { name: "3 more mentions" }));
     expect(onShowMentions).toHaveBeenCalledOnce();
   });
 
@@ -309,7 +309,7 @@ describe(NoteGraph, () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "+3" }));
+    await user.click(screen.getByRole("button", { name: "3 more links" }));
 
     const rows = screen.getAllByRole("menuitem");
 
@@ -334,7 +334,7 @@ describe(NoteGraph, () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "+2" }));
+    await user.click(screen.getByRole("button", { name: "2 more links" }));
 
     const rows = screen.getAllByRole("menuitem");
 
@@ -360,7 +360,7 @@ describe(NoteGraph, () => {
     expect(
       screen.getAllByRole("button").map((button) => button.textContent)
     ).toStrictEqual(["c", "#t02", "#t12", "#t22", "#t32", "+3"]);
-    await user.click(screen.getByRole("button", { name: "+3" }));
+    await user.click(screen.getByRole("button", { name: "3 more members" }));
 
     const rows = screen.getAllByRole("menuitem");
 

@@ -373,8 +373,8 @@ export function PaletteSearch({
       ) : null}
       {choicesFailed ? (
         <output className="block p-4 text-sm">
-          <p>could not load suggestions</p>
-          <p>{reasonOf(choicesQuery.error)}</p>
+          <span className="block">could not load suggestions</span>
+          <span className="block">{reasonOf(choicesQuery.error)}</span>
           <Button
             onClick={() => {
               void retryChoices();
