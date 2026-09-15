@@ -394,27 +394,25 @@ export function PaletteSearch({
       {!(choosingFilter || pending) &&
       (visible.length === 0 || failed) &&
       !offerCreate ? (
-        <output className="block">
-          <Empty className="p-6">
-            <EmptyHeader>
-              <EmptyTitle>{status.title}</EmptyTitle>
-              <EmptyDescription>{status.description}</EmptyDescription>
-            </EmptyHeader>
-            {failed && !search.incomplete ? (
-              <EmptyContent onKeyDown={stopCommandKeys}>
-                <Button
-                  onClick={() => {
-                    void retry();
-                  }}
-                  size="sm"
-                  variant="outline"
-                >
-                  retry
-                </Button>
-              </EmptyContent>
-            ) : null}
-          </Empty>
-        </output>
+        <Empty aria-live="polite" className="p-6">
+          <EmptyHeader>
+            <EmptyTitle>{status.title}</EmptyTitle>
+            <EmptyDescription>{status.description}</EmptyDescription>
+          </EmptyHeader>
+          {failed && !search.incomplete ? (
+            <EmptyContent onKeyDown={stopCommandKeys}>
+              <Button
+                onClick={() => {
+                  void retry();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                retry
+              </Button>
+            </EmptyContent>
+          ) : null}
+        </Empty>
       ) : null}
       {!choosingFilter && (visible.length > 0 || offerCreate) ? (
         <CommandGroup heading="notes" key={resultQuery}>
