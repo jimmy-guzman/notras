@@ -111,7 +111,12 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
 
   // The store outlives this component, and a list left open over a note that
   // closed would greet the next one.
-  useEffect(() => () => setMentionsOpen(false), []);
+  useEffect(
+    () => () => {
+      setMentionsOpen(false);
+    },
+    []
+  );
 
   if (count === 0) {
     return null;

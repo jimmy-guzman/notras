@@ -13,7 +13,7 @@ export function useAutosave(persistence: NotePersistence) {
     const release = persistence.retain();
     const flush = async () => await persistence.flush();
     const blur = () => {
-      flush();
+      void flush();
     };
     window.addEventListener("blur", blur);
     const unregister = registerPendingFlush(flush);
@@ -26,7 +26,7 @@ export function useAutosave(persistence: NotePersistence) {
           unregister();
         }
       };
-      finish();
+      void finish();
     };
   }, [persistence]);
   return {

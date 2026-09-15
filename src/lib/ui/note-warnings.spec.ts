@@ -8,7 +8,7 @@ import { reportNoteWarnings } from "@/lib/ui/note-warnings";
 describe("note warnings", () => {
   it("should show committed-write warnings without a workspace or index query", async () => {
     render(createElement(Toaster));
-    await act(() => {
+    act(() => {
       reportNoteWarnings([
         {
           kind: "index",

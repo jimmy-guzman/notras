@@ -116,7 +116,13 @@ export function MoveView({
           <>
             <p>could not load folders</p>
             <p>{reasonOf(notes.error)}</p>
-            <Button onClick={retry} size="sm" variant="ghost">
+            <Button
+              onClick={() => {
+                void retry();
+              }}
+              size="sm"
+              variant="ghost"
+            >
               retry
             </Button>
           </>
@@ -253,7 +259,13 @@ export function TagsView({
         <output className="block p-4 text-sm">
           <p>could not load tag suggestions</p>
           <p>{reasonOf(vocabulary.error)}</p>
-          <Button onClick={retry} size="sm" variant="ghost">
+          <Button
+            onClick={() => {
+              void retry();
+            }}
+            size="sm"
+            variant="ghost"
+          >
             retry
           </Button>
         </output>
@@ -269,11 +281,18 @@ export function TagsView({
             }
             key={name}
             name={name}
-            onToggle={toggle}
+            onToggle={(tag) => {
+              void toggle(tag);
+            }}
           />
         ))}
         {draftTag === "" || choices.includes(draftTag) ? null : (
-          <CommandItem onSelect={add} value="tag-new">
+          <CommandItem
+            onSelect={() => {
+              void add();
+            }}
+            value="tag-new"
+          >
             <TagPlusIcon />
             add &quot;{draftTag}&quot;
           </CommandItem>

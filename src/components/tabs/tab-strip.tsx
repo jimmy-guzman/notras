@@ -165,7 +165,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   }, [id]);
 
   const copyPath = useCallback(() => {
-    copyTabPath(tabFullPath(tab, notesDir));
+    void copyTabPath(tabFullPath(tab, notesDir));
   }, [notesDir, tab]);
 
   return (
@@ -360,12 +360,10 @@ function TabList({ activeId, tabs }: TabListProps) {
 
   useEffect(() => {
     const list = listRef.current;
-
-    if (list === null) {
-      return;
-    }
-
     const measure = () => {
+      if (list === null) {
+        return;
+      }
       const open = new Set(ids);
 
       const next: string[] = [];
@@ -392,16 +390,17 @@ function TabList({ activeId, tabs }: TabListProps) {
       );
     };
 
-    measure();
-
     const observer = new ResizeObserver(measure);
 
-    observer.observe(list);
-    list.addEventListener("scroll", measure);
+    if (list !== null) {
+      measure();
+      observer.observe(list);
+      list.addEventListener("scroll", measure);
+    }
 
     return () => {
       observer.disconnect();
-      list.removeEventListener("scroll", measure);
+      list?.removeEventListener("scroll", measure);
     };
   }, [ids]);
 

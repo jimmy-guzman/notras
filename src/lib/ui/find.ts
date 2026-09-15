@@ -80,7 +80,7 @@ export function createFindController() {
       }));
     },
     navigate: (direction: -1 | 1) => {
-      if (!target?.alive() || store.state.query === "") {
+      if (target?.alive() !== true || store.state.query === "") {
         return;
       }
       if (!store.state.open) {

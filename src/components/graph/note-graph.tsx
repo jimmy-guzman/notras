@@ -251,11 +251,6 @@ function useStageSize(ref: RefObject<HTMLDivElement | null>) {
 
   useLayoutEffect(() => {
     const stage = ref.current;
-
-    if (stage === null) {
-      return;
-    }
-
     const observer = new ResizeObserver(([entry]) => {
       if (entry !== undefined) {
         setSize({
@@ -265,7 +260,9 @@ function useStageSize(ref: RefObject<HTMLDivElement | null>) {
       }
     });
 
-    observer.observe(stage);
+    if (stage !== null) {
+      observer.observe(stage);
+    }
 
     return () => {
       observer.disconnect();
@@ -398,9 +395,15 @@ function Pill({
         PILL_CLASS,
         centre ? "text-foreground h-7 px-3 text-sm" : "text-muted-foreground"
       )}
-      onBlur={() => onLive(null)}
-      onClick={(event) => go(event.metaKey)}
-      onFocus={() => onLive(key)}
+      onBlur={() => {
+        onLive(null);
+      }}
+      onClick={(event) => {
+        go(event.metaKey);
+      }}
+      onFocus={() => {
+        onLive(key);
+      }}
       onKeyDown={(event) => {
         // A native button turns ⏎ into a click, but that click carries no modifier.
         if (event.key === "Enter" && event.metaKey) {
@@ -410,8 +413,12 @@ function Pill({
           ringKeyDown(event, key, keys);
         }
       }}
-      onMouseEnter={() => onLive(key)}
-      onMouseLeave={() => onLive(null)}
+      onMouseEnter={() => {
+        onLive(key);
+      }}
+      onMouseLeave={() => {
+        onLive(null);
+      }}
       render={
         <button
           aria-label={
@@ -456,7 +463,11 @@ function Placeholder({
 
 function NoteRow({ note }: { note: NoteMeta }) {
   return (
-    <DropdownMenuItem onClick={(event) => openNote(note.path, event.metaKey)}>
+    <DropdownMenuItem
+      onClick={(event) => {
+        openNote(note.path, event.metaKey);
+      }}
+    >
       <FileTextIcon />
       <span className="truncate">
         {note.title}
@@ -473,7 +484,11 @@ function NoteRow({ note }: { note: NoteMeta }) {
 
 function HubRow({ onHub, pill }: { onHub: (hub: Hub) => void; pill: HubPill }) {
   return (
-    <DropdownMenuItem onClick={() => onHub(pill.hub)}>
+    <DropdownMenuItem
+      onClick={() => {
+        onHub(pill.hub);
+      }}
+    >
       {pill.hub.kind === "folder" ? <FolderIcon /> : <HashIcon />}
       <span className="truncate">
         {pill.hub.kind === "folder" ? pill.hub.folder : pill.hub.tag}
@@ -509,7 +524,9 @@ function OverflowPill({
     <Badge
       className={cn(PILL_CLASS, "text-muted-foreground tabular-nums")}
       onClick={item.more.kind === "mentions" ? onShowMentions : undefined}
-      onKeyDown={(event) => ringKeyDown(event, item.id, keys)}
+      onKeyDown={(event) => {
+        ringKeyDown(event, item.id, keys);
+      }}
       render={
         <button aria-label={`+${item.count}`} ref={attach} type="button" />
       }
@@ -654,43 +671,39 @@ export function NoteGraph({
         )
       )}
       {items.map((item) => {
-        switch (item.kind) {
-          case "placeholder": {
-            return (
-              <Placeholder
-                key={keyOf(item)}
-                position={item.position}
-                target={item.target}
-              />
-            );
-          }
-          case "overflow": {
-            return (
-              <OverflowPill
-                item={item}
-                key={item.id}
-                keys={keys}
-                onHub={onHub}
-                onShowMentions={onShowMentions}
-                pillRef={pillRef}
-              />
-            );
-          }
-          default: {
-            return (
-              <Pill
-                centre={keyOf(item) === centreKey}
-                item={item}
-                key={keyOf(item)}
-                keys={keys}
-                onHop={onHop}
-                onHub={onHub}
-                onLive={setLive}
-                pillRef={pillRef}
-              />
-            );
-          }
+        if (item.kind === "placeholder") {
+          return (
+            <Placeholder
+              key={keyOf(item)}
+              position={item.position}
+              target={item.target}
+            />
+          );
         }
+        if (item.kind === "overflow") {
+          return (
+            <OverflowPill
+              item={item}
+              key={item.id}
+              keys={keys}
+              onHub={onHub}
+              onShowMentions={onShowMentions}
+              pillRef={pillRef}
+            />
+          );
+        }
+        return (
+          <Pill
+            centre={keyOf(item) === centreKey}
+            item={item}
+            key={keyOf(item)}
+            keys={keys}
+            onHop={onHop}
+            onHub={onHub}
+            onLive={setLive}
+            pillRef={pillRef}
+          />
+        );
       })}
       {lone ? (
         <p className="text-faint absolute top-[calc(50%+2rem)] left-1/2 -translate-x-1/2 text-xs whitespace-nowrap">
@@ -755,7 +768,9 @@ export function TabGraph({ tab }: TabGraphProps) {
           setHubState(null);
           hopTo(path, beside);
         }}
-        onHub={(next) => setHubState({ forPath: tab.path, hub: next })}
+        onHub={(next) => {
+          setHubState({ forPath: tab.path, hub: next });
+        }}
         onLeave={() => {
           if (hub === null) {
             hideGraph(tab.id);
@@ -763,7 +778,9 @@ export function TabGraph({ tab }: TabGraphProps) {
             setHubState(null);
           }
         }}
-        onShowMentions={() => setMentionsOpen(true)}
+        onShowMentions={() => {
+          setMentionsOpen(true);
+        }}
         picture={shown}
       />
     </div>

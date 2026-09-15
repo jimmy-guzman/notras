@@ -40,13 +40,15 @@ export const noteQueries = {
   all,
   conflict: (kind: Tab["kind"], path: string) =>
     queryOptions({
-      queryFn: () => readConflictStash(kind, path),
+      queryFn: async () => await readConflictStash(kind, path),
       queryKey: [...all, "conflict", kind, path] as const,
     }),
   file: (kind: Tab["kind"], path: string) =>
     queryOptions({
-      queryFn: () =>
-        kind === "external" ? readExternalNote(path) : getNote(path),
+      queryFn: async () =>
+        kind === "external"
+          ? await readExternalNote(path)
+          : await getNote(path),
       queryKey: fileKey(kind, path),
       // No payload names a path outside the notes dir, so focus is the signal.
       // "always" and not `true`: staleTime is infinite, so a stale check the
@@ -57,26 +59,26 @@ export const noteQueries = {
   graph: (target: GraphTarget) =>
     queryOptions({
       meta: { what: "could not refresh the graph" },
-      queryFn: () => getGraph(target),
+      queryFn: async () => await getGraph(target),
       queryKey: [...index, "graph", target] as const,
     }),
   index,
   list: (filters?: NoteFilters) =>
     queryOptions({
       meta: { what: "could not refresh the note list" },
-      queryFn: () => getNotes(filters),
+      queryFn: async () => await getNotes(filters),
       queryKey: [...index, "list", filters ?? null] as const,
     }),
   mentions: (path: string) =>
     queryOptions({
       meta: { what: "could not refresh the mentions" },
-      queryFn: () => getMentions(path),
+      queryFn: async () => await getMentions(path),
       queryKey: [...index, "mentions", path] as const,
     }),
   search: (search: NoteSearch) =>
     queryOptions({
       meta: { what: "could not search notes" },
-      queryFn: () => searchNotes(search),
+      queryFn: async () => await searchNotes(search),
       queryKey: [...index, "search", search] as const,
     }),
   tags: () =>

@@ -140,9 +140,10 @@ export function createNoteDocument(
   };
   const edit = (next: string, details: DocumentEdit) => {
     const patch = changedText(content(), next);
-    const tr = details.separate
-      ? closeHistory(editor.state.tr)
-      : editor.state.tr;
+    const tr =
+      details.separate === true
+        ? closeHistory(editor.state.tr)
+        : editor.state.tr;
     if (patch.from !== patch.to || patch.text !== "") {
       tr.insertText(patch.text, patch.from, patch.to);
     }
@@ -167,7 +168,7 @@ export function createNoteDocument(
       );
     }
     dispatch(tr);
-    if (details.separate) {
+    if (details.separate === true) {
       dispatch(closeHistory(editor.state.tr));
     }
   };
@@ -178,7 +179,9 @@ export function createNoteDocument(
     canRedo: () => redo(editor.state),
     canUndo: () => undo(editor.state),
     content,
-    destroy: () => editor.destroy(),
+    destroy: () => {
+      editor.destroy();
+    },
     edit,
     editor,
     nameId,
@@ -190,11 +193,12 @@ export function createNoteDocument(
       return value;
     },
     redo: () => redo(editor.state, dispatch),
-    rename: (title: string) =>
+    rename: (title: string) => {
       edit(renameDocument(content(), title), {
         separate: true,
         titleEdited: true,
-      }),
+      });
+    },
     replace: (next: string) => {
       const patch = changedText(content(), next);
       dispatch(
@@ -212,7 +216,7 @@ export function createNoteDocument(
       );
       editor.view.updateState(editor.state.reconfigure({ plugins }));
     },
-    select: (anchor: number, head: number) =>
+    select: (anchor: number, head: number) => {
       dispatch(
         editor.state.tr.setSelection(
           TextSelection.create(
@@ -221,7 +225,8 @@ export function createNoteDocument(
             Math.max(0, Math.min(head, content().length)) + 1
           )
         )
-      ),
+      );
+    },
     selection: () => ({
       anchor: editor.state.selection.anchor - 1,
       head: editor.state.selection.head - 1,

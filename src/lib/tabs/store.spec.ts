@@ -28,7 +28,9 @@ describe("store", () => {
   }) => {
     openNote("late-snapshot.md");
     const id = getTabState().activeId;
-    onTestFinished(() => closeTab(id));
+    onTestFinished(() => {
+      closeTab(id);
+    });
     const { result } = renderHook(() => useTabSnapshot(id));
     expect(result.current).toBeUndefined();
     const snapshot = createStore<TabSnapshot>({
@@ -49,7 +51,9 @@ describe("store", () => {
       );
     });
     expect(result.current?.title).toBe("Loaded");
-    act(() => snapshot.setState((state) => ({ ...state, title: "Edited" })));
+    act(() => {
+      snapshot.setState((state) => ({ ...state, title: "Edited" }));
+    });
     expect(result.current?.title).toBe("Edited");
   });
 
@@ -148,9 +152,7 @@ describe("store", () => {
       );
       restoreTabs();
 
-      await adoptVaultNotes(() =>
-        Promise.resolve([{ kind: "note", path: "a.md" }])
-      );
+      await adoptVaultNotes(async () => [{ kind: "note", path: "a.md" }]);
 
       expect(getTabState().tabs).toStrictEqual([
         { id: "kept-x", kind: "note", path: "a.md" },
@@ -171,8 +173,8 @@ describe("store", () => {
       );
       restoreTabs();
 
-      await adoptVaultNotes((paths) =>
-        Promise.resolve(paths.map((path) => ({ kind: "external", path })))
+      await adoptVaultNotes(async (paths) =>
+        paths.map((path) => ({ kind: "external", path }))
       );
 
       expect(getTabState().tabs).toStrictEqual([
@@ -192,7 +194,9 @@ describe("store", () => {
       restoreTabs();
 
       await expect(
-        adoptVaultNotes(() => Promise.reject(new Error("no answer")))
+        adoptVaultNotes(() => {
+          throw new Error("no answer");
+        })
       ).rejects.toThrow("no answer");
       expect(getTabState().tabs).toStrictEqual([
         { id: "kept-x", kind: "external", path: "/vault/a.md" },
@@ -210,7 +214,9 @@ describe("store", () => {
       );
       restoreTabs();
 
-      await adoptVaultNotes(() => Promise.reject(new Error("asked")));
+      await adoptVaultNotes(() => {
+        throw new Error("asked");
+      });
 
       expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-a"]);
     });

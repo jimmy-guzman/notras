@@ -36,7 +36,7 @@ export function syntaxLanguage(
   const label = language.toLowerCase();
 
   return bundledLanguagesInfo.find(
-    ({ aliases, id }) => id === label || aliases?.includes(label)
+    ({ aliases, id }) => id === label || aliases?.includes(label) === true
   )?.id;
 }
 

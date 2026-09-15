@@ -4,7 +4,9 @@ import type { SaveName } from "@/server/adapters/bindings";
 
 /** Read an external Markdown file without adding it to the library index. */
 export async function readExternalNote(path: string) {
-  const file = await nativeCommand(() => commands.readExternal(path));
+  const file = await nativeCommand(
+    async () => await commands.readExternal(path)
+  );
   return {
     content: file.content,
     revision: file.revision,
@@ -19,8 +21,8 @@ export async function writeExternalNote(
   name: SaveName | null,
   expected: string
 ) {
-  const outcome = await nativeCommand(() =>
-    commands.writeExternal(path, content, name, expected)
+  const outcome = await nativeCommand(
+    async () => await commands.writeExternal(path, content, name, expected)
   );
   return outcome.kind === "committed"
     ? {

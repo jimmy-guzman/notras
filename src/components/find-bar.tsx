@@ -30,12 +30,17 @@ export function FindBar({ controller }: FindBarProps) {
   const state = useSelector(controller.store);
   const input = useRef<HTMLInputElement>(null);
   const change = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) =>
-      controller.setQuery(event.target.value),
+    (event: ChangeEvent<HTMLInputElement>) => {
+      controller.setQuery(event.target.value);
+    },
     [controller]
   );
-  const previous = useCallback(() => controller.navigate(-1), [controller]);
-  const next = useCallback(() => controller.navigate(1), [controller]);
+  const previous = useCallback(() => {
+    controller.navigate(-1);
+  }, [controller]);
+  const next = useCallback(() => {
+    controller.navigate(1);
+  }, [controller]);
   useEffect(() => {
     if (state.open && state.available && state.focusRequest > 0) {
       input.current?.focus({ preventScroll: true });
@@ -43,9 +48,6 @@ export function FindBar({ controller }: FindBarProps) {
     }
   }, [state.available, state.focusRequest, state.open]);
   useEffect(() => {
-    if (!state.available) {
-      return;
-    }
     const keydown = (event: KeyboardEvent) => {
       if (event.isComposing) {
         return;
@@ -71,8 +73,12 @@ export function FindBar({ controller }: FindBarProps) {
         controller.navigate(event.shiftKey ? -1 : 1);
       }
     };
-    document.addEventListener("keydown", keydown, true);
-    return () => document.removeEventListener("keydown", keydown, true);
+    if (state.available) {
+      document.addEventListener("keydown", keydown, true);
+    }
+    return () => {
+      document.removeEventListener("keydown", keydown, true);
+    };
   }, [controller, state.available, state.open]);
   if (!(state.open && state.available)) {
     return null;
@@ -112,7 +118,9 @@ export function FindBar({ controller }: FindBarProps) {
           </InputGroupButton>
           <InputGroupButton
             aria-label="close find"
-            onClick={() => controller.close()}
+            onClick={() => {
+              controller.close();
+            }}
             size="icon-xs"
           >
             <XIcon />

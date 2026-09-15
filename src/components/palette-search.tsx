@@ -7,6 +7,7 @@ import {
   HashIcon,
   PinIcon,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useCallback, useLayoutEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -121,66 +122,56 @@ interface PickerChoice {
   value: string;
 }
 
+const NOTES_TO_FILTER = { Icon: FileTextIcon, heading: "notes to filter by" };
+
+const PRESENTATION: Record<
+  SearchFilter["kind"],
+  { Icon: LucideIcon; heading: string }
+> = {
+  folder: { Icon: FolderIcon, heading: "folders" },
+  from: NOTES_TO_FILTER,
+  link: NOTES_TO_FILTER,
+  mention: NOTES_TO_FILTER,
+  tag: { Icon: HashIcon, heading: "tags" },
+  to: NOTES_TO_FILTER,
+};
 function pickerChoices(
-  filter: SearchFilter | undefined,
+  filter: SearchFilter,
   notes: NoteMeta[],
   tags: { count: number; tag: string }[]
 ) {
-  if (filter === undefined) {
-    return;
-  }
   const choices: PickerChoice[] = (() => {
-    switch (filter.kind) {
-      case "folder": {
-        return searchFolders(notes).map(({ count, folder }) => ({
-          count,
-          label: folderLabel(folder),
-          value: folder,
-        }));
-      }
-      case "tag": {
-        return tags.map(({ count, tag }) => ({
-          count,
-          label: tag,
-          value: tag,
-        }));
-      }
-      case "to":
-      case "from": {
-        return notes.map(({ path, title }) => ({
-          detail: path,
-          label: title,
-          value: path,
-        }));
-      }
-      default: {
-        return [];
-      }
+    if (filter.kind === "folder") {
+      return searchFolders(notes).map(({ count, folder }) => ({
+        count,
+        label: folderLabel(folder),
+        value: folder,
+      }));
     }
-  })();
-  if (choices.some(({ value }) => value === filter.value)) {
-    return;
-  }
-  const presentation = (() => {
-    switch (filter.kind) {
-      case "folder": {
-        return { Icon: FolderIcon, heading: "folders" };
-      }
-      case "tag": {
-        return { Icon: HashIcon, heading: "tags" };
-      }
-      default: {
-        return { Icon: FileTextIcon, heading: "notes to filter by" };
-      }
+    if (filter.kind === "tag") {
+      return tags.map(({ count, tag }) => ({
+        count,
+        label: tag,
+        value: tag,
+      }));
     }
+    if (filter.kind === "to" || filter.kind === "from") {
+      return notes.map(({ path, title }) => ({
+        detail: path,
+        label: title,
+        value: path,
+      }));
+    }
+    return [];
   })();
+  const taken = choices.some(({ value }) => value === filter.value);
+  const presentation = PRESENTATION[filter.kind];
   const offered = choices.filter(({ label, value }) =>
     `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
   );
-  if (offered.length === 0) {
-    return;
-  }
-  return { ...presentation, choices: offered };
+  return taken || offered.length === 0
+    ? undefined
+    : { ...presentation, choices: offered };
 }
 
 function filterHelp(kind: SearchFilter["kind"] | undefined) {
@@ -272,11 +263,10 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
     needsChoices && choicesQuery.data === undefined && choicesQuery.isPending;
   const choicesFailed =
     needsChoices && choicesQuery.data === undefined && choicesQuery.isError;
-  const picker = pickerChoices(
-    candidate,
-    suggestions.data ?? NO_NOTES,
-    tags.data ?? []
-  );
+  const picker =
+    candidate === undefined
+      ? undefined
+      : pickerChoices(candidate, suggestions.data ?? NO_NOTES, tags.data ?? []);
   const retryChoices = useCallback(async () => {
     await choicesQuery.refetch();
   }, [choicesQuery]);
@@ -325,10 +315,11 @@ export function PaletteSearch({
   }, [onResultQueryChange, resultQuery]);
   useLayoutEffect(() => {
     onLoadingChange?.(false);
-    if (readingQuery === undefined) {
-      return;
-    }
-    const timer = setTimeout(() => onLoadingChange?.(true), 500);
+    const timer = setTimeout(() => {
+      if (readingQuery !== undefined) {
+        onLoadingChange?.(true);
+      }
+    }, 500);
     return () => {
       clearTimeout(timer);
       onLoadingChange?.(false);
@@ -384,7 +375,13 @@ export function PaletteSearch({
         <output className="block p-4 text-sm">
           <p>could not load suggestions</p>
           <p>{reasonOf(choicesQuery.error)}</p>
-          <Button onClick={retryChoices} size="sm" variant="ghost">
+          <Button
+            onClick={() => {
+              void retryChoices();
+            }}
+            size="sm"
+            variant="ghost"
+          >
             retry
           </Button>
         </output>
@@ -405,7 +402,13 @@ export function PaletteSearch({
             </EmptyHeader>
             {failed && !search.incomplete ? (
               <EmptyContent onKeyDown={stopCommandKeys}>
-                <Button onClick={retry} size="sm" variant="outline">
+                <Button
+                  onClick={() => {
+                    void retry();
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
                   retry
                 </Button>
               </EmptyContent>

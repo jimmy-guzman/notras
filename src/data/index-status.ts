@@ -6,7 +6,7 @@ import { commands } from "@/server/adapters/bindings";
 import type { IndexStatus } from "@/server/adapters/bindings";
 
 export async function getIndexStatus(): Promise<IndexStatus> {
-  return await nativeCommand(commands.indexStatus);
+  return await nativeCommand(async () => await commands.indexStatus());
 }
 
 export const indexStatusQuery = queryOptions({

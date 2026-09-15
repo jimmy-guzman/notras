@@ -8,15 +8,16 @@ interface CreateNoteOptions {
 }
 
 export async function createNote(options?: CreateNoteOptions): Promise<string> {
-  const receipt = await nativeCommand(() =>
-    commands.createNote({
-      content: options?.content ?? null,
-      folder: options?.folder ?? null,
-      name:
-        options?.title === undefined
-          ? null
-          : { kind: "title", value: options.title },
-    })
+  const receipt = await nativeCommand(
+    async () =>
+      await commands.createNote({
+        content: options?.content ?? null,
+        folder: options?.folder ?? null,
+        name:
+          options?.title === undefined
+            ? null
+            : { kind: "title", value: options.title },
+      })
   );
   return receipt.path;
 }

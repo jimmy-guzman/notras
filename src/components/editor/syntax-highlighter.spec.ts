@@ -1,9 +1,13 @@
+import type { ThemedToken } from "shiki";
 import { describe, expect, it } from "vitest";
 
 import {
   loadSyntaxHighlighter,
   syntaxLanguage,
 } from "@/components/editor/syntax-highlighter";
+
+/** Shiki's enum for a token with no font style; the enum itself is not re-exported. */
+const PLAIN: ThemedToken["fontStyle"] = 0;
 
 describe("syntax highlighting", () => {
   it("should distinguish declarations, imports, flow, types, and functions", async () => {
@@ -34,7 +38,7 @@ describe("syntax highlighting", () => {
     }
     expect(
       tokens.every(
-        ({ fontStyle }) => fontStyle === 0 || fontStyle === undefined
+        ({ fontStyle }) => fontStyle === PLAIN || fontStyle === undefined
       )
     ).toBeTruthy();
   });
@@ -72,7 +76,7 @@ describe("syntax highlighting", () => {
       expect(tokens.map(({ content }) => content).join("")).not.toBe("");
       expect(
         tokens.every(
-          ({ fontStyle }) => fontStyle === 0 || fontStyle === undefined
+          ({ fontStyle }) => fontStyle === PLAIN || fontStyle === undefined
         )
       ).toBeTruthy();
     }

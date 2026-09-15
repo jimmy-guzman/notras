@@ -122,6 +122,6 @@ describe("destination indexing parity", () => {
     ],
     ["[[https://github.com]] https://example.com", ["https://example.com"]],
   ])("should index the destinations rendered in %s", (markdown, expected) => {
-    expect(destinations(String(markdown))).toStrictEqual(expected);
+    expect(destinations(markdown)).toStrictEqual(expected);
   });
 });

@@ -29,13 +29,15 @@ describe("use note tags", () => {
         updatedAt: new Date(0),
       },
       {
-        changePath: () => Promise.reject(new Error("no move requested")),
-        clearStash: () => Promise.resolve(),
+        changePath: () => {
+          throw new Error("no move requested");
+        },
+        clearStash: async () => {},
         onPathChanged: () => {},
-        stash: () => Promise.resolve(),
-        write: (_path, content) => {
+        stash: async () => {},
+        write: async (_path, content) => {
           writes.push(content);
-          return held.promise;
+          return await held.promise;
         },
       }
     );
@@ -51,7 +53,9 @@ describe("use note tags", () => {
       const state = useSelector(note.store);
       return useNoteTags(state.path, parseNote(state.content).frontmatter.tags);
     });
-    onTestFinished(() => closeTab(id));
+    onTestFinished(() => {
+      closeTab(id);
+    });
     const changing: Promise<void>[] = [];
     act(() => {
       const { changeTags } = result.current;
@@ -101,11 +105,13 @@ describe("use note tags", () => {
         updatedAt: new Date(0),
       },
       {
-        changePath: () => Promise.reject(new Error("no move requested")),
-        clearStash: () => Promise.resolve(),
+        changePath: () => {
+          throw new Error("no move requested");
+        },
+        clearStash: async () => {},
         onPathChanged: () => {},
-        stash: () => Promise.resolve(),
-        write: () => held.promise,
+        stash: async () => {},
+        write: async () => await held.promise,
       }
     );
     openNote("errands.md");
@@ -120,7 +126,9 @@ describe("use note tags", () => {
       const state = useSelector(note.store);
       return useNoteTags(state.path, parseNote(state.content).frontmatter.tags);
     });
-    onTestFinished(() => closeTab(id));
+    onTestFinished(() => {
+      closeTab(id);
+    });
     let changing: Promise<void> | undefined;
     act(() => {
       changing = result.current.changeTags((current) => [...current, "added"]);

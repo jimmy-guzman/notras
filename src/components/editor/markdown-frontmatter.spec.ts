@@ -21,12 +21,13 @@ describe("markdown with frontmatter", () => {
           content: "pinned",
         })
       );
-      expect(tokens[3]).toContainEqual(
-        expect.objectContaining({
-          color: "var(--syntax-keyword)",
-          content: expect.stringContaining("a title"),
-        })
-      );
+      expect(
+        tokens[3]?.some(
+          (token) =>
+            token.color === "var(--syntax-keyword)" &&
+            token.content.includes("a title")
+        )
+      ).toBeTruthy();
     }
   );
 

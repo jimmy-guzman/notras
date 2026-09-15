@@ -13,7 +13,9 @@ async function restoreSession() {
   const restored = restoreTabs();
 
   if (restored) {
-    await adoptVaultNotes(commands.classifyOpenPaths);
+    await adoptVaultNotes(
+      async (paths) => await commands.classifyOpenPaths(paths)
+    );
   }
 
   return restored ? null : getTabState();

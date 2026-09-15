@@ -32,6 +32,15 @@ export interface FindHandle {
 }
 
 const findKey = new PluginKey<FindState>("noteFind");
+
+function isFindState(value: unknown): value is FindState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "matches" in value &&
+    "query" in value
+  );
+}
 const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
 
@@ -272,8 +281,8 @@ export const Find = Extension.create({
         },
         state: {
           apply: (transaction, previous) => {
-            const meta: FindState | undefined = transaction.getMeta(findKey);
-            if (meta !== undefined) {
+            const meta: unknown = transaction.getMeta(findKey);
+            if (isFindState(meta)) {
               return meta;
             }
             if (!transaction.docChanged) {

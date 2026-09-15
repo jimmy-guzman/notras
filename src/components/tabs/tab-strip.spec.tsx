@@ -55,9 +55,9 @@ describe("tab strip", () => {
         await user.click(
           screen.getByRole("button", { name: "1 tabs out of view" })
         );
-        await expect(
-          screen.findByRole("menuitem", { name: "draft" })
-        ).resolves.toBeVisible();
+        expect(
+          await screen.findByRole("menuitem", { name: "draft" })
+        ).toBeVisible();
 
         const snapshot = createStore<TabSnapshot>({
           pinned: false,

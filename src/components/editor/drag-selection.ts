@@ -41,6 +41,15 @@ interface DragState {
 
 const NOTHING: DragState = { dropAt: null, held: null };
 
+function isDragState(value: unknown): value is DragState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "dropAt" in value &&
+    "held" in value
+  );
+}
+
 function dropCursor() {
   const mark = document.createElement("span");
 
@@ -567,9 +576,10 @@ export const DragSelection = Extension.create({
           },
         },
         state: {
-          // SAFETY: only this plugin sets its meta, and it always stores a DragState.
-          apply: (tr, value) =>
-            (tr.getMeta(dragSelectionKey) as DragState | undefined) ?? value,
+          apply: (tr, value) => {
+            const meta: unknown = tr.getMeta(dragSelectionKey);
+            return isDragState(meta) ? meta : value;
+          },
           init: () => NOTHING,
         },
         view: (view) => new DragSelectionView(view),

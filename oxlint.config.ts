@@ -33,6 +33,8 @@ export default defineConfig({
         "react-doctor/only-export-components": "off",
         "react/jsx-no-constructed-context-values": "off",
         "react/no-object-type-as-default-prop": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/prefer-nullish-coalescing": "off",
       },
     },
     {
@@ -40,11 +42,15 @@ export default defineConfig({
       // The preset's own vitest override wins unless this one enables the plugin.
       plugins: ["vitest"],
       rules: {
+        // A mock of a promise-returning port has nothing to await; promise-function-async keeps it async.
+        "require-await": "off",
         "vitest/consistent-test-filename": [
           "error",
           { pattern: "\\.spec\\.[tj]sx?$" },
         ],
         "vitest/max-expects": "off",
+        // tsgolint types a jest-dom matcher under `.resolves` as void, so `expect(await x)` is the form both checkers accept.
+        "vitest/prefer-expect-resolves": "off",
       },
     },
   ],

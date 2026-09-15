@@ -28,6 +28,21 @@ import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands, events } from "@/server/adapters/bindings";
 
 /** `listen` resolves to its own unsubscribe, which every effect here drops. */
+/** The menu item and the hotkey both land here; a failure reports and opens nothing. */
+async function createNewNote() {
+  try {
+    const path = await createNote();
+
+    openNote(path, true);
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not create note",
+      type: "error",
+    });
+  }
+}
+
 function disposeLater(...pending: Promise<() => void>[]) {
   return () => {
     for (const unlisten of pending) {
@@ -43,7 +58,7 @@ function disposeLater(...pending: Promise<() => void>[]) {
         }
       };
 
-      dispose();
+      void dispose();
     }
   };
 }
@@ -120,7 +135,7 @@ function MainWindow() {
       }
     };
 
-    checkOnLaunch();
+    void checkOnLaunch();
   }, []);
 
   // External writers (AI agents, other editors, the watcher) drive refreshes.
@@ -131,22 +146,22 @@ function MainWindow() {
       const { paths } = event.payload;
 
       if (paths.length === 0) {
-        queryClient.invalidateQueries({ queryKey: noteQueries.all });
+        void queryClient.invalidateQueries({ queryKey: noteQueries.all });
 
         return;
       }
 
-      queryClient.invalidateQueries({ queryKey: noteQueries.index });
+      void queryClient.invalidateQueries({ queryKey: noteQueries.index });
 
       for (const path of paths) {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: noteQueries.fileKey("note", path),
         });
       }
     });
 
-    const unlistenStatus = events.indexStatus.listen(async (event) => {
-      await applyIndexStatus(queryClient, event.payload);
+    const unlistenStatus = events.indexStatus.listen((event) => {
+      void applyIndexStatus(queryClient, event.payload);
     });
 
     return disposeLater(unlisten, unlistenStatus);
@@ -173,24 +188,14 @@ function MainWindow() {
       }
     };
 
-    const unlistenNew = listen("menu-new-note", async () => {
-      try {
-        const path = await createNote();
-
-        openNote(path, true);
-      } catch (error) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not create note",
-          type: "error",
-        });
-      }
+    const unlistenNew = listen("menu-new-note", () => {
+      void createNewNote();
     });
     const unlistenOpen = listen("open-file", () => {
-      drainPendingOpens();
+      void drainPendingOpens();
     });
 
-    drainPendingOpens();
+    void drainPendingOpens();
 
     return disposeLater(unlistenNew, unlistenOpen);
   }, []);
@@ -198,7 +203,7 @@ function MainWindow() {
   // Quit is held open by Rust until the buffers are on disk -- and called off
   // entirely if one of them could not be written.
   useEffect(() => {
-    const unlisten = listen("app-quit", async () => {
+    const persistBeforeQuit = async () => {
       // Carets are read off the live sessions, so the set has to be written
       // here rather than only when it last changed. One that could not be
       // written is no reason to hold the quit.
@@ -242,6 +247,10 @@ function MainWindow() {
           type: "error",
         });
       }
+    };
+
+    const unlisten = listen("app-quit", () => {
+      void persistBeforeQuit();
     });
 
     return disposeLater(unlisten);
@@ -256,18 +265,8 @@ function MainWindow() {
   });
   useHotkey(
     "Mod+N",
-    async () => {
-      try {
-        const path = await createNote();
-
-        openNote(path, true);
-      } catch (error) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not create note",
-          type: "error",
-        });
-      }
+    () => {
+      void createNewNote();
     },
     { meta: { name: "new note" } }
   );

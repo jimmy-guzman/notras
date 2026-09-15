@@ -127,13 +127,9 @@ export const Wikilink = Node.create<WikilinkOptions>({
     tokenize: (src: string) => {
       const match = WIKILINK_TOKEN.exec(src);
 
-      if (match) {
-        return {
-          raw: match[0],
-          title: match.groups?.title,
-          type: "wikilink",
-        };
-      }
+      return match === null
+        ? undefined
+        : { raw: match[0], title: match.groups?.title, type: "wikilink" };
     },
   },
 

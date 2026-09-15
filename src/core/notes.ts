@@ -1,6 +1,6 @@
 import { decodeHTML } from "entities";
 import { Marked } from "marked";
-import type { Token } from "marked";
+import type { Token, Tokens } from "marked";
 
 import { parseNote } from "@/core/frontmatter";
 
@@ -125,6 +125,14 @@ function lineBreaks(text: string) {
   return text.split("\n").length - 1;
 }
 
+function isList(token: Token): token is Tokens.List {
+  return token.type === "list";
+}
+
+function hasText(token: Token): token is Token & { text: string } {
+  return "text" in token && typeof token.text === "string";
+}
+
 function inlineTitle(tokens: Token[]): string {
   return tokens
     .map((token) => {
@@ -137,35 +145,32 @@ function inlineTitle(tokens: Token[]): string {
           return "\n";
         }
         case "codespan": {
-          return token.text;
+          return hasText(token) ? token.text : "";
         }
         default: {
           if ("tokens" in token && token.tokens !== undefined) {
             return inlineTitle(token.tokens);
           }
-          return "text" in token ? decodeHTML(token.text) : "";
+          return hasText(token) ? decodeHTML(token.text) : "";
         }
       }
     })
     .join("");
 }
 
-function tokenTitle(
-  tokens: Token[],
-  firstLine: number
-): { line: number; title: string } | undefined {
+interface TitleAt {
+  line: number;
+  title: string;
+}
+
+function tokenTitle(tokens: Token[], firstLine: number): TitleAt | undefined {
   let line = firstLine;
+  let found: TitleAt | undefined;
   for (const token of tokens) {
-    if (token.type === "list") {
-      const title = tokenTitle(token.items, line);
-      if (title !== undefined) {
-        return title;
-      }
+    if (isList(token)) {
+      found = tokenTitle(token.items, line);
     } else if (token.type === "blockquote" || token.type === "list_item") {
-      const title = tokenTitle(token.tokens ?? [], line);
-      if (title !== undefined) {
-        return title;
-      }
+      found = tokenTitle(token.tokens ?? [], line);
     } else if (
       token.type === "heading" ||
       token.type === "paragraph" ||
@@ -173,15 +178,20 @@ function tokenTitle(
     ) {
       const lines = inlineTitle(token.tokens ?? []).split("\n");
       const first = [...lines.entries()].find(([, text]) => text.trim() !== "");
-      if (first !== undefined) {
-        return {
-          line: line + first[0],
-          title: first[1].trim().replaceAll(TITLE_SPACE, " "),
-        };
-      }
+      found =
+        first === undefined
+          ? undefined
+          : {
+              line: line + first[0],
+              title: first[1].trim().replaceAll(TITLE_SPACE, " "),
+            };
+    }
+    if (found !== undefined) {
+      break;
     }
     line += lineBreaks(token.raw);
   }
+  return found;
 }
 
 /** The first readable source line, excluding code, images, HTML and tables. */
@@ -201,11 +211,10 @@ export function titleSource(content: string) {
       : lineBreaks(prefix) + candidate.line;
   const title = candidate?.title ?? parsed.frontmatter.title;
   const titleLine = lines[line];
-  if (title === undefined || titleLine === undefined) {
-    return;
-  }
   const from = lines.slice(0, line).join("\n").length + (line === 0 ? 0 : 1);
-  return { from, title, to: from + titleLine.length };
+  return title === undefined || titleLine === undefined
+    ? undefined
+    : { from, title, to: from + titleLine.length };
 }
 
 /** Readable body title, imported title, then filename stem, matching Rust. */

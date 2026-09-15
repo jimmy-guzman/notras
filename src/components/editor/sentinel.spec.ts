@@ -1,6 +1,8 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
+import { contentOf } from "@/components/editor/attrs";
+
 import {
   createEditorExtensions,
   fileMarkdown,
@@ -72,7 +74,7 @@ function requireSentinel(editor: Editor) {
 /** Mirror of EditorHandle.getCaretSourceOffset for a headless instance. */
 function caretSourceOffset(editor: Editor, pos: number) {
   const marked = editor.state.tr.insertText(SENTINEL, pos);
-  const md: string = requireManager(editor).serialize(marked.doc.toJSON());
+  const md = requireManager(editor).serialize(contentOf(marked.doc));
 
   return { md: md.replace(SENTINEL, ""), offset: md.indexOf(SENTINEL) };
 }

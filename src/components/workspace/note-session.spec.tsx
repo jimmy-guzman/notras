@@ -12,6 +12,7 @@ import {
   expect,
   it,
   onTestFinished,
+  vi,
 } from "vitest";
 
 import { TabStrip } from "@/components/tabs/tab-strip";
@@ -138,11 +139,14 @@ describe(NoteSession, () => {
   let reads = 0;
   beforeEach(() => {
     reads = 0;
-    mockIPC((command) => {
+    const denied = vi.fn<() => Promise<never>>().mockRejectedValue({
+      kind: "failed",
+      message: "permission denied",
+    });
+    mockIPC(async (command) => {
       if (command === "read_note") {
         reads += 1;
-        // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-        return Promise.reject({ kind: "failed", message: "permission denied" });
+        return await denied();
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -159,9 +163,9 @@ describe(NoteSession, () => {
   it("should edit and retain history while the note list is pending", async () => {
     const listed = Promise.withResolvers<[]>();
     const writes: unknown[] = [];
-    mockIPC((command, args) => {
+    mockIPC(async (command, args) => {
       if (command === "list_notes") {
-        return listed.promise;
+        return await listed.promise;
       }
       if (command === "save_note") {
         writes.push(args);
@@ -186,7 +190,7 @@ describe(NoteSession, () => {
       updatedAt: new Date(1),
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         listed.resolve([]);
       });
       client.clear();
@@ -198,18 +202,18 @@ describe(NoteSession, () => {
     );
 
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
     await act(async () => {
       await flushPendingWrites();
     });
     expect(writes).toHaveLength(1);
-    await act(() => {
+    act(() => {
       listed.resolve([]);
     });
     await expect(editor()).resolves.toBe(liveEditor);
-    await act(() => {
+    act(() => {
       liveEditor.commands.undo();
     });
     expect(liveEditor.getText()).not.toContain("Typed");
@@ -241,7 +245,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession
@@ -252,25 +258,28 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor("t3");
-    await act(() => {
+    act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(opened).toStrictEqual([
         { destination: "../docs/my%20spec.pdf", from: "projects/a.md" },
-      ])
-    );
+      ]);
+    });
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
   it("should report a file link the library refused with its reason", async () => {
-    mockIPC((command) => {
+    const missing = vi.fn<() => Promise<never>>().mockRejectedValue({
+      kind: "not-found",
+      message: "no such file",
+    });
+    mockIPC(async (command) => {
       if (command === "open_linked_file") {
-        // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-        return Promise.reject({ kind: "not-found", message: "no such file" });
+        return await missing();
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -288,7 +297,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession active tab={tab} />
@@ -296,15 +307,13 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    await expect(
-      screen.findByText("could not open file")
-    ).resolves.toBeInTheDocument();
+    expect(await screen.findByText("could not open file")).toBeInTheDocument();
     expect(screen.getByText("no such file")).toBeInTheDocument();
   });
 
@@ -331,7 +340,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession active tab={{ id: "t4", kind: "external", path }} />
@@ -339,17 +350,17 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor("t4");
-    await act(() => {
+    act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(opened).toStrictEqual([
         { destination: "./spec.pdf", document: path },
-      ])
-    );
+      ]);
+    });
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
@@ -376,7 +387,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession active tab={{ id: "t7", kind: "external", path }} />
@@ -384,17 +397,17 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor("t7");
-    await act(() => {
+    act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         getTabState().tabs.map((entry) => [entry.kind, entry.path])
-      ).toContainEqual(["external", "/Users/me/other.md"])
-    );
+      ).toContainEqual(["external", "/Users/me/other.md"]);
+    });
     expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
     expect(resolved).toStrictEqual([
       { destination: "../other.md", document: "/Users/me/docs/note.md" },
@@ -421,7 +434,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession active tab={{ id: "t8", kind: "external", path }} />
@@ -435,14 +450,14 @@ describe(NoteSession, () => {
         type: "image/png",
       })
     );
-    await act(() => {
+    act(() => {
       liveEditor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { bubbles: true, clipboardData })
       );
     });
-    await expect(
-      screen.findByText("could not paste image")
-    ).resolves.toBeInTheDocument();
+    expect(
+      await screen.findByText("could not paste image")
+    ).toBeInTheDocument();
     expect(
       screen.getByText("attachments live in the notes folder")
     ).toBeInTheDocument();
@@ -473,7 +488,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession
@@ -516,7 +533,9 @@ describe(NoteSession, () => {
       tags: [],
       updatedAt: new Date(1),
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     render(
       <QueryClientProvider client={client}>
         <NoteSession active tab={{ id: "t6", kind: "external", path }} />
@@ -541,9 +560,9 @@ describe(NoteSession, () => {
 
   it("should report a failed pending link lookup without treating the destination as missing", async () => {
     const listed = Promise.withResolvers<[]>();
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "list_notes") {
-        return listed.promise;
+        return await listed.promise;
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -561,7 +580,7 @@ describe(NoteSession, () => {
       updatedAt: new Date(1),
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         listed.resolve([]);
       });
       client.clear();
@@ -573,7 +592,7 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
       );
@@ -581,12 +600,10 @@ describe(NoteSession, () => {
     });
     expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
     expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
-    await act(() => {
+    act(() => {
       listed.reject({ kind: "failed", message: "index unavailable" });
     });
-    await expect(
-      screen.findByText("could not open note")
-    ).resolves.toBeInTheDocument();
+    expect(await screen.findByText("could not open note")).toBeInTheDocument();
     expect(screen.getByText("index unavailable")).toBeInTheDocument();
     expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
     await expect(editor()).resolves.toBe(liveEditor);
@@ -603,9 +620,9 @@ describe(NoteSession, () => {
     "should ignore a delayed link $completion after $change",
     async ({ change, completion }) => {
       const listed = Promise.withResolvers<unknown[]>();
-      mockIPC((command) => {
+      mockIPC(async (command) => {
         if (command === "list_notes") {
-          return listed.promise;
+          return await listed.promise;
         }
         throw new Error(`unexpected command: ${command}`);
       });
@@ -623,7 +640,7 @@ describe(NoteSession, () => {
         updatedAt: new Date(1),
       });
       onTestFinished(async () => {
-        await act(() => {
+        act(() => {
           listed.resolve([]);
         });
         client.clear();
@@ -635,18 +652,18 @@ describe(NoteSession, () => {
         </QueryClientProvider>
       );
       const liveEditor = await editor();
-      await act(() => {
+      act(() => {
         liveEditor.commands.setTextSelection(
           liveEditor.state.doc.content.size - 2
         );
         liveEditor.commands.keyboardShortcut("Mod-Shift-o");
       });
       if (change === "switching tabs") {
-        await act(() => {
+        act(() => {
           openNote("chosen.md");
         });
       } else if (change === "switching away and back") {
-        await act(() => {
+        act(() => {
           openNote("chosen.md");
         });
         session.rerender(
@@ -654,7 +671,7 @@ describe(NoteSession, () => {
             <NoteSession active={false} tab={tab} />
           </QueryClientProvider>
         );
-        await act(() => {
+        act(() => {
           closeTab(getTabState().activeId);
         });
         session.rerender(
@@ -665,7 +682,7 @@ describe(NoteSession, () => {
       } else {
         session.unmount();
       }
-      await act(() => {
+      act(() => {
         if (completion === "reject") {
           listed.reject({ kind: "failed", message: "lookup unavailable" });
         } else {
@@ -716,9 +733,9 @@ describe(NoteSession, () => {
         throw new Error("the originating tab did not open");
       }
       const listed = Promise.withResolvers<unknown[]>();
-      mockIPC((command) => {
+      mockIPC(async (command) => {
         if (command === "list_notes") {
-          return listed.promise;
+          return await listed.promise;
         }
         throw new Error(`unexpected command: ${command}`);
       });
@@ -736,7 +753,7 @@ describe(NoteSession, () => {
         updatedAt: new Date(1),
       });
       onTestFinished(async () => {
-        await act(() => {
+        act(() => {
           listed.resolve([]);
         });
         client.clear();
@@ -748,13 +765,13 @@ describe(NoteSession, () => {
         </QueryClientProvider>
       );
       const liveEditor = await editor(origin.id);
-      await act(() => {
+      act(() => {
         liveEditor.commands.setTextSelection(
           liveEditor.state.doc.content.size - 2
         );
         liveEditor.commands.keyboardShortcut("Mod-Shift-o");
       });
-      await act(() => {
+      act(() => {
         if (change === "closing a background tab") {
           closeTab(background);
         } else if (change === "reordering tabs") {
@@ -764,7 +781,7 @@ describe(NoteSession, () => {
           activateTab(origin.id);
         }
       });
-      await act(() => {
+      act(() => {
         if (completion === "reject") {
           listed.reject({ kind: "failed", message: "lookup unavailable" });
         } else {
@@ -782,23 +799,26 @@ describe(NoteSession, () => {
           ]);
         }
       });
-      expect(
-        getTabState().tabs.find((entry) => entry.id === getTabState().activeId)
-          ?.path
-      ).toBe(completion === "resolve" ? "target.md" : "a.md");
-      await waitFor(() =>
+      await waitFor(() => {
+        expect(
+          getTabState().tabs.find(
+            (entry) => entry.id === getTabState().activeId
+          )?.path
+        ).toBe(completion === "resolve" ? "target.md" : "a.md");
+      });
+      await waitFor(() => {
         expect(screen.queryByText("lookup unavailable") !== null).toBe(
           completion === "reject"
-        )
-      );
+        );
+      });
     }
   );
 
   it("should follow only the most recently activated link while its lookup is pending", async () => {
     const listed = Promise.withResolvers<unknown[]>();
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "list_notes") {
-        return listed.promise;
+        return await listed.promise;
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -816,7 +836,7 @@ describe(NoteSession, () => {
       updatedAt: new Date(1),
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         listed.resolve([]);
       });
       client.clear();
@@ -827,7 +847,7 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       liveEditor.commands.setTextSelection(13);
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
       liveEditor.commands.setTextSelection(
@@ -835,7 +855,7 @@ describe(NoteSession, () => {
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    await act(() => {
+    act(() => {
       listed.resolve([
         {
           createdAt: 1,
@@ -859,9 +879,11 @@ describe(NoteSession, () => {
         },
       ]);
     });
-    expect(getTabState().tabs.map((entry) => entry.path)).toStrictEqual([
-      "second.md",
-    ]);
+    await waitFor(() => {
+      expect(getTabState().tabs.map((entry) => entry.path)).toStrictEqual([
+        "second.md",
+      ]);
+    });
   });
 
   it.each([false, true])(
@@ -877,13 +899,13 @@ describe(NoteSession, () => {
           warnings: never[];
         };
       }>();
-      mockIPC((command, args) => {
+      mockIPC(async (command, args) => {
         if (command !== "save_note") {
-          return;
+          return null;
         }
         writes.push(args);
         return writes.length === 1
-          ? held.promise
+          ? await held.promise
           : {
               kind: "committed",
               receipt: {
@@ -897,7 +919,9 @@ describe(NoteSession, () => {
       mountSession("# Errands\n\nbody");
       await editor();
       if (sourceMode) {
-        act(() => sessionHandles().toggleSource());
+        act(() => {
+          sessionHandles().toggleSource();
+        });
       }
       const surface = await editor();
       const { changePath } = sessionHandles();
@@ -937,7 +961,9 @@ describe(NoteSession, () => {
       });
       expect(surface.state.doc.textContent).not.toContain("plus typing");
       expect(surface.state.doc.textContent).toContain("Weekend errands");
-      act(() => sessionHandles().toggleSource());
+      act(() => {
+        sessionHandles().toggleSource();
+      });
       const other = await editor();
       act(() => {
         other.commands.undo();
@@ -980,11 +1006,14 @@ describe(NoteSession, () => {
             },
           };
         }
+        return null;
       });
       mountSession("# Errands\n\nbody");
       await editor();
       if (sourceMode) {
-        act(() => sessionHandles().toggleSource());
+        act(() => {
+          sessionHandles().toggleSource();
+        });
       }
       const surface = await editor();
       act(() => {
@@ -1022,6 +1051,7 @@ describe(NoteSession, () => {
           },
         };
       }
+      return null;
     });
     mountSession("# Errands\n\nbody");
     const surface = await editor();
@@ -1051,14 +1081,19 @@ describe(NoteSession, () => {
             },
           };
         }
+        return null;
       });
       mountSession("buy milk\n\nbody");
       await editor();
       if (sourceMode) {
-        act(() => sessionHandles().toggleSource());
+        act(() => {
+          sessionHandles().toggleSource();
+        });
       }
       const surface = await editor();
-      act(() => typeAtEnd(surface, " more"));
+      act(() => {
+        typeAtEnd(surface, " more");
+      });
       await act(async () => {
         await flushPendingWrites();
       });
@@ -1100,7 +1135,9 @@ describe(NoteSession, () => {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
-    onTestFinished(() => client.clear());
+    onTestFinished(() => {
+      client.clear();
+    });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.fileKey("external", path), {
       content: "buy **milk**\n\nbody",
@@ -1141,6 +1178,7 @@ describe(NoteSession, () => {
           },
         };
       }
+      return null;
     });
     mountSession("---\ntags: [old]\n---\nbody");
     await editor();
@@ -1196,11 +1234,11 @@ describe(NoteSession, () => {
       };
     }>();
     const writes: unknown[] = [];
-    mockIPC((command, args) => {
+    mockIPC(async (command, args) => {
       if (command === "save_note") {
         writes.push(args);
         return writes.length === 1
-          ? first.promise
+          ? await first.promise
           : {
               kind: "committed",
               receipt: {
@@ -1211,6 +1249,7 @@ describe(NoteSession, () => {
               },
             };
       }
+      return null;
     });
     mountSession("body");
     await editor();
@@ -1279,7 +1318,9 @@ describe(NoteSession, () => {
     await user.click(screen.getByRole("button", { name: "try again" }));
     await settle();
 
-    await waitFor(() => expect(reads).toBe(2));
+    await waitFor(() => {
+      expect(reads).toBe(2);
+    });
     expect(panel()?.textContent).toContain("could not read this note");
   });
 
@@ -1296,23 +1337,34 @@ describe(NoteSession, () => {
           receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
         };
       }
+      return null;
     });
     mountSession("*hello*");
     await editor();
-    act(() => sessionHandles().toggleSource());
+    act(() => {
+      sessionHandles().toggleSource();
+    });
     const source = await editor();
     act(() => {
       source.commands.selectAll();
       source.commands.insertContent("_hello_");
     });
-    act(() => sessionHandles().toggleSource());
+    act(() => {
+      sessionHandles().toggleSource();
+    });
     await editor();
-    act(() => sessionHandles().toggleSource());
+    act(() => {
+      sessionHandles().toggleSource();
+    });
     const remounted = await editor();
     expect(remounted.state.doc.textContent).toBe("_hello_");
-    act(() => remounted.commands.undo());
+    act(() => {
+      remounted.commands.undo();
+    });
     expect(remounted.state.doc.textContent).toBe("*hello*");
-    act(() => remounted.commands.redo());
+    act(() => {
+      remounted.commands.redo();
+    });
     await act(async () => {
       await flushPendingWrites();
     });
@@ -1322,10 +1374,10 @@ describe(NoteSession, () => {
   it("should combine a change elsewhere in the note with unsaved typing", async () => {
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
-    await act(() => {
+    act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
         content: "# Chores\n\nbody",
         pinned: false,
@@ -1334,7 +1386,9 @@ describe(NoteSession, () => {
         updatedAt: new Date(2),
       });
     });
-    await waitFor(() => expect(liveEditor.getText()).toContain("Chores"));
+    await waitFor(() => {
+      expect(liveEditor.getText()).toContain("Chores");
+    });
     expect(liveEditor.getText()).toContain("bodyTyped");
     expect(
       screen.queryByText("this note changed on disk")
@@ -1345,10 +1399,10 @@ describe(NoteSession, () => {
   it("should announce a change that overlaps unsaved typing", async () => {
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
-    await act(() => {
+    act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
         content: "# Errands\n\nbody, on disk",
         pinned: false,
@@ -1382,10 +1436,10 @@ describe(NoteSession, () => {
     });
     const client = mountSession(content);
     const liveEditor = await editor();
-    await act(() => {
+    act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
-    await act(() => {
+    act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
         content: onDisk,
         pinned: false,
@@ -1476,7 +1530,7 @@ describe(NoteSession, () => {
     );
     await user.click(screen.getByRole("button", { name: "review" }));
     expect(review()).not.toHaveClass("invisible");
-    await act(() => {
+    act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
         content: "# Chores\n\nbody",
         pinned: false,
@@ -1486,7 +1540,7 @@ describe(NoteSession, () => {
       });
     });
     await waitFor(() => expect(review()).not.toBeInTheDocument());
-    await act(() => {
+    act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
         content: "# Chores\n\nbody, on disk again",
         pinned: false,
@@ -1624,9 +1678,9 @@ describe(NoteSession, () => {
   });
 
   it("should not open a note until its stored review is known", async () => {
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "read_conflict") {
-        return Promise.withResolvers().promise;
+        return await Promise.withResolvers().promise;
       }
       return null;
     });
@@ -1678,11 +1732,11 @@ describe(NoteSession, () => {
             }
           : null
     );
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
-      ).toMatchObject({ ours: "# Errands\n\nbodyTyped " })
-    );
+      ).toMatchObject({ ours: "# Errands\n\nbodyTyped " });
+    });
     await user.click(screen.getByRole("button", { name: "review" }));
     await user.type(
       screen.getByRole("textbox", { name: "result for place 1" }),
@@ -1699,8 +1753,8 @@ describe(NoteSession, () => {
   });
 
   it("should keep the editor across a rename while the renamed review is unknown", async () => {
-    mockIPC((command) =>
-      command === "read_conflict" ? Promise.withResolvers().promise : null
+    mockIPC(async (command) =>
+      command === "read_conflict" ? await Promise.withResolvers().promise : null
     );
     const client = new QueryClient({
       defaultOptions: {

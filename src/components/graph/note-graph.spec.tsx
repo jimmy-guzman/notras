@@ -162,19 +162,27 @@ describe(NoteGraph, () => {
       })
     );
 
-    act(() => screen.getByRole("button", { name: "c" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "c" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "d" })).toHaveFocus();
 
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "e" })).toHaveFocus();
 
-    act(() => screen.getByRole("button", { name: "e" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "e" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "b" })).toHaveFocus();
 
-    act(() => screen.getByRole("button", { name: "b" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "b" }).focus();
+    });
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("button", { name: "e" })).toHaveFocus();
   });
@@ -189,7 +197,9 @@ describe(NoteGraph, () => {
     await user.click(screen.getByRole("button", { name: "d" }));
     expect(onHop).toHaveBeenLastCalledWith("d.md", false);
 
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{Meta>}{Enter}{/Meta}");
     expect(onHop).toHaveBeenLastCalledWith("d.md", true);
   });
@@ -210,7 +220,9 @@ describe(NoteGraph, () => {
       onLeave,
     });
 
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{Escape}");
     expect(onLeave).toHaveBeenCalledOnce();
 
@@ -262,7 +274,9 @@ describe(NoteGraph, () => {
     ).toStrictEqual(["c", "d"]);
 
     // The arrows walk d alone: a placeholder is not on the ring.
-    act(() => screen.getByRole("button", { name: "d" }).focus());
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+    });
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("button", { name: "d" })).toHaveFocus();
   });
@@ -376,9 +390,10 @@ describe("TabGraph native queries", () => {
       mentionsError: null,
       picture: notePicture(),
     });
-    mockIPC(() =>
-      // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-      Promise.reject({ kind: "failed", message: "permission denied" })
+    mockIPC(
+      vi
+        .fn<Parameters<typeof mockIPC>[0]>()
+        .mockRejectedValue({ kind: "failed", message: "permission denied" })
     );
     const reported = vi.spyOn(toast, "add");
     onTestFinished(() => {
@@ -398,13 +413,13 @@ describe("TabGraph native queries", () => {
     await act(async () => {
       await client.invalidateQueries({ queryKey: query.queryKey });
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(reported).toHaveBeenCalledExactlyOnceWith({
         description: "permission denied",
         title: "could not read the graph",
         type: "error",
-      })
-    );
+      });
+    });
     expect(screen.getByRole("button", { name: "c" })).toBeInTheDocument();
   });
 
@@ -416,9 +431,9 @@ describe("TabGraph native queries", () => {
     });
     const response = Promise.withResolvers<unknown>();
     const calls: unknown[] = [];
-    mockIPC((command, args) => {
+    mockIPC(async (command, args) => {
       calls.push({ args, command });
-      return response.promise;
+      return await response.promise;
     });
     const reported = vi.spyOn(toast, "add");
     const initial = notePicture({ note: meta("first.md") });
@@ -494,7 +509,7 @@ describe("TabGraph native queries", () => {
           },
         },
       });
-      await client.fetchQuery(
+      await client.query(
         noteQueries.graph({ kind: "note", path: "second.md" })
       );
     });

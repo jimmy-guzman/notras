@@ -3,7 +3,7 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { createElement } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CaptureWindow } from "@/components/capture-window";
 
@@ -43,6 +43,7 @@ describe("capture window", () => {
             warnings: [],
           };
         }
+        return null;
       });
       const editor = await mountCapture();
       act(() => {
@@ -84,6 +85,7 @@ describe("capture window", () => {
         if (command === "plugin:window|hide") {
           hides.push(command);
         }
+        return null;
       });
       const editor = await mountCapture();
       act(() => {
@@ -105,17 +107,18 @@ describe("capture window", () => {
     it("should retain the jot and show the reason when no file committed", async () => {
       const user = userEvent.setup();
       const hides: string[] = [];
-      mockIPC((command) => {
+      const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
+        kind: "failed",
+        message: "the disk is full",
+      });
+      mockIPC(async (command) => {
         if (command === "create_note") {
-          // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-          return Promise.reject({
-            kind: "failed",
-            message: "the disk is full",
-          });
+          return await refused();
         }
         if (command === "plugin:window|hide") {
           hides.push(command);
         }
+        return null;
       });
       const editor = await mountCapture();
       act(() => {

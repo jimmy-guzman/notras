@@ -1,5 +1,5 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { reindexAll } from "@/data/reindex";
 
@@ -19,9 +19,10 @@ describe("reindex", () => {
     });
 
     it("should reject an incomplete rebuild with its native reason", async () => {
-      mockIPC(() =>
-        // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-        Promise.reject({ kind: "failed", message: "permission denied" })
+      mockIPC(
+        vi
+          .fn<Parameters<typeof mockIPC>[0]>()
+          .mockRejectedValue({ kind: "failed", message: "permission denied" })
       );
       await expect(reindexAll()).rejects.toMatchObject({
         kind: "failed",

@@ -28,7 +28,9 @@ function createEditor(language: string, text: string) {
 
 function coloredText(editor: Editor, role: string) {
   return [...editor.view.dom.querySelectorAll(".syntax-token")]
-    .filter((span) => span.getAttribute("style")?.includes(`var(--${role})`))
+    .filter(
+      (span) => span.getAttribute("style")?.includes(`var(--${role})`) === true
+    )
     .map((span) => span.textContent)
     .join("");
 }
@@ -38,19 +40,23 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const editor = createEditor("ts", "const a = 1;");
-    onTestFinished(() => editor.destroy());
+    onTestFinished(() => {
+      editor.destroy();
+    });
     editor.commands.insertContentAt(editor.state.doc.content.size, {
       attrs: { language: "ts" },
       content: [{ text: "const b = 2;", type: "text" }],
       type: "codeBlock",
     });
-    await vi.waitFor(() =>
-      expect(coloredText(editor, "syntax-keyword")).toBe("constconst")
-    );
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    });
     const highlighter = await loadSyntaxHighlighter(["typescript"]);
     // Observe calls into the real grammar engine without replacing its output.
     const tokenize = vi.spyOn(highlighter, "codeToTokensBase");
-    onTestFinished(() => tokenize.mockRestore());
+    onTestFinished(() => {
+      tokenize.mockRestore();
+    });
 
     editor.commands.insertContentAt(0, {
       content: [{ text: "intro", type: "text" }],
@@ -71,10 +77,12 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const editor = createEditor("ts", "const a = 1;");
-    onTestFinished(() => editor.destroy());
-    await vi.waitFor(() =>
-      expect(coloredText(editor, "syntax-keyword")).toBe("const")
-    );
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
 
     editor.commands.setTextSelection(1);
     editor.commands.setParagraph();
@@ -87,19 +95,21 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const editor = createEditor("typescript", "const a = 1;");
-    onTestFinished(() => editor.destroy());
+    onTestFinished(() => {
+      editor.destroy();
+    });
     const updates: string[] = [];
     editor.on("update", () => updates.push(editor.state.doc.textContent));
     editor.commands.setTextSelection(12);
     editor.commands.insertContent("\nconst b = 2;");
-    const selection = editor.state.selection.toJSON();
+    const selection = JSON.stringify(editor.state.selection.toJSON());
     const doc = editor.getJSON();
 
-    await vi.waitFor(() =>
-      expect(coloredText(editor, "syntax-keyword")).toBe("constconst")
-    );
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    });
     expect(editor.getJSON()).toStrictEqual(doc);
-    expect(editor.state.selection.toJSON()).toStrictEqual(selection);
+    expect(JSON.stringify(editor.state.selection.toJSON())).toBe(selection);
     expect(updates).toHaveLength(1);
     expect(editor.commands.undo()).toBeTruthy();
     expect(editor.state.doc.textContent).toBe("const a = 1;");
@@ -111,14 +121,16 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const editor = createEditor("rust", "let value = 1;");
-    onTestFinished(() => editor.destroy());
+    onTestFinished(() => {
+      editor.destroy();
+    });
     editor.commands.updateAttributes("codeBlock", { language: "json" });
     editor.commands.setTextSelection({ from: 1, to: 15 });
     editor.commands.insertContent('{"value": 2}');
 
-    await vi.waitFor(() =>
-      expect(coloredText(editor, "syntax-member")).toContain("value")
-    );
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-member")).toContain("value");
+    });
     expect(editor.state.doc.textContent).toBe('{"value": 2}');
     expect(editor.state.doc.firstChild?.attrs.language).toBe("json");
   });
@@ -127,7 +139,9 @@ describe("code block highlighting", () => {
     "should leave %s undecorated without rewriting its label",
     async (language, { onTestFinished }) => {
       const editor = createEditor(language, "const value = 1;");
-      onTestFinished(() => editor.destroy());
+      onTestFinished(() => {
+        editor.destroy();
+      });
       await Promise.resolve();
 
       expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
@@ -141,10 +155,12 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const editor = createEditor("ts", "const value = 1;");
-    onTestFinished(() => editor.destroy());
-    await vi.waitFor(() =>
-      expect(coloredText(editor, "syntax-keyword")).toBe("const")
-    );
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
     editor.commands.updateAttributes("codeBlock", { language: "" });
 
     expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
@@ -157,7 +173,9 @@ describe("code block highlighting", () => {
     const source =
       "---\npinned: true\n...\n# title\n\n```python\nreturn 42\n```";
     const editor = createEditor("markdown", source);
-    onTestFinished(() => editor.destroy());
+    onTestFinished(() => {
+      editor.destroy();
+    });
 
     await vi.waitFor(() => {
       expect(coloredText(editor, "syntax-member")).toContain("pinned");
@@ -170,10 +188,12 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const editor = createEditor("ts", "const value = 1;");
-    onTestFinished(() => editor.destroy());
-    await vi.waitFor(() =>
-      expect(coloredText(editor, "syntax-keyword")).toBe("const")
-    );
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
     editor.commands.insertContentAt(0, {
       content: [{ text: "intro", type: "text" }],
       type: "paragraph",
@@ -189,12 +209,14 @@ describe("code block highlighting", () => {
   }) => {
     const closed = createEditor("go", "package main");
     const open = createEditor("go", "package main");
-    onTestFinished(() => open.destroy());
+    onTestFinished(() => {
+      open.destroy();
+    });
     closed.destroy();
 
-    await vi.waitFor(() =>
-      expect(open.view.dom.querySelector(".syntax-token")).not.toBeNull()
-    );
+    await vi.waitFor(() => {
+      expect(open.view.dom.querySelector(".syntax-token")).not.toBeNull();
+    });
     expect(open.state.doc.textContent).toBe("package main");
   });
 });

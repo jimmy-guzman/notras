@@ -39,7 +39,9 @@ interface ContextRunProps {
 
 function ContextRun({ lines }: ContextRunProps) {
   const [expanded, setExpanded] = useState(false);
-  const expand = useCallback(() => setExpanded(true), []);
+  const expand = useCallback(() => {
+    setExpanded(true);
+  }, []);
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
       <Button
@@ -155,8 +157,9 @@ function Place({
     resultRef.current?.focus();
   }, [onChange, resultKey]);
   const edit = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) =>
-      onChange(resultKey, { edited: event.target.value }),
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      onChange(resultKey, { edited: event.target.value });
+    },
     [onChange, resultKey]
   );
   return (
@@ -220,11 +223,9 @@ export function ConflictReview({
     [ours, base, theirs]
   );
   const [results, setResults] = useState<Record<string, HunkChoice>>({});
-  const setResult = useCallback(
-    (key: string, choice: HunkChoice) =>
-      setResults((previous) => ({ ...previous, [key]: choice })),
-    []
-  );
+  const setResult = useCallback((key: string, choice: HunkChoice) => {
+    setResults((previous) => ({ ...previous, [key]: choice }));
+  }, []);
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open) {

@@ -32,7 +32,9 @@ describe("markdown paste", () => {
         editor = new Editor({
           content: "before replace after",
           extensions: createEditorExtensions({
-            readCodeClipboard: () => Promise.reject(new Error(reason)),
+            readCodeClipboard: () => {
+              throw new Error(reason);
+            },
           }),
         });
         const before = editor.getJSON();
@@ -65,10 +67,12 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: (text) =>
+          readCodeClipboard: async (text) =>
             text === "first"
-              ? first.promise
-              : Promise.reject(new Error("the clipboard metadata is invalid")),
+              ? await first.promise
+              : await Promise.reject(
+                  new Error("the clipboard metadata is invalid")
+                ),
         }),
       });
       pasteText(editor, "first");
@@ -88,7 +92,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "before",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => clipboard.promise,
+          readCodeClipboard: async () => await clipboard.promise,
         }),
       });
       pasteText(editor, "after");
@@ -106,8 +110,8 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: (text) =>
-            text === "first" ? first.promise : second.promise,
+          readCodeClipboard: async (text) =>
+            text === "first" ? await first.promise : await second.promise,
         }),
       });
       pasteText(editor, "first");
@@ -123,7 +127,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => Promise.resolve({ language: "python" }),
+          readCodeClipboard: async () => ({ language: "python" }),
         }),
       });
       const clipboardData = new DataTransfer();
@@ -151,7 +155,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => Promise.resolve({ language: null }),
+          readCodeClipboard: async () => ({ language: null }),
         }),
       });
       pasteText(editor, "# comment\nprint(1)");
@@ -168,7 +172,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => Promise.resolve(null),
+          readCodeClipboard: async () => null,
         }),
       });
       const clipboardData = new DataTransfer();
@@ -190,7 +194,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => Promise.resolve(null),
+          readCodeClipboard: async () => null,
         }),
       });
       pasteText(editor, "~~~ts\nconst value = 1;\n~~~");
@@ -206,7 +210,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "before after",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => clipboard.promise,
+          readCodeClipboard: async () => await clipboard.promise,
         }),
       });
       editor.commands.setTextSelection(8);
@@ -225,7 +229,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "before",
         extensions: createEditorExtensions({
-          readCodeClipboard: () => clipboard.promise,
+          readCodeClipboard: async () => await clipboard.promise,
         }),
       });
       pasteText(editor, "print(1)");

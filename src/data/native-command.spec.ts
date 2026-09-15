@@ -1,5 +1,5 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FileError } from "@/core/errors";
 import { createNote } from "@/data/create-note";
@@ -143,9 +143,10 @@ describe("native command", () => {
     it.each(["not-found", "failed"])(
       "should preserve the native %s failure kind",
       async (kind) => {
-        const operation = nativeCommand(() =>
-          // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-          Promise.reject({ kind, message: "the reason" })
+        const operation = nativeCommand(
+          vi
+            .fn<() => Promise<never>>()
+            .mockRejectedValue({ kind, message: "the reason" })
         );
         await expect(operation).rejects.toBeInstanceOf(FileError);
         await expect(operation).rejects.toMatchObject({
@@ -157,9 +158,10 @@ describe("native command", () => {
 
     it("should retain a Tauri argument-decoding failure", async () => {
       await expect(
-        nativeCommand(() =>
-          // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-          Promise.reject("invalid args for command read_note")
+        nativeCommand(
+          vi
+            .fn<() => Promise<never>>()
+            .mockRejectedValue("invalid args for command read_note")
         )
       ).rejects.toMatchObject({
         kind: "failed",
@@ -177,14 +179,8 @@ describe("native command", () => {
           throw new Error("internal invariant");
         })
       ).rejects.toThrow("an unexpected error");
-      expect(logged).toStrictEqual([
-        {
-          args: expect.objectContaining({
-            message: expect.stringContaining("internal invariant"),
-          }),
-          command: "plugin:log|log",
-        },
-      ]);
+      expect(logged).toMatchObject([{ command: "plugin:log|log" }]);
+      expect(JSON.stringify(logged)).toContain("internal invariant");
     });
   });
 });

@@ -31,11 +31,12 @@ function mountAutosave(
             updatedAt: new Date(0),
           },
           {
-            changePath: () =>
-              Promise.reject(new Error("no path action requested")),
-            clearStash: () => Promise.resolve(),
+            changePath: () => {
+              throw new Error("no path action requested");
+            },
+            clearStash: async () => {},
             onPathChanged: () => {},
-            stash: () => Promise.resolve(),
+            stash: async () => {},
             write: async (path, content) => ({
               kind: "committed",
               receipt: {
@@ -77,7 +78,9 @@ function mountAutosave(
     async setEnabledMidCommit(enabled: boolean) {
       // A layout effect lets the timer fire before passive effects, even though renderHook flushes both.
       rerender({
-        duringCommit: () => vi.advanceTimersByTime(AUTOSAVE_DELAY_MS),
+        duringCommit: () => {
+          vi.advanceTimersByTime(AUTOSAVE_DELAY_MS);
+        },
         enabled,
       });
       await Promise.resolve();
@@ -87,14 +90,16 @@ function mountAutosave(
         await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
       });
     },
-    startFlush() {
-      return result.current.flush();
+    async startFlush() {
+      return await result.current.flush();
     },
     get status() {
       return result.current.status;
     },
     type(content: string) {
-      act(() => result.current.onChange({ content, mode: "body" }));
+      act(() => {
+        result.current.onChange({ content, mode: "body" });
+      });
     },
   };
 }
@@ -118,10 +123,10 @@ describe(useAutosave, () => {
 
   it("should write the buffer once the debounce elapses", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("hello");
@@ -133,10 +138,10 @@ describe(useAutosave, () => {
 
   it("should not write while disabled", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.setEnabled(false);
@@ -148,10 +153,10 @@ describe(useAutosave, () => {
 
   it("should report the buffer safe to quit while holding text it cannot write", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.setEnabled(false);
@@ -165,10 +170,10 @@ describe(useAutosave, () => {
 
   it("should not write through a timer that fires before effects flush", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("about to be deleted");
@@ -180,10 +185,10 @@ describe(useAutosave, () => {
 
   it("should write what is on screen after being re-enabled", async () => {
     const written: string[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("first");
@@ -203,14 +208,14 @@ describe(useAutosave, () => {
   it("should land overlapping writes in the order they were flushed", async () => {
     const written: string[] = [];
     const landWrite: (() => void)[] = [];
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
       const { promise, resolve } = Promise.withResolvers<Date>();
       landWrite.push(() => {
         resolve(new Date(1));
       });
-      return promise;
+      return await promise;
     });
 
     /** Let the write the fake is holding at `index` resolve. */
@@ -255,16 +260,16 @@ describe(useAutosave, () => {
   it("should write again after a write fails", async () => {
     const written: string[] = [];
     let failNext = true;
-    const harness = mountAutosave((_path, content) => {
+    const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
       if (failNext) {
         failNext = false;
 
-        return Promise.reject(new Error("the disk said no"));
+        throw new Error("the disk said no");
       }
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("hello");
@@ -281,14 +286,14 @@ describe(useAutosave, () => {
 
   it("should say why the write failed while it is failed", async () => {
     let failNext = true;
-    const harness = mountAutosave(() => {
+    const harness = mountAutosave(async () => {
       if (failNext) {
         failNext = false;
 
-        return Promise.reject(new Error("the disk is full"));
+        throw new Error("the disk is full");
       }
 
-      return Promise.resolve(new Date(1));
+      return new Date(1);
     });
 
     harness.type("hello");
@@ -302,9 +307,9 @@ describe(useAutosave, () => {
   });
 
   it("should report the buffer unsafe to quit when its write fails", async () => {
-    const harness = mountAutosave(() =>
-      Promise.reject(new Error("the disk said no"))
-    );
+    const harness = mountAutosave(() => {
+      throw new Error("the disk said no");
+    });
 
     harness.type("hello");
 

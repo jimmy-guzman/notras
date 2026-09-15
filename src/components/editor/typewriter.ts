@@ -125,7 +125,7 @@ export const TYPEWRITER_SCROLL = "typewriterScroll";
  * focus-restore scroll do not.
  */
 export function scrollDecision(transaction: Transaction): "center" | "default" {
-  const meta = transaction.getMeta(TYPEWRITER_SCROLL);
+  const meta: unknown = transaction.getMeta(TYPEWRITER_SCROLL);
 
   if (meta === "skip") {
     return "default";

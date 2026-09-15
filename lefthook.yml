@@ -1,6 +1,6 @@
 pre-commit:
   jobs:
-    - run: pnpm exec ultracite fix {staged_files}
+    - run: pnpm exec ultracite fix --type-aware --type-check {staged_files}
       glob:
         - "**/*.js"
         - "**/*.jsx"

@@ -9,16 +9,43 @@ import { describe, expect, it } from "vitest";
  * parses it at runtime, so a placeholder would ship and fail in an installed
  * app. Read the shipped config and refuse that here instead.
  */
-// SAFETY: the config is this app's own file, and the assertions below fail on any field that drifts.
-const config = JSON.parse(
+interface UpdaterConfig {
+  bundle: { createUpdaterArtifacts?: boolean };
+  plugins: { updater: { endpoints: string[]; pubkey: string } };
+}
+
+function isUpdaterConfig(value: unknown): value is UpdaterConfig {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "bundle" in value &&
+    typeof value.bundle === "object" &&
+    value.bundle !== null &&
+    "plugins" in value &&
+    typeof value.plugins === "object" &&
+    value.plugins !== null &&
+    "updater" in value.plugins &&
+    typeof value.plugins.updater === "object" &&
+    value.plugins.updater !== null &&
+    "pubkey" in value.plugins.updater &&
+    typeof value.plugins.updater.pubkey === "string" &&
+    "endpoints" in value.plugins.updater &&
+    Array.isArray(value.plugins.updater.endpoints)
+  );
+}
+
+const parsed = JSON.parse(
   readFileSync(
     path.join(process.cwd(), "src-tauri", "tauri.conf.json"),
     "utf-8"
   )
-) as {
-  bundle: { createUpdaterArtifacts?: boolean };
-  plugins: { updater: { endpoints: string[]; pubkey: string } };
-};
+);
+
+if (!isUpdaterConfig(parsed)) {
+  throw new Error("src-tauri/tauri.conf.json has no updater configuration");
+}
+
+const config = parsed;
 
 /**
  * `tauri signer generate` emits the base64 of a minisign public key file: a

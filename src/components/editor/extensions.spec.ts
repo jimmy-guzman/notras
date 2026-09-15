@@ -72,7 +72,7 @@ const typeInto = (text: string) => {
       input(editor.view, from, to, char, insert)
     );
 
-    if (!handled) {
+    if (handled !== true) {
       editor.view.dispatch(insert());
     }
   }

@@ -129,10 +129,9 @@ The context for this repo lives in the five documents below. Read the ones your 
 ```txt
 pnpm knip             # 0. unused code/deps (fix before proceeding)
 pnpm bindings:check   # native contract drift, before checking its callers
-pnpm typecheck        # 1. types
-pnpm check            # 2. lint + format
-pnpm coverage         # 3. unit tests (pnpm test watches, so it will not exit)
-pnpm build:web        # 4. web bundle build
+pnpm check            # 1. types, lint and format
+pnpm coverage         # 2. unit tests (pnpm test watches, so it will not exit)
+pnpm build:web        # 3. web bundle build
 ```
 
 When Rust sources or gate configuration change, also run these commands from the repository root in this order:

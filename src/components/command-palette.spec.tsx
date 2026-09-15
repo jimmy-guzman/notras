@@ -35,7 +35,9 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   );
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   const closed: boolean[] = [];
-  onTestFinished(() => client.clear());
+  onTestFinished(() => {
+    client.clear();
+  });
   render(
     createElement(
       QueryClientProvider,
@@ -43,7 +45,9 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
       createElement(CommandPalette, {
         mode,
         notesDir: "/notes",
-        onOpenChange: (next) => closed.push(next),
+        onOpenChange: (next) => {
+          closed.push(next);
+        },
         onOpenSettings: () => {},
         open: true,
       })
@@ -74,9 +78,9 @@ describe("command palette keyboard", () => {
     const palette = mount("find", []);
     const read = Promise.withResolvers<NoteMeta[]>();
     const pending = Promise.allSettled([
-      palette.client.fetchQuery({
+      palette.client.query({
         ...noteQueries.search(parseSearch("Roadmap")),
-        queryFn: () => read.promise,
+        queryFn: async () => await read.promise,
       }),
     ]);
     await palette.user.clear(palette.input);
@@ -149,7 +153,9 @@ describe("command palette keyboard", () => {
       screen.getByRole("option", { selected: true }).textContent
     ).toContain("folder");
     const back = screen.getByRole("button", { name: "back to notes" });
-    act(() => back.focus());
+    act(() => {
+      back.focus();
+    });
     await palette.user.keyboard("{Escape}");
     expect(palette.input.value).toBe("");
     expect(palette.closed).toStrictEqual([]);
@@ -193,9 +199,9 @@ describe("command palette keyboard", () => {
     ).toContain("Project second");
     const read = Promise.withResolvers<NoteMeta[]>();
     const pending = Promise.allSettled([
-      palette.client.fetchQuery({
+      palette.client.query({
         ...options,
-        queryFn: () => read.promise,
+        queryFn: async () => await read.promise,
         staleTime: 0,
       }),
     ]);
@@ -320,9 +326,9 @@ describe("steady palette searches", () => {
     const palette = mount("find", [recent]);
     const read = Promise.withResolvers<NoteMeta[]>();
     const request = Promise.allSettled([
-      palette.client.fetchQuery({
+      palette.client.query({
         ...noteQueries.search(parseSearch("found")),
-        queryFn: () => read.promise,
+        queryFn: async () => await read.promise,
       }),
     ]);
     const row = screen.getByRole("option");
@@ -332,7 +338,9 @@ describe("steady palette searches", () => {
     expect(row?.getAttribute("aria-disabled")).toBe("true");
     expect(document.body.textContent).not.toContain("searching notes");
     fireEvent.click(row);
-    act(() => palette.input.focus());
+    act(() => {
+      palette.input.focus();
+    });
     fireEvent.keyDown(palette.input, { key: "Enter" });
     fireEvent.keyDown(palette.input, { key: "Enter", metaKey: true });
     expect(palette.closed).toStrictEqual([]);
@@ -367,9 +375,9 @@ describe("steady palette searches", () => {
     const palette = mount("find", []);
     const read = Promise.withResolvers<NoteMeta[]>();
     const request = Promise.allSettled([
-      palette.client.fetchQuery({
+      palette.client.query({
         ...noteQueries.search(parseSearch("slow")),
-        queryFn: () => read.promise,
+        queryFn: async () => await read.promise,
       }),
     ]);
     fireEvent.change(palette.input, { target: { value: "slow" } });
@@ -449,16 +457,16 @@ describe("steady palette searches", () => {
     const palette = mount("find", [recent]);
     const firstRead = Promise.withResolvers<NoteMeta[]>();
     const firstRequest = Promise.allSettled([
-      palette.client.fetchQuery({
+      palette.client.query({
         ...noteQueries.search(parseSearch("first")),
-        queryFn: () => firstRead.promise,
+        queryFn: async () => await firstRead.promise,
       }),
     ]);
     const lastRead = Promise.withResolvers<NoteMeta[]>();
     const lastRequest = Promise.allSettled([
-      palette.client.fetchQuery({
+      palette.client.query({
         ...noteQueries.search(parseSearch("last")),
-        queryFn: () => lastRead.promise,
+        queryFn: async () => await lastRead.promise,
       }),
     ]);
     fireEvent.change(palette.input, { target: { value: "first" } });
@@ -529,9 +537,9 @@ describe("steady palette searches", () => {
 describe("command palette", () => {
   it("should search while the full note list is pending without treating it as empty", async () => {
     const list = Promise.withResolvers<[]>();
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "list_notes") {
-        return list.promise;
+        return await list.promise;
       }
       if (command === "search_notes") {
         return [
@@ -553,7 +561,7 @@ describe("command palette", () => {
       defaultOptions: { queries: { retry: false } },
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         list.resolve([]);
       });
       client.clear();
@@ -575,9 +583,9 @@ describe("command palette", () => {
     expect(screen.queryByText("nothing found")).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.type(screen.getByRole("combobox"), "needle");
-    await expect(
-      screen.findByRole("option", { name: FOUND_NOTE })
-    ).resolves.toBeInTheDocument();
+    expect(
+      await screen.findByRole("option", { name: FOUND_NOTE })
+    ).toBeInTheDocument();
   });
 
   it("should report a failed first note list and retry without offering creation", async () => {
@@ -612,18 +620,16 @@ describe("command palette", () => {
         />
       </QueryClientProvider>
     );
-    await expect(
-      screen.findByText("could not search notes")
-    ).resolves.toBeInTheDocument();
+    expect(
+      await screen.findByText("could not search notes")
+    ).toBeInTheDocument();
     expect(screen.getByText("index unavailable")).toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: CREATE_NOTE })
     ).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "retry" }));
-    await expect(
-      screen.findByText("nothing found")
-    ).resolves.toBeInTheDocument();
+    expect(await screen.findByText("nothing found")).toBeInTheDocument();
     expect(attempts).toBe(2);
   });
 });

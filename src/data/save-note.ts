@@ -9,8 +9,8 @@ export async function saveNote(
   name: SaveName | null,
   expected: string
 ) {
-  const outcome = await nativeCommand(() =>
-    commands.saveNote(path, content, name, expected)
+  const outcome = await nativeCommand(
+    async () => await commands.saveNote(path, content, name, expected)
   );
   return outcome.kind === "committed"
     ? {

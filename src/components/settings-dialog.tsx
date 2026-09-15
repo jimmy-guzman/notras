@@ -82,10 +82,12 @@ export function SettingsDialog({
   }, [queryClient]);
 
   const { isPending: autostartPending, mutate: writeAutostart } = useMutation({
-    mutationFn: (value: boolean) => (value ? enable() : disable()),
+    mutationFn: async (value: boolean) => {
+      await (value ? enable() : disable());
+    },
     onError: (error) => {
       // The OS holds the truth, so a failure reverts by re-reading it.
-      queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
+      void queryClient.invalidateQueries({ queryKey: autostartQuery.queryKey });
       toast.add({
         description: reasonOf(error),
         title: "could not update launch at login",
@@ -125,7 +127,13 @@ export function SettingsDialog({
               <code className="bg-muted min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-xs">
                 {notesDir}
               </code>
-              <Button onClick={changeNotesDir} size="sm" variant="outline">
+              <Button
+                onClick={() => {
+                  void changeNotesDir();
+                }}
+                size="sm"
+                variant="outline"
+              >
                 change...
               </Button>
             </div>

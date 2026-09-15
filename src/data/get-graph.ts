@@ -31,7 +31,9 @@ function pictureResult(picture: NativePicture): Picture {
 }
 
 export async function getGraph(target: GraphTarget) {
-  const result = await nativeCommand(() => commands.readGraph(target));
+  const result = await nativeCommand(
+    async () => await commands.readGraph(target)
+  );
   return {
     mentionsError: result.mentionsError,
     picture:

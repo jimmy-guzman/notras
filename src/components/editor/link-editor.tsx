@@ -88,7 +88,9 @@ export function LinkEditor({
       <input
         aria-label={state.kind === "wikilink" ? "note title" : "link text"}
         className="link-editor-input"
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+        }}
         placeholder={
           state.kind === "wikilink" ? "note title..." : "link text..."
         }
@@ -99,7 +101,9 @@ export function LinkEditor({
         <input
           aria-label="link url"
           className="link-editor-input"
-          onChange={(event) => setUrl(event.target.value)}
+          onChange={(event) => {
+            setUrl(event.target.value);
+          }}
           placeholder="enter url..."
           type="url"
           value={url}

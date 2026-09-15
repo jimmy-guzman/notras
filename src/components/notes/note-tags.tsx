@@ -82,7 +82,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
       const toggled = new Set(nextTags).symmetricDifference(
         new Set(optimisticTags)
       );
-      changeTags((current) => [
+      void changeTags((current) => [
         ...new Set(current).symmetricDifference(toggled),
       ]);
     },
@@ -145,7 +145,13 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
             <output className="block px-3 py-2 text-xs">
               <p>could not load tag suggestions</p>
               <p>{reasonOf(allTags.error)}</p>
-              <Button onClick={retry} size="sm" variant="ghost">
+              <Button
+                onClick={() => {
+                  void retry();
+                }}
+                size="sm"
+                variant="ghost"
+              >
                 retry
               </Button>
             </output>

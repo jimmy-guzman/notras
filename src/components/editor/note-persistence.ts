@@ -42,7 +42,7 @@ export type SaveOutcome =
   | { kind: "committed"; receipt: SaveReceipt }
   | { kind: "conflict"; file: FileContent };
 
-interface PersistencePorts {
+export interface PersistencePorts {
   changePath: (
     path: string,
     change: { kind: "move"; folder: string }
@@ -97,8 +97,10 @@ export function createNotePersistence(
   const document = createNoteDocument(
     resumed?.ours ?? initial.content,
     initial.path.split("/").at(-1) ?? initial.path,
-    // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
-    () => changed()
+    () => {
+      // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
+      changed();
+    }
   );
   // A resumed review starts at its stored base and timestamp, so the file on
   // disk arrives as a newer observation and is combined or held again.
@@ -285,7 +287,7 @@ export function createNotePersistence(
       reconcileFile();
     }
   };
-  const save = () => {
+  const save = async () => {
     const run = async () => {
       try {
         await write();
@@ -297,11 +299,11 @@ export function createNotePersistence(
     // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
     const next = tail.then(run, run);
     tail = next;
-    return next;
+    return await next;
   };
   const debouncer = new Debouncer(
     () => {
-      save();
+      void save();
     },
     { wait: 800 }
   );
@@ -316,7 +318,7 @@ export function createNotePersistence(
     document.edit(full, details);
     changed();
   };
-  const changePath = (change: PathChange) => {
+  const changePath = async (change: PathChange) => {
     debouncer.cancel();
     if (change.kind === "retitle") {
       document.rename(change.title);
@@ -333,7 +335,8 @@ export function createNotePersistence(
       // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
       const next = tail.then(run, run);
       tail = next;
-      return next;
+      await next;
+      return;
     }
     state.setState((previous) => ({
       ...previous,
@@ -370,7 +373,7 @@ export function createNotePersistence(
     // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
     const next = tail.then(run, run);
     tail = next;
-    return next;
+    await next;
   };
   const flush = async () => {
     debouncer.cancel();
@@ -461,7 +464,7 @@ export function createNotePersistence(
       updatedAt: file.updatedAt,
     }));
     if (!again) {
-      stashOurs();
+      void stashOurs();
     }
   };
   const reconcileContent = (file: FileContent) => {
@@ -520,7 +523,7 @@ export function createNotePersistence(
     observation = { file, missing, path };
     reconcileFile();
   };
-  const resolve = (content: string) => {
+  const resolve = async (content: string) => {
     const { theirs } = state.state;
     if (!inConflict() || theirs === undefined) {
       throw new Error("nothing to review");
@@ -536,7 +539,7 @@ export function createNotePersistence(
       status: "dirty",
       theirs: undefined,
     }));
-    return save();
+    return await save();
   };
   const editMetadata = async (patch: FrontmatterPatch) => {
     const next = updateFrontmatter(document.content(), patch);
@@ -575,8 +578,9 @@ export function createNotePersistence(
     },
     save,
     select: document.select,
-    setSourceMode: (sourceMode: boolean) =>
-      state.setState((current) => ({ ...current, sourceMode })),
+    setSourceMode: (sourceMode: boolean) => {
+      state.setState((current) => ({ ...current, sourceMode }));
+    },
     snapshot,
     sourceEditor: document.editor,
     store,

@@ -41,38 +41,36 @@ const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
   "window"
 );
 
-export function App() {
-  // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- the cleanup below stops the listener once its promise settles
-  useEffect(() => {
-    if (isCaptureWindow) {
-      return;
-    }
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    const subscribe = async () => {
-      try {
-        const stop = await events.mutationWarnings.listen(({ payload }) =>
-          reportNoteWarnings(payload.warnings)
-        );
-        if (disposed) {
-          stop();
-        } else {
-          unlisten = stop;
-        }
-      } catch (error) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not receive file warnings",
-          type: "error",
-        });
+function listenForWarnings() {
+  let disposed = false;
+  let unlisten: (() => void) | undefined;
+  const subscribe = async () => {
+    try {
+      const stop = await events.mutationWarnings.listen(({ payload }) => {
+        reportNoteWarnings(payload.warnings);
+      });
+      if (disposed) {
+        stop();
+      } else {
+        unlisten = stop;
       }
-    };
-    subscribe();
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not receive file warnings",
+        type: "error",
+      });
+    }
+  };
+  void subscribe();
+  return () => {
+    disposed = true;
+    unlisten?.();
+  };
+}
+
+export function App() {
+  useEffect(() => (isCaptureWindow ? undefined : listenForWarnings()), []);
 
   if (isCaptureWindow) {
     return <CaptureWindow />;

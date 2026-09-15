@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { CancelledError, QueryClient } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -11,9 +11,9 @@ describe("index status", () => {
   describe("index status cache", () => {
     it("should keep a pushed status when a slower read resolves with an older one", async () => {
       const read = Promise.withResolvers<IndexStatus>();
-      mockIPC((command) => {
+      mockIPC(async (command) => {
         if (command === "index_status") {
-          return read.promise;
+          return await read.promise;
         }
         throw new Error(`unexpected command: ${command}`);
       });
@@ -22,11 +22,11 @@ describe("index status", () => {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
-      const reading = client.prefetchQuery(indexStatusQuery);
+      const reading = client.query(indexStatusQuery);
 
       await applyIndexStatus(client, { state: "ready" });
       read.resolve({ state: "scanning" });
-      await reading;
+      await expect(reading).rejects.toBeInstanceOf(CancelledError);
 
       expect(client.getQueryData(indexStatusQuery.queryKey)).toStrictEqual({
         state: "ready",

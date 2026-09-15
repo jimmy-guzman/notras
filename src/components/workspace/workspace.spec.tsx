@@ -25,7 +25,7 @@ describe("workspace", () => {
     const recent = Promise.withResolvers<unknown[]>();
     const listed = Promise.withResolvers<[]>();
     const tags = Promise.withResolvers<[]>();
-    mockIPC((command, args) => {
+    mockIPC(async (command, args) => {
       if (command === "get_notes_dir") {
         return "/notes";
       }
@@ -36,10 +36,12 @@ describe("workspace", () => {
         if (args === undefined || !("filters" in args)) {
           throw new Error("list_notes requires filters");
         }
-        return limitsToOne(args.filters) ? recent.promise : listed.promise;
+        return limitsToOne(args.filters)
+          ? await recent.promise
+          : await listed.promise;
       }
       if (command === "list_tags") {
-        return tags.promise;
+        return await tags.promise;
       }
       if (command === "create_note") {
         return { path: "chosen.md", updatedAt: 1, warnings: [] };
@@ -70,7 +72,7 @@ describe("workspace", () => {
       },
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         recent.resolve([]);
         listed.resolve([]);
         tags.resolve([]);
@@ -96,10 +98,10 @@ describe("workspace", () => {
     }
     await user.click(button);
     await screen.findByText("Available document");
-    await expect(
-      screen.findByRole("tab", { name: "Chosen" })
-    ).resolves.toBeInTheDocument();
-    await act(() => {
+    expect(
+      await screen.findByRole("tab", { name: "Chosen" })
+    ).toBeInTheDocument();
+    act(() => {
       recent.resolve([
         {
           createdAt: 1,
@@ -113,11 +115,11 @@ describe("workspace", () => {
         },
       ]);
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
         "chosen.md",
-      ])
-    );
+      ]);
+    });
     expect(screen.getByText("Available document")).toBeInTheDocument();
   });
 });

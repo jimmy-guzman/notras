@@ -34,13 +34,15 @@ describe("note tags", () => {
           updatedAt: new Date(0),
         },
         {
-          changePath: () => Promise.reject(new Error("no move requested")),
-          clearStash: () => Promise.resolve(),
+          changePath: () => {
+            throw new Error("no move requested");
+          },
+          clearStash: async () => {},
           onPathChanged: () => {},
-          stash: () => Promise.resolve(),
-          write: (_path, content) => {
+          stash: async () => {},
+          write: async (_path, content) => {
             writes.push(content);
-            return saved.promise;
+            return await saved.promise;
           },
         }
       );
@@ -122,9 +124,9 @@ describe("note tags", () => {
 
   it("should keep attached tags and typed choices available while suggestions load", async () => {
     const listed = Promise.withResolvers<[]>();
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "list_tags") {
-        return listed.promise;
+        return await listed.promise;
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -132,7 +134,7 @@ describe("note tags", () => {
       defaultOptions: { queries: { retry: false } },
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         listed.resolve([]);
       });
       client.clear();
@@ -149,9 +151,9 @@ describe("note tags", () => {
       screen.getByRole("button", { name: "#attached" })
     ).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "add tag" }));
-    await expect(
-      screen.findByText("loading tag suggestions...")
-    ).resolves.toBeInTheDocument();
+    expect(
+      await screen.findByText("loading tag suggestions...")
+    ).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("filter tags..."), "newtag");
     expect(screen.getByRole("option", { name: "newtag" })).toBeInTheDocument();
     expect(screen.queryByText("no tags yet")).not.toBeInTheDocument();

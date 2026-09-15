@@ -399,11 +399,9 @@ describe("moveRange over a selection", () => {
     editor.commands.setTextSelection({ from: at, to: at });
 
     const tr = moveRangeByStep(editor.state, false);
-    const pointer = tr?.getMeta("pointer");
-
     editor.destroy();
 
-    expect(pointer).toBeUndefined();
+    expect(tr?.getMeta("pointer")).toBeUndefined();
   });
 });
 

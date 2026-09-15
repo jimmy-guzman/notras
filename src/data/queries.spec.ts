@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getNote } from "@/data/get-note";
 import { noteQueries } from "@/data/queries";
@@ -27,9 +27,10 @@ describe("queries", () => {
       expect(calls).toStrictEqual([
         { args: { path: "a.md" }, command: "read_note" },
       ]);
-      mockIPC(() =>
-        // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri IPC rejects with the serialized failure, not an Error
-        Promise.reject({ kind: "not-found", message: "no such file" })
+      mockIPC(
+        vi
+          .fn<Parameters<typeof mockIPC>[0]>()
+          .mockRejectedValue({ kind: "not-found", message: "no such file" })
       );
       await expect(getNote("missing.md")).rejects.toMatchObject({
         kind: "not-found",
@@ -60,7 +61,7 @@ describe("queries", () => {
           },
         ];
       });
-      const result = await client.fetchQuery(noteQueries.search(search));
+      const result = await client.query(noteQueries.search(search));
       expect(result[0]).toMatchObject({
         createdAt: new Date(0),
         path: "work/a.md",
@@ -87,9 +88,9 @@ describe("queries", () => {
         }
         return [];
       });
-      await client.fetchQuery(noteQueries.file("note", "atlas.md"));
-      await client.fetchQuery(noteQueries.mentions("atlas.md"));
-      await client.fetchQuery(noteQueries.tags());
+      await client.query(noteQueries.file("note", "atlas.md"));
+      await client.query(noteQueries.mentions("atlas.md"));
+      await client.query(noteQueries.tags());
       await client.invalidateQueries({ queryKey: noteQueries.index });
       expect(
         client.getQueryState(noteQueries.mentions("atlas.md").queryKey)

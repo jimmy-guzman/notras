@@ -29,7 +29,9 @@ function mount(query: string, error?: Error) {
       .find({ queryKey: options.queryKey })
       ?.setState({ error, status: "error" });
   }
-  onTestFinished(() => client.clear());
+  onTestFinished(() => {
+    client.clear();
+  });
   const search = (value: string) =>
     createElement(
       QueryClientProvider,
@@ -52,7 +54,9 @@ function mount(query: string, error?: Error) {
   const { container, rerender } = render(search(query));
   return {
     host: container,
-    rerender: (value: string) => rerender(search(value)),
+    rerender: (value: string) => {
+      rerender(search(value));
+    },
   };
 }
 
@@ -80,9 +84,9 @@ describe("palette search states", () => {
     onTestFinished(clearMocks);
     mount("");
 
-    await expect(
-      screen.findByRole("option", { name: "Recent" })
-    ).resolves.toBeInTheDocument();
+    expect(
+      await screen.findByRole("option", { name: "Recent" })
+    ).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({
       filters: {
         folder: null,
@@ -112,9 +116,9 @@ describe("palette search states", () => {
     });
     client.setQueryData(indexStatusQuery.queryKey, { state: "scanning" });
     client.setQueryData(noteQueries.tags().queryKey, []);
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "search_notes") {
-        return Promise.withResolvers().promise;
+        return await Promise.withResolvers().promise;
       }
       throw new Error(`unexpected command: ${command}`);
     });
@@ -197,9 +201,9 @@ describe("palette search", () => {
     ]);
     const read = Promise.withResolvers<NoteMeta[]>();
     const request = Promise.allSettled([
-      client.fetchQuery({
+      client.query({
         ...noteQueries.search(parseSearch("#missing")),
-        queryFn: () => read.promise,
+        queryFn: async () => await read.promise,
       }),
     ]);
     onTestFinished(async () => {

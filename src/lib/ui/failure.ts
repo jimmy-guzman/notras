@@ -2,9 +2,9 @@ import { isNativeFailure } from "@/core/errors";
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a caught value is unknown by the language
 function rejectionMessage(error: unknown) {
-  if (error instanceof Error || isNativeFailure(error)) {
-    return error.message;
-  }
+  return error instanceof Error || isNativeFailure(error)
+    ? error.message
+    : undefined;
 }
 
 /**

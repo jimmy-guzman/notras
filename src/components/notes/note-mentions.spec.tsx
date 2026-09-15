@@ -176,9 +176,9 @@ describe("note mentions", () => {
       });
       const response = Promise.withResolvers<unknown>();
       const calls: unknown[] = [];
-      mockIPC((command, args) => {
+      mockIPC(async (command, args) => {
         calls.push({ args, command });
-        return response.promise;
+        return await response.promise;
       });
       const { container: host } = render(
         createElement(
@@ -187,7 +187,9 @@ describe("note mentions", () => {
           createElement(MentionsOf, { path: "atlas.md" })
         )
       );
-      onTestFinished(() => client.clear());
+      onTestFinished(() => {
+        client.clear();
+      });
       expect(host.textContent).toBe("");
       await act(async () => {
         response.resolve(
@@ -205,9 +207,11 @@ describe("note mentions", () => {
             },
           }))
         );
-        await client.fetchQuery(noteQueries.mentions("atlas.md"));
+        await client.query(noteQueries.mentions("atlas.md"));
       });
-      await waitFor(() => expect(host.textContent).toBe("2 mentions"));
+      await waitFor(() => {
+        expect(host.textContent).toBe("2 mentions");
+      });
       expect(calls).toStrictEqual([
         { args: { path: "atlas.md" }, command: "find_mentions" },
       ]);

@@ -21,7 +21,7 @@ const MARKDOWN_PASTE_PATTERN =
 
 function containsCodeBlock(content: Fragment): boolean {
   return content.content.some(
-    (node) => node.type.spec.code || containsCodeBlock(node.content)
+    (node) => node.type.spec.code === true || containsCodeBlock(node.content)
   );
 }
 
@@ -106,7 +106,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
         props: {
           handlePaste: (view, event, slice) => {
             if (
-              view.state.selection.$from.parent.type.spec.code ||
+              view.state.selection.$from.parent.type.spec.code === true ||
               containsCodeBlock(slice.content)
             ) {
               return false;
@@ -115,7 +115,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             const text = event.clipboardData?.getData("text/plain");
             const manager = this.editor.markdown;
 
-            if (!text) {
+            if (text === undefined || text === "") {
               return false;
             }
 

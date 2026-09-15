@@ -44,7 +44,9 @@ describe("find controls", () => {
       surface.remove();
     });
     render(createElement(FindBar, { controller }));
-    act(() => controller.open());
+    act(() => {
+      controller.open();
+    });
     const input = screen.getByRole("textbox", { name: "find text" });
     expect(input).toHaveFocus();
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
@@ -52,10 +54,14 @@ describe("find controls", () => {
     expect(screen.getByText("2 / 2")).toBeInTheDocument();
     await user.keyboard("{Shift>}{Enter}{/Shift}");
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
-    act(() => editor.view.focus());
+    act(() => {
+      editor.view.focus();
+    });
     await user.keyboard("{Meta>}{Shift>}g{/Shift}{/Meta}");
     expect(screen.getByText("2 / 2")).toBeInTheDocument();
-    act(() => input.focus());
+    act(() => {
+      input.focus();
+    });
     await user.keyboard("{Escape}");
     expect(
       screen.queryByRole("textbox", { name: "find text" })
@@ -69,7 +75,9 @@ describe("find controls", () => {
       screen.getByRole("textbox", { name: "find text" })
     ).toBeInTheDocument();
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
-    act(() => editor.view.focus());
+    act(() => {
+      editor.view.focus();
+    });
     await user.keyboard("{Meta>}{Alt>}g{/Alt}{/Meta}");
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
   });
@@ -80,27 +88,37 @@ describe("find controls", () => {
     const handles: SourceEditorHandle[] = [];
     const changes: string[] = [];
     const source = "---\ntitle: Atlas\n---\n# Atlas\n\n`Atlas`";
-    const note = createNoteDocument(source, "atlas.md", () =>
-      changes.push(note.content())
-    );
-    onTestFinished(() => note.destroy());
+    const note = createNoteDocument(source, "atlas.md", () => {
+      changes.push(note.content());
+    });
+    onTestFinished(() => {
+      note.destroy();
+    });
     const { container } = render(
       createElement(SourceEditor, {
         editor: note.editor,
-        onReady: (ready) => handles.push(ready),
+        onReady: (ready) => {
+          handles.push(ready);
+        },
       })
     );
     const [handle] = handles;
     if (handle === undefined) {
       throw new Error("source editor missing");
     }
-    act(() => handle.find.setQuery("atlas"));
+    act(() => {
+      handle.find.setQuery("atlas");
+    });
     expect(handle.find.snapshot()).toStrictEqual({ current: 1, total: 3 });
     expect(container.querySelector("pre")?.textContent).toBe(source);
     expect(changes).toStrictEqual([]);
-    act(() => handle.insertText("Atlas "));
+    act(() => {
+      handle.insertText("Atlas ");
+    });
     expect(handle.find.snapshot().total).toBe(4);
-    act(() => handle.find.setQuery(null));
+    act(() => {
+      handle.find.setQuery(null);
+    });
     expect(container.querySelector(".note-find-match")).toBeNull();
   });
 
@@ -114,7 +132,9 @@ describe("find controls", () => {
     if (!(editor instanceof HTMLElement)) {
       throw new Error("capture editor missing");
     }
-    act(() => editor.focus());
+    act(() => {
+      editor.focus();
+    });
     const modifier = detectPlatform() === "mac" ? "Meta" : "Control";
     await user.keyboard(`{${modifier}>}f{/${modifier}}`);
     expect(

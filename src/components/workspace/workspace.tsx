@@ -116,7 +116,13 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
       <output className="block p-3 text-center text-sm">
         <p>could not open the recent note</p>
         <p>{reasonOf(latest.error)}</p>
-        <Button onClick={retry} size="sm" variant="ghost">
+        <Button
+          onClick={() => {
+            void retry();
+          }}
+          size="sm"
+          variant="ghost"
+        >
           retry
         </Button>
       </output>
@@ -284,7 +290,7 @@ export function Workspace({
       }
 
       const copies = await Promise.allSettled(
-        paths.map((sourcePath) => attachFile(sourcePath))
+        paths.map(async (sourcePath) => await attachFile(sourcePath))
       );
 
       for (const copy of copies) {
@@ -304,7 +310,7 @@ export function Workspace({
 
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === "drop") {
-        attachDropped(event.payload.paths);
+        void attachDropped(event.payload.paths);
       }
     });
 
@@ -321,7 +327,7 @@ export function Workspace({
         }
       };
 
-      dispose();
+      void dispose();
     };
   }, []);
 
@@ -350,7 +356,13 @@ export function Workspace({
     }
   }, []);
 
-  useHotkey("Mod+T", newNote, { meta: { name: "new note" } });
+  useHotkey(
+    "Mod+T",
+    () => {
+      void newNote();
+    },
+    { meta: { name: "new note" } }
+  );
   useHotkey("Mod+W", closeActive, { meta: { name: "close tab" } });
   useHotkey("Mod+Alt+Shift+W", closeOthers, {
     meta: { name: "close other tabs" },
@@ -366,30 +378,72 @@ export function Workspace({
   useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
   useHotkeys(
     TAB_JUMPS.map(([hotkey, index]) => ({
-      callback: () => jumpToTab(index),
+      callback: () => {
+        jumpToTab(index);
+      },
       hotkey,
     }))
   );
   useHotkeys([
-    { callback: () => cycleTab("next"), hotkey: "Control+Tab" },
-    { callback: () => cycleTab("previous"), hotkey: "Control+Shift+Tab" },
-    { callback: () => cycleTab("next"), hotkey: "Mod+Alt+ArrowRight" },
-    { callback: () => cycleTab("previous"), hotkey: "Mod+Alt+ArrowLeft" },
+    {
+      callback: () => {
+        cycleTab("next");
+      },
+      hotkey: "Control+Tab",
+    },
+    {
+      callback: () => {
+        cycleTab("previous");
+      },
+      hotkey: "Control+Shift+Tab",
+    },
+    {
+      callback: () => {
+        cycleTab("next");
+      },
+      hotkey: "Mod+Alt+ArrowRight",
+    },
+    {
+      callback: () => {
+        cycleTab("previous");
+      },
+      hotkey: "Mod+Alt+ArrowLeft",
+    },
   ]);
   useHotkeys([
-    { callback: () => carryTab(-1), hotkey: "Mod+Alt+Shift+ArrowLeft" },
-    { callback: () => carryTab(1), hotkey: "Mod+Alt+Shift+ArrowRight" },
+    {
+      callback: () => {
+        carryTab(-1);
+      },
+      hotkey: "Mod+Alt+Shift+ArrowLeft",
+    },
+    {
+      callback: () => {
+        carryTab(1);
+      },
+      hotkey: "Mod+Alt+Shift+ArrowRight",
+    },
   ]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <TabStrip activeId={activeId} onNew={newNote} tabs={tabs} />
+        <TabStrip
+          activeId={activeId}
+          onNew={() => {
+            void newNote();
+          }}
+          tabs={tabs}
+        />
         {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
       {tabs.length === 0 ? (
         <>
-          <Welcome onNew={newNote} />
+          <Welcome
+            onNew={() => {
+              void newNote();
+            }}
+          />
           {tabState === initialTabs ? (
             <RecentNote initialTabs={initialTabs} />
           ) : null}

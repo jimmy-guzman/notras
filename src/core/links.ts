@@ -64,6 +64,7 @@ const REFUSED_SEGMENT = /^\.|[\\:\0]/u;
  */
 export function foldPath(path: string, from: string): string | undefined {
   const segments: string[] = [];
+  let refused = false;
 
   for (const segment of [...noteFolder(from).split("/"), ...path.split("/")]) {
     if (segment === "" || segment === ".") {
@@ -72,20 +73,22 @@ export function foldPath(path: string, from: string): string | undefined {
 
     if (segment === "..") {
       if (segments.pop() === undefined) {
-        return;
+        refused = true;
+        break;
       }
 
       continue;
     }
 
     if (REFUSED_SEGMENT.test(segment)) {
-      return;
+      refused = true;
+      break;
     }
 
     segments.push(segment);
   }
 
-  return segments.join("/");
+  return refused ? undefined : segments.join("/");
 }
 
 /** Resolve a destination's path segments without looking up an indexed note. */

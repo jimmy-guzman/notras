@@ -3,5 +3,5 @@ import { commands } from "@/server/adapters/bindings";
 
 /** Rebuild the derived index from the files on disk. */
 export async function reindexAll(): Promise<string[]> {
-  return await nativeCommand(commands.reindexAll);
+  return await nativeCommand(async () => await commands.reindexAll());
 }

@@ -67,26 +67,32 @@ export function offerUpdate(update: Update) {
     }
   };
 
+  const install = async (offer: string) => {
+    try {
+      await installUpdate(update);
+    } catch (error) {
+      // Closing the offer runs `release` through `onClose`, so the failure
+      // path must not free the handle itself, and must not close before
+      // `installUpdate` is done with it.
+      toast.close(offer);
+      toast.add({
+        description: reasonOf(error),
+        title: "could not install the update",
+        type: "error",
+      });
+    }
+  };
+
   const id = toast.add({
     actionProps: {
       children: "install",
-      onClick: async () => {
-        try {
-          await installUpdate(update);
-        } catch (error) {
-          // Closing the offer runs `release` through `onClose`, so the failure
-          // path must not free the handle itself, and must not close before
-          // `installUpdate` is done with it.
-          toast.close(id);
-          toast.add({
-            description: reasonOf(error),
-            title: "could not install the update",
-            type: "error",
-          });
-        }
+      onClick: () => {
+        void install(id);
       },
     },
-    onClose: release,
+    onClose: () => {
+      void release();
+    },
     timeout: 0,
     title: `version ${update.version} is available`,
   });

@@ -12,7 +12,7 @@ describe("recent note", () => {
     localStorage.removeItem("tabs");
     mockWindows("main");
     const recent = Promise.withResolvers<unknown[]>();
-    mockIPC((command) => {
+    mockIPC(async (command) => {
       if (command === "get_notes_dir") {
         return "/notes";
       }
@@ -20,7 +20,7 @@ describe("recent note", () => {
         return { state: "scanning" };
       }
       if (command === "list_notes") {
-        return recent.promise;
+        return await recent.promise;
       }
       if (command === "list_tags") {
         return [];
@@ -39,7 +39,7 @@ describe("recent note", () => {
       },
     });
     onTestFinished(async () => {
-      await act(() => {
+      act(() => {
         recent.resolve([]);
       });
       for (const tab of getTabState().tabs) {
@@ -59,7 +59,7 @@ describe("recent note", () => {
     expect(
       screen.queryByText("loading recent note...")
     ).not.toBeInTheDocument();
-    await act(() => {
+    act(() => {
       client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
     });
     await screen.findByText("loading recent note...");

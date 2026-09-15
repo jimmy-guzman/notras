@@ -169,9 +169,8 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm build:web`      | build only the web shell                          |
 | `pnpm bindings`       | regenerate the Rust command and event client      |
 | `pnpm bindings:check` | fail if a temporary native binding export differs |
-| `pnpm check`          | lint and format check (Ultracite)                 |
+| `pnpm check`          | type-aware lint, type check and format check      |
 | `pnpm fix`            | lint and format, auto-fixing                      |
-| `pnpm typecheck`      | type check (tsc)                                  |
 | `pnpm test`           | run tests (Vitest, watches)                       |
 | `pnpm coverage`       | tests with coverage                               |
 | `pnpm knip`           | unused code/deps, test-only exports               |
@@ -203,7 +202,7 @@ Both crates inherit checks requiring explicit unsafe operations, safety comments
 
 On Windows MSVC, `src-tauri/build.rs` embeds `windows_manifest.xml` through the linker for both the application and shell test executables. It declares the Common Controls v6 dependency required by Tauri. Without that manifest, Windows can reject the test executable with `STATUS_ENTRYPOINT_NOT_FOUND` before any tests run.
 
-Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. `oxlint.config.ts` and `oxfmt.config.ts` exclude that file. Run `pnpm bindings:check` before `pnpm typecheck`; run `pnpm bindings` to update the committed client after a native contract change.
+Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. `oxlint.config.ts` and `oxfmt.config.ts` exclude that file. Run `pnpm bindings:check` before `pnpm check`; run `pnpm bindings` to update the committed client after a native contract change.
 
 Mutation tests cover native file and index outcomes, shared normalization fixtures, and session persistence with delayed writes and path changes. A file that committed remains saved when indexing fails. The main window reports the warning, and the next index read attempts recovery.
 

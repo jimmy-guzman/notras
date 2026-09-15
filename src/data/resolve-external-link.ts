@@ -7,7 +7,7 @@ export async function resolveExternalLink(
   document: string,
   destination: string
 ): Promise<PendingOpen> {
-  return await nativeCommand(() =>
-    commands.resolveExternalLink(document, destination)
+  return await nativeCommand(
+    async () => await commands.resolveExternalLink(document, destination)
   );
 }

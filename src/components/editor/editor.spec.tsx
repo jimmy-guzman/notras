@@ -38,7 +38,9 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
     })
   );
 
-  await waitFor(() => expect(handles).toHaveLength(1));
+  await waitFor(() => {
+    expect(handles).toHaveLength(1);
+  });
   const [handle] = handles;
   const scroller = host.firstElementChild;
   const surface = host.querySelector(".ProseMirror");
@@ -66,7 +68,9 @@ describe("focus mode reading state", () => {
       editor.commands.insertContent(" plus typing");
     });
     const offset = editor.state.selection.$from.parentOffset;
-    act(() => handle.replaceContent("# a longer title\n\nbody plus typing"));
+    act(() => {
+      handle.replaceContent("# a longer title\n\nbody plus typing");
+    });
     expect(scroller.querySelector(".ProseMirror")).toBe(editor.view.dom);
     expect(handle.getContent()).toContain("# a longer title");
     expect(handle.getContent()).toContain("body plus typing");
@@ -306,14 +310,20 @@ describe("document selection mapping", () => {
       }
       return parse(content);
     });
-    onTestFinished(() => failing.mockRestore());
+    onTestFinished(() => {
+      failing.mockRestore();
+    });
 
-    act(() => handle.replaceContent("new body", { anchor: 2, head: 5 }));
+    act(() => {
+      handle.replaceContent("new body", { anchor: 2, head: 5 });
+    });
 
     expect(handle.getContent().trimEnd()).toBe("new body");
     expect(scroller.querySelector(".ProseMirror")).toBe(editor.view.dom);
     failing.mockRestore();
-    act(() => handle.replaceContent("latest body", { anchor: 1, head: 4 }));
+    act(() => {
+      handle.replaceContent("latest body", { anchor: 1, head: 4 });
+    });
     expect(
       editor.state.doc.textBetween(
         editor.state.selection.from,
@@ -324,10 +334,12 @@ describe("document selection mapping", () => {
     const invalid = vi.spyOn(manager, "parse").mockImplementation(() => {
       throw new Error("cannot parse the document");
     });
-    onTestFinished(() => invalid.mockRestore());
-    expect(() =>
-      handle.replaceContent("unreadable", { anchor: 0, head: 0 })
-    ).toThrow("cannot parse the document");
+    onTestFinished(() => {
+      invalid.mockRestore();
+    });
+    expect(() => {
+      handle.replaceContent("unreadable", { anchor: 0, head: 0 });
+    }).toThrow("cannot parse the document");
     invalid.mockRestore();
     expect(handle.getContent().trimEnd()).toBe("latest body");
   });
@@ -354,7 +366,9 @@ describe("document selection mapping", () => {
         }
         return serialize(document);
       });
-    onTestFinished(() => failing.mockRestore());
+    onTestFinished(() => {
+      failing.mockRestore();
+    });
     onSelect.mockClear();
     act(() => {
       editor.commands.insertContent("new ");
@@ -433,7 +447,9 @@ describe("caret on mount", () => {
         })
       )
     );
-    await waitFor(() => expect(handles).toHaveLength(1));
+    await waitFor(() => {
+      expect(handles).toHaveLength(1);
+    });
     const surface = container.querySelector(".ProseMirror");
     if (
       surface === null ||

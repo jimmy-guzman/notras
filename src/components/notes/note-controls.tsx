@@ -40,7 +40,9 @@ function PinToggle({ path, pinned }: PinToggleProps) {
           <Toggle
             aria-label={pinned ? "unpin note" : "pin note"}
             className="aria-pressed:text-foreground aria-pressed:bg-transparent"
-            onPressedChange={togglePinned}
+            onPressedChange={() => {
+              void togglePinned();
+            }}
             pressed={pinned}
             size="icon-xs"
           />

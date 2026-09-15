@@ -207,11 +207,13 @@ function SessionBuffer({
   const focusOnMount = active && !findState.open;
   const [findHandle, setFindHandle] = useState<FindHandle | null>(null);
 
-  useEffect(() => {
-    if (active && !graphMode && findHandle?.alive()) {
-      return noteFind.bind(findHandle);
-    }
-  }, [active, findHandle, graphMode]);
+  useEffect(
+    () =>
+      active && !graphMode && findHandle?.alive() === true
+        ? noteFind.bind(findHandle)
+        : undefined,
+    [active, findHandle, graphMode]
+  );
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
@@ -251,7 +253,9 @@ function SessionBuffer({
             null
           );
         },
-        onCleanFileMissing: () => closeTab(id),
+        onCleanFileMissing: () => {
+          closeTab(id);
+        },
         onDocumentChanged: replaceDocument,
         onPathChanged: renameTab,
         stash: async (path, review) => {
@@ -288,15 +292,21 @@ function SessionBuffer({
   if (reviewing && status !== "conflict") {
     setReviewing(false);
   }
-  const openReview = useCallback(() => setReviewing(true), []);
+  const openReview = useCallback(() => {
+    setReviewing(true);
+  }, []);
   const backFromReview = useCallback(() => {
-    flushSync(() => setReviewing(false));
+    flushSync(() => {
+      setReviewing(false);
+    });
     reviewButton.current?.focus();
   }, []);
   const resolveReview = useCallback(
     (content: string) => {
-      flushSync(() => setReviewing(false));
-      persistence.resolve(content);
+      flushSync(() => {
+        setReviewing(false);
+      });
+      void persistence.resolve(content);
       if (persistence.store.state.sourceMode) {
         sourceRef.current?.focus();
       } else {
@@ -749,8 +759,8 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   const stash = useQuery(noteQueries.conflict(kind, path));
   const { refetch: refetchStash } = stash;
   const retry = useCallback(() => {
-    refetch();
-    refetchStash();
+    void refetch();
+    void refetchStash();
   }, [refetch, refetchStash]);
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read

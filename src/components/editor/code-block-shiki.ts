@@ -8,6 +8,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { guessEmbeddedLanguages } from "shiki/core";
 import type { HighlighterCore } from "shiki/types";
 
+import { hasString } from "@/components/editor/attrs";
 import {
   loadSyntaxHighlighter,
   syntaxLanguage,
@@ -24,7 +25,9 @@ function codeBlocks(doc: Node) {
 
 function documentLanguages(doc: Node) {
   return codeBlocks(doc).flatMap(({ node }) => {
-    const language = syntaxLanguage(node.attrs.language);
+    const language = syntaxLanguage(
+      hasString(node.attrs, "language") ? node.attrs.language : undefined
+    );
 
     if (language === undefined) {
       return [];
@@ -49,7 +52,9 @@ function decorationsFor(
   const loaded = new Set(highlighter.getLoadedLanguages());
 
   return blocks.flatMap(({ node, pos }) => {
-    const language = syntaxLanguage(node.attrs.language);
+    const language = syntaxLanguage(
+      hasString(node.attrs, "language") ? node.attrs.language : undefined
+    );
 
     if (language === undefined || !loaded.has(language)) {
       return [];
@@ -162,7 +167,7 @@ function syntaxPlugin() {
     },
     state: {
       apply(transaction, decorations, previous) {
-        if (transaction.getMeta(key)) {
+        if (transaction.getMeta(key) === true) {
           return DecorationSet.create(
             transaction.doc,
             decorationsFor(codeBlocks(transaction.doc), highlighter)
@@ -181,12 +186,12 @@ function syntaxPlugin() {
       init: () => DecorationSet.empty,
     },
     view(view) {
-      prepare(view);
+      void prepare(view);
 
       return {
         update(current, previous) {
           if (!current.state.doc.eq(previous.doc)) {
-            prepare(current);
+            void prepare(current);
           }
         },
       };
@@ -201,7 +206,9 @@ export const CodeBlockShiki = CodeBlock.extend({
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";
-    const language = node.attrs?.language ?? "";
+    const language = hasString(node.attrs, "language")
+      ? node.attrs.language
+      : "";
     // Backtick fences cannot carry a backtick in their info string.
     const marker = language.includes("`") ? "~" : "`";
     // A literal fence in an example must not close the block enclosing it.

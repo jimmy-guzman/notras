@@ -84,7 +84,7 @@ function scanSearch(input: string) {
       offset += 1;
       continue;
     }
-    const prefix = input.slice(offset).match(FILTER_START)?.[0];
+    const prefix = FILTER_START.exec(input.slice(offset))?.[0];
     const part = readValue(input, offset + (prefix?.length ?? 0));
     if (prefix === undefined) {
       words.push(input.slice(offset, part.end));

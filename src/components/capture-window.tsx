@@ -31,11 +31,10 @@ export function CaptureWindow() {
   const [find] = useState(createFindController);
   const findState = useSelector(find.store);
   const [findHandle, setFindHandle] = useState<FindHandle | null>(null);
-  useEffect(() => {
-    if (findHandle !== null) {
-      return find.bind(findHandle);
-    }
-  }, [find, findHandle]);
+  useEffect(
+    () => (findHandle === null ? undefined : find.bind(findHandle)),
+    [find, findHandle]
+  );
   useHotkey("Mod+F", find.open, { meta: { name: "find in note" } });
 
   const saveAndHide = async () => {
@@ -81,11 +80,18 @@ export function CaptureWindow() {
 
   useHotkeys([
     {
-      callback: saveAndHide,
+      callback: () => {
+        void saveAndHide();
+      },
       hotkey: "Escape",
       options: { enabled: !findState.open },
     },
-    { callback: saveAndHide, hotkey: "Mod+Enter" },
+    {
+      callback: () => {
+        void saveAndHide();
+      },
+      hotkey: "Mod+Enter",
+    },
   ]);
 
   return (

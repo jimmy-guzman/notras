@@ -251,10 +251,14 @@ describe("markdown round-trip", () => {
     "should preserve $name across saves",
     ({ markdown }, { onTestFinished }) => {
       const before = load(markdown);
-      onTestFinished(() => before.destroy());
+      onTestFinished(() => {
+        before.destroy();
+      });
       const saved = serializeMarkdown(before);
       const after = load(saved);
-      onTestFinished(() => after.destroy());
+      onTestFinished(() => {
+        after.destroy();
+      });
 
       expect(after.getJSON()).toStrictEqual(before.getJSON());
       expect(serializeMarkdown(after)).toBe(saved);

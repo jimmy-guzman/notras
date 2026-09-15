@@ -56,7 +56,9 @@ function SessionTags({
 }
 
 function mount(view: ReactNode, client: QueryClient) {
-  onTestFinished(() => client.clear());
+  onTestFinished(() => {
+    client.clear();
+  });
   return render(
     createElement(
       QueryClientProvider,
@@ -102,8 +104,12 @@ describe("palette note views", () => {
     const { container: host } = mount(
       createElement(MoveView, {
         onCancel: () => {},
-        onMove: (folder) => moved.push(folder),
-        onMoveToNewFolder: () => moved.push("new"),
+        onMove: (folder) => {
+          moved.push(folder);
+        },
+        onMoveToNewFolder: () => {
+          moved.push("new");
+        },
         query: "client work",
       }),
       client
@@ -121,9 +127,9 @@ describe("palette note views", () => {
     async (state) => {
       const vocabulary = Promise.withResolvers<[]>();
       const writes: string[] = [];
-      mockIPC((command, args) => {
+      mockIPC(async (command, args) => {
         if (command === "list_tags") {
-          return vocabulary.promise;
+          return await vocabulary.promise;
         }
         if (command === "list_notes") {
           return [];
@@ -174,7 +180,7 @@ describe("palette note views", () => {
         throw new Error("the note did not open");
       }
       onTestFinished(async () => {
-        await act(() => {
+        act(() => {
           vocabulary.resolve([]);
         });
         client.clear();
@@ -197,18 +203,18 @@ describe("palette note views", () => {
       const { rerender } = render(view(""));
       await screen.findByRole("heading", { name: "Atlas" });
       if (state === "failed") {
-        await act(() => {
+        act(() => {
           vocabulary.reject({
             kind: "failed",
             message: "tag index unavailable",
           });
         });
       }
-      await waitFor(() =>
+      await waitFor(() => {
         expect(
           screen.queryByText("could not load tag suggestions") !== null
-        ).toBe(state === "failed")
-      );
+        ).toBe(state === "failed");
+      });
       const user = userEvent.setup();
       const attached = screen.getByRole("option", {
         name: state === "available" ? "work 2" : "work",
@@ -244,8 +250,12 @@ describe("palette note views", () => {
     const client = new QueryClient();
     mount(
       createElement(DeleteView, {
-        onCancel: () => actions.push("cancel"),
-        onConfirm: () => actions.push("delete"),
+        onCancel: () => {
+          actions.push("cancel");
+        },
+        onConfirm: () => {
+          actions.push("delete");
+        },
         title: "Atlas",
       }),
       client

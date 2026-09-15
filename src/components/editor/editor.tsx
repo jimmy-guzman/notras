@@ -10,7 +10,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { hasString } from "@/components/editor/attrs";
+import { contentOf, hasString } from "@/components/editor/attrs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { isNotePath, isRelativeDestination } from "@/core/links";
@@ -53,10 +53,8 @@ const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
  */
 function wikilinkTitleAt(state: EditorState, head: number) {
   const after = state.doc.nodeAt(head);
-  const node =
-    after?.type.name === "wikilink"
-      ? after
-      : (head > 0 && state.doc.nodeAt(head - 1)) || null;
+  const before = head > 0 ? state.doc.nodeAt(head - 1) : null;
+  const node = after?.type.name === "wikilink" ? after : before;
 
   return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
 }
@@ -179,7 +177,7 @@ function firstTitle(doc: ProseMirrorNode) {
       return false;
     }
     if (node.type.name !== "paragraph" && node.type.name !== "heading") {
-      return;
+      return true;
     }
     let from = position + 1;
     let text = "";
@@ -262,7 +260,7 @@ function sourceOffset(editor: TiptapEditor, position: number) {
     const marked = editor.state.tr.insertText(SENTINEL, position);
     return fileMarkdown(
       manager,
-      normalizeMarkdown(manager.serialize(marked.doc.toJSON()))
+      normalizeMarkdown(manager.serialize(contentOf(marked.doc)))
     ).indexOf(SENTINEL);
   } catch {
     return -1;
@@ -383,10 +381,9 @@ export function Editor({
 
   const closeHoverLater = useCallback(() => {
     keepHover();
-    closeHoverRef.current = setTimeout(
-      () => setLinkHover(null),
-      HOVER_CLOSE_MS
-    );
+    closeHoverRef.current = setTimeout(() => {
+      setLinkHover(null);
+    }, HOVER_CLOSE_MS);
   }, [keepHover]);
 
   useEffect(() => keepHover, [keepHover]);
@@ -470,7 +467,7 @@ export function Editor({
           return manager
             ? fileMarkdown(
                 manager,
-                normalizeMarkdown(manager.serialize(doc.toJSON()))
+                normalizeMarkdown(manager.serialize(contentOf(doc)))
               )
             : fallback;
         } catch {
@@ -597,7 +594,7 @@ export function Editor({
                 type: "error",
               });
             });
-            reader.addEventListener("load", async () => {
+            const attachRead = async () => {
               const result = isDataUrl(reader.result) ? reader.result : "";
               const base64 = result.split(",")[1] ?? "";
 
@@ -627,6 +624,10 @@ export function Editor({
                   type: "error",
                 });
               }
+            };
+
+            reader.addEventListener("load", () => {
+              void attachRead();
             });
             reader.readAsDataURL(blob);
 
@@ -675,7 +676,7 @@ export function Editor({
               SENTINEL,
               instance.state.selection.head
             );
-            const md: string = manager.serialize(marked.doc.toJSON());
+            const md: string = manager.serialize(contentOf(marked.doc));
 
             // Source mode shows the file form, so the offset has to index it.
             return fileMarkdown(manager, normalizeMarkdown(md)).indexOf(
@@ -757,7 +758,10 @@ export function Editor({
       transaction,
       appendedTransactions,
     }) => {
-      if (suppressChangeRef.current || transaction.getMeta("preventUpdate")) {
+      if (
+        suppressChangeRef.current ||
+        transaction.getMeta("preventUpdate") === true
+      ) {
         return;
       }
       const transactions = [transaction, ...appendedTransactions];
@@ -865,33 +869,37 @@ export function Editor({
     const scroller = scrollerRef.current;
     const content = editor?.view.dom.parentElement;
 
-    if (
-      !focusModeEnabled ||
+    const engage = (
+      instance: TiptapEditor,
+      area: HTMLElement,
+      body: HTMLElement
+    ) => {
+      const recenter = () => {
+        if (instance.isDestroyed) {
+          return;
+        }
+
+        instance
+          .chain()
+          .setMeta(TYPEWRITER_SCROLL, "center")
+          .scrollIntoView()
+          .run();
+      };
+      const disengage = engageTypewriterPadding(area, body, recenter);
+
+      if (!wasEnabled) {
+        recenter();
+      }
+
+      return disengage;
+    };
+
+    return !focusModeEnabled ||
       editor === null ||
       scroller === null ||
       !(content instanceof HTMLElement)
-    ) {
-      return;
-    }
-
-    const recenter = () => {
-      if (editor.isDestroyed) {
-        return;
-      }
-
-      editor
-        .chain()
-        .setMeta(TYPEWRITER_SCROLL, "center")
-        .scrollIntoView()
-        .run();
-    };
-    const disengage = engageTypewriterPadding(scroller, content, recenter);
-
-    if (!wasEnabled) {
-      recenter();
-    }
-
-    return disengage;
+      ? undefined
+      : engage(editor, scroller, content);
   }, [editor, focusModeEnabled]);
 
   // Wheel and touchmove, never scroll: scroll also fires for the typewriter
@@ -899,11 +907,7 @@ export function Editor({
   // every keystroke (`D64`).
   useEffect(() => {
     const surface = scrollAreaRef.current;
-
-    if (!focusModeEnabled || surface === null) {
-      return;
-    }
-
+    const watched = focusModeEnabled && surface !== null;
     const engage = () => {
       setReading(true);
     };
@@ -918,11 +922,16 @@ export function Editor({
       setReading(instance !== null && selectionSpansBlocks(instance.state));
     };
 
-    surface.addEventListener("wheel", engage, { passive: true });
-    surface.addEventListener("touchmove", engage, { passive: true });
-    surface.addEventListener("click", restore);
+    if (watched) {
+      surface.addEventListener("wheel", engage, { passive: true });
+      surface.addEventListener("touchmove", engage, { passive: true });
+      surface.addEventListener("click", restore);
+    }
 
     return () => {
+      if (!watched) {
+        return;
+      }
       surface.removeEventListener("wheel", engage);
       surface.removeEventListener("touchmove", engage);
       surface.removeEventListener("click", restore);

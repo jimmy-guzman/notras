@@ -90,7 +90,7 @@ describe("find", () => {
       editor.commands.setTextSelection(6);
       editor.commands.insertContent(" Atlas");
       const content = editor.getJSON();
-      const depth = undoDepth(editor.state);
+      const depth = Number(undoDepth(editor.state));
       find.setQuery("atlas");
       find.navigate(1);
       find.restoreFocus();
