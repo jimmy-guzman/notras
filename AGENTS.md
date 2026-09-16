@@ -191,7 +191,7 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 ### Words
 
-- **User-facing text in the app is cased by role.** Controls lowercase, prose sentence case, section labels uppercase by CSS. `DESIGN.md` carries the rule and `D84` carries the reasoning.
+- **User-facing text in the app is cased by role.** Controls and titles lowercase, prose sentence case, xs section labels uppercase by CSS. `DESIGN.md` carries the rule and `D84` carries the reasoning.
 
 - **Cut adverbs that only add emphasis.** Genuinely, actually, really, simply, truly, fundamentally, inherently, crucially, importantly, just. They assert a force the sentence has not earned. An adverb that changes the meaning, like "only" or "directly", stays.
 
