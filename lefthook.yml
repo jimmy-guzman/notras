@@ -1,14 +1,6 @@
 pre-commit:
   jobs:
-    - run: pnpm exec ultracite fix --type-aware --type-check {staged_files}
-      glob:
-        - "**/*.js"
-        - "**/*.jsx"
-        - "**/*.ts"
-        - "**/*.tsx"
-        - "**/*.json"
-        - "**/*.jsonc"
-        - "**/*.css"
+    - run: pnpm fix
       stage_fixed: true
     - run: pnpm knip
     - name: rust-format
