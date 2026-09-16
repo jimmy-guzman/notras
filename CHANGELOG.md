@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.6.1](https://github.com/jimmy-guzman/notras/compare/v0.6.0...v0.6.1) (2026-09-16)
+
+
+### Features
+
+* **notes:** ✨ unify note titles and filenames ([#200](https://github.com/jimmy-guzman/notras/issues/200)) ([67ad467](https://github.com/jimmy-guzman/notras/commit/67ad46798c00afb90db2bf0d02decdc4b062ed50))
+* **ui:** ✨ adopt compact nova chrome ([#207](https://github.com/jimmy-guzman/notras/issues/207)) ([9e64d70](https://github.com/jimmy-guzman/notras/commit/9e64d70bdaebdda3ed7a69a19c310d4dbdaf09f9))
+* **ui:** ✨ case copy by role ([#213](https://github.com/jimmy-guzman/notras/issues/213)) ([f5f270b](https://github.com/jimmy-guzman/notras/commit/f5f270b16151880c7e42ff9ad7d49ca0d304b8ca))
+* **ui:** ✨ export a note as a pdf ([#212](https://github.com/jimmy-guzman/notras/issues/212)) ([f22198f](https://github.com/jimmy-guzman/notras/commit/f22198fcf12f0083f091f01352b42e5885669673))
+* **ui:** ✨ make chrome controls consistent ([#209](https://github.com/jimmy-guzman/notras/issues/209)) ([4de4ec4](https://github.com/jimmy-guzman/notras/commit/4de4ec4bd6b46074d6e23c9aac276ea6dd79839b))
+
+
+### Bug Fixes
+
+* **ui:** 🐛 rank pinned notes by exact title & pinned ([#210](https://github.com/jimmy-guzman/notras/issues/210)) ([391a37c](https://github.com/jimmy-guzman/notras/commit/391a37c9712f5c2201f88fe8b3e1b5c8256a745a))
+
+
+### Performance
+
+* ⚡️ scope tailwind scan & quiet chunk warning  ([#206](https://github.com/jimmy-guzman/notras/issues/206)) ([c6aacee](https://github.com/jimmy-guzman/notras/commit/c6aacee3474600a3df6eaa6a3a04e92ec05767b4))
+
+
+### Refactoring
+
+* 🔄 adopt react compiler ([#205](https://github.com/jimmy-guzman/notras/issues/205)) ([ed10083](https://github.com/jimmy-guzman/notras/commit/ed10083412ec6daed8f235198f5a088da8c2b9d3))
+* 🔄 migrate to oxc ([#204](https://github.com/jimmy-guzman/notras/issues/204)) ([a25fab9](https://github.com/jimmy-guzman/notras/commit/a25fab9d1426e8938ca379f431abf8bcf225d92f))
+* 🔄 simpler palette ([37840d0](https://github.com/jimmy-guzman/notras/commit/37840d0ea2262dc2159a19ba6d1410c6cb9950c0))
+* **app:** 🔄 drop tanstack router ([#202](https://github.com/jimmy-guzman/notras/issues/202)) ([f9a0b47](https://github.com/jimmy-guzman/notras/commit/f9a0b47b62f5674f2f54a9757ec29d7fd4362cd6))
+* **ui:** 🔄 drop the middot & reading time ([#208](https://github.com/jimmy-guzman/notras/issues/208)) ([4412b3d](https://github.com/jimmy-guzman/notras/commit/4412b3d2003f8239de258e9baf6caa5ccab20887))
+
 ## [0.6.0](https://github.com/jimmy-guzman/notras/compare/v0.5.0...v0.6.0) (2026-09-14)
 
 
