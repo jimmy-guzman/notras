@@ -100,6 +100,47 @@ describe("palette search states", () => {
     });
   });
 
+  it("should mark the matched text in a result snippet", () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+    client.setQueryData(noteQueries.search(parseSearch("needle")).queryKey, [
+      {
+        createdAt: new Date(0),
+        folder: "",
+        path: "haystack.md",
+        pinned: false,
+        snippet: "a \u0001needle\u0002 here",
+        tags: [],
+        title: "Haystack",
+        updatedAt: new Date(0),
+      },
+    ]);
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Command shouldFilter={false}>
+          <CommandList>
+            <PaletteSearch
+              onCreate={() => {}}
+              onQueryChange={() => {}}
+              onSelectNote={() => {}}
+              query="needle"
+            />
+          </CommandList>
+        </Command>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText("needle").tagName).toBe("MARK");
+    expect(screen.getByRole("option")).toHaveTextContent("a needle here");
+  });
+
   it("should offer creation only for a completed unfiltered empty result", () => {
     const { host, rerender } = mount("budget");
     expect(host.textContent).toContain('create "budget"');
