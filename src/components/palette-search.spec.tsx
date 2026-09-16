@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -180,6 +181,86 @@ describe("palette search states", () => {
 });
 
 describe("palette search", () => {
+  it("should keep cached notes usable beside a failed refresh and retry the search", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    const options = noteQueries.search(parseSearch("budget"));
+    client.setQueryData(options.queryKey, [
+      {
+        createdAt: new Date(0),
+        folder: "",
+        path: "budget.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Budget",
+        updatedAt: new Date(0),
+      },
+    ]);
+    client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+    let attempts = 0;
+    mockIPC((command) => {
+      if (command !== "search_notes") {
+        throw new Error(`unexpected command: ${command}`);
+      }
+      attempts += 1;
+      if (attempts === 1) {
+        throw Object.assign(new Error("index unavailable"), { kind: "failed" });
+      }
+      return [];
+    });
+    onTestFinished(() => {
+      clearMocks();
+      client.clear();
+    });
+    const select = vi.fn<(path: string) => void>();
+    render(
+      <QueryClientProvider client={client}>
+        <Command shouldFilter={false}>
+          <CommandList>
+            <PaletteSearch
+              onCreate={() => {}}
+              onQueryChange={() => {}}
+              onSelectNote={select}
+              query="budget"
+            />
+          </CommandList>
+        </Command>
+      </QueryClientProvider>
+    );
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: options.queryKey });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("could not search notes")).toBeInTheDocument();
+    });
+    expect(screen.getByText("index unavailable")).toBeInTheDocument();
+    const row = screen.getByRole("option", { name: "Budget" });
+    expect(row).toHaveAttribute("aria-disabled", "false");
+    expect(
+      screen.queryByRole("option", { name: /create/u })
+    ).not.toBeInTheDocument();
+    await user.click(row);
+    expect(select).toHaveBeenCalledExactlyOnceWith("budget.md");
+    await user.click(screen.getByRole("button", { name: "retry" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: /create/u })
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("could not search notes")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Budget" })
+    ).not.toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
   it("should start an initial filtered search without unrelated recent rows", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },

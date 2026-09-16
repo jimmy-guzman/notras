@@ -192,7 +192,33 @@ function stopCommandKeys(event: React.KeyboardEvent) {
   }
 }
 
-// oxlint-disable-next-line complexity -- the split is tracked in #203
+function useDisplayedNotes(
+  currentNotes: NoteMeta[],
+  idle: boolean,
+  pending: boolean,
+  query: string
+) {
+  const readyNotes = idle ? currentNotes.slice(0, 20) : currentNotes;
+  const [displayed, setDisplayed] = useState({
+    from: currentNotes,
+    idle,
+    notes: readyNotes,
+    query,
+  });
+  if (
+    !pending &&
+    (displayed.from !== currentNotes ||
+      displayed.idle !== idle ||
+      displayed.query !== query)
+  ) {
+    setDisplayed({ from: currentNotes, idle, notes: readyNotes, query });
+  }
+  return {
+    resultQuery: pending ? displayed.query : query,
+    visible: pending ? displayed.notes : readyNotes,
+  };
+}
+
 function useSearchResults(query: string, showPicker: boolean) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
@@ -212,23 +238,12 @@ function useSearchResults(query: string, showPicker: boolean) {
   const failed = (idle || debounced === query) && result.isError;
   const currentNotes =
     search.incomplete || showPicker ? NO_NOTES : (result.data ?? NO_NOTES);
-  const readyNotes = idle ? currentNotes.slice(0, 20) : currentNotes;
-  const [displayed, setDisplayed] = useState({
-    from: currentNotes,
+  const { resultQuery, visible } = useDisplayedNotes(
+    currentNotes,
     idle,
-    notes: readyNotes,
-    query,
-  });
-  if (
-    !pending &&
-    (displayed.from !== currentNotes ||
-      displayed.idle !== idle ||
-      displayed.query !== query)
-  ) {
-    setDisplayed({ from: currentNotes, idle, notes: readyNotes, query });
-  }
-  const visible = pending ? displayed.notes : readyNotes;
-  const resultQuery = pending ? displayed.query : query;
+    pending,
+    query
+  );
   const reading = showingResults && !waitingForDebounce && result.isFetching;
   const indexStatus = useQuery(indexStatusQuery);
   const indexing =
@@ -273,65 +288,24 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
   return { choicesFailed, choicesPending, choicesQuery, picker, retryChoices };
 }
 
-interface PaletteSearchProps {
-  cursor?: number;
+interface NoteResultsProps {
+  candidate: ReturnType<typeof searchSuggestion>;
   onCreate: () => void;
-  onLoadingChange?: (loading: boolean) => void;
-  onQueryChange: (query: string) => void;
-  onResultQueryChange?: (query: string) => void;
   onSelectNote: (path: string) => void;
   query: string;
+  results: ReturnType<typeof useSearchResults>;
 }
 
-// oxlint-disable-next-line complexity -- the split is tracked in #203
-export function PaletteSearch({
-  cursor,
+function NoteResults({
+  candidate,
   onCreate,
-  onLoadingChange,
-  onQueryChange,
   onSelectNote,
-  onResultQueryChange,
   query,
-}: PaletteSearchProps) {
+  results,
+}: NoteResultsProps) {
   const search = parseSearch(query);
   const idle = query.trim() === "";
-  const candidate = searchSuggestion(query, cursor);
-  const { choicesFailed, choicesPending, choicesQuery, picker, retryChoices } =
-    useFilterChoices(candidate);
-  const showPicker = picker !== undefined;
-  const choosingFilter = showPicker || choicesPending || choicesFailed;
-  const {
-    failed,
-    indexing,
-    pending,
-    readingQuery,
-    result,
-    resultQuery,
-    visible,
-  } = useSearchResults(query, choosingFilter);
-  useLayoutEffect(() => {
-    // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect -- the parent resets its list's scroll position and sets no state
-    onResultQueryChange?.(resultQuery);
-  }, [onResultQueryChange, resultQuery]);
-  useLayoutEffect(() => {
-    onLoadingChange?.(false);
-    const timer = setTimeout(() => {
-      if (readingQuery !== undefined) {
-        onLoadingChange?.(true);
-      }
-    }, 500);
-    return () => {
-      clearTimeout(timer);
-      onLoadingChange?.(false);
-    };
-  }, [onLoadingChange, readingQuery]);
-  const pickFilter = (value: string) => {
-    if (candidate !== undefined) {
-      onQueryChange(
-        insertSearchFilter(query, { kind: candidate.kind, value }, cursor)
-      );
-    }
-  };
+  const { failed, pending, result, resultQuery, visible } = results;
   const retry = async () => {
     await result.refetch();
   };
@@ -362,6 +336,106 @@ export function PaletteSearch({
   })();
 
   return (
+    <>
+      {!pending && (visible.length === 0 || failed) && !offerCreate ? (
+        <Empty aria-live="polite" className="p-6">
+          <EmptyHeader>
+            <EmptyTitle>{status.title}</EmptyTitle>
+            <EmptyDescription>{status.description}</EmptyDescription>
+          </EmptyHeader>
+          {failed && !search.incomplete ? (
+            <EmptyContent onKeyDown={stopCommandKeys}>
+              <Button
+                onClick={() => {
+                  void retry();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                retry
+              </Button>
+            </EmptyContent>
+          ) : null}
+        </Empty>
+      ) : null}
+      {visible.length > 0 || offerCreate ? (
+        <CommandGroup heading="notes" key={resultQuery}>
+          {visible.map((note) => (
+            <NoteItem
+              disabled={pending}
+              key={note.path}
+              note={note}
+              onSelect={onSelectNote}
+            />
+          ))}
+          {offerCreate ? (
+            <CommandItem onSelect={onCreate} value="create-note">
+              <FilePlusIcon />
+              <span className="truncate">
+                create &quot;{query.trim()}&quot;{" "}
+                <span className="text-muted-foreground">
+                  · {filenameFromTitle(query.trim())}.md
+                </span>
+              </span>
+            </CommandItem>
+          ) : null}
+        </CommandGroup>
+      ) : null}
+    </>
+  );
+}
+
+interface PaletteSearchProps {
+  cursor?: number;
+  onCreate: () => void;
+  onLoadingChange?: (loading: boolean) => void;
+  onQueryChange: (query: string) => void;
+  onResultQueryChange?: (query: string) => void;
+  onSelectNote: (path: string) => void;
+  query: string;
+}
+
+export function PaletteSearch({
+  cursor,
+  onCreate,
+  onLoadingChange,
+  onQueryChange,
+  onSelectNote,
+  onResultQueryChange,
+  query,
+}: PaletteSearchProps) {
+  const candidate = searchSuggestion(query, cursor);
+  const { choicesFailed, choicesPending, choicesQuery, picker, retryChoices } =
+    useFilterChoices(candidate);
+  const showPicker = picker !== undefined;
+  const choosingFilter = showPicker || choicesPending || choicesFailed;
+  const results = useSearchResults(query, choosingFilter);
+  const { indexing, pending, readingQuery, resultQuery } = results;
+  useLayoutEffect(() => {
+    // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect -- the parent resets its list's scroll position and sets no state
+    onResultQueryChange?.(resultQuery);
+  }, [onResultQueryChange, resultQuery]);
+  useLayoutEffect(() => {
+    onLoadingChange?.(false);
+    const timer = setTimeout(() => {
+      if (readingQuery !== undefined) {
+        onLoadingChange?.(true);
+      }
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      onLoadingChange?.(false);
+    };
+  }, [onLoadingChange, readingQuery]);
+  const pickFilter = (value: string) => {
+    if (candidate !== undefined) {
+      onQueryChange(
+        insertSearchFilter(query, { kind: candidate.kind, value }, cursor)
+      );
+    }
+  };
+
+  return (
     <div aria-busy={pending || choicesPending}>
       {choicesPending ? (
         <output className="text-muted-foreground block p-4 text-sm">
@@ -388,52 +462,15 @@ export function PaletteSearch({
           indexing notes...
         </output>
       ) : null}
-      {!(choosingFilter || pending) &&
-      (visible.length === 0 || failed) &&
-      !offerCreate ? (
-        <Empty aria-live="polite" className="p-6">
-          <EmptyHeader>
-            <EmptyTitle>{status.title}</EmptyTitle>
-            <EmptyDescription>{status.description}</EmptyDescription>
-          </EmptyHeader>
-          {failed && !search.incomplete ? (
-            <EmptyContent onKeyDown={stopCommandKeys}>
-              <Button
-                onClick={() => {
-                  void retry();
-                }}
-                size="sm"
-                variant="outline"
-              >
-                retry
-              </Button>
-            </EmptyContent>
-          ) : null}
-        </Empty>
-      ) : null}
-      {!choosingFilter && (visible.length > 0 || offerCreate) ? (
-        <CommandGroup heading="notes" key={resultQuery}>
-          {visible.map((note) => (
-            <NoteItem
-              disabled={pending}
-              key={note.path}
-              note={note}
-              onSelect={onSelectNote}
-            />
-          ))}
-          {offerCreate ? (
-            <CommandItem onSelect={onCreate} value="create-note">
-              <FilePlusIcon />
-              <span className="truncate">
-                create &quot;{query.trim()}&quot;{" "}
-                <span className="text-muted-foreground">
-                  · {filenameFromTitle(query.trim())}.md
-                </span>
-              </span>
-            </CommandItem>
-          ) : null}
-        </CommandGroup>
-      ) : null}
+      {choosingFilter ? null : (
+        <NoteResults
+          candidate={candidate}
+          onCreate={onCreate}
+          onSelectNote={onSelectNote}
+          query={query}
+          results={results}
+        />
+      )}
       {showPicker ? (
         <CommandGroup heading={picker.heading}>
           {picker.choices.map(({ count, detail, label, value }) => (
