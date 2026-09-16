@@ -1,15 +1,10 @@
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery } from "@tanstack/react-query";
-import {
-  FilePlusIcon,
-  FileTextIcon,
-  FolderIcon,
-  HashIcon,
-  PinIcon,
-} from "lucide-react";
+import { FilePlusIcon, FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
+import { NoteLabel } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import {
@@ -86,25 +81,13 @@ function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
     >
       <FileTextIcon />
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 truncate" title={note.path}>
-            {note.title}
-          </span>
-          {note.pinned ? <PinIcon className="size-3 opacity-60" /> : null}
-          {note.folder === "" ? null : (
-            <span
-              className="text-muted-foreground max-w-1/3 shrink-0 truncate text-xs"
-              title={note.path}
-            >
-              · {note.folder}
-            </span>
-          )}
+        <NoteLabel note={note}>
           {note.tags.length === 0 ? null : (
             <span className="text-muted-foreground truncate text-xs">
-              · {tagLabel(note.tags)}
+              {tagLabel(note.tags)}
             </span>
           )}
-        </span>
+        </NoteLabel>
         {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
       </div>
     </CommandItem>
@@ -372,10 +355,10 @@ function NoteResults({
             <CommandItem onSelect={onCreate} value="create-note">
               <FilePlusIcon />
               <span className="truncate">
-                create &quot;{query.trim()}&quot;{" "}
-                <span className="text-muted-foreground">
-                  · {filenameFromTitle(query.trim())}.md
-                </span>
+                create &quot;{query.trim()}&quot;
+              </span>
+              <span className="text-muted-foreground truncate text-xs">
+                {filenameFromTitle(query.trim())}.md
               </span>
             </CommandItem>
           ) : null}

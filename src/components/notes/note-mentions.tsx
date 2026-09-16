@@ -4,6 +4,7 @@ import type { MouseEvent } from "react";
 import { useEffect, useRef } from "react";
 
 import { Chord } from "@/components/chord";
+import { NoteLabel } from "@/components/notes/note-label";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -57,22 +58,14 @@ export function MentionItem({ mention }: MentionItemProps) {
     <DropdownMenuItem className="items-start" onClick={open}>
       <FileTextIcon className="mt-0.5" />
       <div className="flex min-w-0 flex-col">
-        <span className="truncate">
-          {note.title}
-          {note.folder === "" ? null : (
-            <span className="text-muted-foreground text-xs">
-              {" "}
-              · {note.folder}
-            </span>
-          )}
+        <NoteLabel note={note}>
           {/* The chip counts notes, so a note linking twice says so here. */}
           {lines.length === 1 ? null : (
             <span className="text-muted-foreground text-xs tabular-nums">
-              {" "}
-              · +{lines.length - 1}
+              +{lines.length - 1}
             </span>
           )}
-        </span>
+        </NoteLabel>
         <span className="text-muted-foreground truncate text-xs">
           {contextFrom(first)}
         </span>

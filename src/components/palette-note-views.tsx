@@ -187,12 +187,9 @@ export function RenameView({
       {draftTitle === "" ? null : (
         <CommandItem onSelect={onConfirm} value="confirm-rename">
           <PencilIcon />
-          <span className="truncate">
-            rename to &quot;{draftTitle}&quot;
-            <span className="text-muted-foreground">
-              {" · "}
-              {filenameFromTitle(draftTitle)}.md
-            </span>
+          <span className="truncate">rename to &quot;{draftTitle}&quot;</span>
+          <span className="text-muted-foreground truncate text-xs">
+            {filenameFromTitle(draftTitle)}.md
           </span>
         </CommandItem>
       )}
