@@ -38,6 +38,3 @@ data/*.db*
 
 # vitest run reports
 /.vitest
-
-# exports moved into the root for review
-/*.pdf
