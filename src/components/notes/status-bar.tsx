@@ -9,10 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CHROME_GLYPH } from "@/lib/ui/chrome";
-
-/** Tone for pressed and surface for hover, which the shipped variant collapses into one. */
-const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
+import { CHROME_GLYPH, CHROME_TOGGLE } from "@/lib/ui/chrome";
 
 interface StatusBarProps {
   focusModeEnabled: boolean;
@@ -104,7 +101,7 @@ export function StatusBar({
               render={
                 <ToggleGroupItem
                   aria-label={label}
-                  className={PRESSED}
+                  className={CHROME_TOGGLE}
                   value={value}
                 />
               }

@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { PinIcon, PinOffIcon } from "lucide-react";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
@@ -11,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { changeNoteMetadata } from "@/lib/tabs/store";
-import { CHROME_GLYPH } from "@/lib/ui/chrome";
+import { CHROME_GLYPH, CHROME_TOGGLE } from "@/lib/ui/chrome";
 import { reasonOf } from "@/lib/ui/failure";
 
 interface PinToggleProps {
@@ -20,6 +19,7 @@ interface PinToggleProps {
 }
 
 function PinToggle({ path, pinned }: PinToggleProps) {
+  const Icon = pinned ? PinIcon : PinOffIcon;
   const togglePinned = async () => {
     try {
       await changeNoteMetadata(path, { pinned: !pinned });
@@ -38,7 +38,7 @@ function PinToggle({ path, pinned }: PinToggleProps) {
         render={
           <Toggle
             aria-label={pinned ? "unpin note" : "pin note"}
-            className="aria-pressed:text-foreground aria-pressed:bg-transparent"
+            className={CHROME_TOGGLE}
             onPressedChange={() => {
               void togglePinned();
             }}
@@ -47,13 +47,9 @@ function PinToggle({ path, pinned }: PinToggleProps) {
           />
         }
       >
-        {pinned ? (
-          <PinIcon className={CHROME_GLYPH} />
-        ) : (
-          <PinOffIcon className={cn(CHROME_GLYPH, "opacity-60")} />
-        )}
+        <Icon className={CHROME_GLYPH} />
       </TooltipTrigger>
-      <TooltipContent>{pinned ? "unpin" : "pin"}</TooltipContent>
+      <TooltipContent>{pinned ? "unpin note" : "pin note"}</TooltipContent>
     </Tooltip>
   );
 }

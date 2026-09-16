@@ -24,6 +24,7 @@ import { cn } from "cn";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -171,9 +172,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           <span
             className={cn(
               "group hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center self-center rounded-sm ps-2.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
-              active
-                ? "bg-background text-foreground"
-                : "text-muted-foreground",
+              active && "bg-background text-foreground",
               isDragging &&
                 "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
             )}
@@ -233,7 +232,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           aria-label={`close ${label}`}
           className={cn(
             "hover:text-foreground ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
-            active && "opacity-60"
+            active && "text-muted-foreground opacity-100"
           )}
           data-tab-close
           onClick={close}
@@ -284,15 +283,16 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <button
+          <Button
             aria-label={`${hidden.length} tabs out of view`}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-sm px-1 text-xs tabular-nums transition-colors duration-150 ease-out"
-            type="button"
+            className="rounded-sm tabular-nums"
+            size="xs"
+            variant="ghost"
           />
         }
       >
         {hidden.length}
-        <ChevronDownIcon className={CHROME_GLYPH} />
+        <ChevronDownIcon data-icon="inline-end" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {hidden.map((tab) => (
@@ -314,14 +314,12 @@ function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
+          <Button
             aria-label="new note"
-            className={cn(
-              "text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-6 shrink-0 items-center justify-center self-center rounded-sm transition-colors duration-150 ease-out select-none",
-              className
-            )}
+            className={cn("rounded-sm", className)}
             onClick={onNew}
-            type="button"
+            size="icon-xs"
+            variant="ghost"
           />
         }
       >
