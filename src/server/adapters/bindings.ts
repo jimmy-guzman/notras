@@ -161,6 +161,9 @@ export type MutationWarning = { kind: "index"; path: string; message: string } |
 export type MutationWarnings = { warnings: MutationWarning[] }
 export type NoteFile = { content: string; revision: string; updatedAt: number }
 export type NoteFilters = { folder: string | null; limit: number | null; pinnedOnly: boolean | null; query: string | null; sort: NoteSort | null; tag: string | null }
+/**
+ * One indexed note. In a search result, `title` and `snippet` wrap matched tokens in `[[hl]]` markers.
+ */
 export type NoteMeta = { createdAt: number; folder: string; path: string; pinned: boolean; snippet: string | null; tags: string[]; title: string; updatedAt: number }
 export type NoteName = { kind: "filename"; value: string } | { kind: "title"; value: string }
 export type NoteSearch = { filters: SearchFilter[]; incomplete: boolean; query: string }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use regex::Regex;
-use rusqlite::{named_params, Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, ToSql};
 use serde::{Deserialize, Serialize};
 
 use crate::application::CommandError;
@@ -36,6 +36,7 @@ impl Library {
     }
 }
 
+/// One indexed note. In a search result, `title` and `snippet` wrap matched tokens in `[[hl]]` markers.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -154,8 +155,11 @@ fn select_notes(
     } else {
         ("note", ":query IS NULL")
     };
+    // bm25 is negative on a hit and 0 without one, so weighting only the
+    // title column makes a title-hit tier.
     let order = if matched.is_some() {
-        "note.pinned DESC, bm25(note_fts), note.updated_at DESC, note.path"
+        "lower(note.title) = lower(:text) DESC, bm25(note_fts, 0, 1, 0) < 0 DESC, note.pinned DESC,
+         bm25(note_fts), note.updated_at DESC, note.path"
     } else if filters.sort.is_some() {
         "note.updated_at DESC"
     } else {
@@ -174,15 +178,31 @@ fn select_notes(
         "SELECT created_at, folder, path, pinned, title, updated_at FROM note WHERE id = ?1",
     )?;
     let mut tags = conn.prepare("SELECT tag FROM note_tag WHERE path = ?1 ORDER BY rowid")?;
+    // The row shows about nine tokens on one line, and FTS5 centres the hit
+    // in the window or starts it at a sentence, so 8 keeps the mark visible.
     let mut snippet = conn.prepare(
-        "SELECT snippet(note_fts, 2, '[[hl]]', '[[/hl]]', '...', 24)
+        "SELECT snippet(note_fts, 2, '[[hl]]', '[[/hl]]', '...', 8),
+                highlight(note_fts, 1, '[[hl]]', '[[/hl]]')
          FROM note_fts WHERE note_fts MATCH ?1 AND rowid = ?2",
     )?;
-    let rows = statement.query_map(named_params! {
-        ":query": matched, ":folder": filters.folder, ":pinned": filters.pinned_only.unwrap_or(false),
-        ":tag": filters.tag,
-        ":limit": if matches.is_empty() { filters.limit.map(i64::from).unwrap_or(-1) } else { -1 },
-    }, |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+    let pinned_only = filters.pinned_only.unwrap_or(false);
+    let limit = filters
+        .limit
+        .filter(|_| matches.is_empty())
+        .map_or(-1, i64::from);
+    let mut params: Vec<(&str, &dyn ToSql)> = vec![
+        (":query", &matched),
+        (":folder", &filters.folder),
+        (":pinned", &pinned_only),
+        (":tag", &filters.tag),
+        (":limit", &limit),
+    ];
+    if matched.is_some() {
+        params.push((":text", &filters.query));
+    }
+    let rows = statement.query_map(params.as_slice(), |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?;
     rows.filter(|row| match row {
         Ok((_, path)) => matches.iter().all(|found| found.contains_key(path)),
         Err(_) => true,
@@ -190,11 +210,16 @@ fn select_notes(
     .take(filters.limit.map_or(usize::MAX, |limit| limit as usize))
     .map(|row| {
         let (id, path) = row?;
-        let context = match &matched {
-            Some(query) => snippet.query_row((query, id), |row| row.get(0))?,
-            None => matches
-                .iter()
-                .find_map(|found| found.get(&path).cloned().flatten()),
+        let (context, marked_title) = match &matched {
+            Some(query) => {
+                snippet.query_row((query, id), |row| Ok((row.get(0)?, Some(row.get(1)?))))?
+            }
+            None => (
+                matches
+                    .iter()
+                    .find_map(|found| found.get(&path).cloned().flatten()),
+                None,
+            ),
         };
         let note_tags = tags
             .query_map([&path], |row| row.get(0))?
@@ -207,7 +232,7 @@ fn select_notes(
                 pinned: row.get(3)?,
                 snippet: context,
                 tags: note_tags,
-                title: row.get(4)?,
+                title: marked_title.map_or_else(|| row.get(4), Ok)?,
                 updated_at: row.get(5)?,
             })
         })
@@ -794,14 +819,23 @@ mod tests {
     }
 
     #[test]
-    fn should_rank_fts_by_pin_then_relevance_recency_and_path() {
+    fn should_rank_fts_by_exact_title_then_title_hit_then_pin_relevance_recency_and_path() {
         let (_directory, core) = library();
+        save(&core, "exact.md", "# Needle\nfiller", 5);
+        save(
+            &core,
+            "pinned-title.md",
+            "---\npinned: true\n---\n# Needle work\nfiller",
+            2,
+        );
+        save(&core, "titled.md", "# Needle list\nneedle", 6);
         save(
             &core,
             "pinned.md",
             "---\npinned: true\n---\n# Other\nneedle filler filler filler",
             0,
         );
+        save(&core, "spam.md", "# Other\nneedle needle needle", 10);
         save(&core, "b.md", "# Other\nneedle", 10);
         save(&core, "a.md", "# Other\nneedle", 10);
         save(&core, "old.md", "# Other\nneedle", 1);
@@ -815,7 +849,7 @@ mod tests {
             .read_view()
             .unwrap()
             .list_notes(&NoteFilters {
-                query: Some("need".into()),
+                query: Some("needle".into()),
                 ..Default::default()
             })
             .unwrap();
@@ -824,8 +858,20 @@ mod tests {
                 .iter()
                 .map(|note| note.path.as_str())
                 .collect::<Vec<_>>(),
-            ["pinned.md", "a.md", "b.md", "old.md", "verbose.md"]
+            [
+                "exact.md",
+                "pinned-title.md",
+                "titled.md",
+                "pinned.md",
+                "spam.md",
+                "a.md",
+                "b.md",
+                "old.md",
+                "verbose.md"
+            ]
         );
+        assert_eq!(notes[0].title, "[[hl]]Needle[[/hl]]");
+        assert_eq!(notes[3].title, "Other");
         assert!(core
             .read_view()
             .unwrap()

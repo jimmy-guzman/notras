@@ -117,9 +117,9 @@ What notras does. Every claim below is checkable against a running build, so a c
 - ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing.
 - Find mode lists notes and never actions. Actions mode lists actions and never notes.
 - A tag in the status strip opens the palette in find mode filtered to that tag. Closing the palette clears the filter.
-- Search runs on SQLite FTS5 over the title and the body, ranked pinned first, then by bm25, then by recency. With no query the palette lists notes pinned first, then by most recently updated.
+- Search runs on SQLite FTS5 over the title and the body. Results rank a title equal to the query, ignoring case, first, then titles containing a hit, then body hits. Within each band pinned notes lead, then bm25, then recency. With no query the palette lists notes pinned first, then by most recently updated.
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.
-- A hit carries a snippet of at most 24 tokens with the matched text highlighted.
+- A hit carries its title and a body snippet of at most 8 tokens, each with the matched text highlighted, so the match is on screen in a one-line row.
 - A listed note, in find results, the mentions list, or the graph's `+N` menu, reads its title, a pin when pinned, and its folder beside it in the muted tone. A long title truncates with an ellipsis while the folder keeps its own space, up to a third of the row.
 - Search debounces at 150ms and returns at most 30 notes. The idle list shows 20.
 - `#tag` and `folder:path` may appear anywhere alongside free text. All filters, including repeated filters, combine with AND before the 30-result cap. A folder includes its descendants; `folder:/` includes the notes root and its descendants. An unknown tag or folder returns nothing.
