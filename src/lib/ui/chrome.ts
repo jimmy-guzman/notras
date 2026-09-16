@@ -9,8 +9,9 @@
 export const CHROME_GLYPH = "size-3.5 [stroke-width:2.25]";
 
 /**
- * Pressed is a tone, since the variant paints it as the hover surface; the
- * dark hover is the ghost button's, which `Toggle` lacks.
+ * Pressed is the accent ink, the way a macOS toolbar toggle turns on, where
+ * the variant paints it as the hover surface; the dark hover is the ghost
+ * button's, which `Toggle` lacks.
  */
 export const CHROME_TOGGLE =
-  "aria-pressed:bg-transparent aria-pressed:text-foreground dark:hover:bg-muted/50";
+  "aria-pressed:bg-transparent aria-pressed:text-primary dark:hover:bg-muted/50";
