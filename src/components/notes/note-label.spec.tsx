@@ -22,4 +22,24 @@ describe(NoteLabel, () => {
 
     expect(screen.getByLabelText("pinned")).toBeInTheDocument();
   });
+
+  it("should highlight the matched text in the title", () => {
+    render(
+      <NoteLabel
+        note={{
+          createdAt: new Date(0),
+          folder: "",
+          path: "needle.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "\u0001Needle\u0002 list",
+          updatedAt: new Date(0),
+        }}
+      />
+    );
+
+    expect(screen.getByText("Needle").tagName).toBe("MARK");
+    expect(screen.getByTitle("needle.md")).toHaveTextContent("Needle list");
+  });
 });

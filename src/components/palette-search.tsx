@@ -4,7 +4,7 @@ import { FilePlusIcon, FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
-import { NoteLabel } from "@/components/notes/note-label";
+import { Highlighted, NoteLabel } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import {
@@ -26,26 +26,6 @@ import type { SearchFilter } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { reasonOf } from "@/lib/ui/failure";
-import { getSnippetParts } from "@/lib/utils/fts-snippet";
-
-function Snippet({ snippet }: { snippet: string }) {
-  return (
-    <span className="text-muted-foreground truncate text-xs">
-      {getSnippetParts(snippet).map((part) =>
-        part.match ? (
-          <mark
-            className="bg-primary/20 text-foreground rounded-xs"
-            key={part.id}
-          >
-            {part.text}
-          </mark>
-        ) : (
-          <span key={part.id}>{part.text}</span>
-        )
-      )}
-    </span>
-  );
-}
 
 const VISIBLE_TAGS = 3;
 
@@ -88,7 +68,12 @@ function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
             </span>
           )}
         </NoteLabel>
-        {note.snippet === null ? null : <Snippet snippet={note.snippet} />}
+        {note.snippet === null ? null : (
+          <Highlighted
+            className="text-muted-foreground truncate text-xs"
+            text={note.snippet}
+          />
+        )}
       </div>
     </CommandItem>
   );
@@ -207,7 +192,7 @@ function useSearchResults(query: string, showPicker: boolean) {
   const search = parseSearch(query);
   const idle = query.trim() === "";
   const recent = useQuery({
-    ...noteQueries.list({ limit: 20, sort: "updated" }),
+    ...noteQueries.list({ limit: 20 }),
     enabled: idle,
   });
   const searched = useQuery({

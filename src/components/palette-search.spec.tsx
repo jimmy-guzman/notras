@@ -62,7 +62,7 @@ function mount(query: string, error?: Error) {
 }
 
 describe("palette search states", () => {
-  it("should request the twenty most recently updated notes while idle", async () => {
+  it("should request twenty notes pinned first then most recently updated while idle", async () => {
     const recent = [
       {
         createdAt: 0,
@@ -94,10 +94,51 @@ describe("palette search states", () => {
         limit: 20,
         pinnedOnly: null,
         query: null,
-        sort: "updated",
+        sort: null,
         tag: null,
       },
     });
+  });
+
+  it("should mark the matched text in a result snippet", () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+    client.setQueryData(noteQueries.search(parseSearch("needle")).queryKey, [
+      {
+        createdAt: new Date(0),
+        folder: "",
+        path: "haystack.md",
+        pinned: false,
+        snippet: "a \u0001needle\u0002 here",
+        tags: [],
+        title: "Haystack",
+        updatedAt: new Date(0),
+      },
+    ]);
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Command shouldFilter={false}>
+          <CommandList>
+            <PaletteSearch
+              onCreate={() => {}}
+              onQueryChange={() => {}}
+              onSelectNote={() => {}}
+              query="needle"
+            />
+          </CommandList>
+        </Command>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText("needle").tagName).toBe("MARK");
+    expect(screen.getByRole("option")).toHaveTextContent("a needle here");
   });
 
   it("should offer creation only for a completed unfiltered empty result", () => {
