@@ -2,7 +2,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
   ClipboardIcon,
-  CodeIcon,
+  FileCodeIcon,
   DownloadIcon,
   FilePlusIcon,
   FocusIcon,
@@ -442,7 +442,7 @@ export function CommandPalette({
       value: "toggle-focus-mode",
     },
     {
-      Icon: CodeIcon,
+      Icon: FileCodeIcon,
       label: "markdown source",
       needs: "tab",
       onSelect: () => {

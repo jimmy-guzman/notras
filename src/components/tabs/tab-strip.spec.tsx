@@ -53,7 +53,7 @@ describe("tab strip", () => {
         await mountStrip([{ id: "draft", kind: "external", path }]);
         expect(screen.getByRole("tab", { name: "draft" })).toBeVisible();
         await user.click(
-          screen.getByRole("button", { name: "1 tabs out of view" })
+          screen.getByRole("button", { name: "1 tab out of view" })
         );
         expect(
           await screen.findByRole("menuitem", { name: "draft" })

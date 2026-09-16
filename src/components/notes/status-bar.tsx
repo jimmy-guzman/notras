@@ -1,4 +1,4 @@
-import { CodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
+import { FileCodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
 
 import { Chord } from "@/components/chord";
 import { MentionsOf } from "@/components/notes/note-mentions";
@@ -9,10 +9,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CHROME_GLYPH } from "@/lib/ui/chrome";
-
-/** Tone for pressed and surface for hover, which the shipped variant collapses into one. */
-const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
+import { CHROME_GLYPH, CHROME_TOGGLE } from "@/lib/ui/chrome";
+import { useChordsByName } from "@/lib/ui/shortcuts";
 
 interface StatusBarProps {
   focusModeEnabled: boolean;
@@ -39,9 +37,9 @@ export function StatusBar({
   words,
 }: StatusBarProps) {
   const hasNote = note !== undefined;
+  const chordsByName = useChordsByName();
   const toggles = [
     {
-      hotkey: "Mod+D",
       icon: FocusIcon,
       label: "focus mode",
       onToggle: onToggleFocusMode,
@@ -49,8 +47,7 @@ export function StatusBar({
       value: "focus",
     },
     {
-      hotkey: "Mod+E",
-      icon: CodeIcon,
+      icon: FileCodeIcon,
       label: "markdown source",
       onToggle: onToggleSource,
       pressed: sourceEnabled,
@@ -59,7 +56,6 @@ export function StatusBar({
     ...(hasNote
       ? [
           {
-            hotkey: "Mod+Alt+G",
             icon: WaypointsIcon,
             label: "graph view",
             onToggle: onToggleGraph,
@@ -86,7 +82,7 @@ export function StatusBar({
           <MentionsOf key={note.path} path={note.path} />
         </>
       )}
-      <span className="ml-auto shrink-0 px-2 tabular-nums">
+      <span className="ms-auto shrink-0 px-1.5 tabular-nums">
         {words} {words === 1 ? "word" : "words"}
       </span>
       <ToggleGroup
@@ -98,13 +94,13 @@ export function StatusBar({
           toggle.pressed ? [toggle.value] : []
         )}
       >
-        {toggles.map(({ hotkey, icon: Icon, label, value }) => (
+        {toggles.map(({ icon: Icon, label, value }) => (
           <Tooltip key={value}>
             <TooltipTrigger
               render={
                 <ToggleGroupItem
                   aria-label={label}
-                  className={PRESSED}
+                  className={CHROME_TOGGLE}
                   value={value}
                 />
               }
@@ -112,7 +108,10 @@ export function StatusBar({
               <Icon className={CHROME_GLYPH} />
             </TooltipTrigger>
             <TooltipContent>
-              {label} <Chord hotkey={hotkey} />
+              {label}
+              {chordsByName.get(label)?.map(({ hotkey, id }) => (
+                <Chord hotkey={hotkey} key={id} />
+              ))}
             </TooltipContent>
           </Tooltip>
         ))}

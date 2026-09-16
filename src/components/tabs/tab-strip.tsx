@@ -21,9 +21,11 @@ import {
 } from "@dnd-kit/sortable";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, FilePlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Chord } from "@/components/chord";
+import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -56,6 +58,7 @@ import {
 import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
+import { useChordsByName } from "@/lib/ui/shortcuts";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -170,10 +173,8 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "group hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center self-center rounded-sm ps-2.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
-              active
-                ? "bg-background text-foreground"
-                : "text-muted-foreground",
+              "group hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+              active && "bg-background text-foreground",
               isDragging &&
                 "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
             )}
@@ -233,7 +234,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           aria-label={`close ${label}`}
           className={cn(
             "hover:text-foreground ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
-            active && "opacity-60"
+            active && "text-muted-foreground opacity-100"
           )}
           data-tab-close
           onClick={close}
@@ -284,15 +285,16 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <button
-            aria-label={`${hidden.length} tabs out of view`}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-sm px-1 text-xs tabular-nums transition-colors duration-150 ease-out"
-            type="button"
+          <Button
+            aria-label={`${hidden.length} ${hidden.length === 1 ? "tab" : "tabs"} out of view`}
+            className="rounded-sm px-1.5 tabular-nums"
+            size="xs"
+            variant="ghost"
           />
         }
       >
         {hidden.length}
-        <ChevronDownIcon className={CHROME_GLYPH} />
+        <ChevronDownIcon data-icon="inline-end" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {hidden.map((tab) => (
@@ -310,24 +312,29 @@ interface NewNoteButtonProps {
 
 /** The strip's own control: it makes tabs rather than following one. */
 function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
+  const chords = useChordsByName().get("new note");
+
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
+          <Button
             aria-label="new note"
-            className={cn(
-              "text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-6 shrink-0 items-center justify-center self-center rounded-sm transition-colors duration-150 ease-out select-none",
-              className
-            )}
+            className={cn("rounded-sm", className)}
             onClick={onNew}
-            type="button"
+            size="icon-xs"
+            variant="ghost"
           />
         }
       >
-        <PlusIcon className={CHROME_GLYPH} />
+        <FilePlusIcon className={CHROME_GLYPH} />
       </TooltipTrigger>
-      <TooltipContent>new note</TooltipContent>
+      <TooltipContent>
+        new note
+        {chords?.map(({ hotkey, id }) => (
+          <Chord hotkey={hotkey} key={id} />
+        ))}
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -498,9 +505,9 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
+    <>
       <TabList activeId={activeId} tabs={tabs} />
       <NewNoteButton onNew={onNew} />
-    </div>
+    </>
   );
 }

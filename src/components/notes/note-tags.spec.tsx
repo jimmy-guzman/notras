@@ -98,7 +98,7 @@ describe("note tags", () => {
       );
       const user = userEvent.setup();
       if (control === "combobox") {
-        await user.click(screen.getByRole("combobox", { name: "add tag" }));
+        await user.click(screen.getByRole("combobox", { name: "edit tags" }));
       }
       await user.click(screen.getByRole("option", { name: "first 1" }));
       await user.click(screen.getByRole("option", { name: "second 1" }));
@@ -150,7 +150,7 @@ describe("note tags", () => {
     expect(
       screen.getByRole("button", { name: "#attached" })
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox", { name: "add tag" }));
+    await user.click(screen.getByRole("combobox", { name: "edit tags" }));
     expect(
       await screen.findByText("loading tag suggestions...")
     ).toBeInTheDocument();

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useState } from "react";
 
+import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,10 +15,18 @@ import {
   ComboboxTrigger,
 } from "@/components/ui/combobox";
 import { toast } from "@/components/ui/toast";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { noteQueries } from "@/data/queries";
 import { changeNoteMetadata } from "@/lib/tabs/store";
+import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
+
+const EDIT_TAGS = "Mod+Shift+Y";
 
 interface TagBadgeProps {
   onFilter: (tag: string) => void;
@@ -52,7 +61,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const allTags = useQuery({ ...noteQueries.tags(), enabled: open });
 
   useHotkey(
-    "Mod+Shift+Y",
+    EDIT_TAGS,
     () => {
       setOpen(true);
     },
@@ -93,16 +102,6 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
 
   return (
     <div className="flex min-w-0 items-center gap-1">
-      {hasTags ? (
-        // The focus ring is a shadow outside a chip's box, and the clip lands
-        // on the padding edge, so padding cancelled by a margin gives the ring
-        // its room without moving a chip.
-        <div className="-m-1 flex min-w-0 items-center gap-1 overflow-hidden p-1">
-          {tags.map((tag) => (
-            <TagBadge key={tag} onFilter={onFilter} tag={tag} />
-          ))}
-        </div>
-      ) : null}
       <Combobox
         inputValue={query}
         items={items}
@@ -115,24 +114,33 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         open={open}
         value={tags}
       >
-        <ComboboxTrigger
-          aria-label="add tag"
-          className="[&>svg:last-child]:hidden"
-          render={
-            <Badge
-              className="text-muted-foreground hover:text-foreground outline-none"
-              render={<button aria-label="add tag" type="button" />}
-              variant="ghost"
-            />
-          }
-        >
-          <TagPlusIcon data-icon="inline-start" />
-          add tag
-        </ComboboxTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <ComboboxTrigger
+                className="[&>svg:last-child]:hidden"
+                render={
+                  <Button
+                    aria-label="edit tags"
+                    className="rounded-sm"
+                    size="icon-xs"
+                    variant="ghost"
+                  />
+                }
+              />
+            }
+          >
+            <TagPlusIcon className={CHROME_GLYPH} />
+          </TooltipTrigger>
+          <TooltipContent>
+            edit tags <Chord hotkey={EDIT_TAGS} />
+          </TooltipContent>
+        </Tooltip>
         <ComboboxContent
           align="start"
           className="border-border w-56 min-w-56 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
           side="top"
+          sideOffset={4}
         >
           <ComboboxInput placeholder="filter tags..." showTrigger={false} />
           {allTags.data === undefined && allTags.isPending ? (
@@ -174,6 +182,16 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
+      {hasTags ? (
+        // The focus ring is a shadow outside a chip's box, and the clip lands
+        // on the padding edge, so padding cancelled by a margin gives the ring
+        // its room without moving a chip.
+        <div className="-m-1 flex min-w-0 items-center gap-1 overflow-hidden p-1">
+          {tags.map((tag) => (
+            <TagBadge key={tag} onFilter={onFilter} tag={tag} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

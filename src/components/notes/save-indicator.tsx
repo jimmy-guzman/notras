@@ -24,14 +24,14 @@ const STATUS: Record<
     label: "needs review",
     tone: "text-destructive",
   },
-  dirty: { icon: SavePenIcon, label: "unsaved" },
+  dirty: { icon: SavePenIcon, label: "unsaved", tone: "text-foreground" },
   failed: {
     icon: SaveOffIcon,
     label: "could not save",
     tone: "text-destructive",
   },
-  saved: { icon: SaveCheckIcon, label: "saved", tone: "opacity-60" },
-  saving: { icon: SaveIcon, label: "saving" },
+  saved: { icon: SaveCheckIcon, label: "saved" },
+  saving: { icon: SaveIcon, label: "saving", tone: "text-foreground" },
 };
 
 interface SaveIndicatorProps {
