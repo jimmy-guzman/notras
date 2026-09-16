@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useState } from "react";
 
+import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,10 +15,17 @@ import {
   ComboboxTrigger,
 } from "@/components/ui/combobox";
 import { toast } from "@/components/ui/toast";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { noteQueries } from "@/data/queries";
 import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
+
+const EDIT_TAGS = "Mod+Shift+Y";
 
 interface TagBadgeProps {
   onFilter: (tag: string) => void;
@@ -52,7 +60,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const allTags = useQuery({ ...noteQueries.tags(), enabled: open });
 
   useHotkey(
-    "Mod+Shift+Y",
+    EDIT_TAGS,
     () => {
       setOpen(true);
     },
@@ -115,20 +123,28 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         open={open}
         value={tags}
       >
-        <ComboboxTrigger
-          aria-label="add tag"
-          className="[&>svg:last-child]:hidden"
-          render={
-            <Badge
-              className="text-muted-foreground hover:text-foreground outline-none"
-              render={<button aria-label="add tag" type="button" />}
-              variant="ghost"
-            />
-          }
-        >
-          <TagPlusIcon data-icon="inline-start" />
-          add tag
-        </ComboboxTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <ComboboxTrigger
+                className="[&>svg:last-child]:hidden"
+                render={
+                  <Badge
+                    className="text-muted-foreground hover:text-foreground outline-none"
+                    render={<button aria-label="add tag" type="button" />}
+                    variant="ghost"
+                  />
+                }
+              />
+            }
+          >
+            <TagPlusIcon data-icon="inline-start" />
+            add tag
+          </TooltipTrigger>
+          <TooltipContent>
+            edit tags <Chord hotkey={EDIT_TAGS} />
+          </TooltipContent>
+        </Tooltip>
         <ComboboxContent
           align="start"
           className="border-border w-56 min-w-56 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"

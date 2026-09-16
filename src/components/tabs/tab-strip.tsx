@@ -24,6 +24,7 @@ import { cn } from "cn";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -57,6 +58,7 @@ import {
 import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
+import { useChordsByName } from "@/lib/ui/shortcuts";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -310,6 +312,8 @@ interface NewNoteButtonProps {
 
 /** The strip's own control: it makes tabs rather than following one. */
 function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
+  const chords = useChordsByName().get("new note");
+
   return (
     <Tooltip>
       <TooltipTrigger
@@ -325,7 +329,12 @@ function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
       >
         <PlusIcon className={CHROME_GLYPH} />
       </TooltipTrigger>
-      <TooltipContent>new note</TooltipContent>
+      <TooltipContent>
+        new note
+        {chords?.map(({ hotkey, id }) => (
+          <Chord hotkey={hotkey} key={id} />
+        ))}
+      </TooltipContent>
     </Tooltip>
   );
 }

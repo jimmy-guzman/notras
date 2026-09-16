@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CHROME_GLYPH, CHROME_TOGGLE } from "@/lib/ui/chrome";
+import { useChordsByName } from "@/lib/ui/shortcuts";
 
 interface StatusBarProps {
   focusModeEnabled: boolean;
@@ -36,9 +37,9 @@ export function StatusBar({
   words,
 }: StatusBarProps) {
   const hasNote = note !== undefined;
+  const chordsByName = useChordsByName();
   const toggles = [
     {
-      hotkey: "Mod+D",
       icon: FocusIcon,
       label: "focus mode",
       onToggle: onToggleFocusMode,
@@ -46,7 +47,6 @@ export function StatusBar({
       value: "focus",
     },
     {
-      hotkey: "Mod+E",
       icon: CodeIcon,
       label: "markdown source",
       onToggle: onToggleSource,
@@ -56,7 +56,6 @@ export function StatusBar({
     ...(hasNote
       ? [
           {
-            hotkey: "Mod+Alt+G",
             icon: WaypointsIcon,
             label: "graph view",
             onToggle: onToggleGraph,
@@ -95,7 +94,7 @@ export function StatusBar({
           toggle.pressed ? [toggle.value] : []
         )}
       >
-        {toggles.map(({ hotkey, icon: Icon, label, value }) => (
+        {toggles.map(({ icon: Icon, label, value }) => (
           <Tooltip key={value}>
             <TooltipTrigger
               render={
@@ -109,7 +108,10 @@ export function StatusBar({
               <Icon className={CHROME_GLYPH} />
             </TooltipTrigger>
             <TooltipContent>
-              {label} <Chord hotkey={hotkey} />
+              {label}
+              {chordsByName.get(label)?.map(({ hotkey, id }) => (
+                <Chord hotkey={hotkey} key={id} />
+              ))}
             </TooltipContent>
           </Tooltip>
         ))}

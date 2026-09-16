@@ -25,6 +25,8 @@ import { reasonOf } from "@/lib/ui/failure";
 import { setMentionsOpen, useMentionsOpen } from "@/lib/ui/mentions";
 import { useHotkey } from "@/lib/ui/shortcuts";
 
+const SHOW_MENTIONS = "Mod+Shift+L";
+
 /** The row clamps to one line, so a link deep in a paragraph would sit past the ellipsis. */
 const CONTEXT_LEAD = 32;
 
@@ -84,7 +86,7 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
   const count = mentions.length;
 
   useHotkey(
-    "Mod+Shift+L",
+    SHOW_MENTIONS,
     () => {
       setMentionsOpen(true);
     },
@@ -136,7 +138,7 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
           {count} {count === 1 ? "mention" : "mentions"}
         </TooltipTrigger>
         <TooltipContent>
-          show mentions <Chord hotkey="Mod+Shift+L" />
+          show mentions <Chord hotkey={SHOW_MENTIONS} />
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent
