@@ -35,8 +35,9 @@ const TOP_CAP = 5;
 
 const CENTRE: RingPosition = { angle: Number.NaN, x: 0.5, y: 0.5 };
 
+// Opaque fills keep the connecting lines behind the nodes.
 const PILL_CLASS =
-  "-translate-x-1/2 -translate-y-1/2 absolute bg-background outline-none transition-[left,top] duration-150 ease-out hover:text-foreground focus-visible:text-foreground";
+  "-translate-x-1/2 -translate-y-1/2 absolute border-border/50 bg-background outline-none transition-[left,top,background-color,color,border-color] duration-150 ease-out hover:border-foreground hover:text-foreground focus-visible:text-foreground";
 
 const MENU_CLASS =
   "w-72 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0";
@@ -383,7 +384,9 @@ function Pill({
     <Badge
       className={cn(
         PILL_CLASS,
-        centre ? "text-foreground h-7 px-3 text-sm" : "text-muted-foreground"
+        centre
+          ? "bg-card text-foreground h-7 px-3 text-sm"
+          : "text-muted-foreground"
       )}
       onBlur={() => {
         onLive(null);
@@ -421,7 +424,7 @@ function Pill({
         />
       }
       style={pillStyle(item.position)}
-      variant="ghost"
+      variant="outline"
     >
       {item.kind === "note" ? (
         <span className="truncate">{item.note.title}</span>
@@ -442,9 +445,9 @@ function Placeholder({
 }) {
   return (
     <Badge
-      className="bg-background text-faint absolute -translate-x-1/2 -translate-y-1/2"
+      className="bg-background border-border/50 text-faint absolute -translate-x-1/2 -translate-y-1/2 border-dashed"
       style={pillStyle(position)}
-      variant="ghost"
+      variant="outline"
     >
       <span className="truncate">{target}</span>
     </Badge>
@@ -522,7 +525,7 @@ function OverflowPill({
         />
       }
       style={pillStyle(item.position)}
-      variant="ghost"
+      variant="outline"
     >
       +{item.count}
     </Badge>

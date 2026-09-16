@@ -79,7 +79,7 @@ export function StatusBar({
   };
 
   return (
-    <footer className="bg-card text-muted-foreground flex h-7 shrink-0 items-center gap-1 px-3 text-xs shadow-[inset_0_1px_0_var(--border)]">
+    <footer className="bg-card text-muted-foreground flex h-8 shrink-0 items-center gap-1 p-1 text-xs">
       {note === undefined ? null : (
         <>
           <NoteTags onFilter={onFilterTag} path={note.path} tags={note.tags} />
@@ -94,7 +94,7 @@ export function StatusBar({
         multiple
         onValueChange={handleToggleChange}
         size="icon-xs"
-        spacing={0.5}
+        spacing={1}
         value={toggles.flatMap((toggle) =>
           toggle.pressed ? [toggle.value] : []
         )}

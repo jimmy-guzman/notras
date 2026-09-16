@@ -105,21 +105,23 @@ export function CaptureWindow() {
   ]);
 
   return (
-    <div className="bg-background text-foreground flex h-svh flex-col">
+    <div className="bg-card text-foreground flex h-svh flex-col">
       <Titlebar />
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <Editor
-          findOpen={findState.open}
-          focusOnMount
-          initialContent=""
-          key={session}
-          onChange={NOOP}
-          onReady={attachEditor}
-          placeholderText="jot it down..."
-        />
-        <FindBar controller={find} />
+      <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-[calc(var(--radius-lg)-0.25rem)]">
+          <Editor
+            findOpen={findState.open}
+            focusOnMount
+            initialContent=""
+            key={session}
+            onChange={NOOP}
+            onReady={attachEditor}
+            placeholderText="jot it down..."
+          />
+          <FindBar controller={find} />
+        </div>
       </div>
-      <footer className="text-muted-foreground flex h-7 shrink-0 items-center justify-end gap-2 border-t px-3 text-xs">
+      <footer className="text-muted-foreground flex h-8 shrink-0 items-center justify-end gap-1 p-1 text-xs">
         <Chord hotkey="Escape" /> saves to inbox
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}

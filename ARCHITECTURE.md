@@ -11,11 +11,13 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Editor | TipTap 3 WYSIWYG + official `@tiptap/markdown` (bidirectional GFM); Shiki code blocks; ⌘E raw-source view |
 | Note engine | `notras-core`: files through `cap-std` directory handles, Markdown interpretation, `rusqlite` index and typed operations |
 | Native contract | Pinned Specta types and Tauri commands/events; Serde wire values and thiserror failures |
-| UI | Shadcn UI (base-maia style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`) |
+| UI | Shadcn UI (base-nova style on Base UI) + Tailwind CSS 4, with the reading palette (`D73`) |
 | Note surface | shadcn/typeset, vendored verbatim; tuned through the `.typeset-note` preset (`D40`) |
 | Lint + format | Ultracite on oxlint and oxfmt for JS/TS; rustfmt and Clippy for Rust; TipTap's markdown serializer is the runtime canonical form |
 | Testing | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
 | Package manager | pnpm |
+
+`Badge` uses `rounded-sm` as a local override to the generated Nova component. Regeneration reapplies this override alongside the deviations recorded in `D19`. The shared component owns the radius for tags, mentions, and graph labels.
 
 ## Linux runtime
 
@@ -241,6 +243,8 @@ The rich editor projects the body; source mode projects the complete Markdown. B
 `attachments/` holds a path and the doc holds a destination, which are different strings (`D57`), and a destination resolves against the note that holds it. Four places convert. `attachmentDestination` in `src/lib/utils/attachments.ts` climbs out of the note's folder and encodes on the way in, for the drop handler and the paste handler alike. `resolveImageSrc` decodes and folds the path through `foldPath` in `src/core/links.ts` before `convertFileSrc`. `NoteImage` and `NoteLink` escape on the way out. `open_linked_file` receives the destination as written and decodes it whole in Rust through `resolve_file_path`, beside `resolve_path`, which keeps the escapes mdurl keeps so a note link resolves in the index the way the editor resolves it. An external tab takes the other base: its `resolveImageSrc` hands the document path and the decoded source to the `external-image` scheme, and its link handlers hand the document path and the destination as written to `open_external_file` and `resolve_external_link`, which decode whole through `bare_file_destination`; Rust resolves each pair on request. An external tab's `documentPath` answers null, which the drop handler and the paste handler read as a refusal, since an attachment has nowhere to land beside a file outside the library.
 
 ### Editing session per tab
+
+`Workspace` and `CaptureWindow` own their inset note frames. Each frame has an outer surface and a rounded inner clip using `overflow: clip`, which adds no scroll container. The workspace clip contains the welcome view or mounted sessions, graph overlay, and find bar. Capture places its editor and find bar inside its clip. Existing editor and source-view scrollers retain scroll ownership. `Titlebar` remains shared by both windows.
 
 The session registers its document-change listener in a layout effect before delivering file observations. Delivery waits for the editor's ready handle so initial reconciliation can update the visible document. Unsubscribing a replaced listener leaves its replacement attached.
 

@@ -92,12 +92,12 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const hasTags = tags.length > 0;
 
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <div className="flex min-w-0 items-center gap-1">
       {hasTags ? (
         // The focus ring is a shadow outside a chip's box, and the clip lands
         // on the padding edge, so padding cancelled by a margin gives the ring
         // its room without moving a chip.
-        <div className="-m-1 flex min-w-0 items-center gap-0.5 overflow-hidden p-1">
+        <div className="-m-1 flex min-w-0 items-center gap-1 overflow-hidden p-1">
           {tags.map((tag) => (
             <TagBadge key={tag} onFilter={onFilter} tag={tag} />
           ))}

@@ -74,7 +74,7 @@ interface NoteControlsProps {
  */
 export function NoteControls({ note, reason, status }: NoteControlsProps) {
   return (
-    <div className="flex shrink-0 items-center gap-3 ps-3">
+    <div className="flex shrink-0 items-center gap-1">
       <SaveIndicator reason={reason} status={status} />
       {note === undefined ? null : (
         <PinToggle path={note.path} pinned={note.pinned} />
