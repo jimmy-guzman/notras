@@ -96,6 +96,9 @@ mod native {
         // SAFETY: the print info is fully initialized and stays retained for
         // the operation's lifetime.
         let operation = unsafe { webview.printOperationWithPrintInfo(&info) };
+        // WebKit sets this on the operation it hands out; stated here so the
+        // job leaving the main thread reads from this file.
+        operation.setCanSpawnSeparateThread(true);
         operation.setShowsPrintPanel(false);
         operation.setShowsProgressPanel(false);
         operation.setJobTitle(Some(&NSString::from_str(title)));
