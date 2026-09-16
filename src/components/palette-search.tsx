@@ -357,7 +357,7 @@ function NoteResults({
               <span className="truncate">
                 create &quot;{query.trim()}&quot;
               </span>
-              <span className="text-muted-foreground truncate">
+              <span className="text-muted-foreground truncate text-xs">
                 {filenameFromTitle(query.trim())}.md
               </span>
             </CommandItem>
