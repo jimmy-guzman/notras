@@ -89,7 +89,7 @@
   --syntax-string: #85bc90;
   --syntax-tag: #b4a0db;
   --syntax-type: #65bdbd;
-  --radius: 0.875rem;
+  --radius: 0.5rem;
 }
 
 @media (prefers-color-scheme: light) {
@@ -222,7 +222,7 @@
   padding: 0 0.75rem;
   pointer-events: none;
   background: var(--background);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
 }
 .drag-ghost > :first-child {
@@ -371,7 +371,7 @@ body.dragging .ProseMirror::selection {
   cursor: pointer;
   background: transparent;
   border: 1.5px solid color-mix(in oklch, var(--foreground) 25%, transparent);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 .ProseMirror ul[data-type="taskList"] > li > label > input:checked {
   background: var(--primary);
@@ -513,7 +513,7 @@ body.dragging .ProseMirror::selection {
   color: var(--popover-foreground);
   background: var(--popover);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
 /* Concentric with the menu: the parent radius less the parent padding, so the
@@ -526,7 +526,7 @@ body.dragging .ProseMirror::selection {
   padding: 0.3rem 0.6rem;
   font-size: 0.85rem;
   text-align: left;
-  border-radius: calc(var(--radius-md) - 0.25rem);
+  border-radius: calc(var(--radius-lg) - 0.25rem);
 }
 .suggestion-item-selected {
   color: var(--accent-foreground);
@@ -662,7 +662,7 @@ body.dragging .ProseMirror::selection {
   color: var(--popover-foreground);
   background: var(--popover);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
 .link-editor-input {
@@ -672,7 +672,7 @@ body.dragging .ProseMirror::selection {
   font-size: 0.8rem;
   outline: none;
   background: var(--input);
-  border-radius: calc(var(--radius-md) - 0.35rem);
+  border-radius: calc(var(--radius-lg) - 0.35rem);
 }
 .link-editor-actions {
   display: flex;
@@ -694,7 +694,7 @@ body.dragging .ProseMirror::selection {
   color: var(--muted-foreground);
   background: var(--popover);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
 .link-hover-url {

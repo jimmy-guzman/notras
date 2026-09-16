@@ -236,7 +236,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 ## The window and the system
 
 - The main window opens at 960 by 720 and stops at 480 by 360.
-- macOS draws an overlay title bar with the traffic lights inset, and the app draws a 36px drag region holding the tab strip, the save glyph, and the pin.
+- macOS draws an overlay title bar with the traffic lights inset, and the app draws a 32px drag region holding the tab strip, the save glyph, and the pin.
+- The titlebar and bottom strip have no dividing borders or inset shadows in either the main window or quick capture, in both light and dark themes.
+- Tag chips, the add-tag control, the status-strip mentions count, and graph labels share the tabs' 4px corner radius.
+- Both windows use 32px chrome bands. The 24px tab and control rows have 4px above and below them. Neighboring tabs, titlebar controls, tag chips, and view toggles have 4px gaps; flexible space still separates the left and right groups. Native window controls retain their reserved clearance.
+- The note surface has 4px side insets, 8px outer corners, and a fixed 4px inner rim with 4px inner corners in both windows. Scrolling content stays clipped inside the rim, separating code blocks from the chrome. No extra vertical margin separates the frame from the bands. The empty workspace, which has no status strip, leaves 4px below its frame.
 - The app bundle declares macOS 26.0 as its minimum system version, so Finder refuses to open it on an older system, and the cask refuses to install below macOS 26.
 - Linux releases support the Ubuntu release used by GitHub Actions' `ubuntu-latest` runner, with current system updates. The app uses the distribution's WebKitGTK runtime; older Ubuntu releases and other Linux distributions are unsupported.
 - The window itself never scrolls, including when content overflows or caret movement asks an ancestor to scroll. The note or source editor has one vertical scrollbar between the two bands. No outer scrollbar runs the full height of the window or crosses either band.

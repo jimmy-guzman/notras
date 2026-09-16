@@ -426,7 +426,7 @@ export function Workspace({
   ]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="bg-card flex min-h-0 flex-1 flex-col">
       <Titlebar>
         <TabStrip
           activeId={activeId}
@@ -437,29 +437,37 @@ export function Workspace({
         />
         {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
-      {tabs.length === 0 ? (
-        <>
-          <Welcome
-            onNew={() => {
-              void newNote();
-            }}
-          />
-          {tabState === initialTabs ? (
-            <RecentNote initialTabs={initialTabs} />
-          ) : null}
-        </>
-      ) : (
-        <div className="relative min-h-0 flex-1">
-          {tabs.map((tab) => (
-            <NoteSession active={tab.id === activeId} key={tab.id} tab={tab} />
-          ))}
-          {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
-          {activeTab?.kind === "note" && graphMode ? (
-            <TabGraph tab={activeTab} />
-          ) : null}
-          <FindBar controller={noteFind} />
+      <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1 last:mb-1">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-[calc(var(--radius-lg)-0.25rem)]">
+          {tabs.length === 0 ? (
+            <>
+              <Welcome
+                onNew={() => {
+                  void newNote();
+                }}
+              />
+              {tabState === initialTabs ? (
+                <RecentNote initialTabs={initialTabs} />
+              ) : null}
+            </>
+          ) : (
+            <>
+              {tabs.map((tab) => (
+                <NoteSession
+                  active={tab.id === activeId}
+                  key={tab.id}
+                  tab={tab}
+                />
+              ))}
+              {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
+              {activeTab?.kind === "note" && graphMode ? (
+                <TabGraph tab={activeTab} />
+              ) : null}
+              <FindBar controller={noteFind} />
+            </>
+          )}
         </div>
-      )}
+      </div>
       {activeTab === undefined ? null : (
         <ActiveStatusBar
           graphEnabled={graphMode}

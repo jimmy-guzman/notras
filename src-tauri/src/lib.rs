@@ -33,10 +33,10 @@ use tauri_specta::Event;
 const BG_DARK: Color = Color(0x25, 0x22, 0x1f, 255);
 const BG_LIGHT: Color = Color(0xf7, 0xf3, 0xee, 255);
 
-/// Centres the buttons in the 36px band `Titlebar` draws; `D29` derives `y` and
+/// Centres the buttons in the 32px band `Titlebar` draws;
 /// `tauri.conf.json` carries the same pair for the `main` window.
 #[cfg(target_os = "macos")]
-const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 20.0);
+const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 18.0);
 
 fn background_for(theme: Theme) -> Color {
     match theme {

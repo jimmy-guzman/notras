@@ -97,7 +97,7 @@ function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
       </div>
       <div
         className={cn(
-          "bg-card rounded-lg px-4 py-3 whitespace-pre-wrap",
+          "bg-card rounded-md px-4 py-3 whitespace-pre-wrap",
           lines.length === 0 && "text-muted-foreground"
         )}
         data-heading={heading ? "1" : undefined}
@@ -181,7 +181,7 @@ function Place({
         result<span className="sr-only"> for place {number}</span>
       </Label>
       <Textarea
-        className="rounded-lg placeholder:font-sans placeholder:text-sm placeholder:font-normal"
+        className="rounded-sm placeholder:font-sans placeholder:text-sm placeholder:font-normal"
         data-heading={heading ? "1" : undefined}
         id={resultId}
         onChange={edit}

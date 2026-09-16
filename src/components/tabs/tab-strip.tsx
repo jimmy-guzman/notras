@@ -170,7 +170,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "group has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center self-center rounded-md ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+              "group has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center self-center rounded-sm ps-2.5 pe-1 transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
               active
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-muted/40",
@@ -280,7 +280,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
         render={
           <button
             aria-label={`${hidden.length} tabs out of view`}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground ms-1 inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-md px-1 text-xs tabular-nums transition-colors duration-150"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-6 shrink-0 items-center gap-0.5 self-center rounded-sm px-1 text-xs tabular-nums transition-colors duration-150"
             type="button"
           />
         }
@@ -298,7 +298,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
 }
 
 interface NewNoteButtonProps {
-  className: string;
+  className?: string;
   onNew: () => void;
 }
 
@@ -311,7 +311,7 @@ function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
           <button
             aria-label="new note"
             className={cn(
-              "text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-6 shrink-0 items-center justify-center self-center rounded-md transition-colors duration-150 select-none",
+              "text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-6 shrink-0 items-center justify-center self-center rounded-sm transition-colors duration-150 select-none",
               className
             )}
             onClick={onNew}
@@ -451,7 +451,7 @@ function TabList({ activeId, tabs }: TabListProps) {
           <div
             // `relative` so a tab's `offsetParent` is the strip, which the
             // measure above reads against.
-            className="relative flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+            className="relative flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
             onKeyDown={handleKeyDown}
             ref={listRef}
             role="tablist"
@@ -492,9 +492,9 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 items-center">
+    <div className="flex min-w-0 flex-1 items-center gap-1">
       <TabList activeId={activeId} tabs={tabs} />
-      <NewNoteButton className="ms-1" onNew={onNew} />
+      <NewNoteButton onNew={onNew} />
     </div>
   );
 }
