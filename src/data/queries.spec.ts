@@ -54,7 +54,7 @@ describe("queries", () => {
             folder: "work",
             path: "work/a.md",
             pinned: true,
-            snippet: "[[hl]]needle[[/hl]]",
+            snippet: "\u0001needle\u0002",
             tags: ["work"],
             title: "A",
             updatedAt: 1000,
@@ -65,7 +65,7 @@ describe("queries", () => {
       expect(result[0]).toMatchObject({
         createdAt: new Date(0),
         path: "work/a.md",
-        snippet: "[[hl]]needle[[/hl]]",
+        snippet: "\u0001needle\u0002",
         updatedAt: new Date(1000),
       });
       expect(calls).toStrictEqual([

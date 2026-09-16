@@ -10,7 +10,7 @@ describe(getSnippetParts, () => {
   });
 
   it("should mark highlighted snippet ranges", () => {
-    const parts = getSnippetParts("first [[hl]]match[[/hl]] second");
+    const parts = getSnippetParts("first \u0001match\u0002 second");
 
     expect(parts).toStrictEqual([
       { id: 0, match: false, text: "first " },

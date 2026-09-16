@@ -33,7 +33,7 @@ describe(NoteLabel, () => {
           pinned: false,
           snippet: null,
           tags: [],
-          title: "[[hl]]Needle[[/hl]] list",
+          title: "\u0001Needle\u0002 list",
           updatedAt: new Date(0),
         }}
       />

@@ -125,7 +125,7 @@ src/
     frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
     notes.ts          # NoteMeta, NoteFilters, path/title helpers
     errors.ts         # FileError
-    fts-markers.ts    # [[hl]] snippet markers shared with SQL
+    fts-markers.ts    # U+0001/U+0002 highlight markers shared with SQL
     links.ts          # editor link resolution and mention display types
     graph.ts          # graph display types and hub labels
   data/               # Plain async fns the UI calls (ex-server-actions)
@@ -296,7 +296,7 @@ Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the o
 
 ### Snippet rendering
 
-FTS snippets and result titles carry `[[hl]]` and `[[/hl]]` markers from native SQL. `src/core/fts-markers.ts` defines the matching renderer markers; native query tests and frontend snippet tests verify the wire format. `getSnippetParts` parses them into segments and `Highlighted` in `note-label.tsx` renders them. Nothing renders a snippet through `dangerouslySetInnerHTML`.
+FTS snippets and result titles carry U+0001 and U+0002 around each hit from native SQL, characters no markdown file carries, so note text cannot forge a mark. `src/core/fts-markers.ts` defines the matching renderer markers; native query tests and frontend snippet tests verify the wire format. `getSnippetParts` parses them into segments and `Highlighted` in `note-label.tsx` renders them. Nothing renders a snippet through `dangerouslySetInnerHTML`.
 
 ## Invariants
 

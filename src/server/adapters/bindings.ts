@@ -162,7 +162,7 @@ export type MutationWarnings = { warnings: MutationWarning[] }
 export type NoteFile = { content: string; revision: string; updatedAt: number }
 export type NoteFilters = { folder: string | null; limit: number | null; pinnedOnly: boolean | null; query: string | null; sort: NoteSort | null; tag: string | null }
 /**
- * One indexed note. In a search result, `title` and `snippet` wrap matched tokens in `[[hl]]` markers.
+ * One indexed note. In a search result, `title` and `snippet` wrap matched tokens in U+0001 and U+0002, which no markdown file carries.
  */
 export type NoteMeta = { createdAt: number; folder: string; path: string; pinned: boolean; snippet: string | null; tags: string[]; title: string; updatedAt: number }
 export type NoteName = { kind: "filename"; value: string } | { kind: "title"; value: string }

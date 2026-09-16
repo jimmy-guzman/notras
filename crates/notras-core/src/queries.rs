@@ -36,7 +36,7 @@ impl Library {
     }
 }
 
-/// One indexed note. In a search result, `title` and `snippet` wrap matched tokens in `[[hl]]` markers.
+/// One indexed note. In a search result, `title` and `snippet` wrap matched tokens in U+0001 and U+0002, which no markdown file carries.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -181,8 +181,8 @@ fn select_notes(
     // The row shows about nine tokens on one line, and FTS5 centres the hit
     // in the window or starts it at a sentence, so 8 keeps the mark visible.
     let mut snippet = conn.prepare(
-        "SELECT snippet(note_fts, 2, '[[hl]]', '[[/hl]]', '...', 8),
-                highlight(note_fts, 1, '[[hl]]', '[[/hl]]')
+        "SELECT snippet(note_fts, 2, char(1), char(2), '...', 8),
+                highlight(note_fts, 1, char(1), char(2))
          FROM note_fts WHERE note_fts MATCH ?1 AND rowid = ?2",
     )?;
     let pinned_only = filters.pinned_only.unwrap_or(false);
@@ -702,7 +702,7 @@ mod tests {
             .snippet
             .as_ref()
             .unwrap()
-            .contains("[[hl]]needle[[/hl]]")));
+            .contains("\u{1}needle\u{2}")));
         assert!(core
             .read_view()
             .unwrap()
@@ -760,7 +760,7 @@ mod tests {
             );
             assert!(notes.iter().all(|note| note.tags == ["z", "review"]
                 && note.snippet.as_deref()
-                    == Some("# Note\n[[hl]]needle[[/hl]] Atlas [site](https://example.test)")));
+                    == Some("# Note\n\u{1}needle\u{2} Atlas [site](https://example.test)")));
         }
     }
 
@@ -814,7 +814,7 @@ mod tests {
         assert_eq!(notes[0].tags, ["z", "a"]);
         assert_eq!(
             notes[0].snippet.as_deref(),
-            Some("# Kept\n[[hl]]replacement[[/hl]]")
+            Some("# Kept\n\u{1}replacement\u{2}")
         );
     }
 
@@ -870,7 +870,7 @@ mod tests {
                 "verbose.md"
             ]
         );
-        assert_eq!(notes[0].title, "[[hl]]Needle[[/hl]]");
+        assert_eq!(notes[0].title, "\u{1}Needle\u{2}");
         assert_eq!(notes[3].title, "Other");
         assert!(core
             .read_view()
