@@ -34,7 +34,7 @@ pub fn stash_conflict(
 ) -> Result<(), CommandError> {
     fs::create_dir_all(dir)?;
     let bytes = serde_json::to_vec(stash)
-        .map_err(|error| CommandError::with_source("the review could not be stored", error))?;
+        .map_err(|error| CommandError::with_source("The review could not be stored", error))?;
     let directory = Dir::open_ambient_dir(dir, ambient_authority())?;
     let mut temp = TempSibling::create(&directory)?;
     temp.file_mut().write_all(&bytes)?;
@@ -56,7 +56,7 @@ pub fn read_conflict(
     };
     serde_json::from_reader(file)
         .map(Some)
-        .map_err(|error| CommandError::with_source("the stored review could not be read", error))
+        .map_err(|error| CommandError::with_source("The stored review could not be read", error))
 }
 
 /// Forget a stored review; a note without one is left as it is.
@@ -183,6 +183,6 @@ mod tests {
 
         let error = read_conflict(&dir, OpenKind::Note, "a.md").unwrap_err();
 
-        assert_eq!(error.message, "the stored review could not be read");
+        assert_eq!(error.message, "The stored review could not be read");
     }
 }

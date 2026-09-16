@@ -170,7 +170,7 @@ impl LibraryOwner {
     }
 
     fn closing_error() -> CommandError {
-        std::io::Error::other("the library is closing").into()
+        std::io::Error::other("The library is closing").into()
     }
 
     pub fn shutdown(&self) {
@@ -305,7 +305,7 @@ impl LibraryOwner {
         let (generation, view) = self.read_index()?;
         let result = operation(&view.lock().expect("index reader was poisoned"));
         if self.read().generation() != generation {
-            return Err(std::io::Error::other("the selected library changed").into());
+            return Err(std::io::Error::other("The selected library changed").into());
         }
         result
     }
@@ -321,7 +321,7 @@ impl LibraryOwner {
         }
         if generation != state.generation {
             if matches!(kind, ScanKind::Refresh | ScanKind::Rebuild) {
-                return Err(std::io::Error::other("the selected library changed").into());
+                return Err(std::io::Error::other("The selected library changed").into());
             }
             return Ok(ScanChanges {
                 generation,
@@ -378,7 +378,7 @@ impl LibraryOwner {
         loop {
             let mut state = self.background();
             if generation != state.generation {
-                return Err(std::io::Error::other("the selected library changed").into());
+                return Err(std::io::Error::other("The selected library changed").into());
             }
             if self.closing() {
                 state.library.abandon_scan(scan);
@@ -507,7 +507,7 @@ impl LibraryOwner {
             if let Some(scan) = state.active.take() {
                 scan.completion
                     .set(Err(
-                        std::io::Error::other("the selected library changed").into()
+                        std::io::Error::other("The selected library changed").into()
                     ))
                     .expect("a scan completes once");
             }
@@ -734,7 +734,7 @@ mod tests {
             view.list_notes(&Default::default())
         });
 
-        assert_eq!(result.unwrap_err().message, "the selected library changed");
+        assert_eq!(result.unwrap_err().message, "The selected library changed");
         assert_eq!(
             owner
                 .query(|view| view.list_notes(&Default::default()))
@@ -975,15 +975,15 @@ mod tests {
         };
         closing.join().unwrap();
 
-        assert_eq!(error.message, "the library is closing");
+        assert_eq!(error.message, "The library is closing");
         assert!(completion.get().unwrap().is_err());
         assert!(owner.read().index_needs_rebuild());
         let Err(refused) = owner.query(|view| view.list_tags()) else {
             panic!("a query must not answer after shutdown");
         };
-        assert_eq!(refused.message, "the library is closing");
+        assert_eq!(refused.message, "The library is closing");
         let failed = IndexStatus::Failed {
-            reason: "the library is closing".into(),
+            reason: "The library is closing".into(),
         };
         assert_eq!(
             statuses.try_iter().collect::<Vec<_>>(),
@@ -1020,7 +1020,7 @@ mod tests {
         let Err(error) = owner.scan() else {
             panic!("a scan must not start after shutdown");
         };
-        assert_eq!(error.message, "the library is closing");
+        assert_eq!(error.message, "The library is closing");
         assert_eq!(
             owner.read().read_note("note.md".into()).unwrap().content,
             "# Note"
@@ -1159,7 +1159,7 @@ mod tests {
             panic!("preparation must stop after shutdown");
         };
 
-        assert_eq!(error.message, "the library is closing");
+        assert_eq!(error.message, "The library is closing");
     }
 
     #[test]

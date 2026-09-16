@@ -30,11 +30,11 @@ describe("queries", () => {
       mockIPC(
         vi
           .fn<Parameters<typeof mockIPC>[0]>()
-          .mockRejectedValue({ kind: "not-found", message: "no such file" })
+          .mockRejectedValue({ kind: "not-found", message: "No such file" })
       );
       await expect(getNote("missing.md")).rejects.toMatchObject({
         kind: "not-found",
-        message: "no such file",
+        message: "No such file",
       });
     });
 

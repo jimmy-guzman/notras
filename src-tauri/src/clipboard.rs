@@ -13,7 +13,7 @@ mod metadata {
 
     use super::{CodeClipboard, CommandError};
 
-    const INVALID: &str = "the clipboard metadata is invalid";
+    const INVALID: &str = "The clipboard metadata is invalid";
 
     #[derive(Deserialize)]
     struct VsCode {
@@ -181,7 +181,7 @@ mod tests {
         use std::error::Error as _;
         let data = chromium_bytes("vscode-editor-data", "{\"mode\":12}");
         let error = metadata::chromium(&data).unwrap_err();
-        assert_eq!(error.message, "the clipboard metadata is invalid");
+        assert_eq!(error.message, "The clipboard metadata is invalid");
         assert!(error.source().unwrap().is::<serde_json::Error>());
     }
 
@@ -189,7 +189,7 @@ mod tests {
     fn should_preserve_zed_json_failure_causes() {
         use std::error::Error as _;
         let error = metadata::zed(br#"[{"len":"12"}]"#, 12).unwrap_err();
-        assert_eq!(error.message, "the clipboard metadata is invalid");
+        assert_eq!(error.message, "The clipboard metadata is invalid");
         assert!(error.source().unwrap().is::<serde_json::Error>());
     }
 

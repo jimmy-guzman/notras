@@ -4,14 +4,14 @@ import { reasonOf } from "./failure";
 
 describe(reasonOf, () => {
   it("should return the trimmed reason from a serialized native failure", () => {
-    expect(reasonOf({ kind: "failed", message: "  permission denied  " })).toBe(
-      "permission denied"
+    expect(reasonOf({ kind: "failed", message: "  Permission denied  " })).toBe(
+      "Permission denied"
     );
   });
 
   it("should return the reason from a serialized missing-file failure", () => {
-    expect(reasonOf({ kind: "not-found", message: "no such file" })).toBe(
-      "no such file"
+    expect(reasonOf({ kind: "not-found", message: "No such file" })).toBe(
+      "No such file"
     );
   });
 

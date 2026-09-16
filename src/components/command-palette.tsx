@@ -279,7 +279,7 @@ export function CommandPalette({
     void runAction("could not move note", async () => {
       const session = getTabHandles(activeId);
       if (session?.changePath === undefined) {
-        throw new Error("the note is still opening");
+        throw new Error("The note is still opening");
       }
       await session.changePath({ folder, kind: "move" });
     });
@@ -297,7 +297,7 @@ export function CommandPalette({
     void runAction("could not rename note", async () => {
       const session = getTabHandles(activeId);
       if (session?.changePath === undefined) {
-        throw new Error("the note is still opening");
+        throw new Error("The note is still opening");
       }
       await session.changePath({ kind: "retitle", title: query.trim() });
     });
@@ -669,7 +669,7 @@ export function CommandPalette({
         "top-[min(20dvh,8rem)] flex max-h-[calc(80dvh-1rem)] flex-col gap-0",
         { "h-96": listView }
       )}
-      description="search notes and run actions"
+      description="Search notes and run actions"
       onOpenChange={handleOpenChange}
       open={open}
       title="command palette"
@@ -677,7 +677,11 @@ export function CommandPalette({
       <Command
         className={cn(
           "h-auto min-h-0 **:data-[slot=command-input-wrapper]:shrink-0",
-          { "flex-1": listView }
+          {
+            "**:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase":
+              listView && view !== "tags",
+            "flex-1": listView,
+          }
         )}
         key={view}
         label={

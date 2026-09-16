@@ -7,7 +7,7 @@ const LINE_BREAK = /[\r\n]/u;
 export function renameDocument(content: string, title: string): string {
   const name = title.trim();
   if (name === "" || LINE_BREAK.test(name)) {
-    throw new Error("a name must be one nonempty line");
+    throw new Error("A name must be one nonempty line");
   }
   const parsed = parseNote(content);
   const heading = parsed.body.split("\n").find((line) => line.trim() !== "");

@@ -290,7 +290,7 @@ describe(useAutosave, () => {
       if (failNext) {
         failNext = false;
 
-        throw new Error("the disk is full");
+        throw new Error("The disk is full");
       }
 
       return new Date(1);
@@ -300,7 +300,7 @@ describe(useAutosave, () => {
     await harness.settle();
 
     expect(harness.status).toBe("failed");
-    expect(harness.reason).toBe("the disk is full");
+    expect(harness.reason).toBe("The disk is full");
 
     await expect(harness.flush()).resolves.toBeTruthy();
     expect(harness.reason).toBeUndefined();

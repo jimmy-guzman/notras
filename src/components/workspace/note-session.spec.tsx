@@ -141,7 +141,7 @@ describe(NoteSession, () => {
     reads = 0;
     const denied = vi.fn<() => Promise<never>>().mockRejectedValue({
       kind: "failed",
-      message: "permission denied",
+      message: "Permission denied",
     });
     mockIPC(async (command) => {
       if (command === "read_note") {
@@ -275,7 +275,7 @@ describe(NoteSession, () => {
   it("should report a file link the library refused with its reason", async () => {
     const missing = vi.fn<() => Promise<never>>().mockRejectedValue({
       kind: "not-found",
-      message: "no such file",
+      message: "No such file",
     });
     mockIPC(async (command) => {
       if (command === "open_linked_file") {
@@ -314,7 +314,7 @@ describe(NoteSession, () => {
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
     expect(await screen.findByText("could not open file")).toBeInTheDocument();
-    expect(screen.getByText("no such file")).toBeInTheDocument();
+    expect(screen.getByText("No such file")).toBeInTheDocument();
   });
 
   it("should open a file link from an external tab against the file", async () => {
@@ -459,7 +459,7 @@ describe(NoteSession, () => {
       await screen.findByText("could not paste image")
     ).toBeInTheDocument();
     expect(
-      screen.getByText("attachments live in the notes folder")
+      screen.getByText("Attachments live in the notes folder")
     ).toBeInTheDocument();
     expect(commands).toStrictEqual([]);
     expect(liveEditor.state.doc.textContent).toBe("Exttext");
@@ -502,7 +502,7 @@ describe(NoteSession, () => {
     await editor();
 
     await expect(sessionHandles().exportPdf()).rejects.toThrow(
-      "leave markdown source first"
+      "Leave Markdown source first"
     );
     expect(commands).toStrictEqual([]);
   });
@@ -1348,7 +1348,7 @@ describe(NoteSession, () => {
 
     expect(panel()?.getAttribute("role")).toBe("tabpanel");
     expect(panel()?.textContent).toContain("could not read this note");
-    expect(panel()?.textContent).toContain("permission denied");
+    expect(panel()?.textContent).toContain("Permission denied");
     expect(panel()?.querySelector("button")?.textContent).toBe("try again");
   });
 
@@ -1541,7 +1541,7 @@ describe(NoteSession, () => {
     expect(
       screen.getByRole("textbox", { name: "result for place 1" })
     ).toHaveValue("body, both");
-    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    expect(screen.getByText("Every place has a result")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
     client.clear();
   });
@@ -1559,7 +1559,7 @@ describe(NoteSession, () => {
       screen.getByRole("button", { name: "use this, the version on disk" })
     );
     expect(result).toHaveValue("");
-    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    expect(screen.getByText("Every place has a result")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "resolve" })).toBeEnabled();
     client.clear();
   });

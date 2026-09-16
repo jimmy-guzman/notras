@@ -9,14 +9,14 @@ describe(WorkspaceError, () => {
   it("should say what failed and why, and offer to try again", () => {
     render(
       createElement(WorkspaceError, {
-        reason: "permission denied",
+        reason: "Permission denied",
         retry: () => {},
       })
     );
     expect(
       screen.getByText("could not load the workspace")
     ).toBeInTheDocument();
-    expect(screen.getByText("permission denied")).toBeInTheDocument();
+    expect(screen.getByText("Permission denied")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "try again" })
     ).toBeInTheDocument();
@@ -26,7 +26,7 @@ describe(WorkspaceError, () => {
     const user = userEvent.setup();
     const retry = vi.fn<() => void>();
     render(
-      createElement(WorkspaceError, { reason: "permission denied", retry })
+      createElement(WorkspaceError, { reason: "Permission denied", retry })
     );
     await user.click(screen.getByRole("button", { name: "try again" }));
     expect(retry).toHaveBeenCalledOnce();

@@ -108,7 +108,7 @@ describe("three-way merge", () => {
     }
 
     expect(() => composeResolution(result, [])).toThrow(
-      "every hunk needs a choice"
+      "Every hunk needs a choice"
     );
   });
 });

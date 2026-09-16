@@ -166,7 +166,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
           {allTags.isSuccess ? (
             <ComboboxEmpty className="flex-col gap-0.5">
               <p className="text-muted-foreground">no tags yet</p>
-              <p className="text-faint">type to create one</p>
+              <p className="text-faint">Type to create one</p>
             </ComboboxEmpty>
           ) : null}
           <ComboboxList>

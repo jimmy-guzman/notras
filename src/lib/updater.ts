@@ -43,7 +43,7 @@ async function installUpdate(update: Update) {
   // keeps the last keystrokes from dying with the old process.
   if (!(await flushPendingWrites())) {
     throw new Error(
-      "could not save your changes: the update will apply on next launch"
+      "Could not save your changes: the update will apply on next launch"
     );
   }
 

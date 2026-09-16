@@ -738,7 +738,7 @@ describe("note persistence", () => {
       clearStash: async () => {},
       onPathChanged: () => {},
       stash: () => {
-        throw new Error("the disk is full");
+        throw new Error("The disk is full");
       },
       write: () => {
         throw new Error("no save requested");
@@ -755,11 +755,11 @@ describe("note persistence", () => {
       false
     );
     await Promise.resolve();
-    expect(note.store.state.reason).toBe("the disk is full");
+    expect(note.store.state.reason).toBe("The disk is full");
     await expect(note.flush()).resolves.toBeFalsy();
     expect(note.store.state.status).toBe("conflict");
     await expect(note.editMetadata({ pinned: true })).rejects.toThrow(
-      "the disk is full"
+      "The disk is full"
     );
   });
 
@@ -787,7 +787,7 @@ describe("note persistence", () => {
     );
     await expect(
       note.changePath({ folder: "archive", kind: "move" })
-    ).rejects.toThrow("this note needs review before it can move");
+    ).rejects.toThrow("This note needs review before it can move");
     expect(note.store.state.pendingPaths).toBe(0);
   });
 
@@ -896,7 +896,7 @@ describe("note persistence", () => {
         throw new Error("no move requested");
       },
       clearStash: () => {
-        throw new Error("permission denied");
+        throw new Error("Permission denied");
       },
       onPathChanged: () => {},
       stash: async () => {},
@@ -924,7 +924,7 @@ describe("note persistence", () => {
     await expect(note.flush()).resolves.toBeTruthy();
     expect(note.store.state.status).toBe("saved");
     expect(note.store.state.reason).toBe(
-      "the stored review could not be removed: permission denied"
+      "The stored review could not be removed: Permission denied"
     );
   });
 
@@ -1001,7 +1001,7 @@ describe("note persistence", () => {
     expect(cleared).toStrictEqual(["shopping.md"]);
     expect(note.store.state.status).toBe("saved");
     expect(note.store.state.base.revision).toBe("r2");
-    await expect(note.resolve("again")).rejects.toThrow("nothing to review");
+    await expect(note.resolve("again")).rejects.toThrow("Nothing to review");
   });
 
   it("should send the base revision with each save and take the receipt's as the next", async () => {
@@ -1120,7 +1120,7 @@ describe("note persistence", () => {
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
     await expect(
       note.changePath({ folder: "archive", kind: "move" })
-    ).rejects.toThrow("this note needs review before it can move");
+    ).rejects.toThrow("This note needs review before it can move");
     expect(moves).toStrictEqual([]);
     expect(note.store.state.status).toBe("conflict");
   });

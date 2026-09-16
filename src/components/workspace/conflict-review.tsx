@@ -90,7 +90,7 @@ function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
   return (
     <>
       <div className="text-muted-foreground flex items-center justify-between font-sans text-xs">
-        <span>{label}</span>
+        <span className="tracking-wider uppercase">{label}</span>
         <Button aria-label={useLabel} onClick={onUse} size="xs" variant="ghost">
           use this
         </Button>
@@ -303,7 +303,7 @@ export function ConflictReview({
               <EmptyTitle>
                 your edits no longer overlap the change on disk
               </EmptyTitle>
-              <EmptyDescription>resolve applies both</EmptyDescription>
+              <EmptyDescription>Resolve applies both</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -312,11 +312,11 @@ export function ConflictReview({
               {`${places} ${places === 1 ? "place" : "places"} changed here and on disk`}
             </h2>
             <p className="text-muted-foreground text-xs">
-              the rest already combined; only these need a result
+              The rest already combined; only these need a result
             </p>
             {changedAgain ? (
               <p className="text-destructive text-xs">
-                the file changed again while you were reviewing, so these start
+                The file changed again while you were reviewing, so these start
                 over
               </p>
             ) : null}
@@ -335,7 +335,7 @@ export function ConflictReview({
           <span className="text-muted-foreground text-xs tabular-nums">
             {remaining > 0
               ? `${remaining} of ${places} still need a result`
-              : "every place has a result"}
+              : "Every place has a result"}
           </span>
           <span className="text-muted-foreground ms-auto flex items-center gap-3 text-xs">
             <KbdGroup>

@@ -139,7 +139,7 @@ impl Scan {
         let Some(name) = name.to_str() else {
             self.paths_complete = false;
             self.report.failures.push(
-                io::Error::new(io::ErrorKind::InvalidData, "the path is not valid unicode").into(),
+                io::Error::new(io::ErrorKind::InvalidData, "The path is not valid Unicode").into(),
             );
             return Ok(());
         };

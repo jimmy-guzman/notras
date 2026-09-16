@@ -26,8 +26,8 @@ describe("notes dir", () => {
     });
 
     it.each([
-      { kind: "not-found", message: "no such file" },
-      { kind: "failed", message: "permission denied" },
+      { kind: "not-found", message: "No such file" },
+      { kind: "failed", message: "Permission denied" },
     ])("should preserve a library change failure: $kind", async (failure) => {
       mockIPC(
         vi.fn<Parameters<typeof mockIPC>[0]>().mockRejectedValue(failure)

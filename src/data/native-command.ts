@@ -28,6 +28,6 @@ export async function nativeCommand<T>(
     } catch {
       // The caller must still receive the failure if the log sink is unavailable.
     }
-    throw new Error("an unexpected error", { cause: error });
+    throw new Error("An unexpected error", { cause: error });
   }
 }

@@ -92,7 +92,7 @@ fn rename(dir: &Dir, _from: &str, file: &File, to: &str, replace: bool) -> io::R
     };
     use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
-    let too_long = || io::Error::new(io::ErrorKind::InvalidInput, "the file name is too long");
+    let too_long = || io::Error::new(io::ErrorKind::InvalidInput, "The file name is too long");
     let name: Vec<u16> = to.encode_utf16().collect();
     let name_bytes =
         u32::try_from(name.len() * std::mem::size_of::<u16>()).map_err(|_| too_long())?;
@@ -194,7 +194,7 @@ impl TempSibling {
         }
         Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            "every temporary name is taken",
+            "Every temporary name is taken",
         ))
     }
 
@@ -275,13 +275,13 @@ pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> 
     let duration = time?.duration_since(UNIX_EPOCH).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            "the file timestamp precedes the epoch",
+            "The file timestamp precedes the epoch",
         )
     })?;
     i64::try_from(duration.as_millis()).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            "the file timestamp is too large",
+            "The file timestamp is too large",
         )
     })
 }

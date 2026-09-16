@@ -16,7 +16,7 @@ export function noteResult(note: NativeNote): NoteMeta {
 export function mentionResult(mention: NativeMention): Mention {
   const [first, ...rest] = mention.lines;
   if (first === undefined) {
-    throw new Error("a mention has no source line");
+    throw new Error("A mention has no source line");
   }
   return { lines: [first, ...rest], note: noteResult(mention.note) };
 }

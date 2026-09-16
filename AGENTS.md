@@ -88,7 +88,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Fail loud, never default silently.** Do not paper over missing or invalid data with fallback values, coalescing defaults, or swallowed exceptions. Parse and reject bad input where it enters, so the failure names its cause on the first line of the stack trace. Validate at the owning boundary described in `ARCHITECTURE.md`; persisted mutation inputs are validated in Rust.
 
-- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `nativeCommand()` preserves it for a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: lowercase, no error number, and never the action.
+- **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `nativeCommand()` preserves it for a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: a sentence, no error number, and never the action.
 
 - **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 
@@ -191,7 +191,7 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 ### Words
 
-- **User-facing text in the app is lowercase.** Labels, buttons, toasts, tooltips, placeholders, error messages. `DESIGN.md` carries the rule and `D18` carries the reasoning. Documentation prose is normal sentence case.
+- **User-facing text in the app is cased by role.** Controls lowercase, prose sentence case, section labels uppercase by CSS. `DESIGN.md` carries the rule and `D84` carries the reasoning.
 
 - **Cut adverbs that only add emphasis.** Genuinely, actually, really, simply, truly, fundamentally, inherently, crucially, importantly, just. They assert a force the sentence has not earned. An adverb that changes the meaning, like "only" or "directly", stays.
 

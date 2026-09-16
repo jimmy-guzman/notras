@@ -116,7 +116,7 @@ export function SettingsDialog({
         <DialogHeader>
           <DialogTitle>settings</DialogTitle>
           <DialogDescription>
-            your notes are plain markdown files. point any editor or ai agent at
+            Your notes are plain Markdown files. Point any editor or AI agent at
             the folder.
           </DialogDescription>
         </DialogHeader>

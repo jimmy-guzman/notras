@@ -100,7 +100,7 @@ function SessionAlerts({
         <Alert variant="destructive">
           <AlertTitle>this file is gone</AlertTitle>
           <AlertDescription>
-            nothing here is being saved, so copy what you need
+            Nothing here is being saved, so copy what you need
           </AlertDescription>
         </Alert>
       ) : null}
@@ -108,7 +108,7 @@ function SessionAlerts({
         <Alert variant="destructive">
           <AlertTitle>this note changed on disk</AlertTitle>
           <AlertDescription>
-            your unsaved edits overlap the change, so nothing saves until you
+            Your unsaved edits overlap the change, so nothing saves until you
             review them
           </AlertDescription>
           <AlertAction>
@@ -576,7 +576,7 @@ function SessionBuffer({
         : editorRef.current;
 
       if (surface === null) {
-        throw new Error("leave markdown source first");
+        throw new Error("Leave Markdown source first");
       }
 
       return await exportPdf(

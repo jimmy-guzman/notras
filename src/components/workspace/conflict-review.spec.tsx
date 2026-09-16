@@ -23,7 +23,7 @@ describe(ConflictReview, () => {
     expect(
       screen.getByText("your edits no longer overlap the change on disk")
     ).toBeInTheDocument();
-    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    expect(screen.getByText("Every place has a result")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "resolve" }));
     expect(onResolve).toHaveBeenCalledWith("# Chores\n\nbody, mine");
   });
@@ -46,7 +46,7 @@ describe(ConflictReview, () => {
     await user.click(
       screen.getByRole("button", { name: "use this, the version on disk" })
     );
-    expect(screen.getByText("every place has a result")).toBeInTheDocument();
+    expect(screen.getByText("Every place has a result")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "resolve" }));
     expect(onResolve).toHaveBeenCalledWith("a\n\nz");
   });

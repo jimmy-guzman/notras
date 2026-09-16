@@ -393,7 +393,7 @@ describe("TabGraph native queries", () => {
     mockIPC(
       vi
         .fn<Parameters<typeof mockIPC>[0]>()
-        .mockRejectedValue({ kind: "failed", message: "permission denied" })
+        .mockRejectedValue({ kind: "failed", message: "Permission denied" })
     );
     const reported = vi.spyOn(toast, "add");
     onTestFinished(() => {
@@ -415,7 +415,7 @@ describe("TabGraph native queries", () => {
     });
     await waitFor(() => {
       expect(reported).toHaveBeenCalledExactlyOnceWith({
-        description: "permission denied",
+        description: "Permission denied",
         title: "could not read the graph",
         type: "error",
       });
@@ -472,7 +472,7 @@ describe("TabGraph native queries", () => {
     expect(host.textContent).not.toContain("second");
     await act(async () => {
       response.resolve({
-        mentionsError: { kind: "failed", message: "permission denied" },
+        mentionsError: { kind: "failed", message: "Permission denied" },
         picture: {
           graph: {
             dangling: [],
@@ -516,7 +516,7 @@ describe("TabGraph native queries", () => {
     await waitFor(() => expect(host).toHaveTextContent("Second"));
     expect(host.textContent).toContain("Linked");
     expect(reported).toHaveBeenCalledExactlyOnceWith({
-      description: "permission denied",
+      description: "Permission denied",
       title: "could not read the graph",
       type: "error",
     });

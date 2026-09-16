@@ -21,7 +21,7 @@ impl Library {
     /// mutation until this method returns, and must not expose partial scans.
     pub fn read_view(&self) -> Result<ReadView, CommandError> {
         if self.index_needs_rebuild() {
-            return Err(std::io::Error::other("the index is still incomplete").into());
+            return Err(std::io::Error::other("The index is still incomplete").into());
         }
         let conn = Connection::open_with_flags(
             self.index_path(),
