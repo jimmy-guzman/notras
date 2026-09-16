@@ -148,7 +148,7 @@ UI primitives come from `pnpm dlx shadcn@latest add`, originally in the radix-ma
 
 **Constraint:** files in `src/components/ui/**` are generated and not hand-edited. Lint with no autofix is turned off for them in `biome.jsonc`'s `src/components/ui/**` override rather than patched at the call site, because `scripts/update-shadcn.sh` overwrites the files.
 
-**Constraint:** three deviations are documented, and each is re-applied whenever the components are regenerated.
+**Constraint:** four deviations are documented, and each is re-applied whenever the components are regenerated.
 
 1. `command.tsx` moves the sr-only `DialogHeader` inside `DialogContent`, which `DESIGN.md` states as an accessibility rule and this entry accepts as a deviation from generated output.
 2. Generated user-facing strings are lowercased to satisfy `D18`: the sr-only and footer "close" labels in `dialog.tsx`, the default `title` and `description` in `command.tsx`, and the close button's `aria-label` in `toast.tsx`.
