@@ -4,6 +4,8 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   build: {
+    // Chunks load from the app bundle, not a network. Set just above the largest chunk so growth still warns.
+    chunkSizeWarningLimit: 2000,
     target: "safari26",
   },
   clearScreen: false,
