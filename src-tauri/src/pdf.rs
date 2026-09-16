@@ -46,7 +46,7 @@ mod native {
                     success
                         .as_bool()
                         .then_some(())
-                        .ok_or("the pdf could not be written"),
+                        .ok_or("The PDF could not be written"),
                 );
             }
         }
@@ -69,11 +69,11 @@ mod native {
         title: &str,
         done: Sender<Outcome>,
     ) -> Result<(), &'static str> {
-        let mtm = MainThreadMarker::new().ok_or("the export left the main thread")?;
+        let mtm = MainThreadMarker::new().ok_or("The export left the main thread")?;
         // SAFETY: Tauri hands over the retained WKWebView pointer on the main
         // thread, and the borrow ends before this function returns.
         let webview: &WKWebView = unsafe { &*webview.cast::<WKWebView>() };
-        let window = webview.window().ok_or("the window is gone")?;
+        let window = webview.window().ok_or("The window is gone")?;
 
         // A copy: the shared print info outlives this job, and a save
         // disposition left on it would redirect the next print.
@@ -138,19 +138,19 @@ pub async fn export_pdf<R: Runtime>(
                     let _ = done.send(Err(reason));
                 }
             })
-            .map_err(|error| CommandError::with_source("the pdf export could not start", error))?;
+            .map_err(|error| CommandError::with_source("The PDF export could not start", error))?;
         // A closure that never ran drops its sender, which ends the wait
         // rather than hanging it.
         tauri::async_runtime::spawn_blocking(move || outcome.recv())
             .await
             .ok()
             .and_then(Result::ok)
-            .ok_or("the pdf export did not run")?
+            .ok_or("The PDF export did not run")?
             .map_err(CommandError::from)
     }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = (webview, path, title);
-        Err("pdf export is only available on macos".into())
+        Err("PDF export is only available on macOS".into())
     }
 }

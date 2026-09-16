@@ -633,10 +633,10 @@ export function NoteGraph({
     <div className="relative h-full w-full select-none" ref={stageRef}>
       {lone || picture.kind === "hub" ? null : (
         <>
-          <span className="text-faint absolute top-[6%] left-[12%] -translate-x-1/2 text-xs">
+          <span className="text-faint absolute top-[6%] left-[12%] -translate-x-1/2 text-xs tracking-wider uppercase">
             mentions
           </span>
-          <span className="text-faint absolute top-[6%] left-[88%] -translate-x-1/2 text-xs">
+          <span className="text-faint absolute top-[6%] left-[88%] -translate-x-1/2 text-xs tracking-wider uppercase">
             links
           </span>
         </>

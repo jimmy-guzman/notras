@@ -14,7 +14,7 @@ function markdownOf({
   node,
 }: Pick<ReactNodeViewProps, "editor" | "node">) {
   if (editor.markdown === undefined) {
-    throw new Error("the markdown serializer is unavailable");
+    throw new Error("The Markdown serializer is unavailable");
   }
 
   return editor.markdown.serialize(contentOf(node));

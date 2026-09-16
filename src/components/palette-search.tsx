@@ -144,12 +144,12 @@ function pickerChoices(
 
 function filterHelp(kind: SearchFilter["kind"] | undefined) {
   if (kind === "mention") {
-    return 'type a phrase, for example mention:"Ada Lovelace"';
+    return 'Type a phrase, for example mention:"Ada Lovelace"';
   }
   if (kind === "link") {
-    return "type part of a destination, for example link:github.com";
+    return "Type part of a destination, for example link:github.com";
   }
-  return "type a folder, tag, or note to filter by";
+  return "Type a folder, tag, or note to filter by";
 }
 
 const NO_NOTES: NoteMeta[] = [];
@@ -297,8 +297,8 @@ function NoteResults({
     }
     return {
       description: idle
-        ? "create a note with the new note action"
-        : "try different words or remove a filter",
+        ? "Create a note with the new note action"
+        : "Try different words or remove a filter",
       title: "nothing found",
     };
   })();

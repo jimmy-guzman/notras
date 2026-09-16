@@ -164,7 +164,7 @@ mod tests {
                 json!({"document": document, "destination": "other.md"}),
             )
             .unwrap_err(),
-            json!({"kind": "failed", "message": "markdown files open in notras"})
+            json!({"kind": "failed", "message": "Markdown files open in notras"})
         );
         assert_eq!(
             invoke(
@@ -173,7 +173,7 @@ mod tests {
                 json!({"document": document, "destination": "gone.pdf"}),
             )
             .unwrap_err(),
-            json!({"kind": "not-found", "message": "no such file"})
+            json!({"kind": "not-found", "message": "No such file"})
         );
     }
 
@@ -204,15 +204,15 @@ mod tests {
         for (destination, failure) in [
             (
                 "../../outside.pdf",
-                json!({"kind": "failed", "message": "the link climbs out of the notes folder"}),
+                json!({"kind": "failed", "message": "The link climbs out of the notes folder"}),
             ),
             (
                 "../b.md",
-                json!({"kind": "failed", "message": "notes open in notras"}),
+                json!({"kind": "failed", "message": "Notes open in notras"}),
             ),
             (
                 "../missing.pdf",
-                json!({"kind": "not-found", "message": "no such file"}),
+                json!({"kind": "not-found", "message": "No such file"}),
             ),
         ] {
             assert_eq!(
@@ -458,13 +458,13 @@ mod tests {
         assert_eq!(
             invoke(&window, "read_note", json!({"path": "missing.md"})).unwrap_err(),
             json!({
-                "kind": "not-found", "message": "no such file"
+                "kind": "not-found", "message": "No such file"
             })
         );
         assert_eq!(
             invoke(&window, "read_note", json!({"path": "../outside.md"})).unwrap_err(),
             json!({
-                "kind": "failed", "message": "invalid note path: ../outside.md"
+                "kind": "failed", "message": "Invalid note path: ../outside.md"
             })
         );
         let failure = invoke(

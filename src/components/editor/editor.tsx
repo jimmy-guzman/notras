@@ -256,7 +256,7 @@ function sourceOffset(editor: TiptapEditor, position: number) {
   try {
     const manager = editor.markdown;
     if (manager === undefined) {
-      throw new Error("the editor has no markdown converter");
+      throw new Error("The editor has no Markdown converter");
     }
     const marked = editor.state.tr.insertText(SENTINEL, position);
     return fileMarkdown(
@@ -275,7 +275,7 @@ function positionInDocument(
 ) {
   const manager = editor.markdown;
   if (manager === undefined) {
-    throw new Error("the editor has no markdown converter");
+    throw new Error("The editor has no Markdown converter");
   }
   const at = Math.max(0, Math.min(offset, content.length));
   const marked = editor.schema.nodeFromJSON(
@@ -564,7 +564,7 @@ export function Editor({
 
           if (from === null) {
             toast.add({
-              description: "attachments live in the notes folder",
+              description: "Attachments live in the notes folder",
               title: "could not paste image",
               type: "error",
             });

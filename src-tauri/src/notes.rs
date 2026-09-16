@@ -28,7 +28,7 @@ async fn run_blocking<T: Send + 'static>(
         }
         Err(error) => {
             log::error!("native command task failed: {error}");
-            Err(CommandError::with_source("an unexpected error", error))
+            Err(CommandError::with_source("An unexpected error", error))
         }
     }
 }
@@ -81,18 +81,10 @@ pub async fn attach_file<R: Runtime>(
     .await
 }
 
-/// The opener capitalizes its own messages; an io failure already reads as the app's.
 fn opener_reason(error: tauri_plugin_opener::Error) -> CommandError {
     match error {
         tauri_plugin_opener::Error::Io(error) => error.into(),
-        error => {
-            let text = error.to_string();
-            let mut chars = text.chars();
-            let message = chars.next().map_or_else(String::new, |first| {
-                first.to_lowercase().chain(chars).collect::<String>()
-            });
-            CommandError::with_source(message, error)
-        }
+        error => CommandError::with_source(error.to_string(), error),
     }
 }
 
@@ -111,7 +103,7 @@ pub async fn open_linked_file<R: Runtime>(
         };
         app.opener()
             .open_path(
-                host.to_str().ok_or("the path is not valid unicode")?,
+                host.to_str().ok_or("The path is not valid Unicode")?,
                 None::<&str>,
             )
             .map_err(opener_reason)
@@ -130,7 +122,7 @@ pub async fn open_external_file<R: Runtime>(
         let host = notras_core::external_file(Path::new(&document), &destination)?;
         app.opener()
             .open_path(
-                host.to_str().ok_or("the path is not valid unicode")?,
+                host.to_str().ok_or("The path is not valid Unicode")?,
                 None::<&str>,
             )
             .map_err(opener_reason)
@@ -149,7 +141,7 @@ pub async fn resolve_external_link<R: Runtime>(
         let target = notras_core::external_note(Path::new(&document), &destination)?;
         let target = target
             .to_str()
-            .ok_or("the path is not valid unicode")?
+            .ok_or("The path is not valid Unicode")?
             .to_owned();
         let state = app.state::<AppState>();
         let library = state.library();
@@ -369,7 +361,7 @@ pub async fn write_external<R: Runtime>(
 
 fn conflicts_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, CommandError> {
     crate::conflicts_dir(app)
-        .map_err(|error| CommandError::with_source("the data folder is unavailable", error))
+        .map_err(|error| CommandError::with_source("The data folder is unavailable", error))
 }
 
 #[tauri::command]
@@ -425,11 +417,11 @@ pub async fn index_status<R: Runtime>(app: AppHandle<R>) -> Result<IndexStatus, 
 /// again is worse than one this launch never switched to.
 fn persist_notes_dir<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<(), CommandError> {
     let store = app.store("settings.json").map_err(|error| {
-        CommandError::with_source(format!("the setting could not be saved: {error}"), error)
+        CommandError::with_source(format!("The setting could not be saved: {error}"), error)
     })?;
     store.set("notesDir", Value::String(path.to_owned()));
     store.save().map_err(|error| {
-        CommandError::with_source(format!("the setting could not be saved: {error}"), error)
+        CommandError::with_source(format!("The setting could not be saved: {error}"), error)
     })
 }
 
@@ -458,7 +450,7 @@ fn switch_notes_dir<R: Runtime>(
         None
     } else {
         let cache = crate::index_cache(app)
-            .map_err(|error| CommandError::with_source("the cache folder is unavailable", error))?;
+            .map_err(|error| CommandError::with_source("The cache folder is unavailable", error))?;
         let library = Library::open(Path::new(path), &cache)?;
         let notes_dir = library.directory().to_owned();
         // Watched before it is scanned, so a write that lands during the scan
@@ -466,7 +458,7 @@ fn switch_notes_dir<R: Runtime>(
         let preparation = state.library.begin_replacement();
         let fresh = watcher::start(app.clone(), notes_dir.clone(), preparation.generation)
             .map_err(|error| {
-                CommandError::with_source(format!("could not watch the folder: {error}"), error)
+                CommandError::with_source(format!("Could not watch the folder: {error}"), error)
             })?;
         state.library.prepare(&library)?;
         Some((library, notes_dir, fresh, preparation))
@@ -641,7 +633,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             serde_json::to_value(error).unwrap(),
-            serde_json::json!({"kind": "not-found", "message": "no such file"})
+            serde_json::json!({"kind": "not-found", "message": "No such file"})
         );
     }
 }

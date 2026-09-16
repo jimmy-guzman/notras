@@ -102,7 +102,7 @@ impl Library {
     /// `true` when the host should consume the scan with `finish_scan`.
     pub fn advance_scan(&self, scan: &mut Scan) -> Result<bool, CommandError> {
         if scan.root != self.notes_dir {
-            return Err(std::io::Error::other("the selected library changed").into());
+            return Err(std::io::Error::other("The selected library changed").into());
         }
         scan.step(&self.conn, &self.root).map_err(|error| {
             self.index_dirty.set(true);
@@ -118,7 +118,7 @@ impl Library {
             return Err(error.into());
         }
         if self.index_dirty.get() {
-            return Err(std::io::Error::other("the index is still incomplete").into());
+            return Err(std::io::Error::other("The index is still incomplete").into());
         }
         Ok(report.changed)
     }

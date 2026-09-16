@@ -161,7 +161,7 @@ describe("capture window", () => {
       const hides: string[] = [];
       const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
         kind: "failed",
-        message: "the disk is full",
+        message: "The disk is full",
       });
       mockIPC(async (command) => {
         if (command === "create_note") {
@@ -185,7 +185,7 @@ describe("capture window", () => {
         expect(document.body.textContent).toContain(
           "could not save the capture"
         );
-        expect(document.body.textContent).toContain("the disk is full");
+        expect(document.body.textContent).toContain("The disk is full");
       });
     });
   });

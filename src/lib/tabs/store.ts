@@ -366,7 +366,7 @@ export async function changeNoteMetadata(
   const edit =
     tab === undefined ? undefined : handles.get(tab.id)?.editMetadata;
   if (edit === undefined) {
-    throw new Error("the note is still opening");
+    throw new Error("The note is still opening");
   }
   await edit(patch);
 }

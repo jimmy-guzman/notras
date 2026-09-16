@@ -15,7 +15,7 @@ describe("note warnings", () => {
           message: "the index is read-only",
           path: "inbox/jot.md",
         },
-        { kind: "cleanup", message: "permission denied", path: "old.md" },
+        { kind: "cleanup", message: "Permission denied", path: "old.md" },
       ]);
     });
     expect(screen.getByText("could not update search")).toBeInTheDocument();
@@ -25,6 +25,6 @@ describe("note warnings", () => {
     expect(
       screen.getByText("could not remove the original note")
     ).toBeInTheDocument();
-    expect(screen.getByText("old.md: permission denied")).toBeInTheDocument();
+    expect(screen.getByText("old.md: Permission denied")).toBeInTheDocument();
   });
 });

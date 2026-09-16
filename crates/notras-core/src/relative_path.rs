@@ -8,7 +8,7 @@ use cap_std::fs::{Dir, Metadata, OpenOptions};
 fn symlink_error() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "the path passes through a symlink",
+        "The path passes through a symlink",
     )
 }
 
@@ -109,7 +109,7 @@ impl RelativePath {
         }) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("invalid note path: {value}"),
+                format!("Invalid note path: {value}"),
             ));
         }
         Ok(Self(value.to_owned()))
@@ -119,18 +119,18 @@ impl RelativePath {
         let relative = path.strip_prefix(root).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "the path is outside the library",
+                "The path is outside the library",
             )
         })?;
         let parts = relative
             .components()
             .map(|component| match component {
                 Component::Normal(part) => part.to_str().ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidData, "the path is not valid unicode")
+                    io::Error::new(io::ErrorKind::InvalidData, "The path is not valid Unicode")
                 }),
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "invalid note path",
+                    "Invalid note path",
                 )),
             })
             .collect::<io::Result<Vec<_>>>()?;

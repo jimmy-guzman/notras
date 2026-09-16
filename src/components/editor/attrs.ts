@@ -17,7 +17,7 @@ function isContent(value: unknown): value is JSONContent {
 export function contentOf(node: Node): JSONContent {
   const json: unknown = node.toJSON();
   if (!isContent(json)) {
-    throw new Error("the node did not serialize");
+    throw new Error("The node did not serialize");
   }
   return json;
 }

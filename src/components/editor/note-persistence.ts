@@ -83,7 +83,7 @@ type DocumentListener = (
 ) => void;
 
 function refused() {
-  return new Error("this note needs review before it can move");
+  return new Error("This note needs review before it can move");
 }
 
 /** A session's document and ordered writes; save receipts never edit its history. */
@@ -219,7 +219,7 @@ export function createNotePersistence(
     } catch (error) {
       state.setState((previous) => ({
         ...previous,
-        reason: `the stored review could not be removed: ${reasonOf(error)}`,
+        reason: `The stored review could not be removed: ${reasonOf(error)}`,
       }));
     }
   };
@@ -343,7 +343,7 @@ export function createNotePersistence(
     const run = async () => {
       try {
         if (state.state.missing) {
-          throw new Error("no such file");
+          throw new Error("No such file");
         }
         if (inConflict()) {
           throw refused();
@@ -520,7 +520,7 @@ export function createNotePersistence(
   const resolve = async (content: string) => {
     const { theirs } = state.state;
     if (!inConflict() || theirs === undefined) {
-      throw new Error("nothing to review");
+      throw new Error("Nothing to review");
     }
     replaceDocument(content);
     edits += 1;
@@ -541,7 +541,7 @@ export function createNotePersistence(
     changed();
     documentListener?.(document.content(), undefined, state.state.sourceMode);
     if (!(await flush())) {
-      throw new Error(state.state.reason ?? "the note could not be saved");
+      throw new Error(state.state.reason ?? "The note could not be saved");
     }
   };
   return {

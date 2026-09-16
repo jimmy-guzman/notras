@@ -65,21 +65,19 @@ impl CommandError {
     }
 }
 
-/// The reason a syscall gives, in the app's voice: lowercase, no errno.
+/// The reason a syscall gives, in the app's words where it has them, and without the errno.
 fn io_reason(error: &io::Error) -> String {
     match error.kind() {
-        io::ErrorKind::NotFound => "no such file".to_string(),
-        io::ErrorKind::PermissionDenied => "permission denied".to_string(),
-        io::ErrorKind::IsADirectory => "that path is a folder".to_string(),
-        io::ErrorKind::ReadOnlyFilesystem => "the volume is read-only".to_string(),
-        io::ErrorKind::StorageFull => "the disk is full".to_string(),
+        io::ErrorKind::NotFound => "No such file".to_string(),
+        io::ErrorKind::PermissionDenied => "Permission denied".to_string(),
+        io::ErrorKind::IsADirectory => "That path is a folder".to_string(),
+        io::ErrorKind::ReadOnlyFilesystem => "The volume is read-only".to_string(),
+        io::ErrorKind::StorageFull => "The disk is full".to_string(),
         _ => {
             let text = error.to_string();
-            let text = text.split(" (os error ").next().unwrap_or(&text);
-            let mut chars = text.chars();
-            chars.next().map_or_else(String::new, |first| {
-                first.to_lowercase().chain(chars).collect()
-            })
+            text.split_once(" (os error ")
+                .map_or(text.as_str(), |(head, _)| head)
+                .to_string()
         }
     }
 }
@@ -102,7 +100,7 @@ impl From<io::Error> for CommandError {
 
 impl From<rusqlite::Error> for CommandError {
     fn from(error: rusqlite::Error) -> Self {
-        Self::with_source(format!("index: {error}"), error)
+        Self::with_source(format!("Index: {error}"), error)
     }
 }
 
@@ -206,7 +204,7 @@ fn collision(path: &str) -> CommandError {
         .and_then(|folder| folder.to_str())
         .filter(|folder| !folder.is_empty())
         .unwrap_or("the notes root");
-    format!("a note named {name} already exists in {folder}").into()
+    format!("A note named {name} already exists in {folder}").into()
 }
 
 /// Publish a fully written sibling, refusing a destination that already exists.
@@ -309,10 +307,10 @@ fn valid_segment(segment: &str) -> bool {
 fn validate_folder(folder: &str) -> Result<String, CommandError> {
     let folder = folder.trim_matches(frontmatter::is_space);
     if folder.encode_utf16().count() > 120 {
-        return Err("folder must be 120 characters or fewer".into());
+        return Err("Folder must be 120 characters or fewer".into());
     }
     if !folder.is_empty() && !folder.split('/').all(valid_segment) {
-        return Err(r"folder parts cannot be blank, contain \ or :, or start with a dot".into());
+        return Err(r"Folder parts cannot be blank, contain \ or :, or start with a dot".into());
     }
     Ok(folder.to_owned())
 }
@@ -320,13 +318,13 @@ fn validate_folder(folder: &str) -> Result<String, CommandError> {
 fn validate_filename(filename: &str) -> Result<String, CommandError> {
     let filename = filename.trim_matches(frontmatter::is_space);
     if filename.is_empty() {
-        return Err("filename is required".into());
+        return Err("Filename is required".into());
     }
     if filename.encode_utf16().count() > 120 {
-        return Err("filename must be 120 characters or fewer".into());
+        return Err("Filename must be 120 characters or fewer".into());
     }
     if !valid_segment(filename) {
-        return Err(r"filename cannot contain / \ : or start with a dot".into());
+        return Err(r"Filename cannot contain / \ : or start with a dot".into());
     }
     Ok(filename.to_owned())
 }
@@ -334,10 +332,10 @@ fn validate_filename(filename: &str) -> Result<String, CommandError> {
 fn validate_title(title: &str) -> Result<String, CommandError> {
     let title = title.trim_matches(frontmatter::is_space);
     if title.is_empty() {
-        return Err("title is required".into());
+        return Err("Title is required".into());
     }
     if title.contains(['\n', '\r']) {
-        return Err("title cannot span lines".into());
+        return Err("Title cannot span lines".into());
     }
     Ok(title.to_owned())
 }
@@ -668,7 +666,7 @@ fn save_file(
     expected: &str,
 ) -> Result<Publication<FileCommit>, CommandError> {
     if !is_markdown(Path::new(&source.name)) {
-        return Err("notes must be markdown files".into());
+        return Err("Notes must be Markdown files".into());
     }
     let filename = match name {
         Some(SaveName::Content) => {
@@ -680,7 +678,7 @@ fn save_file(
         }
         Some(SaveName::Filename(filename)) => {
             if !valid_segment(&filename) || !is_markdown(Path::new(&filename)) {
-                return Err("invalid note filename".into());
+                return Err("Invalid note filename".into());
             }
             Some(filename)
         }
@@ -702,11 +700,11 @@ fn save_file(
     let stem = Path::new(&filename)
         .file_stem()
         .and_then(|s| s.to_str())
-        .ok_or("invalid filename")?;
+        .ok_or("Invalid filename")?;
     let extension = Path::new(&filename)
         .extension()
         .and_then(|s| s.to_str())
-        .ok_or("invalid filename")?;
+        .ok_or("Invalid filename")?;
     let identity = source.identity()?;
     let mut counter = 1;
     loop {
@@ -746,7 +744,7 @@ fn save_file(
 
 pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     if !is_markdown(path) {
-        return Err("only markdown files can be opened".into());
+        return Err("Only Markdown files can be opened".into());
     }
     let file = File::open(path)?;
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
@@ -766,24 +764,24 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
 /// is the library's to fence.
 fn external_target(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     if !is_markdown(document) {
-        return Err("only markdown files can be opened".into());
+        return Err("Only Markdown files can be opened".into());
     }
     if !fs::metadata(document)?.is_file() {
-        return Err("the document is not a file".into());
+        return Err("The document is not a file".into());
     }
     let parent = document
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
-        .ok_or("a note outside any folder")?;
+        .ok_or("A note outside any folder")?;
     if destination.is_empty() {
-        return Err("the destination names no file".into());
+        return Err("The destination names no file".into());
     }
     let target = Path::new(destination);
     if target
         .components()
         .any(|part| matches!(part, Component::RootDir | Component::Prefix(_)))
     {
-        return Err("the destination names an absolute path".into());
+        return Err("The destination names an absolute path".into());
     }
     Ok(fs::canonicalize(parent.join(target))?)
 }
@@ -792,7 +790,7 @@ fn external_target(document: &Path, destination: &str) -> Result<PathBuf, Comman
 pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandError> {
     let image = external_target(document, src)?;
     if !fs::metadata(&image)?.is_file() {
-        return Err("that path is not a file".into());
+        return Err("That path is not a file".into());
     }
     Ok(image)
 }
@@ -803,10 +801,10 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
 pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
     if !is_markdown(&target) {
-        return Err("only markdown files open as tabs".into());
+        return Err("Only Markdown files open as tabs".into());
     }
     if !fs::metadata(&target)?.is_file() {
-        return Err("that path is not a file".into());
+        return Err("That path is not a file".into());
     }
     Ok(target)
 }
@@ -817,25 +815,25 @@ pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, Comm
 pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
     if is_markdown(&target) {
-        return Err("markdown files open in notras".into());
+        return Err("Markdown files open in notras".into());
     }
     let name = target
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or("the path is not valid unicode")?;
+        .ok_or("The path is not valid Unicode")?;
     let dir = Dir::open_ambient_dir(
-        target.parent().ok_or("a file outside any folder")?,
+        target.parent().ok_or("A file outside any folder")?,
         ambient_authority(),
     )?;
     let metadata = dir.metadata(name)?;
     if metadata.is_dir() {
-        return Err("that path is a folder".into());
+        return Err("That path is a folder".into());
     }
     if !metadata.is_file() {
-        return Err("that path is not a file".into());
+        return Err("That path is not a file".into());
     }
     if runs_on_open(name, &metadata) {
-        return Err("that file is a program".into());
+        return Err("That file is a program".into());
     }
     Ok(target)
 }
@@ -847,17 +845,17 @@ pub fn write_external(
     name: Option<SaveName>,
     expected: &str,
 ) -> Result<SaveOutcome, CommandError> {
-    let host = path.to_str().ok_or("the path is not valid unicode")?;
+    let host = path.to_str().ok_or("The path is not valid Unicode")?;
     let parent = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
-        .ok_or("a note outside any folder")?;
+        .ok_or("A note outside any folder")?;
     let source = Located {
         dir: Dir::open_ambient_dir(parent, ambient_authority())?,
         name: path
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or("a note without a filename")?
+            .ok_or("A note without a filename")?
             .to_owned(),
     };
     let result = match save_file(&source, content, name, expected)? {
@@ -878,7 +876,7 @@ pub fn write_external(
             path: parent
                 .join(result.name)
                 .to_str()
-                .ok_or("the path is not valid unicode")?
+                .ok_or("The path is not valid Unicode")?
                 .to_owned(),
             revision: content_revision(content),
             updated_at: result.updated_at,
@@ -1032,7 +1030,7 @@ impl Library {
         folder: &str,
     ) -> Result<PathMutationReceipt, CommandError> {
         let folder = validate_folder(folder)?;
-        let name = path.rsplit('/').next().ok_or("a note without a filename")?;
+        let name = path.rsplit('/').next().ok_or("A note without a filename")?;
         let target = if folder.is_empty() {
             name.to_owned()
         } else {
@@ -1071,9 +1069,9 @@ impl Library {
     pub fn attach_file(&self, source: &Path) -> Result<String, CommandError> {
         let name = source
             .file_name()
-            .ok_or("source has no file name")?
+            .ok_or("Source has no file name")?
             .to_str()
-            .ok_or("the path is not valid unicode")?
+            .ok_or("The path is not valid Unicode")?
             .to_owned();
 
         RelativePath::parse(&format!("attachments/{name}"))?;
@@ -1108,23 +1106,23 @@ impl Library {
     /// Checked on the library handle the way a note read is.
     pub fn linked_file_path(&self, from: &str, destination: &str) -> Result<PathBuf, CommandError> {
         if destination.starts_with('/') {
-            return Err("the link names an absolute path".into());
+            return Err("The link names an absolute path".into());
         }
         let path = relationships::resolve_file_path(destination, from)
-            .ok_or("the link climbs out of the notes folder")?;
+            .ok_or("The link climbs out of the notes folder")?;
         if index::is_note_file(Path::new(&path)) {
-            return Err("notes open in notras".into());
+            return Err("Notes open in notras".into());
         }
         let located = RelativePath::parse(&path)?.resolve(&self.root)?;
         let metadata = located.symlink_metadata()?;
         if metadata.is_dir() {
-            return Err("that path is a folder".into());
+            return Err("That path is a folder".into());
         }
         if !metadata.is_file() {
-            return Err("that path is not a file".into());
+            return Err("That path is not a file".into());
         }
         if runs_on_open(&located.name, &metadata) {
-            return Err("that file is a program".into());
+            return Err("That file is a program".into());
         }
         Ok(self.notes_dir.join(path))
     }
@@ -1134,7 +1132,7 @@ impl Library {
 
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(base64_data)
-            .map_err(|error| CommandError::with_source("the pasted image is not valid", error))?;
+            .map_err(|error| CommandError::with_source("The pasted image is not valid", error))?;
 
         let dir = ensure_folder(&self.root, "attachments")?;
 
@@ -1384,7 +1382,7 @@ mod tests {
 
         assert_eq!(
             serde_json::to_value(&error).unwrap(),
-            serde_json::json!({"kind": "not-found", "message": "no such file"})
+            serde_json::json!({"kind": "not-found", "message": "No such file"})
         );
         let source = error.source().unwrap().downcast_ref::<io::Error>().unwrap();
         assert_eq!(source.kind(), io::ErrorKind::NotFound);
@@ -1404,7 +1402,7 @@ mod tests {
 
         assert_eq!(
             serde_json::to_value(&error).unwrap(),
-            serde_json::json!({"kind": "failed", "message": "index: no such table: note"})
+            serde_json::json!({"kind": "failed", "message": "Index: no such table: note"})
         );
         assert!(error.source().unwrap().is::<rusqlite::Error>());
     }
@@ -1416,7 +1414,7 @@ mod tests {
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let error = library.attach_image("%%%").unwrap_err();
 
-        assert_eq!(error.message, "the pasted image is not valid");
+        assert_eq!(error.message, "The pasted image is not valid");
         assert!(error.source().unwrap().is::<base64::DecodeError>());
         assert!(!directory.path().join("attachments").exists());
     }
@@ -1545,7 +1543,7 @@ mod tests {
         let error = write_external(&path, "# changed", None, "").unwrap_err();
 
         assert_eq!(error.kind, ErrorKind::Failed);
-        assert_eq!(error.message, "the path is not valid unicode");
+        assert_eq!(error.message, "The path is not valid Unicode");
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
     }
 
@@ -1562,7 +1560,7 @@ mod tests {
 
         let error = write_external(&path, "# changed", None, "").unwrap_err();
 
-        assert_eq!(error.message, "the path is not valid unicode");
+        assert_eq!(error.message, "The path is not valid Unicode");
         assert_eq!(fs::read_to_string(path).unwrap(), "# original");
     }
 
@@ -1903,7 +1901,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "a note named taken already exists in the notes root"
+            "A note named taken already exists in the notes root"
         );
         assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
     }
@@ -2126,10 +2124,10 @@ mod tests {
 
     #[test]
     fn should_treat_a_message_without_a_kind_as_a_failure() {
-        let error: CommandError = "invalid note path: ../escape".into();
+        let error: CommandError = "Invalid note path: ../escape".into();
 
         assert_eq!(error.kind, ErrorKind::Failed);
-        assert_eq!(error.message, "invalid note path: ../escape");
+        assert_eq!(error.message, "Invalid note path: ../escape");
     }
     #[test]
     fn should_classify_a_library_file_as_a_note() {
@@ -2221,7 +2219,7 @@ mod tests {
         );
     }
     #[test]
-    fn should_report_a_syscall_failure_as_a_lowercase_reason() {
+    fn should_report_a_syscall_failure_in_the_apps_words() {
         let denied = CommandError::from(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "Permission denied (os error 13)",
@@ -2229,16 +2227,16 @@ mod tests {
         let missing = CommandError::from(io::Error::from(io::ErrorKind::NotFound));
 
         assert_eq!(denied.kind, ErrorKind::Failed);
-        assert_eq!(denied.message, "permission denied");
+        assert_eq!(denied.message, "Permission denied");
         assert_eq!(missing.kind, ErrorKind::NotFound);
-        assert_eq!(missing.message, "no such file");
+        assert_eq!(missing.message, "No such file");
     }
 
     #[test]
     fn should_keep_unmapped_syscall_text_without_the_errno() {
         let error = CommandError::from(io::Error::other("Too many open files (os error 24)"));
 
-        assert_eq!(error.message, "too many open files");
+        assert_eq!(error.message, "Too many open files");
     }
 
     #[test]
@@ -2410,11 +2408,11 @@ mod tests {
         for (destination, reason) in [
             (
                 "../../outside.pdf",
-                "the link climbs out of the notes folder",
+                "The link climbs out of the notes folder",
             ),
-            ("/etc/hosts", "the link names an absolute path"),
-            ("../b.md", "notes open in notras"),
-            ("../docs", "that path is a folder"),
+            ("/etc/hosts", "The link names an absolute path"),
+            ("../b.md", "Notes open in notras"),
+            ("../docs", "That path is a folder"),
         ] {
             let error = library
                 .linked_file_path("projects/a.md", destination)
@@ -2433,7 +2431,7 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(error.kind, ErrorKind::NotFound);
-        assert_eq!(error.message, "no such file");
+        assert_eq!(error.message, "No such file");
     }
 
     #[cfg(unix)]
@@ -2452,7 +2450,7 @@ mod tests {
             .linked_file_path("projects/a.md", "../docs/link.pdf")
             .unwrap_err();
 
-        assert_eq!(error.message, "the path passes through a symlink");
+        assert_eq!(error.message, "The path passes through a symlink");
     }
 
     #[cfg(unix)]
@@ -2466,7 +2464,7 @@ mod tests {
             .linked_file_path("projects/a.md", "../docs/sock")
             .unwrap_err();
 
-        assert_eq!(error.message, "that path is not a file");
+        assert_eq!(error.message, "That path is not a file");
     }
 
     #[cfg(unix)]
@@ -2485,7 +2483,7 @@ mod tests {
             let error = library
                 .linked_file_path("projects/a.md", &format!("../docs/{name}"))
                 .unwrap_err();
-            assert_eq!(error.message, "that file is a program", "{name}");
+            assert_eq!(error.message, "That file is a program", "{name}");
         }
         assert!(library
             .linked_file_path("projects/a.md", "../docs/doc.pdf")
@@ -2550,19 +2548,19 @@ mod tests {
             (
                 document.clone(),
                 "/etc/hosts",
-                "the destination names an absolute path",
+                "The destination names an absolute path",
             ),
-            (document.clone(), "", "the destination names no file"),
-            (document.clone(), "images", "that path is not a file"),
+            (document.clone(), "", "The destination names no file"),
+            (document.clone(), "images", "That path is not a file"),
             (
                 directory.path().join("docs/notes.txt"),
                 "my shot.png",
-                "only markdown files can be opened",
+                "Only Markdown files can be opened",
             ),
             (
                 directory.path().join("docs"),
                 "my shot.png",
-                "only markdown files can be opened",
+                "Only Markdown files can be opened",
             ),
         ] {
             let error = external_image(&doc, src).unwrap_err();
@@ -2597,17 +2595,17 @@ mod tests {
 
         assert_eq!(
             external_file(&document, "note.md").unwrap_err().message,
-            "markdown files open in notras"
+            "Markdown files open in notras"
         );
         assert_eq!(
             external_note(&document, "my%20spec.pdf")
                 .unwrap_err()
                 .message,
-            "only markdown files open as tabs"
+            "Only Markdown files open as tabs"
         );
         assert_eq!(
             external_file(&document, "images").unwrap_err().message,
-            "that path is a folder"
+            "That path is a folder"
         );
         assert_eq!(
             external_file(&document, "gone.pdf").unwrap_err().kind,
@@ -2629,7 +2627,7 @@ mod tests {
             external_file(&directory.path().join("docs/note.md"), "run.command")
                 .unwrap_err()
                 .message,
-            "that file is a program"
+            "That file is a program"
         );
     }
 
@@ -2643,7 +2641,7 @@ mod tests {
         ] {
             let error = external_image(&doc, src).unwrap_err();
             assert_eq!(error.kind, ErrorKind::NotFound, "{src}");
-            assert_eq!(error.message, "no such file", "{src}");
+            assert_eq!(error.message, "No such file", "{src}");
         }
     }
 

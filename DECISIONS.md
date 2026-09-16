@@ -138,7 +138,7 @@ A debounced `notify` watcher reindexes external writes and the UI refreshes on i
 
 ### D18 Lowercase user-facing text
 
-Every user-facing string is lowercase, the wordmark included, and `DESIGN.md` enumerates the surfaces.
+Every user-facing string is lowercase, the wordmark included, and `DESIGN.md` enumerates the surfaces. Narrowed by `D84`.
 
 **Rejected: sentence case.** The convention, and easier to keep consistent by accident. Rejected because the lowercase reading is the app's voice, and it is enforceable by review since it applies everywhere with no exceptions to remember.
 
@@ -1088,3 +1088,13 @@ Lint and formatting come from `ultracite` on oxlint and oxfmt, configured in `ox
 **Constraint:** the text block is the surface's `max-w-2xl`, 504pt, on every paper. `pdf.rs` derives the side margins from the paper around it, so a table `export-pdf.ts` fits to the column on screen fits the page too.
 
 **Constraint:** the export runs on macOS. The Linux path is `webkit2gtk::PrintOperation` with a file output, the Windows path `ICoreWebView2_7::PrintToPdf`; neither can be verified here, so the palette offers the row on macOS only, through `detectPlatform`, and the command returns a failure naming macOS elsewhere. [#211](https://github.com/jimmy-guzman/notras/issues/211) tracks both.
+
+### D84 Case by role
+
+Controls and titles stay lowercase, prose (descriptions, alert bodies, help text, error reasons) is sentence case, and xs section labels are uppercase through `text-transform`. Uniform lowercase read as flat: case carried no information, so a heading, a button and a sentence looked alike.
+
+**Rejected: sentence case everywhere.** Loses the voice and leaves case as flat as before.
+
+**Rejected: case transforms in strings or on control slots.** Controls carry note titles, so a `lowercase` class over a row or an uppercase string in a heading rewrites user content. The uppercase slots hold fixed labels, and the palette views whose heading quotes a title are left out.
+
+**Rejected: capitalizing reasons at the display boundary.** Three paths read native messages without `reasonOf`, and Rust would lowercase text for the frontend to undo, so the messages change at the source.

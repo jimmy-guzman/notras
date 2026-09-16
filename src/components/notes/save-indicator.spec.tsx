@@ -5,9 +5,9 @@ import { SaveIndicator } from "./save-indicator";
 
 describe(SaveIndicator, () => {
   it("should read needs review with its reason while a note waits on a review", () => {
-    render(<SaveIndicator reason="the disk is full" status="conflict" />);
+    render(<SaveIndicator reason="The disk is full" status="conflict" />);
     expect(
-      screen.getByText("needs review: the disk is full")
+      screen.getByText("needs review: The disk is full")
     ).toBeInTheDocument();
   });
 });

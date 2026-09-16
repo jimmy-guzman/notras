@@ -178,7 +178,7 @@ describe("native command", () => {
         nativeCommand(() => {
           throw new Error("internal invariant");
         })
-      ).rejects.toThrow("an unexpected error");
+      ).rejects.toThrow("An unexpected error");
       expect(logged).toMatchObject([{ command: "plugin:log|log" }]);
       expect(JSON.stringify(logged)).toContain("internal invariant");
     });

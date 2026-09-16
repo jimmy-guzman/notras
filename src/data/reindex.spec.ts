@@ -22,11 +22,11 @@ describe("reindex", () => {
       mockIPC(
         vi
           .fn<Parameters<typeof mockIPC>[0]>()
-          .mockRejectedValue({ kind: "failed", message: "permission denied" })
+          .mockRejectedValue({ kind: "failed", message: "Permission denied" })
       );
       await expect(reindexAll()).rejects.toMatchObject({
         kind: "failed",
-        message: "permission denied",
+        message: "Permission denied",
       });
     });
   });

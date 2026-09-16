@@ -295,7 +295,7 @@ export function Workspace({
 
       if (showing?.kind === "external") {
         toast.add({
-          description: "attachments live in the notes folder",
+          description: "Attachments live in the notes folder",
           title: "could not attach file",
           type: "error",
         });

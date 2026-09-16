@@ -70,7 +70,7 @@ export function mergeDocuments(
         theirs: region.conflict.b,
       };
     }
-    throw new Error("a merge region without a side");
+    throw new Error("A merge region without a side");
   });
 
   if (regions.every((region) => region.kind === "ok")) {
@@ -92,7 +92,7 @@ export function composeResolution(
 ): string {
   const hunks = conflict.regions.filter((region) => region.kind === "hunk");
   if (choices.length !== hunks.length) {
-    throw new Error("every hunk needs a choice");
+    throw new Error("Every hunk needs a choice");
   }
   let next = 0;
   const output: string[] = [];
@@ -104,7 +104,7 @@ export function composeResolution(
     const choice = choices[next];
     next += 1;
     if (choice === undefined) {
-      throw new Error("every hunk needs a choice");
+      throw new Error("Every hunk needs a choice");
     }
     output.push(...chosenLines(region, choice));
   }

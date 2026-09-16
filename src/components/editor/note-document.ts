@@ -126,7 +126,7 @@ export function createNoteDocument(
   const nameId = () => {
     const { attrs } = editor.state.doc;
     if (!hasNameId(attrs)) {
-      throw new TypeError("the document has no filename history");
+      throw new TypeError("The document has no filename history");
     }
     return attrs.name;
   };
@@ -188,7 +188,7 @@ export function createNoteDocument(
     naming: (): Naming => {
       const value = names.get(nameId());
       if (value === undefined) {
-        throw new Error("the filename history is missing");
+        throw new Error("The filename history is missing");
       }
       return value;
     },
