@@ -89,7 +89,7 @@ describe("note mentions", () => {
 
       expect(items.map((item) => item.textContent)).toStrictEqual([
         "asee [[here]] first",
-        "b · workthen [[here]]",
+        "bworkthen [[here]]",
       ]);
     });
 
@@ -107,7 +107,7 @@ describe("note mentions", () => {
       const items = await showList();
 
       expect(items.map((item) => item.textContent)).toStrictEqual([
-        "a · +1see [[here]]",
+        "a+1see [[here]]",
         "bonce [[here]]",
       ]);
     });

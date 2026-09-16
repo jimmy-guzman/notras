@@ -1,0 +1,27 @@
+import { PinIcon } from "lucide-react";
+import type { ReactNode } from "react";
+
+import type { NoteMeta } from "@/core/notes";
+
+export function NoteLabel({
+  children,
+  note,
+}: {
+  children?: ReactNode;
+  note: NoteMeta;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5" title={note.path}>
+      <span className="truncate">{note.title}</span>
+      {note.pinned ? (
+        <PinIcon aria-label="pinned" className="size-3 opacity-60" />
+      ) : null}
+      {note.folder === "" ? null : (
+        <span className="text-muted-foreground max-w-1/3 shrink-0 truncate text-xs">
+          {note.folder}
+        </span>
+      )}
+      {children}
+    </span>
+  );
+}

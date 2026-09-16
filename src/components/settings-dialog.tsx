@@ -116,8 +116,8 @@ export function SettingsDialog({
         <DialogHeader>
           <DialogTitle>settings</DialogTitle>
           <DialogDescription>
-            your notes are plain markdown files -- point any editor or ai agent
-            at the folder.
+            your notes are plain markdown files. point any editor or ai agent at
+            the folder.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-5 py-2">

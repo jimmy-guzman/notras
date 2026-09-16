@@ -4,6 +4,7 @@ import { FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
 import type { KeyboardEvent, RefObject } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { NoteLabel } from "@/components/notes/note-label";
 import { MentionItem } from "@/components/notes/note-mentions";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -462,15 +463,7 @@ function NoteRow({ note }: { note: NoteMeta }) {
       }}
     >
       <FileTextIcon />
-      <span className="truncate">
-        {note.title}
-        {note.folder === "" ? null : (
-          <span className="text-muted-foreground text-xs">
-            {" "}
-            · {note.folder}
-          </span>
-        )}
-      </span>
+      <NoteLabel note={note} />
     </DropdownMenuItem>
   );
 }

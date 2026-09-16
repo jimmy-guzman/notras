@@ -36,7 +36,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - `⌘F` finds literal text in the current buffer, including unsaved edits, with `⌘G` and `⌘⇧G` to move between matches. It works in rich text, source, external files, and quick capture.
 - `⌘E` swaps to raw markdown source, the escape hatch for anything exotic
 - `⌘D` focus mode dims every block but the one you are in, keeps the line you are typing vertically centred, and lifts the dim while you scroll by wheel or touch
-- word count and reading time, in the status strip
+- word count, in the status strip
 
 ### Finding
 

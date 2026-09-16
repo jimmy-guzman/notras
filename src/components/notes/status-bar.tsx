@@ -10,7 +10,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CHROME_GLYPH } from "@/lib/ui/chrome";
-import { readingTime } from "@/lib/utils/word-count";
 
 /** Tone for pressed and surface for hover, which the shipped variant collapses into one. */
 const PRESSED = "aria-pressed:bg-transparent aria-pressed:text-foreground";
@@ -88,7 +87,7 @@ export function StatusBar({
         </>
       )}
       <span className="ml-auto shrink-0 px-2 tabular-nums">
-        {words} {words === 1 ? "word" : "words"} · {readingTime(words)}
+        {words} {words === 1 ? "word" : "words"}
       </span>
       <ToggleGroup
         multiple
