@@ -140,6 +140,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
           align="start"
           className="border-border w-56 min-w-56 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
           side="top"
+          sideOffset={4}
         >
           <ComboboxInput placeholder="filter tags..." showTrigger={false} />
           {allTags.data === undefined && allTags.isPending ? (

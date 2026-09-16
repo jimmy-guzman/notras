@@ -82,7 +82,7 @@ export function StatusBar({
           <MentionsOf key={note.path} path={note.path} />
         </>
       )}
-      <span className="ml-auto shrink-0 px-2 tabular-nums">
+      <span className="ms-auto shrink-0 px-1.5 tabular-nums">
         {words} {words === 1 ? "word" : "words"}
       </span>
       <ToggleGroup

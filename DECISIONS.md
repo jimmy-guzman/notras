@@ -153,6 +153,7 @@ UI primitives come from `pnpm dlx shadcn@latest add`, originally in the radix-ma
 1. `command.tsx` moves the sr-only `DialogHeader` inside `DialogContent`, which `DESIGN.md` states as an accessibility rule and this entry accepts as a deviation from generated output.
 2. Generated user-facing strings are lowercased to satisfy `D18`: the sr-only and footer "close" labels in `dialog.tsx`, the default `title` and `description` in `command.tsx`, and the close button's `aria-label` in `toast.tsx`.
 3. `toggle.tsx` gains the `xs` and `icon-xs` sizes `button.tsx` already ships, copied from it. `D37` records why the app needs a 24px toggle that upstream's `h-9` / `h-8` / `h-10` ladder does not reach.
+4. `badge.tsx` insets `px-1.5` where upstream ships `px-2`. A badge is a chip in this app, in the status strip and on the graph, and 6px is the compact inset the rest of the app uses; 8px is a palette row's.
 
 ### D20 Quick capture is a second window
 

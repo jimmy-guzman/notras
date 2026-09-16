@@ -173,7 +173,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "group hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center self-center rounded-sm ps-2.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+              "group hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
               active && "bg-background text-foreground",
               isDragging &&
                 "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
@@ -287,7 +287,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
         render={
           <Button
             aria-label={`${hidden.length} ${hidden.length === 1 ? "tab" : "tabs"} out of view`}
-            className="rounded-sm tabular-nums"
+            className="rounded-sm px-1.5 tabular-nums"
             size="xs"
             variant="ghost"
           />
@@ -505,9 +505,9 @@ export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
+    <>
       <TabList activeId={activeId} tabs={tabs} />
       <NewNoteButton onNew={onNew} />
-    </div>
+    </>
   );
 }
