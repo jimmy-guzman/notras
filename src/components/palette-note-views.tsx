@@ -8,12 +8,13 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
-import { changeNoteTags } from "@/components/notes/change-note-tags";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
+import { toast } from "@/components/ui/toast";
 import { filenameFromTitle } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { noteQueries } from "@/data/queries";
+import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 
 const COUNT_CLASS =
@@ -228,15 +229,34 @@ export function TagsView({
     .toSorted()
     .filter((name) => name.includes(draftTag));
   const toggle = async (name: string) => {
-    await changeNoteTags(path, (current) =>
-      current.includes(name)
-        ? current.filter((tag) => tag !== name)
-        : [...current, name]
-    );
+    try {
+      await changeNoteMetadata(path, {
+        tags: (current) =>
+          current.includes(name)
+            ? current.filter((tag) => tag !== name)
+            : [...current, name],
+      });
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
+    }
   };
   const add = async () => {
     onQueryChange("");
-    await changeNoteTags(path, (current) => [...current, draftTag]);
+    try {
+      await changeNoteMetadata(path, {
+        tags: (current) => [...current, draftTag],
+      });
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
+    }
   };
   const retry = async () => {
     await vocabulary.refetch();

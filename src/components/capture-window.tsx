@@ -18,6 +18,20 @@ const NOOP = () => {
   // The capture window reads its editor at save time, not on every edit.
 };
 
+async function hideCapture(saving: { current: boolean }) {
+  try {
+    await getCurrentWindow().hide();
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not hide the capture",
+      type: "error",
+    });
+  } finally {
+    saving.current = false;
+  }
+}
+
 /**
  * The quick-capture window: a bare editor. Esc (or ⌘⏎) saves the jot into
  * `inbox/` and hides the window; empty captures are discarded. Escape closes
@@ -45,10 +59,8 @@ export function CaptureWindow() {
     }
 
     const content = editorRef.current?.getContent() ?? "";
-
+    savingRef.current = true;
     if (content.trim() !== "") {
-      savingRef.current = true;
-
       try {
         await createNote({
           content,
@@ -65,13 +77,10 @@ export function CaptureWindow() {
 
         return;
       }
-
-      savingRef.current = false;
     }
-
     find.close();
     setSession((current) => current + 1);
-    await getCurrentWindow().hide();
+    await hideCapture(savingRef);
   };
 
   const attachEditor = (handle: EditorHandle) => {

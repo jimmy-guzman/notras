@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { HashIcon, TagPlusIcon } from "lucide-react";
 import { useState } from "react";
 
-import { changeNoteTags } from "@/components/notes/change-note-tags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +13,9 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
+import { toast } from "@/components/ui/toast";
 import { noteQueries } from "@/data/queries";
+import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 
@@ -68,15 +69,21 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
     ...new Set([...counts.keys(), ...tags, ...(draft === "" ? [] : [draft])]),
   ].toSorted();
 
-  // Clearing the input belongs to this surface rather than to the write, so it
-  // wraps the shared writer instead of living inside it.
-  const commitTags = (nextTags: string[]) => {
+  const commitTags = async (nextTags: string[]) => {
     setQuery("");
     // The combobox reports a replacement for its rendered value, so recover the toggled items here.
     const toggled = new Set(nextTags).symmetricDifference(new Set(tags));
-    void changeNoteTags(path, (current) => [
-      ...new Set(current).symmetricDifference(toggled),
-    ]);
+    try {
+      await changeNoteMetadata(path, {
+        tags: (current) => [...new Set(current).symmetricDifference(toggled)],
+      });
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
+    }
   };
 
   const retry = async () => {
@@ -102,7 +109,9 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         multiple
         onInputValueChange={setQuery}
         onOpenChange={setOpen}
-        onValueChange={commitTags}
+        onValueChange={(value) => {
+          void commitTags(value);
+        }}
         open={open}
         value={tags}
       >

@@ -1677,6 +1677,61 @@ describe(NoteSession, () => {
     client.clear();
   });
 
+  it("should show the initial merge of stored edits and the current file in the rich editor", async () => {
+    const writes: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "save_note") {
+        writes.push(args);
+        return {
+          kind: "committed",
+          receipt: { path: "a.md", revision: "r2", updatedAt: 3, warnings: [] },
+        };
+      }
+      return null;
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: "# Updated title\n\nbody",
+      pinned: false,
+      revision: "r1",
+      tags: [],
+      updatedAt: new Date(2),
+    });
+    client.setQueryData(noteQueries.list().queryKey, []);
+    const stored: ConflictStash = {
+      base: {
+        content: "# Errands\n\nbody",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      ours: "# Errands\n\nmy body",
+    };
+    client.setQueryData(
+      noteQueries.conflict("note", tab.path).queryKey,
+      stored
+    );
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={tab} />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor();
+    await waitFor(() => {
+      expect(liveEditor.getText()).toContain("Updated title");
+      expect(liveEditor.getText()).toContain("my body");
+    });
+    await act(async () => {
+      expect(await flushPendingWrites()).toBeTruthy();
+    });
+    expect(writes).toMatchObject([{ content: "# Updated title\n\nmy body" }]);
+    client.clear();
+  });
+
   it("should not open a note until its stored review is known", async () => {
     mockIPC(async (command) => {
       if (command === "read_conflict") {

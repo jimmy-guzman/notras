@@ -11,6 +11,41 @@ const initial = {
 } as const;
 
 describe("note persistence", () => {
+  it("should keep the replacement document listener when the previous listener unsubscribes", () => {
+    const observed: string[] = [];
+    const note = createNotePersistence(initial, {
+      changePath: () => {
+        throw new Error("no move requested");
+      },
+      clearStash: async () => {},
+      onPathChanged: () => {},
+      stash: async () => {},
+      write: () => {
+        throw new Error("no write requested");
+      },
+    });
+    const unsubscribePrevious = note.onDocumentChanged(() => {
+      throw new Error("the previous listener received a change");
+    });
+    const unsubscribeCurrent = note.onDocumentChanged((content) => {
+      observed.push(content);
+    });
+    unsubscribePrevious();
+    note.receiveFile(
+      initial.path,
+      { content: "# Updated", revision: "r1", updatedAt: new Date(1) },
+      false
+    );
+    expect(observed).toStrictEqual(["# Updated"]);
+    unsubscribeCurrent();
+    note.receiveFile(
+      initial.path,
+      { content: "# Later", revision: "r2", updatedAt: new Date(2) },
+      false
+    );
+    expect(observed).toStrictEqual(["# Updated"]);
+  });
+
   it("should defer a missing-file observation while newer typing overlaps a save", async () => {
     const held = Promise.withResolvers<SaveOutcome>();
     const note = createNotePersistence(initial, {

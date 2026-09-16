@@ -239,7 +239,7 @@ function SessionBuffer({
     )
   );
   const autosave = useAutosave(persistence);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const replaceDocument = (
       content: string,
       selection: { anchor: number; head: number } | undefined,
@@ -263,8 +263,10 @@ function SessionBuffer({
     return persistence.onDocumentChanged(replaceDocument);
   }, [persistence]);
   useLayoutEffect(() => {
-    persistence.receiveFile(tab.path, readFile, readMissing);
-  }, [persistence, readFile, readMissing, tab.path]);
+    if (findHandle !== null) {
+      persistence.receiveFile(tab.path, readFile, readMissing);
+    }
+  }, [findHandle, persistence, readFile, readMissing, tab.path]);
   useLayoutEffect(
     () => registerTabSnapshot(id, persistence.snapshot),
     [id, persistence]

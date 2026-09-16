@@ -554,7 +554,9 @@ export function createNotePersistence(
     onDocumentChanged: (listener: DocumentListener) => {
       documentListener = listener;
       return () => {
-        documentListener = undefined;
+        if (documentListener === listener) {
+          documentListener = undefined;
+        }
       };
     },
     receiveFile,
