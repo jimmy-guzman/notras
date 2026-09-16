@@ -37,7 +37,7 @@ Resist a fourth. The two bundled faces come through `@fontsource`, so the app re
 The palette uses warm paper and ink in both schemes, with pink as its identifying accent (`D73`). Six neutral colors, eight colored inks, and one derived selection color supply the existing semantic tokens. The reading surface, syntax, and artwork share those values.
 
 - **Every colour is a hex CSS variable in `src/styles.css`.** No component hardcodes a colour value.
-- **Dark is the default.** `:root` defines the dark palette and `@media (prefers-color-scheme: light)` redefines the same variables. There is no theme toggle and no `next-themes`; the system decides.
+- **Dark is the default.** `:root` defines the dark palette and `@media (prefers-color-scheme: light), print` redefines the same variables, so paper is light whatever the system is set to. There is no theme toggle and no `next-themes`; the system decides.
 - **`--primary` is the accent. `--accent` is not.** shadcn uses `--accent` for hover surfaces, and the name is its own, not this palette's. Anything reaching for `--accent` to emphasise something has the wrong token.
 - **The accent marks an on state.** It belongs on the focus ring, the checked task box, a selected table cell, the syntax keyword colour, and a pressed chrome toggle, which is how a macOS toolbar toggle shows it is on. It does not belong on a hover surface, an idle control, a tab, or a status glyph. Chrome otherwise carries two tones: `--muted-foreground` when idle and `--foreground` when live.
 - **A card moves away from the text colour,** so it is darker than the page in dark and lighter in light. That is what keeps code-block syntax above the contrast floor in both schemes.

@@ -92,7 +92,9 @@
   --radius: 0.5rem;
 }
 
-@media (prefers-color-scheme: light) {
+/* Paper takes the light palette whatever the system is set to, stated here
+   rather than left to WebKit answering "light" for print media on its own. */
+@media (prefers-color-scheme: light), print {
   :root {
     --background: #f7f3ee;
     --foreground: #3d3a36;
