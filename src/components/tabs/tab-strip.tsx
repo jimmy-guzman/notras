@@ -21,7 +21,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, FilePlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Chord } from "@/components/chord";
@@ -327,7 +327,7 @@ function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
           />
         }
       >
-        <PlusIcon className={CHROME_GLYPH} />
+        <FilePlusIcon className={CHROME_GLYPH} />
       </TooltipTrigger>
       <TooltipContent>
         new note

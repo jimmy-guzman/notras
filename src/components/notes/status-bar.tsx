@@ -1,4 +1,4 @@
-import { CodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
+import { FileCodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
 
 import { Chord } from "@/components/chord";
 import { MentionsOf } from "@/components/notes/note-mentions";
@@ -47,7 +47,7 @@ export function StatusBar({
       value: "focus",
     },
     {
-      icon: CodeIcon,
+      icon: FileCodeIcon,
       label: "markdown source",
       onToggle: onToggleSource,
       pressed: sourceEnabled,
