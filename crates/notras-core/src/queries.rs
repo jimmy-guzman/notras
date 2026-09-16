@@ -565,6 +565,7 @@ mod tests {
             "---\npinned: true\ntags: [z, a]\n---\n# Pinned",
             1,
         );
+        save(&core, "work/pin2.md", "---\npinned: true\n---\n# Pin", 2);
         save(&core, "work/new.md", "---\ntags: [a]\n---\n# New", 3);
         save(&core, "work/deep/other.md", "# Other", 4);
         let notes = core
@@ -580,9 +581,9 @@ mod tests {
                 .iter()
                 .map(|note| note.path.as_str())
                 .collect::<Vec<_>>(),
-            ["work/pinned.md", "work/new.md"]
+            ["work/pin2.md", "work/pinned.md", "work/new.md"]
         );
-        assert_eq!(notes[0].tags, ["z", "a"]);
+        assert_eq!(notes[1].tags, ["z", "a"]);
         let recent = core
             .read_view()
             .unwrap()

@@ -62,7 +62,7 @@ function mount(query: string, error?: Error) {
 }
 
 describe("palette search states", () => {
-  it("should request the twenty most recently updated notes while idle", async () => {
+  it("should request twenty notes pinned first then most recently updated while idle", async () => {
     const recent = [
       {
         createdAt: 0,
@@ -94,7 +94,7 @@ describe("palette search states", () => {
         limit: 20,
         pinnedOnly: null,
         query: null,
-        sort: "updated",
+        sort: null,
         tag: null,
       },
     });

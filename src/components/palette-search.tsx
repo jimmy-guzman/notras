@@ -207,7 +207,7 @@ function useSearchResults(query: string, showPicker: boolean) {
   const search = parseSearch(query);
   const idle = query.trim() === "";
   const recent = useQuery({
-    ...noteQueries.list({ limit: 20, sort: "updated" }),
+    ...noteQueries.list({ limit: 20 }),
     enabled: idle,
   });
   const searched = useQuery({

@@ -29,10 +29,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
     },
   });
   client.setQueryData(noteQueries.list().queryKey, notes);
-  client.setQueryData(
-    noteQueries.list({ limit: 20, sort: "updated" }).queryKey,
-    notes
-  );
+  client.setQueryData(noteQueries.list({ limit: 20 }).queryKey, notes);
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   const closed: boolean[] = [];
   onTestFinished(() => {
