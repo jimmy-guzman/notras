@@ -465,6 +465,48 @@ describe(NoteSession, () => {
     expect(liveEditor.state.doc.textContent).toBe("Exttext");
   });
 
+  it("should export the rich view as a pdf and refuse from markdown source", async () => {
+    const commands: [string, unknown][] = [];
+    let printed: string | undefined;
+    mockIPC((command, args) => {
+      commands.push([command, args]);
+      if (command === "plugin:dialog|save") {
+        return "/exports/a.pdf";
+      }
+      printed = document.querySelector(".print-sheet")?.textContent ?? "";
+      return null;
+    });
+    mountSession("---\ntags: [study]\n---\n# Errands\n\none");
+    await editor();
+
+    await expect(sessionHandles().exportPdf()).resolves.toBe("/exports/a.pdf");
+
+    expect(commands.map(([command]) => command)).toStrictEqual([
+      "plugin:dialog|save",
+      "export_pdf",
+    ]);
+    expect(commands[0]?.[1]).toMatchObject({
+      options: { defaultPath: "a.pdf" },
+    });
+    expect(commands[1]?.[1]).toStrictEqual({
+      path: "/exports/a.pdf",
+      title: "Errands",
+    });
+    expect(printed).toBe("Errandsone");
+    expect(document.querySelector(".print-sheet")).toBeNull();
+
+    commands.length = 0;
+    act(() => {
+      sessionHandles().toggleSource();
+    });
+    await editor();
+
+    await expect(sessionHandles().exportPdf()).rejects.toThrow(
+      "leave markdown source first"
+    );
+    expect(commands).toStrictEqual([]);
+  });
+
   it("should render an image relative to the note and drop one the note cannot reach", async () => {
     mockConvertFileSrc("macos");
     mockIPC((command) => {

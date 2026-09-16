@@ -1,9 +1,11 @@
+import { detectPlatform } from "@tanstack/react-hotkeys";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
   ClipboardIcon,
   FileCodeIcon,
   DownloadIcon,
+  FileOutputIcon,
   FilePlusIcon,
   FocusIcon,
   FolderInputIcon,
@@ -315,6 +317,23 @@ export function CommandPalette({
 
   const focusModeEnabled = useFocusMode();
 
+  // pdf.rs prints through AppKit, so the row exists where AppKit does.
+  const exportPdfAction: PaletteAction = {
+    Icon: FileOutputIcon,
+    label: "export pdf",
+    needs: "editor",
+    onSelect: () => {
+      void runAction("could not export pdf", async () => {
+        const path = await getTabHandles(activeId)?.exportPdf();
+        if (path !== undefined && path !== null) {
+          toast.add({ title: "pdf exported", type: "success" });
+        }
+      });
+    },
+    text: "export pdf...",
+    value: "export-pdf",
+  };
+
   const actions: PaletteAction[] = [
     {
       Icon: SearchIcon,
@@ -499,6 +518,7 @@ export function CommandPalette({
       text: "close tabs to the right",
       value: "close-tabs-after",
     },
+    ...(detectPlatform() === "mac" ? [exportPdfAction] : []),
     {
       Icon: ClipboardIcon,
       label: "copy path",

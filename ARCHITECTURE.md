@@ -136,6 +136,7 @@ src/
     adapters/         # generated native IPC boundary
       bindings.ts          # GENERATED native commands, events and wire types
   lib/                # Client utilities
+    export-pdf.ts     # export pdf: the save dialog, the print sheet, the command
     pending-flush.ts  # autosave flush registry read by the quit handshake
     prefs.ts          # focus mode, app-wide (D53)
     tabs/             # the open set: tab.ts is the list algebra, store.ts
@@ -165,6 +166,7 @@ src-tauri/
   src/lib.rs          # setup: library, watcher, tray, shortcuts
   src/bindings.rs     # shared command/event registry, export and IPC tests
   src/notes.rs        # Tauri handlers: blocking dispatch, locks and events
+  src/pdf.rs          # export_pdf: the webview's print operation saving to a file
   src/watcher.rs      # debounced host paths -> Library reconciliation -> event
   src/windows.rs      # window commands; a command may not live in lib.rs
   src/state.rs        # AppState (library coordinator, watcher, quit flags)
@@ -293,6 +295,14 @@ One component serves two doors. `find` and `actions` are the two root members of
 ### Preferences
 
 Window state lives in `localStorage`: focus mode in `src/lib/prefs.ts` and the open tab set in `src/lib/tabs/store.ts` (`D53`). Both are TanStack Store, and the tab module keeps the open set in one store and references to the sessions' derived presentation stores in another. Graph mode is per tab and in memory, in `src/lib/ui/graph.ts` rather than in the session: a hop opens the picked note through `openNote`, which replaces the showing tab with a new one, so the flag has to outlive the session it was set in, and the workspace renders one graph above the sessions while the active tab carries it. `notesDir` lives in `settings.json`, written by Rust through `tauri-plugin-store`. TypeScript reaches it through the generated `get_notes_dir` and `set_notes_dir` commands behind `src/data/notes-dir.ts`. Changing the folder re-scans and re-watches, and re-grants the asset protocol scope at runtime. An external document's images bypass that scope: `src-tauri/src/external_image.rs` registers the `external-image` scheme, whose handler reads `doc` and `src` from the query, resolves the source against the document through `notras_core::external_image`, and answers with the bytes and their type, or 404 for a missing file, 403 for a refused request, 415 for an extension that is not an image, and 400 for a request missing either field. The CSP lists the scheme under `img-src`, and nothing is granted for the session (`D78`). A stored review, the unsaved text of a note and the version it started from, lives under `app_data_dir()/conflicts/` in one JSON file keyed by the tab kind and path, reached through `stash_conflict`, `read_conflict` and `clear_conflict` behind `src/data/conflict-stash.ts`; a read never creates the folder.
+
+### Export pdf prints a copy of the surface
+
+`exportPdf` in `src/lib/export-pdf.ts` takes the rich editor's root through the `surface` handle, asks the native save dialog for a path, appends a clone of the root to the body inside `.print-sheet`, and calls `export_pdf`. Print media in `src/styles.css` takes the light palette, shows the sheet alone and lets `html` and `body` flow, so WebKit paginates the note and nothing of the window around it. The clone carries everything the editor drew, Shiki spans and resolved image URLs included, less the classes that paint the moment's selection, find and empty-note placeholder, and the sheet is `display: none` on screen. Two things are measured on the live root before the clone leaves it, because a clone that is not displayed has no layout: a `.tableWrapper` whose `scrollWidth` exceeds the column gets a `zoom` on its copy, since paper cannot scroll, and each heading's copy gets `--keep-with-next`, the distance from the heading's bottom to the bottom of the block after it, or of a list's first item. The stylesheet turns that into an unsplittable heading box of that height whose negative margin collapses back out, because WebKit's print layout honours `break-inside: avoid` and ignores `break-after: avoid`, `orphans` and `widows`. The column is the width the root's first block has on screen, which a window narrower than the column undershoots, so a wide table then prints a little smaller than the page needed.
+
+`export_pdf` in `src-tauri/src/pdf.rs` runs on the main thread through `Webview::with_webview`: it copies the shared `NSPrintInfo`, sets `NSPrintSaveJob` with the path as `NSPrintJobSavingURL`, gives the page one-inch block margins and side margins that leave 504pt for the surface's `max-w-2xl`, and runs the `WKWebView` print operation with no panel. AppKit paginates, embeds the fonts and writes the file on its own thread, then messages a delegate class, which sends the outcome down a channel the async command awaits off the main thread. The command is `async` because a synchronous Tauri command would run on the main thread and block the job. A closure that never runs drops the sender, so the wait fails instead of hanging. The palette offers the row where `detectPlatform` answers `mac`, and the command returns a failure naming macOS anywhere else.
+
+A PDF context has no destination-in compositing, so `mask-image` on the note surface paints the mask as an image in the export. The checked task box is a `clip-path` polygon for that reason, and anything else the surface draws has to be geometry, backgrounds or text.
 
 ### Snippet rendering
 

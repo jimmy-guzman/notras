@@ -42,6 +42,7 @@ import {
   isRelativeDestination,
   linkResolver,
 } from "@/core/links";
+import { noteTitle } from "@/core/notes";
 import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { writeExternalNote } from "@/data/external-note";
@@ -52,6 +53,7 @@ import type { SessionFile } from "@/data/queries";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { resolveExternalLink } from "@/data/resolve-external-link";
 import { saveNote } from "@/data/save-note";
+import { exportPdf } from "@/lib/export-pdf";
 import { useFocusMode } from "@/lib/prefs";
 import {
   clearRestoredCaret,
@@ -568,9 +570,26 @@ function SessionBuffer({
       persistence.setSourceMode(!wasSource);
     };
 
+    const exportRichPdf = async () => {
+      const surface = persistence.store.state.sourceMode
+        ? null
+        : editorRef.current;
+
+      if (surface === null) {
+        throw new Error("leave markdown source first");
+      }
+
+      return await exportPdf(
+        surface.surface(),
+        noteTitle(live.current.path),
+        persistence.snapshot.state.title
+      );
+    };
+
     registerTabHandles(id, {
       changePath: tab.kind === "note" ? changePath : undefined,
       editMetadata: tab.kind === "note" ? persistence.editMetadata : undefined,
+      exportPdf: exportRichPdf,
       getCaret,
       insertText,
       toggleSource,

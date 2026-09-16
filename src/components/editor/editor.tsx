@@ -300,6 +300,8 @@ export interface EditorHandle {
     content: string,
     selection?: { anchor: number; head: number }
   ) => void;
+  /** The rendered note, read for a copy and never written. */
+  surface: () => HTMLElement;
 }
 
 interface EditorProps {
@@ -727,6 +729,7 @@ export function Editor({
           }
           suppressChangeRef.current = false;
         },
+        surface: () => instance.view.dom,
       });
     },
     onSelectionUpdate: ({ editor: instance }) => {

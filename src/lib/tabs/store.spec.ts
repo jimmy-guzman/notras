@@ -236,6 +236,7 @@ describe("store", () => {
       openNote("a.md");
       const [tab] = getTabState().tabs;
       const handles = {
+        exportPdf: async () => null,
         getCaret: () => 7,
         insertText: () => {},
         toggleSource: () => {},
@@ -252,6 +253,7 @@ describe("store", () => {
       const id = tab?.id ?? "";
 
       registerTabHandles(id, {
+        exportPdf: async () => null,
         getCaret: () => 7,
         insertText: () => {},
         toggleSource: () => {},
@@ -432,6 +434,7 @@ describe(changeNoteMetadata, () => {
     const id = getTabState().activeId;
     registerTabHandles(id, {
       editMetadata: note.editMetadata,
+      exportPdf: async () => null,
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},
@@ -499,6 +502,7 @@ describe(changeNoteMetadata, () => {
     const id = getTabState().activeId;
     registerTabHandles(id, {
       editMetadata: note.editMetadata,
+      exportPdf: async () => null,
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},

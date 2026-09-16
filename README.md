@@ -63,6 +63,7 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 - drag a file onto a note: it lands in `attachments/`, with a markdown link inserted
 - quick capture: `⌘⇧N` from any app, jot, `esc` saves it to `inbox/`
 - "Open With" opens external markdown files, as many at once as you pick (macOS)
+- `⌘⇧P` export pdf saves the note as a paginated PDF, set the way the editor sets it (macOS)
 - menu-bar tray and launch at login
 - lowercase chrome, and light or dark from the system
 
