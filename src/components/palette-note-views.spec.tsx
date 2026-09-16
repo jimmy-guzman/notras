@@ -3,7 +3,7 @@ import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createElement, useCallback } from "react";
+import { createElement } from "react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -42,11 +42,10 @@ function SessionTags({
   query: string;
 }) {
   const snapshot = useTabSnapshot(id);
-  const done = useCallback(() => {}, []);
   return snapshot === undefined ? null : (
     <TagsView
       attached={snapshot.tags}
-      onDone={done}
+      onDone={() => {}}
       onQueryChange={onQueryChange}
       path="atlas.md"
       query={query}

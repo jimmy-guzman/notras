@@ -31,6 +31,58 @@ describe("capture window", () => {
   });
 
   describe("capture persistence", () => {
+    it.each([false, true])(
+      "should block repeated saves until hiding settles, including failure: %s",
+      async (hideFails) => {
+        const user = userEvent.setup();
+        const hidden = Promise.withResolvers<null>();
+        const writes: unknown[] = [];
+        const hides: string[] = [];
+        mockIPC(async (command, args) => {
+          if (command === "create_note") {
+            writes.push(args);
+            return { path: "inbox/jot.md", updatedAt: 1, warnings: [] };
+          }
+          if (command === "plugin:window|hide") {
+            hides.push(command);
+            return hides.length === 1 ? await hidden.promise : null;
+          }
+          return null;
+        });
+        const editor = await mountCapture();
+        act(() => {
+          editor.commands.insertContent("a captured thought");
+        });
+        await user.keyboard("{Escape}");
+        await waitFor(() => {
+          expect(hides).toHaveLength(1);
+        });
+        await user.keyboard(
+          "{Escape}{Control>}{Enter}{/Control}{Meta>}{Enter}{/Meta}"
+        );
+        expect(hides).toHaveLength(1);
+        expect(writes).toHaveLength(1);
+        await act(async () => {
+          if (hideFails) {
+            hidden.reject(new Error("window unavailable"));
+          } else {
+            hidden.resolve(null);
+          }
+          await Promise.resolve();
+        });
+        await waitFor(() => {
+          expect(
+            document.body.textContent?.includes("could not hide the capture")
+          ).toBe(hideFails);
+        });
+        await user.keyboard("{Escape}");
+        await waitFor(() => {
+          expect(hides).toHaveLength(2);
+        });
+        expect(writes).toHaveLength(1);
+      }
+    );
+
     it("should let native creation name a capture from its content", async () => {
       const user = userEvent.setup();
       const writes: unknown[] = [];

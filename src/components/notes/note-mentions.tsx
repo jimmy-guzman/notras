@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { FileTextIcon } from "lucide-react";
 import type { MouseEvent } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { Chord } from "@/components/chord";
 import { Badge } from "@/components/ui/badge";
@@ -49,12 +49,9 @@ export function MentionItem({ mention }: MentionItemProps) {
   const { lines, note } = mention;
   const [first] = lines;
 
-  const open = useCallback(
-    (event: MouseEvent) => {
-      openNote(note.path, event.metaKey);
-    },
-    [note.path]
-  );
+  const open = (event: MouseEvent) => {
+    openNote(note.path, event.metaKey);
+  };
 
   return (
     <DropdownMenuItem className="items-start" onClick={open}>

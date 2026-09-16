@@ -1,6 +1,6 @@
 import { useSelector } from "@tanstack/react-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Chord } from "@/components/chord";
 import type { EditorHandle } from "@/components/editor/editor";
@@ -17,6 +17,20 @@ import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 const NOOP = () => {
   // The capture window reads its editor at save time, not on every edit.
 };
+
+async function hideCapture(saving: { current: boolean }) {
+  try {
+    await getCurrentWindow().hide();
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not hide the capture",
+      type: "error",
+    });
+  } finally {
+    saving.current = false;
+  }
+}
 
 /**
  * The quick-capture window: a bare editor. Esc (or ⌘⏎) saves the jot into
@@ -45,16 +59,15 @@ export function CaptureWindow() {
     }
 
     const content = editorRef.current?.getContent() ?? "";
-
+    savingRef.current = true;
     if (content.trim() !== "") {
-      savingRef.current = true;
-
       try {
         await createNote({
           content,
           folder: "inbox",
         });
       } catch (error) {
+        savingRef.current = false;
         // Keep the jot on screen -- hiding would lose it.
         toast.add({
           description: reasonOf(error),
@@ -63,20 +76,17 @@ export function CaptureWindow() {
         });
 
         return;
-      } finally {
-        savingRef.current = false;
       }
     }
-
     find.close();
     setSession((current) => current + 1);
-    await getCurrentWindow().hide();
+    await hideCapture(savingRef);
   };
 
-  const attachEditor = useCallback((handle: EditorHandle) => {
+  const attachEditor = (handle: EditorHandle) => {
     editorRef.current = handle;
     setFindHandle(handle.find);
-  }, []);
+  };
 
   useHotkeys([
     {

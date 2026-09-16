@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 
 import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,7 @@ export function SettingsDialog({
     }
   }, [autostartError]);
 
-  const changeNotesDir = useCallback(async () => {
+  const changeNotesDir = async () => {
     try {
       const selected = await openDialog({
         directory: true,
@@ -79,7 +79,7 @@ export function SettingsDialog({
         type: "error",
       });
     }
-  }, [queryClient]);
+  };
 
   const { isPending: autostartPending, mutate: writeAutostart } = useMutation({
     mutationFn: async (value: boolean) => {
@@ -106,12 +106,9 @@ export function SettingsDialog({
 
   // Base UI hands the change handler a second argument, where `mutate` expects
   // its own options.
-  const toggleAutostart = useCallback(
-    (value: boolean) => {
-      writeAutostart(value);
-    },
-    [writeAutostart]
-  );
+  const toggleAutostart = (value: boolean) => {
+    writeAutostart(value);
+  };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>

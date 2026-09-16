@@ -2,14 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
 import type { KeyboardEvent, RefObject } from "react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { MentionItem } from "@/components/notes/note-mentions";
 import { Badge } from "@/components/ui/badge";
@@ -372,12 +365,9 @@ function Pill({
 }: PillProps) {
   const key = keyOf(item);
 
-  const attach = useCallback(
-    (element: HTMLButtonElement | null) => {
-      pillRef(key, element);
-    },
-    [key, pillRef]
-  );
+  const attach = (element: HTMLButtonElement | null) => {
+    pillRef(key, element);
+  };
 
   const go = (beside: boolean) => {
     if (centre) {
@@ -513,12 +503,9 @@ function OverflowPill({
   onShowMentions,
   pillRef,
 }: OverflowPillProps) {
-  const attach = useCallback(
-    (element: HTMLButtonElement | null) => {
-      pillRef(item.id, element);
-    },
-    [item.id, pillRef]
-  );
+  const attach = (element: HTMLButtonElement | null) => {
+    pillRef(item.id, element);
+  };
 
   const pill = (
     <Badge
@@ -605,34 +592,30 @@ export function NoteGraph({
   const size = useStageSize(stageRef);
   const [live, setLive] = useState<string | null>(null);
 
-  const items = useMemo(() => itemsOf(picture), [picture]);
+  const items = itemsOf(picture);
   const centreKey = keyOf(
     items[0] ?? { kind: "placeholder", position: CENTRE, target: "" }
   );
-  const ring = useMemo(
-    () =>
-      items
-        .flatMap((item) =>
-          item.kind === "placeholder" || Number.isNaN(item.position.angle)
-            ? []
-            : [{ angle: item.position.angle, key: keyOf(item) }]
-        )
-        .toSorted((a, b) => clockwiseFrom(a.angle) - clockwiseFrom(b.angle)),
-    [items]
-  );
+  const ring = items
+    .flatMap((item) =>
+      item.kind === "placeholder" || Number.isNaN(item.position.angle)
+        ? []
+        : [{ angle: item.position.angle, key: keyOf(item) }]
+    )
+    .toSorted((a, b) => clockwiseFrom(a.angle) - clockwiseFrom(b.angle));
 
-  const pillRef = useCallback<PillRef>((key, element) => {
+  const pillRef: PillRef = (key, element) => {
     if (element === null) {
       pills.current.delete(key);
     } else {
       pills.current.set(key, element);
     }
-  }, []);
+  };
 
   // Landing, whether by toggle or by hop, puts the hand on the centre.
   useEffect(() => {
     pills.current.get(centreKey)?.focus();
-  }, [centreKey]);
+  }, [centreKey, pills]);
 
   const keys: RingKeys = {
     onLeave,

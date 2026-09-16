@@ -7,14 +7,14 @@ import {
   TagPlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useCallback } from "react";
 
-import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
+import { toast } from "@/components/ui/toast";
 import { filenameFromTitle } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { noteQueries } from "@/data/queries";
+import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 
 const COUNT_CLASS =
@@ -28,9 +28,9 @@ interface FolderItemProps {
 
 function FolderItem({ count, folder, onMove }: FolderItemProps) {
   const label = folder === "/" ? "notes root" : folder;
-  const move = useCallback(() => {
+  const move = () => {
     onMove(folder === "/" ? "" : folder);
-  }, [folder, onMove]);
+  };
 
   return (
     <CommandItem onSelect={move} value={`move-${folder}`}>
@@ -54,9 +54,9 @@ function TagChoiceItem({
   name,
   onToggle,
 }: TagChoiceItemProps) {
-  const toggle = useCallback(() => {
+  const toggle = () => {
     onToggle(name);
-  }, [name, onToggle]);
+  };
 
   return (
     <CommandItem
@@ -106,9 +106,9 @@ export function MoveView({
   query,
 }: MoveViewProps) {
   const notes = useQuery(noteQueries.list());
-  const retry = useCallback(async () => {
+  const retry = async () => {
     await notes.refetch();
-  }, [notes]);
+  };
   if (notes.data === undefined) {
     return (
       <output className="block p-4 text-sm">
@@ -221,7 +221,6 @@ export function TagsView({
   title,
 }: TagsViewProps) {
   const vocabulary = useQuery(noteQueries.tags());
-  const { changeTags } = useNoteTags(path, attached);
   const counts = new Map(
     vocabulary.data?.map(({ count, tag }) => [tag, count])
   );
@@ -229,19 +228,35 @@ export function TagsView({
   const choices = [...new Set([...counts.keys(), ...attached])]
     .toSorted()
     .filter((name) => name.includes(draftTag));
-  const toggle = useCallback(
-    async (name: string) => {
-      await changeTags((current) =>
-        current.includes(name)
-          ? current.filter((tag) => tag !== name)
-          : [...current, name]
-      );
-    },
-    [changeTags]
-  );
+  const toggle = async (name: string) => {
+    try {
+      await changeNoteMetadata(path, {
+        tags: (current) =>
+          current.includes(name)
+            ? current.filter((tag) => tag !== name)
+            : [...current, name],
+      });
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
+    }
+  };
   const add = async () => {
     onQueryChange("");
-    await changeTags((current) => [...current, draftTag]);
+    try {
+      await changeNoteMetadata(path, {
+        tags: (current) => [...current, draftTag],
+      });
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
+    }
   };
   const retry = async () => {
     await vocabulary.refetch();

@@ -1,5 +1,4 @@
 import { CodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
 
 import { Chord } from "@/components/chord";
 import { MentionsOf } from "@/components/notes/note-mentions";
@@ -41,57 +40,43 @@ export function StatusBar({
   words,
 }: StatusBarProps) {
   const hasNote = note !== undefined;
-  const toggles = useMemo(
-    () => [
-      {
-        hotkey: "Mod+D",
-        icon: FocusIcon,
-        label: "focus mode",
-        onToggle: onToggleFocusMode,
-        pressed: focusModeEnabled,
-        value: "focus",
-      },
-      {
-        hotkey: "Mod+E",
-        icon: CodeIcon,
-        label: "markdown source",
-        onToggle: onToggleSource,
-        pressed: sourceEnabled,
-        value: "source",
-      },
-      ...(hasNote
-        ? [
-            {
-              hotkey: "Mod+Alt+G",
-              icon: WaypointsIcon,
-              label: "graph view",
-              onToggle: onToggleGraph,
-              pressed: graphEnabled,
-              value: "graph",
-            },
-          ]
-        : []),
-    ],
-    [
-      focusModeEnabled,
-      graphEnabled,
-      hasNote,
-      onToggleFocusMode,
-      onToggleGraph,
-      onToggleSource,
-      sourceEnabled,
-    ]
-  );
-
-  const handleToggleChange = useCallback(
-    (next: string[]) => {
-      const pressed = new Set(next);
-      toggles
-        .find((toggle) => pressed.has(toggle.value) !== toggle.pressed)
-        ?.onToggle();
+  const toggles = [
+    {
+      hotkey: "Mod+D",
+      icon: FocusIcon,
+      label: "focus mode",
+      onToggle: onToggleFocusMode,
+      pressed: focusModeEnabled,
+      value: "focus",
     },
-    [toggles]
-  );
+    {
+      hotkey: "Mod+E",
+      icon: CodeIcon,
+      label: "markdown source",
+      onToggle: onToggleSource,
+      pressed: sourceEnabled,
+      value: "source",
+    },
+    ...(hasNote
+      ? [
+          {
+            hotkey: "Mod+Alt+G",
+            icon: WaypointsIcon,
+            label: "graph view",
+            onToggle: onToggleGraph,
+            pressed: graphEnabled,
+            value: "graph",
+          },
+        ]
+      : []),
+  ];
+
+  const handleToggleChange = (next: string[]) => {
+    const pressed = new Set(next);
+    toggles
+      .find((toggle) => pressed.has(toggle.value) !== toggle.pressed)
+      ?.onToggle();
+  };
 
   return (
     <footer className="bg-card text-muted-foreground flex h-7 shrink-0 items-center gap-1 px-3 text-xs shadow-[inset_0_1px_0_var(--border)]">

@@ -187,10 +187,11 @@ export function engageTypewriterPadding(
   };
 }
 
-interface TypewriterOptions {
-  /** Live read of the pref -- the editor config is frozen at mount. */
-  enabled: { readonly current: boolean };
-  scroller: { readonly current: HTMLElement | null };
+export interface Typewriter {
+  extension: Extension;
+  /** Live write of the pref -- the editor config is frozen at mount. */
+  setEnabled: (enabled: boolean) => void;
+  setScroller: (scroller: HTMLElement | null) => void;
 }
 
 /**
@@ -198,20 +199,20 @@ interface TypewriterOptions {
  * `scrollDecision` accepts replaces ProseMirror's nearest-edge scroll with a
  * short glide holding the caret line at the scroller's vertical center.
  */
-export function createTypewriter(options: TypewriterOptions): Extension {
+export function createTypewriter(): Typewriter {
+  let enabled = false;
+  let scroller: HTMLElement | null = null;
   const plugin: Plugin<"center" | "default"> = new Plugin<"center" | "default">(
     {
       props: {
         handleScrollToSelection: (view) => {
-          if (!options.enabled.current || view.composing) {
+          if (!enabled || view.composing) {
             return false;
           }
 
           if (plugin.getState(view.state) !== "center") {
             return false;
           }
-
-          const scroller = options.scroller.current;
 
           if (scroller === null) {
             return false;
@@ -230,8 +231,16 @@ export function createTypewriter(options: TypewriterOptions): Extension {
     }
   );
 
-  return Extension.create({
-    addProseMirrorPlugins: () => [plugin],
-    name: "typewriter",
-  });
+  return {
+    extension: Extension.create({
+      addProseMirrorPlugins: () => [plugin],
+      name: "typewriter",
+    }),
+    setEnabled: (next) => {
+      enabled = next;
+    },
+    setScroller: (next) => {
+      scroller = next;
+    },
+  };
 }

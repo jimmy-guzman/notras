@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { HashIcon, TagPlusIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
-import { useNoteTags } from "@/components/notes/use-note-tags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +13,9 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
+import { toast } from "@/components/ui/toast";
 import { noteQueries } from "@/data/queries";
+import { changeNoteMetadata } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 
@@ -24,9 +25,9 @@ interface TagBadgeProps {
 }
 
 function TagBadge({ onFilter, tag }: TagBadgeProps) {
-  const filter = useCallback(() => {
+  const filter = () => {
     onFilter(tag);
-  }, [onFilter, tag]);
+  };
 
   return (
     <Badge
@@ -49,7 +50,6 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const allTags = useQuery({ ...noteQueries.tags(), enabled: open });
-  const { changeTags, tags: optimisticTags } = useNoteTags(path, tags);
 
   useHotkey(
     "Mod+Shift+Y",
@@ -66,33 +66,30 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   // selecting either one just adds it.
   const draft = query.trim().toLowerCase();
   const items = [
-    ...new Set([
-      ...counts.keys(),
-      ...optimisticTags,
-      ...(draft === "" ? [] : [draft]),
-    ]),
+    ...new Set([...counts.keys(), ...tags, ...(draft === "" ? [] : [draft])]),
   ].toSorted();
 
-  // Clearing the input belongs to this surface rather than to the write, so it
-  // wraps the shared writer instead of living inside it.
-  const commitTags = useCallback(
-    (nextTags: string[]) => {
-      setQuery("");
-      // The combobox reports a replacement for its rendered value, so recover the toggled items here.
-      const toggled = new Set(nextTags).symmetricDifference(
-        new Set(optimisticTags)
-      );
-      void changeTags((current) => [
-        ...new Set(current).symmetricDifference(toggled),
-      ]);
-    },
-    [changeTags, optimisticTags]
-  );
+  const commitTags = async (nextTags: string[]) => {
+    setQuery("");
+    // The combobox reports a replacement for its rendered value, so recover the toggled items here.
+    const toggled = new Set(nextTags).symmetricDifference(new Set(tags));
+    try {
+      await changeNoteMetadata(path, {
+        tags: (current) => [...new Set(current).symmetricDifference(toggled)],
+      });
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update tags",
+        type: "error",
+      });
+    }
+  };
 
-  const retry = useCallback(async () => {
+  const retry = async () => {
     await allTags.refetch();
-  }, [allTags]);
-  const hasTags = optimisticTags.length > 0;
+  };
+  const hasTags = tags.length > 0;
 
   return (
     <div className="flex min-w-0 items-center gap-0.5">
@@ -101,7 +98,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         // on the padding edge, so padding cancelled by a margin gives the ring
         // its room without moving a chip.
         <div className="-m-1 flex min-w-0 items-center gap-0.5 overflow-hidden p-1">
-          {optimisticTags.map((tag) => (
+          {tags.map((tag) => (
             <TagBadge key={tag} onFilter={onFilter} tag={tag} />
           ))}
         </div>
@@ -112,9 +109,11 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         multiple
         onInputValueChange={setQuery}
         onOpenChange={setOpen}
-        onValueChange={commitTags}
+        onValueChange={(value) => {
+          void commitTags(value);
+        }}
         open={open}
-        value={optimisticTags}
+        value={tags}
       >
         <ComboboxTrigger
           aria-label="add tag"

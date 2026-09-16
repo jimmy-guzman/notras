@@ -8,7 +8,7 @@ import {
   PinIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
@@ -71,11 +71,11 @@ interface NoteItemProps {
 }
 
 function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
-  const select = useCallback(() => {
+  const select = () => {
     if (!disabled) {
       onSelect(note.path);
     }
-  }, [disabled, note.path, onSelect]);
+  };
 
   return (
     <CommandItem
@@ -267,9 +267,9 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
     candidate === undefined
       ? undefined
       : pickerChoices(candidate, suggestions.data ?? NO_NOTES, tags.data ?? []);
-  const retryChoices = useCallback(async () => {
+  const retryChoices = async () => {
     await choicesQuery.refetch();
-  }, [choicesQuery]);
+  };
   return { choicesFailed, choicesPending, choicesQuery, picker, retryChoices };
 }
 
@@ -325,19 +325,16 @@ export function PaletteSearch({
       onLoadingChange?.(false);
     };
   }, [onLoadingChange, readingQuery]);
-  const pickFilter = useCallback(
-    (value: string) => {
-      if (candidate !== undefined) {
-        onQueryChange(
-          insertSearchFilter(query, { kind: candidate.kind, value }, cursor)
-        );
-      }
-    },
-    [candidate, cursor, onQueryChange, query]
-  );
-  const retry = useCallback(async () => {
+  const pickFilter = (value: string) => {
+    if (candidate !== undefined) {
+      onQueryChange(
+        insertSearchFilter(query, { kind: candidate.kind, value }, cursor)
+      );
+    }
+  };
+  const retry = async () => {
     await result.refetch();
-  }, [result]);
+  };
   const offerCreate =
     !(idle || pending || search.incomplete) &&
     result.isSuccess &&

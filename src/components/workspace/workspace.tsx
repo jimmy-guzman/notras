@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
@@ -105,9 +105,9 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
     }
   }, [initialTabs, latest.data, latest.isSuccess]);
   const indexStatus = useQuery(indexStatusQuery);
-  const retry = useCallback(async () => {
+  const retry = async () => {
     await latest.refetch();
-  }, [latest]);
+  };
   if (latest.isSuccess) {
     return null;
   }
@@ -203,6 +203,66 @@ function ActiveStatusBar({
   );
 }
 
+async function newNote() {
+  try {
+    const path = await createNote();
+
+    openNote(path, true);
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not create note",
+      type: "error",
+    });
+  }
+}
+
+function closeActive() {
+  closeTab(getTabState().activeId);
+}
+
+function closeOthers() {
+  closeOtherTabs(getTabState().activeId);
+}
+
+function toggleSource() {
+  getTabHandles(getTabState().activeId)?.toggleSource();
+}
+
+function toggleGraphView() {
+  const state = getTabState();
+  const tab = state.tabs.find((entry) => entry.id === state.activeId);
+
+  if (tab?.kind === "note") {
+    toggleGraph(state.activeId);
+  }
+}
+
+function jumpToTab(index: number) {
+  const target = getTabState().tabs.at(index);
+
+  if (target !== undefined) {
+    activateTab(target.id);
+  }
+}
+
+function cycleTab(direction: "next" | "previous") {
+  const target = stepTab(getTabState(), direction);
+
+  if (target !== undefined) {
+    activateTab(target.id);
+  }
+}
+
+function carryTab(offset: number) {
+  const state = getTabState();
+  const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
+
+  if (index !== -1) {
+    moveTab(state.activeId, index + offset);
+  }
+}
+
 /**
  * The window: the tab strip, every open tab's live session, and the two bands
  * that frame them.
@@ -224,41 +284,6 @@ export function Workspace({
 
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const graphMode = useGraphMode(activeId);
-
-  const newNote = useCallback(async () => {
-    try {
-      const path = await createNote();
-
-      openNote(path, true);
-    } catch (error) {
-      toast.add({
-        description: reasonOf(error),
-        title: "could not create note",
-        type: "error",
-      });
-    }
-  }, []);
-
-  const closeActive = useCallback(() => {
-    closeTab(getTabState().activeId);
-  }, []);
-
-  const closeOthers = useCallback(() => {
-    closeOtherTabs(getTabState().activeId);
-  }, []);
-
-  const toggleSource = useCallback(() => {
-    getTabHandles(getTabState().activeId)?.toggleSource();
-  }, []);
-
-  const toggleGraphView = useCallback(() => {
-    const state = getTabState();
-    const tab = state.tabs.find((entry) => entry.id === state.activeId);
-
-    if (tab?.kind === "note") {
-      toggleGraph(state.activeId);
-    }
-  }, []);
 
   // Drag a file in -> copy to attachments/, insert a markdown link into
   // whichever tab is showing.
@@ -329,31 +354,6 @@ export function Workspace({
 
       void dispose();
     };
-  }, []);
-
-  const jumpToTab = useCallback((index: number) => {
-    const target = getTabState().tabs.at(index);
-
-    if (target !== undefined) {
-      activateTab(target.id);
-    }
-  }, []);
-
-  const cycleTab = useCallback((direction: "next" | "previous") => {
-    const target = stepTab(getTabState(), direction);
-
-    if (target !== undefined) {
-      activateTab(target.id);
-    }
-  }, []);
-
-  const carryTab = useCallback((offset: number) => {
-    const state = getTabState();
-    const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
-
-    if (index !== -1) {
-      moveTab(state.activeId, index + offset);
-    }
   }, []);
 
   useHotkey(

@@ -5,14 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { cn } from "cn";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { flushSync } from "react-dom";
 
@@ -197,10 +190,7 @@ function SessionBuffer({
   });
   const queryClient = useQueryClient();
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const resolveLinks = useMemo(
-    () => (notes === undefined ? undefined : linkResolver(notes)),
-    [notes]
-  );
+  const resolveLinks = notes === undefined ? undefined : linkResolver(notes);
   const { id } = tab;
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
@@ -217,8 +207,40 @@ function SessionBuffer({
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
-  const replaceDocument = useCallback(
-    (
+  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
+  const [persistence] = useState(() =>
+    createNotePersistence(
+      { ...file, path: tab.path, stash: stash ?? undefined },
+      {
+        changePath: async (path, change) => await moveNote(path, change.folder),
+        clearStash: async (path) => {
+          await clearConflictStash(tab.kind, path);
+          queryClient.setQueryData(
+            noteQueries.conflict(tab.kind, path).queryKey,
+            null
+          );
+        },
+        onCleanFileMissing: () => {
+          closeTab(id);
+        },
+        onPathChanged: renameTab,
+        stash: async (path, review) => {
+          await stashConflict(tab.kind, path, review);
+          queryClient.setQueryData(
+            noteQueries.conflict(tab.kind, path).queryKey,
+            review
+          );
+        },
+        write: async (path, content, name, expected) =>
+          tab.kind === "external"
+            ? await writeExternalNote(path, content, name, expected)
+            : await saveNote(path, content, name, expected),
+      }
+    )
+  );
+  const autosave = useAutosave(persistence);
+  useLayoutEffect(() => {
+    const replaceDocument = (
       content: string,
       selection: { anchor: number; head: number } | undefined,
       sourceMode: boolean
@@ -237,45 +259,14 @@ function SessionBuffer({
               head: Math.max(0, selection.head - prefix),
             }
       );
-    },
-    []
-  );
-  // oxlint-disable-next-line react/hook-use-state, react/refs -- a once-built instance has no setter, and the refs it takes are read after mount
-  const [persistence] = useState(() =>
-    createNotePersistence(
-      { ...file, path: tab.path, stash: stash ?? undefined },
-      {
-        changePath: async (path, change) => await moveNote(path, change.folder),
-        clearStash: async (path) => {
-          await clearConflictStash(tab.kind, path);
-          queryClient.setQueryData(
-            noteQueries.conflict(tab.kind, path).queryKey,
-            null
-          );
-        },
-        onCleanFileMissing: () => {
-          closeTab(id);
-        },
-        onDocumentChanged: replaceDocument,
-        onPathChanged: renameTab,
-        stash: async (path, review) => {
-          await stashConflict(tab.kind, path, review);
-          queryClient.setQueryData(
-            noteQueries.conflict(tab.kind, path).queryKey,
-            review
-          );
-        },
-        write: async (path, content, name, expected) =>
-          tab.kind === "external"
-            ? await writeExternalNote(path, content, name, expected)
-            : await saveNote(path, content, name, expected),
-      }
-    )
-  );
-  const autosave = useAutosave(persistence);
+    };
+    return persistence.onDocumentChanged(replaceDocument);
+  }, [persistence]);
   useLayoutEffect(() => {
-    persistence.receiveFile(tab.path, readFile, readMissing);
-  }, [persistence, readFile, readMissing, tab.path]);
+    if (findHandle !== null) {
+      persistence.receiveFile(tab.path, readFile, readMissing);
+    }
+  }, [findHandle, persistence, readFile, readMissing, tab.path]);
   useLayoutEffect(
     () => registerTabSnapshot(id, persistence.snapshot),
     [id, persistence]
@@ -292,29 +283,26 @@ function SessionBuffer({
   if (reviewing && status !== "conflict") {
     setReviewing(false);
   }
-  const openReview = useCallback(() => {
+  const openReview = () => {
     setReviewing(true);
-  }, []);
-  const backFromReview = useCallback(() => {
+  };
+  const backFromReview = () => {
     flushSync(() => {
       setReviewing(false);
     });
     reviewButton.current?.focus();
-  }, []);
-  const resolveReview = useCallback(
-    (content: string) => {
-      flushSync(() => {
-        setReviewing(false);
-      });
-      void persistence.resolve(content);
-      if (persistence.store.state.sourceMode) {
-        sourceRef.current?.focus();
-      } else {
-        editorRef.current?.focus();
-      }
-    },
-    [persistence]
-  );
+  };
+  const resolveReview = (content: string) => {
+    flushSync(() => {
+      setReviewing(false);
+    });
+    void persistence.resolve(content);
+    if (persistence.store.state.sourceMode) {
+      sourceRef.current?.focus();
+    } else {
+      editorRef.current?.focus();
+    }
+  };
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
   // Body carrying a sentinel char at the caret (set when leaving source mode,
@@ -358,16 +346,11 @@ function SessionBuffer({
   });
   // Live values behind stable getters, so the mount-frozen editor callbacks
   // never go stale.
-  const getTitles = useCallback(
-    () => live.current.notes?.map((meta) => meta.title) ?? [],
-    []
-  );
+  const getTitles = () => live.current.notes?.map((meta) => meta.title) ?? [];
 
-  const resolveImageSrc = useCallback(
-    (src: string) => imageSrc(src, tab.kind, live.current.path, notesDir),
-    [notesDir, tab.kind]
-  );
-  const documentPath = useCallback(() => live.current.path, []);
+  const resolveImageSrc = (src: string) =>
+    imageSrc(src, tab.kind, live.current.path, notesDir);
+  const documentPath = () => live.current.path;
 
   const navigation = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => navigation.current?.abort(), []);
@@ -377,63 +360,51 @@ function SessionBuffer({
     }
   }, [active]);
 
-  const followNote = useCallback(
-    async (kind: "title" | "path", value: string) => {
-      navigation.current?.abort();
-      const request = new AbortController();
-      navigation.current = request;
-      const origin = getTabState().activeId;
-      const isCurrent = () =>
-        !request.signal.aborted && getTabState().activeId === origin;
-      try {
-        const resolver =
-          live.current.resolveLinks ??
-          linkResolver(await queryClient.query(noteQueries.list()));
-        if (!isCurrent()) {
-          return;
-        }
-        const target = resolver[kind](value, live.current.path);
-        if (target === undefined) {
-          toast.add({
-            title:
-              kind === "title"
-                ? `no note named "${value.trim().toLowerCase()}"`
-                : `no note at ${value}`,
-            type: "error",
-          });
-          return;
-        }
-        openNote(target.path);
-      } catch (error) {
-        if (isCurrent()) {
-          toast.add({
-            description: reasonOf(error),
-            title: "could not open note",
-            type: "error",
-          });
-        }
+  const followNote = async (kind: "title" | "path", value: string) => {
+    navigation.current?.abort();
+    const request = new AbortController();
+    navigation.current = request;
+    const origin = getTabState().activeId;
+    const isCurrent = () =>
+      !request.signal.aborted && getTabState().activeId === origin;
+    try {
+      const resolver =
+        live.current.resolveLinks ??
+        linkResolver(await queryClient.query(noteQueries.list()));
+      if (!isCurrent()) {
+        return;
       }
-    },
-    [queryClient]
-  );
-  const openWikilink = useCallback(
-    async (title: string) => {
-      await followNote("title", title);
-    },
-    [followNote]
-  );
-  const openNoteLink = useCallback(
-    async (href: string) => {
-      await followNote("path", href);
-    },
-    [followNote]
-  );
-  const resolveWikilink = useCallback(
-    (title: string) =>
-      live.current.resolveLinks?.title(title, live.current.path)?.path,
-    []
-  );
-  const openFileLink = useCallback(async (href: string) => {
+      const target = resolver[kind](value, live.current.path);
+      if (target === undefined) {
+        toast.add({
+          title:
+            kind === "title"
+              ? `no note named "${value.trim().toLowerCase()}"`
+              : `no note at ${value}`,
+          type: "error",
+        });
+        return;
+      }
+      openNote(target.path);
+    } catch (error) {
+      if (isCurrent()) {
+        toast.add({
+          description: reasonOf(error),
+          title: "could not open note",
+          type: "error",
+        });
+      }
+    }
+  };
+  const openWikilink = async (title: string) => {
+    await followNote("title", title);
+  };
+  const openNoteLink = async (href: string) => {
+    await followNote("path", href);
+  };
+  const resolveWikilink = (title: string) =>
+    live.current.resolveLinks?.title(title, live.current.path)?.path;
+  const openFileLink = async (href: string) => {
     try {
       await openLinkedFile(live.current.path, href);
     } catch (error) {
@@ -443,8 +414,8 @@ function SessionBuffer({
         type: "error",
       });
     }
-  }, []);
-  const openExternalFileLink = useCallback(async (href: string) => {
+  };
+  const openExternalFileLink = async (href: string) => {
     try {
       await openExternalFile(live.current.path, href);
     } catch (error) {
@@ -454,8 +425,8 @@ function SessionBuffer({
         type: "error",
       });
     }
-  }, []);
-  const openExternalNoteLink = useCallback(async (href: string) => {
+  };
+  const openExternalNoteLink = async (href: string) => {
     navigation.current?.abort();
     const request = new AbortController();
     navigation.current = request;
@@ -476,8 +447,7 @@ function SessionBuffer({
         });
       }
     }
-  }, []);
-  const noAttachments = useCallback(() => null, []);
+  };
 
   // What the tab kind decides: a note's links resolve through the library and
   // its attachments land in it; an external file's links resolve against the
@@ -492,74 +462,73 @@ function SessionBuffer({
           resolveWikilink,
         }
       : {
-          documentPath: noAttachments,
+          documentPath: () => null,
           onFileLinkClick: openExternalFileLink,
           onNoteLinkClick: openExternalNoteLink,
         };
 
-  const handleBodyChange = useCallback(
-    (content: string, edit: DocumentEdit) => {
-      const raw = persistence.store.state.content;
-      const prefix = bodyPrefix(raw);
-      onChange(
-        { content, mode: "body" },
-        {
-          ...edit,
-          selection:
-            edit.selection === undefined
-              ? undefined
-              : {
-                  anchor: edit.selection.anchor + prefix,
-                  head: edit.selection.head + prefix,
-                },
-        }
-      );
-    },
-    [onChange, persistence]
-  );
+  const handleBodyChange = (content: string, edit: DocumentEdit) => {
+    const raw = persistence.store.state.content;
+    const prefix = bodyPrefix(raw);
+    onChange(
+      { content, mode: "body" },
+      {
+        ...edit,
+        selection:
+          edit.selection === undefined
+            ? undefined
+            : {
+                anchor: edit.selection.anchor + prefix,
+                head: edit.selection.head + prefix,
+              },
+      }
+    );
+  };
 
-  const selectBody = useCallback(
-    (anchor: number, head: number) => {
-      const raw = persistence.store.state.content;
-      const prefix = bodyPrefix(raw);
-      persistence.select(anchor + prefix, head + prefix);
-    },
-    [persistence]
-  );
+  const selectBody = (anchor: number, head: number) => {
+    const raw = persistence.store.state.content;
+    const prefix = bodyPrefix(raw);
+    persistence.select(anchor + prefix, head + prefix);
+  };
 
-  const attachSourceEditor = useCallback((handle: SourceEditorHandle) => {
+  const attachSourceEditor = (handle: SourceEditorHandle) => {
     sourceRef.current = handle;
     setFindHandle(handle.find);
-  }, []);
+  };
 
-  const attachEditor = useCallback((handle: EditorHandle) => {
+  const attachEditor = (handle: EditorHandle) => {
     editorRef.current = handle;
     setFindHandle(handle.find);
-  }, []);
+  };
 
-  // Whichever surface is live owns the caret; the other one's handle is stale
-  // (it was torn down by the mode toggle).
-  // Body-relative, so source mode has to shed the frontmatter prefix the way
-  // `toggleSource` does.
-  const getCaret = useCallback(() => {
-    if (!persistence.store.state.sourceMode) {
-      return editorRef.current?.getCaretSourceOffset() ?? -1;
-    }
+  const { changePath } = autosave;
 
-    const offset = sourceRef.current?.getCursorOffset() ?? -1;
+  useEffect(() => {
+    // Whichever surface is live owns the caret; the other one's handle is stale
+    // (it was torn down by the mode toggle).
+    // Body-relative, so source mode has to shed the frontmatter prefix the way
+    // `toggleSource` does.
+    const getCaret = () => {
+      if (!persistence.store.state.sourceMode) {
+        return editorRef.current?.getCaretSourceOffset() ?? -1;
+      }
 
-    if (offset === -1) {
-      return -1;
-    }
+      const offset = sourceRef.current?.getCursorOffset() ?? -1;
 
-    const raw = persistence.store.state.content;
-    const currentBody = parseNote(raw).body;
+      if (offset === -1) {
+        return -1;
+      }
 
-    return Math.max(0, Math.min(offset - bodyPrefix(raw), currentBody.length));
-  }, [persistence]);
+      const raw = persistence.store.state.content;
+      const currentBody = parseNote(raw).body;
 
-  const insertText = useCallback(
-    (text: string) => {
+      return Math.max(
+        0,
+        Math.min(offset - bodyPrefix(raw), currentBody.length)
+      );
+    };
+
+    const insertText = (text: string) => {
       const target = persistence.store.state.sourceMode
         ? sourceRef.current
         : editorRef.current;
@@ -571,39 +540,34 @@ function SessionBuffer({
       }
 
       target.insertText(text);
-    },
-    [persistence]
-  );
+    };
 
-  // The caret rides through the markdown converters as a sentinel, so the
-  // mapping between the two surfaces is exact (see sentinel.ts). The mode
-  // is read from the session because tab handles outlive individual renders.
-  const toggleSource = useCallback(() => {
-    const raw = persistence.store.state.content;
-    const currentBody = parseNote(raw).body;
-    const prefixLength = bodyPrefix(raw);
-    const wasSource = persistence.store.state.sourceMode;
+    // The caret rides through the markdown converters as a sentinel, so the
+    // mapping between the two surfaces is exact (see sentinel.ts). The mode
+    // is read from the session because tab handles outlive individual renders.
+    const toggleSource = () => {
+      const raw = persistence.store.state.content;
+      const currentBody = parseNote(raw).body;
+      const prefixLength = bodyPrefix(raw);
+      const wasSource = persistence.store.state.sourceMode;
 
-    if (wasSource) {
-      const offset = sourceRef.current?.getCursorOffset() ?? 0;
-      const bodyOffset = Math.max(
-        0,
-        Math.min(offset - prefixLength, currentBody.length)
-      );
+      if (wasSource) {
+        const offset = sourceRef.current?.getCursorOffset() ?? 0;
+        const bodyOffset = Math.max(
+          0,
+          Math.min(offset - prefixLength, currentBody.length)
+        );
 
-      setSentineledBody(insertSentinel(currentBody, bodyOffset));
-    } else {
-      const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
+        setSentineledBody(insertSentinel(currentBody, bodyOffset));
+      } else {
+        const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
 
-      setSourceCursor(offset === -1 ? raw.length : prefixLength + offset);
-    }
+        setSourceCursor(offset === -1 ? raw.length : prefixLength + offset);
+      }
 
-    persistence.setSourceMode(!wasSource);
-  }, [persistence]);
+      persistence.setSourceMode(!wasSource);
+    };
 
-  const { changePath } = autosave;
-
-  useEffect(() => {
     registerTabHandles(id, {
       changePath: tab.kind === "note" ? changePath : undefined,
       editMetadata: tab.kind === "note" ? persistence.editMetadata : undefined,
@@ -611,15 +575,7 @@ function SessionBuffer({
       insertText,
       toggleSource,
     });
-  }, [
-    changePath,
-    getCaret,
-    id,
-    insertText,
-    persistence,
-    tab.kind,
-    toggleSource,
-  ]);
+  }, [changePath, id, persistence, tab.kind]);
 
   // A tab mounted in the background never took focus, so it takes it on the
   // way in. ⌘P decides which surface owns the caret; the other one's handle
@@ -758,10 +714,10 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   const { data, error, refetch } = useQuery(noteQueries.file(kind, path));
   const stash = useQuery(noteQueries.conflict(kind, path));
   const { refetch: refetchStash } = stash;
-  const retry = useCallback(() => {
+  const retry = () => {
     void refetch();
     void refetchStash();
-  }, [refetch, refetchStash]);
+  };
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.

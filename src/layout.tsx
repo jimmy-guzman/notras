@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { FallbackProps } from "react-error-boundary";
 
@@ -76,44 +76,38 @@ function MainWindow() {
   const paletteOpen = paletteMode !== undefined || tag !== undefined;
   const paletteView = paletteMode ?? "find";
 
-  const closePalette = useCallback(() => {
+  const closePalette = () => {
     setPaletteMode(undefined);
     setTag(undefined);
-  }, []);
+  };
 
-  const handlePaletteOpenChange = useCallback(
-    (next: boolean) => {
-      if (next) {
-        setPaletteSession((session) => session + 1);
-        setPaletteMode("find");
+  const handlePaletteOpenChange = (next: boolean) => {
+    if (next) {
+      setPaletteSession((session) => session + 1);
+      setPaletteMode("find");
 
-        return;
-      }
+      return;
+    }
 
-      closePalette();
-    },
-    [closePalette]
-  );
+    closePalette();
+  };
 
   // Toggling out of the mode that is showing closes through `closePalette`,
   // which also clears a tag opening the palette on nobody's mode.
-  const togglePaletteMode = useCallback(
-    (next: PaletteMode) => {
-      if (paletteOpen && paletteView === next) {
-        closePalette();
+  const togglePaletteMode = (next: PaletteMode) => {
+    if (paletteOpen && paletteView === next) {
+      closePalette();
 
-        return;
-      }
+      return;
+    }
 
-      setPaletteSession((session) => session + 1);
-      setPaletteMode(next);
-    },
-    [closePalette, paletteOpen, paletteView]
-  );
+    setPaletteSession((session) => session + 1);
+    setPaletteMode(next);
+  };
 
-  const openSettings = useCallback(() => {
+  const openSettings = () => {
     setSettingsOpen(true);
-  }, []);
+  };
 
   // One check per launch. Silent when there is nothing to install and silent
   // when the check itself fails: a launch is the wrong moment to interrupt

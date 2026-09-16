@@ -9,7 +9,7 @@ Interface conventions for notras. Every rule here is either implemented in `src/
 - **Lowercase everywhere.** Labels, buttons, toasts, tooltips, placeholders, and empty states are lowercase, app-wide and deliberate. The wordmark is lowercase too.
 - **Default to less.** Add nothing that does not earn its place, then remove one more thing. New chrome is the last resort; the palette is the first, and chrome that arrives displaces something rather than joining it: the tab strip took the title's place in the band rather than adding a band (`D52`).
 - **The last five percent is the work.** A feature that renders but reflows the caret, dims the wrong block, or teleports the text on toggle is not shipped.
-- **The same problem gets the same solution everywhere.** A second implementation of something the app already does is a bug in the design. A second entry point into one implementation is not: pin is a titlebar toggle and a palette action over one `setNotePinned`, and tags are a status-strip picker and a palette view over one `useNoteTags` (`D31`).
+- **The same problem gets the same solution everywhere.** A second implementation of something the app already does is a bug in the design. A second entry point into one implementation is not: pin is a titlebar toggle and a palette action over one `setNotePinned`, and tags are a status-strip picker and a palette view over one `changeNoteMetadata` (`D31`).
 - **This is a macOS app.** Where a convention of the platform and a convention of the web disagree, the platform wins. Rounded controls, a blurred backdrop, and a dialog that scales on open are native behaviour, not decoration.
 
 ## Typography

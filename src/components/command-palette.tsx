@@ -23,7 +23,7 @@ import {
   WaypointsIcon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { ActionsView } from "@/components/palette-actions";
 import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
@@ -159,115 +159,100 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [searchLoading, setSearchLoading] = useState(false);
-  const resetSearchScroll = useCallback(() => {
+  const resetSearchScroll = () => {
     if (listRef.current !== null) {
       listRef.current.scrollTop = 0;
     }
-  }, []);
+  };
   useLayoutEffect(() => {
     inputRef.current?.focus();
     if (view === "rename") {
       inputRef.current?.select();
     }
   }, [view]);
-  const trackCursor = useCallback(
-    (event: React.SyntheticEvent<HTMLInputElement>) => {
-      setCursor(
-        event.currentTarget.selectionStart ?? event.currentTarget.value.length
-      );
-    },
-    []
-  );
-  const changeQuery = useCallback((next: string) => {
+  const trackCursor = (event: React.SyntheticEvent<HTMLInputElement>) => {
+    setCursor(
+      event.currentTarget.selectionStart ?? event.currentTarget.value.length
+    );
+  };
+  const changeQuery = (next: string) => {
     setQuery(next);
     setCursor(inputRef.current?.selectionStart ?? next.length);
-  }, []);
-  const applySuggestion = useCallback((next: string) => {
+  };
+  const applySuggestion = (next: string) => {
     setQuery(next);
     setCursor(next.length);
     inputRef.current?.focus();
-  }, []);
+  };
 
-  const close = useCallback(() => {
+  const close = () => {
     onOpenChange(false);
-  }, [onOpenChange]);
+  };
 
-  const backToActions = useCallback(() => {
+  const backToActions = () => {
     setQuery("");
     setView("actions");
-  }, []);
+  };
 
-  const back = useCallback(() => {
+  const back = () => {
     if (view === "filters") {
       setFilterQuery("");
       setView("find");
     } else {
       backToActions();
     }
-  }, [backToActions, view]);
+  };
 
-  const showFilters = useCallback(() => {
+  const showFilters = () => {
     setFilterQuery("");
     setView("filters");
-  }, []);
+  };
 
-  const chooseFilter = useCallback((prefix: string) => {
+  const chooseFilter = (prefix: string) => {
     setQuery(
       (previous) =>
         `${previous.trimEnd()}${previous.trim() === "" ? "" : " "}${prefix}`
     );
     setView("find");
-  }, []);
+  };
 
-  const trackNewTab = useCallback(
-    (event: React.KeyboardEvent | React.MouseEvent) => {
-      newTabRef.current = event.metaKey || event.ctrlKey;
-    },
-    []
-  );
+  const trackNewTab = (event: React.KeyboardEvent | React.MouseEvent) => {
+    newTabRef.current = event.metaKey || event.ctrlKey;
+  };
 
-  const handleOpenChange = useCallback<
-    NonNullable<React.ComponentProps<typeof CommandDialog>["onOpenChange"]>
-  >(
-    (next, details) => {
-      if (
-        !next &&
-        details.reason === "escape-key" &&
-        view !== "actions" &&
-        view !== "find"
-      ) {
-        details.cancel();
-        back();
-        return;
-      }
-      onOpenChange(next);
-    },
-    [back, onOpenChange, view]
-  );
+  const handleOpenChange: NonNullable<
+    React.ComponentProps<typeof CommandDialog>["onOpenChange"]
+  > = (next, details) => {
+    if (
+      !next &&
+      details.reason === "escape-key" &&
+      view !== "actions" &&
+      view !== "find"
+    ) {
+      details.cancel();
+      back();
+      return;
+    }
+    onOpenChange(next);
+  };
 
-  const openNote = useCallback(
-    (path: string) => {
-      const newTab = newTabRef.current;
+  const openNote = (path: string) => {
+    const newTab = newTabRef.current;
 
-      newTabRef.current = false;
-      close();
-      openInTab(path, newTab);
-    },
-    [close]
-  );
+    newTabRef.current = false;
+    close();
+    openInTab(path, newTab);
+  };
 
-  const runAction = useCallback(
-    async (what: string, action: () => Promise<void>) => {
-      close();
+  const runAction = async (what: string, action: () => Promise<void>) => {
+    close();
 
-      try {
-        await action();
-      } catch (error) {
-        toast.add({ description: reasonOf(error), title: what, type: "error" });
-      }
-    },
-    [close]
-  );
+    try {
+      await action();
+    } catch (error) {
+      toast.add({ description: reasonOf(error), title: what, type: "error" });
+    }
+  };
 
   const matchesQuery = (label: string) =>
     label.toLowerCase().includes(query.trim().toLowerCase());
@@ -318,7 +303,7 @@ export function CommandPalette({
 
   // `create` de-duplicates by appending a counter, so a stale index or a
   // title that differs from its filename never overwrites the existing note.
-  const createFromQuery = useCallback(() => {
+  const createFromQuery = () => {
     const title = query.trim();
 
     void runAction("could not create note", async () => {
@@ -326,7 +311,7 @@ export function CommandPalette({
 
       openInTab(path, true);
     });
-  }, [query, runAction]);
+  };
 
   const focusModeEnabled = useFocusMode();
 
