@@ -6,7 +6,10 @@
 @import "@fontsource/ia-writer-mono/latin-400-italic.css";
 @import "@fontsource/ia-writer-mono/latin-700.css";
 
-@import "tailwindcss";
+/* Only src/ holds utility classes. Auto-detection from the project root also
+   walks agent docs, crates and src-tauri, and the build registers every
+   scanned file as a watch dependency. */
+@import "tailwindcss" source("./");
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 /* shadcn/typeset, vendored verbatim and refreshed by scripts/update-typeset.sh
