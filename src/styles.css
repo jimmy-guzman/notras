@@ -377,13 +377,23 @@ body.dragging .ProseMirror::selection {
   background: var(--primary);
   border-color: var(--primary);
 }
+/* lucide's check, `M20 6L9 17l-5-5` stroked at 4 in its 24 grid, outlined with
+   butt caps and placed at 70% of the box. It was an SVG mask before, which is a
+   raster composite that the PDF an export writes cannot carry, so the check
+   came out as the mask image itself; a polygon is geometry and survives. */
 .ProseMirror ul[data-type="taskList"] > li > label > input:checked::after {
   position: absolute;
   inset: 0;
   content: "";
+  clip-path: polygon(
+    22.54% 54.12%,
+    41.25% 72.83%,
+    77.46% 36.62%,
+    69.21% 28.38%,
+    41.25% 56.33%,
+    30.79% 45.88%
+  );
   background: var(--primary-foreground);
-  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>')
-    center / 70% no-repeat;
 }
 .ProseMirror ul[data-type="taskList"] > li > div {
   flex: 1;
@@ -792,6 +802,61 @@ body.dragging .ProseMirror::selection {
 .typeset-note :not(pre) > code {
   font-size: 0.9em;
   color: var(--foreground);
+}
+
+/* Export pdf appends a copy of the note surface to the body and prints the
+   document. Print media shows that copy alone, flowing from the top of the
+   page, and `print-color-adjust` keeps the surfaces WebKit drops from print by
+   default: the code card, the inline chip and the checked task box. The
+   surface keeps its side padding, which is where a task box overhangs the
+   column; `pdf.rs` sizes the page's side margins around the surface's width. */
+.print-sheet {
+  display: none;
+}
+@media print {
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+  }
+  body > :not(.print-sheet) {
+    display: none;
+  }
+  .print-sheet {
+    display: block;
+    print-color-adjust: exact;
+  }
+  .print-sheet .ProseMirror {
+    padding-block: 0;
+  }
+  /* Typeset keeps a fence, a table and a quote whole. WebKit's print layout
+     ignores `orphans`, `widows` and `break-after: avoid`, so a paragraph stays
+     whole too, and a heading carries the block after it: export-pdf.ts measures
+     how far that block reaches, the pseudo makes the heading's unsplittable box
+     that much taller, and the negative margin collapses through so nothing on
+     the page moves. */
+  .print-sheet :is(p, img, tr) {
+    break-inside: avoid;
+  }
+  .print-sheet .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+    break-inside: avoid;
+  }
+  .print-sheet .ProseMirror :is(h1, h2, h3, h4, h5, h6)::after {
+    display: block;
+    height: var(--keep-with-next, 0px);
+    margin-block-end: calc(-1 * var(--keep-with-next, 0px));
+    content: "";
+  }
+  /* Paper has no scroll: long code wraps and a wide table runs to the edge.
+     The card is a shade off white paper, so a fence takes the chip's surface. */
+  .print-sheet .ProseMirror pre {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    background: var(--muted);
+  }
+  .print-sheet .ProseMirror .tableWrapper {
+    overflow: visible;
+  }
 }
 
 .ProseMirror.note-find-open::before {

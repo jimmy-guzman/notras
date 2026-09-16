@@ -50,6 +50,7 @@ describe("note tags", () => {
       const id = getTabState().activeId;
       registerTabHandles(id, {
         editMetadata: note.editMetadata,
+        exportPdf: async () => null,
         getCaret: () => 0,
         insertText: () => {},
         toggleSource: () => {},

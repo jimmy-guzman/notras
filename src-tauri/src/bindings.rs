@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 
-use crate::{clipboard, notes, windows};
+use crate::{clipboard, notes, pdf, windows};
 use notras_core::MutationWarning;
 
 /// Relative paths whose saved content or index rows changed; empty means the library.
@@ -58,6 +58,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::stash_conflict::<tauri::Wry>,
             notes::write_external::<tauri::Wry>,
             notes::save_note::<tauri::Wry>,
+            pdf::export_pdf::<tauri::Wry>,
             windows::show_capture::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![

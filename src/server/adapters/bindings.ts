@@ -102,6 +102,12 @@ async saveNote(path: string, content: string, name: SaveName | null, expected: s
     return await TAURI_INVOKE("save_note", { path, content, name, expected });
 },
 /**
+ * Write the webview's current document to `path` as a paginated PDF.
+ */
+async exportPdf(path: string, title: string) : Promise<null> {
+    return await TAURI_INVOKE("export_pdf", { path, title });
+},
+/**
  * Open quick capture, or focus its existing window.
  */
 async showCapture() : Promise<void> {

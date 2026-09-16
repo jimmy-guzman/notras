@@ -33,6 +33,8 @@ export interface TabHandles {
       | { kind: "retitle"; title: string }
   ) => Promise<void>;
   editMetadata?: (patch: FrontmatterPatch) => Promise<void>;
+  /** Save the rich view as a PDF and answer its path, null when cancelled, or refuse with the reason the toast shows. */
+  exportPdf: () => Promise<string | null>;
   /** The caret's offset in this buffer's markdown, or -1. Read only when the set is persisted. */
   getCaret: () => number;
   /** Into whichever surface is live, since ⌘P swaps which one owns the caret. */

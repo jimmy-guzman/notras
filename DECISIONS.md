@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next available number is 80; removed IDs remain reserved.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next available number is 84; removed IDs remain reserved.
 
 Routine implementation details belong in code. Current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. An entry belongs here only when the rationale needs a durable record beyond those sources; a rejected alternative alone does not require one.
 
@@ -1070,3 +1070,21 @@ TanStack Router is gone. Its one route was `/`, with no params, no `Link`, and n
 ### D82 Ultracite runs on oxc instead of Biome
 
 Lint and formatting come from `ultracite` on oxlint and oxfmt, configured in `oxlint.config.ts` and `oxfmt.config.ts`. `biome.jsonc` and `@biomejs/biome` are gone, and `pnpm check` and `pnpm fix` keep their names. oxfmt formats the markdown, HTML and JSON that `D41` left with no formatter when it retired the previous oxfmt setup, so that rejection no longer stands.
+
+### D83 Export pdf is AppKit's print operation saving to a file
+
+`export pdf...` in the palette opens the native save dialog and then runs the `WKWebView` print operation with `NSPrintSaveJob` and the chosen path, no panel. WebKit paginates a copy of the rich editor's DOM under `@media print`, AppKit embeds the fonts and writes the file. The note keeps its own rendering, Shiki spans and resolved images included, and no PDF library or second webview enters the tree; `objc2-web-kit` and `objc2-app-kit`, already there through wry, are the whole dependency.
+
+**Rejected: `window.print()`.** Tauri patches it to the same print operation behind the print panel, where a PDF is three steps away under the PDF menu and paper, scale and margins are per-run panel state.
+
+**Rejected: a PDF layout engine.** `typst`, `@react-pdf/renderer` and the raster route through `jspdf` each re-author the note in their own typography, which is the opposite of what the export is for.
+
+**Rejected: print CSS over the live tree.** The window is a fixed-height scroll chain, sessions are `absolute inset-0` and inactive ones are `visibility: hidden`, which still takes space in print. Undoing all of it under `@media print` is fragile; a clone in a sheet only print media shows is not.
+
+**Constraint:** the note surface draws with geometry, backgrounds and text. A `mask-image` reaches a PDF context as the mask painted as an image, which is why the checked task box became a `clip-path` polygon.
+
+**Constraint:** WebKit's print layout ignores `break-after: avoid`, `orphans` and `widows`. Paragraphs are `break-inside: avoid`, and `export-pdf.ts` measures each heading's follower on the live surface so the stylesheet can stretch the heading's unsplittable box that far.
+
+**Constraint:** the text block is the surface's `max-w-2xl`, 504pt, on every paper. `pdf.rs` derives the side margins from the paper around it, so a table `export-pdf.ts` fits to the column on screen fits the page too.
+
+**Constraint:** the export runs on macOS. The Linux path is `webkit2gtk::PrintOperation` with a file output, the Windows path `ICoreWebView2_7::PrintToPdf`; neither can be verified here, so the palette offers the row on macOS only, through `detectPlatform`, and the command returns a failure naming macOS elsewhere. [#211](https://github.com/jimmy-guzman/notras/issues/211) tracks both.

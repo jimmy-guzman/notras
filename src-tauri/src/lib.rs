@@ -3,6 +3,7 @@ mod clipboard;
 mod external_image;
 mod library;
 mod notes;
+mod pdf;
 mod state;
 mod watcher;
 mod windows;

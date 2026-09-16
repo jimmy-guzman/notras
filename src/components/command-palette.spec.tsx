@@ -16,7 +16,12 @@ import { CommandPalette } from "@/components/command-palette";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
-import { getTabState, openNote, registerTabSnapshot } from "@/lib/tabs/store";
+import {
+  getTabState,
+  openNote,
+  registerTabHandles,
+  registerTabSnapshot,
+} from "@/lib/tabs/store";
 
 const FOUND_NOTE = /Found/u;
 const CREATE_NOTE = /create/u;
@@ -291,6 +296,46 @@ describe("command palette keyboard", () => {
       `[id="${palette.input.getAttribute("aria-labelledby") ?? ""}"]`
     );
     expect(label?.textContent).toBe("run an action");
+  });
+});
+
+describe("command palette actions", () => {
+  it("should export a pdf through the showing tab's session and close on macOS", async () => {
+    // happy-dom does not report macOS, and the row exists only there.
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+    });
+    openNote("projects/atlas.md");
+    const exportPdf = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValue("/exports/atlas.pdf");
+    registerTabHandles(getTabState().activeId, {
+      exportPdf,
+      getCaret: () => 0,
+      insertText: () => {},
+      toggleSource: () => {},
+    });
+    const palette = mount("actions", []);
+    await palette.user.type(palette.input, "export");
+    expect(document.body.textContent).toContain("export pdf...");
+    await palette.user.keyboard("{Enter}");
+    expect(exportPdf).toHaveBeenCalledOnce();
+    expect(palette.closed).toStrictEqual([false]);
+  });
+
+  it("should offer no pdf export away from macOS", async () => {
+    openNote("projects/atlas.md");
+    registerTabHandles(getTabState().activeId, {
+      exportPdf: async () => null,
+      getCaret: () => 0,
+      insertText: () => {},
+      toggleSource: () => {},
+    });
+    const palette = mount("actions", []);
+    await palette.user.type(palette.input, "export");
+    expect(document.body.textContent).not.toContain("export pdf");
+    expect(document.body.textContent).toContain("nothing found");
   });
 });
 
