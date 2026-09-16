@@ -286,7 +286,7 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label={`${hidden.length} tabs out of view`}
+            aria-label={`${hidden.length} ${hidden.length === 1 ? "tab" : "tabs"} out of view`}
             className="rounded-sm tabular-nums"
             size="xs"
             variant="ghost"
