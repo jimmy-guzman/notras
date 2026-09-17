@@ -6,6 +6,53 @@ import { createNoteDocument } from "@/components/editor/note-document";
 import { SourceEditor } from "@/components/editor/source-editor";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 
+describe("focus through the handle", () => {
+  it("should keep the viewport where it was when focus reveals the caret", ({
+    onTestFinished,
+  }) => {
+    const note = createNoteDocument("# title\n\nbody", "note.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    const handles: SourceEditorHandle[] = [];
+    const { container } = render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: false,
+        onReady: (ready) => {
+          handles.push(ready);
+        },
+      })
+    );
+    const [handle] = handles;
+    const viewport = container.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    );
+    if (handle === undefined || viewport === null) {
+      throw new Error("source editor missing");
+    }
+    // Fakes WebKit at the DOM boundary: focus reads `preventScroll` the way a
+    // supporting engine does and still scrolls the caret into view inside the
+    // call. ProseMirror decides once per module, on its first focus, whether
+    // the engine honors the option, so this runs before any other focus here.
+    Object.defineProperty(note.editor.view.dom, "focus", {
+      value(this: HTMLElement, options?: FocusOptions) {
+        void options?.preventScroll;
+        HTMLElement.prototype.focus.call(this, options);
+        viewport.scrollTop = 0;
+      },
+    });
+    viewport.scrollTop = 120;
+
+    act(() => {
+      handle.focus();
+    });
+
+    expect(document.activeElement).toBe(note.editor.view.dom);
+    expect(viewport.scrollTop).toBe(120);
+  });
+});
+
 describe("source editor focus", () => {
   it("should patch both title fields without replacing source selection or undo history", ({
     onTestFinished,

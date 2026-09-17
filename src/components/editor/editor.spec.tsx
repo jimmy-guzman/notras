@@ -58,6 +58,37 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   return { editor: surface.editor, handle, scroller };
 };
 
+describe("focus through the handle", () => {
+  it("should keep the viewport where it was when focus reveals the caret", async () => {
+    const { editor, handle, scroller } = await mount({ focusOnMount: false });
+    const viewport = scroller.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    );
+    if (viewport === null) {
+      throw new Error("the viewport did not mount");
+    }
+    // Fakes WebKit at the DOM boundary: focus reads `preventScroll` the way a
+    // supporting engine does and still scrolls the caret into view inside the
+    // call. ProseMirror decides once per module, on its first focus, whether
+    // the engine honors the option, so this runs before any other focus here.
+    Object.defineProperty(editor.view.dom, "focus", {
+      value(this: HTMLElement, options?: FocusOptions) {
+        void options?.preventScroll;
+        HTMLElement.prototype.focus.call(this, options);
+        viewport.scrollTop = 0;
+      },
+    });
+    viewport.scrollTop = 120;
+
+    act(() => {
+      handle.focus();
+    });
+
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(viewport.scrollTop).toBe(120);
+  });
+});
+
 describe("focus mode reading state", () => {
   it("should apply a document observation without losing selection or existing undo", async () => {
     const { editor, handle, scroller } = await mount({
