@@ -31,6 +31,7 @@ import {
   escapeMarkdownTitle,
 } from "@/lib/utils/attachments";
 
+import { CaretAfterBreak } from "./caret-after-break";
 import { CodeBlockView } from "./code-block-view";
 import { DragSelection } from "./drag-selection";
 import { MoveSelectionKeys } from "./move-selection-keys";
@@ -473,6 +474,7 @@ export function createEditorExtensions(
       placeholder: options.placeholderText ?? "write another note...",
     }),
     Focus.configure({ className: "has-focus", mode: "shallowest" }),
+    CaretAfterBreak,
     DragSelection,
     MarkdownLinkInputRule,
     MoveSelectionKeys,

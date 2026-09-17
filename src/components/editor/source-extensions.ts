@@ -11,9 +11,11 @@ import { titleSource } from "@/core/notes";
 
 const INDENT = "  ";
 
-const TabIndent = Extension.create({
+/** ProseMirror swallows every Enter keydown, so an unbound Shift+Enter is dead. */
+const SourceKeys = Extension.create({
   addKeyboardShortcuts() {
     return {
+      "Shift-Enter": () => this.editor.commands.newlineInCode(),
       "Shift-Tab": () => {
         const { $from } = this.editor.state.selection;
         // The whole file is one code block, so parentOffset is an offset into
@@ -40,7 +42,7 @@ const TabIndent = Extension.create({
       Tab: () => this.editor.commands.insertContent(INDENT),
     };
   },
-  name: "tabIndent",
+  name: "sourceKeys",
 });
 
 export function touchesSourceTitle(transaction: Transaction) {
@@ -85,6 +87,6 @@ export function createSourceExtensions(historyPlugin: Plugin): Extensions {
       exitOnTripleEnter: false,
     }),
     UndoRedo.extend({ addProseMirrorPlugins: () => [historyPlugin] }),
-    TabIndent,
+    SourceKeys,
   ];
 }

@@ -325,6 +325,40 @@ describe("code block clipboard", () => {
   });
 });
 
+describe("line breaks", () => {
+  it("should break the line inside the block on shift+enter", async () => {
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "onetwo",
+    });
+    const selection = document.getSelection();
+    if (selection === null) {
+      throw new Error("the document has no selection");
+    }
+    act(() => {
+      editor.commands.setTextSelection(4);
+    });
+    // WebKit's repaint is the point and nothing here can see it; the rebuild
+    // it takes is the seam.
+    const addRange = vi.spyOn(selection, "addRange");
+
+    // A native event: ProseMirror swallows Enter by its keyCode, which
+    // user-event leaves at 0, so the key would land through the DOM instead.
+    fireEvent.keyDown(editor.view.dom, {
+      key: "Enter",
+      keyCode: 13,
+      shiftKey: true,
+    });
+
+    expect(editor.state.doc.childCount).toBe(1);
+    expect(handle.getContent()).toBe("one  \ntwo");
+    expect(addRange).toHaveBeenCalledOnce();
+    expect(
+      selection.anchorNode?.childNodes[selection.anchorOffset - 1]?.nodeName
+    ).toBe("BR");
+  });
+});
+
 describe("document selection mapping", () => {
   it("should replace the document when restoring its source selection fails", async () => {
     const { editor, handle, scroller } = await mount({
