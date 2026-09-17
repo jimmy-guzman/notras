@@ -890,7 +890,7 @@ describe("note persistence", () => {
     expect(note.store.state.status).toBe("saved");
   });
 
-  it("should keep a committed save when its stored review cannot be removed, and try again on the next", async () => {
+  it("should keep a committed save when its stored review cannot be removed, and try again on each flush", async () => {
     let clears = 0;
     const note = createNotePersistence(initial, {
       changePath: () => {
@@ -929,6 +929,8 @@ describe("note persistence", () => {
     note.edit({ content: "# Chores\n\nbody, more", mode: "body" });
     await expect(note.flush()).resolves.toBeTruthy();
     expect(clears).toBe(2);
+    await expect(note.flush()).resolves.toBeTruthy();
+    expect(clears).toBe(3);
   });
 
   it("should hold a failed save through an external change that combines cleanly", async () => {

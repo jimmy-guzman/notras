@@ -1149,4 +1149,4 @@ The states that matter are `failed` and `conflict`. `conflict` already had a pan
 
 **Constraint:** `SaveStatus` lost `saving`. The glyph was its only reader, and `writing` already carries the in-flight fact.
 
-**Constraint:** a stash removal that fails is logged by the `clearStash` port in `note-session.tsx` and retried on the next save rather than shown. The save committed, and a leftover stash combines cleanly on relaunch.
+**Constraint:** a stash removal that fails is logged by the `clearStash` port in `note-session.tsx` and retried on the next save or flush rather than shown. The save committed, and a leftover stash combines cleanly on relaunch.

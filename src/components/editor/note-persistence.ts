@@ -222,7 +222,11 @@ export function createNotePersistence(
     }
   };
   const write = async () => {
-    if (edits <= savedEdits || state.state.missing || inConflict()) {
+    if (state.state.missing || inConflict()) {
+      return;
+    }
+    if (edits <= savedEdits) {
+      await clearStash();
       return;
     }
     const sentEdits = edits;
