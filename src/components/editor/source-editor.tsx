@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface SourceEditorHandle {
   find: FindHandle;
+  /** Takes the caret without moving the viewport. */
   focus: () => void;
   /** Caret position as a character offset into the raw text. */
   getCursorOffset: () => number;
@@ -61,7 +62,18 @@ export function SourceEditor({
       config.onReady?.({
         find: createFindHandle(editor),
         focus: () => {
-          editor.commands.focus();
+          const scroller = target.closest<HTMLElement>(
+            '[data-slot="scroll-area-viewport"]'
+          );
+          const top = scroller?.scrollTop;
+
+          editor.view.focus();
+
+          // WebKit reveals the selection when the editable it focuses already
+          // holds it, ignoring `preventScroll`, so the offset is put back.
+          if (scroller !== null && top !== undefined) {
+            scroller.scrollTop = top;
+          }
         },
         getCursorOffset: () => Math.max(0, editor.state.selection.from - 1),
         insertText: (text) => {
