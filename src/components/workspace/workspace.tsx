@@ -438,7 +438,7 @@ export function Workspace({
         {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
       <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1 last:mb-1">
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-sm">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {tabs.length === 0 ? (
             <>
               <Welcome
