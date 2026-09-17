@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next number is the highest heading plus one.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next number is the highest ever assigned plus one, even when that entry has been removed.
 
 Routine implementation details belong in code. Current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. An entry belongs here only when the rationale needs a durable record beyond those sources; a rejected alternative alone does not require one.
 
