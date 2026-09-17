@@ -1461,6 +1461,51 @@ describe(NoteSession, () => {
     client.clear();
   });
 
+  it("should show why the note could not be saved until the next write lands", async () => {
+    let denied = true;
+    const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
+      kind: "failed",
+      message: "Permission denied",
+    });
+    mockIPC(async (command) => {
+      if (command !== "save_note") {
+        return null;
+      }
+      if (denied) {
+        return await refused();
+      }
+      return {
+        kind: "committed",
+        receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
+      };
+    });
+    mountSession("# Errands\n\nbody");
+    const liveEditor = await editor();
+    act(() => {
+      typeAtEnd(liveEditor, "Typed ");
+    });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(
+      screen.getByText("this note could not be saved")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Permission denied")).toBeInTheDocument();
+    denied = false;
+    act(() => {
+      typeAtEnd(liveEditor, "more ");
+    });
+    expect(
+      screen.getByText("this note could not be saved")
+    ).toBeInTheDocument();
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    expect(
+      screen.queryByText("this note could not be saved")
+    ).not.toBeInTheDocument();
+  });
+
   async function mountConflict(
     content: string,
     onDisk: string,

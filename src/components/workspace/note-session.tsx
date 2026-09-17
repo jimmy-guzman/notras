@@ -4,6 +4,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { error as logError } from "@tauri-apps/plugin-log";
 import { cn } from "cn";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -18,6 +19,7 @@ import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
+import type { SaveStatus } from "@/components/editor/use-autosave";
 import {
   Alert,
   AlertAction,
@@ -78,20 +80,24 @@ function bodyPrefix(raw: string) {
 }
 
 interface SessionAlertsProps {
-  conflict: boolean;
   missing: boolean;
   onReview: () => void;
+  reason: string | undefined;
   reviewButton: RefObject<HTMLButtonElement | null>;
+  status: SaveStatus;
 }
 
 /** The pane's standing alerts, in the note's column and above its scroller. */
 function SessionAlerts({
-  conflict,
   missing,
   onReview,
+  reason,
   reviewButton,
+  status,
 }: SessionAlertsProps) {
-  if (!(missing || conflict)) {
+  const failed = status === "failed";
+  const conflict = status === "conflict";
+  if (!(missing || failed || conflict)) {
     return null;
   }
   return (
@@ -104,12 +110,19 @@ function SessionAlerts({
           </AlertDescription>
         </Alert>
       ) : null}
+      {failed ? (
+        <Alert variant="destructive">
+          <AlertTitle>this note could not be saved</AlertTitle>
+          <AlertDescription>{reason}</AlertDescription>
+        </Alert>
+      ) : null}
       {conflict ? (
         <Alert variant="destructive">
           <AlertTitle>this note changed on disk</AlertTitle>
           <AlertDescription>
             Your unsaved edits overlap the change, so nothing saves until you
             review them
+            {reason === undefined ? null : `. ${reason}`}
           </AlertDescription>
           <AlertAction>
             <Button
@@ -216,7 +229,14 @@ function SessionBuffer({
       {
         changePath: async (path, change) => await moveNote(path, change.folder),
         clearStash: async (path) => {
-          await clearConflictStash(tab.kind, path);
+          try {
+            await clearConflictStash(tab.kind, path);
+          } catch (error) {
+            await logError(
+              `could not remove the stored review: ${String(error)}`
+            );
+            throw error;
+          }
           queryClient.setQueryData(
             noteQueries.conflict(tab.kind, path).queryKey,
             null
@@ -274,7 +294,8 @@ function SessionBuffer({
     [id, persistence]
   );
   const { body } = parseNote(autosave.content);
-  const { changedAgain, missing, sourceMode, status, theirs } = autosave;
+  const { changedAgain, missing, reason, sourceMode, status, theirs } =
+    autosave;
   const [reviewing, setReviewing] = useState(false);
   const showReview = reviewing && status === "conflict";
   const reviewButton = useRef<HTMLButtonElement>(null);
@@ -638,10 +659,11 @@ function SessionBuffer({
         )}
       >
         <SessionAlerts
-          conflict={status === "conflict"}
           missing={missing}
           onReview={openReview}
+          reason={reason}
           reviewButton={reviewButton}
+          status={status}
         />
         {sourceMode ? (
           <SourceEditor

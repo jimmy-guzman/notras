@@ -247,6 +247,8 @@ The note title, its tags, and the pin toggle live in the window's drag region. `
 
 **Superseded in part by `D38`,** which brings the save glyph into the bar. The rejection below says save state belongs near where the eye rests rather than in the window chrome, and it was written about moving the whole strip up. `D38` re-examines it for one glyph, which the width argument does not reach.
 
+**Superseded in part by `D87`,** which takes the save glyph back out.
+
 **Superseded in part by `D52` and `D53`,** which move the title into the tab strip and leave one route. The pin and the drag region stay, and the identity the bar carries is the active tab's label rather than a line of text.
 
 **Superseded in part by `D80`,** which finds that the `styles.css` exemption in the constraint below never ran on macOS and removes it. A control opts out of the drag region by being one.
@@ -407,6 +409,8 @@ Those apps agree exactly. All seven put the art at 80.5% of the canvas with a 9.
 
 `SaveIndicator` renders one lucide save icon per state. This entry decides the three that existed when it was written: `SavePenIcon` for `dirty`, `SaveIcon` for `saving`, `SaveCheckIcon` for `saved`. All three share a floppy body and differ in the badge at its lower-right corner, so the shared shape names the subject and the badge names the state. The word survives in a hover tooltip and in `sr-only` text. `D38` adds a fourth state and keeps the rule.
 
+**Superseded by `D87`,** which shows no save state at all.
+
 **Superseded in part by `D80`.** WKWebView ignores `-webkit-app-region`, so the `no-drag` class in the constraint below never ran and the trigger stays a `span` without it. Hover is not a press, so the region never touched the tooltip.
 
 The strip opened on a word that rewrote itself on every keystroke, `unsaved` to `saving...` to `saved`. It was the widest item in the row and the only one that changed while the user was reading the note above it, and a second surface spelled the same state a second way.
@@ -458,6 +462,8 @@ The three view toggles are one `ToggleGroup` but stay three independent settings
 ### D38 The save glyph sits in the titlebar and can say it failed
 
 `SaveIndicator` renders after the tab strip and before the pin, and `SaveStatus` carries a fourth member, `failed`, drawn as `SaveOffIcon` on `--destructive`.
+
+**Superseded by `D87`,** which moves `failed` to a pane alert. The case below for a `failed` state stands; the case for the bar does not.
 
 **Superseded in part by `D52` and `D53`,** which move the note's title into the tab strip and leave one route. The placement and the route counts below have been corrected to the code those two left. The four states and the case for putting save state in the bar are unchanged, and the rejections stand as written.
 
@@ -1124,3 +1130,23 @@ shadcn hands over source to own. The `add -o` regeneration was what made the fil
 An answer is matched to blocks by language and text, never by position or sequence number. An edit, a replacement or a mode change produces new text, so an older answer matches nothing, and no position captured before an await is used after it.
 
 **Rejected: `@shikijs/langs-precompiled` with `createJavaScriptRawEngine`.** It cuts the first tokenize of the same 14 languages to 64 ms with no worker, but the same run produced different tokens for bash, yaml and markdown, and markdown is the source-mode grammar. shikijs/shiki#918 has been open since 2025-02: a precompiled `end` or `while` pattern loses the backreference substitution vscode-textmate performs at match time. The shortcut returns when that issue closes and a token comparison across the bundled languages agrees.
+
+### D87 Saving is unmarked, and a failed save is a pane alert
+
+`SaveIndicator` is gone and nothing marks saving. A write that failed shows a destructive `Alert` at the top of the pane, "this note could not be saved" over the reason, in the slot a gone file and a conflict already use, and the tab keeps its dot.
+
+The glyph was there to build trust and did the opposite. An indicator that reads saved says saving is a thing that might not happen, in an app where the obvious is that a note is always being saved. It also flipped on every pause in typing: lit on the first keystroke, dimmed 800ms after the last, with no transition, in the corner of the eye. `D35` replaced the word with the glyph because the churn was the complaint and a status nobody acts on did not earn the slot. The glyph shrank the slot and kept the churn. There is no ⌘S, so unsaved was never actionable.
+
+The states that matter are `failed` and `conflict`. `conflict` already had a pane alert with "review" and a tab dot, and a gone file had the same alert, while `failed`, the one path that loses work, had a 4px slash badge and a dot whose text only a screen reader read. `DESIGN.md` gives the same problem the same solution everywhere, and a failed write is the same problem as the other two: nothing here is being saved.
+
+`D38` rejected hiding the glyph once saved because "nothing on screen" would have meant both written and not shown on this route. No route shows a glyph now and a failure is a banner, so absence means one thing.
+
+**Rejected: keeping the glyph for `failed` and `conflict` only.** Quiet in the healthy path, and the smaller change. Rejected because it leaves the state that loses work on the smallest signal in the app, a badge in the titlebar under a hover tooltip, while the two states beside it get an alert in the note's column.
+
+**Rejected: a toast from the autosave path,** re-rejected from `D38`. The write is debounced and retried on every keystroke, so a disk that keeps refusing stacks a toast per attempt. An alert is state rather than an event: it stands while the status is `failed` and leaves when a write lands.
+
+**Constraint:** a keystroke no longer resets `failed` to `dirty`, which `D38` had as a constraint. The status and its reason hold through typing and through an external change that combines cleanly, until a write commits or a conflict absorbs the file, since a banner that leaves on the first keystroke and returns after the pause moves the note with it.
+
+**Constraint:** `SaveStatus` lost `saving`. The glyph was its only reader, and `writing` already carries the in-flight fact.
+
+**Constraint:** a stash removal that fails is logged by the `clearStash` port in `note-session.tsx` and retried on the next save or flush rather than shown. The save committed, and a leftover stash combines cleanly on relaunch.

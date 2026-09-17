@@ -50,9 +50,9 @@ What notras does, as claims checkable against a running build.
 - A save under a new filename never removes a file that arrived under a public name in that window. A save cannot recreate a file that was deleted. A reader holding the old file keeps reading it, and the next open sees the replacement.
 - Writes and folder moves are serialized per session. Rename changes the heading immediately; saving publishes the resulting content and filename. Further rename and move actions remain available while earlier work is pending. Later saves use the committed path.
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
-- A keystroke during a write returns the state to unsaved. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
+- A keystroke during a write is carried by the next write. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read waits for a complete recovery scan and reports a failure if recovery is incomplete. Notes stay readable and saveable while it runs. A committed capture clears and hides even when indexing reports a warning.
-- The save glyph in the title bar reads saved, unsaved, saving, could not save, or needs review. A tab whose save failed, or whose note needs review, carries a dot of its own.
+- A note whose save failed shows a banner at the top of the pane, "this note could not be saved", over the reason, until a later write lands; typing does not dismiss it. A tab whose save failed, or whose note needs review, carries a dot, whose screen-reader text carries the same reason.
 
 ## External changes
 
@@ -62,14 +62,14 @@ What notras does, as claims checkable against a running build.
 - A clean session adopts a newer external document without writing or renaming it. The mounted editor remains in place, its selection maps through the change, and undo history resets at that external version.
 - An external observation never discards unsaved work.
 - A newer external version of a note with unsaved edits is combined with them line by line, three ways against the version the session started from. Edits in different places both survive, identical edits count once, and the combined note saves as usual. Undo history resets at the combination, and a title that arrives this way does not rename the file.
-- Edits that overlap the external change pause saving. The tab shows a banner saying the note changed on disk, the glyph and the dot read needs review, and the session keeps its unsaved text beside the version on disk. Typing continues without saving, and a pin or tag change joins the unsaved text the same way. A folder move is refused with "This note needs review before it can move". A file that changes again while paused replaces the version on disk and marks the review as started over, unless the new version combines cleanly, which resumes saving.
+- Edits that overlap the external change pause saving. The tab shows a banner saying the note changed on disk, the dot reads needs review, and the session keeps its unsaved text beside the version on disk. Typing continues without saving, and a pin or tag change joins the unsaved text the same way. A folder move is refused with "This note needs review before it can move". A file that changes again while paused replaces the version on disk and marks the review as started over, unless the new version combines cleanly, which resumes saving.
 - The banner offers "review", which replaces the note with the review while the tab stays put.
 - The review lists each place where the unsaved text and the version on disk changed the same lines, in order, with the lines that combined on their own between them as muted context. A run of more than six lines folds behind "n unchanged lines".
 - Each place shows the version on disk and the unsaved version as read-only blocks, and one result box that "use this" beside a side fills, or the user writes. A side with no lines reads "nothing". The header counts the places; when typing has since removed every overlap, it says so and "resolve" applies the combined text.
 - "resolve" waits until every place has a result, a side used or text written, and says how many still need one. A used side with no lines is a result, and deletes those lines. ⌘⏎ resolves.
 - Resolving replaces the note with the composed text, saves it against the version on disk, clears the stored review, and returns focus to the note. A file that changed again by then is combined with the resolution or returns it to review. Undo history resets at the resolution.
 - "back" and Escape return to the note with the results kept; reopening shows them again. A file that changes again during the review empties the results and says so.
-- While paused, the unsaved text and the version it started from are stored under the app data folder, keyed by tab kind and path, on entering the pause and on every flush. A stash that cannot be written shows its reason after needs review, and a flush that cannot stash reports the quit as unsafe. A stored review that cannot be removed after a committed save leaves the save committed and shows the reason after saved.
+- While paused, the unsaved text and the version it started from are stored under the app data folder, keyed by tab kind and path, on entering the pause and on every flush. A stash that cannot be written adds its reason to the banner, and a flush that cannot stash reports the quit as unsafe. A stored review that cannot be removed after a committed save leaves the save committed, logs the reason, and is removed again on the next save or flush.
 - A tab whose file was deleted while its buffer was clean closes itself.
 - A tab whose file was deleted while it held unsaved edits keeps the text, stops writing, and says the file is gone. Restoring the file clears the banner and the next flush carries what was typed while it was gone.
 - A read that fails for any other reason leaves the tab's text alone and toasts once. Repeated failures do not stack a second toast. A tab that has never read shows the reason in its panel and offers to try again.
@@ -78,7 +78,6 @@ What notras does, as claims checkable against a running build.
 - The reason a filesystem failure carries is a sentence and names no error number: "Permission denied", "No such file", "That path is a folder", "The volume is read-only", "The disk is full", and for any other kind the system's own words without their code.
 - A failure the app did not anticipate reaches the user as "An unexpected error", and its cause goes to the log. Both sides write to one log file in the app's log folder, `~/Library/Logs/codes.jimmy.notras/notras.log` on macOS, which `pnpm dev` also prints.
 - A refresh of data already on screen that fails toasts what could not refresh and why. The first read of anything reports through its own surface instead: the error screen for the workspace, the pane for a tab.
-- A save that failed shows why under "could not save", in the save glyph's tooltip and in the tab's dot.
 - A search the index could not answer reads "could not search notes" over the reason in the palette, and offers no note to create from it.
 - A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
 - The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
@@ -100,7 +99,7 @@ What notras does, as claims checkable against a running build.
 - ⌘⌥⇧← and ⌘⌥⇧→ move the tab itself, clamped at the ends.
 - A pointer drag starts after 4px and reorders on release. Pressing a tab selects it first, and the close button never starts a drag.
 - A lone tab does not reorder. Pressing and moving it moves the window, and double-clicking it zooms.
-- Pressing and moving any part of the title bar that is not a control moves the window, and a double-click there zooms. That covers the strip after the tabs, the gap between them, and the space around the save glyph and the pin. A tab's padding belongs to the tab while it has neighbours, so pressing it moves nothing.
+- Pressing and moving any part of the title bar that is not a control moves the window, and a double-click there zooms. That covers the strip after the tabs, the gap between them, and the space around the pin. A tab's padding belongs to the tab while it has neighbours, so pressing it moves nothing.
 - Tabs that overflow the strip collapse into a count beside the new-note button, and picking one shows it.
 - The tab context menu offers close, close others, close to the right, and copy path, acting on the tab it opened over. All four are also palette actions acting on the tab that is showing, and ⌘⌥⇧W closes the others.
 - Copy path copies the file's full path, so a note carries the notes folder in front of it and an external file carries its own.
@@ -247,7 +246,7 @@ What notras does, as claims checkable against a running build.
 ## The window and the system
 
 - The main window opens at 960 by 720 and stops at 480 by 360.
-- macOS draws an overlay title bar with the traffic lights inset, and the app draws a 32px drag region holding the tab strip, the save glyph, and the pin.
+- macOS draws an overlay title bar with the traffic lights inset, and the app draws a 32px drag region holding the tab strip and the pin.
 - The titlebar and bottom strip have no dividing borders or inset shadows in either the main window or quick capture, in both light and dark themes.
 - Tag chips, the tag control, the status-strip mentions count, and graph labels share the tabs' 4px corner radius.
 - At rest, the active tab matches the workspace background and has brighter text; inactive tabs are transparent. Every control in both bands shares the ghost-button hover fill, and idle controls share the bands' muted tone. Hover and selection colors fade over 150ms with ease-out, including while tabs are reordered. Reduced motion makes these fades effectively immediate.

@@ -15,7 +15,7 @@ import type { DocumentEdit } from "./note-document";
 
 const BODY_EDIT: DocumentEdit = { titleEdited: false };
 
-export type SaveStatus = "conflict" | "dirty" | "failed" | "saved" | "saving";
+export type SaveStatus = "conflict" | "dirty" | "failed" | "saved";
 export type PathChange =
   | { kind: "move"; folder: string }
   | { kind: "retitle"; title: string };
@@ -171,12 +171,13 @@ export function createNotePersistence(
       state.setState((previous) => ({ ...previous, edits }));
       return;
     }
-    state.setState((previous) => ({
-      ...previous,
-      edits,
-      reason: undefined,
-      status: "dirty",
-    }));
+    // A keystroke keeps `failed`, or its alert would leave on the first one
+    // and return after the pause, moving the note under the caret each time.
+    state.setState((previous) =>
+      previous.status === "failed"
+        ? { ...previous, edits }
+        : { ...previous, edits, reason: undefined, status: "dirty" }
+    );
     // oxlint-disable-next-line no-use-before-define -- the document notifies persistence, which drives the document: a cycle no order resolves
     debouncer.maybeExecute();
   };
@@ -216,27 +217,23 @@ export function createNotePersistence(
     try {
       await ports.clearStash(stashedAt);
       stashedAt = undefined;
-    } catch (error) {
-      state.setState((previous) => ({
-        ...previous,
-        reason: `The stored review could not be removed: ${reasonOf(error)}`,
-      }));
+    } catch {
+      // Left set so the next save tries again; the port logged the reason.
     }
   };
   const write = async () => {
-    if (edits <= savedEdits || state.state.missing || inConflict()) {
+    if (state.state.missing || inConflict()) {
+      return;
+    }
+    if (edits <= savedEdits) {
+      await clearStash();
       return;
     }
     const sentEdits = edits;
     const sentName = document.nameId();
     const content = document.content();
     const name = sentName === savedName ? null : document.naming();
-    state.setState((previous) => ({
-      ...previous,
-      reason: undefined,
-      status: "saving",
-      writing: true,
-    }));
+    state.setState((previous) => ({ ...previous, writing: true }));
     try {
       const outcome = await ports.write(
         state.state.path,
@@ -247,6 +244,7 @@ export function createNotePersistence(
       if (outcome.kind === "conflict") {
         state.setState((previous) => ({
           ...previous,
+          reason: undefined,
           status: "dirty",
           writing: false,
         }));
@@ -272,6 +270,7 @@ export function createNotePersistence(
       savedEdits = sentEdits;
       state.setState((previous) => ({
         ...previous,
+        reason: undefined,
         status: edits > savedEdits ? "dirty" : "saved",
         writing: false,
       }));
@@ -439,8 +438,8 @@ export function createNotePersistence(
         changedAgain: false,
         edits,
         missing: false,
-        reason: undefined,
-        status: "dirty",
+        reason: previous.status === "failed" ? previous.reason : undefined,
+        status: previous.status === "failed" ? "failed" : "dirty",
         theirs: undefined,
         updatedAt: file.updatedAt,
       }));
