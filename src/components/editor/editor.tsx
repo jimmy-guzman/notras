@@ -286,6 +286,7 @@ function positionInDocument(
 
 export interface EditorHandle {
   find: FindHandle;
+  /** Takes the caret without moving the viewport. */
   focus: () => void;
   /**
    * The caret's exact offset in this buffer's markdown serialization,
@@ -649,7 +650,17 @@ export function Editor({
         find: createFindHandle(instance),
         focus: () => {
           if (!instance.isDestroyed) {
-            instance.commands.focus();
+            const scroller = scrollerRef.current;
+            const top = scroller?.scrollTop;
+
+            instance.view.focus();
+
+            // WebKit reveals the selection when the editable it focuses already
+            // holds it, and the focus event has put it there by then, so
+            // `preventScroll` is ignored and the offset has to be put back.
+            if (scroller !== null && top !== undefined) {
+              scroller.scrollTop = top;
+            }
           }
         },
         getCaretSourceOffset: () => {
