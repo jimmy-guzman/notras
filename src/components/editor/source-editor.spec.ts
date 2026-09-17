@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -149,6 +149,30 @@ describe("source editor focus", () => {
 });
 
 describe("source editor", () => {
+  it("should break the line on shift+enter", ({ onTestFinished }) => {
+    const note = createNoteDocument("one two", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: 3,
+      })
+    );
+
+    // A native event: ProseMirror swallows Enter by its keyCode, which
+    // user-event leaves at 0, so the key would land through the DOM instead.
+    fireEvent.keyDown(note.editor.view.dom, {
+      key: "Enter",
+      keyCode: 13,
+      shiftKey: true,
+    });
+
+    expect(note.content()).toBe("one\n two");
+  });
+
   it("should retain source text and caret while highlighting and inserting text", async ({
     onTestFinished,
   }) => {

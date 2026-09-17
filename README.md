@@ -108,6 +108,7 @@ notras checks for updates on launch. A new version shows a toast with an install
 | `⌘G` / `⌘⇧G` | next / previous match            |
 | `⌘⌥G`        | toggle graph view                |
 | `⌥↑`/`⌥↓`    | move the selected blocks         |
+| `⇧⏎`         | line break inside the block      |
 | `⌘⇧K`        | add / edit link                  |
 | `⌘⇧O`        | open the link at the caret       |
 | `⌘⇧L`        | show mentions                    |

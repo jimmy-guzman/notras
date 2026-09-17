@@ -124,6 +124,7 @@ describe("markdown round-trip", () => {
     ["image up a folder", "![shot](../attachments/x.png)"],
     ["file link beside the note", "[spec](docs/my%20spec.pdf)"],
     ["horizontal rule", "---"],
+    ["hard break", "one  \ntwo"],
     ["wikilink", "see [[grocery list]] for details"],
     ["literal tilde", "takes approx ~5 minutes"],
     ["literal underscore", "the snake_case name"],
@@ -137,6 +138,17 @@ describe("markdown round-trip", () => {
 
   it("should canonicalize a single-tilde strike read from a file", () => {
     expect(roundtrip("~organization~")).toBe("~~organization~~");
+  });
+
+  it("should canonicalize a backslash hard break read from a file", () => {
+    expect(roundtrip("one\\\ntwo")).toBe("one  \ntwo");
+  });
+
+  it("should keep a hard break inside a table cell as a br tag", () => {
+    const markdown = "| a |\n| --- |\n| one<br>two |";
+    const compact = roundtrip(markdown).replaceAll(/ +/gu, " ").trim();
+
+    expect(compact).toContain("| one<br>two |");
   });
 
   it("should keep a note escaped when one construct needs its backslash", () => {
