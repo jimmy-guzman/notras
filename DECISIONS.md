@@ -1118,3 +1118,11 @@ shadcn hands over source to own. The `add -o` regeneration was what made the fil
 **Constraint:** `knip.config.ts` still ignores `src/components/ui/**`, so an unused registry part goes unreported. Pruning is a follow-up.
 
 **Constraint:** `React.CSSProperties` is augmented in `src/react-css-custom-properties.d.ts` to admit `--*` keys, the route React's own types name, so a dynamic value reaches a class such as `translate-x-(--tab-x)` without a type assertion.
+
+### D86 Syntax highlighting runs in a worker
+
+`syntax-worker.ts` owns the highlighter and the UI thread only turns posted tokens into decorations. Issue #196 measured two-second frame gaps while a note with 14 fenced blocks first highlighted. The cost is `oniguruma-to-es` translating each grammar's regexes on the first tokenization of that language. In Node 24 against shiki 4.4.3, 14 languages took 290 to 365 ms to tokenize the first time and 6 ms the second, and a 6 KB Markdown note with 13 embedded fences tokenized in 4 to 6 ms; a cold WKWebView runs several times slower. The translation cache lives in the engine instance, so each webview pays it once, and nothing on the UI thread can hide it.
+
+An answer is matched to blocks by language and text, never by position or sequence number. An edit, a replacement or a mode change produces new text, so an older answer matches nothing, and no position captured before an await is used after it.
+
+**Rejected: `@shikijs/langs-precompiled` with `createJavaScriptRawEngine`.** It cuts the first tokenize of the same 14 languages to 64 ms with no worker, but the same run produced different tokens for bash, yaml and markdown, and markdown is the source-mode grammar. shikijs/shiki#918 has been open since 2025-02: a precompiled `end` or `while` pattern loses the backreference substitution vscode-textmate performs at match time. The shortcut returns when that issue closes and a token comparison across the bundled languages agrees.

@@ -5,160 +5,92 @@ import type { Transaction } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { guessEmbeddedLanguages } from "shiki/core";
-import type { HighlighterCore } from "shiki/types";
 
 import { hasString } from "@/components/editor/attrs";
 import {
-  loadSyntaxHighlighter,
+  highlightCode,
   syntaxLanguage,
 } from "@/components/editor/syntax-highlighter";
+import type { SyntaxToken } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
 const BACKTICK_RUN = /`+/gu;
 const TILDE_RUN = /~+/gu;
 
+interface Highlighted {
+  language: string;
+  lines: SyntaxToken[][];
+  text: string;
+}
+
+function isHighlighted(value: unknown): value is Highlighted {
+  return typeof value === "object" && value !== null && "lines" in value;
+}
+
 function codeBlocks(doc: Node) {
   return findChildren(doc, (node) => node.type.name === "codeBlock");
 }
 
-function documentLanguages(doc: Node) {
-  return codeBlocks(doc).flatMap(({ node }) => {
-    const language = syntaxLanguage(
-      hasString(node.attrs, "language") ? node.attrs.language : undefined
-    );
-
-    if (language === undefined) {
-      return [];
-    }
-
-    // Markdown's YAML grammar is needed before a frontmatter block is closed.
-    const embedded = guessEmbeddedLanguages(node.textContent, language);
-    return [language, ...(language === "markdown" ? ["yaml"] : []), ...embedded]
-      .map(syntaxLanguage)
-      .filter((name) => name !== undefined);
-  });
+function blockLanguage(node: Node) {
+  return node.type.name === "codeBlock"
+    ? syntaxLanguage(
+        hasString(node.attrs, "language") ? node.attrs.language : undefined
+      )
+    : undefined;
 }
 
-function decorationsFor(
-  blocks: ReturnType<typeof codeBlocks>,
-  highlighter: HighlighterCore | undefined
-) {
-  if (highlighter === undefined) {
-    return [];
-  }
-
-  const loaded = new Set(highlighter.getLoadedLanguages());
-
-  return blocks.flatMap(({ node, pos }) => {
-    const language = syntaxLanguage(
-      hasString(node.attrs, "language") ? node.attrs.language : undefined
-    );
-
-    if (language === undefined || !loaded.has(language)) {
-      return [];
-    }
-
-    return highlighter
-      .codeToTokensBase(node.textContent, { lang: language, theme: "notras" })
-      .flatMap((line) =>
-        line.flatMap((token) =>
-          token.content.length === 0
-            ? []
-            : [
-                Decoration.inline(
-                  pos + 1 + token.offset,
-                  pos + 1 + token.offset + token.content.length,
-                  { class: "syntax-token", style: `color: ${token.color}` }
-                ),
-              ]
-        )
-      );
-  });
-}
-
-function refreshChangedDecorations(
-  transaction: Transaction,
-  decorations: DecorationSet,
-  previousDoc: Node,
-  highlighter: HighlighterCore | undefined
-) {
-  const previousBlocks = codeBlocks(previousDoc).map(({ node, pos }) => {
-    const mapped = transaction.mapping.mapResult(pos);
-
-    return {
-      mappedPos: mapped.pos,
-      node,
-      pos,
-      // ProseMirror shares unchanged nodes, even when edits shift their position.
-      unchanged: !mapped.deleted && transaction.doc.nodeAt(mapped.pos) === node,
-    };
-  });
-  const unchangedPositions = new Set(
-    previousBlocks.flatMap((block) =>
-      block.unchanged ? [block.mappedPos] : []
+function decorationsFor(pos: number, lines: SyntaxToken[][]) {
+  return lines.flatMap((line) =>
+    line.map((token) =>
+      Decoration.inline(
+        pos + 1 + token.offset,
+        pos + 1 + token.offset + token.length,
+        { class: "syntax-token", style: `color: ${token.color}` }
+      )
     )
   );
-  const obsolete = previousBlocks.flatMap(
-    ({ node, pos, unchanged }) =>
-      unchanged ? [] : decorations.find(pos, pos + node.nodeSize) // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
+}
+
+/** Colors arrive for a text, so they land on every block still holding that text and nowhere else. */
+function applyHighlight(
+  doc: Node,
+  decorations: DecorationSet,
+  { language, lines, text }: Highlighted
+) {
+  const matching = codeBlocks(doc).filter(
+    ({ node }) => node.textContent === text && blockLanguage(node) === language
   );
-  const changed = codeBlocks(transaction.doc).filter(
-    ({ pos }) => !unchangedPositions.has(pos)
+  const stale = matching.flatMap(
+    ({ node, pos }) => decorations.find(pos, pos + node.nodeSize) // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
   );
 
-  return decorations
-    .remove(obsolete)
-    .map(transaction.mapping, transaction.doc) // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
-    .add(transaction.doc, decorationsFor(changed, highlighter));
+  return decorations.remove(stale).add(
+    doc,
+    matching.flatMap(({ pos }) => decorationsFor(pos, lines))
+  );
+}
+
+/** An edited block keeps its mapped colors until new ones arrive; a block that stopped being highlighted code loses them now. */
+function mapChangedDecorations(
+  transaction: Transaction,
+  decorations: DecorationSet,
+  previousDoc: Node
+) {
+  const obsolete = codeBlocks(previousDoc).flatMap(({ node, pos }) => {
+    const mapped = transaction.mapping.mapResult(pos);
+    const current = mapped.deleted ? null : transaction.doc.nodeAt(mapped.pos);
+
+    return current !== null && blockLanguage(current) !== undefined
+      ? []
+      : decorations.find(pos, pos + node.nodeSize); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
+  });
+
+  return decorations.remove(obsolete).map(transaction.mapping, transaction.doc); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
 }
 
 function syntaxPlugin() {
   const key = new PluginKey<DecorationSet>("syntax");
-  let highlighter: HighlighterCore | undefined;
-  let loading = false;
-  let failed = false;
-
-  async function prepare(view: EditorView) {
-    if (loading || failed || view.isDestroyed) {
-      return;
-    }
-
-    const loaded = new Set(highlighter?.getLoadedLanguages());
-    const missing = [...new Set(documentLanguages(view.state.doc))].filter(
-      (language) => !loaded.has(language)
-    );
-
-    if (missing.length === 0) {
-      return;
-    }
-
-    loading = true;
-    try {
-      highlighter = await loadSyntaxHighlighter(missing);
-      if (!view.isDestroyed) {
-        // A grammar can arrive after edits or a language change. Decorate the
-        // current document, never positions captured before the await.
-        view.dispatch(
-          view.state.tr.setMeta(key, true).setMeta("addToHistory", false)
-        );
-      }
-    } catch (error) {
-      failed = true;
-      if (!view.isDestroyed) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not highlight code",
-          type: "error",
-        });
-      }
-    } finally {
-      loading = false;
-    }
-
-    await prepare(view);
-  }
 
   return new Plugin<DecorationSet>({
     key,
@@ -167,32 +99,74 @@ function syntaxPlugin() {
     },
     state: {
       apply(transaction, decorations, previous) {
-        if (transaction.getMeta(key) === true) {
-          return DecorationSet.create(
-            transaction.doc,
-            decorationsFor(codeBlocks(transaction.doc), highlighter)
-          );
+        const meta: unknown = transaction.getMeta(key);
+        if (isHighlighted(meta)) {
+          return applyHighlight(transaction.doc, decorations, meta);
         }
 
         return transaction.docChanged
-          ? refreshChangedDecorations(
-              transaction,
-              decorations,
-              previous.doc,
-              highlighter
-            )
+          ? mapChangedDecorations(transaction, decorations, previous.doc)
           : decorations.map(transaction.mapping, transaction.doc); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
       },
       init: () => DecorationSet.empty,
     },
-    view(view) {
-      void prepare(view);
+    view(view: EditorView) {
+      let live = true;
+      let failed = false;
+
+      async function highlight(language: string, text: string) {
+        if (failed) {
+          return;
+        }
+        try {
+          const lines = await highlightCode(text, language);
+          if (live) {
+            view.dispatch(
+              view.state.tr
+                .setMeta(key, { language, lines, text })
+                .setMeta("addToHistory", false)
+            );
+          }
+        } catch (error) {
+          failed = true;
+          if (live) {
+            toast.add({
+              description: reasonOf(error),
+              title: "could not highlight code",
+              type: "error",
+            });
+          }
+        }
+      }
+
+      function requestBlocks(blocks: ReturnType<typeof codeBlocks>) {
+        for (const { node } of blocks) {
+          const language = blockLanguage(node);
+          if (language !== undefined) {
+            void highlight(language, node.textContent);
+          }
+        }
+      }
+
+      requestBlocks(codeBlocks(view.state.doc));
 
       return {
+        destroy() {
+          live = false;
+        },
         update(current, previous) {
-          if (!current.state.doc.eq(previous.doc)) {
-            void prepare(current);
+          if (current.state.doc === previous.doc) {
+            return;
           }
+          // ProseMirror shares unchanged nodes, even when edits shift their position.
+          const unchanged = new Set(
+            codeBlocks(previous.doc).map(({ node }) => node)
+          );
+          requestBlocks(
+            codeBlocks(current.state.doc).filter(
+              ({ node }) => !unchanged.has(node)
+            )
+          );
         },
       };
     },

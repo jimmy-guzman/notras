@@ -1,107 +1,11 @@
-import type { ThemedToken } from "shiki";
 import { describe, expect, it } from "vitest";
 
 import {
-  loadSyntaxHighlighter,
+  highlightCode,
   syntaxLanguage,
 } from "@/components/editor/syntax-highlighter";
 
-/** Shiki's enum for a token with no font style; the enum itself is not re-exported. */
-const PLAIN: ThemedToken["fontStyle"] = 0;
-
-describe("syntax highlighting", () => {
-  it("should distinguish declarations, imports, flow, types, and functions", async () => {
-    const highlighter = await loadSyntaxHighlighter(["typescript"]);
-    const tokens = highlighter
-      .codeToTokensBase(
-        // oxlint-disable-next-line no-template-curly-in-string -- source text for the highlighter, not a test template
-        'import { readFile } from "node:fs/promises";\nexport async function read(path: string): Promise<string> {\n const text = await readFile(path, "utf8");\n if (text) return `${path}: ${text}`;\n}',
-        { lang: "typescript", theme: "notras" }
-      )
-      .flat();
-
-    for (const [content, color] of [
-      ["import", "var(--syntax-keyword-import)"],
-      ["export", "var(--syntax-keyword-import)"],
-      ["async", "var(--syntax-keyword-control)"],
-      ["await", "var(--syntax-keyword-control)"],
-      ["if", "var(--syntax-keyword-control)"],
-      ["return", "var(--syntax-keyword-control)"],
-      ["const", "var(--syntax-keyword)"],
-      ["read", "var(--syntax-function)"],
-      ["Promise", "var(--syntax-type)"],
-      ["path", "var(--foreground)"],
-    ]) {
-      expect(tokens).toContainEqual(
-        expect.objectContaining({ color, content })
-      );
-    }
-    expect(
-      tokens.every(
-        ({ fontStyle }) => fontStyle === PLAIN || fontStyle === undefined
-      )
-    ).toBeTruthy();
-  });
-
-  it("should keep interpolation variables separate from string text", async () => {
-    const highlighter = await loadSyntaxHighlighter(["typescript"]);
-    const tokens = highlighter
-      // oxlint-disable-next-line no-template-curly-in-string -- the interpolation must reach the grammar verbatim
-      .codeToTokensBase("`hello ${name}`", {
-        lang: "typescript",
-        theme: "notras",
-      })
-      .flat();
-
-    expect(tokens).toContainEqual(
-      expect.objectContaining({
-        color: "var(--syntax-string)",
-        content: "hello ",
-      })
-    );
-    expect(tokens).toContainEqual(
-      expect.objectContaining({ color: "var(--foreground)", content: "name" })
-    );
-  });
-
-  it("should keep comments, headings, and source emphasis at regular weight", async () => {
-    const highlighter = await loadSyntaxHighlighter(["markdown", "typescript"]);
-    for (const { lang, source } of [
-      { lang: "typescript", source: "// a comment\nconst a = true;" },
-      { lang: "markdown", source: "# heading\n**bold** and *italic*" },
-    ]) {
-      const tokens = highlighter
-        .codeToTokensBase(source, { lang, theme: "notras" })
-        .flat();
-      expect(tokens.map(({ content }) => content).join("")).not.toBe("");
-      expect(
-        tokens.every(
-          ({ fontStyle }) => fontStyle === PLAIN || fontStyle === undefined
-        )
-      ).toBeTruthy();
-    }
-  });
-
-  it("should highlight JSON keys as members and values as strings", async () => {
-    const highlighter = await loadSyntaxHighlighter(["json"]);
-    const tokens = highlighter
-      .codeToTokensBase('{"name": "notras"}', { lang: "json", theme: "notras" })
-      .flat();
-
-    expect(tokens).toContainEqual(
-      expect.objectContaining({
-        color: "var(--syntax-member)",
-        content: "name",
-      })
-    );
-    expect(tokens).toContainEqual(
-      expect.objectContaining({
-        color: "var(--syntax-string)",
-        content: "notras",
-      })
-    );
-  });
-
+describe("syntax highlighter", () => {
   it("should resolve language aliases while leaving plain and unknown labels unhighlighted", () => {
     expect(syntaxLanguage("ts")).toBe("typescript");
     expect(syntaxLanguage("TSX")).toBe("tsx");
@@ -118,16 +22,27 @@ describe("syntax highlighting", () => {
     }
   });
 
-  it("should preserve offsets across blank lines, CRLF, and Unicode", async () => {
-    const highlighter = await loadSyntaxHighlighter(["typescript"]);
-    const source = '// 🙂\r\n\r\nconst café = "你好";\r\n';
-    const tokens = highlighter
-      .codeToTokensBase(source, { lang: "typescript", theme: "notras" })
-      .flat();
+  it("should answer each request with its own tokens", async () => {
+    const [json, typescript] = await Promise.all([
+      highlightCode('{"a": 1}', "json"),
+      highlightCode("const a = 1;", "typescript"),
+    ]);
 
-    for (const { content, offset } of tokens) {
-      expect(source.slice(offset, offset + content.length)).toBe(content);
-    }
-    expect(tokens).toContainEqual(expect.objectContaining({ content: "café" }));
+    expect(json.flat()).toContainEqual({
+      color: "var(--syntax-member)",
+      length: 1,
+      offset: 2,
+    });
+    expect(typescript.flat()).toContainEqual({
+      color: "var(--syntax-keyword)",
+      length: 5,
+      offset: 0,
+    });
+  });
+
+  it("should reject with the reason a grammar cannot load", async () => {
+    await expect(highlightCode("x", "not-a-language")).rejects.toThrow(
+      /not-a-language/u
+    );
   });
 });

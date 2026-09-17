@@ -1,28 +1,32 @@
 import { describe, expect, it } from "vitest";
 
-import { loadSyntaxHighlighter } from "@/components/editor/syntax-highlighter";
+import { tokenize } from "@/components/editor/syntax-worker";
+
+async function coloredLines(source: string) {
+  const lines = await tokenize(source, "markdown");
+
+  return lines.map((line) =>
+    line.map(({ color, length, offset }) => ({
+      color,
+      content: source.slice(offset, offset + length),
+    }))
+  );
+}
 
 describe("markdown with frontmatter", () => {
   it.each(["---", "...", "---  "])(
     "should close frontmatter on %s and highlight the following heading",
     async (delimiter) => {
-      const highlighter = await loadSyntaxHighlighter(["markdown", "yaml"]);
-      const tokens = highlighter.codeToTokensBase(
-        `---\npinned: true\n${delimiter}\n# a title`,
-        {
-          lang: "markdown",
-          theme: "notras",
-        }
+      const lines = await coloredLines(
+        `---\npinned: true\n${delimiter}\n# a title`
       );
 
-      expect(tokens[1]).toContainEqual(
-        expect.objectContaining({
-          color: "var(--syntax-member)",
-          content: "pinned",
-        })
-      );
+      expect(lines[1]).toContainEqual({
+        color: "var(--syntax-member)",
+        content: "pinned",
+      });
       expect(
-        tokens[3]?.some(
+        lines[3]?.some(
           (token) =>
             token.color === "var(--syntax-keyword)" &&
             token.content.includes("a title")
@@ -32,54 +36,37 @@ describe("markdown with frontmatter", () => {
   );
 
   it("should not read a closing delimiter as a setext heading", async () => {
-    const highlighter = await loadSyntaxHighlighter(["markdown", "yaml"]);
-    const tokens = highlighter.codeToTokensBase(
-      "---\ntags: [notras]\n---\n# a title",
-      { lang: "markdown", theme: "notras" }
-    );
+    const lines = await coloredLines("---\ntags: [notras]\n---\n# a title");
 
-    expect(tokens[1]).toContainEqual(
-      expect.objectContaining({
-        color: "var(--syntax-member)",
-        content: "tags",
-      })
-    );
+    expect(lines[1]).toContainEqual({
+      color: "var(--syntax-member)",
+      content: "tags",
+    });
     expect(
-      tokens[2]?.every(({ color }) => color === "var(--syntax-punctuation)")
+      lines[2]?.every(({ color }) => color === "var(--syntax-punctuation)")
     ).toBeTruthy();
   });
 
   it("should leave later separators outside the frontmatter grammar", async () => {
-    const highlighter = await loadSyntaxHighlighter(["markdown", "yaml"]);
-    const source = "---\npinned: true\n---\nbefore\n\n---\n\nafter: text";
-    const tokens = highlighter.codeToTokensBase(source, {
-      lang: "markdown",
-      theme: "notras",
-    });
+    const lines = await coloredLines(
+      "---\npinned: true\n---\nbefore\n\n---\n\nafter: text"
+    );
 
-    expect(tokens[7]).toStrictEqual([
-      expect.objectContaining({
-        color: "var(--foreground)",
-        content: "after: text",
-      }),
+    expect(lines[7]).toStrictEqual([
+      { color: "var(--foreground)", content: "after: text" },
     ]);
   });
 
   it("should highlight a language inside a Markdown fence", async () => {
-    const highlighter = await loadSyntaxHighlighter(["markdown", "typescript"]);
-    const tokens = highlighter.codeToTokensBase(
-      "```ts\nconst answer = 42;\n```",
-      { lang: "markdown", theme: "notras" }
-    );
+    const lines = await coloredLines("```ts\nconst answer = 42;\n```");
 
-    expect(tokens[1]).toContainEqual(
-      expect.objectContaining({
-        color: "var(--syntax-keyword)",
-        content: "const",
-      })
-    );
-    expect(tokens[1]).toContainEqual(
-      expect.objectContaining({ color: "var(--syntax-number)", content: "42" })
-    );
+    expect(lines[1]).toContainEqual({
+      color: "var(--syntax-keyword)",
+      content: "const",
+    });
+    expect(lines[1]).toContainEqual({
+      color: "var(--syntax-number)",
+      content: "42",
+    });
   });
 });
