@@ -15,7 +15,7 @@ import type { DocumentEdit } from "./note-document";
 
 const BODY_EDIT: DocumentEdit = { titleEdited: false };
 
-export type SaveStatus = "conflict" | "dirty" | "failed" | "saved" | "saving";
+export type SaveStatus = "conflict" | "dirty" | "failed" | "saved";
 export type PathChange =
   | { kind: "move"; folder: string }
   | { kind: "retitle"; title: string };
@@ -216,11 +216,8 @@ export function createNotePersistence(
     try {
       await ports.clearStash(stashedAt);
       stashedAt = undefined;
-    } catch (error) {
-      state.setState((previous) => ({
-        ...previous,
-        reason: `The stored review could not be removed: ${reasonOf(error)}`,
-      }));
+    } catch {
+      // Left set so the next save tries again; the port logged the reason.
     }
   };
   const write = async () => {
@@ -234,7 +231,6 @@ export function createNotePersistence(
     state.setState((previous) => ({
       ...previous,
       reason: undefined,
-      status: "saving",
       writing: true,
     }));
     try {

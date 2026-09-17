@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
-import { NoteControls } from "@/components/notes/note-controls";
+import { PinToggle } from "@/components/notes/pin-toggle";
 import { StatusBar } from "@/components/notes/status-bar";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
@@ -137,40 +137,13 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
   );
 }
 
-interface ActiveProps {
-  tab: Tab;
-}
-
-/**
- * The chrome that follows the active tab's live state.
- *
- * These subscribe to the snapshot themselves rather than taking it from the
- * workspace. Read one level up, a keystroke would re-render the workspace and
- * with it every mounted session, so the cost of typing would scale with the
- * number of open tabs.
- */
-function ActiveControls({ tab }: ActiveProps) {
-  const snapshot = useTabSnapshot(tab.id);
-
-  return (
-    <NoteControls
-      note={
-        tab.kind === "note"
-          ? { path: tab.path, pinned: snapshot?.pinned ?? false }
-          : undefined
-      }
-      reason={snapshot?.reason}
-      status={snapshot?.status ?? "saved"}
-    />
-  );
-}
-
-interface ActiveStatusBarProps extends ActiveProps {
+interface ActiveStatusBarProps {
   graphEnabled: boolean;
   onFilterTag: (tag: string) => void;
   onToggleFocusMode: () => void;
   onToggleGraph: () => void;
   onToggleSource: () => void;
+  tab: Tab;
 }
 
 function ActiveStatusBar({
@@ -435,7 +408,7 @@ export function Workspace({
           }}
           tabs={tabs}
         />
-        {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
+        {activeTab?.kind === "note" ? <PinToggle tab={activeTab} /> : null}
       </Titlebar>
       <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1 last:mb-1">
         <div className="relative flex min-h-0 flex-1 flex-col">

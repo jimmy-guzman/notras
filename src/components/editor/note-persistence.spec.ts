@@ -890,12 +890,14 @@ describe("note persistence", () => {
     expect(note.store.state.status).toBe("saved");
   });
 
-  it("should keep a committed save when its stored review cannot be removed", async () => {
+  it("should keep a committed save when its stored review cannot be removed, and try again on the next", async () => {
+    let clears = 0;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: () => {
+        clears += 1;
         throw new Error("Permission denied");
       },
       onPathChanged: () => {},
@@ -923,9 +925,10 @@ describe("note persistence", () => {
     );
     await expect(note.flush()).resolves.toBeTruthy();
     expect(note.store.state.status).toBe("saved");
-    expect(note.store.state.reason).toBe(
-      "The stored review could not be removed: Permission denied"
-    );
+    expect(note.store.state.reason).toBeUndefined();
+    note.edit({ content: "# Chores\n\nbody, more", mode: "body" });
+    await expect(note.flush()).resolves.toBeTruthy();
+    expect(clears).toBe(2);
   });
 
   it("should hold a pin change with the unsaved text while a review is open", async () => {

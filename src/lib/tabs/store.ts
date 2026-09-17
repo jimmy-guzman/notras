@@ -46,7 +46,7 @@ export interface TabHandles {
 /** What a session publishes for the chrome to draw (`D53`). */
 export interface TabSnapshot {
   pinned: boolean;
-  /** Why the last save failed, or what a stored review could not do. */
+  /** Why the last save failed, or why a review could not be stored. */
   reason: string | undefined;
   sourceMode: boolean;
   status: SaveStatus;
