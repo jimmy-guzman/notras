@@ -16,7 +16,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files above, so a stack detail, a pattern, or a color token added here is in the wrong place.
 
-- **Behavior you change is a claim in `SPEC.md`.** Update the claim in the same commit that changes the behavior, since a spec that disagrees with the build misleads every reader who trusts it. A behavior with no claim yet gets one.
+- **Behavior you change is a claim in `SPEC.md`.** Update the claim in the same commit that changes the behavior. A behavior with no claim yet gets one.
 
 - **Actionable future work belongs in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).** State the problem, the desired outcome, the evidence, and any unresolved prerequisite. Check for an existing issue before opening one. Speculative ideas need no backlog entry. What landed belongs in the commit, not in a second log.
 
@@ -24,7 +24,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Reassess architectural invariants when behavior changes.** Update `ARCHITECTURE.md` to describe the resulting system. An existing invariant can be wrong; its presence does not require preserving it or adding a decision entry.
 
-- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at. Reusing an ID repoints every reference to it without any of them changing.
+- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at.
 
 - **Cite IDs, never restate, and never in code.** Write `D7` in commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now. A comment has to stand on its own instead: a reader in the file cannot follow the citation, and `DECISIONS.md` records what was decided once rather than what the code does now.
 
@@ -32,19 +32,19 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Files read bottom-up: helpers at the top, main exported symbol at the bottom.** Scrolling to the end shows the file's public API. Implementation details sit above it in the order you would compose them.
 
-- **Follow the ecosystem's filename casing convention, and apply it to directories too.** kebab-case in TypeScript, snake_case in Rust. Import mechanics and tooling depend on the convention, so it belongs to the language. Framework-reserved filenames are exempt.
+- **Follow the ecosystem's filename casing convention, and apply it to directories too.** kebab-case in TypeScript, snake_case in Rust. Framework-reserved filenames are exempt.
 
-- **Test files are named `*.spec.ts` and live next to the code they test.** Colocation puts a test where someone reading the code will find it, and one suffix keeps the runner's glob config short. Rust tests live in `#[cfg(test)]` modules in the same file.
+- **Test files are named `*.spec.ts` and live next to the code they test.** Rust tests live in `#[cfg(test)]` modules in the same file.
 
 - **Name functions for what they do.** A caller should predict a function's return and throw behavior from its name. Do not hide filtering, auth, routing, or special-casing inside a function named for fetching or computing. Split a function that decides whether work should happen from the one that does it, and name the deciding part.
 
-- **A comment carries a why, never a what.** Doc comments, meaning JSDoc and rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line comment earns its place when it holds reasoning the code cannot: a platform quirk, a race, a measured value, or the rejected alternative sitting one line away. Delete the ones that restate what the line below already says, since those are the ones that drift into lies. Naming and structure carry everything else.
+- **A comment carries a why, never a what.** Doc comments, meaning JSDoc and rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line comment earns its place when it holds reasoning the code cannot: a platform quirk, a race, a measured value, or the rejected alternative sitting one line away. Delete the ones that restate what the line below already says, since those are the ones that drift into lies.
 
 - **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and diff cleanly, so it is exempt from the comment rule above and excluded in `oxlint.config.ts` and `oxfmt.config.ts` (`D40`). Change the note surface through the `.typeset-note` preset in `src/styles.css`, never in the vendored file.
 
 - **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
 
-- **Ultracite, on oxlint and oxfmt, is the only JS/TS formatter and linter** (`D15`, `D41`, `D82`), and it is dev tooling only. Rust uses rustfmt and Clippy. No Prettier and no ESLint. A rule is turned off or narrowed only in `oxlint.config.ts`, with the reason on the line above it. Everywhere else a false positive is suppressed at the call site with `oxlint-disable-next-line` and a reason after `--`. Inline event handlers are allowed. Let the React Compiler own memoization (`ARCHITECTURE.md`). Add `useCallback`, `useMemo`, or `memo` only when profiling identifies a performance problem and before-and-after measurements verify the benefit. An uncached value in compiled output alone does not justify manual memoization. Never suppress a `react/*` diagnostic owned by the compiler, since suppressions hide compilation bailouts. `src/components/ui/**` is owned code under the same rules, and `@shadcn/lint` keeps a component's appearance inside its file and leaves a call site only placement (`D85`).
+- **Ultracite, on oxlint and oxfmt, is the only JS/TS formatter and linter** (`D15`, `D41`, `D82`), and it is dev tooling only. Rust uses rustfmt and Clippy. A rule is turned off or narrowed only in `oxlint.config.ts`, with the reason on the line above it. Everywhere else a false positive is suppressed at the call site with `oxlint-disable-next-line` and a reason after `--`. Inline event handlers are allowed. Let the React Compiler own memoization (`ARCHITECTURE.md`). Add `useCallback`, `useMemo`, or `memo` only when profiling identifies a performance problem and before-and-after measurements verify the benefit. Never suppress a `react/*` diagnostic owned by the compiler, since suppressions hide compilation bailouts. `src/components/ui/**` is owned code under the same rules, and `@shadcn/lint` keeps a component's appearance inside its file and leaves a call site only placement (`D85`).
 
 - **Sort object keys and imports alphabetically.** oxfmt sorts imports and the `sort-keys` fix sorts keys, both on save through the editors' oxc actions and again at `pnpm check` and in the commit hook.
 
@@ -52,13 +52,13 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Shaping a unit
 
-- **Build the smallest thing that answers the request.** Solve what was asked. Skip config objects, options bags, plugin hooks, and abstraction layers for needs nobody stated. Delete flexibility you are adding "for later". Reach for a function before a class, and a class before a framework, and a dependency last of all. `pnpm knip` has to stay clean.
+- **Build the smallest thing that answers the request.** Skip config objects, options bags, plugin hooks, and abstraction layers for needs nobody stated. Reach for a function before a class, and a class before a framework, and a dependency last of all. `pnpm knip` has to stay clean.
 
-- **One reason to change per unit.** A function or module should do one job. Needing "and" to describe it means splitting it. Group code that changes together and separate code that changes for different reasons.
+- **One reason to change per unit.** Needing "and" to describe it means splitting it. Group code that changes together and separate code that changes for different reasons.
 
 - **Derive values, do not assemble them.** A binding should be the result of an expression at the point of declaration. Branching, trying, or looping to populate a binding is a function waiting to be extracted, and pulling it out leaves code that produces a value where code used to mutate one into place.
 
-- **Separate commands from queries.** A function should either do something or answer something. Do not return a value from a function whose job is a side effect, and do not mutate state in a function whose job is to answer a question.
+- **Separate commands from queries.** Do not return a value from a function whose job is a side effect, and do not mutate state in a function whose job is to answer a question.
 
 - **Do not optimize before it is measured.** Write the clear version. Add caching, memoization, or a clever data structure once a profiler names the cost, and not before.
 
@@ -68,7 +68,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Hide what varies behind a stable surface.** Keep implementation details, data shapes, and library choices private to their module. Expose the narrowest interface callers need.
 
-- **Keep changes local.** Do not chain through objects like `a.b.c.d`, and do not wire modules together for convenience. A change in one place should not force edits in five.
+- **Keep changes local.** Do not chain through objects like `a.b.c.d`, and do not wire modules together for convenience.
 
 - **Prefer composition over inheritance.** Compose small functions or pass dependencies in. Inheritance suits a true is-a relationship, which comes up rarely.
 
@@ -82,7 +82,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Types and errors
 
-- **Do not reach for `as`, `!`, or escape-hatch types before exhausting proper solutions. Understand the type error before silencing it.** A type error is signal. A cast silences the signal and leaves the mismatch, which then surfaces somewhere further from its cause.
+- **Do not reach for `as`, `!`, or escape-hatch types before exhausting proper solutions. Understand the type error before silencing it.** A cast leaves the mismatch to surface further from its cause.
 
 - **Where TypeScript infers return types, do not annotate internal functions.** That covers unexported functions, local closures, and inline callbacks. Exported functions and interface method signatures are the exception, since their return type is part of the public contract.
 
@@ -92,19 +92,19 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 
-- **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** A warning fires because something is off. Silencing it converts a problem you can solve now into one that surfaces later without the warning attached.
+- **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** Silencing a warning converts a problem you can solve now into one that surfaces later without the warning attached.
 
 ## Testing
 
 - **Use the existing test tools instead of rebuilding their infrastructure.** Use `render` for React components and `renderHook` for hooks without UI. Query controls by role or label and use `user-event` for interactions. Keep explicit events for tests that need an exact timer boundary, a native event payload, or an editor transaction. Shared setup owns React cleanup and DOM matchers; do not add per-file roots, polling loops, or act-environment flags.
 
-- **Test behavior, not implementation.** Assert what a caller or user observes. Both terms scale with the unit under test: for a component it is the person clicking, for a function it is the code calling it. A test that asserts internals breaks on every refactor while proving nothing about whether the code works.
+- **Test behavior, not implementation.** Assert what a caller or user observes. Both terms scale with the unit under test: for a component it is the person clicking, for a function it is the code calling it.
 
 - **Every test title starts with `should`.** The title has to finish the sentence "it should ...", which forces it to name an observable outcome. A title that cannot finish it is describing the implementation.
 
-- **Prefer clarity over DRY in tests.** Inline the setup, repeat the literals, and skip a shared fixture that would hide the case under test. A test has to be readable on its own, and the pull toward DRY that improves production code tends to damage that.
+- **Prefer clarity over DRY in tests.** Inline the setup, repeat the literals, and skip a shared fixture that would hide the case under test. A test has to be readable on its own.
 
-- **Test real behavior, not hypothetical behavior.** Cover the cases the contract promises. Do not manufacture edge cases the code makes no claim about, since coverage bought that way measures nothing.
+- **Test real behavior, not hypothetical behavior.** Cover the cases the contract promises. Do not manufacture edge cases the code makes no claim about.
 
 - **Avoid mocks.** Use the seams the code already has, described under "Test seam" in `ARCHITECTURE.md`. Where faking is unavoidable, fake at the furthest boundary, meaning the filesystem or the index, and not at the module sitting next to the code under test.
 
@@ -112,7 +112,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Fixing bugs
 
-- **Diagnose the root cause before fixing, on every fix.** The analysis is mandatory; refactoring on it is not. Assume a correct architecture has no bugs. Every bug is then evidence that the architecture permits it, beyond the one code path where it showed up. Before fixing, ask why the architecture allowed the bug to exist and whether the same structure keeps producing others like it.
+- **Diagnose the root cause before fixing, on every fix.** The analysis is mandatory; refactoring on it is not. Before fixing, ask why the architecture allowed the bug to exist and whether the same structure keeps producing others like it.
 
 - **Prefer structural fixes over symptom patches.** A fix that removes the structural condition beats a guard, a special case, or a workaround that leaves the enabling structure standing. Reach for the symptom-layer patch once the root-cause fix is infeasible or belongs in a separate change, and never because it is larger or harder. When you do patch at the symptom layer, say so and name the root cause you are deferring.
 
@@ -171,11 +171,11 @@ For anything touching the Rust side or window behavior, also launch `pnpm dev` a
 
 ## Writing prose
 
-These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop), [humanizer](https://github.com/blader/humanizer), and [azat-io on technical texts](https://github.com/azat-io/azat-io/blob/main/content/blog/how-to-write-technical-texts/en.mdx). They cover every markdown file here, plus commit messages and PR bodies.
+These rules cover every markdown file here, plus commit messages and PR bodies.
 
 ### Formatting
 
-- **No em dashes or en dashes.** Use a comma, a period, or a colon. Both set a cadence that reads as machine-written. Neither states how the clauses relate, and picking real punctuation states it. The ASCII `--` substitute goes too.
+- **No em dashes or en dashes.** Use a comma, a period, or a colon. Real punctuation says how the clauses relate. The ASCII `--` substitute goes too.
 
 - **One line per paragraph, and no hard wrap.** A renderer reflows the text, so a newline inside a paragraph changes nothing on screen and costs a diff: changing one word rewraps every line under it. Let the editor soft-wrap. A heading, a table row, a list item, and a code block each keep their own line.
 
@@ -195,9 +195,9 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **Cut adverbs that only add emphasis.** Genuinely, actually, really, simply, truly, fundamentally, inherently, crucially, importantly, just. They assert a force the sentence has not earned. An adverb that changes the meaning, like "only" or "directly", stays.
 
-- **Cut throat-clearing, emphasis crutches, and meta-commentary.** "Here's the thing", "It turns out", "The truth is", "Let me be clear", "Full stop", "Let that sink in", "This matters because", "Make no mistake", "It's worth noting", "At its core", "At the end of the day", "When it comes to", "Let's dive in", "In this section we'll". Each one delays the sentence carrying the information.
+- **Cut throat-clearing, emphasis crutches, and meta-commentary.** "Here's the thing", "It turns out", "The truth is", "Let me be clear", "Full stop", "Let that sink in", "This matters because", "Make no mistake", "It's worth noting", "At its core", "At the end of the day", "When it comes to", "Let's dive in", "In this section we'll".
 
-- **Cut business jargon.** Navigate, unpack, lean into, landscape, game-changer, double down, deep dive, circle back, moving forward. Plain words exist for all of them and mean something narrower.
+- **Cut business jargon.** Navigate, unpack, lean into, landscape, game-changer, double down, deep dive, circle back, moving forward.
 
 - **Cut filler.** "In order to" is "to". "Due to the fact that" is "because".
 
@@ -221,7 +221,7 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **One thought per paragraph, main idea first.** A reader decides from the opening sentence whether to keep going.
 
-- **No paragraph ends on a punchy one-liner.** A closing fragment that sounds quotable is doing rhythm instead of work. If it reads like a pull-quote, rewrite it.
+- **No paragraph ends on a punchy one-liner.** A closing fragment that sounds quotable is doing rhythm instead of work.
 
 - **Vary rhythm.** Avoid three consecutive sentences of the same length.
 
@@ -245,7 +245,7 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 ## Git and PRs
 
-- **Branch naming: `{type}-{short-description}` in kebab-case.** Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `ci`. A predictable branch name keeps history scannable and lets tooling read intent off the name.
+- **Branch naming: `{type}-{short-description}` in kebab-case.** Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `ci`.
 
 - **Commit with `pnpm gitzy commit`** (Conventional Commits plus emoji, lowercase subjects under 50 characters, body wrapped at 72). Inline flags: `pnpm gitzy commit --type feat --scope ui -m "subject" --body "..."`, and `-D` for a dry run. Write the message with gitzy rather than typing the header by hand: the emoji is a required field of the format and the one for a type is not guessable.
 
@@ -269,4 +269,4 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
 
-- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, or `README.md` should be updated, then apply the changes.** Docs rot as soon as the code moves without them. Catching the update at the point of change is when it reliably happens at all.
+- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, or `README.md` should be updated, then apply the changes.** Catching the update at the point of change is when it reliably happens at all.
