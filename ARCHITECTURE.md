@@ -181,7 +181,7 @@ The rich editor projects the body; source mode projects the complete Markdown. B
 
 ### Editing session per tab
 
-`Workspace` and `CaptureWindow` own their inset note frames. Each frame has an outer surface and a rounded inner clip using `overflow: clip`, which adds no scroll container. The workspace clip contains the welcome view or mounted sessions, graph overlay, and find bar. Capture places its editor and find bar inside its clip. The editor and source-view scrollers own scrolling. `Titlebar` is shared by both windows.
+`Workspace` and `CaptureWindow` own their inset note frames. Each frame has an outer surface and a 4px rim, and the frame itself does not clip: the editor and source-view scrollers clip their own content inside the rim and own scrolling, and their scrollbar hangs one spacing unit past the scroller into the rim. The workspace rim contains the welcome view or mounted sessions, graph overlay, and find bar. Capture places its editor and find bar inside its rim. `Titlebar` is shared by both windows.
 
 The session registers its document-change listener in a layout effect before delivering file observations. Delivery waits for the editor's ready handle so initial reconciliation can update the visible document. Unsubscribing a replaced listener leaves its replacement attached.
 
