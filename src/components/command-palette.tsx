@@ -666,7 +666,7 @@ export function CommandPalette({
   return (
     <CommandDialog
       className={cn(
-        "top-[min(20dvh,8rem)] flex max-h-[calc(80dvh-1rem)] flex-col gap-0",
+        "top-[min(20dvh,8rem)] flex max-h-[calc(80dvh-1rem)] flex-col",
         { "h-96": listView }
       )}
       description="Search notes and run actions"
@@ -677,11 +677,7 @@ export function CommandPalette({
       <Command
         className={cn(
           "h-auto min-h-0 **:data-[slot=command-input-wrapper]:shrink-0",
-          {
-            "**:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase":
-              listView && view !== "tags",
-            "flex-1": listView,
-          }
+          { "flex-1": listView }
         )}
         key={view}
         label={

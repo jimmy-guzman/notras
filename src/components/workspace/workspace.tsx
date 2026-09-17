@@ -69,10 +69,10 @@ function Welcome({ onNew }: { onNew: () => void }) {
           />
         </picture>
         <div className="flex flex-col gap-5">
-          <h1 className="font-mono text-5xl leading-none font-normal tracking-[-0.06em]">
+          <h1 className="tracking-wordmark font-mono text-5xl leading-none font-normal">
             notras
           </h1>
-          <p className="text-muted-foreground text-xl leading-[1.3] tracking-[-0.025em]">
+          <p className="text-muted-foreground leading-tagline text-xl tracking-tight">
             write another note
           </p>
         </div>
@@ -438,7 +438,7 @@ export function Workspace({
         {activeTab === undefined ? null : <ActiveControls tab={activeTab} />}
       </Titlebar>
       <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1 last:mb-1">
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-[calc(var(--radius-lg)-0.25rem)]">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-sm">
           {tabs.length === 0 ? (
             <>
               <Welcome

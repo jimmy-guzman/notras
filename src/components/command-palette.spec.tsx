@@ -427,7 +427,7 @@ describe("steady palette searches", () => {
       await vi.advanceTimersByTimeAsync(149);
     });
     expect(
-      document.querySelector('svg[aria-label="searching notes"]')
+      screen.queryByRole("status", { name: "searching notes" })
     ).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
@@ -436,16 +436,16 @@ describe("steady palette searches", () => {
       await vi.advanceTimersByTimeAsync(499);
     });
     expect(
-      document.querySelector('svg[aria-label="searching notes"]')
+      screen.queryByRole("status", { name: "searching notes" })
     ).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(
-      document.querySelector('svg[aria-label="searching notes"]')
+      screen.queryByRole("status", { name: "searching notes" })
     ).not.toBeNull();
     expect(
-      document.querySelector('[cmdk-list] svg[aria-label="searching notes"]')
+      document.querySelector('[cmdk-list] [aria-label="searching notes"]')
     ).toBeNull();
     expect(document.body.textContent).not.toContain("searching notes");
     palette.client.setQueryData(
@@ -454,7 +454,7 @@ describe("steady palette searches", () => {
     );
     fireEvent.change(palette.input, { target: { value: "cached" } });
     expect(
-      document.querySelector('svg[aria-label="searching notes"]')
+      screen.queryByRole("status", { name: "searching notes" })
     ).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(150);
@@ -466,7 +466,7 @@ describe("steady palette searches", () => {
       await vi.advanceTimersByTimeAsync(600);
     });
     expect(
-      document.querySelector('svg[aria-label="searching notes"]')
+      screen.queryByRole("status", { name: "searching notes" })
     ).toBeNull();
     expect(document.body.textContent).toContain('create "cached"');
   });
@@ -539,7 +539,7 @@ describe("steady palette searches", () => {
     });
     expect(document.body.textContent).not.toContain("Intermediate");
     expect(
-      document.querySelector('svg[aria-label="searching notes"]')
+      screen.queryByRole("status", { name: "searching notes" })
     ).toBeNull();
   });
 

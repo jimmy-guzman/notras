@@ -40,7 +40,7 @@ export function ActionsView({ actions, chordsByName }: ActionsViewProps) {
   return (
     <>
       <CommandEmpty>
-        <Empty className="p-6">
+        <Empty>
           <EmptyHeader>
             <EmptyTitle>nothing found</EmptyTitle>
             <EmptyDescription>
@@ -60,13 +60,7 @@ export function ActionsView({ actions, chordsByName }: ActionsViewProps) {
               {chords === undefined ? null : (
                 <CommandShortcut>
                   {chords.map(({ hotkey, id }) => (
-                    // A selected row is `bg-muted`, which the chip otherwise
-                    // matches exactly and disappears into.
-                    <Chord
-                      className="group-data-selected/command-item:bg-background tracking-normal"
-                      hotkey={hotkey}
-                      key={id}
-                    />
+                    <Chord hotkey={hotkey} key={id} />
                   ))}
                 </CommandShortcut>
               )}

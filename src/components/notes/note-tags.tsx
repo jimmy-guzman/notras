@@ -40,7 +40,6 @@ function TagBadge({ onFilter, tag }: TagBadgeProps) {
 
   return (
     <Badge
-      className="text-muted-foreground hover:text-foreground outline-none"
       render={<button aria-label={`#${tag}`} onClick={filter} type="button" />}
       variant="ghost"
     >
@@ -122,7 +121,6 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
                 render={
                   <Button
                     aria-label="edit tags"
-                    className="rounded-sm"
                     size="icon-xs"
                     variant="ghost"
                   />
@@ -138,7 +136,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
         </Tooltip>
         <ComboboxContent
           align="start"
-          className="border-border w-56 min-w-56 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
+          className="w-56 min-w-56"
           side="top"
           sideOffset={4}
         >
@@ -164,7 +162,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
             </output>
           ) : null}
           {allTags.isSuccess ? (
-            <ComboboxEmpty className="flex-col gap-0.5">
+            <ComboboxEmpty>
               <p className="text-muted-foreground">no tags yet</p>
               <p className="text-faint">Type to create one</p>
             </ComboboxEmpty>

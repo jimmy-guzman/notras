@@ -173,29 +173,18 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "group hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+              "group tab-motion hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
               active && "bg-background text-foreground",
-              isDragging &&
-                "z-10 cursor-grabbing shadow-[0_2px_8px_rgb(0_0_0/0.18)]"
+              // oxlint-disable-next-line shadcn/no-raw-colors -- shadcn-ui/lint#10: a custom --shadow-* token reads as a color
+              isDragging && "shadow-drag z-10 cursor-grabbing"
             )}
             data-tab-id={id}
             data-tauri-drag-region={sole ? undefined : "false"}
             ref={setRefs}
             role="presentation"
             style={{
-              // By hand rather than dnd-kit's `CSS` helper, whose export would
-              // shadow the global `CSS.escape` the strip uses below.
-              transform:
-                transform === null
-                  ? undefined
-                  : `translate3d(${transform.x}px, 0, 0)`,
-              // The drag transition must not replace hover and selection fades.
-              transition: [
-                transition,
-                "background-color 150ms ease-out, color 150ms ease-out",
-              ]
-                .filter(Boolean)
-                .join(", "),
+              "--tab-transition": transition,
+              "--tab-x": `${transform?.x ?? 0}px`,
             }}
           />
         }
@@ -287,7 +276,6 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
         render={
           <Button
             aria-label={`${hidden.length} ${hidden.length === 1 ? "tab" : "tabs"} out of view`}
-            className="rounded-sm px-1.5 tabular-nums"
             size="xs"
             variant="ghost"
           />
@@ -320,7 +308,7 @@ function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
         render={
           <Button
             aria-label="new note"
-            className={cn("rounded-sm", className)}
+            className={className}
             onClick={onNew}
             size="icon-xs"
             variant="ghost"

@@ -76,7 +76,7 @@ export function SourceEditor({
   }, [config, editor]);
 
   return (
-    <ScrollArea className="source-editor allow-select min-h-0 flex-1">
+    <ScrollArea className="min-h-0 flex-1 select-text" data-source-editor>
       <div className="min-h-full" ref={host} />
     </ScrollArea>
   );

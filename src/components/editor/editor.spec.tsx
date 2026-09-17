@@ -87,8 +87,8 @@ describe("focus mode reading state", () => {
 
     fireEvent.wheel(scroller);
 
-    expect(scroller).toHaveClass("focus-mode-on");
-    expect(scroller).toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-focus-mode", "true");
+    expect(scroller).toHaveAttribute("data-reading", "true");
   });
 
   it("should restore the dim when the caret engages", async () => {
@@ -99,7 +99,7 @@ describe("focus mode reading state", () => {
       handle.insertText("x");
     });
 
-    expect(scroller).not.toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "false");
   });
 
   it("should restore the dim when a click leaves the selection alone", async () => {
@@ -113,7 +113,7 @@ describe("focus mode reading state", () => {
     fireEvent.wheel(scroller);
     fireEvent.click(surface);
 
-    expect(scroller).not.toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "false");
   });
 
   it("should lift the dim while touch scrolling", async () => {
@@ -121,7 +121,7 @@ describe("focus mode reading state", () => {
 
     fireEvent.touchMove(scroller);
 
-    expect(scroller).toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "true");
   });
 
   it("should lift the dim while the selection reaches another block", async () => {
@@ -134,7 +134,7 @@ describe("focus mode reading state", () => {
       });
     });
 
-    expect(scroller).toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "true");
   });
 
   it("should hold the dim for a selection inside one block", async () => {
@@ -144,7 +144,7 @@ describe("focus mode reading state", () => {
       editor.commands.setTextSelection({ from: 1, to: 4 });
     });
 
-    expect(scroller).not.toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "false");
   });
 
   it("should restore the dim when the selection collapses", async () => {
@@ -162,7 +162,7 @@ describe("focus mode reading state", () => {
       handle.insertText("x");
     });
 
-    expect(scroller).not.toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "false");
   });
 
   it("should keep the dim lifted when a click ends a selection across blocks", async () => {
@@ -176,7 +176,7 @@ describe("focus mode reading state", () => {
     });
     fireEvent.click(editor.view.dom);
 
-    expect(scroller).toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "true");
   });
 
   it("should not track reading while focus mode is off", async () => {
@@ -184,7 +184,7 @@ describe("focus mode reading state", () => {
 
     fireEvent.wheel(scroller);
 
-    expect(scroller).not.toHaveClass("focus-reading");
+    expect(scroller).toHaveAttribute("data-reading", "false");
   });
 });
 
@@ -192,13 +192,13 @@ describe("focus mode scroller", () => {
   it("should mark the scroller while focus mode is on", async () => {
     const { scroller } = await mount({ focusModeEnabled: true });
 
-    expect(scroller).toHaveClass("focus-mode-on");
+    expect(scroller).toHaveAttribute("data-focus-mode", "true");
   });
 
   it("should not mark the scroller while focus mode is off", async () => {
     const { scroller } = await mount({ focusModeEnabled: false });
 
-    expect(scroller).not.toHaveClass("focus-mode-on");
+    expect(scroller).toHaveAttribute("data-focus-mode", "false");
   });
 });
 

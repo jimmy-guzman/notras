@@ -53,12 +53,7 @@ function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
   };
 
   return (
-    <CommandItem
-      className="data-[disabled=true]:opacity-100"
-      disabled={disabled}
-      onSelect={select}
-      value={note.path}
-    >
+    <CommandItem disabled={disabled} onSelect={select} value={note.path}>
       <FileTextIcon />
       <div className="flex min-w-0 flex-1 flex-col">
         <NoteLabel note={note}>
@@ -306,7 +301,7 @@ function NoteResults({
   return (
     <>
       {!pending && (visible.length === 0 || failed) && !offerCreate ? (
-        <Empty aria-live="polite" className="p-6">
+        <Empty aria-live="polite">
           <EmptyHeader>
             <EmptyTitle>{status.title}</EmptyTitle>
             <EmptyDescription>{status.description}</EmptyDescription>

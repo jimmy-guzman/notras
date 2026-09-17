@@ -36,13 +36,6 @@ const TOP_CAP = 5;
 
 const CENTRE: RingPosition = { angle: Number.NaN, x: 0.5, y: 0.5 };
 
-// Opaque fills keep the connecting lines behind the nodes.
-const PILL_CLASS =
-  "-translate-x-1/2 -translate-y-1/2 absolute border-border/50 bg-background outline-none transition-[left,top,background-color,color,border-color] duration-150 ease-out hover:border-foreground hover:text-foreground focus-visible:text-foreground";
-
-const MENU_CLASS =
-  "w-72 border border-border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0";
-
 type Step = -1 | 1;
 
 /** What every pill on the ring answers to: arrows walk, esc leaves. */
@@ -284,15 +277,23 @@ function ringKeyDown(
   }
 }
 
-function pillStyle(position: RingPosition) {
-  return {
-    left: `${position.x * 100}%`,
-    // A pill is centred on its point and the ring's extreme sits a RADIUS_X of
-    // the stage from the centre, so half a pill has what is left of the
-    // half-width to live in. Wider and it hangs off the stage.
-    maxWidth: "min(12rem, 24%)",
-    top: `${position.y * 100}%`,
-  };
+// A pill is centred on its point and the ring's extreme sits a RADIUS_X of the
+// stage from the centre, so half a pill has what is left of the half-width to
+// live in. Wider and it hangs off the stage.
+function RingBadge({
+  position,
+  ...props
+}: React.ComponentProps<typeof Badge> & { position: RingPosition }) {
+  return (
+    <Badge
+      className="absolute top-(--pill-y) left-(--pill-x) max-w-[min(12rem,24%)] -translate-x-1/2 -translate-y-1/2"
+      style={{
+        "--pill-x": `${position.x * 100}%`,
+        "--pill-y": `${position.y * 100}%`,
+      }}
+      {...props}
+    />
+  );
 }
 
 interface HairlineProps {
@@ -319,14 +320,14 @@ function Hairline({
     <div
       aria-hidden
       className={cn(
-        "absolute top-1/2 left-1/2 origin-left transition-[width,rotate,background-color] duration-150 ease-out",
+        "absolute top-1/2 left-1/2 w-(--hairline-length) origin-left rotate-(--hairline-angle) transition-all duration-150 ease-out",
         dashed && "border-border h-0 border-t border-dashed",
         !dashed && "h-px",
         !dashed && (live ? "bg-foreground" : "bg-border")
       )}
       style={{
-        rotate: `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`,
-        width: `${Math.hypot(dx, dy)}px`,
+        "--hairline-angle": `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`,
+        "--hairline-length": `${Math.hypot(dx, dy)}px`,
       }}
     >
       {both ? (
@@ -382,13 +383,7 @@ function Pill({
   };
 
   return (
-    <Badge
-      className={cn(
-        PILL_CLASS,
-        centre
-          ? "bg-card text-foreground h-7 px-3 text-sm"
-          : "text-muted-foreground"
-      )}
+    <RingBadge
       onBlur={() => {
         onLive(null);
       }}
@@ -415,6 +410,7 @@ function Pill({
       }}
       render={
         <button
+          aria-current={centre ? "true" : undefined}
           aria-label={
             item.kind === "note"
               ? item.note.title
@@ -424,7 +420,8 @@ function Pill({
           type="button"
         />
       }
-      style={pillStyle(item.position)}
+      position={item.position}
+      size={centre ? "lg" : "default"}
       variant="outline"
     >
       {item.kind === "note" ? (
@@ -432,7 +429,7 @@ function Pill({
       ) : (
         <HubFace pill={item.pill} />
       )}
-    </Badge>
+    </RingBadge>
   );
 }
 
@@ -445,13 +442,9 @@ function Placeholder({
   target: string;
 }) {
   return (
-    <Badge
-      className="bg-background border-border/50 text-faint absolute -translate-x-1/2 -translate-y-1/2 border-dashed"
-      style={pillStyle(position)}
-      variant="outline"
-    >
+    <RingBadge position={position} variant="dashed">
       <span className="truncate">{target}</span>
-    </Badge>
+    </RingBadge>
   );
 }
 
@@ -504,8 +497,7 @@ function OverflowPill({
   };
 
   const pill = (
-    <Badge
-      className={cn(PILL_CLASS, "text-muted-foreground tabular-nums")}
+    <RingBadge
       onClick={item.more.kind === "mentions" ? onShowMentions : undefined}
       onKeyDown={(event) => {
         ringKeyDown(event, item.id, keys);
@@ -517,11 +509,11 @@ function OverflowPill({
           type="button"
         />
       }
-      style={pillStyle(item.position)}
+      position={item.position}
       variant="outline"
     >
       +{item.count}
-    </Badge>
+    </RingBadge>
   );
 
   if (item.more.kind === "mentions") {
@@ -531,7 +523,7 @@ function OverflowPill({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={pill} />
-      <DropdownMenuContent align="start" className={MENU_CLASS} side="bottom">
+      <DropdownMenuContent align="start" className="w-72" side="bottom">
         {item.more.kind === "links"
           ? [
               ...item.more.outgoing.map((mention) => (
@@ -539,9 +531,9 @@ function OverflowPill({
               )),
               ...item.more.dangling.map((target) => (
                 <DropdownMenuItem
-                  className="text-faint"
                   disabled
                   key={`dangling:${target}`}
+                  variant="muted"
                 >
                   <span className="truncate">{target}</span>
                 </DropdownMenuItem>

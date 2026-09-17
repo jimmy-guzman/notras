@@ -122,7 +122,6 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
             <DropdownMenuTrigger
               render={
                 <Badge
-                  className="text-muted-foreground hover:text-foreground tabular-nums outline-none"
                   render={
                     <button
                       aria-label={`${count} ${count === 1 ? "mention" : "mentions"}`}
@@ -141,11 +140,7 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
           show mentions <Chord hotkey={SHOW_MENTIONS} />
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent
-        align="start"
-        className="border-border w-72 border shadow-[0_8px_24px_rgb(0_0_0/0.18)] ring-0"
-        side="top"
-      >
+      <DropdownMenuContent align="start" className="w-72" side="top">
         {mentions.map((mention) => (
           <MentionItem key={mention.note.path} mention={mention} />
         ))}
