@@ -16,7 +16,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files above, so a stack detail, a pattern, or a color token added here is in the wrong place.
 
-- **Behavior you change is a claim in `SPEC.md`.** Update the claim in the same commit that changes the behavior, since a spec that disagrees with the build misleads every reader who trusts it. A behavior with no claim yet gets one.
+- **Behavior you change is a claim in `SPEC.md`.** Update the claim in the same commit that changes the behavior. A behavior with no claim yet gets one.
 
 - **Actionable future work belongs in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).** State the problem, the desired outcome, the evidence, and any unresolved prerequisite. Check for an existing issue before opening one. Speculative ideas need no backlog entry. What landed belongs in the commit, not in a second log.
 
@@ -24,7 +24,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Reassess architectural invariants when behavior changes.** Update `ARCHITECTURE.md` to describe the resulting system. An existing invariant can be wrong; its presence does not require preserving it or adding a decision entry.
 
-- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at. Reusing an ID repoints every reference to it without any of them changing.
+- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at.
 
 - **Cite IDs, never restate, and never in code.** Write `D7` in commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now. A comment has to stand on its own instead: a reader in the file cannot follow the citation, and `DECISIONS.md` records what was decided once rather than what the code does now.
 
@@ -92,7 +92,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 
-- **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** A warning fires because something is off. Silencing it converts a problem you can solve now into one that surfaces later without the warning attached.
+- **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** Silencing a warning converts a problem you can solve now into one that surfaces later without the warning attached.
 
 ## Testing
 
@@ -171,11 +171,11 @@ For anything touching the Rust side or window behavior, also launch `pnpm dev` a
 
 ## Writing prose
 
-These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop), [humanizer](https://github.com/blader/humanizer), and [azat-io on technical texts](https://github.com/azat-io/azat-io/blob/main/content/blog/how-to-write-technical-texts/en.mdx). They cover every markdown file here, plus commit messages and PR bodies.
+These rules cover every markdown file here, plus commit messages and PR bodies.
 
 ### Formatting
 
-- **No em dashes or en dashes.** Use a comma, a period, or a colon. Both set a cadence that reads as machine-written. Neither states how the clauses relate, and picking real punctuation states it. The ASCII `--` substitute goes too.
+- **No em dashes or en dashes.** Use a comma, a period, or a colon. Real punctuation says how the clauses relate. The ASCII `--` substitute goes too.
 
 - **One line per paragraph, and no hard wrap.** A renderer reflows the text, so a newline inside a paragraph changes nothing on screen and costs a diff: changing one word rewraps every line under it. Let the editor soft-wrap. A heading, a table row, a list item, and a code block each keep their own line.
 
@@ -195,7 +195,7 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **Cut adverbs that only add emphasis.** Genuinely, actually, really, simply, truly, fundamentally, inherently, crucially, importantly, just. They assert a force the sentence has not earned. An adverb that changes the meaning, like "only" or "directly", stays.
 
-- **Cut throat-clearing, emphasis crutches, and meta-commentary.** "Here's the thing", "It turns out", "The truth is", "Let me be clear", "Full stop", "Let that sink in", "This matters because", "Make no mistake", "It's worth noting", "At its core", "At the end of the day", "When it comes to", "Let's dive in", "In this section we'll". Each one delays the sentence carrying the information.
+- **Cut throat-clearing, emphasis crutches, and meta-commentary.** "Here's the thing", "It turns out", "The truth is", "Let me be clear", "Full stop", "Let that sink in", "This matters because", "Make no mistake", "It's worth noting", "At its core", "At the end of the day", "When it comes to", "Let's dive in", "In this section we'll".
 
 - **Cut business jargon.** Navigate, unpack, lean into, landscape, game-changer, double down, deep dive, circle back, moving forward. Plain words exist for all of them and mean something narrower.
 
@@ -221,7 +221,7 @@ These merge three sources: [stop-slop](https://github.com/hardikpandya/stop-slop
 
 - **One thought per paragraph, main idea first.** A reader decides from the opening sentence whether to keep going.
 
-- **No paragraph ends on a punchy one-liner.** A closing fragment that sounds quotable is doing rhythm instead of work. If it reads like a pull-quote, rewrite it.
+- **No paragraph ends on a punchy one-liner.** A closing fragment that sounds quotable is doing rhythm instead of work.
 
 - **Vary rhythm.** Avoid three consecutive sentences of the same length.
 

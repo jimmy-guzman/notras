@@ -17,15 +17,13 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Testing | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
 | Package manager | pnpm |
 
-`Badge` is `rounded-sm`, an edit to the owned component (`D85`). The shared component owns the radius for tags, mentions, and graph labels.
-
 ## Linux runtime
 
 Linux CI and release builds use GitHub Actions' `ubuntu-latest` runner. Linux support follows that runner's Ubuntu release with current system updates. Tauri uses the distribution's WebKitGTK runtime, so the build host alone does not establish the user's runtime version. Frontend built-ins must work in that runtime; compatibility fallbacks for older Ubuntu releases and other distributions are outside the support policy.
 
 ## Files are the source of truth
 
-Notes are `.md` or `.markdown` files under the notes dir (default `~/notras`). Folders are directories. `Library::open` resolves the selected root, including a root symlink, and the shell uses that resolved path for watching and attachment access. `pinned` and `tags` live in YAML frontmatter. The SQLite index lives outside the library, at `app_cache_dir()/index/<sha256 of the resolved root>/index.db`, and is derived and disposable: deleting it triggers a rebuild on launch. Library IO opens the resolved root as a directory handle and walks folders without following symlinks, so a path validated once cannot be redirected before its operation runs.
+Notes are `.md` or `.markdown` files under the notes dir (default `~/notras`). Folders are directories. `Library::open` resolves the selected root, including a root symlink, and the shell uses that resolved path for watching and attachment access. `pinned` and `tags` live in YAML frontmatter. The SQLite index lives outside the library, at `app_cache_dir()/index/<sha256 of the resolved root>/index.db`, and is derived and disposable. Library IO opens the resolved root as a directory handle and walks folders without following symlinks, so a path validated once cannot be redirected before its operation runs.
 
 ```mermaid
 flowchart TD
@@ -64,7 +62,7 @@ flowchart TD
 
 **External writers** (AI agents, other editors, git) are reconciled by the debounced watcher. The mtime skip in `index_file` keeps self-writes from echoing. UI refresh is event-driven: `layout.tsx` listens for `notes-changed` and invalidates the query keys the event names, so only the tabs holding a changed file re-read (`D66`).
 
-**The index is disposable.** `ensure_schema` creates the tables and FTS5 on startup, so deleting the cached `index.db` triggers a rebuild. There is no drizzle-kit, no migration directory, and no `db:push`. `PRAGMA user_version` carries `SCHEMA_VERSION`. Opening an older index recreates its tables and advances the version in one transaction. The startup scan then derives every row from the saved files, including unchanged notes.
+**The index is disposable.** `ensure_schema` creates the tables and FTS5 on startup, so deleting the cached `index.db` triggers a rebuild. `PRAGMA user_version` carries `SCHEMA_VERSION`. Opening an older index recreates its tables and advances the version in one transaction. The startup scan then derives every row from the saved files, including unchanged notes.
 
 Index reconciliation propagates SQLite read and decoding failures. Only a missing note row counts as an absent stored timestamp. A scan reads all indexed paths successfully before deleting stale entries. Removing one note's rows from the note, tag, link and search tables uses one transaction; a failed deletion rolls back that note's index changes. A scan records per-file path conversion failures and continues processing valid files. Any such failure defers all stale-row cleanup because the scan cannot reliably match every existing file to its indexed path. Cleanup resumes on a scan without conversion failures. Database failures still reject the operation. A scan can retain successful work on other notes before a later failure.
 
@@ -94,95 +92,35 @@ note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet() +
 
 `queries.rs` owns FTS normalization, AND-prefix matching, exact-title and title-hit tiers over pin and BM25 ordering, 8-token snippets and highlighted titles. The exact tier compares with SQLite's ASCII `lower()`. Ranking joins FTS to notes by the integer key. All search filters intersect before the 30-result cap. Result hydration loads metadata, tags and snippets after that cap; filter evaluation separately reads library metadata for membership and relationship resolution. `src/core/fts-markers.ts` carries the matching display markers. FTS snippets take precedence over filter context; otherwise the first filter that supplies context wins. Tag reads use insertion order to preserve frontmatter order. The frontend retains locale-aware sorting for displayed note groups; duplicate-title resolution uses Unicode scalar path ordering. Folder hubs retain their prior JavaScript string ordering.
 
-`note_link` stores destinations; graph reads select only `wikilink` and `link` kinds. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink`, `link`, or `destination`; `link` is for a `[text](note.md)` whose destination `is_note_path` accepts, `target` is the text between the brackets or the destination as written, and `context` is the line. Nothing in the row is resolved. `relationships.rs` resolves a target on read, a wikilink by title and a link by path relative to the note, so a note created or retitled after the link was written is still found, and groups the rows that resolve to a note by the note they come from. The scanner in `markdown.rs` records rendered destinations: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest. A title written bare is not a row, because it depends on another note's title, which the file being indexed cannot know. `find_mentions` finds those in indexed bodies on read: FTS and `note_prose_fallback` name candidates for a note reference, excluding the current note from both sets, and the same mask decides which occurrences are prose. The body line supplying a candidate note's title is excluded from bare mentions. The `mention:` search filter requests an arbitrary phrase, including headings. Mention requests take only a path; Rust reads the target title from the index. ASCII phrases with letters or digits use FTS candidates plus files with non-ASCII bodies; punctuation-only and non-ASCII phrases scan the indexed bodies. Prose reads join FTS content to `note.body_line_offset`, preserving original file line numbers in the same snapshot as titles, tags and explicit links. External edits reach those queries after indexing; query execution never reopens a candidate file. `note_prose_fallback` stores paths for non-ASCII bodies and NUL-containing bodies retained by the previous SQL predicate. Indexing maintains those paths in the same transaction as FTS. It avoids reading each stored body on every candidate lookup. The schema version rebuilds this metadata for existing libraries. This retains matches that unicode61 can miss because its Unicode case folding and word boundaries differ from the literal scanner. Bare GFM autolinks are recognized within eligible prose and excluded from phrase spans. Autolink scanning masks explicit link spans once and advances through precomputed wikilinks, skipping a wikilink only at its opening offset. The index schema version rebuilds destination rows for unchanged files too.
+`note_link` stores destinations; graph reads select only `wikilink` and `link` kinds. A row is one `[[...]]` as the file holds it: `line` counts from the top of the file so `grep -n` agrees, `kind` is `wikilink`, `link`, or `destination`; `link` is for a `[text](note.md)` whose destination `is_note_path` accepts, `target` is the text between the brackets or the destination as written, and `context` is the line. Nothing in the row is resolved.
+
+`relationships.rs` resolves a target on read, a wikilink by title and a link by path relative to the note, so a note created or retitled after the link was written is still found, and groups the rows that resolve to a note by the note they come from. The scanner in `markdown.rs` records rendered destinations: pulldown-cmark decides what is code, HTML, or a link destination, and a byte mask over the body carries the rest.
+
+A title written bare is not a row, because it depends on another note's title, which the file being indexed cannot know. `find_mentions` finds those in indexed bodies on read: FTS and `note_prose_fallback` name candidates for a note reference, excluding the current note from both sets, and the same mask decides which occurrences are prose. The body line supplying a candidate note's title is excluded from bare mentions. The `mention:` search filter requests an arbitrary phrase, including headings. Mention requests take only a path; Rust reads the target title from the index. ASCII phrases with letters or digits use FTS candidates plus files with non-ASCII bodies; punctuation-only and non-ASCII phrases scan the indexed bodies. Prose reads join FTS content to `note.body_line_offset`, preserving original file line numbers in the same snapshot as titles, tags and explicit links. External edits reach those queries after indexing; query execution never reopens a candidate file.
+
+`note_prose_fallback` stores paths for non-ASCII bodies and NUL-containing bodies retained by the previous SQL predicate. Indexing maintains those paths in the same transaction as FTS. It avoids reading each stored body on every candidate lookup. The schema version rebuilds this metadata for existing libraries. This retains matches that unicode61 can miss because its Unicode case folding and word boundaries differ from the literal scanner. Bare GFM autolinks are recognized within eligible prose and excluded from phrase spans. Autolink scanning masks explicit link spans once and advances through precomputed wikilinks, skipping a wikilink only at its opening offset. The index schema version rebuilds destination rows for unchanged files too.
 
 ## Project structure
 
 ```txt
 src/
-  main.tsx            # Vite entry -> App (main window, or capture window branch)
-  app.tsx             # query client + ?window=capture branch
-  layout.tsx          # the main window: error boundary, palette, settings dialog,
-                      # hotkeys, notes-changed listener (D81)
-  styles.css          # Tailwind 4 theme, fonts, editor + titlebar styling
+  main.tsx, app.tsx   # Vite entry and the query client; ?window=capture branches to the capture window
+  layout.tsx          # the main window: error boundary, palette, settings dialog, hotkeys, notes-changed listener (D81)
+  styles.css          # Tailwind 4 theme, fonts, editor and titlebar styling
   typeset.css         # shadcn/typeset, vendored verbatim (D40); do not edit
-  styles.spec.ts      # contrast gate, task-list ladder, note surface,
-                      # launch background
-  components/
-    editor/           # TipTap wrapper, extensions, suggestions, autosave, typewriter
-    graph/            # the ring layout and the graph view a tab swaps to
-    tabs/             # the title bar's tab strip
-    workspace/        # workspace: the tab strip, every open tab's session, and the
-                      # two bands (D53); note-session: one open tab, note or external (D54)
-    notes/            # note-controls (save/pin), note-tags, use-note-tags,
-                      # note-mentions, save-indicator, status-bar
-    command-palette.tsx
-    settings-dialog.tsx
-    capture-window.tsx
-    titlebar.tsx      # the drag region, declared once for every window
-    ui/               # Shadcn components, owned and edited here (D85)
-  core/               # Isomorphic bottom layer (no platform imports)
-    frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
-    notes.ts          # NoteMeta, NoteFilters, path/title helpers
-    errors.ts         # FileError
-    fts-markers.ts    # U+0001/U+0002 highlight markers shared with SQL
-    links.ts          # editor link resolution and mention display types
-    graph.ts          # graph display types and hub labels
-  data/               # Plain async fns the UI calls (ex-server-actions)
-    queries.ts        # THE query keys and options, one factory (D66)
-    restore-session.ts # the startup query: saved tabs, once per launch (D81)
-    native-command.ts # typed native failure normalization
-  server/
-    adapters/         # generated native IPC boundary
-      bindings.ts          # GENERATED native commands, events and wire types
-  lib/                # Client utilities
-    export-pdf.ts     # export pdf: the save dialog, the print sheet, the command
-    pending-flush.ts  # autosave flush registry read by the quit handshake
-    prefs.ts          # focus mode, app-wide (D53)
-    tabs/             # the open set: tab.ts is the list algebra, store.ts
-                      # the stores the chrome and sessions read
-    updater.ts        # release check, offer toast, install + relaunch
-    ui/chrome.ts      # CHROME_GLYPH (D51)
-    ui/failure.ts     # reasonOf(): the reason a rejection carries, or nothing
-    ui/mentions.ts    # the mentions list's open state: strip, chord and palette share it
-    ui/graph.ts       # which tabs show their graph, and the hop that keeps it on
-    ui/utils.ts       # cn()
-    utils/            # fts-snippet, word-count
-Cargo.toml            # workspace dependencies and release profile
-Cargo.lock            # shared Rust dependency lockfile
-rust-toolchain.toml   # pinned toolchain and components
-crates/notras-core/
-  src/lib.rs          # Library owner and host observation operations
-  src/application.rs  # file operations and mutation results
-  src/frontmatter.rs  # Rust twin of src/core/frontmatter.ts
-  src/index.rs        # index schema, indexer and candidate selection
-  src/markdown.rs     # title interpretation, links and literal prose scanning
-  src/note_file.rs    # content revisions, timestamps and temporary sibling publication
-  src/relative_path.rs # library path validation and handle-bound locations
-  src/queries.rs      # saved-library query operations and results
-  src/scan.rs         # resumable traversal, per-file indexing and stale cleanup
-  src/relationships.rs # saved link resolution, mentions and graph membership
-src-tauri/
-  src/lib.rs          # setup: library, watcher, tray, shortcuts
-  src/bindings.rs     # shared command/event registry, export and IPC tests
-  src/notes.rs        # Tauri handlers: blocking dispatch, locks and events
-  src/pdf.rs          # export_pdf: the webview's print operation saving to a file
-  src/watcher.rs      # debounced host paths -> Library reconciliation -> event
-  src/windows.rs      # window commands; a command may not live in lib.rs
-  src/state.rs        # AppState (library coordinator, watcher, quit flags)
-  src/library.rs      # foreground guards, cooperative scans, recovery and publication
-  icons/              # GENERATED by scripts/icons.sh, do not hand-edit
-assets/               # Canonical icon geometry (D74), plus the GENERATED hero
-  hero.png            # GENERATED README banner: mark + wordmark + tagline
-  icon.svg            # two sheets and fold; colors resolved from styles.css
-public/               # GENERATED favicons and dark/light welcome marks
-scripts/
-  bindings.sh         # generate native bindings, or compare a temporary export
-  icons.sh            # SVG + styles.css -> desktop, web and hero art (macOS only)
-  update-typeset.sh   # re-fetch src/typeset.css from upstream (D40)
-.github/
-  homebrew/
-    notras.rb.tmpl    # cask rendered by release.yml, pushed to the tap
+  components/         # UI, one folder per surface; ui/ is owned shadcn (D85)
+  core/               # isomorphic bottom layer, no platform imports
+  data/               # plain async fns the UI calls, one concern per file; queries.ts owns the query keys (D66)
+  server/adapters/    # bindings.ts, the GENERATED native commands, events and wire types
+  lib/                # client utilities
+crates/notras-core/   # the engine: files, index, typed operations
+src-tauri/            # the shell: dispatch, watcher, tray, windows, scan coordination;
+                      # windows.rs holds the window command because a command cannot live in lib.rs
+  icons/              # GENERATED by scripts/icons.sh
+assets/               # icon geometry (D74) and the GENERATED hero
+public/               # GENERATED favicons and welcome marks
+scripts/              # bindings.sh, icons.sh (macOS only), update-typeset.sh (D40)
+.github/homebrew/     # the cask template release.yml renders and pushes to the tap
 ```
 
 ## Layer boundaries
@@ -210,8 +148,6 @@ Query tests use real SQLite and temporary note directories. Recorded fixtures pr
 Rust engine tests run independently with `cargo test -p notras-core --locked`. The engine exposes `Library` operations without an `AppHandle` or window dependency. Its optional `bindings` feature adds Specta metadata and is enabled by the shell. Tauri handlers run blocking work through `spawn_blocking` and obtain a library guard inside that task. A guard never crosses an `await`. Blocking tasks own decoded IPC inputs for their lifetime. Engine operations borrow paths, document text and options they only read, and retain ownership where values move into results or subsequent work.
 
 State access panics if its mutex is poisoned; it does not expose potentially interrupted state. Blocking-task panics resume unwinding with their original payload. Non-panic task failures remain command errors. Release builds abort on panic.
-
-Each native indexed query obtains a `ReadView` through `LibraryOwner`. It uses a separate read-only SQLite connection with a WAL read transaction, established under the operation guard before execution releases that guard. Metadata, FTS snippets, relationships and literal prose come from the same indexed version. A healthy scan retains a shared view from before its first step, so new queries remain available without exposing partial folder moves. Queries sharing that scan view serialize on its reader mutex, independently of file operations. Outside scans, each query obtains its own view. Fresh and dirty indexes require coordinated recovery, and readers waiting on a failed recovery receive its failure. Query results are rejected if the selected library generation changes during execution. Direct library and external file reads return only content, its revision and its modification timestamp, independently of index health. The editing session derives title, pin and tags from that content; indexed queries retain their saved metadata. Files changed by external writers are reconciled through the watcher, not isolated by this lock. Reads use `File::metadata` and `std::io::read_to_string` on the same open handle, so an atomic pathname replacement cannot pair the replacement's bytes with the original file's timestamp. In-place writes remain outside that guarantee. A temporary sibling is created beside its target under the `.tmp-` prefix: the dot keeps a scan from indexing a half-written file, and the prefix cannot collide with a note name because library paths refuse a leading dot. A save stages first: the original is opened for reading and writing, read and hashed, and nothing is written when the hash differs from the revision the save named. Publication then swaps the sibling with the original through `renameat2` with `RENAME_EXCHANGE` on Linux or `renameatx_np` with `RENAME_SWAP` on macOS, checks that the displaced entry is the inode the open handle names and that the handle still reads the expected bytes, and drops the sibling, which unlinks the displaced original; a failed check swaps back and returns the file on disk. Where the filesystem has no exchange, and on Windows, the check precedes a plain replace and the window between them is accepted. A save under a new filename publishes with `RENAME_NOREPLACE` on Linux or `RENAME_EXCL` on macOS, with a hard-link-then-unlink fallback where the filesystem lacks the flag, then retires the original through a private name: the entry moves to a fresh `.tmp-` sibling (by handle on Windows, by name elsewhere), its identity and hash are checked there, and it is unlinked or moved back. A candidate withdrawn after a failed check goes the same way, so no unlink ever targets a public name. Windows renames by file handle through `NtSetInformationFile`, with the validated directory as the root and POSIX semantics, which replaces a destination with compatible open handles. cap-std opens Windows directory handles without delete sharing, so a held folder cannot be renamed or deleted until the operation finishes. The sibling removes itself when publication fails. Conflict stashes use the same `TempSibling` to write and sync their JSON before replacing the stored review. Modification-time failures reject reads and indexing; the index retains its creation-time fallback when a birth time is unavailable. Graph reads can return explicit relationships with a separate indexed-prose decoding failure; mentions and search reject prose failures. Successful indexed mutations release the library lock before emitting `NotesChanged`. Library switches hold the watcher lock across preparation, settings persistence and replacement, and release the library lock before dropping the old watcher.
 
 The IPC tests use Tauri's test runtime with the production command registry, temporary directories and real SQLite. Index failures are injected through a separate database connection; the shell has no access to the engine connection. They send JSON requests through Tauri's argument decoder and check serialized receipts, failures and events. They do not exercise an OS webview, tray or clipboard. Mutation receipts carry the committed path, its content revision, timestamp and warnings, and every direct read carries the revision of the bytes it returned. Path receipts also carry committed content and any remaining source. Data functions convert timestamps to `Date`. Controller tests supply persistence functions; mounted session tests exercise the real editor, tab store and query cache over the IPC boundary.
 
@@ -257,6 +193,14 @@ An update restart is the exception. It reaches `ExitRequested` carrying `RESTART
 
 The controller accepts reads only for its committed path. It retains the latest observation while writes or folder moves are pending, then reconciles it when those operations settle. An observation for a former path is discarded. Reconciliation reads the file's content revision and mtime in four steps. A revision equal to the base is an echo of the session's own write and only advances the acknowledged timestamp. An mtime not newer than the acknowledged one is a stale read and is ignored. A clean session adopts the file as its new base. A dirty session merges it three ways through `src/core/merge.ts`, `node-diff3` on lines with the disk's line ending, then applies a clean merge as an edit and takes the file as base, or enters conflict: it holds the file as `theirs`, cancels autosave, refuses folder moves, and writes its text and base through the session's `stash` port, again on every flush, until a save commits and the `clearStash` port removes it. Stale reads cannot replace newer local content, and a differing revision never advances the timestamp without being absorbed. A session opened over a stored review starts from the stored text, base and timestamp, dirty, so the first observation of the disk file goes through the same steps; `NoteSession` waits for the stash query before mounting the buffer.
 
+### Publishing a file
+
+Reads use `File::metadata` and `std::io::read_to_string` on the same open handle, so an atomic pathname replacement cannot pair the replacement's bytes with the original file's timestamp. In-place writes remain outside that guarantee. Modification-time failures reject reads and indexing; the index retains its creation-time fallback when a birth time is unavailable.
+
+A write goes to a temporary sibling beside its target under the `.tmp-` prefix, synced before it is published: the dot keeps a scan from indexing a half-written file, and the prefix cannot collide with a note name because library paths refuse a leading dot. A save stages first: the original is opened for reading and writing, read and hashed, and nothing is written when the hash differs from the revision the save named. Publication then swaps the sibling with the original through `renameat2` with `RENAME_EXCHANGE` on Linux or `renameatx_np` with `RENAME_SWAP` on macOS, checks that the displaced entry is the inode the open handle names and that the handle still reads the expected bytes, and drops the sibling, which unlinks the displaced original; a failed check swaps back and returns the file on disk. Where the filesystem has no exchange, and on Windows, the check precedes a plain replace and the window between them is accepted.
+
+A save under a new filename publishes with `RENAME_NOREPLACE` on Linux or `RENAME_EXCL` on macOS, with a hard-link-then-unlink fallback where the filesystem lacks the flag, then retires the original through a private name: the entry moves to a fresh `.tmp-` sibling (by handle on Windows, by name elsewhere), its identity and hash are checked there, and it is unlinked or moved back. A candidate withdrawn after a failed check goes the same way, so no unlink ever targets a public name. Windows renames by file handle through `NtSetInformationFile`, with the validated directory as the root and POSIX semantics, which replaces a destination with compatible open handles. cap-std opens Windows directory handles without delete sharing, so a held folder cannot be renamed or deleted until the operation finishes. The sibling removes itself when publication fails. Conflict stashes use the same `TempSibling` to write and sync their JSON before replacing the stored review.
+
 ### Adding a Rust command
 
 Define the handler in `src-tauri/src/notes.rs` or the relevant shell module, and put platform-free file operations in `application.rs`. Annotate the handler with `#[specta::specta]` and register it in `bindings::builder`. That registry supplies both the production invoke handler and the generated TypeScript client. Run `pnpm bindings` after changing the contract. Persisted reads, mutations, library settings and reindexing reach the generated client through `src/data`. UI concerns call generated shell commands directly.
@@ -271,9 +215,11 @@ A command that can fail returns `Result<T, CommandError>`. The `From` implementa
 
 Healthy scans serve the complete indexed version from before the scan. A fresh or failed index cannot appear as an empty or partial library. Recovery waits for a complete scan before creating a view. A failed scan or a mutation that fails indexing keeps the index dirty; finishing a scan cannot erase a mutation failure from an earlier step. Concurrent readers waiting for recovery share its completion and diagnostic cause. A mutation event during a scan may cause queries to return the older view, so the coordinator includes those mutation paths in its completion event even when the scan itself finds no changed files. The owner performs each indexed mutation and records its changed paths under the same operation guard, before a scan can advance or finish. Event publication happens after releasing that guard and does not record paths. Later queries then see the completed index. Indexed reads use `ReadView`; opening a view rejects a dirty index without starting recovery. The host drives recovery through `begin_scan`, `advance_scan` and `finish_scan` before opening a new view. The owner keeps an `IndexStatus`: scanning while readers wait on a scan with no pre-scan view, ready once a view is available, and failed with the last scan's reason. Each change is numbered under the operation guard and handed to a sink after that guard is released, in revision order, so a change overtaken by a later one is dropped rather than published stale. The shell wires the sink to the `index-status` event. `index_status` answers on demand because the startup scan begins before the webview listens.
 
+Each native indexed query obtains a `ReadView` through `LibraryOwner`. It uses a separate read-only SQLite connection with a WAL read transaction, established under the operation guard before execution releases that guard. Metadata, FTS snippets, relationships and literal prose come from the same indexed version. A healthy scan retains a shared view from before its first step, so new queries remain available without exposing partial folder moves. Queries sharing that scan view serialize on its reader mutex, independently of file operations. Outside scans, each query obtains its own view. Fresh and dirty indexes require coordinated recovery, and readers waiting on a failed recovery receive its failure. Query results are rejected if the selected library generation changes during execution. Direct library and external file reads return only content, its revision and its modification timestamp, independently of index health. The editing session derives title, pin and tags from that content; indexed queries retain their saved metadata. Files changed by external writers are reconciled through the watcher, not isolated by this lock. Graph reads can return explicit relationships with a separate indexed-prose decoding failure; mentions and search reject prose failures.
+
 Read views live only for an operation or an active scan and its outstanding queries. They use the existing WAL rather than copying the library. SQLite may retain WAL pages while those readers remain active; releasing them allows checkpointing to catch up. No reader can update the index, and opening a view does not create or repair its schema.
 
-A scan belongs to the library generation in which it began. Replacement cancels the old scan and wakes waiting readers. Watcher batches carry their source generation. Only successful observations publish changes; reconciliation failures are logged without emitting an invalidation. Change publication checks that generation under a separate publication guard, after releasing the operation guard; replacement waits for an event already being published. Old work cannot index the replacement library or emit changes after its replacement. Watcher replacement happens after the operation guard is released, since dropping a watcher may join a callback. Selecting the current resolved directory preserves its coordinator and watcher rather than opening a competing writer. A different directory is watched, then scanned, before its setting is committed and the selected owner is replaced; commands can continue using the existing library during that preparation. The owner announces the replacement first, so observations stamped with its generation queue in the owner until replacement installs it, then replay as one observed scan before the switch event, and a preparation that fails or is abandoned drops its queue. The replacement is indexed with the resumable scan outside the operation guard, since nothing reads it before selection, and that preparation stops when the owner is closing. `shutdown` marks the owner closing and waits for the step in flight. The running scan abandons at its next step, marks the index dirty, completes its waiters with a failure, and later scans are refused. `RunEvent::Exit` calls it, so process exit never interrupts a per-note transaction. The dirty flag lives in memory; the next launch starts from a clean owner and its startup scan covers the remainder.
+A scan belongs to the library generation in which it began. Replacement cancels the old scan and wakes waiting readers. Watcher batches carry their source generation. Only successful observations publish changes; reconciliation failures are logged without emitting an invalidation. Change publication checks that generation under a separate publication guard, after releasing the operation guard; replacement waits for an event already being published. Old work cannot index the replacement library or emit changes after its replacement. Watcher replacement happens after the operation guard is released, since dropping a watcher may join a callback. Selecting the current resolved directory preserves its coordinator and watcher rather than opening a competing writer. A different directory is watched, then scanned, before its setting is committed and the selected owner is replaced; commands can continue using the existing library during that preparation. The owner announces the replacement first, so observations stamped with its generation queue in the owner until replacement installs it, then replay as one observed scan before the switch event, and a preparation that fails or is abandoned drops its queue. The replacement is indexed with the resumable scan outside the operation guard, since nothing reads it before selection, and that preparation stops when the owner is closing. `shutdown` marks the owner closing and waits for the step in flight. The running scan abandons at its next step, marks the index dirty, completes its waiters with a failure, and later scans are refused. `RunEvent::Exit` calls it, so process exit never interrupts a per-note transaction. The dirty flag lives in memory; the next launch starts from a clean owner and its startup scan covers the remainder. Successful indexed mutations release the library lock before emitting `NotesChanged`. Library switches hold the watcher lock across preparation, settings persistence and replacement, and release the library lock before dropping the old watcher.
 
 ### The palette is the action surface
 
@@ -312,7 +258,7 @@ FTS snippets and result titles carry U+0001 and U+0002 around each hit from nati
 Each of these holds a property the architecture depends on. Breaking one is a design change, not a refactor.
 
 - **TypeScript never writes the index.** Typed query commands return saved results. There is no generic SQL command. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
-- **Every component and hook compiles.** The compiler's own rules run as `react/*` in `pnpm check`, and any one of them failing is a bailout, not only `react/todo`. A suppression hides one: `react/rule-suppression` does not detect oxlint disable comments, so a suppressed `react/refs` left `Editor` and `SessionBuffer` uncompiled while the lint stayed green. No tool checks for that, so a reviewer holds it. A once-built instance that needs a ref takes it through a method called from an effect or a ref callback, as `useAutosave`, the typewriter and the persistence document listener do.
+- **Every component and hook compiles.** The compiler's own rules run as `react/*` in `pnpm check`, and any one of them failing is a bailout, not only `react/todo`. A suppression hides a bailout, and `react/rule-suppression` does not detect oxlint disable comments, so a reviewer holds it. A once-built instance that needs a ref takes it through a method called from an effect or a ref callback, as `useAutosave`, the typewriter and the persistence document listener do.
 - **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/data/native-command.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `crates/notras-core/src/markdown.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.

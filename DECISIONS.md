@@ -6,7 +6,7 @@ This file is a log, not a set of rules. An entry records what was decided and wh
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next available number is 84; removed IDs remain reserved.
+Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next number is the highest heading plus one.
 
 Routine implementation details belong in code. Current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. An entry belongs here only when the rationale needs a durable record beyond those sources; a rejected alternative alone does not require one.
 
@@ -233,7 +233,7 @@ Both the native window and the webview paint before the stylesheet exists. WKWeb
 
 Tauri's `background_color` covers the window layer, but its own documentation records "macOS: Not implemented for the webview layer", so on the platform notras targets first the config option alone leaves the white in place.
 
-**Rejected: `backgroundColor` in the config alone.** One value in one place, and no duplication to keep honest. Rejected because it does not reach the webview layer on macOS, which is the layer painting the white a user actually sees.
+**Rejected: `backgroundColor` in the config alone.** One value in one place, and no duplication to keep honest. Rejected because it does not reach the webview layer on macOS, which is the layer painting the white a user sees.
 
 **Rejected: creating both windows hidden and showing them once the frontend reports ready.** Removes the flash outright and restates no colour anywhere. Rejected because it trades a flash for a delay: nothing would appear until React mounted and four IPC round trips resolved, and a window that takes a beat to show up reads as a slow app rather than a polished one.
 
@@ -573,7 +573,7 @@ Biome expresses both: `style/noRestrictedImports` takes gitignore-style groups, 
 
 **Rejected: a spec that reads the source and asserts on imports.** `src/styles.spec.ts` already guards `D27`, `D39`, and `D40` that way, so the pattern exists and would have cost about fifty lines of test instead of seventy lines of config. Rejected together with the config, on the same ground: neither had caught anything, since all eleven files importing `lucide-react` already comply and no boundary is currently crossed.
 
-**Constraint:** a violation of either now reaches `main` unless a reviewer catches it. `D14` rejected workspace packages because lint was doing the work, and that comparison no longer holds, so a boundary that actually slips is a reason to revisit it rather than to re-add the rule.
+**Constraint:** a violation of either now reaches `main` unless a reviewer catches it. `D14` rejected workspace packages because lint was doing the work, and that comparison no longer holds, so a boundary that slips is a reason to revisit it rather than to re-add the rule.
 
 ### D49 release-please owns the version, and the crate version is frozen
 
