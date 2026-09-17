@@ -7,7 +7,6 @@ import { Markdown } from "@tiptap/markdown";
 import { describe, expect, it, vi } from "vitest";
 
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
-import { loadSyntaxHighlighter } from "@/components/editor/syntax-highlighter";
 
 function createEditor(language: string, text: string) {
   return new Editor({
@@ -51,11 +50,10 @@ describe("code block highlighting", () => {
     await vi.waitFor(() => {
       expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
     });
-    const highlighter = await loadSyntaxHighlighter(["typescript"]);
-    // Observe calls into the real grammar engine without replacing its output.
-    const tokenize = vi.spyOn(highlighter, "codeToTokensBase");
+    // Observe what crosses to the worker without replacing its answers.
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
     onTestFinished(() => {
-      tokenize.mockRestore();
+      posted.mockRestore();
     });
 
     editor.commands.insertContentAt(0, {
@@ -63,14 +61,64 @@ describe("code block highlighting", () => {
       type: "paragraph",
     });
     editor.commands.setTextSelection(1);
-    expect(tokenize).not.toHaveBeenCalled();
+    expect(posted).not.toHaveBeenCalled();
     expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
 
     editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
-    expect(tokenize.mock.calls.map(([text]) => text)).toStrictEqual([
-      "let a = 1;",
-    ]);
-    expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
+    expect(posted).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ code: "let a = 1;", language: "typescript" })
+    );
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
+    });
+  });
+
+  it("should keep an edited block's colors until its new tokens arrive", async ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("ts", "const a = 1;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
+
+    editor.commands.insertContentAt(13, " // done");
+    expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    expect(coloredText(editor, "syntax-comment")).toBe("");
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-comment")).toContain("done");
+    });
+    expect(coloredText(editor, "syntax-keyword")).toBe("const");
+  });
+
+  it("should land tokens only on blocks holding their text", async ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("ts", "let b = 2;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    // The first block asks for "const a = 1;" and then takes its text back
+    // while a second block holds that text, so the answer arrives after it.
+    editor.commands.insertContentAt({ from: 1, to: 11 }, "const a = 1;");
+    editor.commands.insertContentAt({ from: 1, to: 13 }, "let b = 2;");
+    editor.commands.insertContentAt(editor.state.doc.content.size, {
+      attrs: { language: "ts" },
+      content: [{ text: "const a = 1;", type: "text" }],
+      type: "codeBlock",
+    });
+
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
+    });
+    const spans = [...editor.view.dom.querySelectorAll("pre")].map((pre) =>
+      [...pre.querySelectorAll(".syntax-token")].map((span) => span.textContent)
+    );
+    expect(spans[0]).toContain("let");
+    expect(spans[0]).not.toContain("let b");
+    expect(spans[1]).toContain("const");
   });
 
   it("should clear obsolete colors when code becomes prose and restore them on undo", async ({
@@ -88,7 +136,9 @@ describe("code block highlighting", () => {
     editor.commands.setParagraph();
     expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
     expect(editor.commands.undo()).toBeTruthy();
-    expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
   });
 
   it("should decorate the latest text after loading without moving the caret or adding an undo step", async ({
@@ -204,7 +254,7 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toBe("const");
   });
 
-  it("should allow two editors to load the same grammar when one closes", async ({
+  it("should dispatch nothing into an editor destroyed while its tokens are pending", async ({
     onTestFinished,
   }) => {
     const closed = createEditor("go", "package main");

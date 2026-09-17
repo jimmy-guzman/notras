@@ -24,4 +24,8 @@ export default defineConfig({
       ignored: ["**/coverage/**", "**/src-tauri/**"],
     },
   },
+  worker: {
+    // Grammars stay lazy chunks inside the worker instead of one inlined script.
+    format: "es",
+  },
 });

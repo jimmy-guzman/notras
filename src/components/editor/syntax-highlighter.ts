@@ -1,26 +1,59 @@
-import { createBundledHighlighter } from "shiki/core";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import { bundledLanguages, bundledLanguagesInfo } from "shiki/langs";
-import type { HighlighterCore } from "shiki/types";
+import { bundledLanguagesInfo } from "shiki/langs";
 
-import { syntaxTheme } from "@/components/editor/syntax-theme";
+export interface SyntaxToken {
+  color: string;
+  length: number;
+  offset: number;
+}
 
-const createHighlighter = createBundledHighlighter<string, string>({
-  // The desktop CSP does not permit WebAssembly compilation.
-  engine: () => createJavaScriptRegexEngine(),
-  langs: bundledLanguages,
-  themes: {},
-});
+export interface SyntaxRequest {
+  code: string;
+  id: number;
+  language: string;
+}
 
-let highlighter: ReturnType<typeof createHighlighter> | undefined;
+export type SyntaxResponse =
+  | { error: string; id: number }
+  | { id: number; lines: SyntaxToken[][] };
 
-async function initializeHighlighter() {
-  try {
-    return await createHighlighter({ langs: [], themes: [syntaxTheme] });
-  } catch (error) {
-    highlighter = undefined;
-    throw error;
+let worker: Worker | undefined;
+let nextId = 0;
+const pending = new Map<number, PromiseWithResolvers<SyntaxToken[][]>>();
+
+function settle(response: SyntaxResponse) {
+  const request = pending.get(response.id);
+  pending.delete(response.id);
+  if ("error" in response) {
+    request?.reject(new Error(response.error));
+  } else {
+    request?.resolve(response.lines);
   }
+}
+
+function syntaxWorker() {
+  if (worker === undefined) {
+    const instance = new Worker(new URL("syntax-worker.ts", import.meta.url), {
+      type: "module",
+    });
+    instance.addEventListener(
+      "message",
+      (event: MessageEvent<SyntaxResponse>) => {
+        settle(event.data);
+      }
+    );
+    // A worker that cannot start answers nothing, so its requests fail here
+    // and the next request starts a fresh one.
+    instance.addEventListener("error", (event) => {
+      instance.terminate();
+      worker = undefined;
+      for (const [id] of pending) {
+        settle({ error: event.message, id });
+      }
+    });
+    worker = instance;
+  }
+
+  return worker;
 }
 
 export const codeLanguages = bundledLanguagesInfo.map(({ id }) => id);
@@ -40,13 +73,17 @@ export function syntaxLanguage(
   )?.id;
 }
 
-/** Load packaged grammars once per webview; no network service receives code. */
-export async function loadSyntaxHighlighter(
-  languages: string[]
-): Promise<HighlighterCore> {
-  highlighter ??= initializeHighlighter();
-  const instance = await highlighter;
-  await instance.loadLanguage(...languages);
+/** Tokenize code off the UI thread; grammars are packaged, so no network service receives code. */
+export async function highlightCode(
+  code: string,
+  language: string
+): Promise<SyntaxToken[][]> {
+  const resolvers = Promise.withResolvers<SyntaxToken[][]>();
+  nextId += 1;
+  pending.set(nextId, resolvers);
+  const request: SyntaxRequest = { code, id: nextId, language };
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin
+  syntaxWorker().postMessage(request);
 
-  return instance;
+  return await resolvers.promise;
 }
