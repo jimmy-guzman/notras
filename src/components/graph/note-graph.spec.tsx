@@ -99,6 +99,11 @@ function mount(picture: Picture, handlers: Handlers = {}) {
   return container;
 }
 
+const pillX = (pill: HTMLElement) =>
+  Number(pill.style.getPropertyValue("--pill-x").replace("%", ""));
+const pillY = (pill: HTMLElement) =>
+  Number(pill.style.getPropertyValue("--pill-y").replace("%", ""));
+
 describe(NoteGraph, () => {
   it("should fan what mentions it on the left and what it links to on the right", () => {
     const host = mount(
@@ -108,22 +113,12 @@ describe(NoteGraph, () => {
       })
     );
 
-    expect(
-      Number(
-        screen.getByRole("button", { name: "a" }).style.left.replace("%", "")
-      )
-    ).toBeLessThan(50);
-    expect(
-      Number(
-        screen.getByRole("button", { name: "b" }).style.left.replace("%", "")
-      )
-    ).toBeLessThan(50);
-    expect(
-      Number(
-        screen.getByRole("button", { name: "d" }).style.left.replace("%", "")
-      )
-    ).toBeGreaterThan(50);
-    expect(screen.getByRole("button", { name: "c" }).style.left).toBe("50%");
+    expect(pillX(screen.getByRole("button", { name: "a" }))).toBeLessThan(50);
+    expect(pillX(screen.getByRole("button", { name: "b" }))).toBeLessThan(50);
+    expect(pillX(screen.getByRole("button", { name: "d" }))).toBeGreaterThan(
+      50
+    );
+    expect(pillX(screen.getByRole("button", { name: "c" }))).toBe(50);
     expect(host.textContent).toContain("mentions");
     expect(host.textContent).toContain("links");
   });
@@ -139,11 +134,9 @@ describe(NoteGraph, () => {
     const work = screen.getByRole("button", { name: "work 3" });
     const q3 = screen.getByRole("button", { name: "#q3 7" });
 
-    expect(Number(work.style.top.replace("%", ""))).toBeLessThan(50);
-    expect(Number(q3.style.top.replace("%", ""))).toBeLessThan(50);
-    expect(Number(work.style.left.replace("%", ""))).toBeLessThan(
-      Number(q3.style.left.replace("%", ""))
-    );
+    expect(pillY(work)).toBeLessThan(50);
+    expect(pillY(q3)).toBeLessThan(50);
+    expect(pillX(work)).toBeLessThan(pillX(q3));
     expect(work.querySelector("svg")).not.toBeNull();
   });
 
@@ -243,9 +236,7 @@ describe(NoteGraph, () => {
       { onHop, onHub }
     );
 
-    expect(screen.getByRole("button", { name: "work 3" }).style.left).toBe(
-      "50%"
-    );
+    expect(pillX(screen.getByRole("button", { name: "work 3" }))).toBe(50);
     expect(host.textContent).not.toContain("mentions");
 
     await user.click(screen.getByRole("button", { name: "a" }));

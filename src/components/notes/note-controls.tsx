@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { changeNoteMetadata } from "@/lib/tabs/store";
-import { CHROME_GLYPH, CHROME_TOGGLE } from "@/lib/ui/chrome";
+import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { reasonOf } from "@/lib/ui/failure";
 
 interface PinToggleProps {
@@ -38,7 +38,6 @@ function PinToggle({ path, pinned }: PinToggleProps) {
         render={
           <Toggle
             aria-label={pinned ? "unpin note" : "pin note"}
-            className={CHROME_TOGGLE}
             onPressedChange={() => {
               void togglePinned();
             }}

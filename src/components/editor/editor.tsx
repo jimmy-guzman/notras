@@ -8,7 +8,6 @@ import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
 import { contentOf, hasString } from "@/components/editor/attrs";
@@ -1025,12 +1024,10 @@ export function Editor({
 
   return (
     <ScrollArea
-      className={cn(
-        "allow-select min-h-0 flex-1",
-        focusModeEnabled && "focus-mode-on",
-        reading && "focus-reading"
-      )}
+      className="min-h-0 flex-1 select-text"
       data-find-open={findOpen}
+      data-focus-mode={focusModeEnabled}
+      data-reading={reading}
       ref={attachScrollArea}
     >
       <EditorContent className="min-h-full" editor={editor} />

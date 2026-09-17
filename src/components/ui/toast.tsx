@@ -98,9 +98,11 @@ function ToastDescription({
   );
 }
 
+const ACTION_RENDER = <Button variant="outline" size="sm" />;
+
 function ToastAction({
   className,
-  render = <Button variant="outline" size="sm" />,
+  render = ACTION_RENDER,
   ...props
 }: ToastPrimitive.Action.Props) {
   return (
@@ -113,10 +115,12 @@ function ToastAction({
   );
 }
 
+const CLOSE_RENDER = <Button variant="ghost" size="icon-sm" />;
+
 function ToastClose({
   className,
   children,
-  render = <Button variant="ghost" size="icon-sm" />,
+  render = CLOSE_RENDER,
   ...props
 }: ToastPrimitive.Close.Props) {
   return (
@@ -207,11 +211,7 @@ function Toaster({
   );
 }
 
-const { createToastManager } = ToastPrimitive;
-const { useToastManager } = ToastPrimitive;
-
 export {
-  createToastManager,
   Toast,
   ToastAction,
   ToastClose,
@@ -222,6 +222,6 @@ export {
   ToastProvider,
   ToastTitle,
   ToastViewport,
+  // oxlint-disable-next-line react-doctor/only-export-components -- the manager ships with the toaster that renders it
   toast,
-  useToastManager,
 };

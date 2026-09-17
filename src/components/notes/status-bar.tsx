@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CHROME_GLYPH, CHROME_TOGGLE } from "@/lib/ui/chrome";
+import { CHROME_GLYPH } from "@/lib/ui/chrome";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 
 interface StatusBarProps {
@@ -97,13 +97,7 @@ export function StatusBar({
         {toggles.map(({ icon: Icon, label, value }) => (
           <Tooltip key={value}>
             <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  aria-label={label}
-                  className={CHROME_TOGGLE}
-                  value={value}
-                />
-              }
+              render={<ToggleGroupItem aria-label={label} value={value} />}
             >
               <Icon className={CHROME_GLYPH} />
             </TooltipTrigger>

@@ -52,7 +52,7 @@ export function FindBar({ controller }: FindBarProps) {
       const inInput = event.target === input.current;
       const inSurface =
         event.target instanceof Element &&
-        event.target.closest(".ProseMirror, .note-find-bar") !== null;
+        event.target.closest(".ProseMirror, [data-find-bar]") !== null;
       if (!inSurface) {
         return;
       }
@@ -81,7 +81,10 @@ export function FindBar({ controller }: FindBarProps) {
     return null;
   }
   return (
-    <div className="note-find-bar bg-popover absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-lg shadow-md">
+    <div
+      className="bg-popover absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-lg shadow-md"
+      data-find-bar
+    >
       <InputGroup aria-label="find in note">
         <InputGroupInput
           aria-label="find text"
@@ -91,10 +94,7 @@ export function FindBar({ controller }: FindBarProps) {
           value={state.query}
         />
         <InputGroupAddon align="inline-end">
-          <InputGroupText
-            aria-live="polite"
-            className="whitespace-nowrap tabular-nums"
-          >
+          <InputGroupText aria-live="polite" className="whitespace-nowrap">
             {state.current} / {state.total}
           </InputGroupText>
           <InputGroupButton

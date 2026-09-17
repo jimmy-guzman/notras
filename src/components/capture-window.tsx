@@ -108,7 +108,7 @@ export function CaptureWindow() {
     <div className="bg-card text-foreground flex h-svh flex-col">
       <Titlebar />
       <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1">
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-[calc(var(--radius-lg)-0.25rem)]">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-sm">
           <Editor
             findOpen={findState.open}
             focusOnMount

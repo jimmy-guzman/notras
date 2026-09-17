@@ -17,7 +17,7 @@ How notras is built. `AGENTS.md` maps the rest of the docs.
 | Testing | Vitest + Testing Library + happy-dom (TS), `cargo test` with cargo-llvm-cov reports (Rust) |
 | Package manager | pnpm |
 
-`Badge` uses `rounded-sm` as a local override to the generated Nova component. Regeneration reapplies this override alongside the deviations recorded in `D19`. The shared component owns the radius for tags, mentions, and graph labels.
+`Badge` is `rounded-sm`, an edit to the owned component (`D85`). The shared component owns the radius for tags, mentions, and graph labels.
 
 ## Linux runtime
 
@@ -120,7 +120,7 @@ src/
     settings-dialog.tsx
     capture-window.tsx
     titlebar.tsx      # the drag region, declared once for every window
-    ui/               # Shadcn components (generated, do not hand-edit)
+    ui/               # Shadcn components, owned and edited here (D85)
   core/               # Isomorphic bottom layer (no platform imports)
     frontmatter.ts    # parse/serialize {pinned, tags}; preserves unknown keys
     notes.ts          # NoteMeta, NoteFilters, path/title helpers
@@ -179,7 +179,6 @@ public/               # GENERATED favicons and dark/light welcome marks
 scripts/
   bindings.sh         # generate native bindings, or compare a temporary export
   icons.sh            # SVG + styles.css -> desktop, web and hero art (macOS only)
-  update-shadcn.sh    # regenerate every installed Shadcn component
   update-typeset.sh   # re-fetch src/typeset.css from upstream (D40)
 .github/
   homebrew/
@@ -313,7 +312,7 @@ FTS snippets and result titles carry U+0001 and U+0002 around each hit from nati
 Each of these holds a property the architecture depends on. Breaking one is a design change, not a refactor.
 
 - **TypeScript never writes the index.** Typed query commands return saved results. There is no generic SQL command. Rust is the only writer, which is what removes the transaction-serialization problem entirely.
-- **Every component and hook compiles.** The compiler's own rules run as `react/*` in `pnpm check`, and any one of them failing is a bailout, not only `react/todo`. A suppression hides one: `react/rule-suppression` does not detect oxlint disable comments, so a suppressed `react/refs` left `Editor` and `SessionBuffer` uncompiled while the lint stayed green. No tool checks for that, so a reviewer holds it. A once-built instance that needs a ref takes it through a method called from an effect or a ref callback, as `useAutosave`, the typewriter and the persistence document listener do. The shadcn `src/components/ui/**` override is the only uncompiled surface, because those files are regenerated.
+- **Every component and hook compiles.** The compiler's own rules run as `react/*` in `pnpm check`, and any one of them failing is a bailout, not only `react/todo`. A suppression hides one: `react/rule-suppression` does not detect oxlint disable comments, so a suppressed `react/refs` left `Editor` and `SessionBuffer` uncompiled while the lint stayed green. No tool checks for that, so a reviewer holds it. A once-built instance that needs a ref takes it through a method called from an effect or a ref callback, as `useAutosave`, the typewriter and the persistence document listener do.
 - **`@tauri-apps/*` imports stay inside `src/server/adapters/**`, `src/data/native-command.ts`, and UI-concern code.** No tool checks this since `D43`, so a reviewer holds it.
 - **The two frontmatter parsers change together.** A change to one without the other, with tests on both sides, lets an external note lose data on a round-trip.
 - **The two title resolvers change together.** `resolve_title` and `resolveTitle` assert one shared table of cases, in the same order, in `crates/notras-core/src/markdown.rs` and `src/core/notes.spec.ts`. Drift shows up as an index title that disagrees with the open note's, which nothing else catches.

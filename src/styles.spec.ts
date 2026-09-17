@@ -342,7 +342,10 @@ describe("shared surface colors", () => {
 
   it("should hide the shadcn scrollbar in focus mode", () => {
     expect(
-      blockOf(source, '.focus-mode-on [data-slot="scroll-area-scrollbar"]')
+      blockOf(
+        source,
+        '[data-focus-mode="true"] [data-slot="scroll-area-scrollbar"]'
+      )
     ).toContain("display: none;");
   });
 
@@ -460,7 +463,7 @@ describe("reading typography", () => {
 
   it("should use the same 14px code size in fences and source mode", () => {
     const code = blockOf(source, ".ProseMirror pre");
-    const raw = blockOf(source, ".source-editor .ProseMirror pre");
+    const raw = blockOf(source, '[data-source-editor="true"] .ProseMirror pre');
 
     expect(code).toContain("font-size: 0.875rem;");
     expect(code).toContain("line-height: 1.5;");

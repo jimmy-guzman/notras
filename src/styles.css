@@ -19,6 +19,17 @@
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
+/* dnd-kit hands a tab its offset and its settle transition; the transition
+   targets `transform`, and it must sit beside the hover and selection fades
+   rather than replace them. */
+@utility tab-motion {
+  transform: translate3d(var(--tab-x), 0, 0);
+  transition:
+    var(--tab-transition, transform 0s),
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -28,6 +39,10 @@
   /* Clears the macOS traffic lights, which float over the content at the top
      left. The compact buttons end at 72px; the rest is breathing room. */
   --spacing-titlebar: 5.25rem;
+  --shadow-popover: 0 8px 24px #0000002e;
+  --shadow-drag: 0 2px 8px #0000002e;
+  --tracking-wordmark: -0.06em;
+  --leading-tagline: 1.3;
   --color-faint: var(--faint);
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -169,10 +184,6 @@
     -webkit-user-select: none;
     user-select: none;
   }
-  .allow-select {
-    -webkit-user-select: text;
-    user-select: text;
-  }
   /* The editor owns scrolling. Overscroll containment alone still lets
      overflowing content give the document a second scrollbar. */
   html,
@@ -225,7 +236,7 @@
   pointer-events: none;
   background: var(--background);
   border-radius: var(--radius-lg);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-drag);
 }
 .drag-ghost > :first-child {
   margin-block-start: 0;
@@ -268,7 +279,7 @@ body.dragging .ProseMirror::selection {
 }
 
 /* Focus mode: dim every top-level block except the active one. */
-.focus-mode-on .ProseMirror > :not(.has-focus) {
+[data-focus-mode="true"] .ProseMirror > :not(.has-focus) {
   opacity: 0.28;
   transition: opacity 0.3s ease;
 }
@@ -277,7 +288,7 @@ body.dragging .ProseMirror::selection {
    either lifts the dim until the caret engages again. Overriding opacity while
    the rule above still matches keeps its transition on the element, so both
    directions animate (`D64`). */
-.focus-mode-on.focus-reading .ProseMirror > :not(.has-focus) {
+[data-focus-mode="true"][data-reading="true"] .ProseMirror > :not(.has-focus) {
   opacity: 1;
 }
 
@@ -323,7 +334,7 @@ body.dragging .ProseMirror::selection {
 /* Focus mode holds the line still, and a scrollbar flashing on every
    recentre is noise against that stillness. Wheel and trackpad scrolling
    are untouched; only the bar goes. */
-.focus-mode-on [data-slot="scroll-area-scrollbar"] {
+[data-focus-mode="true"] [data-slot="scroll-area-scrollbar"] {
   display: none;
 }
 
@@ -526,7 +537,7 @@ body.dragging .ProseMirror::selection {
   background: var(--popover);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-popover);
 }
 /* Concentric with the menu: the parent radius less the parent padding, so the
    two curves stay parallel if --radius moves. */
@@ -561,7 +572,7 @@ body.dragging .ProseMirror::selection {
 }
 
 /* Source mode: the whole file as one bare, highlighted code block. */
-.source-editor .ProseMirror pre {
+[data-source-editor="true"] .ProseMirror pre {
   padding: 0;
   margin: 0;
   font-family: var(--font-mono);
@@ -675,7 +686,7 @@ body.dragging .ProseMirror::selection {
   background: var(--popover);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-popover);
 }
 .link-editor-input {
   width: 14rem;
@@ -707,7 +718,7 @@ body.dragging .ProseMirror::selection {
   background: var(--popover);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-popover);
 }
 .link-hover-url {
   overflow: hidden;
@@ -877,7 +888,9 @@ body.dragging .ProseMirror::selection {
   outline-offset: 1px;
 }
 
-.focus-mode-on[data-find-open="true"] .ProseMirror > :not(.has-focus) {
+[data-focus-mode="true"][data-find-open="true"]
+  .ProseMirror
+  > :not(.has-focus) {
   opacity: 1;
 }
 

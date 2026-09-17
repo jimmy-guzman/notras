@@ -43,12 +43,7 @@ function ContextRun({ lines }: ContextRunProps) {
   };
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
-      <Button
-        className="text-muted-foreground self-start font-sans"
-        onClick={expand}
-        size="xs"
-        variant="link"
-      >
+      <Button className="self-start" onClick={expand} size="xs" variant="link">
         {lines.length} unchanged lines
       </Button>
     );
@@ -174,14 +169,10 @@ function Place({
         onUse={useOurs}
         useLabel="use this, mine"
       />
-      <Label
-        className="text-muted-foreground font-sans text-xs font-normal"
-        htmlFor={resultId}
-      >
+      <Label htmlFor={resultId} variant="muted">
         result<span className="sr-only"> for place {number}</span>
       </Label>
       <Textarea
-        className="rounded-sm placeholder:font-sans placeholder:text-sm placeholder:font-normal"
         data-heading={heading ? "1" : undefined}
         id={resultId}
         onChange={edit}

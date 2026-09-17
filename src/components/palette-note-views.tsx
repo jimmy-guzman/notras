@@ -80,7 +80,7 @@ interface DeleteViewProps {
 
 export function DeleteView({ onCancel, onConfirm, title }: DeleteViewProps) {
   return (
-    <CommandGroup heading={`delete "${title}"?`}>
+    <CommandGroup heading={`delete "${title}"?`} variant="title">
       <CommandItem onSelect={onCancel} value="cancel-delete">
         cancel
       </CommandItem>
@@ -183,7 +183,7 @@ export function RenameView({
   const draftTitle = query.trim();
 
   return (
-    <CommandGroup heading={`rename "${title}"`}>
+    <CommandGroup heading={`rename "${title}"`} variant="title">
       {draftTitle === "" ? null : (
         <CommandItem onSelect={onConfirm} value="confirm-rename">
           <PencilIcon />
@@ -282,7 +282,7 @@ export function TagsView({
           </Button>
         </output>
       ) : null}
-      <CommandGroup heading={`tags for "${title}"`}>
+      <CommandGroup heading={`tags for "${title}"`} variant="title">
         {choices.map((name) => (
           <TagChoiceItem
             attached={attachedNames.has(name)}

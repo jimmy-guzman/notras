@@ -144,7 +144,7 @@ Every user-facing string is lowercase, the wordmark included, and `DESIGN.md` en
 
 ### D19 Shadcn radix-maia on a stone base
 
-UI primitives come from `pnpm dlx shadcn@latest add`, originally in the radix-maia style on a stone base with oklch tokens. **`D22` moved the style to base-maia on Base UI and `D23` replaced the palette**, so only the dark `:root` default and the two constraints below survive.
+UI primitives come from `pnpm dlx shadcn@latest add`, originally in the radix-maia style on a stone base with oklch tokens. **`D22` moved the style to base-maia on Base UI and `D23` replaced the palette**, so only the dark `:root` default and the two constraints below survive. **`D85` retired both constraints**: the files are owned code now.
 
 **Constraint:** files in `src/components/ui/**` are generated and not hand-edited. Lint with no autofix is turned off for them in `biome.jsonc`'s `src/components/ui/**` override rather than patched at the call site, because `scripts/update-shadcn.sh` overwrites the files.
 
@@ -1098,3 +1098,23 @@ Controls and titles stay lowercase, prose (descriptions, alert bodies, help text
 **Rejected: case transforms in strings or on control slots.** Controls carry note titles, so a `lowercase` class over a row or an uppercase string in a heading rewrites user content. The uppercase slots hold fixed labels, and the palette views whose heading quotes a title are left out.
 
 **Rejected: capitalizing reasons at the display boundary.** Three paths read native messages without `reasonOf`, and Rust would lowercase text for the frontend to undo, so the messages change at the source.
+
+### D85 The shadcn components are owned code
+
+`src/components/ui/**` is app code: edited in place, linted like the rest of `src`, and never regenerated. `scripts/update-shadcn.sh` is gone, and with it the `src/components/ui/**` lint override block it justified and the workarounds the no-edit rule forced: `D19`'s re-applied deviations, `D37`'s on-state constant, `D51`'s refusal to fix `icon-xs`, and the popup overrides at every menu. `@shadcn/lint`, through `ultracite/oxlint/shadcn`, holds the line from the other side: a call site may place a component (`allow: ["layout"]`), and any appearance class it adds is an error naming the component file where a variant belongs.
+
+shadcn hands over source to own. The `add -o` regeneration was what made the files untouchable, and the untouchability pushed every design need out to the call site: the 100 diagnostics the preset reported on adoption were all `DESIGN.md` rules living in the wrong file.
+
+**Rejected: keeping regeneration and the override block, with the preset enforcing only call sites.** The linter's messages send a reader to `src/components/ui/<file>.tsx` to add a variant, which the block forbade, so every finding would have become a contract exception in `oxlint.config.ts` instead of a fix.
+
+**Rejected: an `allow` option on `no-inline-styles` for dnd-kit's transform and transition.** The rule documents it. Rejected because dnd-kit documents the custom-property form too and the linter's own tests accept it, so the tab sets `--tab-x` and `--tab-transition` and one `@utility` in `src/styles.css` reads them, with nothing narrowed.
+
+**Constraint:** an upstream change is pulled per component with `pnpm dlx shadcn@latest add <name> --diff`, read, and merged by hand like any dependency's source.
+
+**Constraint:** `no-raw-colors` reads `shadow-drag` as a color, because the linter knows only Tailwind's shadow sizes and not a project's `--shadow-*` tokens (shadcn-ui/lint#10). The one use in `tab-strip.tsx` is suppressed with the issue cited, and the suppression goes when the fix ships.
+
+**Constraint:** editor state that CSS reads is a data attribute (`data-focus-mode`, `data-reading` and `data-source-editor`, beside the existing `data-find-open`), never a class, since `no-restyle` reports a class the Tailwind grammar cannot classify and a state hook has no styling category to land in.
+
+**Constraint:** `knip.config.ts` still ignores `src/components/ui/**`, so an unused registry part goes unreported. Pruning is a follow-up.
+
+**Constraint:** `React.CSSProperties` is augmented in `src/react-css-custom-properties.d.ts` to admit `--*` keys, the route React's own types name, so a dynamic value reaches a class such as `translate-x-(--tab-x)` without a type assertion.
