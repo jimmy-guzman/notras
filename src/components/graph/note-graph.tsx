@@ -410,6 +410,7 @@ function Pill({
       }}
       render={
         <button
+          aria-current={centre ? "true" : undefined}
           aria-label={
             item.kind === "note"
               ? item.note.title
@@ -420,7 +421,8 @@ function Pill({
         />
       }
       position={item.position}
-      variant={centre ? "hub" : "pill"}
+      size={centre ? "lg" : "default"}
+      variant="outline"
     >
       {item.kind === "note" ? (
         <span className="truncate">{item.note.title}</span>
@@ -440,7 +442,7 @@ function Placeholder({
   target: string;
 }) {
   return (
-    <RingBadge position={position} variant="placeholder">
+    <RingBadge position={position} variant="dashed">
       <span className="truncate">{target}</span>
     </RingBadge>
   );
@@ -508,7 +510,7 @@ function OverflowPill({
         />
       }
       position={item.position}
-      variant="pill"
+      variant="outline"
     >
       +{item.count}
     </RingBadge>
