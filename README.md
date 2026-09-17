@@ -2,70 +2,58 @@
 
 # notras
 
-A local-first, keyboard-driven notes app for the desktop. Your notes are plain markdown files in a folder you own, so there is no account to make and no database to export from.
+A keyboard-driven notes app for the desktop. Your notes are markdown files in a folder you own.
 
 ## Your notes are files
 
-notras reads `.md` and `.markdown` files under a folder you pick, `~/notras` by default, and writes new ones as `.md`.
+notras reads `.md` and `.markdown` files under a folder you pick, `~/notras` by default, and writes new ones as `.md`. Folders are directories. Tags and pins are YAML frontmatter. Attachments are files in `attachments/`.
 
-- folders are real directories
-- tags and pins are YAML frontmatter
-- attachments are plain files
+An agent like Claude Code can write straight into the folder, and the app picks up the change within about a second. If a file changes under a note you are editing, the two versions are combined line by line, and edits to the same lines wait for you to review them.
 
-Because the folder is plain files:
+The app reads the whole folder so attachments render. Share it only with people and jobs you trust.
 
-- **Any tool works.** Edit a note in vim, sync the folder with git or iCloud, grep it from a terminal.
-- **AI agents write straight into the folder.** Point Claude Code at it. A Rust file watcher picks up what it writes, and the app refreshes within a second.
-
-The folder is trusted input. Anything that can write to it can change what notras shows, and the app grants itself read access to the whole folder so attachments render. Share it only with people and jobs you trust, and set filesystem permissions to match.
-
-Unsaved edits win over an agent's write. A note open in notras keeps your buffer, and the next save overwrites what the agent put there. [SPEC.md](SPEC.md#external-changes) has the rule.
-
-Search and mentions run on a SQLite index derived from those files: FTS5 over the text, and a row for every `[[wikilink]]`. The index is disposable, and [ARCHITECTURE.md](ARCHITECTURE.md) covers how it is built and rebuilt.
+Search runs on a SQLite index built from the files. Delete it and the next launch rebuilds it.
 
 ## Features
 
 ### Writing
 
-- WYSIWYG markdown over plain `.md`, set in Literata
-- autosave on idle, writing clean canonical markdown back to the file
-- the `/` slash menu inserts headings, lists, task lists, quotes, code blocks, tables, dividers, and today's date
-- editable tables, clickable task checkboxes, and inline images
+- WYSIWYG markdown, saved back as clean GFM
+- autosave when you stop typing
+- `/` menu for headings, lists, task lists, quotes, code blocks, tables, dividers, and today's date
+- tables, task checkboxes, and images
 - code blocks with a copy button and a language picker
-- all of it round-trips through GFM markdown
-- `⌘F` finds literal text in the current buffer, including unsaved edits, with `⌘G` and `⌘⇧G` to move between matches. It works in rich text, source, external files, and quick capture.
-- `⌘E` swaps to raw markdown source, the escape hatch for anything exotic
-- `⌘D` focus mode dims every block but the one you are in, keeps the line you are typing vertically centred, and lifts the dim while you scroll by wheel or touch
-- word count, in the status strip
+- `⌘E` raw markdown source
+- `⌘D` focus mode: dims every block but the one you are in and keeps your line centred
+- `⌘F` finds text in the note
+- word count in the status strip
 
 ### Finding
 
-- `⌘P` finds a note, over full-text search with highlighted snippets
-- combine `#tag`, `folder:path`, `to:note.md`, `from:note.md`, `mention:"a phrase"`, and `link:github.com` with free text; the "add filter" button supplies folder, tag, and note choices
-- a completed search without filters that matches nothing offers to create a note under the name you typed
-- `⌘⇧P` runs an action on the note, the open tabs, or the app itself
-- `[[note title]]` wikilinks as clickable pills, with autocomplete
-- `[text](other.md)` links to notes open with a click, and read as internal
-- the status strip counts the notes that mention the one you are in, by `[[link]]` or by writing its title, and lists them with the line that did it. Other apps call the linked ones backlinks
-- `⌘⌥G` swaps the note for its graph: the note in the centre, what mentions it on the left, what it links to on the right, its folder and tags along the top, arrows to walk it and `⏎` to hop, into a note or into a tag
-- `⌘⇧K` adds or edits a link, `⌘⇧O` opens the one at the caret, and a click opens a web link in your browser or a linked file in the app your system picks
-- tags, pins, and folders, with moves between folders run from `⌘⇧P`
+- `⌘P` full-text search with highlighted snippets
+- filters: `#tag`, `folder:path`, `to:note.md`, `from:note.md`, `mention:"a phrase"`, `link:github.com`
+- a search without filters that matches nothing offers to create a note under that name
+- `⌘⇧P` runs an action
+- `[[wikilinks]]` with autocomplete, and `[text](other.md)` links between notes
+- the status strip counts the notes that mention the one you are in, and lists them
+- `⌘⌥G` shows the note as a graph: what mentions it, what it links to, its folder and tags
+- tags, pins, and folders
 
 ### Tabs
 
 - several notes open at once, in the title bar
-- each tab keeps its own undo history across rich and source mode
-- editing the heading names the file; rename accepts a readable name, and one undo restores both
+- each tab keeps its own undo history
+- the heading is the filename: rename one and the other follows
 - the open set comes back when you relaunch
 
 ### Files and the system
 
-- drag a file onto a note: it lands in `attachments/`, with a markdown link inserted
-- quick capture: `⌘⇧N` from any app, jot, `esc` saves it to `inbox/`
-- "Open With" opens external markdown files, as many at once as you pick (macOS)
-- `⌘⇧P` export pdf saves the note as a paginated PDF, set the way the editor sets it (macOS)
+- drop a file on a note: it lands in `attachments/` with a link inserted
+- `⌘⇧N` quick capture from any app, and `esc` saves it to `inbox/`
+- "Open With" opens markdown files from outside the folder (macOS)
+- export a note as a PDF (macOS)
 - menu-bar tray and launch at login
-- lowercase chrome, and light or dark from the system
+- light or dark, from the system
 
 ## Install
 
@@ -73,38 +61,32 @@ Search and mentions run on a SQLite index derived from those files: FTS5 over th
 brew install --cask jimmy-guzman/tap/notras
 ```
 
-notras runs on macOS 26 or later. The build is universal, so it runs on Apple silicon and Intel Macs.
-
-Linux support follows the Ubuntu release used by GitHub Actions' `ubuntu-latest` runner, with current system updates. The app uses Ubuntu's WebKitGTK runtime. Older Ubuntu releases and other Linux distributions are outside the support policy.
-
-notras checks for updates on launch. A new version arrives as a toast with an install button, and nothing installs until you press it.
-
 Or download an installer from [releases](https://github.com/jimmy-guzman/notras/releases):
 
 - `.dmg` on macOS
 - `.AppImage`, `.deb` or `.rpm` on Linux
 - `.msi` or `.exe` on Windows
 
-Every release carries a `SHA256SUMS.txt` alongside them, so check what you got:
+notras needs macOS 26 or later. The build is universal, so it runs on Apple silicon and Intel. Linux support covers the Ubuntu release that GitHub Actions' `ubuntu-latest` runner uses, with current system updates, on that release's WebKitGTK. Other distributions and older Ubuntu releases are unsupported.
+
+Each release carries `SHA256SUMS.txt`. Check what you downloaded:
 
 ```bash
 shasum -a 256 -c SHA256SUMS.txt --ignore-missing   # macOS
 sha256sum -c SHA256SUMS.txt --ignore-missing       # Linux
 ```
 
-`--ignore-missing` matters. The file lists every platform's artifact, so without it the check fails on the ones you did not download.
+`--ignore-missing` skips the platforms you did not download. It is not a signature, since the sums sit on the same release as the files.
 
-This catches a truncated or corrupted transfer. It is not a signature, since the sums sit on the same release as the files.
-
-Builds are not yet signed with an Apple Developer ID, so macOS quarantines the app on first launch.
-
-Clearing that flag turns off Gatekeeper's check for this app, so run the checksum above first and only clear it if you trust what you downloaded:
+Builds are not signed with an Apple Developer ID yet, so macOS quarantines the app on first launch. Clearing the flag skips Gatekeeper for this app, so run the checksum first:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/notras.app
 ```
 
-Signing and notarization are tracked in [issue #171](https://github.com/jimmy-guzman/notras/issues/171).
+Signing is tracked in [issue #171](https://github.com/jimmy-guzman/notras/issues/171).
+
+notras checks for updates on launch. A new version shows a toast with an install button.
 
 ## Keyboard shortcuts
 
@@ -138,15 +120,12 @@ Signing and notarization are tracked in [issue #171](https://github.com/jimmy-gu
 | `esc`        | (review) back to the note        |
 | `⌘⏎`         | (review) resolve                 |
 
-- `⌘E` and `⌘⌥⇧W` act on the tab that is showing.
-- `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need that tab to hold a note. A file opened from outside your library has no frontmatter to tag and no place in the index to be mentioned from or drawn from.
-- None of those does anything on the empty state, which is where closing the last tab lands you.
-- `⌘D` sets the writing mode, which belongs to the app rather than a note, so it works with nothing open and the next note you create is already in it.
-- The capture window is its own tree, so the palette and tab shortcuts never reach it. `esc`, `⌘⏎`, find in note, and the editor's own keys do.
+- `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need a note from your library. A file opened from outside has no frontmatter and is not in the index.
+- The palette and tab shortcuts do not reach the capture window. `esc`, `⌘⏎`, `⌘F` and the editor's own keys do.
 
 ## Development
 
-You need three things:
+You need:
 
 - Node, which `.nvmrc` pins to v24.19.0
 - [pnpm](https://pnpm.io), whose version corepack reads out of `package.json`
@@ -160,7 +139,7 @@ pnpm install
 pnpm dev
 ```
 
-On first launch notras creates `~/notras` and seeds the index. Change the folder any time in settings (⌘,).
+On first launch notras creates `~/notras` and builds the index. Change the folder in settings (`⌘,`).
 
 | Script                | Description                                       |
 | --------------------- | ------------------------------------------------- |
@@ -180,9 +159,9 @@ On first launch notras creates `~/notras` and seeds the index. Change the folder
 | `pnpm prepare`        | install the git hooks (lefthook)                  |
 | `pnpm tauri`          | run the tauri cli directly                        |
 
-Icon generation needs macOS and ImageMagick (`brew install imagemagick`). Edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. Generated artwork includes the desktop and tray icons, favicons, welcome marks, and README hero.
+To regenerate the icons and the hero, edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. It needs macOS and ImageMagick from `brew install imagemagick`.
 
-Rust commands run from the repository root. The Cargo workspace contains the independent `notras-core` engine and the Tauri shell in `src-tauri`. Both use the root `target` directory. Rustup reads the pinned toolchain and components from `rust-toolchain.toml`. Install the additional tools once:
+Rust commands run from the repository root. The workspace holds the `notras-core` engine and the Tauri shell in `src-tauri`. Install the extra tools once:
 
 ```bash
 cargo install cargo-machete --locked --version 0.9.2
@@ -199,41 +178,7 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo test --workspace --locked` | engine and shell tests, including doctests |
 | `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-Both crates inherit checks requiring explicit unsafe operations, safety comments on unsafe blocks, and reasons for lint allowances. CI runs Clippy and tests on macOS, Linux, and Windows. Dependency, formatting and binding drift checks run on Linux, which also publishes LCOV and JSON reports in the `rust-coverage` artifact. The TypeScript job waits for the Rust jobs so stale bindings fail before type checking. Coverage includes both workspace crates and has no percentage target. The pre-commit hook checks formatting when Rust sources or formatting configuration are staged; it does not rewrite or stage files.
-
-On Windows MSVC, `src-tauri/build.rs` embeds `windows_manifest.xml` through the linker for both the application and shell test executables. It declares the Common Controls v6 dependency required by Tauri. Without that manifest, Windows can reject the test executable with `STATUS_ENTRYPOINT_NOT_FOUND` before any tests run.
-
-Binding generation needs the Rust build prerequisites and installed pnpm dependencies. It uses the same command registry as the app and preserves Specta's generated output. `oxlint.config.ts` and `oxfmt.config.ts` exclude that file. Run `pnpm bindings:check` before `pnpm check`; run `pnpm bindings` to update the committed client after a native contract change.
-
-Mutation tests cover native file and index outcomes, shared normalization fixtures, and session persistence with delayed writes and path changes. A file that committed remains saved when indexing fails. The main window reports the warning, and the next index read attempts recovery.
-
-## Technologies
-
-- [Tauri](https://tauri.app) 2
-- [rusqlite](https://github.com/rusqlite/rusqlite)
-- [notify](https://github.com/notify-rs/notify)
-- [Vite](https://vite.dev) 8
-- [React](https://react.dev) 19
-- [React Compiler](https://react.dev/learn/react-compiler)
-- [TipTap](https://tiptap.dev) 3
-- [`@tiptap/markdown`](https://tiptap.dev/docs/editor/markdown)
-- [SQLite](https://sqlite.org) FTS5
-- [Shadcn UI](https://ui.shadcn.com)
-- [Base UI](https://base-ui.com)
-- [Tailwind CSS](https://tailwindcss.com) 4
-- [node-diff3](https://github.com/bhousel/node-diff3)
-
-## Docs
-
-| Doc | What it holds |
-| --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The stack, the index schema, project structure, layer boundaries, patterns, invariants |
-| [DESIGN.md](DESIGN.md) | Typography, color, space, motion, interaction, the editor surface, copy |
-| [DECISIONS.md](DECISIONS.md) | A log of decisions, each with its rationale and what it rejected |
-| [SPEC.md](SPEC.md) | What the app does, as claims you can check against a running build |
-| [AGENTS.md](AGENTS.md) | The rules for changing any of it, and the map of which doc holds which fact |
-
-Actionable future work is tracked in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).
+`AGENTS.md` maps the project docs and the rules for changing them.
 
 ## License
 
