@@ -1495,6 +1495,9 @@ describe(NoteSession, () => {
     act(() => {
       typeAtEnd(liveEditor, "more ");
     });
+    expect(
+      screen.getByText("this note could not be saved")
+    ).toBeInTheDocument();
     await act(async () => {
       await flushPendingWrites();
     });

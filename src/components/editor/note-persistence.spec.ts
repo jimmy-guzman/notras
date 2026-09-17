@@ -931,6 +931,31 @@ describe("note persistence", () => {
     expect(clears).toBe(2);
   });
 
+  it("should hold a failed save through an external change that combines cleanly", async () => {
+    const note = createNotePersistence(initial, {
+      changePath: () => {
+        throw new Error("no move requested");
+      },
+      clearStash: async () => {},
+      onPathChanged: () => {},
+      stash: async () => {},
+      write: async () => await Promise.reject(new Error("Permission denied")),
+    });
+    note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
+    await expect(note.flush()).resolves.toBeFalsy();
+    expect(note.store.state.status).toBe("failed");
+    note.receiveFile(
+      "shopping.md",
+      { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
+      false
+    );
+    expect(note.store.state).toMatchObject({
+      content: "# Chores\n\nbody, mine",
+      reason: "Permission denied",
+      status: "failed",
+    });
+  });
+
   it("should hold a pin change with the unsaved text while a review is open", async () => {
     const stashes: string[] = [];
     const note = createNotePersistence(initial, {

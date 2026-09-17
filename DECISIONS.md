@@ -1145,6 +1145,8 @@ The states that matter are `failed` and `conflict`. `conflict` already had a pan
 
 **Rejected: a toast from the autosave path,** re-rejected from `D38`. The write is debounced and retried on every keystroke, so a disk that keeps refusing stacks a toast per attempt. An alert is state rather than an event: it stands while the status is `failed` and leaves when a write lands.
 
+**Constraint:** a keystroke no longer resets `failed` to `dirty`, which `D38` had as a constraint. The status and its reason hold through typing and through an external change that combines cleanly, until a write commits or a conflict absorbs the file, since a banner that leaves on the first keystroke and returns after the pause moves the note with it.
+
 **Constraint:** `SaveStatus` lost `saving`. The glyph was its only reader, and `writing` already carries the in-flight fact.
 
 **Constraint:** a stash removal that fails is logged by the `clearStash` port in `note-session.tsx` and retried on the next save rather than shown. The save committed, and a leftover stash combines cleanly on relaunch.

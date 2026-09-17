@@ -52,7 +52,7 @@ What notras does, as claims checkable against a running build.
 - Rename is one undoable edit. It preserves the mounted editor and maps the selection through the heading change. A failed save retains the live document and reports the reason; retry saves the current document.
 - A keystroke during a write is carried by the next write. Quit and update restart wait for queued operations and later edits, including a closing session's final flush.
 - A committed file change remains saved when indexing fails. The main window shows a persistent warning naming the file and reason. The next index read waits for a complete recovery scan and reports a failure if recovery is incomplete. Notes stay readable and saveable while it runs. A committed capture clears and hides even when indexing reports a warning.
-- A note whose save failed shows a banner at the top of the pane, "this note could not be saved", over the reason, until a later write lands. A tab whose save failed, or whose note needs review, carries a dot, whose screen-reader text carries the same reason.
+- A note whose save failed shows a banner at the top of the pane, "this note could not be saved", over the reason, until a later write lands; typing does not dismiss it. A tab whose save failed, or whose note needs review, carries a dot, whose screen-reader text carries the same reason.
 
 ## External changes
 
