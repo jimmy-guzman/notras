@@ -1,6 +1,6 @@
 # SPEC
 
-What notras does. Every claim below is checkable against a running build, so a claim nobody can check does not belong here. `ARCHITECTURE.md` carries how the system is built and `DESIGN.md` the interface conventions.
+What notras does, as claims checkable against a running build.
 
 `AGENTS.md` maps the rest of the docs.
 
@@ -37,16 +37,14 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A tag is trimmed, unquoted, stripped of `,`, `[` and `]`, and lowercased. Empty tags are dropped and duplicates collapse.
 - "move to folder..." keeps the filename rather than the title, creates the folder if it is missing, and refuses a target that is taken.
 - "delete note..." asks once, then removes the file. There is no trash.
-- Frontmatter is not searchable. Only the title and the body reach the index.
-- Every `[[wikilink]]` in a note is a row in the index: the note, the line as `grep -n` counts it, the text between the brackets as written, and the line itself. One inside a fence, indented code, inline code, an HTML block or comment, or between a matching pair of inline tags is not a row, which is where the editor shows text rather than a pill.
-- A markdown link whose destination is a note is a row too, with its destination as written. A destination counts when it carries no scheme, is not an anchor or an absolute path, and ends in `.md` or `.markdown` before any `#` or `?`, whatever the case. These note destinations use `link` rows. Other rendered destinations use `destination` rows, including bare and angle-bracket autolinks, attachment links, and external URLs. Images and links inside code or an HTML pair do not count. Malformed or escaped wikilink openings do not suppress rendered autolinks.
+- Frontmatter is not searchable.
 
 ## Saving
 
 - Typing starts a save 800ms after the last change.
 - Losing window focus, unmounting the session, and quitting each flush too.
 - Rich mode edits the body of the session document; source mode edits the whole document. Rename, pin, and tags also edit that document. Rapid tag additions and removals apply to the current document, retaining other tag edits made before the controls refresh or saving completes. Every save writes its complete contents.
-- Switching editor modes preserves unsaved content, including source spelling that renders identically, and the shared undo history. Save completion cannot replace newer typing. A failed selection mapping does not prevent a valid document replacement from reaching the rich editor; the editor retains its transaction-mapped selection instead.
+- Switching editor modes preserves unsaved content, including source spelling that renders identically, and the shared undo history. Save completion cannot replace newer typing.
 - Every save names the content revision it started from. A file whose revision differs is not written; the save returns the file on disk instead, and the session combines it or holds it for review.
 - A save keeps the file's permissions. On Linux and macOS a change that landed on disk between the save's read and its write is not overwritten; the save returns the file on disk. On Windows, other unix, and filesystems without a swap, a change landing in that window is overwritten.
 - A save under a new filename never removes a file that arrived under a public name in that window. A save cannot recreate a file that was deleted. A reader holding the old file keeps reading it, and the next open sees the replacement.
@@ -58,13 +56,11 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 ## External changes
 
-- The watcher debounces at 300ms, so a file written by anything else reaches the app within about a second. A note appears in the palette under its own title rather than its filename.
+- The watcher debounces at 300ms, so a file written by anything else reaches the app within about a second.
 - A change event names the files that changed, and only the tabs holding one of them re-read. An event naming nothing means the whole vault changed, and every tab re-reads.
 - An external file's path is never named by a change event, so an external tab re-reads when the window regains focus.
 - A clean session adopts a newer external document without writing or renaming it. The mounted editor remains in place, its selection maps through the change, and undo history resets at that external version.
-- An external observation never discards unsaved work. Saves and folder moves defer file-read reconciliation, and results for a former path cannot replace the document.
-- A file whose content revision equals the version the session started from is the session's own write echoing back. It changes nothing but the acknowledged timestamp.
-- A read whose timestamp is not newer than the last acknowledged one is stale and is ignored, so a read that started before a save cannot revert it.
+- An external observation never discards unsaved work.
 - A newer external version of a note with unsaved edits is combined with them line by line, three ways against the version the session started from. Edits in different places both survive, identical edits count once, and the combined note saves as usual. Undo history resets at the combination, and a title that arrives this way does not rename the file.
 - Edits that overlap the external change pause saving. The tab shows a banner saying the note changed on disk, the glyph and the dot read needs review, and the session keeps its unsaved text beside the version on disk. Typing continues without saving, and a pin or tag change joins the unsaved text the same way. A folder move is refused with "This note needs review before it can move". A file that changes again while paused replaces the version on disk and marks the review as started over, unless the new version combines cleanly, which resumes saving.
 - The banner offers "review", which replaces the note with the review while the tab stays put.
@@ -85,13 +81,13 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A save that failed shows why under "could not save", in the save glyph's tooltip and in the tab's dot.
 - A search the index could not answer reads "could not search notes" over the reason in the palette, and offers no note to create from it.
 - A launch that cannot proceed shows a dialog saying notras could not start and why, then exits. An index that cannot be opened is deleted and rebuilt from the files, which the log records.
-- The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches. Failed observation reconciliation emits no change event.
-- Deleting the cached index and relaunching rebuilds it from the files. "reindex library" refreshes every note, including unchanged files, while retaining indexed rows until each note is refreshed. During a healthy scan, indexed queries use the complete version from before the scan and refresh after completion. Queries against a fresh or failed index wait for successful recovery. A partially indexed library cannot appear as empty, and a folder rescan cannot show both the old and new paths. One large file can still delay another file operation. While indexed reads wait on a fresh or recovering index, the palette and the welcome screen read "indexing notes..." instead of a blank area or the generic loading text. A scan that fails reports its reason to the reads that waited on it.
+- The watcher logs what it could not watch, index, or rescan, and a settings change that could not be saved reports so before the folder switches.
+- Deleting the cached index and relaunching rebuilds it from the files. "reindex library" refreshes every note, including unchanged files, while retaining indexed rows until each note is refreshed. A partially indexed library cannot appear as empty, and a folder rescan cannot show both the old and new paths. While indexed reads wait on a fresh or recovering index, the palette and the welcome screen read "indexing notes..." instead of a blank area or the generic loading text. A scan that fails reports its reason to the reads that waited on it.
 - An older index schema is recreated on the first launch of a newer one and rebuilt by the startup scan, which the log records.
 
 ## Tabs
 
-- Tabs sit in the title bar. Each holds its own editing session, undo history, and caret. Tab labels and overflow choices show the live document title, using the filename stem until the document loads. The fallback takes the final component of paths with `/` or `\` separators and strips the Markdown extension. The tab strip and an available document remain usable while library lists are pending or failed.
+- Tabs sit in the title bar. Each holds its own editing session, undo history, and caret. Tab labels and overflow choices show the live document title, using the filename stem until the document loads. The tab strip and an available document remain usable while library lists are pending or failed.
 - A note opened fresh shows its top with the caret before its first character, and takes focus when its tab is showing. A tab restored from the last session lands on its saved caret instead.
 - ⌘N, ⌘T, the strip's new-note button, the tray's new note, the palette's new note, and the palette's create row all open a new note in a new tab.
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
@@ -111,7 +107,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - An external tab's relative destinations resolve against the file, wherever they point, `..` included. An image renders, and a missing one, one with an absolute path, or one whose extension is not an image shows as a broken image. A link to a markdown file opens it in the showing tab, as its note when it sits inside the notes dir and as an external tab otherwise. A link to any other file opens it in the app the system picks under the same refusals as a note's file link.
 - An external tab's wikilinks do not navigate, and it counts no mentions. Dropping a file onto it or pasting an image into it is refused, since attachments live in the notes folder.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A store that does not parse is discarded whole.
-- A note closed or relaunched while its review was open reopens with the unsaved text and the banner, and its review picks up against whatever the file holds now. If the stored edits combine with the current file without overlap, the rich editor shows the combined text. A tab does not mount until it knows whether a review is stored; a stored review that cannot be read shows the reason in the pane and offers to try again.
+- A note closed or relaunched while its review was open reopens with the unsaved text and the banner, and its review picks up against whatever the file holds now. If the stored edits combine with the current file without overlap, the rich editor shows the combined text. A stored review that cannot be read shows the reason in the pane and offers to try again.
 - An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
 - With nothing to restore, the most recently updated note opens when its query completes. The welcome screen and new-note action remain available during that read, which says "indexing notes..." while the first scan runs. A tab change cancels this automatic opening, so a late result cannot replace the user's choice. A failed read shows its reason and a retry action.
 
@@ -133,7 +129,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - `link:github.com` matches literal destination text without regard to case: note paths, attachments, external URLs, unresolved wikilinks, and rendered autolinks. Image sources do not match. Without free text, results show matching context when available; outgoing context names its source note.
 - Palette search reads saved library content. A failed read shows its reason and a retry button, and never offers creation. A failed refresh retains cached rows beside the error. An index still scanning shows "indexing notes..." where the rows will land and offers no creation.
 - While a changed query debounces or loads, the last displayed note rows stay visible at the same opacity and scroll position. Those rows cannot open through Enter, ⌘Enter, or a click, and those gestures are not queued. Results replace the previous rows together when the current query completes, with the first result selected and the list scrolled to the top. Refreshing the same query keeps its rows usable and preserves the choice while that note remains in the results. Clearing the input restores cached recent notes immediately; an uncached list shows loading until its read completes. Responses and failures for an earlier query cannot replace the current display.
-- Filter suggestions and move choices show loading or a failure with retry until their data is available. These reads do not block the actions list. Both tag editors keep attached tags and typed choices available while suggestions are pending or failed, and do not label unknown counts as zero. The palette offers a typed tag as "add" because tagging does not require knowing whether the tag already exists elsewhere.
+- Filter suggestions and move choices show loading or a failure with retry until their data is available. These reads do not block the actions list. Both tag editors keep attached tags and typed choices available while suggestions are pending or failed, and do not label unknown counts as zero. The palette offers a typed tag as "add".
 - The actions are find in note, new note, pin, edit tags, show mentions, rename note, move to folder, delete note, reveal in finder, focus mode, markdown source, graph view, close tab, close other tabs, close tabs to the right, export pdf, copy path, reopen last closed tab, quick capture, settings, reindex library, and check for updates.
 - Find in note and export pdf need an available editor, including an external file.
 - New note, focus mode, reopen last closed tab, quick capture, settings, reindex library and check for updates are always listed. Pin, edit tags, show mentions, graph view, rename note, move to folder, delete note and reveal in finder need a note showing. Markdown source, close tab, close other tabs, close tabs to the right and copy path need a tab showing, so they reach an external file too.
@@ -143,7 +139,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Action search matches the wording shown on the row, including "unpin note" and "turn on focus mode". The input has an accessible name for its current task. Attached tags expose their checked state independently of keyboard selection.
 - Search, actions, filter choices, move, and tags share a 24rem palette height, capped to the available window height. Rename and delete fit their content. Typing and changes between results, loading, and empty states do not resize a list view. A search read that remains pending for 500ms shows a spinner in reserved space beside "add filter". The 150ms debounce stays quiet. The spinner disappears when the read settles, the query changes, or the view closes, and respects reduced motion.
 - The palette keeps its input and filter button visible at the supported 480 by 360 minimum window. Its list scrolls within the available height.
-- An action that has a shortcut shows it on its row, read from the bindings the app has registered rather than restated: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⌥g, find in note ⌘f, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
+- An action that has a shortcut shows it on its row: new note carries ⌘n and ⌘t, edit tags ⌘⇧y, show mentions ⌘⇧l, focus mode ⌘d, graph view ⌘⌥g, find in note ⌘f, markdown source ⌘e, close tab ⌘w, close other tabs ⌘⌥⇧w, reopen last closed tab ⌘⇧t, and settings ⌘,. The rest show none.
 
 ## Find in a note
 
@@ -159,7 +155,6 @@ What notras does. Every claim below is checkable against a running build, so a c
 
 - The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
 - ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
-- A failed rich-editor selection conversion does not block valid document edits or saves. Invalid selection offsets do not reach the shared document.
 - In source mode, Tab inserts two spaces and Shift-Tab outdents two.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
@@ -171,7 +166,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - A link or a bare title written by anything else reaches the count within about a second.
 - A read of the mentions that fails leaves the count absent and toasts why once, under "could not read mentions".
 - A relative destination, in a link or an image, resolves against the folder of the note that holds it, with `.` and `..` folded. A click on a link whose destination is a note opens that note in the showing tab, matching exactly first and then without regard to case, and one that climbs above the notes folder or names no note says "no note at" the destination. An image that climbs above the notes folder, names an absolute path, or carries a segment a library path refuses shows as a broken image. Every link on the surface draws the same underline at the same height and thickness, and the style says where it goes, dashed for a relative destination and solid for a URL.
-- ⌘⇧K adds or edits a link. A click opens one, and so does ⌘⇧O on the link at the caret, which is the way there without a mouse. Pointing at a link shows where it goes, and an edit button there opens the same popover ⌘⇧K does, changing the words and the url together. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
+- ⌘⇧K adds or edits a link. A click opens one, and so does ⌘⇧O on the link at the caret. Pointing at a link shows where it goes, and an edit button there opens the same popover ⌘⇧K does, changing the words and the url together. Only `file`, `ftp`, `http`, `https`, `mailto`, `obsidian` and `tel` open; any other scheme is refused with a message. A URL with no scheme gets `https://`.
 - A click on a link whose destination is any other relative path, or ⌘⇧O on it, opens that file in the app the system picks. `%20` and `%23` in the destination reach the space and the `#` in the name on disk. The file has to sit inside the notes folder as a regular file: a destination that climbs out, names an absolute path, a folder, a note, or a symlink is refused with its reason, a file the system would run rather than open is refused as a program, and a missing file reports "No such file", each under "could not open file".
 - Dragging files onto the window copies each into `attachments/` and inserts a link into the tab that is showing, written relative to that note, so a note in `projects/` gets `../attachments/…`. A name already taken becomes `stem-2.ext`. Spaces survive on disk and are percent-encoded in the link.
 - An image extension inserts an image, anything else a link.
@@ -198,8 +193,8 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Inside a table the unit is the row: a caret in any cell moves that whole row. A row stays in its own table, so a drop outside it is refused and shows no line, and a paragraph dragged over a table lands before or after it rather than inside.
 - The header row does not move, and no row moves above it, since the first row is the one markdown writes as the header.
 - ⌥↑ and ⌥↓ move it one sibling at a time, and the first item in a list steps out to sit before the list. A move is one undo step, and inside the editor these no longer jump the caret by paragraph.
-- A block drag ends with the caret inside what moved and nothing highlighted, since its selection was only what the drag took hold of. A text drag ends with the dropped words selected, since that highlight covers exactly what moved.
-- ⌥↑ and ⌥↓ keep whatever the selection was, so a caret stays a caret and blocks selected together stay selected and move together on the next press. A table row is the exception and ends with a caret the way a drag does, since the row is the unit whatever was selected.
+- A block drag ends with the caret inside what moved and nothing highlighted. A text drag ends with the dropped words selected.
+- ⌥↑ and ⌥↓ keep whatever the selection was, so a caret stays a caret and blocks selected together stay selected and move together on the next press. A table row is the exception and ends with a caret the way a drag does.
 - A keyboard move recentres the caret when focus mode is on; a drop does not.
 - ⌘D toggles focus mode, which drops every block but the one holding the caret to 28% opacity and holds the caret's line at the editor's vertical centre. The status strip and the palette toggle it too.
 - Scrolling by wheel or touch lifts the dim so the rest of the note reads normally, and typing, arrow travel, or a click restores it.
@@ -207,7 +202,6 @@ What notras does. Every claim below is checkable against a running build, so a c
 - Typing, deleting, undo, paste, and arrow-key travel recentre with a short glide. A click, a drag-selection, and scrolling by hand do not, and the next keystroke recentres.
 - The caret types at its natural height until its line reaches the centre and locks there, so scrolling up settles at the note start with no blank above. The last lines reach the centre, toggling the mode does not shift the text, resizing the window keeps the caret's line at its anchor, and with reduce motion on the recentre is instant.
 - Inside a code block the caret stays horizontally in view while the mode is on.
-- The note's scrollbar is hidden while the mode is on.
 - The status strip carries the word count.
 - Focus mode is app-wide rather than per tab and survives a relaunch.
 
@@ -217,7 +211,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The PDF is set in the light palette on white paper, in Literata at 12pt and iA Writer Mono at 10.5pt, both embedded, and carries the note's title as its document title. Code keeps its highlighting on the chip surface and long code lines wrap. Task boxes, inline code, links and their underlines, wikilink pills and tables print as they show on screen. An image prints at its on-screen size; a missing one prints as the broken image the editor shows.
 - The paper is the system's default size. The top and bottom margins are one inch. The side margins are what the paper has left beside the note surface's 672px, 0.75in on Letter and 0.63in on A4, and the surface's own padding then puts the text an inch in on Letter and 0.88in on A4, so the text block is the editor's column on every paper. A table wider than the column shrinks to fit it.
 - A paragraph, a heading, an image, a table row, a fence, a table and a quote each stay on one page when they fit on one, and a heading moves with the block after it, or with the first item of a list. A block taller than a page starts on a new page and breaks inside, and a heading before one can be left behind. Find highlights, selections, the caret and the code toolbar do not print.
-- In markdown source the action reports "could not export pdf" over "Leave Markdown source first", since the source is not the rendered note. A write that fails reports the same title over the reason. The action needs an available editor, so an external file exports too and the empty state offers nothing.
+- In markdown source the action reports "could not export pdf" over "Leave Markdown source first". A write that fails reports the same title over the reason. The action needs an available editor, so an external file exports too and the empty state offers nothing.
 - The export runs on macOS, and the palette offers the action there alone. On Linux and Windows the row is absent, and the command behind it refuses with "pdf export is only available on macos".
 
 ## The graph
@@ -246,7 +240,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - The note lands in `inbox/` with its filename derived from the same content title as other notes. Content without a usable title receives `untitled.md`. A taken name receives the next free numeric suffix. Capture adds no heading or frontmatter.
 - Capturing nothing writes nothing, and the window hides.
 - A failed save keeps the jot on screen and says so.
-- The capture window is its own tree, so the palette and the tab shortcuts do not reach it. The editor's own keys and find in note do.
+- The palette and the tab shortcuts do not reach the capture window. The editor's own keys and find in note do.
 
 ## The window and the system
 
@@ -267,7 +261,7 @@ What notras does. Every claim below is checkable against a running build, so a c
 - If the webview never answers, the quit goes through after 5 seconds.
 - Quitting stops a running scan at its next step. The next launch's startup scan indexes what the interrupted scan had not reached. A reindex interrupted by a quit does not resume as a reindex; run "reindex library" again to refresh the remaining notes.
 - "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. A path that reaches the notes dir through a symlink counts as inside it. macOS only.
-- Settings exposes the notes folder and launch at login. Changing the folder watches the new folder, builds its index under the cache folder, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A file written into the new folder while its index builds is indexed when the switch commits, before the event that re-reads every tab. A quit during that build leaves the choice unsaved.
+- Settings exposes the notes folder and launch at login. Changing the folder watches the new folder, builds its index under the cache folder, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A quit during that build leaves the choice unsaved.
 
 ## Updates
 

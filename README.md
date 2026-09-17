@@ -6,7 +6,7 @@ A keyboard-driven notes app for the desktop. Your notes are markdown files in a 
 
 ## Your notes are files
 
-notras reads `.md` and `.markdown` files under a folder you pick, `~/notras` by default, and writes new ones as `.md`. Folders are directories. Tags and pins are YAML frontmatter. Attachments are files in `attachments/`.
+notras reads `.md` and `.markdown` files under a folder you pick, `~/notras` by default, and writes new ones as `.md`. Tags and pins are YAML frontmatter. Attachments are files in `attachments/`.
 
 An agent like Claude Code can write straight into the folder, and the app picks up the change within about a second. If a file changes under a note you are editing, the two versions are combined line by line, and edits to the same lines wait for you to review them.
 
@@ -21,8 +21,7 @@ Search runs on a SQLite index built from the files. Delete it and the next launc
 - WYSIWYG markdown, saved back as clean GFM
 - autosave when you stop typing
 - `/` menu for headings, lists, task lists, quotes, code blocks, tables, dividers, and today's date
-- tables, task checkboxes, and images
-- code blocks with a copy button and a language picker
+- images, and code blocks with a copy button and a language picker
 - `⌘E` raw markdown source
 - `⌘D` focus mode: dims every block but the one you are in and keeps your line centred
 - `⌘F` finds text in the note
@@ -67,7 +66,7 @@ Or download an installer from [releases](https://github.com/jimmy-guzman/notras/
 - `.AppImage`, `.deb` or `.rpm` on Linux
 - `.msi` or `.exe` on Windows
 
-notras needs macOS 26 or later. The build is universal, so it runs on Apple silicon and Intel. Linux support covers the Ubuntu release that GitHub Actions' `ubuntu-latest` runner uses, with current system updates, on that release's WebKitGTK. Other distributions and older Ubuntu releases are unsupported.
+notras needs macOS 26 or later. The build is universal. Linux support covers the Ubuntu release of GitHub Actions' `ubuntu-latest` runner, with current updates. Older Ubuntu releases and other distributions are unsupported.
 
 Each release carries `SHA256SUMS.txt`. Check what you downloaded:
 

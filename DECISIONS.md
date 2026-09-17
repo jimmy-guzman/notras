@@ -1,14 +1,12 @@
 # DECISIONS
 
-Decisions and their rationale. The early entries were backfilled from the rewrite, which `git log` records.
+Decisions and their rationale.
 
-This file is a log, not a set of rules. An entry records what was decided and why, at the time it was decided. A later entry can supersede an earlier one, and the earlier one stays where it is with its reasoning intact, so an entry answers why the code looks the way it does. What must hold today is an invariant in `ARCHITECTURE.md`, what you must do is a rule in `AGENTS.md`, and what the app does is `SPEC.md`.
+An entry records what was decided and why, at the time it was decided. A later entry can supersede an earlier one, which stays where it is with its reasoning intact. What must hold today is an invariant in `ARCHITECTURE.md`, what you must do is a rule in `AGENTS.md`, and what the app does is `SPEC.md`.
 
 A **Constraint:** line reads closest to an order and is not one. It names what the decision left the codebase carrying, and it holds only as long as that decision does.
 
-Numbering is monotonic and IDs are never reused, even after an entry is removed. A citation in a commit or a comment outlives the line it points at, so reusing an ID repoints every reference to it without any of them changing. The next number is the highest ever assigned plus one, even when that entry has been removed.
-
-Routine implementation details belong in code. Current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. An entry belongs here only when the rationale needs a durable record beyond those sources; a rejected alternative alone does not require one.
+IDs are never reused, even after an entry is removed, since a citation in a commit or a comment outlives the line it points at. The next number is the highest ever assigned plus one.
 
 ## Decisions
 
