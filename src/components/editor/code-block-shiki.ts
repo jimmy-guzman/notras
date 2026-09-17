@@ -128,14 +128,15 @@ function syntaxPlugin() {
             );
           }
         } catch (error) {
-          failed = true;
-          if (live) {
+          // Every request in flight rejects with the same failure; report it once.
+          if (live && !failed) {
             toast.add({
               description: reasonOf(error),
               title: "could not highlight code",
               type: "error",
             });
           }
+          failed = true;
         }
       }
 
