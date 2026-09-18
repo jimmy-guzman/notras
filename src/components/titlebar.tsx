@@ -19,7 +19,7 @@ interface TitlebarProps {
 export function Titlebar({ children }: TitlebarProps) {
   return (
     <div
-      className="bg-card text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-1 py-1 pe-1"
+      className="bg-shell text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-1 py-1 pe-1"
       data-tauri-drag-region="deep"
     >
       {children}

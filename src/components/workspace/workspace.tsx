@@ -51,9 +51,15 @@ const TAB_JUMPS = [
   ["Mod+9", -1],
 ] as const;
 
-function Welcome({ onNew }: { onNew: () => void }) {
+function Welcome({
+  onNew,
+  onSearch,
+}: {
+  onNew: () => void;
+  onSearch: () => void;
+}) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6">
+    <div className="flex flex-1 items-center justify-center">
       <div className="flex items-center gap-7">
         <picture className="shrink-0">
           <source
@@ -68,22 +74,24 @@ function Welcome({ onNew }: { onNew: () => void }) {
             width={112}
           />
         </picture>
-        <div className="flex flex-col gap-5">
-          <h1 className="tracking-wordmark font-mono text-5xl leading-none font-normal">
-            notras
-          </h1>
-          <p className="text-muted-foreground leading-tagline text-xl tracking-tight">
-            write another note
-          </p>
+        <div className="flex flex-col items-start gap-4">
+          <div className="flex flex-col gap-2">
+            <h1 className="tracking-wordmark font-sans text-5xl leading-none font-semibold">
+              notras
+            </h1>
+            <p className="text-muted-foreground leading-tagline text-xl tracking-tight">
+              write another note
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={onNew}>
+              new note <Chord hotkey="Mod+N" />
+            </Button>
+            <Button onClick={onSearch} variant="secondary">
+              search <Chord hotkey="Mod+P" />
+            </Button>
+          </div>
         </div>
-      </div>
-      <div className="text-muted-foreground flex items-center gap-4 text-sm">
-        <Button onClick={onNew} variant="outline">
-          new note <Chord hotkey="Mod+N" />
-        </Button>
-        <span>
-          or search with <Chord hotkey="Mod+P" />
-        </span>
       </div>
     </div>
   );
@@ -247,10 +255,12 @@ function carryTab(offset: number) {
 export function Workspace({
   initialTabs,
   onFilterTag,
+  onOpenSearch,
 }: {
   /** The tab state at launch, or null when saved tabs were restored into it. */
   initialTabs: TabState | null;
   onFilterTag: (tag: string) => void;
+  onOpenSearch: () => void;
 }) {
   const tabState = useTabState();
   const { activeId, tabs } = tabState;
@@ -399,7 +409,7 @@ export function Workspace({
   ]);
 
   return (
-    <div className="bg-card flex min-h-0 flex-1 flex-col">
+    <div className="bg-shell flex min-h-0 flex-1 flex-col">
       <Titlebar>
         <TabStrip
           activeId={activeId}
@@ -418,6 +428,7 @@ export function Workspace({
                 onNew={() => {
                   void newNote();
                 }}
+                onSearch={onOpenSearch}
               />
               {tabState === initialTabs ? (
                 <RecentNote initialTabs={initialTabs} />

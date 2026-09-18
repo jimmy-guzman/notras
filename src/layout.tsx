@@ -275,7 +275,13 @@ function MainWindow() {
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground flex h-svh flex-col">
-        <Workspace initialTabs={initialTabs} onFilterTag={setTag} />
+        <Workspace
+          initialTabs={initialTabs}
+          onFilterTag={setTag}
+          onOpenSearch={() => {
+            handlePaletteOpenChange(true);
+          }}
+        />
       </div>
       <CommandPalette
         key={`${tag ?? ""}:${paletteView}:${paletteSession}`}

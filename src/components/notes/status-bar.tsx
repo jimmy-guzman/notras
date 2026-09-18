@@ -74,7 +74,7 @@ export function StatusBar({
   };
 
   return (
-    <footer className="bg-card text-muted-foreground flex h-8 shrink-0 items-center gap-1 p-1 text-xs">
+    <footer className="bg-shell text-muted-foreground flex h-8 shrink-0 items-center gap-1 p-1 text-xs">
       {note === undefined ? null : (
         <>
           <NoteTags onFilter={onFilterTag} path={note.path} tags={note.tags} />

@@ -173,8 +173,10 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           // close button a sibling of the tab rather than a child of it.
           <span
             className={cn(
-              "group tab-motion hover:bg-muted hover:text-foreground has-[:focus-visible]:outline-ring dark:hover:bg-muted/50 flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
-              active && "bg-background text-foreground",
+              "group tab-motion hover:text-foreground has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+              active
+                ? "bg-background text-foreground"
+                : "hover:bg-muted dark:hover:bg-muted/50",
               // oxlint-disable-next-line shadcn/no-raw-colors -- shadcn-ui/lint#10: a custom --shadow-* token reads as a color
               isDragging && "shadow-drag z-10 cursor-grabbing"
             )}
@@ -222,7 +224,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         <button
           aria-label={`close ${label}`}
           className={cn(
-            "hover:text-foreground ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
+            "hover:bg-muted hover:text-foreground ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-all duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
             active && "text-muted-foreground opacity-100"
           )}
           data-tab-close

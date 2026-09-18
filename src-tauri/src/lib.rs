@@ -31,8 +31,8 @@ use tauri_specta::Event;
 /// `--background` from `src/styles.css`, restated because the window layer is
 /// painted by the OS before any stylesheet exists. `src/styles.spec.ts` fails if
 /// these drift from the tokens.
-const BG_DARK: Color = Color(0x25, 0x22, 0x1f, 255);
-const BG_LIGHT: Color = Color(0xf7, 0xf3, 0xee, 255);
+const BG_DARK: Color = Color(0x19, 0x18, 0x19, 255);
+const BG_LIGHT: Color = Color(0xfa, 0xf7, 0xf2, 255);
 
 /// Centres the buttons in the 32px band `Titlebar` draws;
 /// `tauri.conf.json` carries the same pair for the `main` window.

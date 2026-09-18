@@ -1,11 +1,3 @@
-/* Literata's opsz axis supplies the reading cut. Mono bold and italic remain
-   available for marked inline code; syntax highlighting uses the regular cut. */
-@import "@fontsource-variable/literata/opsz.css";
-@import "@fontsource-variable/literata/opsz-italic.css";
-@import "@fontsource/ia-writer-mono/latin-400.css";
-@import "@fontsource/ia-writer-mono/latin-400-italic.css";
-@import "@fontsource/ia-writer-mono/latin-700.css";
-
 /* Only src/ holds utility classes. Auto-detection from the project root also
    walks agent docs, crates and src-tauri, and the build registers every
    scanned file as a watch dependency. */
@@ -32,22 +24,23 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-shell: var(--shell);
   --color-foreground: var(--foreground);
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "iA Writer Mono", ui-monospace, monospace;
-  --font-editor: "Literata Variable", ui-serif, Georgia, serif;
   /* Clears the macOS traffic lights, which float over the content at the top
      left. The compact buttons end at 72px; the rest is breathing room. */
   --spacing-titlebar: 5.25rem;
   --shadow-popover: 0 8px 24px #0000002e;
   --shadow-drag: 0 2px 8px #0000002e;
-  --tracking-wordmark: -0.06em;
+  --tracking-wordmark: -0.0375em;
   --leading-tagline: 1.3;
   --color-faint: var(--faint);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -69,41 +62,44 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* --accent serves neutral hover surfaces. Keeping pink on --primary prevents
-   those surfaces from becoming accent-colored. */
+/* Violet marks the active row; pink remains reserved for actions. */
 :root {
-  --background: #25221f;
-  --foreground: #c4c0bb;
-  --card: #211d1a;
-  --card-foreground: #c4c0bb;
-  --popover: #211d1a;
-  --popover-foreground: #c4c0bb;
-  --primary: #e697bc;
-  --primary-foreground: #25221f;
-  --secondary: #322e2b;
-  --secondary-foreground: #c4c0bb;
-  --muted: #322e2b;
-  --muted-foreground: #9a9692;
-  --accent: #322e2b;
-  --accent-foreground: #c4c0bb;
-  --destructive: #dd9891;
-  --border: #45423e;
-  --input: #45423e;
-  --ring: #e697bc;
-  --faint: #9a9692;
-  --selection: #36393d;
-  --syntax-comment: #9a9692;
-  --syntax-function: #88afe2;
-  --syntax-keyword: #e697bc;
-  --syntax-keyword-control: #d2a272;
-  --syntax-keyword-import: #b4a0db;
-  --syntax-member: #88afe2;
-  --syntax-number: #b9ae6e;
-  --syntax-operator: #c4c0bb;
-  --syntax-punctuation: #9a9692;
-  --syntax-string: #85bc90;
-  --syntax-tag: #b4a0db;
-  --syntax-type: #65bdbd;
+  --background: #191819;
+  --shell: #282729;
+  --foreground: #e6dfd6;
+  --card: #151416;
+  --card-foreground: #e6dfd6;
+  --popover: #222123;
+  --popover-foreground: #e6dfd6;
+  --primary: #e99ac2;
+  --primary-foreground: #191819;
+  --secondary: #302e31;
+  --secondary-foreground: #e6dfd6;
+  --muted: #403d42;
+  --muted-foreground: #ada7af;
+  --accent: #343138;
+  --accent-foreground: #e6dfd6;
+  --destructive: #e59a94;
+  --success: #9abb9f;
+  --warning: #d6bc89;
+  --info: #83bac7;
+  --border: #282729;
+  --input: #7b747d;
+  --ring: #e99ac2;
+  --faint: #ada7af;
+  --selection: #363c48;
+  --syntax-comment: #ada7af;
+  --syntax-function: #8aa8d6;
+  --syntax-keyword: #e99ac2;
+  --syntax-keyword-control: #dca38b;
+  --syntax-keyword-import: #b5a0d4;
+  --syntax-member: #8aa8d6;
+  --syntax-number: #d6bc89;
+  --syntax-operator: #e6dfd6;
+  --syntax-punctuation: #ada7af;
+  --syntax-string: #9abb9f;
+  --syntax-tag: #b5a0d4;
+  --syntax-type: #83bac7;
   --radius: 0.5rem;
 }
 
@@ -111,38 +107,42 @@
    rather than left to WebKit answering "light" for print media on its own. */
 @media (prefers-color-scheme: light), print {
   :root {
-    --background: #f7f3ee;
-    --foreground: #3d3a36;
-    --card: #fef9f4;
-    --card-foreground: #3d3a36;
-    --popover: #fef9f4;
-    --popover-foreground: #3d3a36;
-    --primary: #a14b77;
-    --primary-foreground: #f7f3ee;
-    --secondary: #eae5e1;
-    --secondary-foreground: #3d3a36;
-    --muted: #eae5e1;
-    --muted-foreground: #696561;
-    --accent: #eae5e1;
-    --accent-foreground: #3d3a36;
-    --destructive: #945550;
-    --border: #d1cdc8;
-    --input: #d1cdc8;
-    --ring: #a14b77;
-    --faint: #696561;
-    --selection: #d6d9df;
-    --syntax-comment: #696561;
-    --syntax-function: #466b99;
-    --syntax-keyword: #a14b77;
-    --syntax-keyword-control: #8a5e30;
-    --syntax-keyword-import: #705d93;
-    --syntax-member: #466b99;
-    --syntax-number: #746a2a;
-    --syntax-operator: #3d3a36;
-    --syntax-punctuation: #696561;
-    --syntax-string: #42774e;
-    --syntax-tag: #705d93;
-    --syntax-type: #117878;
+    --background: #faf7f2;
+    --shell: #dedbd9;
+    --foreground: #29272c;
+    --card: #fffdfa;
+    --card-foreground: #29272c;
+    --popover: #fffdfa;
+    --popover-foreground: #29272c;
+    --primary: #ae286f;
+    --primary-foreground: #faf7f2;
+    --secondary: #ebe7e4;
+    --secondary-foreground: #29272c;
+    --muted: #e0dcda;
+    --muted-foreground: #635f69;
+    --accent: #eae3f0;
+    --accent-foreground: #29272c;
+    --destructive: #b43b36;
+    --success: #397447;
+    --warning: #79631e;
+    --info: #196f85;
+    --border: #dedbd9;
+    --input: #aaa4ad;
+    --ring: #ae286f;
+    --faint: #635f69;
+    --selection: #bdcce1;
+    --syntax-comment: #635f69;
+    --syntax-function: #285dad;
+    --syntax-keyword: #ae286f;
+    --syntax-keyword-control: #a54828;
+    --syntax-keyword-import: #7145ab;
+    --syntax-member: #285dad;
+    --syntax-number: #79631e;
+    --syntax-operator: #29272c;
+    --syntax-punctuation: #635f69;
+    --syntax-string: #397447;
+    --syntax-tag: #7145ab;
+    --syntax-type: #196f85;
   }
 }
 
@@ -507,7 +507,8 @@ body.dragging .ProseMirror::selection {
    span, so it restates what Typeset hands an anchor. */
 .typeset-note a,
 .wikilink {
-  font-weight: 500;
+  color: inherit;
+  font-weight: inherit;
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-decoration-color: color-mix(in oklab, currentcolor 30%, transparent);
@@ -520,6 +521,7 @@ body.dragging .ProseMirror::selection {
 }
 .typeset-note a:hover,
 .wikilink:hover {
+  color: var(--primary);
   text-decoration-color: currentcolor;
 }
 
@@ -750,21 +752,19 @@ body.dragging .ProseMirror::selection {
    own rule token pointed at the ink, so the table, a quote's edge, an hr and the
    footnote separator are one value.
 
-   The rule sits outside @layer, which is what lets font-optical-sizing reach the
-   surface past Typeset's own @layer components. --typeset-font-heading has to be
-   named even though it wants the body face: it defaults to var(--font-heading),
+   --typeset-font-heading has to be named even though it wants the body face:
+   it defaults to var(--font-heading),
    which this app does not define, and an undefined custom property inside
    font-family makes the declaration invalid rather than inherited. */
 .typeset-note {
-  --typeset-font-body: var(--font-editor);
-  --typeset-font-heading: var(--font-editor);
+  --typeset-font-body: var(--font-sans);
+  --typeset-font-heading: var(--font-sans);
   --typeset-font-mono: var(--font-mono);
   --typeset-size: 1rem;
   --typeset-leading: 1.65;
   --typeset-flow: 1.65em;
   --typeset-rule: color-mix(in oklch, var(--foreground) 16%, transparent);
   font-size: var(--typeset-size);
-  font-optical-sizing: auto;
 }
 /* A level declares only its scale. Cancelling the transform and the tracking
    retires Typeset's h6, which drew `###### foo` as FOO on a surface editing the
@@ -807,14 +807,12 @@ body.dragging .ProseMirror::selection {
 .typeset-note :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
   margin-block-start: calc(var(--typeset-flow) / var(--heading-scale));
 }
-/* Typeset leaves an inline-code chip inheriting whatever colour it sits in, and
-   this app paints h5, h6, a strikethrough, a definition and a footnote in
-   --muted-foreground. That put a muted glyph on the --muted chip at 3.73:1 in
-   dark and 3.37:1 in light, which src/styles.spec.ts caught. A chip carries
-   content, so it takes --foreground wherever it sits (`D40`). */
+/* Inline code shares the fence surface so code stays quiet inside prose.
+   Explicit body ink keeps a chip readable inside secondary text. */
 .typeset-note :not(pre) > code {
   font-size: 0.9em;
   color: var(--foreground);
+  background: var(--card);
 }
 
 /* Export pdf appends a copy of the note surface to the body and prints the

@@ -154,12 +154,16 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 | `pnpm test`           | run tests (Vitest, watches)                       |
 | `pnpm coverage`       | tests with coverage                               |
 | `pnpm knip`           | unused code/deps, test-only exports               |
-| `pnpm icons`          | generate icons and hero from SVG + theme tokens   |
+| `pnpm icons`          | generate the icon family and README hero          |
 | `pnpm clean`          | remove build output                               |
 | `pnpm prepare`        | install the git hooks (lefthook)                  |
 | `pnpm tauri`          | run the tauri cli directly                        |
 
-To regenerate the icons and the hero, edit the geometry in `assets/icon.svg` and the palette in `src/styles.css`, then run `pnpm icons`. It needs macOS and ImageMagick from `brew install imagemagick`.
+To regenerate the icon family and README hero, edit `assets/icon.svg` for the shared vector artwork or `assets/icon-desktop.png` for the large desktop artwork, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
+
+`scripts/icons.sh` derives the small icons, scheme-aware welcome marks and favicons, and monochrome tray from the SVG. It adjusts stroke weights by logical size, including Retina representations. Sizes above 64 logical pixels use the raster master, which includes its tile and lighting; preserve transparency around it. Interface colors and hero text colors come from `src/styles.css`.
+
+Edit the sources rather than the generated files in `src-tauri/icons/`, the marks and icons in `public/`, or `assets/hero.png`.
 
 Rust commands run from the repository root. The workspace holds the `notras-core` engine and the Tauri shell in `src-tauri`. Install the extra tools once:
 
