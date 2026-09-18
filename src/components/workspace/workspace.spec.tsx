@@ -19,6 +19,54 @@ function limitsToOne(filters: unknown): filters is { limit: 1 } {
 const NEW_NOTE = /new note/u;
 
 describe("workspace", () => {
+  it("should open note search from the welcome screen", async () => {
+    localStorage.removeItem("tabs");
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: /^search\b/u }));
+
+    expect(
+      await screen.findByRole("combobox", { name: "find a note" })
+    ).toBeInTheDocument();
+  });
+
   it("should let a new note open before library queries finish without a late restore replacing it", async () => {
     localStorage.removeItem("tabs");
     mockWindows("main");

@@ -105,7 +105,7 @@ export function CaptureWindow() {
   ]);
 
   return (
-    <div className="bg-card text-foreground flex h-svh flex-col">
+    <div className="bg-shell text-foreground flex h-svh flex-col">
       <Titlebar />
       <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1">
         <div className="relative flex min-h-0 flex-1 flex-col">

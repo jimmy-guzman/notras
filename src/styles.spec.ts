@@ -107,13 +107,12 @@ const SYNTAX = [
  * the inline-code chip Typeset paints (`D40`), which body text and a muted
  * heading both sit inside, and the `Kbd` chip, whose own text is
  * `--muted-foreground`.
- *
- * That last pair is cleared by moving `--muted-foreground`, never `--muted`:
- * light would need `--muted` at `#f5f8fb`, which is indistinguishable from
- * `--background`, and the chip would lose its box against the page.
  */
 const PAIRS: [text: string, surface: string][] = [
   ["foreground", "background"],
+  ["foreground", "shell"],
+  ["muted-foreground", "shell"],
+  ["primary", "shell"],
   ["card-foreground", "card"],
   ["popover-foreground", "popover"],
   ["foreground", "muted"],
@@ -166,12 +165,28 @@ describe.each([
     );
   });
 
-  it("should export the logo with the app's paper and pink colors", () => {
+  it("should match the shell to the scrollbar thumb color", () => {
+    expect(tokenValue(scheme, tokens, "shell")).toBe(
+      tokenValue(scheme, tokens, "border")
+    );
+  });
+});
+
+describe.each([
+  ["dark", darkTokens, "#716b66", "#211b23"],
+  ["light", lightTokens, "#faf7f2", "#eee7ed"],
+])("%s artwork", (scheme, tokens, ink, tileEnd) => {
+  it("should export the logo from the icon source in the scheme's palette", () => {
     const mark = projectFile("assets", "icon.svg")
       .replaceAll("var(--foreground)", tokenValue(scheme, tokens, "foreground"))
       .replaceAll("var(--background)", tokenValue(scheme, tokens, "background"))
-      .replaceAll("var(--primary)", tokenValue(scheme, tokens, "primary"))
-      .replaceAll("var(--seam)", "2");
+      .replaceAll("var(--ink)", ink)
+      .replaceAll("var(--tile-end)", tileEnd)
+      .replaceAll("var(--viewbox)", "0 0 136 136")
+      .replaceAll("var(--tile)", "none")
+      .replaceAll("var(--seam)", "2")
+      .replaceAll("var(--stroke)", "6")
+      .replaceAll("var(--rim)", "3");
 
     expect(projectFile("public", `logo-${scheme}.svg`)).toBe(mark);
   });
@@ -402,8 +417,10 @@ describe("the note preset", () => {
     expect(notePreset).toContain(`--typeset-${control}:`);
   });
 
-  it("should keep the optical sizing Literata's opsz axis asks for", () => {
-    expect(notePreset).toContain("font-optical-sizing: auto");
+  it("should use system sans for prose and headings while retaining mono for code", () => {
+    expect(notePreset).toContain("--typeset-font-body: var(--font-sans)");
+    expect(notePreset).toContain("--typeset-font-heading: var(--font-sans)");
+    expect(notePreset).toContain("--typeset-font-mono: var(--font-mono)");
   });
 
   it("should scale h2 and h3 from rules no less specific than the generic one", () => {

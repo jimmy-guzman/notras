@@ -1,21 +1,27 @@
-<svg
-  height="136"
-  viewBox="0 0 136 136"
-  width="136"
-  xmlns="http://www.w3.org/2000/svg"
->
+<svg height="136" viewBox="var(--viewbox)" width="136" xmlns="http://www.w3.org/2000/svg">
   <title>notras</title>
-  <rect fill="var(--foreground)" height="88" rx="7" width="76" x="40" y="12" />
-  <path
-    d="M27 34H75Q78 34 80 36L94 50Q96 52 96 55V115Q96 122 89 122H27Q20 122 20 115V41Q20 34 27 34Z"
-    fill="var(--foreground)"
-    paint-order="stroke fill"
-    stroke="var(--background)"
-    stroke-linejoin="round"
-    stroke-width="var(--seam)"
-  />
-  <path
-    d="M76 34.2Q78 34.3 80 36L94 50Q95.5 51.5 95.9 53H80Q76 53 76 49Z"
-    fill="var(--primary)"
-  />
+  <defs>
+    <linearGradient id="tile" x2="1" y2="1"><stop stop-color="var(--background)"/><stop offset="1" stop-color="var(--tile-end)"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1=".5" x2="1" y2=".5"><stop stop-color="#83bac7" stop-opacity=".45"/><stop offset=".5" stop-color="#b5a0d4" stop-opacity=".3"/><stop offset="1" stop-color="#e99ac2" stop-opacity=".45"/></linearGradient>
+    <linearGradient id="cyan" x1="0" y1=".5" x2=".225" y2=".5"><stop stop-color="#6193a1" stop-opacity=".2"/><stop offset="1" stop-color="#6193a1" stop-opacity="0"/></linearGradient>
+    <linearGradient id="pink" x1="1" y1=".5" x2=".775" y2=".5"><stop stop-color="#a76e94" stop-opacity=".2"/><stop offset="1" stop-color="#a76e94" stop-opacity="0"/></linearGradient>
+    <linearGradient id="sheet" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#943958" />
+      <stop offset=".48" stop-color="#d778a5" />
+      <stop offset=".82" stop-color="#e99ac2" />
+      <stop offset=".97" stop-color="#e99ac2" />
+      <stop offset="1" stop-color="#e3b097" />
+    </linearGradient>
+  </defs>
+  <g display="var(--tile)">
+    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="url(#tile)"/>
+    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="url(#cyan)"/>
+    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="url(#pink)"/>
+    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="none" stroke="url(#rim)" stroke-width="var(--rim)"/>
+  </g>
+  <rect x="51" y="32" width="71" height="96" rx="11" transform="rotate(10 86.5 80)" fill="url(#sheet)" />
+  <g transform="rotate(-11 57 64)">
+    <rect x="16" y="12" width="82" height="104" rx="11" fill="var(--foreground)" stroke="var(--background)" stroke-width="var(--seam)" paint-order="stroke fill" />
+    <path d="M32 42H82M32 58H76M32 74H68" fill="none" stroke="var(--ink)" stroke-width="var(--stroke)" stroke-linecap="round" />
+  </g>
 </svg>
