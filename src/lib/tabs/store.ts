@@ -2,7 +2,7 @@ import { batch, createStore, useSelector } from "@tanstack/react-store";
 import type { ReadonlyStore } from "@tanstack/react-store";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
-import type { FrontmatterPatch } from "@/core/frontmatter";
+import type { FrontmatterEdit } from "@/core/frontmatter";
 import type { PendingOpen } from "@/server/adapters/bindings";
 
 import type { ClosedTab, Tab, TabState } from "./tab";
@@ -22,7 +22,7 @@ import {
 const STORAGE_KEY = "tabs";
 
 /**
- * What a session lends the chrome to act on it, read by id at the moment of
+ * What a session lends the bars and the palette to act on it, read by id at the moment of
  * use. Never rendered, so registering one notifies nobody.
  */
 export interface TabHandles {
@@ -32,7 +32,7 @@ export interface TabHandles {
       | { kind: "move"; folder: string }
       | { kind: "retitle"; title: string }
   ) => Promise<void>;
-  editMetadata?: (patch: FrontmatterPatch) => Promise<void>;
+  editMetadata?: (edit: FrontmatterEdit) => Promise<void>;
   /** Save the rich view as a PDF and answer its path, null when cancelled, or refuse with the reason the toast shows. */
   exportPdf: () => Promise<string | null>;
   /** The caret's offset in this buffer's markdown, or -1. Read only when the set is persisted. */
@@ -43,7 +43,7 @@ export interface TabHandles {
   toggleSource: () => void;
 }
 
-/** What a session publishes for the chrome to draw (`D53`). */
+/** What a session publishes for the bars and the palette to draw (`D53`). */
 export interface TabSnapshot {
   pinned: boolean;
   /** Why the last save failed, or why a review could not be stored. */
@@ -106,7 +106,7 @@ function setState(next: TabState) {
 
   // A tab that left takes both with it. Doing this here rather than at each
   // call site is what covers `openTab` replacing the active tab, where a
-  // survivor would let the chrome read a destroyed session.
+  // survivor would let the bars read a destroyed session.
   const open = new Set(next.tabs.map((tab) => tab.id));
 
   for (const id of handles.keys()) {
@@ -233,7 +233,7 @@ export function registerTabHandles(id: string, next: TabHandles) {
   handles.set(id, next);
 }
 
-/** Connect the chrome to the session's derived state for its mounted lifetime. */
+/** Connect the bars to the session's derived state for its mounted lifetime. */
 export function registerTabSnapshot(
   id: string,
   snapshot: ReadonlyStore<TabSnapshot>
@@ -358,15 +358,15 @@ export function renameTab(from: string, to: string) {
 /** Edit metadata through the note that owns the live document. */
 export async function changeNoteMetadata(
   path: string,
-  patch: FrontmatterPatch
+  edit: FrontmatterEdit
 ): Promise<void> {
   const tab = tabs.state.tabs.find(
     (entry) => entry.path === path && entry.kind === "note"
   );
-  const edit =
+  const apply =
     tab === undefined ? undefined : handles.get(tab.id)?.editMetadata;
-  if (edit === undefined) {
+  if (apply === undefined) {
     throw new Error("The note is still opening");
   }
-  await edit(patch);
+  await apply(edit);
 }

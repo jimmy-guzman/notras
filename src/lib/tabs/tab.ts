@@ -331,7 +331,7 @@ function readJson(raw: string) {
  * Whether the set holds a tab twice, by id or by the file it points at.
  *
  * One file cannot hold two editing sessions, and two tabs under one id collide
- * in every map the store keys by it, including the snapshot the chrome reads.
+ * in every map the store keys by it, including the snapshot the bars read.
  * A store carrying either was not written by this app, so it is rejected whole
  * like any other malformed one. Id-less tabs are compared on the key they were
  * persisted under, since that is the identity they had.

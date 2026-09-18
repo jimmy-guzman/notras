@@ -658,7 +658,7 @@ describe("launch background", () => {
 
 /**
  * Two declarations take away the mark the platform draws: `outline: none`
- * removes the ring, and `appearance: none` strips the native chrome carrying
+ * removes the ring, and `appearance: none` strips the native control drawing
  * it. Either leaves keyboard focus landing on a control with nothing on screen
  * unless that control draws its own. The task checkbox is why this is a gate
  * rather than a review note: TipTap cancels its `mousedown`, so Tab is the only

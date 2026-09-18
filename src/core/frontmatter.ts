@@ -6,7 +6,7 @@
  * `src-tauri/src/frontmatter.rs`.
  */
 
-interface Frontmatter {
+export interface Frontmatter {
   pinned: boolean;
   tags: string[];
   /**
@@ -247,32 +247,26 @@ export function composeNote(raw: RawBlock | undefined, body: string) {
   return `---\n${block}${raw.close}\n${body}`;
 }
 
-export interface FrontmatterPatch {
-  pinned?: boolean;
-  /** A function edits the tags in the supplied document instead of replacing a rendered list. */
-  tags?: string[] | ((current: string[]) => string[]);
-}
+/** What a note's own keys become, computed from the ones the document holds. */
+export type FrontmatterEdit = (
+  current: Frontmatter
+) => Partial<Pick<Frontmatter, "pinned" | "tags">>;
 
 /**
- * Rewrite a note's frontmatter with new `pinned`/`tags` values, preserving
- * every unknown key. Default values (`pinned: false`, no tags) are omitted;
- * a block that ends up empty is removed entirely.
+ * Rewrite a note's frontmatter with what `edit` computes from its current
+ * `pinned`/`tags` values, preserving every unknown key. Default values
+ * (`pinned: false`, no tags) are omitted; a block that ends up empty is
+ * removed entirely.
  *
  * `title` is not writable and is not one of `withoutOwnKeys`'s own keys, so a
  * note carrying one keeps it verbatim through a pin or tag toggle.
  */
 export function updateFrontmatter(
   content: string,
-  patch: FrontmatterPatch
+  edit: FrontmatterEdit
 ): string {
   const parsed = parseNote(content);
-  const next = {
-    pinned: patch.pinned ?? parsed.frontmatter.pinned,
-    tags:
-      Array.isArray(patch.tags) || patch.tags === undefined
-        ? (patch.tags ?? parsed.frontmatter.tags)
-        : patch.tags(parsed.frontmatter.tags),
-  };
+  const next = { ...parsed.frontmatter, ...edit(parsed.frontmatter) };
 
   const foreignLines = withoutOwnKeys(parsed.raw?.lines ?? []);
 

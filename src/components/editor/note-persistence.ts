@@ -2,7 +2,7 @@ import { Debouncer } from "@tanstack/react-pacer";
 import { createStore } from "@tanstack/react-store";
 
 import { composeNote, parseNote, updateFrontmatter } from "@/core/frontmatter";
-import type { FrontmatterPatch } from "@/core/frontmatter";
+import type { FrontmatterEdit } from "@/core/frontmatter";
 import { mergeDocuments } from "@/core/merge";
 import { resolveTitle } from "@/core/notes";
 import type { ConflictStash } from "@/data/conflict-stash";
@@ -534,8 +534,8 @@ export function createNotePersistence(
     }));
     return await save();
   };
-  const editMetadata = async (patch: FrontmatterPatch) => {
-    const next = updateFrontmatter(document.content(), patch);
+  const editMetadata = async (change: FrontmatterEdit) => {
+    const next = updateFrontmatter(document.content(), change);
     document.edit(next, { separate: true, titleEdited: false });
     changed();
     documentListener?.(document.content(), undefined, state.state.sourceMode);

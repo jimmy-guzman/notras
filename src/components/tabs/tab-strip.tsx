@@ -21,10 +21,10 @@ import {
 } from "@dnd-kit/sortable";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ChevronDownIcon, FilePlusIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Chord } from "@/components/chord";
+import { BarButton } from "@/components/bar-button";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -39,11 +39,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
 import { notesDirQuery } from "@/data/queries";
 import { copyTabPath } from "@/lib/tabs/copy-path";
@@ -57,8 +52,7 @@ import {
 } from "@/lib/tabs/store";
 import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
-import { CHROME_GLYPH } from "@/lib/ui/chrome";
-import { useChordsByName } from "@/lib/ui/shortcuts";
+import { BAR_GLYPH } from "@/lib/ui/bar";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -69,7 +63,7 @@ const STEPS = new Map<string, TabStep>([
 
 const ACTIVATION_DISTANCE_PX = 4;
 
-/** dnd-kit defaults to 250ms; `DESIGN.md` names 0.15s for chrome. */
+/** dnd-kit defaults to 250ms; `DESIGN.md` names 0.15s for the bars. */
 const TAB_TRANSITION = { duration: 150, easing: "ease" };
 
 function isTabDrag(data: Data | undefined): data is { label: string } {
@@ -208,7 +202,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         <button
           aria-controls={tabPanelId(id)}
           aria-selected={active}
-          className="min-w-0 flex-1 truncate text-start text-sm focus-visible:outline-none"
+          className="min-w-0 flex-1 truncate text-start focus-visible:outline-none"
           data-tauri-drag-region={sole || undefined}
           id={tabButtonId(id)}
           onClick={select}
@@ -232,7 +226,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           tabIndex={-1}
           type="button"
         >
-          <XIcon className={CHROME_GLYPH} />
+          <XIcon className={BAR_GLYPH} />
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -292,40 +286,6 @@ function OverflowMenu({ hidden }: OverflowMenuProps) {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-interface NewNoteButtonProps {
-  className?: string;
-  onNew: () => void;
-}
-
-/** The strip's own control: it makes tabs rather than following one. */
-function NewNoteButton({ className, onNew }: NewNoteButtonProps) {
-  const chords = useChordsByName().get("new note");
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            aria-label="new note"
-            className={className}
-            onClick={onNew}
-            size="icon-xs"
-            variant="ghost"
-          />
-        }
-      >
-        <FilePlusIcon className={CHROME_GLYPH} />
-      </TooltipTrigger>
-      <TooltipContent>
-        new note
-        {chords?.map(({ hotkey, id }) => (
-          <Chord hotkey={hotkey} key={id} />
-        ))}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -491,13 +451,20 @@ interface TabStripProps {
  */
 export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
   if (tabs.length === 0) {
-    return <NewNoteButton className="ms-auto" onNew={onNew} />;
+    return (
+      <BarButton
+        className="ms-auto"
+        Icon={PlusIcon}
+        label="new note"
+        onClick={onNew}
+      />
+    );
   }
 
   return (
     <>
       <TabList activeId={activeId} tabs={tabs} />
-      <NewNoteButton onNew={onNew} />
+      <BarButton Icon={PlusIcon} label="new note" onClick={onNew} />
     </>
   );
 }

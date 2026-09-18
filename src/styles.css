@@ -178,8 +178,8 @@
   #root {
     isolation: isolate;
   }
-  /* The whole window is chrome-less; text selection outside the editor
-     reads as web-page, not app. */
+  /* The window has no native frame; text selection outside the editor
+     would read as web page, not app. */
   body {
     -webkit-user-select: none;
     user-select: none;

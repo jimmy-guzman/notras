@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   FolderIcon,
-  FolderInputIcon,
+  FolderPlusIcon,
   HashIcon,
   PencilIcon,
   TagPlusIcon,
@@ -156,7 +156,7 @@ export function MoveView({
       ))}
       {draftFolder === "" || exists ? null : (
         <CommandItem onSelect={onMoveToNewFolder} value="move-new">
-          <FolderInputIcon />
+          <FolderPlusIcon />
           new folder &quot;{draftFolder}&quot;
         </CommandItem>
       )}
@@ -227,12 +227,11 @@ export function TagsView({
     .filter((name) => name.includes(draftTag));
   const toggle = async (name: string) => {
     try {
-      await changeNoteMetadata(path, {
-        tags: (current) =>
-          current.includes(name)
-            ? current.filter((tag) => tag !== name)
-            : [...current, name],
-      });
+      await changeNoteMetadata(path, ({ tags }) => ({
+        tags: tags.includes(name)
+          ? tags.filter((tag) => tag !== name)
+          : [...tags, name],
+      }));
     } catch (error) {
       toast.add({
         description: reasonOf(error),
@@ -244,9 +243,9 @@ export function TagsView({
   const add = async () => {
     onQueryChange("");
     try {
-      await changeNoteMetadata(path, {
-        tags: (current) => [...current, draftTag],
-      });
+      await changeNoteMetadata(path, ({ tags }) => ({
+        tags: [...tags, draftTag],
+      }));
     } catch (error) {
       toast.add({
         description: reasonOf(error),

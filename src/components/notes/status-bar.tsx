@@ -1,4 +1,4 @@
-import { FileCodeIcon, FocusIcon, WaypointsIcon } from "lucide-react";
+import { Code2Icon, FocusIcon, WaypointsIcon } from "lucide-react";
 
 import { Chord } from "@/components/chord";
 import { MentionsOf } from "@/components/notes/note-mentions";
@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CHROME_GLYPH } from "@/lib/ui/chrome";
+import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 
 interface StatusBarProps {
@@ -47,7 +47,7 @@ export function StatusBar({
       value: "focus",
     },
     {
-      icon: FileCodeIcon,
+      icon: Code2Icon,
       label: "markdown source",
       onToggle: onToggleSource,
       pressed: sourceEnabled,
@@ -99,7 +99,7 @@ export function StatusBar({
             <TooltipTrigger
               render={<ToggleGroupItem aria-label={label} value={value} />}
             >
-              <Icon className={CHROME_GLYPH} />
+              <Icon className={BAR_GLYPH} />
             </TooltipTrigger>
             <TooltipContent>
               {label}

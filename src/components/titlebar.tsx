@@ -5,7 +5,7 @@ interface TitlebarProps {
 }
 
 /**
- * The window drag region, and the only chrome above the note.
+ * The window drag region, and the only bar above the note.
  *
  * The 32px height pairs with the traffic light offset in both
  * `tauri.conf.json` and `src-tauri/src/lib.rs`, which centres macOS's window
@@ -19,7 +19,7 @@ interface TitlebarProps {
 export function Titlebar({ children }: TitlebarProps) {
   return (
     <div
-      className="bg-shell text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-1 py-1 pe-1"
+      className="bg-shell text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-1 py-1 pe-1 text-xs"
       data-tauri-drag-region="deep"
     >
       {children}

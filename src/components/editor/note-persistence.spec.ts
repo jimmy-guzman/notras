@@ -337,14 +337,14 @@ describe("note persistence", () => {
             });
       },
     });
-    const pinning = note.editMetadata({ pinned: true });
+    const pinning = note.editMetadata(() => ({ pinned: true }));
     await Promise.resolve();
     note.edit({
       content:
         "---\npinned: true\ncustom: from source\n---\n# Errands\n\nnew body",
       mode: "document",
     });
-    const tagging = note.editMetadata({ tags: ["fresh"] });
+    const tagging = note.editMetadata(() => ({ tags: ["fresh"] }));
     held.resolve({
       kind: "committed",
       receipt: { path: "shopping.md", revision: "r1", updatedAt: new Date(1) },
@@ -758,7 +758,7 @@ describe("note persistence", () => {
     expect(note.store.state.reason).toBe("The disk is full");
     await expect(note.flush()).resolves.toBeFalsy();
     expect(note.store.state.status).toBe("conflict");
-    await expect(note.editMetadata({ pinned: true })).rejects.toThrow(
+    await expect(note.editMetadata(() => ({ pinned: true }))).rejects.toThrow(
       "The disk is full"
     );
   });
@@ -983,7 +983,7 @@ describe("note persistence", () => {
       },
       false
     );
-    await note.editMetadata({ pinned: true });
+    await note.editMetadata(() => ({ pinned: true }));
     expect(note.store.state.status).toBe("conflict");
     expect(note.snapshot.state.pinned).toBeTruthy();
     expect(stashes.at(-1)).toBe(

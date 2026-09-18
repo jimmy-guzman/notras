@@ -113,6 +113,7 @@ notras checks for updates on launch. A new version shows a toast with an install
 | `⌘⇧O`        | open the link at the caret       |
 | `⌘⇧L`        | show mentions                    |
 | `⌘⇧Y`        | edit tags                        |
+| `⌘⇧D`        | pin or unpin the note            |
 | `⌘,`         | settings                         |
 | `⌘⇧N`        | global quick capture             |
 | `esc`        | (capture window) save + hide     |
@@ -120,7 +121,7 @@ notras checks for updates on launch. A new version shows a toast with an install
 | `esc`        | (review) back to the note        |
 | `⌘⏎`         | (review) resolve                 |
 
-- `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need a note from your library. A file opened from outside has no frontmatter and is not in the index.
+- `⌘⇧D`, `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need a note from your library. A file opened from outside has no frontmatter and is not in the index.
 - The palette and tab shortcuts do not reach the capture window. `esc`, `⌘⏎`, `⌘F` and the editor's own keys do.
 
 ## Development

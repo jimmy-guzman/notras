@@ -13,16 +13,21 @@ describe("frontmatter", () => {
       tags: [],
       title: undefined,
     });
-    expect(updateFrontmatter(content, { pinned: true, tags: ["note"] })).toBe(
+    expect(
+      updateFrontmatter(content, () => ({ pinned: true, tags: ["note"] }))
+    ).toBe(
       "---\npinned: true\ntags: [note]\nplugin:\n  pinned: true\n  tags:\n    - nested\n  title: plugin title\n---\nbody"
     );
   });
 
   describe("metadata changes", () => {
     it("should remove the block when the last note-level value is cleared", () => {
-      const content = updateFrontmatter("---\npinned: true\n---\nbody\n", {
-        pinned: false,
-      });
+      const content = updateFrontmatter(
+        "---\npinned: true\n---\nbody\n",
+        () => ({
+          pinned: false,
+        })
+      );
       expect(content).toBe("body\n");
       expect(parseNote(content)).toStrictEqual({
         body: "body\n",
@@ -31,10 +36,21 @@ describe("frontmatter", () => {
       });
     });
 
+    it("should compute the edit from what the document holds", () => {
+      const unpinned = updateFrontmatter(
+        "---\npinned: true\ntags: [a]\n---\nbody\n",
+        ({ pinned }) => ({ pinned: !pinned })
+      );
+      expect(unpinned).toBe("---\ntags: [a]\n---\nbody\n");
+      expect(
+        updateFrontmatter(unpinned, ({ pinned }) => ({ pinned: !pinned }))
+      ).toBe("---\npinned: true\ntags: [a]\n---\nbody\n");
+    });
+
     it.each(fixtures.metadata)(
       "should preserve the document while applying $patch",
       ({ content, expected, patch }) => {
-        expect(updateFrontmatter(content, patch)).toBe(expected);
+        expect(updateFrontmatter(content, () => patch)).toBe(expected);
       }
     );
   });

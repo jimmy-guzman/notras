@@ -110,7 +110,7 @@ export class DragGhost {
     const element = document.createElement("div");
 
     // The note's own typography, since the ghost sits on the body and would
-    // otherwise fall back to the chrome's sans.
+    // otherwise fall back to the interface sans.
     element.className = "typeset typeset-note drag-ghost";
 
     // Every rule for note content is scoped to `.ProseMirror`. An inner element

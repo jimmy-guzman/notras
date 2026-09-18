@@ -80,7 +80,7 @@ interface NoteMentionsProps {
   mentions: Mention[];
 }
 
-/** Absent while nothing mentions the note: a zero would be chrome carrying no information. */
+/** Absent while nothing mentions the note: a zero would be a bar item carrying no information. */
 export function NoteMentions({ mentions }: NoteMentionsProps) {
   const open = useMentionsOpen();
   const count = mentions.length;

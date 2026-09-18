@@ -19,7 +19,10 @@ function limitsToOne(filters: unknown): filters is { limit: 1 } {
 const NEW_NOTE = /new note/u;
 
 describe("workspace", () => {
-  it("should open note search from the welcome screen", async () => {
+  it.each([
+    ["welcome screen", /^search\b/u],
+    ["title bar", "find a note"],
+  ])("should open note search from the %s", async (_surface, name) => {
     localStorage.removeItem("tabs");
     mockWindows("main");
     mockIPC((command) => {
@@ -60,7 +63,7 @@ describe("workspace", () => {
     );
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: /^search\b/u }));
+    await user.click(await screen.findByRole("button", { name }));
 
     expect(
       await screen.findByRole("combobox", { name: "find a note" })

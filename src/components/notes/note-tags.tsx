@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { HashIcon, TagPlusIcon } from "lucide-react";
+import { HashIcon, TagIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Chord } from "@/components/chord";
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { noteQueries } from "@/data/queries";
 import { changeNoteMetadata } from "@/lib/tabs/store";
-import { CHROME_GLYPH } from "@/lib/ui/chrome";
+import { BAR_GLYPH } from "@/lib/ui/bar";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 
@@ -82,9 +82,9 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
     // The combobox reports a replacement for its rendered value, so recover the toggled items here.
     const toggled = new Set(nextTags).symmetricDifference(new Set(tags));
     try {
-      await changeNoteMetadata(path, {
-        tags: (current) => [...new Set(current).symmetricDifference(toggled)],
-      });
+      await changeNoteMetadata(path, (current) => ({
+        tags: [...new Set(current.tags).symmetricDifference(toggled)],
+      }));
     } catch (error) {
       toast.add({
         description: reasonOf(error),
@@ -128,7 +128,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
               />
             }
           >
-            <TagPlusIcon className={CHROME_GLYPH} />
+            <TagIcon className={BAR_GLYPH} />
           </TooltipTrigger>
           <TooltipContent>
             edit tags <Chord hotkey={EDIT_TAGS} />

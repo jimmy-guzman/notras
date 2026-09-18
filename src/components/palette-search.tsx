@@ -1,6 +1,6 @@
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery } from "@tanstack/react-query";
-import { FilePlusIcon, FileTextIcon, FolderIcon, HashIcon } from "lucide-react";
+import { FileTextIcon, FolderIcon, HashIcon, PlusIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
@@ -333,7 +333,7 @@ function NoteResults({
           ))}
           {offerCreate ? (
             <CommandItem onSelect={onCreate} value="create-note">
-              <FilePlusIcon />
+              <PlusIcon />
               <span className="truncate">
                 create &quot;{query.trim()}&quot;
               </span>

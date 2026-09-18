@@ -250,9 +250,13 @@ function MainWindow() {
     return disposeLater(unlisten);
   }, []);
 
-  useHotkey("Mod+P", () => {
-    togglePaletteMode("find");
-  });
+  useHotkey(
+    "Mod+P",
+    () => {
+      togglePaletteMode("find");
+    },
+    { meta: { name: "find a note" } }
+  );
   // Pressing one while the other shows switches mode rather than closing.
   useHotkey("Mod+Shift+P", () => {
     togglePaletteMode("actions");

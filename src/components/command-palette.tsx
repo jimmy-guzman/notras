@@ -2,24 +2,24 @@ import { detectPlatform } from "@tanstack/react-hotkeys";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
-  ClipboardIcon,
-  FileCodeIcon,
+  Code2Icon,
+  CopyIcon,
   DownloadIcon,
   FileOutputIcon,
-  FilePlusIcon,
   FocusIcon,
   FolderInputIcon,
-  FolderSearchIcon,
+  FolderOpenIcon,
   Link2Icon,
+  ListEndIcon,
   ListXIcon,
   NotebookPenIcon,
-  PanelRightCloseIcon,
   PencilIcon,
   PinIcon,
+  PlusIcon,
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
-  TagPlusIcon,
+  TagIcon,
   Trash2Icon,
   Undo2Icon,
   WaypointsIcon,
@@ -347,7 +347,7 @@ export function CommandPalette({
       value: "find-in-note",
     },
     {
-      Icon: FilePlusIcon,
+      Icon: PlusIcon,
       label: "new note",
       needs: "none",
       onSelect: () => {
@@ -370,16 +370,16 @@ export function CommandPalette({
         }
 
         void runAction("could not update pin", async () => {
-          await changeNoteMetadata(currentNote.path, {
-            pinned: !currentNote.pinned,
-          });
+          await changeNoteMetadata(currentNote.path, ({ pinned }) => ({
+            pinned: !pinned,
+          }));
         });
       },
       text: currentNote?.pinned === true ? "unpin note" : "pin note",
       value: "toggle-pin",
     },
     {
-      Icon: TagPlusIcon,
+      Icon: TagIcon,
       label: "edit tags",
       needs: "note",
       onSelect: () => {
@@ -434,7 +434,7 @@ export function CommandPalette({
       value: "delete-note",
     },
     {
-      Icon: FolderSearchIcon,
+      Icon: FolderOpenIcon,
       label: "reveal in finder",
       needs: "note",
       onSelect: () => {
@@ -461,7 +461,7 @@ export function CommandPalette({
       value: "toggle-focus-mode",
     },
     {
-      Icon: FileCodeIcon,
+      Icon: Code2Icon,
       label: "markdown source",
       needs: "tab",
       onSelect: () => {
@@ -508,7 +508,7 @@ export function CommandPalette({
       value: "close-other-tabs",
     },
     {
-      Icon: PanelRightCloseIcon,
+      Icon: ListEndIcon,
       label: "close tabs to the right",
       needs: "tab",
       onSelect: () => {
@@ -520,7 +520,7 @@ export function CommandPalette({
     },
     ...(detectPlatform() === "mac" ? [exportPdfAction] : []),
     {
-      Icon: ClipboardIcon,
+      Icon: CopyIcon,
       label: "copy path",
       needs: "tab",
       onSelect: () => {

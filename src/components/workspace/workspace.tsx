@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
+import { SearchIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { BarButton } from "@/components/bar-button";
 import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
-import { PinToggle } from "@/components/notes/pin-toggle";
 import { StatusBar } from "@/components/notes/status-bar";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
@@ -20,6 +21,7 @@ import { noteQueries } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import {
   activateTab,
+  changeNoteMetadata,
   closeOtherTabs,
   closeTab,
   getTabHandles,
@@ -219,6 +221,25 @@ function toggleGraphView() {
   }
 }
 
+async function togglePinned() {
+  const state = getTabState();
+  const tab = state.tabs.find((entry) => entry.id === state.activeId);
+
+  if (tab?.kind !== "note") {
+    return;
+  }
+
+  try {
+    await changeNoteMetadata(tab.path, ({ pinned }) => ({ pinned: !pinned }));
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not update pin",
+      type: "error",
+    });
+  }
+}
+
 function jumpToTab(index: number) {
   const target = getTabState().tabs.at(index);
 
@@ -359,6 +380,13 @@ export function Workspace({
   });
   useHotkey("Mod+F", openNoteFind, { meta: { name: "find in note" } });
   useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
+  useHotkey(
+    "Mod+Shift+D",
+    () => {
+      void togglePinned();
+    },
+    { meta: { name: "pin" } }
+  );
   useHotkeys(
     TAB_JUMPS.map(([hotkey, index]) => ({
       callback: () => {
@@ -418,7 +446,11 @@ export function Workspace({
           }}
           tabs={tabs}
         />
-        {activeTab?.kind === "note" ? <PinToggle tab={activeTab} /> : null}
+        <BarButton
+          Icon={SearchIcon}
+          label="find a note"
+          onClick={onOpenSearch}
+        />
       </Titlebar>
       <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1 last:mb-1">
         <div className="relative flex min-h-0 flex-1 flex-col">

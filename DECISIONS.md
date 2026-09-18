@@ -249,6 +249,8 @@ The note title, its tags, and the pin toggle live in the window's drag region. `
 
 **Superseded in part by `D87`,** which takes the save glyph back out.
 
+**Superseded in part by `D88`,** which takes the pin out of the bar and puts a find button in its slot. The drag region stays, and the identity the bar carries is the active tab's label alone.
+
 **Superseded in part by `D52` and `D53`,** which move the title into the tab strip and leave one route. The pin and the drag region stay, and the identity the bar carries is the active tab's label rather than a line of text.
 
 **Superseded in part by `D80`,** which finds that the `styles.css` exemption in the constraint below never ran on macOS and removes it. A control opts out of the drag region by being one.
@@ -620,6 +622,8 @@ The app had three numbers for one thing, and the pin and the save glyph sat adja
 ### D52 Tabs, in the title bar, where the note's title used to sit
 
 Open notes are a strip of tabs in the 36px title bar, from `src/components/tabs/tab-strip.tsx`. The save glyph and the pin stay at the right in `NoteControls`, and the note's title is now the active tab's label. `DESIGN.md` carries the shape.
+
+**Superseded in part by `D87` and `D88`,** which take the save glyph and then the pin out of the bar. The strip and the title-as-label stand.
 
 **Amends `D10`,** which rejected navigation chrome because ⌘K finds a note in a keystroke. That reasoning holds and this does not contest it. Tabs answer a different question: which notes are open at once, and how to return to one without losing your place in it. Finding a note and keeping it open are not the same act, and the palette stays the way notes are found.
 
@@ -1150,3 +1154,23 @@ The states that matter are `failed` and `conflict`. `conflict` already had a pan
 **Constraint:** `SaveStatus` lost `saving`. The glyph was its only reader, and `writing` already carries the in-flight fact.
 
 **Constraint:** a stash removal that fails is logged by the `clearStash` port in `note-session.tsx` and retried on the next save or flush rather than shown. The save committed, and a leftover stash combines cleanly on relaunch.
+
+### D88 Pin is a palette row and ⌘⇧D, and the bar's trailing slot is a find button
+
+`PinToggle` is gone. Pinning is the palette's `pin note` / `unpin note` row and ⌘⇧D, both over `changeNoteMetadata(path, ({ pinned }) => ({ pinned: !pinned }))`, which flips the value the session document holds rather than one read off a snapshot. Nothing on screen says a note is pinned while it is being written. A `BarButton` named `find a note` in `src/components/workspace/workspace.tsx` takes the slot after the tab strip and opens ⌘P in find mode.
+
+Pinning puts a note at the top of ⌘P, overriding recency. It is a property of how the note is reached, not of the note, so the state belongs where reaching happens: `NoteLabel` already draws a pin in every list and the row already reads the state as its inverse. The bar toggle was the last piece of `D28`'s identity band after tags (`D30`), the title (`D52`) and the save glyph (`D87`) left it, and it was the one note-level action with a bar control of its own where rename, move and delete have none. `D31` kept the tag picker in chrome because tagging happens while writing; pinning happens once.
+
+Removing it removed the one-gesture route, and ⌘⇧D is the replacement that adds nothing to the bars. It sits with ⌘⇧Y and ⌘⇧L, the other note-level chords, and keeps the letter browsers use for a bookmark. ⌘D stays on focus mode, which is toggled all day.
+
+The find button answers a gap that predates this entry: with a tab open the app had no mouse route into ⌘P, since the welcome screen's `search` button leaves with the first tab. macOS puts search at the right end of a toolbar, which is the slot the pin held, so the button displaces rather than joins (`DESIGN.md`).
+
+**Rejected: a pin glyph in the tab's label,** the way `NoteLabel` draws one. A pin on a tab means a pinned tab in VS Code, Obsidian and Chrome, which stays open and is not closed by ⌘W. notras has no such thing, so the glyph would promise behaviour the tab does not have.
+
+**Rejected: a pin indicator in the status strip.** It would sit beside the view toggles, look like one, and do nothing when clicked.
+
+**Rejected: ⌘D for pin,** the browser bookmark chord. Focus mode is toggled all day and pin once; the frequent action keeps the shorter chord.
+
+**Constraint:** `TabSnapshot` keeps `pinned`. The bar no longer reads it, but the palette row does, to say `unpin note`.
+
+**Constraint:** the ⌘P registration in `src/layout.tsx` carries `meta: { name: "find a note" }`, the palette input's own name, so the button's tooltip reads its chord off the registration. The welcome screen's button still says `search` and draws its chord as a literal.

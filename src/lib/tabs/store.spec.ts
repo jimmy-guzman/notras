@@ -440,7 +440,9 @@ describe(changeNoteMetadata, () => {
       toggleSource: () => {},
     });
     const changeTags = async (update: (current: string[]) => string[]) => {
-      await changeNoteMetadata(note.store.state.path, { tags: update });
+      await changeNoteMetadata(note.store.state.path, ({ tags }) => ({
+        tags: update(tags),
+      }));
     };
     onTestFinished(() => {
       closeTab(id);
@@ -508,7 +510,9 @@ describe(changeNoteMetadata, () => {
       toggleSource: () => {},
     });
     const changeTags = async (update: (current: string[]) => string[]) => {
-      await changeNoteMetadata(note.store.state.path, { tags: update });
+      await changeNoteMetadata(note.store.state.path, ({ tags }) => ({
+        tags: update(tags),
+      }));
     };
     onTestFinished(() => {
       closeTab(id);

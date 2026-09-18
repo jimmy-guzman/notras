@@ -67,7 +67,7 @@ function keepHeadings(surface: HTMLElement, sheet: HTMLElement) {
  * where it went, or null when the dialog was cancelled and nothing was
  * written. A copy of the surface goes into a `.print-sheet`, the one element
  * print media shows, so the PDF is the note as the editor drew it and none of
- * the chrome around it.
+ * the bars around it.
  */
 export async function exportPdf(
   surface: HTMLElement,
