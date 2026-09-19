@@ -160,6 +160,8 @@ What notras does, as claims checkable against a running build.
 
 - The editor is WYSIWYG over the file's markdown, and what lands on disk is the serializer's canonical GFM.
 - ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
+- Undo in rich mode puts the caret where the undone step began, and redo puts it where it was before the undo.
+- In rich mode a keystroke serializes the note once, for the save, and a caret move does not serialize it.
 - In source mode, Tab inserts two spaces and Shift-Tab outdents two.
 - Shift+Enter breaks the line inside the block, where Enter starts a new one. In source mode it inserts a newline, the same as Enter. The file holds the break as two trailing spaces, or `<br>` in a table cell, and a backslash break reads the same and saves back as spaces.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, table, divider, and today's date. The filter matches the label or the shorthand, so `/h1` finds heading 1.

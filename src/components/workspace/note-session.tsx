@@ -13,7 +13,10 @@ import { flushSync } from "react-dom";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import type { FindHandle } from "@/components/editor/find";
-import type { DocumentEdit } from "@/components/editor/note-document";
+import type {
+  DocumentEdit,
+  SelectionReader,
+} from "@/components/editor/note-document";
 import { createNotePersistence } from "@/components/editor/note-persistence";
 import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
@@ -491,27 +494,25 @@ function SessionBuffer({
         };
 
   const handleBodyChange = (content: string, edit: DocumentEdit) => {
-    const raw = persistence.store.state.content;
-    const prefix = bodyPrefix(raw);
-    onChange(
-      { content, mode: "body" },
-      {
-        ...edit,
-        selection:
-          edit.selection === undefined
-            ? undefined
-            : {
-                anchor: edit.selection.anchor + prefix,
-                head: edit.selection.head + prefix,
-              },
-      }
-    );
+    onChange({ content, mode: "body" }, edit);
   };
 
-  const selectBody = (anchor: number, head: number) => {
-    const raw = persistence.store.state.content;
-    const prefix = bodyPrefix(raw);
-    persistence.select(anchor + prefix, head + prefix);
+  // Read the prefix when asked: a metadata edit can change the frontmatter first.
+  const deferBodySelection = (read: SelectionReader | undefined) => {
+    persistence.deferSelection(
+      read === undefined
+        ? undefined
+        : () => {
+            const selection = read();
+            const prefix = bodyPrefix(persistence.store.state.content);
+            return selection === undefined
+              ? undefined
+              : {
+                  anchor: selection.anchor + prefix,
+                  head: selection.head + prefix,
+                };
+          }
+    );
   };
 
   const attachSourceEditor = (handle: SourceEditorHandle) => {
@@ -681,7 +682,7 @@ function SessionBuffer({
             onChange={handleBodyChange}
             onHistory={onHistory}
             onReady={attachEditor}
-            onSelect={selectBody}
+            onSelect={deferBodySelection}
             resolveImageSrc={resolveImageSrc}
             stripSentinel={sentineledBody !== undefined}
             titles={getTitles}

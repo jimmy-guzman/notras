@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -409,7 +410,7 @@ describe("document selection mapping", () => {
     expect(handle.getContent().trimEnd()).toBe("latest body");
   });
 
-  it("should deliver document edits without a selection when source mapping fails", async () => {
+  it("should hand the session a selection reader instead of converting on every caret move", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
     const onSelect =
       vi.fn<NonNullable<ComponentProps<typeof Editor>["onSelect"]>>();
@@ -422,37 +423,35 @@ describe("document selection mapping", () => {
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
     }
-    const serialize = manager.serialize.bind(manager);
-    const failing = vi
-      .spyOn(manager, "serialize")
-      .mockImplementation((document) => {
-        if (JSON.stringify(document).includes(SENTINEL)) {
-          throw new Error("cannot map the selection");
-        }
-        return serialize(document);
-      });
+    const serialize = vi.spyOn(manager, "serialize");
     onTestFinished(() => {
-      failing.mockRestore();
+      serialize.mockRestore();
     });
     onSelect.mockClear();
-    act(() => {
-      editor.commands.insertContent("new ");
-    });
-    expect(onChange).toHaveBeenCalledOnce();
-    expect(onChange.mock.lastCall?.[0]).toContain("new body");
-    expect(onChange.mock.lastCall?.[1].selection).toBeUndefined();
-    expect(onSelect).not.toHaveBeenCalled();
-    failing.mockRestore();
+
     act(() => {
       editor.commands.setTextSelection({ from: 1, to: 4 });
     });
-    expect(onSelect).toHaveBeenLastCalledWith(0, 3);
+    expect(serialize).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+    const moved = onSelect.mock.lastCall?.[0];
+    expect(moved?.()).toStrictEqual({ anchor: 0, head: 3 });
+
     act(() => {
       editor.commands.insertContent("old");
     });
-    expect(onChange.mock.lastCall?.[1].selection).toStrictEqual({
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.lastCall?.[0]).toContain("oldy");
+    expect(onSelect.mock.lastCall?.[0]?.()).toStrictEqual({
       anchor: 3,
       head: 3,
+    });
+    expect(moved?.()).toStrictEqual({ anchor: 0, head: 3 });
+
+    onSelect.mockClear();
+    cleanup();
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenLastCalledWith(undefined);
     });
   });
 });

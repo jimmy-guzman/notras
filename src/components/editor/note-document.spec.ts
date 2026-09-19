@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createNoteDocument } from "./note-document";
+import type { SelectionReader } from "./note-document";
 
 describe("note document", () => {
   it("should rename a prose title and undo its saved filename", () => {
@@ -135,7 +136,7 @@ describe("note document", () => {
     const host = document.createElement("div");
     note.editor.mount(host);
     note.edit("# Title\nbody typed", { titleEdited: false });
-    note.select(18, 18);
+    note.editor.commands.setTextSelection(19);
     const surface = host.querySelector(".ProseMirror");
     note.replace("# Longer title\nbody typed");
     expect(host.querySelector(".ProseMirror")).toBe(surface);
@@ -143,5 +144,68 @@ describe("note document", () => {
     expect(note.editor.commands.undo()).toBeFalsy();
     expect(note.content()).toBe("# Longer title\nbody typed");
     note.destroy();
+  });
+
+  it("should read the deferred selection only when an edit opens an undo step, and land undo there", () => {
+    const note = createNoteDocument("plain body", "a.md");
+    const read = vi.fn<SelectionReader>(() => ({ anchor: 5, head: 5 }));
+    note.deferSelection(read);
+    note.edit("plainx body", { titleEdited: false });
+    expect(read).toHaveBeenCalledOnce();
+    note.deferSelection(read);
+    note.edit("plainxy body", { titleEdited: false });
+    expect(read).toHaveBeenCalledOnce();
+    note.deferSelection(() => ({ anchor: 0, head: 0 }));
+    expect(note.undo()).toBeTruthy();
+    expect(note.content()).toBe("plain body");
+    expect(note.selection()).toStrictEqual({ anchor: 5, head: 5 });
+    note.destroy();
+  });
+
+  it("should read the deferred selection before a rename", () => {
+    const note = createNoteDocument("# Title\n\nbody", "title.md");
+    const read = vi.fn<SelectionReader>(() => ({ anchor: 12, head: 12 }));
+    note.deferSelection(read);
+    note.rename("Longer title");
+    expect(read).toHaveBeenCalledOnce();
+    note.undo();
+    expect(note.selection()).toStrictEqual({ anchor: 12, head: 12 });
+    note.destroy();
+  });
+
+  it("should land redo where the caret was before the undo", () => {
+    const note = createNoteDocument("plain body", "a.md");
+    note.edit("plain body!", { titleEdited: false });
+    note.deferSelection(() => ({ anchor: 2, head: 2 }));
+    note.undo();
+    note.deferSelection(() => ({ anchor: 7, head: 7 }));
+    note.redo();
+    expect(note.content()).toBe("plain body!");
+    expect(note.selection()).toStrictEqual({ anchor: 2, head: 2 });
+    note.undo();
+    expect(note.selection()).toStrictEqual({ anchor: 7, head: 7 });
+    note.destroy();
+  });
+
+  it("should keep the edit when the reader cannot answer", () => {
+    const note = createNoteDocument("body", "a.md");
+    note.deferSelection(vi.fn<SelectionReader>());
+    note.edit("body typed", { titleEdited: false });
+    expect(note.content()).toBe("body typed");
+    note.undo();
+    expect(note.content()).toBe("body");
+    note.destroy();
+  });
+
+  it("should drop the reader at an external version and at teardown", () => {
+    const note = createNoteDocument("body", "a.md");
+    const read = vi.fn<SelectionReader>(() => ({ anchor: 0, head: 0 }));
+    note.deferSelection(read);
+    note.replace("new body");
+    note.edit("new body typed", { titleEdited: false });
+    expect(read).not.toHaveBeenCalled();
+    note.deferSelection(read);
+    note.destroy();
+    expect(read).not.toHaveBeenCalled();
   });
 });
