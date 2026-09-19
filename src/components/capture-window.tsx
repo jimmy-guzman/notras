@@ -107,19 +107,17 @@ export function CaptureWindow() {
   return (
     <div className="bg-shell text-foreground flex h-svh flex-col">
       <Titlebar />
-      <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1">
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <Editor
-            findOpen={findState.open}
-            focusOnMount
-            initialContent=""
-            key={session}
-            onChange={NOOP}
-            onReady={attachEditor}
-            placeholderText="jot it down..."
-          />
-          <FindBar controller={find} />
-        </div>
+      <div className="bg-background relative mx-1 flex min-h-0 flex-1 flex-col overflow-clip rounded-lg">
+        <Editor
+          findOpen={findState.open}
+          focusOnMount
+          initialContent=""
+          key={session}
+          onChange={NOOP}
+          onReady={attachEditor}
+          placeholderText="jot it down..."
+        />
+        <FindBar controller={find} />
       </div>
       <footer className="text-muted-foreground flex h-8 shrink-0 items-center justify-end gap-1 p-1 text-xs">
         <Chord hotkey="Escape" /> saves to inbox

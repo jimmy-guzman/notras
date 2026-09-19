@@ -452,37 +452,35 @@ export function Workspace({
           onClick={onOpenSearch}
         />
       </Titlebar>
-      <div className="bg-background mx-1 flex min-h-0 flex-1 flex-col rounded-lg p-1 last:mb-1">
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          {tabs.length === 0 ? (
-            <>
-              <Welcome
-                onNew={() => {
-                  void newNote();
-                }}
-                onSearch={onOpenSearch}
+      <div className="bg-background relative mx-1 flex min-h-0 flex-1 flex-col overflow-clip rounded-lg last:mb-1">
+        {tabs.length === 0 ? (
+          <>
+            <Welcome
+              onNew={() => {
+                void newNote();
+              }}
+              onSearch={onOpenSearch}
+            />
+            {tabState === initialTabs ? (
+              <RecentNote initialTabs={initialTabs} />
+            ) : null}
+          </>
+        ) : (
+          <>
+            {tabs.map((tab) => (
+              <NoteSession
+                active={tab.id === activeId}
+                key={tab.id}
+                tab={tab}
               />
-              {tabState === initialTabs ? (
-                <RecentNote initialTabs={initialTabs} />
-              ) : null}
-            </>
-          ) : (
-            <>
-              {tabs.map((tab) => (
-                <NoteSession
-                  active={tab.id === activeId}
-                  key={tab.id}
-                  tab={tab}
-                />
-              ))}
-              {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
-              {activeTab?.kind === "note" && graphMode ? (
-                <TabGraph tab={activeTab} />
-              ) : null}
-              <FindBar controller={noteFind} />
-            </>
-          )}
-        </div>
+            ))}
+            {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
+            {activeTab?.kind === "note" && graphMode ? (
+              <TabGraph tab={activeTab} />
+            ) : null}
+            <FindBar controller={noteFind} />
+          </>
+        )}
       </div>
       {activeTab === undefined ? null : (
         <ActiveStatusBar
