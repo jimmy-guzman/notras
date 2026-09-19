@@ -45,7 +45,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: 🏗️ Setup Node
-        uses: ./.github/actions/setup-node
+        uses: $/.github/actions/setup-node
         with:
           save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
 
@@ -91,14 +91,14 @@ jobs:
             librsvg2-dev
 
       - name: 🏗️ Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: $/.github/actions/setup-rust
         with:
           save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
           shared-key: test
 
       - name: Install Rust gate tools
         if: runner.os == 'Linux'
-        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
+        uses: taiki-e/install-action@4076c08d76dba979c11a7285295b0716c1d67908 # v2.87.15
         with:
           tool: cargo-machete@0.9.2,cargo-llvm-cov@0.9.1
           fallback: none
@@ -113,7 +113,7 @@ jobs:
 
       - name: Setup Node for bindings
         if: runner.os == 'Linux'
-        uses: ./.github/actions/setup-node
+        uses: $/.github/actions/setup-node
         with:
           save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
 
@@ -156,15 +156,17 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.ref }}
 
-      # This image carries shellcheck and pyflakes; a wrapper action would not.
+      # The fork's own action pins its image by digest only on the commit under
+      # the moving `v1` tag, so a SHA pin there would name a moving ref and trip
+      # zizmor's ref-version-mismatch on each fork release. The image pins itself.
       - name: 🧹 Actionlint
-        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12
+        uses: docker://ghcr.io/kjanat/actionlint:1.17.0@sha256:d484cccadf56b6a356466ade9af4c8e05c5dce1badaf0a9ecd0d7639d68d9c92
         with:
           args: -color
 
       # The default mode uploads SARIF and never fails the job, which needs a
       # code-scanning ruleset to block anything. This is a gate.
       - name: 🌈 Zizmor
-        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
           advanced-security: false
