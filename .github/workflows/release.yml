@@ -60,7 +60,7 @@ jobs:
     if: ${{ !cancelled() && needs.release-please.result != 'failure' && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.released == 'true') }}
     permissions:
       contents: read
-    uses: ./.github/workflows/ci.yml
+    uses: $/.github/workflows/ci.yml
     with:
       ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
       skip-cache: true
@@ -111,12 +111,12 @@ jobs:
       # The ubuntu leg keys the pnpm store on `runner.os`, the same key the
       # direct run writes on this push. CI owns it.
       - name: 🏗️ Setup Node
-        uses: ./.github/actions/setup-node
+        uses: $/.github/actions/setup-node
         with:
           save-cache: false
 
       - name: 🏗️ Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: $/.github/actions/setup-rust
         with:
           shared-key: release
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
