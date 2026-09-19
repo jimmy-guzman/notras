@@ -7,39 +7,46 @@ import {
 import { Table } from "@tiptap/extension-table";
 import { Lexer } from "marked";
 
-const ORDERED_ITEM = new RegExp(
-  `^\\s*(?:${ORDERED_LIST_MARKER_PATTERN})[.)]\\s`,
-  "u"
-);
-const TASK_ITEM = /^\s*[-+*]\s+\[[ xX]\]\s+/u;
-const ITEM = String.raw`[-+*]\s|(?:${ORDERED_LIST_MARKER_PATTERN})[.)]\s`;
-// What ends an item's lazy continuation upstream: a heading, a fence, math,
-// a rule, or a bullet that is not a task item.
+const ORDERED_MARK = String.raw`(?:${ORDERED_LIST_MARKER_PATTERN})[.)]\s`;
+const TASK_MARK = String.raw`[-+*]\s+\[[ xX]\]\s`;
+const ORDERED_ITEM = new RegExp(String.raw`^\s*${ORDERED_MARK}`, "u");
+const TASK_ITEM = new RegExp(String.raw`^\s*${TASK_MARK}`, "u");
 const FENCE = "```|~~~";
-const INTERRUPTS = String.raw`#{1,6}(?:\s|$)|${FENCE}|\$\$|(?:(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n|$)|[-+*]\s+(?!\[[ xX]\]\s)`;
-// Group 1 is a blank line whose next line is neither blank, indented nor an
-// item; the other branch is an interrupter at the margin with no blank first.
-const LIST_END = new RegExp(
-  String.raw`\n(?:([ \t]*\n)(?=[\s\S])(?![ \t\n]|${ITEM})|(?=${INTERRUPTS}))`,
-  "gu"
-);
+// What ends an ordered item's lazy continuation upstream: a heading, a
+// fence, math, a rule, or any bullet.
+const INTERRUPTS_ORDERED = String.raw`#{1,6}(?:\s|$)|${FENCE}|\$\$|(?:(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n|$)|[-+*]\s`;
+// A task list has no lazy continuation: any line at the margin that is not
+// a task item ends it.
+const INTERRUPTS_TASK = String.raw`(?!${TASK_MARK})\S`;
 
 /**
- * The input up to where both upstream list parsers stop anyway. A cut at a
- * blank line keeps that line's own characters and drops the newline after it,
- * which leaves upstream's `raw` byte for byte what it was.
+ * Where both upstream list parsers stop. Group 1 is a blank line whose next
+ * line is neither blank, indented nor this list's own kind of item; the other
+ * branch is an interrupter at the margin with no blank line first.
  */
-function listWindow(src: string) {
-  LIST_END.lastIndex = 0;
-  const end = LIST_END.exec(src);
+function listEnd(mark: string, interrupts: string) {
+  return new RegExp(
+    String.raw`\n(?:([ \t]*\n)(?=[\s\S])(?![ \t\n]|${mark})|(?=${interrupts}))`,
+    "gu"
+  );
+}
 
-  if (end === null) {
+/**
+ * The input up to where upstream stops anyway. A cut at a blank line keeps
+ * that line's own characters and drops the newline after it, which leaves
+ * upstream's `raw` byte for byte what it was.
+ */
+function listWindow(src: string, end: RegExp) {
+  end.lastIndex = 0;
+  const found = end.exec(src);
+
+  if (found === null) {
     return src;
   }
 
   return src.slice(
     0,
-    end[1] === undefined ? end.index : end.index + end[0].length - 1
+    found[1] === undefined ? found.index : found.index + found[0].length - 1
   );
 }
 
@@ -66,7 +73,11 @@ function upstream(node: { config: { markdownTokenizer?: MarkdownTokenizer } }) {
  * TODO: drop the wrappers once `@tiptap/extension-list` and
  * `@tiptap/extension-table` bound their own scans.
  */
-function boundedList(node: typeof OrderedList | typeof TaskList, item: RegExp) {
+function boundedList(
+  node: typeof OrderedList | typeof TaskList,
+  item: RegExp,
+  end: RegExp
+) {
   const parent = upstream(node);
 
   return node.extend({
@@ -74,15 +85,23 @@ function boundedList(node: typeof OrderedList | typeof TaskList, item: RegExp) {
       ...parent,
       tokenize: (src, tokens, lexer) =>
         item.test(src)
-          ? parent.tokenize(listWindow(src), tokens, lexer)
+          ? parent.tokenize(listWindow(src, end), tokens, lexer)
           : undefined,
     },
   });
 }
 
-export const BoundedOrderedList = boundedList(OrderedList, ORDERED_ITEM);
+export const BoundedOrderedList = boundedList(
+  OrderedList,
+  ORDERED_ITEM,
+  listEnd(ORDERED_MARK, INTERRUPTS_ORDERED)
+);
 
-export const BoundedTaskList = boundedList(TaskList, TASK_ITEM);
+export const BoundedTaskList = boundedList(
+  TaskList,
+  TASK_ITEM,
+  listEnd(TASK_MARK, INTERRUPTS_TASK)
+);
 
 function tableAt(src: string) {
   TABLE_RULE.lastIndex = 0;
