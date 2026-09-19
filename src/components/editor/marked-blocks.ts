@@ -14,8 +14,13 @@ function gate(rule: RegExp) {
 
 const block = Lexer.rules.block.gfm;
 
-// WebKit ran these five checks over the whole remaining input on every block,
-// which was most of the cost of opening a long plain note.
+/**
+ * WebKit ran these five checks over the whole remaining input on every block,
+ * which was most of the cost of opening a long plain note.
+ *
+ * TODO: drop the gate once Marked matches its anchored block rules without
+ * scanning past position zero in WebKit. Through 17.0.6 it does not.
+ */
 const blockGates: TokenizerObject = {
   blockquote: gate(block.blockquote),
   hr: gate(block.hr),

@@ -399,8 +399,13 @@ export function serializeMarkdown(editor: Editor) {
   return manager === undefined ? escaped : fileMarkdown(manager, escaped);
 }
 
-// The option is declared as the callable export, though the manager only
-// calls methods a `Marked` instance has too.
+/**
+ * The option is declared as the callable export, though the manager only
+ * calls methods a `Marked` instance has too.
+ *
+ * TODO: drop the widened type once `@tiptap/markdown` accepts a `Marked`
+ * instance (through 3.31.3 it does not).
+ */
 const NoteMarkdown = Markdown.extend<
   Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }
 >();
@@ -469,6 +474,14 @@ export function createEditorExtensions(
         return ReactNodeViewRenderer(CodeBlockView);
       },
     }),
+    /*
+     * Through 3.31.3, opening a long note still spends most of its time in
+     * these three.
+     *
+     * TODO: revisit once `@tiptap/extension-list` and `@tiptap/extension-table`
+     * stop splitting the whole remaining input at every block position, in the
+     * ordered-list and task-list tokenizers and the table `start` callback.
+     */
     TableKit.configure({
       table: { resizable: false },
     }),
