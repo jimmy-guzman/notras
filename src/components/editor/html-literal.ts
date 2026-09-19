@@ -9,6 +9,7 @@ function textOf(node: JSONContent) {
 const TAG = Lexer.rules.inline.gfm.tag;
 const TAG_NAME = /^<\/?(?<name>[a-zA-Z][\w-]*)/u;
 const BACKTICK_RUN = /^`+/u;
+const ESCAPES_BEFORE = /\\+$/u;
 const TRAILING_NEWLINES = /\n+$/u;
 
 /** Elements that never take a closing tag, per the HTML standard. */
@@ -51,6 +52,14 @@ function pairEnd(src: string, from: number, name: string) {
     const rest = src.slice(index);
 
     if (char === "`") {
+      // Behind an odd run of backslashes the backtick is text, not a span.
+      const escapes = ESCAPES_BEFORE.exec(src.slice(0, index))?.[0].length ?? 0;
+
+      if (escapes % 2 === 1) {
+        index += 1;
+        continue;
+      }
+
       const run = BACKTICK_RUN.exec(rest)?.[0] ?? "`";
       // A span closes on a run of the opener's length and no longer.
       const closer = new RegExp(`(?<!\`)${run}(?!\`)`, "gu");

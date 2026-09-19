@@ -121,6 +121,7 @@ describe("raw html", () => {
     expect(roundTrip("<span>`` a ` </span> `` b</span> c")).toBe(
       "<span>`` a ` </span> `` b</span> c"
     );
+    expect(roundTrip("<span>\\` x</span> y")).toBe("<span>\\` x</span> y");
     expect(roundTrip("a<span>&nbsp;</span>b\n\n<div>\nc&#160;d\n</div>")).toBe(
       "a<span>&nbsp;</span>b\n\n<div>\nc&#160;d\n</div>"
     );
