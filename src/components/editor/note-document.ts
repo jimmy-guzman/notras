@@ -5,6 +5,7 @@ import {
   isHistoryTransaction,
   redo,
   undo,
+  undoDepth,
 } from "@tiptap/pm/history";
 import type { Attrs } from "@tiptap/pm/model";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
@@ -24,10 +25,13 @@ function hasNameId(attrs: Attrs): attrs is Attrs & { name: number } {
 }
 
 export interface DocumentEdit {
-  selection?: { anchor: number; head: number };
   separate?: boolean;
   titleEdited: boolean;
 }
+
+export type SelectionReader = () =>
+  | { anchor: number; head: number }
+  | undefined;
 
 type Naming = { kind: "content" } | { kind: "filename"; value: string };
 
@@ -138,6 +142,29 @@ export function createNoteDocument(
       applying = false;
     }
   };
+  let pendingSelection: SelectionReader | undefined;
+  const settleSelection = () => {
+    const selection = pendingSelection?.();
+    pendingSelection = undefined;
+    if (selection !== undefined) {
+      dispatch(
+        editor.state.tr.setSelection(
+          TextSelection.create(
+            editor.state.doc,
+            Math.max(0, Math.min(selection.anchor, content().length)) + 1,
+            Math.max(0, Math.min(selection.head, content().length)) + 1
+          )
+        )
+      );
+    }
+  };
+  // History bookmarks the selection it sees when an event opens, which is the
+  // one moment the rich caret has to be here. `namingHistory` stays out of the
+  // dry run because applying it counts a name.
+  const opensHistoryEvent = (tr: Transaction) =>
+    undoDepth(
+      editor.state.reconfigure({ plugins: [historyPlugin] }).apply(tr)
+    ) > undoDepth(editor.state);
   const edit = (next: string, details: DocumentEdit) => {
     const patch = changedText(content(), next);
     const tr =
@@ -158,14 +185,8 @@ export function createNoteDocument(
       names.set(nextName, { kind: "content" });
       tr.setDocAttribute("name", nextName).setMeta("titleEdited", false);
     }
-    if (details.selection !== undefined) {
-      tr.setSelection(
-        TextSelection.create(
-          tr.doc,
-          Math.max(0, Math.min(details.selection.anchor, next.length)) + 1,
-          Math.max(0, Math.min(details.selection.head, next.length)) + 1
-        )
-      );
+    if (pendingSelection !== undefined && opensHistoryEvent(tr)) {
+      settleSelection();
     }
     dispatch(tr);
     if (details.separate === true) {
@@ -179,7 +200,11 @@ export function createNoteDocument(
     canRedo: () => redo(editor.state),
     canUndo: () => undo(editor.state),
     content,
+    deferSelection: (read: SelectionReader | undefined) => {
+      pendingSelection = read;
+    },
     destroy: () => {
+      pendingSelection = undefined;
       editor.destroy();
     },
     edit,
@@ -192,7 +217,10 @@ export function createNoteDocument(
       }
       return value;
     },
-    redo: () => redo(editor.state, dispatch),
+    redo: () => {
+      settleSelection();
+      return redo(editor.state, dispatch);
+    },
     rename: (title: string) => {
       edit(renameDocument(content(), title), {
         separate: true,
@@ -200,6 +228,7 @@ export function createNoteDocument(
       });
     },
     replace: (next: string) => {
+      pendingSelection = undefined;
       const patch = changedText(content(), next);
       dispatch(
         editor.state.tr
@@ -216,21 +245,13 @@ export function createNoteDocument(
       );
       editor.view.updateState(editor.state.reconfigure({ plugins }));
     },
-    select: (anchor: number, head: number) => {
-      dispatch(
-        editor.state.tr.setSelection(
-          TextSelection.create(
-            editor.state.doc,
-            Math.max(0, Math.min(anchor, content().length)) + 1,
-            Math.max(0, Math.min(head, content().length)) + 1
-          )
-        )
-      );
-    },
     selection: () => ({
       anchor: editor.state.selection.anchor - 1,
       head: editor.state.selection.head - 1,
     }),
-    undo: () => undo(editor.state, dispatch),
+    undo: () => {
+      settleSelection();
+      return undo(editor.state, dispatch);
+    },
   };
 }

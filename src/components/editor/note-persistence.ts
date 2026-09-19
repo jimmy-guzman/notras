@@ -546,6 +546,7 @@ export function createNotePersistence(
   return {
     applyHistory,
     changePath,
+    deferSelection: document.deferSelection,
     edit,
     editMetadata,
     flush,
@@ -575,7 +576,6 @@ export function createNotePersistence(
       };
     },
     save,
-    select: document.select,
     setSourceMode: (sourceMode: boolean) => {
       state.setState((current) => ({ ...current, sourceMode }));
     },

@@ -1413,6 +1413,51 @@ describe(NoteSession, () => {
     expect(writes.at(-1)).toBe("_hello_");
   });
 
+  it("should land undo where the step began and redo where the caret was before the undo", async () => {
+    mountSession("one\n\ntwo");
+    const liveEditor = await editor();
+    const endOfTwo = () => {
+      let end = 0;
+      liveEditor.state.doc.descendants((node, pos) => {
+        if (node.isTextblock && node.textContent !== "") {
+          end = pos + node.nodeSize - 1;
+        }
+      });
+      return end;
+    };
+    act(() => {
+      liveEditor.commands.setTextSelection(4);
+    });
+    act(() => {
+      liveEditor.commands.insertContent("A");
+    });
+    act(() => {
+      liveEditor.commands.setTextSelection(endOfTwo());
+    });
+    act(() => {
+      liveEditor.commands.insertContent("B");
+    });
+    expect(liveEditor.state.doc.textContent).toBe("oneAtwoB");
+    act(() => {
+      liveEditor.commands.undo();
+    });
+    expect(liveEditor.state.doc.textContent).toBe("oneAtwo");
+    expect(liveEditor.state.selection.from).toBe(endOfTwo());
+    act(() => {
+      liveEditor.commands.setTextSelection(1);
+    });
+    act(() => {
+      liveEditor.commands.redo();
+    });
+    expect(liveEditor.state.doc.textContent).toBe("oneAtwoB");
+    expect(liveEditor.state.selection.from).toBe(endOfTwo());
+    act(() => {
+      liveEditor.commands.undo();
+    });
+    expect(liveEditor.state.doc.textContent).toBe("oneAtwo");
+    expect(liveEditor.state.selection.from).toBe(1);
+  });
+
   it("should combine a change elsewhere in the note with unsaved typing", async () => {
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();

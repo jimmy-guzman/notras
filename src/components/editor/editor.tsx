@@ -32,7 +32,7 @@ import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
 import { LinkHover } from "./link-hover";
-import type { DocumentEdit } from "./note-document";
+import type { DocumentEdit, SelectionReader } from "./note-document";
 import { findSentinel, SENTINEL } from "./sentinel";
 import {
   createTypewriter,
@@ -251,13 +251,17 @@ function selectionSpansBlocks({ doc, selection }: EditorState) {
   );
 }
 
-function sourceOffset(editor: TiptapEditor, position: number) {
+function sourceOffset(
+  editor: TiptapEditor,
+  position: number,
+  state = editor.state
+) {
   try {
     const manager = editor.markdown;
     if (manager === undefined) {
       throw new Error("The editor has no Markdown converter");
     }
-    const marked = editor.state.tr.insertText(SENTINEL, position);
+    const marked = state.tr.insertText(SENTINEL, position);
     return fileMarkdown(
       manager,
       normalizeMarkdown(manager.serialize(contentOf(marked.doc)))
@@ -265,6 +269,21 @@ function sourceOffset(editor: TiptapEditor, position: number) {
   } catch {
     return -1;
   }
+}
+
+function sourceSelectionReader(
+  editor: TiptapEditor,
+  state: EditorState
+): SelectionReader {
+  return () => {
+    const { selection } = state;
+    const anchor = sourceOffset(editor, selection.anchor, state);
+    const head = selection.empty
+      ? anchor
+      : sourceOffset(editor, selection.head, state);
+
+    return anchor >= 0 && head >= 0 ? { anchor, head } : undefined;
+  };
 }
 
 function positionInDocument(
@@ -323,7 +342,8 @@ interface EditorProps {
   /** Navigate when a markdown link to a note is clicked. */
   onNoteLinkClick?: (href: string) => void;
   onReady?: (handle: EditorHandle) => void;
-  onSelect?: (anchor: number, head: number) => void;
+  /** Undefined once the editor is destroyed. */
+  onSelect?: (read: SelectionReader | undefined) => void;
   /** Navigate when a wikilink pill is clicked. */
   onWikilinkClick?: (title: string) => void;
   placeholderText?: string;
@@ -663,28 +683,10 @@ export function Editor({
             }
           }
         },
-        getCaretSourceOffset: () => {
-          const manager = instance.isDestroyed ? null : instance.markdown;
-
-          if (!manager) {
-            return -1;
-          }
-
-          try {
-            const marked = instance.state.tr.insertText(
-              SENTINEL,
-              instance.state.selection.head
-            );
-            const md: string = manager.serialize(contentOf(marked.doc));
-
-            // Source mode shows the file form, so the offset has to index it.
-            return fileMarkdown(manager, normalizeMarkdown(md)).indexOf(
-              SENTINEL
-            );
-          } catch {
-            return -1;
-          }
-        },
+        getCaretSourceOffset: () =>
+          instance.isDestroyed
+            ? -1
+            : sourceOffset(instance, instance.state.selection.head),
         getContent: () => serializeMarkdown(instance),
         insertText: (text) => {
           if (instance.isDestroyed) {
@@ -742,43 +744,32 @@ export function Editor({
         surface: () => instance.view.dom,
       });
     },
+    onDestroy: () => {
+      config.onSelect?.(undefined);
+    },
     onSelectionUpdate: ({ editor: instance }) => {
       setReading(selectionSpansBlocks(instance.state));
-      if (!suppressChangeRef.current && config.onSelect !== undefined) {
-        const { selection } = instance.state;
-        const anchor = sourceOffset(instance, selection.anchor);
-        const head = selection.empty
-          ? anchor
-          : sourceOffset(instance, selection.head);
-        if (anchor >= 0 && head >= 0) {
-          config.onSelect(anchor, head);
-        }
-      }
     },
     onTransaction: ({
       editor: instance,
       transaction,
       appendedTransactions,
     }) => {
-      if (
-        suppressChangeRef.current ||
-        transaction.getMeta("preventUpdate") === true
-      ) {
+      if (suppressChangeRef.current) {
         return;
       }
       const transactions = [transaction, ...appendedTransactions];
-      if (!transactions.some((entry) => entry.docChanged)) {
-        return;
+      if (
+        transaction.getMeta("preventUpdate") !== true &&
+        transactions.some((entry) => entry.docChanged)
+      ) {
+        config.onChange(serializeMarkdown(instance), {
+          titleEdited: transactions.some(touchesTitle),
+        });
       }
-      const { selection } = instance.state;
-      const anchor = sourceOffset(instance, selection.anchor);
-      const head = selection.empty
-        ? anchor
-        : sourceOffset(instance, selection.head);
-      config.onChange(serializeMarkdown(instance), {
-        selection: anchor >= 0 && head >= 0 ? { anchor, head } : undefined,
-        titleEdited: transactions.some(touchesTitle),
-      });
+      // After the edit reaches the document, which reads the previous reader
+      // as the caret before it.
+      config.onSelect?.(sourceSelectionReader(instance, instance.state));
     },
   });
 
