@@ -3,11 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { attachmentLink } from "@/lib/utils/attachments";
 
-import {
-  createEditorExtensions,
-  normalizeMarkdown,
-  serializeMarkdown,
-} from "./extensions";
+import { createEditorExtensions, serializeMarkdown } from "./extensions";
 
 /**
  * The markdown round-trip contract: what goes into a file must come back
@@ -310,54 +306,5 @@ describe("markdown round-trip", () => {
     expect(roundtrip("```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```")).toBe(
       "```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```"
     );
-  });
-});
-
-/**
- * The fence scanner decides where the scrub may run, so a line it mistakes
- * for a closing fence hands the rest of a code block to the scrubber.
- */
-describe(normalizeMarkdown, () => {
-  it("should not close a fence on a run carrying an info string", () => {
-    const markdown = "```\n```js is not a close\n&nbsp;\n```";
-
-    expect(normalizeMarkdown(markdown)).toBe(markdown);
-  });
-
-  it("should not close a fence on trailing prose after the run", () => {
-    const markdown = "```\n``` still open\n&#160;\n```";
-
-    expect(normalizeMarkdown(markdown)).toBe(markdown);
-  });
-
-  it("should not close a fence on an indented run", () => {
-    const markdown = "```\n    ```\n&nbsp;\n```";
-
-    expect(normalizeMarkdown(markdown)).toBe(markdown);
-  });
-
-  it("should not close a fence on a tab-prefixed run", () => {
-    const markdown = "```\n\t```\n&nbsp;\n```";
-
-    expect(normalizeMarkdown(markdown)).toBe(markdown);
-  });
-
-  it("should not open a fence on a tab-prefixed run", () => {
-    expect(normalizeMarkdown("\t```\n&nbsp;")).toBe("\t```\n ");
-  });
-
-  it("should close on a bare run and scrub the prose after it", () => {
-    expect(normalizeMarkdown("```\n&nbsp;\n```\n&nbsp;")).toBe(
-      "```\n&nbsp;\n```\n "
-    );
-    expect(normalizeMarkdown("```\n&nbsp;\n   ```  \n&nbsp;")).toBe(
-      "```\n&nbsp;\n   ```  \n "
-    );
-  });
-
-  it("should require the closing run to match the opening character", () => {
-    const markdown = "~~~\n```\n&nbsp;\n~~~";
-
-    expect(normalizeMarkdown(markdown)).toBe(markdown);
   });
 });

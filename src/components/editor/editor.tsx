@@ -23,7 +23,6 @@ import { attachmentDestination } from "@/lib/utils/attachments";
 import {
   createEditorExtensions,
   fileMarkdown,
-  normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
 import { createFindHandle, Find } from "./find";
@@ -264,7 +263,7 @@ function sourceOffset(
     const marked = state.tr.insertText(SENTINEL, position);
     return fileMarkdown(
       manager,
-      normalizeMarkdown(manager.serialize(contentOf(marked.doc)))
+      manager.serialize(contentOf(marked.doc))
     ).indexOf(SENTINEL);
   } catch {
     return -1;
@@ -474,10 +473,7 @@ export function Editor({
           const manager = editorRef.current?.markdown;
 
           return manager
-            ? fileMarkdown(
-                manager,
-                normalizeMarkdown(manager.serialize(contentOf(doc)))
-              )
+            ? fileMarkdown(manager, manager.serialize(contentOf(doc)))
             : fallback;
         } catch {
           return fallback;
@@ -801,10 +797,7 @@ export function Editor({
       const diverged = (() => {
         try {
           const canonical = manager
-            ? fileMarkdown(
-                manager,
-                normalizeMarkdown(manager.serialize(manager.parse(cleanBody)))
-              )
+            ? fileMarkdown(manager, manager.serialize(manager.parse(cleanBody)))
             : serializeMarkdown(editor);
 
           // Trailing whitespace differs benignly (StarterKit's
