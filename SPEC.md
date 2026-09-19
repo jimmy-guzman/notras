@@ -91,6 +91,7 @@ What notras does, as claims checkable against a running build.
 
 - Tabs sit in the title bar. Each holds its own editing session, undo history, and caret. Tab labels and overflow choices show the live document title, using the filename stem until the document loads. The tab strip and an available document remain usable while library lists are pending or failed.
 - A note opened fresh shows its top with the caret before its first character, and takes focus when its tab is showing. A tab restored from the last session lands on its saved caret instead.
+- Opening a note costs the same with ten tabs open as with one.
 - Returning to a visited tab keeps its scroll position and caret, including a caret outside the view. Closing a review keeps them the same way.
 - ⌘N, ⌘T, the strip's new-note button, the tray's new note, the palette's new note, and the palette's create row all open a new note in a new tab.
 - Opening a path that is already open activates the tab holding it rather than duplicating it.

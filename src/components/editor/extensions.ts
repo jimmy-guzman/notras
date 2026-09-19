@@ -17,13 +17,16 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { TaskList } from "@tiptap/extension-task-list";
 import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
+import type { MarkdownExtensionOptions } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
+import type { Marked } from "marked";
 import { encode } from "mdurl";
 
 import { hasString } from "@/components/editor/attrs";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
+import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
 import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
 import {
@@ -396,6 +399,12 @@ export function serializeMarkdown(editor: Editor) {
   return manager === undefined ? escaped : fileMarkdown(manager, escaped);
 }
 
+// The option is declared as the callable export, though the manager only
+// calls methods a `Marked` instance has too.
+const NoteMarkdown = Markdown.extend<
+  Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }
+>();
+
 /** The full extension stack, shared by the component and headless tests. */
 export function createEditorExtensions(
   options: EditorExtensionOptions
@@ -449,8 +458,8 @@ export function createEditorExtensions(
       openOnClick: false,
     }),
     NoteParagraph,
-    Markdown.configure({
-      markedOptions: { gfm: true },
+    NoteMarkdown.configure({
+      marked: createNoteMarked(),
     }),
     MarkdownPaste.configure({
       readCodeClipboard: options.readCodeClipboard ?? null,
