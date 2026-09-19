@@ -82,7 +82,7 @@ export function persistTabs() {
 
   for (const tab of getTabState().tabs) {
     const { id } = tab;
-    const caret = handles.get(id)?.getCaret() ?? -1;
+    const caret = handles.get(id)?.getCaret() ?? restored.get(id) ?? -1;
 
     if (caret >= 0) {
       carets[id] = caret;
@@ -165,12 +165,10 @@ export function restoreTabs() {
 
   const [first] = tabList;
 
-  // Not through `setState`: it persists, and with no session mounted yet every
-  // caret would read as missing and overwrite the set just read.
-  tabs.setState(() => ({
+  setState({
     activeId: ids.get(parsed.activeId) ?? first?.id ?? "",
     tabs: tabList,
-  }));
+  });
 
   return true;
 }
@@ -213,6 +211,11 @@ export function restoredCaret(id: string) {
 /** Drop it once the session has mounted, so a later reload starts clean. */
 export function clearRestoredCaret(id: string) {
   restored.delete(id);
+}
+
+/** Whether a session has mounted for this tab, so the workspace keeps it mounted. */
+export function hasTabSnapshot(id: string) {
+  return snapshots.state[id] !== undefined;
 }
 
 export function useTabState() {

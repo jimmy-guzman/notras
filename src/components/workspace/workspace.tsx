@@ -26,6 +26,7 @@ import {
   closeTab,
   getTabHandles,
   getTabState,
+  hasTabSnapshot,
   moveTab,
   openNote,
   reopenTab,
@@ -467,13 +468,15 @@ export function Workspace({
           </>
         ) : (
           <>
-            {tabs.map((tab) => (
-              <NoteSession
-                active={tab.id === activeId}
-                key={tab.id}
-                tab={tab}
-              />
-            ))}
+            {tabs.map((tab) =>
+              tab.id === activeId || hasTabSnapshot(tab.id) ? (
+                <NoteSession
+                  active={tab.id === activeId}
+                  key={tab.id}
+                  tab={tab}
+                />
+              ) : null
+            )}
             {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
             {activeTab?.kind === "note" && graphMode ? (
               <TabGraph tab={activeTab} />
