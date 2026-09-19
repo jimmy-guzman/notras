@@ -226,6 +226,9 @@ importers:
       '@tiptap/extension-link':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
+      '@tiptap/extension-list':
+        specifier: 3.31.3
+        version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
       '@tiptap/extension-paragraph':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
@@ -236,9 +239,6 @@ importers:
         specifier: 3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
       '@tiptap/extension-task-item':
-        specifier: 3.31.3
-        version: 3.31.3(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))
-      '@tiptap/extension-task-list':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))
       '@tiptap/extension-text':
@@ -2139,11 +2139,6 @@ packages:
 
   '@tiptap/extension-task-item@3.31.3':
     resolution: {integrity: sha512-gCWvvXsCzi9tVFXPqKlkbU81XxtIdfjGy7FM9QFRKiWAvq5uv+Q5nvwrCyMVyP4bA7zRGWFaPzwjL68djgzoBw==}
-    peerDependencies:
-      '@tiptap/extension-list': 3.31.3
-
-  '@tiptap/extension-task-list@3.31.3':
-    resolution: {integrity: sha512-3WgVzmfEnDbmxbjUBlvTiKpT53KSBnnYhXUVQxM0nz1vpoWG8QifhsnCVsNI6TZmhgR0x/jY+UW9Hc/WLF8DkQ==}
     peerDependencies:
       '@tiptap/extension-list': 3.31.3
 
@@ -5841,10 +5836,6 @@ snapshots:
       '@tiptap/pm': 3.31.3
 
   '@tiptap/extension-task-item@3.31.3(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))':
-    dependencies:
-      '@tiptap/extension-list': 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
-
-  '@tiptap/extension-task-list@3.31.3(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))':
     dependencies:
       '@tiptap/extension-list': 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
 
