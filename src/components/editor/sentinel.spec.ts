@@ -6,7 +6,6 @@ import { contentOf } from "@/components/editor/attrs";
 import {
   createEditorExtensions,
   fileMarkdown,
-  normalizeMarkdown,
   serializeMarkdown,
 } from "./extensions";
 import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
@@ -129,7 +128,7 @@ describe("source -> rich caret mapping", () => {
     const manager = requireManager(editor);
     const canonical = fileMarkdown(
       manager,
-      normalizeMarkdown(manager.serialize(manager.parse(markdown)))
+      manager.serialize(manager.parse(markdown))
     );
 
     expect(serializeMarkdown(editor).trimEnd()).toBe(canonical.trimEnd());
@@ -148,7 +147,7 @@ describe("source -> rich caret mapping", () => {
     const manager = requireManager(editor);
     const canonical = fileMarkdown(
       manager,
-      normalizeMarkdown(manager.serialize(manager.parse(markdown)))
+      manager.serialize(manager.parse(markdown))
     );
 
     // The stripped buffer no longer serializes to the canonical form --

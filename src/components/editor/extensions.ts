@@ -25,6 +25,7 @@ import { encode } from "mdurl";
 
 import { hasString } from "@/components/editor/attrs";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
+import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
@@ -240,7 +241,7 @@ function fenceRun(line: string) {
  * A fence closes only on a bare run of its own character, at least as long as
  * the opener and followed by nothing but whitespace -- an info string
  * (` ```js `) or trailing prose is content, and closing on it would let the
- * rest of the block be scrubbed as prose.
+ * rest of the block be unescaped as prose.
  */
 function closesFence(line: string, open: string) {
   const match = FENCE_RUN.exec(line);
@@ -256,10 +257,6 @@ function closesFence(line: string, open: string) {
     run.length >= open.length &&
     line.slice(match[0].length).trim() === ""
   );
-}
-
-function scrubEntities(text: string) {
-  return text.replaceAll(/&nbsp;|&#160;/gu, " ");
 }
 
 /**
@@ -320,20 +317,6 @@ function mapProse(markdown: string, transform: (text: string) => string) {
     .join("\n");
 }
 
-/**
- * Scrub the `&nbsp;` entities TipTap leaks (table cells, blank paragraphs).
- * Every markdown string that could reach a file -- or be compared against one
- * -- goes through here, so the two sides always agree.
- *
- * Code is left alone: the serializer only emits the entity in prose, so inside
- * a fence or a code span it is the author's literal text and rewriting it
- * would silently edit the file. (Raw HTML needs no such guard -- the schema
- * has no HTML node, so none survives to here.)
- */
-export function normalizeMarkdown(markdown: string) {
-  return mapProse(markdown, scrubEntities);
-}
-
 /** What upstream escapes in a text node, minus the backslash. */
 const TEXT_ESCAPE = new Set(["`", "*", "_", "[", "]", "~"]);
 
@@ -383,9 +366,7 @@ export function fileMarkdown(manager: MarkdownConverter, escaped: string) {
   }
 
   try {
-    return normalizeMarkdown(manager.serialize(manager.parse(bare))) === escaped
-      ? bare
-      : escaped;
+    return manager.serialize(manager.parse(bare)) === escaped ? bare : escaped;
   } catch {
     return escaped;
   }
@@ -393,7 +374,7 @@ export function fileMarkdown(manager: MarkdownConverter, escaped: string) {
 
 /** Serialize the editor to markdown for the file on disk. */
 export function serializeMarkdown(editor: Editor) {
-  const escaped = normalizeMarkdown(editor.getMarkdown());
+  const escaped = editor.getMarkdown();
   const manager = editor.markdown;
 
   return manager === undefined ? escaped : fileMarkdown(manager, escaped);
@@ -455,6 +436,8 @@ export function createEditorExtensions(
     // tildes inside the backticks and edits the file on open (`D59`).
     NoteStrike,
     NoteCode,
+    HtmlBlock,
+    HtmlInline,
     // The extension defaults `target` to `_blank` and renders it as a mark
     // attribute, which tells the webview to open a link itself. Every link here
     // goes through `followLink` and its scheme gate instead.

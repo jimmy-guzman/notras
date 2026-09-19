@@ -84,6 +84,60 @@ const typeInto = (text: string) => {
   return markdown;
 };
 
+const roundTrip = (markdown: string) => {
+  const editor = new Editor({
+    content: markdown,
+    contentType: "markdown",
+    element: document.createElement("div"),
+    extensions: createEditorExtensions({}),
+  });
+  const out = serializeMarkdown(editor);
+
+  editor.destroy();
+
+  return out;
+};
+
+describe("raw html", () => {
+  it("should keep a block comment and an html block byte for byte", () => {
+    expect(roundTrip("before\n\n<!-- a comment -->\n\nafter")).toBe(
+      "before\n\n<!-- a comment -->\n\nafter"
+    );
+    expect(roundTrip('<div class="x">\n*not* markdown\n</div>\n\npara')).toBe(
+      '<div class="x">\n*not* markdown\n</div>\n\npara'
+    );
+    expect(roundTrip("<!-- two trailing spaces -->  \n\nafter")).toBe(
+      "<!-- two trailing spaces -->  \n\nafter"
+    );
+  });
+
+  it("should keep inline tags and comments inside prose", () => {
+    expect(roundTrip("press <kbd>Cmd</kbd> now <!-- why --> and a<br>b")).toBe(
+      "press <kbd>Cmd</kbd> now <!-- why --> and a<br>b"
+    );
+    expect(roundTrip("<span>*x* `</span>` y</span> **z**")).toBe(
+      "<span>*x* `</span>` y</span> **z**"
+    );
+    expect(roundTrip("<span>`` a ` </span> `` b</span> c")).toBe(
+      "<span>`` a ` </span> `` b</span> c"
+    );
+    expect(roundTrip("a<span>&nbsp;</span>b\n\n<div>\nc&#160;d\n</div>")).toBe(
+      "a<span>&nbsp;</span>b\n\n<div>\nc&#160;d\n</div>"
+    );
+  });
+
+  it("should show raw html as code", () => {
+    const rendered = render("<!-- note -->\n\ntext <kbd>k</kbd>");
+
+    expect(rendered.querySelector("pre[data-html]")?.textContent).toBe(
+      "<!-- note -->"
+    );
+    expect(rendered.querySelector("code[data-html]")?.textContent).toBe(
+      "<kbd>k</kbd>"
+    );
+  });
+});
+
 describe("strike input rule", () => {
   it("should strike a span typed with one tilde", () => {
     expect(typeInto("~organization~")).toBe("~~organization~~");
