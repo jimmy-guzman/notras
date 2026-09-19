@@ -14,7 +14,9 @@ import {
   closeTabsAfter,
   getTabHandles,
   getTabState,
+  hasTabSnapshot,
   openNote,
+  persistTabs,
   registerTabHandles,
   registerTabSnapshot,
   reopenTab,
@@ -106,6 +108,63 @@ describe("store", () => {
       ]);
       expect(getTabState().activeId).toBe("kept-b");
       expect(restoredCaret("kept-b")).toBe(7);
+    });
+
+    it("should keep the caret of a tab that never mounted when writing the store", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeTabs({
+          activeId: "kept-b",
+          carets: { "kept-a": 12, "kept-b": 7 },
+          tabs: [
+            { id: "kept-a", kind: "note", path: "a.md" },
+            { id: "kept-b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+
+      persistTabs();
+
+      expect(
+        parseTabs(localStorage.getItem(STORAGE_KEY) ?? "")?.carets
+      ).toStrictEqual({
+        "kept-a": 12,
+        "kept-b": 7,
+      });
+    });
+
+    it("should report a mounted session until its tab closes", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeTabs({
+          activeId: "kept-b",
+          carets: {},
+          tabs: [
+            { id: "kept-a", kind: "note", path: "a.md" },
+            { id: "kept-b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      expect(hasTabSnapshot("kept-a")).toBeFalsy();
+
+      registerTabSnapshot(
+        "kept-a",
+        createStore<TabSnapshot>(() => ({
+          pinned: false,
+          reason: undefined,
+          sourceMode: false,
+          status: "saved",
+          tags: [],
+          title: "Loaded",
+          words: 1,
+        }))
+      );
+      expect(hasTabSnapshot("kept-a")).toBeTruthy();
+
+      closeTab("kept-a");
+      expect(hasTabSnapshot("kept-a")).toBeFalsy();
     });
 
     it("should reopen a store written before tabs had ids", () => {
