@@ -14,7 +14,6 @@ import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
 import { TaskItem } from "@tiptap/extension-task-item";
-import { TaskList } from "@tiptap/extension-task-list";
 import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import type { MarkdownExtensionOptions } from "@tiptap/markdown";
@@ -24,6 +23,11 @@ import type { Marked } from "marked";
 import { encode } from "mdurl";
 
 import { hasString } from "@/components/editor/attrs";
+import {
+  BoundedOrderedList,
+  BoundedTable,
+  BoundedTaskList,
+} from "@/components/editor/bounded-tokenizers";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
@@ -403,6 +407,7 @@ export function createEditorExtensions(
       // never lets reach the page. `DragSelection` marks its own drops.
       dropcursor: false,
       link: false,
+      orderedList: false,
       paragraph: false,
       strike: false,
       undoRedo: options.onHistory === undefined ? undefined : false,
@@ -457,18 +462,10 @@ export function createEditorExtensions(
         return ReactNodeViewRenderer(CodeBlockView);
       },
     }),
-    /*
-     * Through 3.31.3, opening a long note still spends most of its time in
-     * these three.
-     *
-     * TODO: revisit once `@tiptap/extension-list` and `@tiptap/extension-table`
-     * stop splitting the whole remaining input at every block position, in the
-     * ordered-list and task-list tokenizers and the table `start` callback.
-     */
-    TableKit.configure({
-      table: { resizable: false },
-    }),
-    TaskList,
+    TableKit.configure({ table: false }),
+    BoundedTable.configure({ resizable: false }),
+    BoundedOrderedList,
+    BoundedTaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({
       // Markdown images are inline; the block default breaks a paragraph (`D58`).
