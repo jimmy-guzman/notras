@@ -10,6 +10,8 @@ import {
   CodeBlockShiki,
   revealSyntax,
 } from "@/components/editor/code-block-shiki";
+import { highlightCode } from "@/components/editor/syntax-highlighter";
+import type { SyntaxRequest } from "@/components/editor/syntax-highlighter";
 
 function createEditor(language: string, text: string) {
   return new Editor({
@@ -268,6 +270,37 @@ describe("code block highlighting", () => {
     expect(editor.getMarkdown()).toBe("```\nconst value = 1;\n```");
   });
 
+  it("should drop the answer of a fence that became plain while it was pending", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const editor = createEditor("ts", "const gone = 1;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      vi.advanceTimersToNextFrame();
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
+
+    editor.commands.insertContentAt(16, " // late");
+    // An attribute step keeps the block in place, unlike `updateAttributes`,
+    // which replaces the node.
+    editor.view.dispatch(editor.state.tr.setNodeAttribute(0, "language", ""));
+    expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
+    // The worker answers in request order, so the edit's answer is in by now.
+    await highlightCode("x", "typescript", 0);
+    vi.advanceTimersToNextFrame();
+
+    expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
+    expect(editor.getMarkdown()).toBe("```\nconst gone = 1; // late\n```");
+  });
+
   it("should load YAML and embedded code for source mode", async ({
     onTestFinished,
   }) => {
@@ -405,6 +438,43 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toContain("const");
   });
 
+  it("should color a remounted long block once its viewport can be measured", async ({
+    onTestFinished,
+  }) => {
+    const text = Array.from(
+      { length: 3000 },
+      (_, i) => `const again${i} = ${i};`
+    ).join("\n");
+    const first = createEditor("ts", text);
+    fakeViewport(first, onTestFinished);
+    await vi.waitFor(() => {
+      expect(coloredText(first, "syntax-keyword")).toContain("const");
+    });
+    first.destroy();
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    // The first frame measures nothing, as a React editor's does while its
+    // view is still off the DOM.
+    const second = createEditor("ts", text);
+    onTestFinished(() => {
+      second.destroy();
+    });
+    vi.advanceTimersToNextFrame();
+    expect(second.view.dom.querySelector(".syntax-token")).toBeNull();
+    fakeViewport(second, onTestFinished);
+    vi.advanceTimersToNextFrame();
+
+    expect(coloredText(second, "syntax-keyword")).toContain("const");
+    expect(
+      coloredText(second, "syntax-keyword").length / "const".length
+    ).toBeLessThan(3000);
+  });
+
   it("should tokenize a block once when the node is extended again", async ({
     onTestFinished,
   }) => {
@@ -417,7 +487,7 @@ describe("code block highlighting", () => {
         content: [
           {
             attrs: { language: "ts" },
-            content: [{ text: "const a = 1;", type: "text" }],
+            content: [{ text: "const once = 1;", type: "text" }],
             type: "codeBlock",
           },
         ],
@@ -439,6 +509,188 @@ describe("code block highlighting", () => {
 
     await vi.waitFor(() => {
       expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
+    expect(posted).toHaveBeenCalledOnce();
+  });
+
+  it("should land every answer of a frame in one transaction", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const editor = new Editor({
+      content: {
+        content: ["framed", "frames", "framing"].map((name) => ({
+          attrs: { language: "ts" },
+          content: [{ text: `const ${name} = 1;`, type: "text" }],
+          type: "codeBlock",
+        })),
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki,
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    let transactions = 0;
+    editor.on("transaction", () => {
+      transactions += 1;
+    });
+    vi.advanceTimersToNextFrame();
+    // The worker answers in request order, so its answer to this one arrives
+    // after the three the frame asked for.
+    await highlightCode("x", "typescript", 0);
+
+    expect(coloredText(editor, "syntax-keyword")).toBe("");
+    vi.advanceTimersToNextFrame();
+    expect(coloredText(editor, "syntax-keyword")).toBe("constconstconst");
+    expect(transactions).toBe(1);
+  });
+
+  it("should ask for the blocks on screen before the rest", async ({
+    onTestFinished,
+  }) => {
+    const blocks = 400;
+    const editor = new Editor({
+      content: {
+        content: Array.from({ length: blocks }, (_, index) => ({
+          attrs: { language: "ts" },
+          content: [{ text: `const near${index} = 1;`, type: "text" }],
+          type: "codeBlock",
+        })),
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki,
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
+    // The worker shim posts again whatever it queued before it started.
+    const requested = () => [
+      ...new Set(
+        posted.mock.calls.map(([request]: [SyntaxRequest, ...unknown[]]) =>
+          Number(/near(?<index>\d+)/u.exec(request.code)?.groups?.index)
+        )
+      ),
+    ];
+    fakeViewport(editor, onTestFinished).scrollTo(
+      editor.state.doc.content.size - 2000
+    );
+
+    await vi.waitFor(() => {
+      expect(requested()).toHaveLength(blocks);
+    });
+    const order = requested();
+    expect(order[0]).toBeGreaterThan(blocks / 2);
+    expect(order.at(-1)).toBe(0);
+  });
+
+  it("should keep an unmounted editor's colors for a remount of the same text", async ({
+    onTestFinished,
+  }) => {
+    const first = createEditor("ts", "const kept = 1;");
+    await vi.waitFor(() => {
+      expect(coloredText(first, "syntax-keyword")).toBe("const");
+    });
+    first.destroy();
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    onTestFinished(() => {
+      posted.mockRestore();
+      vi.useRealTimers();
+    });
+
+    const second = createEditor("ts", "const kept = 1;");
+    onTestFinished(() => {
+      second.destroy();
+    });
+    expect(coloredText(second, "syntax-keyword")).toBe("const");
+    vi.advanceTimersToNextFrame();
+    expect(posted).not.toHaveBeenCalled();
+
+    second.commands.insertContentAt({ from: 1, to: 6 }, "let");
+    expect(posted).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ code: "let kept = 1;" })
+    );
+    await vi.waitFor(() => {
+      vi.advanceTimersToNextFrame();
+      expect(coloredText(second, "syntax-keyword")).toBe("let");
+    });
+  });
+
+  it("should keep colors through a reconfigure that drops and restores the plugin", async ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("ts", "const swapped = 1;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
+    const { plugins } = editor.state;
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
+
+    editor.view.updateState(editor.state.reconfigure({ plugins: [] }));
+    expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
+    editor.view.updateState(editor.state.reconfigure({ plugins }));
+    expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    await vi.waitFor(() => {
+      expect(editor.state.doc.textContent).toBe("const swapped = 1;");
+    });
+    expect(posted).not.toHaveBeenCalled();
+  });
+
+  it("should ask again for text an unmounted editor changed before its answer", async ({
+    onTestFinished,
+  }) => {
+    const first = createEditor("ts", "const stale = 1;");
+    await vi.waitFor(() => {
+      expect(coloredText(first, "syntax-keyword")).toBe("const");
+    });
+    first.commands.insertContentAt({ from: 1, to: 6 }, "let");
+    first.destroy();
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
+
+    const second = createEditor("ts", "let stale = 1;");
+    onTestFinished(() => {
+      second.destroy();
+    });
+    expect(coloredText(second, "syntax-keyword")).toBe("");
+    await vi.waitFor(() => {
+      expect(coloredText(second, "syntax-keyword")).toBe("let");
     });
     expect(posted).toHaveBeenCalledOnce();
   });

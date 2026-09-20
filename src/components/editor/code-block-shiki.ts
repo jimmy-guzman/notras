@@ -1,4 +1,5 @@
 import { findChildren } from "@tiptap/core";
+import type { NodeWithPos } from "@tiptap/core";
 import { CodeBlock } from "@tiptap/extension-code-block";
 import type { Node } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
@@ -28,6 +29,13 @@ const TILDE_RUN = /~+/gu;
  */
 const WINDOW = 20_000;
 
+/**
+ * Characters of code whose tokens outlive their view, so a note shown again
+ * asks the worker only for the blocks that changed. A count would let a few
+ * whole-note source blocks take unbounded memory.
+ */
+const REMEMBERED_LIMIT = 4_000_000;
+
 interface Range {
   from: number;
   to: number;
@@ -36,6 +44,8 @@ interface Range {
 /** Tokens per line for one code block, keyed to the worker by `id`. */
 interface Block {
   id: number;
+  /** The language and text the tokens are for, which is also their key in `remembered`. */
+  input?: string;
   tokens: SyntaxToken[][];
 }
 
@@ -48,19 +58,21 @@ interface SyntaxState {
 
 interface Answer extends SyntaxSplice {
   block: number;
+  input: string;
 }
 
-type SyntaxMeta = { answer: Answer } | { viewport: Range };
+interface SyntaxMeta {
+  answers: Answer[];
+  viewport?: Range;
+}
 
 const key = new PluginKey<SyntaxState>("syntax");
 let nextBlockId = 0;
+const remembered = new Map<string, SyntaxToken[][]>();
+let rememberedSize = 0;
 
 function isMeta(value: unknown): value is SyntaxMeta {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    ("answer" in value || "viewport" in value)
-  );
+  return typeof value === "object" && value !== null && "answers" in value;
 }
 
 function freshBlock(): Block {
@@ -78,6 +90,29 @@ function blockLanguage(node: Node) {
         hasString(node.attrs, "language") ? node.attrs.language : undefined
       )
     : undefined;
+}
+
+/** What a block's tokens would be for, or nothing for a plain fence. */
+function blockInput(node: Node) {
+  const language = blockLanguage(node);
+  return language === undefined
+    ? undefined
+    : `${language}\n${node.textContent}`;
+}
+
+function remember(input: string, tokens: SyntaxToken[][]) {
+  if (remembered.delete(input)) {
+    rememberedSize -= input.length;
+  }
+  remembered.set(input, tokens);
+  rememberedSize += input.length;
+  for (const [oldest] of remembered) {
+    if (rememberedSize <= REMEMBERED_LIMIT) {
+      break;
+    }
+    remembered.delete(oldest);
+    rememberedSize -= oldest.length;
+  }
 }
 
 function syntaxState(state: EditorState) {
@@ -152,7 +187,7 @@ function buildDecorations(doc: Node, blocks: Block[], viewport: Range) {
   );
 }
 
-/** Each block keeps its id and tokens across an edit; one that stopped being highlighted code keeps only its id. */
+/** Each block keeps its id and tokens across an edit; one that stopped being highlighted code starts over, so an answer still in flight for it lands nowhere. */
 function carryBlocks(
   transaction: Transaction,
   previousDoc: Node,
@@ -167,8 +202,10 @@ function carryBlocks(
     }
   }
   return codeBlocks(transaction.doc).map(({ node, pos }) => {
-    const block = carried.get(pos) ?? freshBlock();
-    return blockLanguage(node) === undefined ? { ...block, tokens: [] } : block;
+    const block = carried.get(pos);
+    return block === undefined || blockLanguage(node) === undefined
+      ? freshBlock()
+      : block;
   });
 }
 
@@ -218,12 +255,12 @@ function applyTransaction(
   if (!isMeta(meta)) {
     return { blocks, decorations, viewport };
   }
-  if ("answer" in meta) {
-    const { block: id, lines, start, tail } = meta.answer;
+  for (const { block: id, input, lines, start, tail } of meta.answers) {
     blocks = blocks.map((block) =>
       block.id === id
         ? {
             id,
+            input,
             tokens: [
               ...block.tokens.slice(0, start),
               ...lines,
@@ -232,9 +269,8 @@ function applyTransaction(
           }
         : block
     );
-  } else {
-    ({ viewport } = meta);
   }
+  viewport = meta.viewport ?? viewport;
   return {
     blocks,
     decorations: buildDecorations(transaction.doc, blocks, viewport),
@@ -243,13 +279,12 @@ function applyTransaction(
 }
 
 /**
- * The positions on screen, padded by half a window each side, or nothing
- * when no part of the editor shows. The two points sit one pixel inside
- * the editor's visible part: a point outside it sends `posAtCoords` down a
- * fallback that measures the text one character at a time.
+ * The positions on screen, or nothing when no part of the editor shows. The
+ * two points sit one pixel inside the editor's visible part: a point outside
+ * it sends `posAtCoords` down a fallback that measures the text one character
+ * at a time.
  */
 function measureViewport(view: EditorView): Range | undefined {
-  const { size } = view.state.doc.content;
   const editor = view.dom.getBoundingClientRect();
   const clip = view.dom
     .closest('[data-slot="scroll-area-viewport"]')
@@ -260,17 +295,24 @@ function measureViewport(view: EditorView): Range | undefined {
   if (bottom <= top) {
     return undefined;
   }
-  const from = view.posAtCoords({ left, top })?.pos ?? 0;
-  const to = view.posAtCoords({ left, top: bottom })?.pos ?? size;
   return {
-    from: Math.max(0, from - WINDOW / 2),
-    to: Math.min(size, to + WINDOW / 2),
+    from: view.posAtCoords({ left, top })?.pos ?? 0,
+    to:
+      view.posAtCoords({ left, top: bottom })?.pos ??
+      view.state.doc.content.size,
   };
+}
+
+/** How far a block sits from a range, zero when it reaches into it. */
+function distance({ node, pos }: NodeWithPos, near: Range) {
+  return Math.max(near.from - (pos + node.nodeSize), pos - near.to, 0);
 }
 
 function setViewport(view: EditorView, viewport: Range) {
   view.dispatch(
-    view.state.tr.setMeta(key, { viewport }).setMeta("addToHistory", false)
+    view.state.tr
+      .setMeta(key, { answers: [], viewport })
+      .setMeta("addToHistory", false)
   );
 }
 
@@ -292,29 +334,43 @@ function syntaxPlugin() {
     state: {
       apply: (transaction, state, previous) =>
         applyTransaction(transaction, state, previous.doc),
-      init: (_, state) => ({
-        blocks: codeBlocks(state.doc).map(freshBlock),
-        decorations: DecorationSet.empty,
-        viewport: { from: 0, to: 0 },
-      }),
+      init: (_, state) => {
+        const blocks = codeBlocks(state.doc).map(({ node }) => {
+          const input = blockInput(node);
+          const tokens =
+            input === undefined ? undefined : remembered.get(input);
+          return tokens === undefined
+            ? freshBlock()
+            : { ...freshBlock(), input, tokens };
+        });
+        const viewport = { from: 0, to: 0 };
+        return {
+          blocks,
+          decorations: buildDecorations(state.doc, blocks, viewport),
+          viewport,
+        };
+      },
     },
     view(view: EditorView) {
       let live = true;
       let failed = false;
+      let started = false;
+      let follow = true;
       let frame = 0;
+      let outstanding = 0;
+      // A reconfigure that drops the plugin swaps the state before destroying its view.
+      let last = view.state;
+      const answers: Answer[] = [];
 
       async function highlight(block: number, language: string, text: string) {
         if (failed) {
           return;
         }
+        outstanding += 1;
         try {
           const splice = await highlightCode(text, language, block);
           if (live) {
-            view.dispatch(
-              view.state.tr
-                .setMeta(key, { answer: { block, ...splice } })
-                .setMeta("addToHistory", false)
-            );
+            answers.push({ block, input: `${language}\n${text}`, ...splice });
           }
         } catch (error) {
           // Every request in flight rejects with the same failure; report it once.
@@ -326,53 +382,97 @@ function syntaxPlugin() {
             });
           }
           failed = true;
+        } finally {
+          outstanding -= 1;
         }
       }
 
-      function requestChanged(unchanged: Set<Node>) {
+      /** Ask for the wanted blocks, nearest to `near` first when it is known. */
+      function request(
+        wanted: (node: Node, block: Block) => boolean,
+        near?: Range
+      ) {
         const { blocks } = syntaxState(view.state);
-        for (const [index, { node }] of codeBlocks(view.state.doc).entries()) {
-          const language = blockLanguage(node);
-          const block = blocks[index];
-          if (
-            language !== undefined &&
-            block !== undefined &&
-            !unchanged.has(node)
-          ) {
-            void highlight(block.id, language, node.textContent);
+        const fences = codeBlocks(view.state.doc).flatMap(
+          ({ node, pos }, index) => {
+            const block = blocks[index];
+            const language = blockLanguage(node);
+            return block !== undefined &&
+              language !== undefined &&
+              wanted(node, block)
+              ? [{ block, language, node, pos }]
+              : [];
           }
+        );
+        const ordered =
+          near === undefined
+            ? fences
+            : fences.toSorted((a, b) => distance(a, near) - distance(b, near));
+        for (const { block, language, node } of ordered) {
+          void highlight(block.id, language, node.textContent);
         }
       }
 
-      function followViewport() {
+      /** Whether any block is colored only around the viewport. */
+      function windowed() {
+        return codeBlocks(view.state.doc).some(
+          ({ node }) => node.nodeSize > WINDOW
+        );
+      }
+
+      /** The frame keeps running while the worker owes an answer or a window waits to be measured. */
+      function tick() {
         frame = 0;
-        const next = measureViewport(view);
+        const seen = follow ? measureViewport(view) : undefined;
+        // Off the DOM, as a React editor is during its first render, nothing
+        // measures, and the next frame tries again.
+        follow &&= seen === undefined;
+        if (!started) {
+          started = true;
+          request((node, block) => block.input !== blockInput(node), seen);
+        }
         const { viewport } = syntaxState(view.state);
-        if (
-          next !== undefined &&
-          (Math.abs(next.from - viewport.from) > WINDOW / 4 ||
-            Math.abs(next.to - viewport.to) > WINDOW / 4)
-        ) {
-          setViewport(view, next);
+        const padded =
+          seen === undefined
+            ? undefined
+            : {
+                from: Math.max(0, seen.from - WINDOW / 2),
+                to: Math.min(view.state.doc.content.size, seen.to + WINDOW / 2),
+              };
+        const moved =
+          padded !== undefined &&
+          (Math.abs(padded.from - viewport.from) > WINDOW / 4 ||
+            Math.abs(padded.to - viewport.to) > WINDOW / 4);
+        const landed = answers.splice(0);
+        if (landed.length > 0 || moved) {
+          view.dispatch(
+            view.state.tr
+              .setMeta(key, {
+                answers: landed,
+                viewport: moved ? padded : undefined,
+              })
+              .setMeta("addToHistory", false)
+          );
+        }
+        if (outstanding > 0 || (follow && windowed())) {
+          frame = requestAnimationFrame(tick);
         }
       }
 
-      function scheduleFollow() {
+      function schedule() {
         if (frame === 0) {
-          frame = requestAnimationFrame(followViewport);
+          frame = requestAnimationFrame(tick);
         }
       }
 
       function onScroll() {
-        if (
-          codeBlocks(view.state.doc).some(({ node }) => node.nodeSize > WINDOW)
-        ) {
-          scheduleFollow();
+        if (windowed()) {
+          follow = true;
+          schedule();
         }
       }
 
-      requestChanged(new Set());
-      scheduleFollow();
+      schedule();
       document.addEventListener("scroll", onScroll, {
         capture: true,
         passive: true,
@@ -383,15 +483,28 @@ function syntaxPlugin() {
           live = false;
           cancelAnimationFrame(frame);
           document.removeEventListener("scroll", onScroll, { capture: true });
+          const { blocks } = syntaxState(last);
+          for (const [index, { node }] of codeBlocks(last.doc).entries()) {
+            const block = blocks[index];
+            if (
+              block?.input !== undefined &&
+              block.input === blockInput(node)
+            ) {
+              remember(block.input, block.tokens);
+            }
+          }
         },
         update(current, previous) {
-          if (current.state.doc === previous.doc) {
+          last = current.state;
+          if (!started || current.state.doc === previous.doc) {
             return;
           }
           // ProseMirror shares unchanged nodes, even when edits shift their position.
-          requestChanged(
-            new Set(codeBlocks(previous.doc).map(({ node }) => node))
+          const unchanged = new Set(
+            codeBlocks(previous.doc).map(({ node }) => node)
           );
+          request((node) => !unchanged.has(node));
+          schedule();
         },
       };
     },
