@@ -201,17 +201,16 @@ const TITLE_WINDOW = 2048;
 const LINK_DEFINITION = /\[[^\]\n]*\]:/u;
 
 /**
- * The title in the first `end` characters, or undefined when the window's
- * last token holds it: the cut may sit inside that block, and the line after
- * it can still turn a paragraph into a table or a setext heading.
+ * The title in the first `end` characters, or undefined when the cut sits in
+ * the line after it: that line can still turn the title into a table header
+ * or a setext heading, and no later line can.
  */
 function windowTitle(body: string, end: number) {
-  const tokens = titleMarkdown.lexer(body.slice(0, end));
-  const found = tokenTitle(tokens, 0);
-  const lastStart = tokens
-    .slice(0, -1)
-    .reduce((line, token) => line + lineBreaks(token.raw), 0);
-  return found !== undefined && found.line < lastStart ? found : undefined;
+  const window = body.slice(0, end);
+  const found = tokenTitle(titleMarkdown.lexer(window), 0);
+  return found !== undefined && lineBreaks(window) > found.line + 1
+    ? found
+    : undefined;
 }
 
 /**
