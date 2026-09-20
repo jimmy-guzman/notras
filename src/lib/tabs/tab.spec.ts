@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TabState } from "./tab";
 import {
   adoptNote,
+  closeDrafts,
   closeTab,
   moveTabTo,
   openTab,
@@ -25,6 +26,8 @@ const note = (path: string) =>
 
 const external = (path: string) =>
   ({ id: `id-external-${path}`, kind: "external", path }) as const;
+
+const draft = (id: string) => ({ id, kind: "draft", path: "" }) as const;
 
 /** a.md, b.md, c.md open with b.md showing. */
 const three: TabState = {
@@ -102,11 +105,44 @@ describe(openTab, () => {
     expect(next.activeId).toBe("id-c.md");
   });
 
+  it("should record the showing tab as the opener when opening beside it", () => {
+    const next = openTab(three, note("d.md"), true);
+
+    expect(next.tabs[2]).toStrictEqual({ ...note("d.md"), opener: "id-b.md" });
+  });
+
+  it("should hand the replaced tab's opener to its replacement", () => {
+    const opened = openTab(three, note("d.md"), true);
+    const next = openTab(opened, note("e.md"));
+
+    expect(next.tabs[2]).toStrictEqual({ ...note("e.md"), opener: "id-b.md" });
+  });
+
+  it("should record no opener when replacing a tab that has none", () => {
+    const next = openTab(three, note("d.md"));
+
+    expect(next.tabs[1]?.opener).toBeUndefined();
+  });
+
   it("should open into an empty set", () => {
     const next = openTab({ activeId: "", tabs: [] }, note("a.md"));
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md"]);
     expect(next.activeId).toBe("id-a.md");
+  });
+
+  it("should open a second draft beside the first instead of focusing it", () => {
+    const one = openTab(three, draft("draft-1"), true);
+    const next = openTab(one, draft("draft-2"), true);
+
+    expect(next.tabs.map((tab) => tab.id)).toStrictEqual([
+      "id-a.md",
+      "id-b.md",
+      "draft-1",
+      "draft-2",
+      "id-c.md",
+    ]);
+    expect(next.activeId).toBe("draft-2");
   });
 
   it("should open an external file alongside a note", () => {
@@ -154,11 +190,88 @@ describe(closeTab, () => {
   it("should ignore a tab that is not open", () => {
     expect(closeTab(three, "id-z.md")).toStrictEqual(three);
   });
+
+  it("should return to the tab that opened the one closing", () => {
+    // Opened beside a.md, so it sits between a.md and b.md. The right-hand
+    // rule would land on b.md; the opener rule lands back on a.md.
+    const opened = openTab(
+      { activeId: "id-a.md", tabs: three.tabs },
+      note("d.md"),
+      true
+    );
+
+    const next = closeTab(opened, "id-d.md");
+
+    expect(next.activeId).toBe("id-a.md");
+  });
+
+  it("should fall back to the right-hand rule when the opener is gone", () => {
+    const opened = openTab(
+      { activeId: "id-a.md", tabs: three.tabs },
+      note("d.md"),
+      true
+    );
+    const withoutOpener = closeTab(opened, "id-a.md");
+
+    const next = closeTab(withoutOpener, "id-d.md");
+
+    expect(next.activeId).toBe("id-b.md");
+  });
+
+  it("should return to the opener after the tab was dragged elsewhere", () => {
+    const opened = openTab(
+      { activeId: "id-a.md", tabs: three.tabs },
+      note("d.md"),
+      true
+    );
+    const dragged = moveTabTo(opened, "id-d.md", 3);
+
+    const next = closeTab(dragged, "id-d.md");
+
+    expect(next.activeId).toBe("id-a.md");
+  });
+
+  it("should leave the opener out of it when closing a background tab", () => {
+    const opened = openTab(
+      { activeId: "id-a.md", tabs: three.tabs },
+      note("d.md"),
+      true
+    );
+
+    const next = closeTab({ ...opened, activeId: "id-c.md" }, "id-d.md");
+
+    expect(next.activeId).toBe("id-c.md");
+  });
+});
+
+describe(closeDrafts, () => {
+  it("should follow the opener chain from the showing draft, wherever the drafts sit", () => {
+    // d2 was opened beside d1, then dragged to d1's left: the right-hand
+    // neighbour of the last draft is b.md, while the chain leads to a.md.
+    const state: TabState = {
+      activeId: "d2",
+      tabs: [
+        note("a.md"),
+        { ...draft("d2"), opener: "d1" },
+        { ...draft("d1"), opener: "id-a.md" },
+        note("b.md"),
+      ],
+    };
+
+    const next = closeDrafts(state);
+
+    expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md", "b.md"]);
+    expect(next.activeId).toBe("id-a.md");
+  });
+
+  it("should leave a set without drafts alone", () => {
+    expect(closeDrafts(three)).toBe(three);
+  });
 });
 
 describe(replaceNotePath, () => {
   it("should move the tab to the new path in place", () => {
-    const next = replaceNotePath(three, "b.md", "work/b.md");
+    const next = replaceNotePath(three, "id-b.md", "work/b.md");
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual([
       "a.md",
@@ -171,31 +284,73 @@ describe(replaceNotePath, () => {
     // The workspace keys each `NoteSession` by this id. Deriving it from the
     // path remounted the editor on every rename, losing undo history, the
     // caret and the scroll position (`D56`).
-    const next = replaceNotePath(three, "b.md", "work/b.md");
+    const next = replaceNotePath(three, "id-b.md", "work/b.md");
 
     expect(next.tabs[1]?.id).toBe(note("b.md").id);
     expect(next.activeId).toBe(note("b.md").id);
   });
 
   it("should leave the set alone when the path did not change", () => {
-    expect(replaceNotePath(three, "b.md", "b.md")).toStrictEqual(three);
+    expect(replaceNotePath(three, "id-b.md", "b.md")).toStrictEqual(three);
   });
 
   it("should keep the active tab when a background tab moves", () => {
-    const next = replaceNotePath(three, "a.md", "work/a.md");
+    const next = replaceNotePath(three, "id-a.md", "work/a.md");
 
     expect(next.activeId).toBe("id-b.md");
   });
 
   it("should collapse onto a path that is already open", () => {
-    const next = replaceNotePath(three, "b.md", "c.md");
+    const next = replaceNotePath(three, "id-b.md", "c.md");
 
     expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md", "c.md"]);
     expect(next.activeId).toBe("id-c.md");
   });
 
-  it("should ignore a path that is not open", () => {
-    expect(replaceNotePath(three, "z.md", "y.md")).toStrictEqual(three);
+  it("should ignore a tab that is not open", () => {
+    expect(replaceNotePath(three, "id-z.md", "y.md")).toStrictEqual(three);
+  });
+
+  it("should turn a draft into the note its first save created", () => {
+    const state: TabState = {
+      activeId: "draft-1",
+      tabs: [note("a.md"), draft("draft-1")],
+    };
+
+    const next = replaceNotePath(state, "draft-1", "hello.md");
+
+    expect(next.tabs[1]).toStrictEqual({
+      id: "draft-1",
+      kind: "note",
+      path: "hello.md",
+    });
+    expect(next.activeId).toBe("draft-1");
+  });
+
+  it("should leave a sibling draft alone when one gets its file", () => {
+    const state: TabState = {
+      activeId: "draft-2",
+      tabs: [draft("draft-1"), draft("draft-2")],
+    };
+
+    const next = replaceNotePath(state, "draft-2", "hello.md");
+
+    expect(next.tabs.map((tab) => tab.kind)).toStrictEqual(["draft", "note"]);
+  });
+
+  it("should keep an external file external when its title renames it", () => {
+    const state: TabState = {
+      activeId: "id-external-/tmp/a.md",
+      tabs: [external("/tmp/a.md")],
+    };
+
+    const next = replaceNotePath(state, "id-external-/tmp/a.md", "/tmp/b.md");
+
+    expect(next.tabs[0]).toStrictEqual({
+      id: "id-external-/tmp/a.md",
+      kind: "external",
+      path: "/tmp/b.md",
+    });
   });
 });
 

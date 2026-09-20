@@ -15,6 +15,7 @@ import {
   getTabHandles,
   getTabState,
   hasTabSnapshot,
+  openDraft,
   openNote,
   persistTabs,
   registerTabHandles,
@@ -389,6 +390,66 @@ describe("store", () => {
       closeOtherTabs("gone");
 
       expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-a"]);
+    });
+  });
+
+  describe(openDraft, () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it("should leave the reopen stack alone when a draft closes", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeTabs({
+          activeId: "kept-a",
+          carets: {},
+          tabs: [{ id: "kept-a", kind: "note", path: "a.md" }],
+        })
+      );
+      restoreTabs();
+      openDraft();
+      closeTab(getTabState().activeId);
+
+      reopenTab();
+
+      expect(getTabState().tabs.map((tab) => tab.kind)).toStrictEqual(["note"]);
+    });
+
+    it("should persist no draft, and land the persisted active tab where the drafts came from", ({
+      onTestFinished,
+    }) => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeTabs({
+          activeId: "kept-a",
+          carets: {},
+          tabs: [
+            { id: "kept-a", kind: "note", path: "a.md" },
+            { id: "kept-b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      // A draft beside a.md, then a draft beside that one: the chain leads
+      // back to a.md, while the tab to the right of the last draft is b.md.
+      openDraft();
+      openDraft();
+      onTestFinished(() => {
+        closeTab(getTabState().activeId);
+        closeTab(getTabState().activeId);
+      });
+
+      persistTabs();
+
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const persisted = raw === null ? undefined : parseTabs(raw);
+      expect(persisted?.tabs.map((tab) => tab.id)).toStrictEqual([
+        "kept-a",
+        "kept-b",
+      ]);
+      expect(persisted?.activeId).toBe("kept-a");
+      expect(getTabState().tabs).toHaveLength(4);
     });
   });
 

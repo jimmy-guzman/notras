@@ -3,8 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { NoteFilters } from "@/core/notes";
 import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
-import type { Tab } from "@/lib/tabs/tab";
-import type { GraphTarget } from "@/server/adapters/bindings";
+import type { GraphTarget, OpenKind } from "@/server/adapters/bindings";
 
 import { readConflictStash } from "./conflict-stash";
 import { readExternalNote } from "./external-note";
@@ -25,7 +24,7 @@ declare module "@tanstack/react-query" {
 // to `any`.
 const all = ["notes"] as const;
 const index = [...all, "index"] as const;
-const fileKey = (kind: Tab["kind"], path: string) =>
+const fileKey = (kind: OpenKind, path: string) =>
   [...all, "file", kind, path] as const;
 
 /** One tab's file content, revision and timestamp as of the last read. */
@@ -38,12 +37,12 @@ export interface SessionFile {
 /** Keyed generic to specific: every invalidation is one prefix. */
 export const noteQueries = {
   all,
-  conflict: (kind: Tab["kind"], path: string) =>
+  conflict: (kind: OpenKind, path: string) =>
     queryOptions({
       queryFn: async () => await readConflictStash(kind, path),
       queryKey: [...all, "conflict", kind, path] as const,
     }),
-  file: (kind: Tab["kind"], path: string) =>
+  file: (kind: OpenKind, path: string) =>
     queryOptions({
       queryFn: async () =>
         kind === "external"

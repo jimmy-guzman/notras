@@ -57,7 +57,11 @@ describe(resolveTitle, () => {
     expect(resolveTitle("Note.Markdown", "")).toBe("Note");
     expect(resolveTitle("note.markdown", "")).toBe("note");
     expect(resolveTitle("notes.txt", "")).toBe("notes.txt");
-    expect(resolveTitle(".md", "")).toBe("");
+  });
+
+  it("should name a note with no filename stem untitled, as native creation does", () => {
+    expect(resolveTitle("", "")).toBe("untitled");
+    expect(resolveTitle(".md", "")).toBe("untitled");
   });
 });
 

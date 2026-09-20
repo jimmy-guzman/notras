@@ -58,6 +58,7 @@ import {
   closeTab,
   closeTabsAfter,
   getTabHandles,
+  openDraft,
   openNote as openInTab,
   reopenTab,
   useTabSnapshot,
@@ -309,7 +310,7 @@ export function CommandPalette({
     const title = query.trim();
 
     void runAction("could not create note", async () => {
-      const path = await createNote({ title });
+      const { path } = await createNote({ title });
 
       openInTab(path, true);
     });
@@ -351,11 +352,8 @@ export function CommandPalette({
       label: "new note",
       needs: "none",
       onSelect: () => {
-        void runAction("could not create note", async () => {
-          const path = await createNote();
-
-          openInTab(path, true);
-        });
+        close();
+        openDraft();
       },
       text: "new note",
       value: "new-note",
@@ -522,7 +520,7 @@ export function CommandPalette({
     {
       Icon: CopyIcon,
       label: "copy path",
-      needs: "tab",
+      needs: "file",
       onSelect: () => {
         close();
 
@@ -619,6 +617,7 @@ export function CommandPalette({
 
   const reachable = {
     editor: getTabHandles(activeId) !== undefined,
+    file: activeTab !== undefined && activeTab.kind !== "draft",
     none: true,
     note: currentNote !== undefined,
     tab: activeTab !== undefined,

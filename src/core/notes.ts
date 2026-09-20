@@ -33,8 +33,10 @@ const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/iu;
 
 export function noteTitle(path: string) {
   const name = path.replaceAll("\\", "/").split("/").at(-1) ?? path;
+  const stem = name.replace(MARKDOWN_EXTENSION, "");
 
-  return name.replace(MARKDOWN_EXTENSION, "");
+  // A draft has no path yet; Rust names a note with no title the same way.
+  return stem === "" ? "untitled" : stem;
 }
 
 /**

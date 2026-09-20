@@ -8,6 +8,7 @@ import type { PendingOpen } from "@/server/adapters/bindings";
 import type { ClosedTab, Tab, TabState } from "./tab";
 import {
   adoptNote,
+  closeDrafts,
   closeTab as closeInList,
   legacyTabId,
   moveTabTo,
@@ -89,12 +90,15 @@ export function persistTabs() {
     }
   }
 
+  // Drafts are not restored, and the active id lands where closing them would.
+  const persisted = closeDrafts(getTabState());
+
   localStorage.setItem(
     STORAGE_KEY,
     serializeTabs({
-      activeId: getTabState().activeId,
+      activeId: persisted.activeId,
       carets,
-      tabs: getTabState().tabs,
+      tabs: persisted.tabs,
     })
   );
 }
@@ -268,11 +272,16 @@ export function openNote(path: string, inNewTab = false) {
   openTab("note", path, inNewTab);
 }
 
+export function openDraft() {
+  openTab("draft", "", true);
+}
+
 export function closeTab(id: string) {
   const index = getTabState().tabs.findIndex((entry) => entry.id === id);
   const tab = getTabState().tabs[index];
 
-  if (tab !== undefined) {
+  // A draft leaves nothing behind, so there is nothing to reopen.
+  if (tab !== undefined && tab.kind !== "draft") {
     closed = pushClosed(closed, tab, index);
   }
 
@@ -353,9 +362,9 @@ export function activateTab(id: string) {
   setState({ activeId: id, tabs: getTabState().tabs });
 }
 
-/** Follow a note that a rename or a folder move gave a new path. */
-export function renameTab(from: string, to: string) {
-  setState(replaceNotePath(getTabState(), from, to));
+/** Follow a tab whose save gave it a new path: a rename, a move, or a draft's first file. */
+export function renameTab(id: string, to: string) {
+  setState(replaceNotePath(getTabState(), id, to));
 }
 
 /** Edit metadata through the note that owns the live document. */
