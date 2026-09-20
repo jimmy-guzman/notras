@@ -184,6 +184,7 @@ What notras does, as claims checkable against a running build.
 - If native clipboard reading or custom paste parsing fails, an error toast appears and the original clipboard slice replaces the paste selection, preserving paste order. Pasting inside a code block inserts literal text. Other markdown-looking text pastes rich, and other text pastes plain. Copying out of the editor puts markdown on the clipboard.
 - Tables are editable and start at two columns by three rows with a header. Task checkboxes are clickable and round-trip as `- [x]` and `- [ ]`.
 - A table sizes to its content rather than the column. One too wide to fit scrolls sideways inside its own box, and the note does not move with it.
+- Two tables with nothing between them are written one blank line apart. Saving a note that holds them, unchanged, writes the same bytes each time.
 - Strikethrough takes one tilde or two, typed or read from a file, and the closing run may not follow a space. The serializer writes two, so `~x~` in a note written elsewhere saves back as `~~x~~`.
 - A list nested under an ordered item indents to the marker's width, so `1. first` carries its child at three spaces. A child written at two spaces by an earlier build or another editor still opens nested and saves back at three.
 - A literal `` ` ``, `*`, `_`, `[`, `]` or `~` in prose is written to the file as typed. It gains a backslash only where the note would otherwise read back as something else, and then the whole note is escaped.

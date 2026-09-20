@@ -4,7 +4,7 @@ import {
   OrderedList,
   TaskList,
 } from "@tiptap/extension-list";
-import { Table } from "@tiptap/extension-table";
+import { renderTableToMarkdown, Table } from "@tiptap/extension-table";
 import { Lexer } from "marked";
 
 const ORDERED_MARK = String.raw`(?:${ORDERED_LIST_MARKER_PATTERN})[.)]\s`;
@@ -110,6 +110,9 @@ function tableAt(src: string) {
 }
 
 const table = upstream(Table);
+// Upstream's newline on each side reads back as an empty paragraph between
+// two tables, one more per save.
+const TABLE_PADDING = /^\n|\n$/gu;
 
 export const BoundedTable = Table.extend({
   markdownTokenizer: {
@@ -123,4 +126,6 @@ export const BoundedTable = Table.extend({
         : table.tokenize(found, tokens, lexer);
     },
   },
+  renderMarkdown: (node, helpers) =>
+    renderTableToMarkdown(node, helpers).replace(TABLE_PADDING, ""),
 });

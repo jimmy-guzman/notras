@@ -290,6 +290,26 @@ describe("markdown round-trip", () => {
     expect(twice).toBe(once);
   });
 
+  it("should write adjacent tables one blank line apart, the same on every save", () => {
+    const once = roundtrip("| a |\n|---|\n| 1 |\n\n| b |\n|---|\n| 2 |");
+
+    expect(once).toBe("| a   |\n| --- |\n| 1   |\n\n| b   |\n| --- |\n| 2   |");
+    expect(roundtrip(once)).toBe(once);
+  });
+
+  it.each([
+    "| a |\n|---|\n| 1 |\n\nprose",
+    "- para\n\n  | a |\n  |---|\n  | 1 |\n- next",
+    "> | a |\n> |---|\n> | 1 |",
+    "> quote\n>\n> | a |\n> |---|\n> | 1 |",
+  ])("should keep a table where it sits after one save of %j", (markdown) => {
+    const once = roundtrip(markdown);
+
+    expect(once).toContain("| --- |");
+    expect(once.startsWith("\n")).toBeFalsy();
+    expect(roundtrip(once)).toBe(once);
+  });
+
   it("should never leak nbsp entities into files", () => {
     const markdown =
       "| a | b |\n| --- | --- |\n|  | 2 |\n\nparagraph\n\n- [ ] task";
