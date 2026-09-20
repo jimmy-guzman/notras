@@ -139,6 +139,35 @@ describe("raw html", () => {
   });
 });
 
+describe("file markdown", () => {
+  it("should serialize what the whole document would after edits to one block", () => {
+    const editor = new Editor({
+      content: "first\n\nsecond\n\nthird",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    expect(serializeMarkdown(editor)).toBe("first\n\nsecond\n\nthird");
+
+    editor.commands.insertContentAt(
+      editor.state.doc.child(0).nodeSize + 1,
+      "re"
+    );
+    expect(serializeMarkdown(editor)).toBe("first\n\nresecond\n\nthird");
+
+    // Emptying the first two paragraphs makes the second one read the
+    // first, which is where a block's markdown depends on its neighbor.
+    editor.commands.deleteRange({ from: 1, to: 6 });
+    editor.commands.deleteRange({ from: 3, to: 11 });
+    expect(editor.state.doc.childCount).toBe(3);
+    expect(serializeMarkdown(editor)).toBe(editor.getMarkdown());
+    expect(serializeMarkdown(editor)).toContain("&nbsp;");
+
+    editor.destroy();
+  });
+});
+
 describe("strike input rule", () => {
   it("should strike a span typed with one tilde", () => {
     expect(typeInto("~organization~")).toBe("~~organization~~");

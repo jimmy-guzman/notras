@@ -17,12 +17,13 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import type { MarkdownExtensionOptions } from "@tiptap/markdown";
+import type { Node } from "@tiptap/pm/model";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
 import { encode } from "mdurl";
 
-import { hasString } from "@/components/editor/attrs";
+import { contentOf, hasString } from "@/components/editor/attrs";
 import {
   BoundedOrderedList,
   BoundedTable,
@@ -355,33 +356,101 @@ function dropEscapes(text: string) {
 
 type MarkdownConverter = NonNullable<Editor["markdown"]>;
 
+interface RenderedBlock {
+  bare: string;
+  droppable: boolean;
+  escaped: string;
+  previous: Node | undefined;
+}
+
+/**
+ * A top-level block is an immutable ProseMirror node, so a block an edit did
+ * not touch keeps its identity and its markdown across transactions. A block's
+ * markdown reads the block before it (an empty paragraph after another one
+ * writes `&nbsp;`), so the entry remembers which one that was.
+ */
+const rendered = new WeakMap<Node, RenderedBlock>();
+
+function reparses(manager: MarkdownConverter, bare: string, escaped: string) {
+  try {
+    return manager.serialize(manager.parse(bare)) === escaped;
+  } catch {
+    return false;
+  }
+}
+
+function renderBlock(
+  manager: MarkdownConverter,
+  node: Node,
+  previous: Node | undefined
+) {
+  const hit = rendered.get(node);
+
+  if (hit !== undefined && hit.previous === previous) {
+    return hit;
+  }
+
+  const json = contentOf(node);
+  const siblings =
+    previous === undefined ? [json] : [contentOf(previous), json];
+  const escaped = manager.renderNodeToMarkdown(
+    json,
+    { content: siblings, type: "doc" },
+    siblings.length - 1,
+    0
+  );
+  const bare = mapProse(escaped, dropEscapes);
+  const block: RenderedBlock = {
+    bare,
+    droppable: bare === escaped || reparses(manager, bare, escaped),
+    escaped,
+    previous,
+  };
+
+  rendered.set(node, block);
+
+  return block;
+}
+
 /**
  * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` in every
  * text node with no regard for context, so `snake_case` gains a backslash on
  * its first save. Re-parsing the stripped text leaves marked the authority on
  * which escape was load-bearing, per document: one construct that needs its
  * backslash keeps every other escape in the file with it.
+ *
+ * Asking per top-level block gives the same answer: blocks parse apart once a
+ * blank line separates them, and a link reference definition, the one
+ * construct that reaches across, is a block that fails its own check.
  */
-export function fileMarkdown(manager: MarkdownConverter, escaped: string) {
-  const bare = mapProse(escaped, dropEscapes);
+export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
+  const blocks = doc.content.content.map((node, index, siblings) =>
+    renderBlock(manager, node, siblings[index - 1])
+  );
+  const markdown = blocks.every((block) => block.droppable)
+    ? blocks.map((block) => block.bare).join("\n\n")
+    : blocks.map((block) => block.escaped).join("\n\n");
 
-  if (bare === escaped) {
-    return escaped;
+  // Upstream writes nothing for a document holding only spaces and `&nbsp;`.
+  return markdown.replaceAll("&nbsp;", "").replaceAll("\u00A0", "").trim() ===
+    ""
+    ? ""
+    : markdown;
+}
+
+export function converterOf(editor: Editor) {
+  const manager = editor.markdown;
+
+  if (manager === undefined) {
+    throw new Error("The editor has no Markdown converter");
   }
 
-  try {
-    return manager.serialize(manager.parse(bare)) === escaped ? bare : escaped;
-  } catch {
-    return escaped;
-  }
+  return manager;
 }
 
 /** Serialize the editor to markdown for the file on disk. */
 export function serializeMarkdown(editor: Editor) {
-  const escaped = editor.getMarkdown();
-  const manager = editor.markdown;
-
-  return manager === undefined ? escaped : fileMarkdown(manager, escaped);
+  return fileMarkdown(converterOf(editor), editor.state.doc);
 }
 
 /**

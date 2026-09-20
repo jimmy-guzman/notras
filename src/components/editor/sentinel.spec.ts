@@ -128,7 +128,7 @@ describe("source -> rich caret mapping", () => {
     const manager = requireManager(editor);
     const canonical = fileMarkdown(
       manager,
-      manager.serialize(manager.parse(markdown))
+      editor.schema.nodeFromJSON(manager.parse(markdown))
     );
 
     expect(serializeMarkdown(editor).trimEnd()).toBe(canonical.trimEnd());
@@ -147,7 +147,7 @@ describe("source -> rich caret mapping", () => {
     const manager = requireManager(editor);
     const canonical = fileMarkdown(
       manager,
-      manager.serialize(manager.parse(markdown))
+      editor.schema.nodeFromJSON(manager.parse(markdown))
     );
 
     // The stripped buffer no longer serializes to the canonical form --

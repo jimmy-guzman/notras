@@ -194,8 +194,43 @@ function tokenTitle(tokens: Token[], firstLine: number): TitleAt | undefined {
   return found;
 }
 
-/** The first readable source line, excluding code, images, HTML and tables. */
+/** Enough for a title and the block after it in nearly every note. */
+const TITLE_WINDOW = 2048;
+
+/** A `[label]: destination` anywhere in the note resolves a `[label]` above it. */
+const LINK_DEFINITION = /\[[^\]\n]*\]:/u;
+
+/**
+ * The title in the first `end` characters, or undefined when the cut sits in
+ * the line after it: that line can still turn the title into a table header
+ * or a setext heading, and no later line can.
+ */
+function windowTitle(body: string, end: number) {
+  const window = body.slice(0, end);
+  const found = tokenTitle(titleMarkdown.lexer(window), 0);
+  return found !== undefined && lineBreaks(window) > found.line + 1
+    ? found
+    : undefined;
+}
+
+/**
+ * The first readable source line, excluding code, images, HTML and tables.
+ *
+ * Lexing a 450 KB note takes 20ms and this runs on every keystroke, so the
+ * lexer reads a window that doubles until it holds the answer.
+ */
 export function bodyTitle(body: string) {
+  for (let end = TITLE_WINDOW; end < body.length; end *= 2) {
+    const found = windowTitle(body, end);
+    // An unresolved reference keeps its brackets, and a definition further
+    // down would resolve it.
+    if (
+      found !== undefined &&
+      !(found.title.includes("[") && LINK_DEFINITION.test(body))
+    ) {
+      return found;
+    }
+  }
   return tokenTitle(titleMarkdown.lexer(body), 0);
 }
 
