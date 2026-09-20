@@ -143,6 +143,20 @@ function SessionAlerts({
   );
 }
 
+/** A fence longer than the highlighter's window is colored only near the viewport, so the print reveals it first. */
+async function exportRevealed(
+  editor: EditorHandle,
+  name: string,
+  title: string
+) {
+  const windowSyntax = editor.revealSyntax();
+  try {
+    return await exportPdf(editor.surface(), name, title);
+  } finally {
+    windowSyntax();
+  }
+}
+
 interface SessionBufferProps {
   active: boolean;
   file: SessionFile;
@@ -601,8 +615,8 @@ function SessionBuffer({
         throw new Error("Leave Markdown source first");
       }
 
-      return await exportPdf(
-        surface.surface(),
+      return await exportRevealed(
+        surface,
         noteTitle(live.current.path),
         persistence.snapshot.state.title
       );
@@ -751,6 +765,7 @@ interface NoteSessionProps {
  * One open tab, from its file on disk to a live editor. Reads its own content
  * and re-reads when the watcher reports the folder changed (`D53`).
  */
+
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
   const { data, error, refetch } = useQuery(noteQueries.file(kind, path));

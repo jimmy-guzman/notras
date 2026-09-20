@@ -24,16 +24,16 @@ describe("syntax highlighter", () => {
 
   it("should answer each request with its own tokens", async () => {
     const [json, typescript] = await Promise.all([
-      highlightCode('{"a": 1}', "json"),
-      highlightCode("const a = 1;", "typescript"),
+      highlightCode('{"a": 1}', "json", 1),
+      highlightCode("const a = 1;", "typescript", 2),
     ]);
 
-    expect(json.flat()).toContainEqual({
+    expect(json.lines.flat()).toContainEqual({
       color: "var(--syntax-member)",
       length: 1,
       offset: 2,
     });
-    expect(typescript.flat()).toContainEqual({
+    expect(typescript.lines.flat()).toContainEqual({
       color: "var(--syntax-keyword)",
       length: 5,
       offset: 0,
@@ -41,7 +41,7 @@ describe("syntax highlighter", () => {
   });
 
   it("should reject with the reason a grammar cannot load", async () => {
-    await expect(highlightCode("x", "not-a-language")).rejects.toThrow(
+    await expect(highlightCode("x", "not-a-language", 3)).rejects.toThrow(
       /not-a-language/u
     );
   });

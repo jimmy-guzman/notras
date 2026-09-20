@@ -1,14 +1,30 @@
 import { describe, expect, it } from "vitest";
 
+import type { SyntaxToken } from "@/components/editor/syntax-highlighter";
 import { tokenize } from "@/components/editor/syntax-worker";
 
-async function coloredText(source: string, language: string) {
-  const lines = await tokenize(source, language);
+let nextDocument = 0;
 
-  return lines.flat().map(({ color, length, offset }) => ({
-    color,
-    content: source.slice(offset, offset + length),
-  }));
+function freshDocument() {
+  nextDocument += 1;
+  return nextDocument;
+}
+
+function contentOf(source: string, lines: SyntaxToken[][], start = 0) {
+  const texts = source.split("\n");
+
+  return lines.flatMap((line, index) =>
+    line.map(({ color, length, offset }) => ({
+      color,
+      content: texts[start + index]?.slice(offset, offset + length),
+    }))
+  );
+}
+
+async function coloredText(source: string, language: string) {
+  const { lines } = await tokenize(source, language, freshDocument());
+
+  return contentOf(source, lines);
 }
 
 describe("syntax tokenizing", () => {
@@ -93,5 +109,63 @@ describe("syntax tokenizing", () => {
       color: "var(--syntax-string)",
       content: "你好",
     });
+  });
+
+  it("should answer every line of a document it has not seen", async () => {
+    const splice = await tokenize(
+      "const a = 1;\nlet b = 2;",
+      "typescript",
+      freshDocument()
+    );
+
+    expect(splice).toMatchObject({ start: 0, tail: 0 });
+    expect(splice.lines).toHaveLength(2);
+  });
+
+  it("should answer only the changed line when the lines after it tokenize as before", async () => {
+    const document = freshDocument();
+    const before = "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;";
+    await tokenize(before, "typescript", document);
+
+    const after = "const a = 1;\nlet b = 2;\nconst c = 3;\nconst d = 4;";
+    const splice = await tokenize(after, "typescript", document);
+
+    expect(splice).toMatchObject({ start: 1, tail: 2 });
+    const alone = await tokenize("let b = 2;", "typescript", freshDocument());
+    expect(contentOf(after, splice.lines, splice.start)).toStrictEqual(
+      contentOf("let b = 2;", alone.lines)
+    );
+  });
+
+  it("should retokenize the lines after an edit that opens a fence", async () => {
+    const document = freshDocument();
+    await tokenize(
+      "# title\n\nprose\n\n```ts\nconst a = 1;\n```",
+      "markdown",
+      document
+    );
+
+    const after = "# title\n```\nprose\n\n```ts\nconst a = 1;\n```";
+    const splice = await tokenize(after, "markdown", document);
+
+    expect(splice).toMatchObject({ start: 1, tail: 0 });
+    expect(splice.lines).toHaveLength(6);
+    expect(contentOf(after, splice.lines, splice.start)).not.toContainEqual({
+      color: "var(--syntax-keyword)",
+      content: "const",
+    });
+  });
+
+  it("should keep the lines it remembers apart by document", async () => {
+    const first = freshDocument();
+    await tokenize("const a = 1;", "typescript", first);
+    const other = await tokenize("let b = 2;", "typescript", freshDocument());
+    const again = await tokenize("const a = 1;", "typescript", first);
+
+    expect(contentOf("let b = 2;", other.lines)).toContainEqual({
+      color: "var(--syntax-keyword)",
+      content: "let",
+    });
+    expect(again).toStrictEqual({ lines: [], start: 1, tail: 0 });
   });
 });
