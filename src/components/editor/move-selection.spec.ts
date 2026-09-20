@@ -645,10 +645,10 @@ describe("tables", () => {
 
     editor.destroy();
 
-    // The surrounding blank lines are the table serializer's own, present on a
-    // plain load and after any edit at all, so they belong to the editor.
+    // The trailing blank line is the empty paragraph the editor keeps after a
+    // table, present on a plain load and after any edit at all.
     expect(output).toBe(
-      "\n| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n\n"
+      "| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n"
     );
   });
 
@@ -873,7 +873,7 @@ describe("tables", () => {
 
     expect(line).toBe(underHeader);
     expect(output).toBe(
-      "\n| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n\n"
+      "| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n"
     );
   });
 
