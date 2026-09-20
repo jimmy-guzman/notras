@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { tokenize } from "@/components/editor/syntax-worker";
 
-async function coloredLines(source: string) {
-  const lines = await tokenize(source, "markdown");
+let nextDocument = 0;
 
-  return lines.map((line) =>
+async function coloredLines(source: string) {
+  nextDocument += 1;
+  const { lines } = await tokenize(source, "markdown", nextDocument);
+  const texts = source.split("\n");
+
+  return lines.map((line, index) =>
     line.map(({ color, length, offset }) => ({
       color,
-      content: source.slice(offset, offset + length),
+      content: texts[index]?.slice(offset, offset + length),
     }))
   );
 }
@@ -29,7 +33,7 @@ describe("markdown with frontmatter", () => {
         lines[3]?.some(
           (token) =>
             token.color === "var(--syntax-keyword)" &&
-            token.content.includes("a title")
+            token.content?.includes("a title") === true
         )
       ).toBeTruthy();
     }

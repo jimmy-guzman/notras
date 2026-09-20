@@ -6,7 +6,10 @@ import { UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import { describe, expect, it, vi } from "vitest";
 
-import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
+import {
+  CodeBlockShiki,
+  revealSyntax,
+} from "@/components/editor/code-block-shiki";
 
 function createEditor(language: string, text: string) {
   return new Editor({
@@ -23,6 +26,54 @@ function createEditor(language: string, text: string) {
     element: document.createElement("div"),
     extensions: [Document, Paragraph, Text, CodeBlockShiki, UndoRedo, Markdown],
   });
+}
+
+/**
+ * A viewport at the DOM boundary: the editor is 800px tall and a point's
+ * height maps onto the characters `scrolled` to. `posAtCoords` reads these
+ * three, and happy-dom lays nothing out itself.
+ */
+function fakeViewport(
+  editor: Editor,
+  onTestFinished: (fn: () => void) => void
+) {
+  let scrolled = 0;
+  const characters = 2000;
+  const caretAt = (_x: number, y: number) => {
+    const { node, offset } = editor.view.domAtPos(
+      1 + scrolled + Math.round((y / 800) * characters)
+    );
+    return { offset, offsetNode: node };
+  };
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => editor.view.dom.querySelector("code"),
+  });
+  Object.defineProperty(document, "caretPositionFromPoint", {
+    configurable: true,
+    value: caretAt,
+  });
+  Object.defineProperty(editor.view.dom, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      bottom: 800,
+      height: 800,
+      left: 0,
+      right: 600,
+      top: 0,
+      width: 600,
+    }),
+  });
+  onTestFinished(() => {
+    Reflect.deleteProperty(document, "elementFromPoint");
+    Reflect.deleteProperty(document, "caretPositionFromPoint");
+  });
+  return {
+    scrollTo(character: number) {
+      scrolled = character;
+      document.dispatchEvent(new Event("scroll"));
+    },
+  };
 }
 
 function coloredText(editor: Editor, role: string) {
@@ -268,5 +319,127 @@ describe("code block highlighting", () => {
       expect(open.view.dom.querySelector(".syntax-token")).not.toBeNull();
     });
     expect(open.state.doc.textContent).toBe("package main");
+  });
+
+  it("should keep colors on their lines after a line is inserted above them", async ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("ts", "const a = 1;\nconst b = 2;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    });
+
+    editor.commands.insertContentAt(1, "// note\n");
+    expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-comment")).toContain("note");
+    });
+    expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    expect(editor.state.doc.textContent).toBe(
+      "// note\nconst a = 1;\nconst b = 2;"
+    );
+  });
+
+  it("should color a long block only near the viewport and follow a scroll", async ({
+    onTestFinished,
+  }) => {
+    const lines = 3000;
+    const editor = createEditor(
+      "ts",
+      Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
+    );
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    const viewport = fakeViewport(editor, onTestFinished);
+
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toContain("const");
+    });
+    const near = coloredText(editor, "syntax-keyword").length / "const".length;
+    expect(near).toBeGreaterThan(100);
+    expect(near).toBeLessThan(lines);
+    expect(coloredText(editor, "syntax-number")).toContain("0");
+    expect(coloredText(editor, "syntax-number")).not.toContain(
+      String(lines - 1)
+    );
+
+    viewport.scrollTo(editor.state.doc.content.size - 4000);
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
+    });
+    expect(
+      coloredText(editor, "syntax-keyword").length / "const".length
+    ).toBeLessThan(lines);
+  });
+
+  it("should color a long block whole while revealed and window it again after", async ({
+    onTestFinished,
+  }) => {
+    const lines = 3000;
+    const editor = createEditor(
+      "ts",
+      Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
+    );
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    fakeViewport(editor, onTestFinished);
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toContain("const");
+    });
+    expect(coloredText(editor, "syntax-keyword")).not.toBe(
+      "const".repeat(lines)
+    );
+
+    const windowAgain = revealSyntax(editor.view);
+    expect(coloredText(editor, "syntax-keyword")).toBe("const".repeat(lines));
+
+    windowAgain();
+    expect(coloredText(editor, "syntax-keyword")).not.toBe(
+      "const".repeat(lines)
+    );
+    expect(coloredText(editor, "syntax-keyword")).toContain("const");
+  });
+
+  it("should tokenize a block once when the node is extended again", async ({
+    onTestFinished,
+  }) => {
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
+    const editor = new Editor({
+      content: {
+        content: [
+          {
+            attrs: { language: "ts" },
+            content: [{ text: "const a = 1;", type: "text" }],
+            type: "codeBlock",
+          },
+        ],
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki.extend({ name: "codeBlock" }),
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-keyword")).toBe("const");
+    });
+    expect(posted).toHaveBeenCalledOnce();
   });
 });

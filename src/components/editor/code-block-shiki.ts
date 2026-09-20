@@ -1,7 +1,7 @@
 import { findChildren } from "@tiptap/core";
 import { CodeBlock } from "@tiptap/extension-code-block";
 import type { Node } from "@tiptap/pm/model";
-import type { Transaction } from "@tiptap/pm/state";
+import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -11,21 +11,61 @@ import {
   highlightCode,
   syntaxLanguage,
 } from "@/components/editor/syntax-highlighter";
-import type { SyntaxToken } from "@/components/editor/syntax-highlighter";
+import type {
+  SyntaxSplice,
+  SyntaxToken,
+} from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
 const BACKTICK_RUN = /`+/gu;
 const TILDE_RUN = /~+/gu;
 
-interface Highlighted {
-  language: string;
-  lines: SyntaxToken[][];
-  text: string;
+/**
+ * Characters decorated around what is on screen. A block no longer than this
+ * is decorated whole; a longer one only where the viewport is, since one
+ * decoration per token in a 450 KB block took 22 seconds to render.
+ */
+const WINDOW = 20_000;
+
+interface Range {
+  from: number;
+  to: number;
 }
 
-function isHighlighted(value: unknown): value is Highlighted {
-  return typeof value === "object" && value !== null && "lines" in value;
+/** Tokens per line for one code block, keyed to the worker by `id`. */
+interface Block {
+  id: number;
+  tokens: SyntaxToken[][];
+}
+
+interface SyntaxState {
+  /** One entry per code block, in document order. */
+  blocks: Block[];
+  decorations: DecorationSet;
+  viewport: Range;
+}
+
+interface Answer extends SyntaxSplice {
+  block: number;
+}
+
+type SyntaxMeta = { answer: Answer } | { viewport: Range };
+
+const key = new PluginKey<SyntaxState>("syntax");
+let nextBlockId = 0;
+
+function isMeta(value: unknown): value is SyntaxMeta {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    ("answer" in value || "viewport" in value)
+  );
+}
+
+function freshBlock(): Block {
+  nextBlockId += 1;
+  return { id: nextBlockId, tokens: [] };
 }
 
 function codeBlocks(doc: Node) {
@@ -40,48 +80,112 @@ function blockLanguage(node: Node) {
     : undefined;
 }
 
-function decorationsFor(pos: number, lines: SyntaxToken[][]) {
-  return lines.flatMap((line) =>
-    line.map((token) =>
-      Decoration.inline(
-        pos + 1 + token.offset,
-        pos + 1 + token.offset + token.length,
-        { class: "syntax-token", style: `color: ${token.color}` }
-      )
-    )
-  );
+function syntaxState(state: EditorState) {
+  const value = key.getState(state);
+  if (value === undefined) {
+    throw new Error("The syntax plugin is not installed");
+  }
+  return value;
 }
 
-/** Colors arrive for a text, so they land on every block still holding that text and nowhere else. */
-function applyHighlight(
-  doc: Node,
-  decorations: DecorationSet,
-  { language, lines, text }: Highlighted
+/** Decorations for the tokens on the lines of a block that reach into `range`. */
+function lineDecorations(
+  pos: number,
+  node: Node,
+  tokens: SyntaxToken[][],
+  range: Range | undefined
 ) {
-  const matching = codeBlocks(doc).filter(
-    ({ node }) => node.textContent === text && blockLanguage(node) === language
+  const text = node.textContent;
+  const from = Math.max(pos + 1, range?.from ?? 0);
+  const to = Math.min(
+    pos + 1 + text.length,
+    range?.to ?? Number.POSITIVE_INFINITY
   );
-  const stale = matching.flatMap(
-    ({ node, pos }) => decorations.find(pos, pos + node.nodeSize) // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
-  );
+  const decorations: Decoration[] = [];
+  let lineStart = pos + 1;
+  let index = 0;
+  for (const line of tokens) {
+    if (lineStart > to) {
+      break;
+    }
+    const newline = text.indexOf("\n", index);
+    const lineEnd =
+      lineStart + (newline === -1 ? text.length : newline) - index;
+    if (lineEnd >= from) {
+      for (const token of line) {
+        const tokenFrom = lineStart + token.offset;
+        const tokenTo = tokenFrom + token.length;
+        // Tokens are for the text the worker saw; a line edited since may be shorter.
+        if (tokenTo <= lineEnd) {
+          decorations.push(
+            Decoration.inline(tokenFrom, tokenTo, {
+              class: "syntax-token",
+              style: `color: ${token.color}`,
+            })
+          );
+        }
+      }
+    }
+    if (newline === -1) {
+      break;
+    }
+    index = newline + 1;
+    lineStart = lineEnd + 1;
+  }
+  return decorations;
+}
 
-  return decorations.remove(stale).add(
+function buildDecorations(doc: Node, blocks: Block[], viewport: Range) {
+  return DecorationSet.create(
     doc,
-    matching.flatMap(({ pos }) => decorationsFor(pos, lines))
+    codeBlocks(doc).flatMap(({ node, pos }, index) => {
+      const block = blocks[index];
+      return block === undefined
+        ? []
+        : lineDecorations(
+            pos,
+            node,
+            block.tokens,
+            node.nodeSize > WINDOW ? viewport : undefined
+          );
+    })
   );
 }
 
-/** An edited block keeps its mapped colors until new ones arrive; a block that stopped being highlighted code loses them now. */
-function mapChangedDecorations(
+/** Each block keeps its id and tokens across an edit; one that stopped being highlighted code keeps only its id. */
+function carryBlocks(
   transaction: Transaction,
-  decorations: DecorationSet,
-  previousDoc: Node
+  previousDoc: Node,
+  previous: Block[]
 ) {
-  const obsolete = codeBlocks(previousDoc).flatMap(({ node, pos }) => {
+  const carried = new Map<number, Block>();
+  for (const [index, { pos }] of codeBlocks(previousDoc).entries()) {
     const mapped = transaction.mapping.mapResult(pos);
-    const current = mapped.deleted ? null : transaction.doc.nodeAt(mapped.pos);
+    const block = previous[index];
+    if (!mapped.deleted && block !== undefined) {
+      carried.set(mapped.pos, block);
+    }
+  }
+  return codeBlocks(transaction.doc).map(({ node, pos }) => {
+    const block = carried.get(pos) ?? freshBlock();
+    return blockLanguage(node) === undefined ? { ...block, tokens: [] } : block;
+  });
+}
 
-    return current !== null && blockLanguage(current) !== undefined
+/** Mapped colors stay on an edited block until its answer arrives; a block that lost its tokens loses them now. */
+function mapDecorations(
+  transaction: Transaction,
+  previousDoc: Node,
+  previous: Block[],
+  next: Block[],
+  decorations: DecorationSet
+) {
+  const kept = new Set(
+    next.flatMap(({ id, tokens }) => (tokens.length > 0 ? [id] : []))
+  );
+  const obsolete = codeBlocks(previousDoc).flatMap(({ node, pos }, index) => {
+    const id = previous[index]?.id;
+    return id !== undefined && kept.has(id)
       ? []
       : decorations.find(pos, pos + node.nodeSize); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
   });
@@ -89,41 +193,126 @@ function mapChangedDecorations(
   return decorations.remove(obsolete).map(transaction.mapping, transaction.doc); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
 }
 
-function syntaxPlugin() {
-  const key = new PluginKey<DecorationSet>("syntax");
+function applyTransaction(
+  transaction: Transaction,
+  state: SyntaxState,
+  previousDoc: Node
+): SyntaxState {
+  let { blocks, decorations, viewport } = state;
+  if (transaction.docChanged) {
+    const next = carryBlocks(transaction, previousDoc, blocks);
+    decorations = mapDecorations(
+      transaction,
+      previousDoc,
+      blocks,
+      next,
+      decorations
+    );
+    viewport = {
+      from: transaction.mapping.map(viewport.from),
+      to: transaction.mapping.map(viewport.to),
+    };
+    blocks = next;
+  }
+  const meta: unknown = transaction.getMeta(key);
+  if (!isMeta(meta)) {
+    return { blocks, decorations, viewport };
+  }
+  if ("answer" in meta) {
+    const { block: id, lines, start, tail } = meta.answer;
+    blocks = blocks.map((block) =>
+      block.id === id
+        ? {
+            id,
+            tokens: [
+              ...block.tokens.slice(0, start),
+              ...lines,
+              ...block.tokens.slice(block.tokens.length - tail),
+            ],
+          }
+        : block
+    );
+  } else {
+    ({ viewport } = meta);
+  }
+  return {
+    blocks,
+    decorations: buildDecorations(transaction.doc, blocks, viewport),
+    viewport,
+  };
+}
 
-  return new Plugin<DecorationSet>({
+/**
+ * The positions on screen, padded by half a window each side, or nothing
+ * when no part of the editor shows. The two points sit one pixel inside
+ * the editor's visible part: a point outside it sends `posAtCoords` down a
+ * fallback that measures the text one character at a time.
+ */
+function measureViewport(view: EditorView): Range | undefined {
+  const { size } = view.state.doc.content;
+  const editor = view.dom.getBoundingClientRect();
+  const clip = view.dom
+    .closest('[data-slot="scroll-area-viewport"]')
+    ?.getBoundingClientRect() ?? { bottom: window.innerHeight, top: 0 };
+  const left = editor.left + editor.width / 2;
+  const top = Math.max(editor.top, clip.top) + 1;
+  const bottom = Math.min(editor.bottom, clip.bottom) - 1;
+  if (bottom <= top) {
+    return undefined;
+  }
+  const from = view.posAtCoords({ left, top })?.pos ?? 0;
+  const to = view.posAtCoords({ left, top: bottom })?.pos ?? size;
+  return {
+    from: Math.max(0, from - WINDOW / 2),
+    to: Math.min(size, to + WINDOW / 2),
+  };
+}
+
+function setViewport(view: EditorView, viewport: Range) {
+  view.dispatch(
+    view.state.tr.setMeta(key, { viewport }).setMeta("addToHistory", false)
+  );
+}
+
+/** Decorate every block whole, for a print; the returned function windows them again. */
+export function revealSyntax(view: EditorView): () => void {
+  const { viewport } = syntaxState(view.state);
+  setViewport(view, { from: 0, to: view.state.doc.content.size });
+  return () => {
+    setViewport(view, viewport);
+  };
+}
+
+function syntaxPlugin() {
+  return new Plugin<SyntaxState>({
     key,
     props: {
-      decorations: (state) => key.getState(state),
+      decorations: (state) => key.getState(state)?.decorations,
     },
     state: {
-      apply(transaction, decorations, previous) {
-        const meta: unknown = transaction.getMeta(key);
-        if (isHighlighted(meta)) {
-          return applyHighlight(transaction.doc, decorations, meta);
-        }
-
-        return transaction.docChanged
-          ? mapChangedDecorations(transaction, decorations, previous.doc)
-          : decorations.map(transaction.mapping, transaction.doc); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
-      },
-      init: () => DecorationSet.empty,
+      apply: (transaction, state, previous) =>
+        applyTransaction(transaction, state, previous.doc),
+      init: (_, state) => ({
+        blocks: codeBlocks(state.doc).map(freshBlock),
+        decorations: DecorationSet.empty,
+        viewport: { from: 0, to: 0 },
+      }),
     },
     view(view: EditorView) {
       let live = true;
       let failed = false;
+      let frame = 0;
 
-      async function highlight(language: string, text: string) {
+      async function highlight(block: number, language: string, text: string) {
         if (failed) {
           return;
         }
         try {
-          const lines = await highlightCode(text, language);
+          const splice = await highlightCode(text, language, block);
           if (live) {
             view.dispatch(
               view.state.tr
-                .setMeta(key, { language, lines, text })
+                .setMeta(key, { answer: { block, ...splice } })
                 .setMeta("addToHistory", false)
             );
           }
@@ -140,33 +329,68 @@ function syntaxPlugin() {
         }
       }
 
-      function requestBlocks(blocks: ReturnType<typeof codeBlocks>) {
-        for (const { node } of blocks) {
+      function requestChanged(unchanged: Set<Node>) {
+        const { blocks } = syntaxState(view.state);
+        for (const [index, { node }] of codeBlocks(view.state.doc).entries()) {
           const language = blockLanguage(node);
-          if (language !== undefined) {
-            void highlight(language, node.textContent);
+          const block = blocks[index];
+          if (
+            language !== undefined &&
+            block !== undefined &&
+            !unchanged.has(node)
+          ) {
+            void highlight(block.id, language, node.textContent);
           }
         }
       }
 
-      requestBlocks(codeBlocks(view.state.doc));
+      function followViewport() {
+        frame = 0;
+        const next = measureViewport(view);
+        const { viewport } = syntaxState(view.state);
+        if (
+          next !== undefined &&
+          (Math.abs(next.from - viewport.from) > WINDOW / 4 ||
+            Math.abs(next.to - viewport.to) > WINDOW / 4)
+        ) {
+          setViewport(view, next);
+        }
+      }
+
+      function scheduleFollow() {
+        if (frame === 0) {
+          frame = requestAnimationFrame(followViewport);
+        }
+      }
+
+      function onScroll() {
+        if (
+          codeBlocks(view.state.doc).some(({ node }) => node.nodeSize > WINDOW)
+        ) {
+          scheduleFollow();
+        }
+      }
+
+      requestChanged(new Set());
+      scheduleFollow();
+      document.addEventListener("scroll", onScroll, {
+        capture: true,
+        passive: true,
+      });
 
       return {
         destroy() {
           live = false;
+          cancelAnimationFrame(frame);
+          document.removeEventListener("scroll", onScroll, { capture: true });
         },
         update(current, previous) {
           if (current.state.doc === previous.doc) {
             return;
           }
           // ProseMirror shares unchanged nodes, even when edits shift their position.
-          const unchanged = new Set(
-            codeBlocks(previous.doc).map(({ node }) => node)
-          );
-          requestBlocks(
-            codeBlocks(current.state.doc).filter(
-              ({ node }) => !unchanged.has(node)
-            )
+          requestChanged(
+            new Set(codeBlocks(previous.doc).map(({ node }) => node))
           );
         },
       };
@@ -177,7 +401,12 @@ function syntaxPlugin() {
 /** Highlight code without marks and serialize it inside a noncolliding fence. */
 export const CodeBlockShiki = CodeBlock.extend({
   addProseMirrorPlugins() {
-    return [...(this.parent?.() ?? []), syntaxPlugin()];
+    const inherited = this.parent?.() ?? [];
+    // `extend` copies this method into the child, so an extended node runs it
+    // once per level of the chain and would install the plugin twice.
+    return inherited.some((plugin) => plugin.spec.key === key)
+      ? inherited
+      : [...inherited, syntaxPlugin()];
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";

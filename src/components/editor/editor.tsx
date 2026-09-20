@@ -11,6 +11,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 
 import { contentOf, hasString } from "@/components/editor/attrs";
+import { revealSyntax } from "@/components/editor/code-block-shiki";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { isNotePath, isRelativeDestination } from "@/core/links";
@@ -318,6 +319,8 @@ export interface EditorHandle {
     content: string,
     selection?: { anchor: number; head: number }
   ) => void;
+  /** Colors every code block for a print; the returned function windows them again. */
+  revealSyntax: () => () => void;
   /** The rendered note, read for a copy and never written. */
   surface: () => HTMLElement;
 }
@@ -737,6 +740,7 @@ export function Editor({
           }
           suppressChangeRef.current = false;
         },
+        revealSyntax: () => revealSyntax(instance.view),
         surface: () => instance.view.dom,
       });
     },
