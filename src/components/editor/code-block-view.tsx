@@ -31,6 +31,12 @@ export function CodeBlockView({
   const language = hasString(node.attrs, "language") ? node.attrs.language : "";
   const languageLabel = language === "" ? "plain" : language;
   const [copied, setCopied] = useState(false);
+  // Hundreds of blocks would carry hundreds of copies of the list, and every
+  // element under a hidden tab is restyled when it shows again.
+  const [listed, setListed] = useState(false);
+  const list = () => {
+    setListed(true);
+  };
   const clearCopied = useDebouncedCallback(
     () => {
       setCopied(false);
@@ -86,14 +92,22 @@ export function CodeBlockView({
             aria-label="code language"
             className="code-block-language"
             onChange={changeLanguage}
+            onFocus={list}
+            onPointerEnter={list}
             value={language}
           >
-            <option value="">plain</option>
-            {languages.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
+            {listed ? (
+              <>
+                <option value="">plain</option>
+                {languages.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </>
+            ) : (
+              <option value={language}>{languageLabel}</option>
+            )}
           </select>
         </span>
       </div>
