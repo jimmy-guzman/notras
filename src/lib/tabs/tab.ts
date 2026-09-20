@@ -146,6 +146,29 @@ export function closeTab(state: TabState, id: string): TabState {
 }
 
 /**
+ * The set with every draft closed. The showing one goes first, and the next
+ * showing one after it, so the active id follows the opener chain back to a
+ * tab with a file wherever the drafts sit in the strip.
+ */
+export function closeDrafts(state: TabState): TabState {
+  let next = state;
+  let showing = next.tabs[indexOfId(next.tabs, next.activeId)];
+
+  while (showing?.kind === "draft") {
+    next = closeTab(next, showing.id);
+    showing = next.tabs[indexOfId(next.tabs, next.activeId)];
+  }
+
+  for (const tab of next.tabs) {
+    if (tab.kind === "draft") {
+      next = closeTab(next, tab.id);
+    }
+  }
+
+  return next;
+}
+
+/**
  * Follow a file that moved. A rename or a folder move is a new path, so the
  * tab holding the old one has to move with it rather than be reopened. A
  * draft's first save is the same move from no path to one, and makes it a note.

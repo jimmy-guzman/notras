@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TabState } from "./tab";
 import {
   adoptNote,
+  closeDrafts,
   closeTab,
   moveTabTo,
   openTab,
@@ -240,6 +241,31 @@ describe(closeTab, () => {
     const next = closeTab({ ...opened, activeId: "id-c.md" }, "id-d.md");
 
     expect(next.activeId).toBe("id-c.md");
+  });
+});
+
+describe(closeDrafts, () => {
+  it("should follow the opener chain from the showing draft, wherever the drafts sit", () => {
+    // d2 was opened beside d1, then dragged to d1's left: the right-hand
+    // neighbour of the last draft is b.md, while the chain leads to a.md.
+    const state: TabState = {
+      activeId: "d2",
+      tabs: [
+        note("a.md"),
+        { ...draft("d2"), opener: "d1" },
+        { ...draft("d1"), opener: "id-a.md" },
+        note("b.md"),
+      ],
+    };
+
+    const next = closeDrafts(state);
+
+    expect(next.tabs.map((tab) => tab.path)).toStrictEqual(["a.md", "b.md"]);
+    expect(next.activeId).toBe("id-a.md");
+  });
+
+  it("should leave a set without drafts alone", () => {
+    expect(closeDrafts(three)).toBe(three);
   });
 });
 

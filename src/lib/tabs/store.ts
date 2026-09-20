@@ -8,6 +8,7 @@ import type { PendingOpen } from "@/server/adapters/bindings";
 import type { ClosedTab, Tab, TabState } from "./tab";
 import {
   adoptNote,
+  closeDrafts,
   closeTab as closeInList,
   legacyTabId,
   moveTabTo,
@@ -89,16 +90,8 @@ export function persistTabs() {
     }
   }
 
-  // Drafts are not restored; closing them here lands the active id where a
-  // close would. Right to left, so a draft opened beside another closes back
-  // onto it before that one closes.
-  let persisted = getTabState();
-
-  for (const tab of getTabState().tabs.toReversed()) {
-    if (tab.kind === "draft") {
-      persisted = closeInList(persisted, tab.id);
-    }
-  }
+  // Drafts are not restored, and the active id lands where closing them would.
+  const persisted = closeDrafts(getTabState());
 
   localStorage.setItem(
     STORAGE_KEY,
