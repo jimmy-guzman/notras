@@ -413,7 +413,14 @@ function syntaxPlugin() {
         }
       }
 
-      /** The frame keeps running while the worker owes an answer. */
+      /** Whether any block is colored only around the viewport. */
+      function windowed() {
+        return codeBlocks(view.state.doc).some(
+          ({ node }) => node.nodeSize > WINDOW
+        );
+      }
+
+      /** The frame keeps running while the worker owes an answer or a window waits to be measured. */
       function tick() {
         frame = 0;
         const seen = follow ? measureViewport(view) : undefined;
@@ -447,7 +454,7 @@ function syntaxPlugin() {
               .setMeta("addToHistory", false)
           );
         }
-        if (outstanding > 0) {
+        if (outstanding > 0 || (follow && windowed())) {
           frame = requestAnimationFrame(tick);
         }
       }
@@ -459,9 +466,7 @@ function syntaxPlugin() {
       }
 
       function onScroll() {
-        if (
-          codeBlocks(view.state.doc).some(({ node }) => node.nodeSize > WINDOW)
-        ) {
+        if (windowed()) {
           follow = true;
           schedule();
         }

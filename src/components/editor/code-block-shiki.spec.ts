@@ -438,6 +438,43 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toContain("const");
   });
 
+  it("should color a remounted long block once its viewport can be measured", async ({
+    onTestFinished,
+  }) => {
+    const text = Array.from(
+      { length: 3000 },
+      (_, i) => `const again${i} = ${i};`
+    ).join("\n");
+    const first = createEditor("ts", text);
+    fakeViewport(first, onTestFinished);
+    await vi.waitFor(() => {
+      expect(coloredText(first, "syntax-keyword")).toContain("const");
+    });
+    first.destroy();
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    // The first frame measures nothing, as a React editor's does while its
+    // view is still off the DOM.
+    const second = createEditor("ts", text);
+    onTestFinished(() => {
+      second.destroy();
+    });
+    vi.advanceTimersToNextFrame();
+    expect(second.view.dom.querySelector(".syntax-token")).toBeNull();
+    fakeViewport(second, onTestFinished);
+    vi.advanceTimersToNextFrame();
+
+    expect(coloredText(second, "syntax-keyword")).toContain("const");
+    expect(
+      coloredText(second, "syntax-keyword").length / "const".length
+    ).toBeLessThan(3000);
+  });
+
   it("should tokenize a block once when the node is extended again", async ({
     onTestFinished,
   }) => {
