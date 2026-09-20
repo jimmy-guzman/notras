@@ -1639,11 +1639,11 @@ describe(NoteSession, () => {
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk"
     );
-    expect(review()).toHaveClass("invisible");
+    expect(review()).toHaveAttribute("inert");
     await user.click(screen.getByRole("button", { name: "review" }));
-    expect(review()).not.toHaveClass("invisible");
+    expect(review()).not.toHaveAttribute("inert");
     expect(
-      panel()?.querySelector(".ProseMirror")?.closest(".invisible")
+      panel()?.querySelector(".ProseMirror")?.closest("[inert]")
     ).not.toBeNull();
     expect(
       screen.getByRole("heading", { name: "1 place changed here and on disk" })
@@ -1654,9 +1654,9 @@ describe(NoteSession, () => {
       screen.getByRole("textbox", { name: "result for place 1" })
     ).toHaveFocus();
     await user.keyboard("{Escape}");
-    expect(review()).toHaveClass("invisible");
+    expect(review()).toHaveAttribute("inert");
     expect(
-      panel()?.querySelector(".ProseMirror")?.closest(".invisible")
+      panel()?.querySelector(".ProseMirror")?.closest("[inert]")
     ).toBeNull();
     expect(screen.getByRole("button", { name: "review" })).toHaveFocus();
     client.clear();
@@ -1708,7 +1708,7 @@ describe(NoteSession, () => {
       "# Errands\n\nbody, on disk"
     );
     await user.click(screen.getByRole("button", { name: "review" }));
-    expect(review()).not.toHaveClass("invisible");
+    expect(review()).not.toHaveAttribute("inert");
     act(() => {
       client.setQueryData(noteQueries.fileKey("note", tab.path), {
         content: "# Chores\n\nbody",
@@ -1731,7 +1731,7 @@ describe(NoteSession, () => {
     await waitFor(() =>
       expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
     );
-    expect(review()).toHaveClass("invisible");
+    expect(review()).toHaveAttribute("inert");
     client.clear();
   });
 

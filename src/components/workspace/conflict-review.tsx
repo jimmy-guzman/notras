@@ -283,8 +283,9 @@ export function ConflictReview({
       aria-label="review overlapping edits"
       className={cn(
         "bg-background absolute inset-0 overflow-auto",
-        !open && "pointer-events-none invisible"
+        !open && "opacity-0"
       )}
+      inert={!open}
       ref={container}
     >
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-6">

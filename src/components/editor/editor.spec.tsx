@@ -311,6 +311,9 @@ describe("code block clipboard", () => {
     const copy = screen.getByRole("button", { name: "copy code" });
 
     expect(language.value).toBe("mermaid");
+    expect(language.options).toHaveLength(1);
+    await user.hover(language);
+    expect(language.options.length).toBeGreaterThan(1);
     await user.selectOptions(language, "typescript");
     await user.click(copy);
 

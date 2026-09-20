@@ -681,21 +681,23 @@ function SessionBuffer({
       aria-labelledby={tabButtonId(id)}
       className={cn(
         "absolute inset-0 flex flex-col",
-        // `visibility` and nothing stronger: it keeps the box, and with it the
-        // scroller's offset. `content-visibility: hidden` skips the subtree's
-        // layout, which collapses the scroll height and clamps scrollTop to 0.
-        // The graph hides the editor the same way, so the caret and the scroll
-        // are where they were when it leaves.
-        (!active || graphMode) && "pointer-events-none invisible"
+        // Opacity and `inert` keep the box and the scroll offset.
+        // `content-visibility: hidden` collapses the scroll height;
+        // `visibility: hidden` drops composited scrolling for every scroller
+        // beneath, and WebKit faults on the commit that drops hundreds at
+        // once (#250). The graph hides the editor the same way.
+        (!active || graphMode) && "opacity-0"
       )}
       id={tabPanelId(id)}
+      inert={!active || graphMode}
       role="tabpanel"
     >
       <div
         className={cn(
           "flex min-h-0 flex-1 flex-col",
-          showReview && "pointer-events-none invisible"
+          showReview && "opacity-0"
         )}
+        inert={showReview}
       >
         <SessionAlerts
           missing={missing}
@@ -756,11 +758,9 @@ function UnreadableNote({ active, id, reason, retry }: UnreadableNoteProps) {
   return (
     <div
       aria-labelledby={tabButtonId(id)}
-      className={cn(
-        "absolute inset-0 flex flex-col",
-        !active && "pointer-events-none invisible"
-      )}
+      className={cn("absolute inset-0 flex flex-col", !active && "opacity-0")}
       id={tabPanelId(id)}
+      inert={!active}
       role="tabpanel"
     >
       <Empty>
