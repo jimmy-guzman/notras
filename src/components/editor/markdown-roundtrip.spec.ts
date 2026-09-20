@@ -153,6 +153,32 @@ describe("markdown round-trip", () => {
     expect(roundtrip(markdown)).toBe(markdown);
   });
 
+  it.each([
+    [
+      "a reference definition another block would resolve",
+      "see \\[label\\]\n\n\\[label\\]: /url",
+    ],
+    ["a bullet marker", "\\* not a bullet"],
+    ["a thematic break", "\\_\\_\\_"],
+  ])("should keep the backslash that stops %s", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should write a table cell's underscore as typed", () => {
+    const compact = roundtrip("| a\\_b |\n| --- |\n| c |")
+      .replaceAll(/ +/gu, " ")
+      .trim();
+
+    expect(compact).toContain("| a_b |");
+  });
+
+  it("should decide a block's escapes without a fence line in raw html before it", () => {
+    const bare = "<div>\n```\n</div>\n\nsnake_case";
+
+    expect(roundtrip("<div>\n```\n</div>\n\nsnake\\_case")).toBe(bare);
+    expect(roundtrip(bare)).toBe(bare);
+  });
+
   it("should parse a dropped attachment whose name has spaces as an image", () => {
     const markdown = attachmentLink(
       "attachments/Screenshot 2026-08-26 at 6.25.40 AM.png",

@@ -10,7 +10,7 @@ import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 
-import { contentOf, hasString } from "@/components/editor/attrs";
+import { hasString } from "@/components/editor/attrs";
 import { revealSyntax } from "@/components/editor/code-block-shiki";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
@@ -22,6 +22,7 @@ import { reasonOf } from "@/lib/ui/failure";
 import { attachmentDestination } from "@/lib/utils/attachments";
 
 import {
+  converterOf,
   createEditorExtensions,
   fileMarkdown,
   serializeMarkdown,
@@ -257,14 +258,9 @@ function sourceOffset(
   state = editor.state
 ) {
   try {
-    const manager = editor.markdown;
-    if (manager === undefined) {
-      throw new Error("The editor has no Markdown converter");
-    }
-    const marked = state.tr.insertText(SENTINEL, position);
     return fileMarkdown(
-      manager,
-      manager.serialize(contentOf(marked.doc))
+      converterOf(editor),
+      state.tr.insertText(SENTINEL, position).doc
     ).indexOf(SENTINEL);
   } catch {
     return -1;
@@ -291,10 +287,7 @@ function positionInDocument(
   content: string,
   offset: number
 ) {
-  const manager = editor.markdown;
-  if (manager === undefined) {
-    throw new Error("The editor has no Markdown converter");
-  }
+  const manager = converterOf(editor);
   const at = Math.max(0, Math.min(offset, content.length));
   const marked = editor.schema.nodeFromJSON(
     manager.parse(content.slice(0, at) + SENTINEL + content.slice(at))
@@ -475,9 +468,7 @@ export function Editor({
           const doc = view.state.schema.topNodeType.create(null, slice.content);
           const manager = editorRef.current?.markdown;
 
-          return manager
-            ? fileMarkdown(manager, manager.serialize(contentOf(doc)))
-            : fallback;
+          return manager ? fileMarkdown(manager, doc) : fallback;
         } catch {
           return fallback;
         }
@@ -797,12 +788,13 @@ export function Editor({
       // would then write escaped syntax into the file. Compare canonical
       // forms and reparse the clean body when they differ.
       const cleanBody = config.initialContent.replaceAll(SENTINEL, "");
-      const manager = editor.markdown;
       const diverged = (() => {
         try {
-          const canonical = manager
-            ? fileMarkdown(manager, manager.serialize(manager.parse(cleanBody)))
-            : serializeMarkdown(editor);
+          const manager = converterOf(editor);
+          const canonical = fileMarkdown(
+            manager,
+            editor.schema.nodeFromJSON(manager.parse(cleanBody))
+          );
 
           // Trailing whitespace differs benignly (StarterKit's
           // trailing-node appends an empty paragraph after list-ending
