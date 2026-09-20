@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
-import { createNote } from "@/data/create-note";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
@@ -28,6 +27,7 @@ import {
   getTabState,
   hasTabSnapshot,
   moveTab,
+  openDraft,
   openNote,
   reopenTab,
   useTabSnapshot,
@@ -185,20 +185,6 @@ function ActiveStatusBar({
       words={snapshot?.words ?? 0}
     />
   );
-}
-
-async function newNote() {
-  try {
-    const path = await createNote();
-
-    openNote(path, true);
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not create note",
-      type: "error",
-    });
-  }
 }
 
 function closeActive() {
@@ -361,13 +347,6 @@ export function Workspace({
     };
   }, []);
 
-  useHotkey(
-    "Mod+T",
-    () => {
-      void newNote();
-    },
-    { meta: { name: "new note" } }
-  );
   useHotkey("Mod+W", closeActive, { meta: { name: "close tab" } });
   useHotkey("Mod+Alt+Shift+W", closeOthers, {
     meta: { name: "close other tabs" },
@@ -440,13 +419,7 @@ export function Workspace({
   return (
     <div className="bg-shell flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <TabStrip
-          activeId={activeId}
-          onNew={() => {
-            void newNote();
-          }}
-          tabs={tabs}
-        />
+        <TabStrip activeId={activeId} onNew={openDraft} tabs={tabs} />
         <BarButton
           Icon={SearchIcon}
           label="find a note"
@@ -456,12 +429,7 @@ export function Workspace({
       <div className="bg-background relative mx-1 flex min-h-0 flex-1 flex-col overflow-clip rounded-lg last:mb-1">
         {tabs.length === 0 ? (
           <>
-            <Welcome
-              onNew={() => {
-                void newNote();
-              }}
-              onSearch={onOpenSearch}
-            />
+            <Welcome onNew={openDraft} onSearch={onOpenSearch} />
             {tabState === initialTabs ? (
               <RecentNote initialTabs={initialTabs} />
             ) : null}

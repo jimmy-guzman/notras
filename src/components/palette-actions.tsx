@@ -18,9 +18,10 @@ import type { useChordsByName } from "@/lib/ui/shortcuts";
 /**
  * What an action needs on screen before it is offered. A note action reads
  * frontmatter, so an external file cannot answer it; a tab action acts on the
- * open set, which an external file answers as well as a note does.
+ * open set, which an external file answers as well as a note does; a file
+ * action needs a path on disk, which a draft does not have yet.
  */
-export type PaletteScope = "editor" | "none" | "note" | "tab";
+export type PaletteScope = "editor" | "file" | "none" | "note" | "tab";
 
 export interface PaletteAction {
   Icon: LucideIcon;

@@ -42,6 +42,7 @@ Search runs on a SQLite index built from the files. Delete it and the next launc
 
 - several notes open at once, in the title bar
 - each tab keeps its own undo history
+- a new note is a blank tab until you type: close it untouched and no file is left behind
 - the heading is the filename: rename one and the other follows
 - the open set comes back when you relaunch
 
@@ -93,7 +94,7 @@ notras checks for updates on launch. A new version shows a toast with an install
 | ------------ | -------------------------------- |
 | `⌘P`         | find a note                      |
 | `⌘⇧P`        | run an action                    |
-| `⌘N`/`⌘T`    | new note, in a new tab           |
+| `⌘N`         | new note, in a new tab           |
 | `⌘⏎`         | (palette) open in a new tab      |
 | `⌘W`         | close tab                        |
 | `⌘⌥⇧W`       | close other tabs                 |

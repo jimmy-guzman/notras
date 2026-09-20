@@ -16,33 +16,17 @@ import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceError } from "@/components/workspace-error";
 import { Workspace } from "@/components/workspace/workspace";
-import { createNote } from "@/data/create-note";
 import { applyIndexStatus } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { openNote, openTab, persistTabs } from "@/lib/tabs/store";
+import { openDraft, openTab, persistTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands, events } from "@/server/adapters/bindings";
 
 /** `listen` resolves to its own unsubscribe, which every effect here drops. */
-/** The menu item and the hotkey both land here; a failure reports and opens nothing. */
-async function createNewNote() {
-  try {
-    const path = await createNote();
-
-    openNote(path, true);
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not create note",
-      type: "error",
-    });
-  }
-}
-
 function disposeLater(...pending: Promise<() => void>[]) {
   return () => {
     for (const unlisten of pending) {
@@ -182,9 +166,7 @@ function MainWindow() {
       }
     };
 
-    const unlistenNew = listen("menu-new-note", () => {
-      void createNewNote();
-    });
+    const unlistenNew = listen("menu-new-note", openDraft);
     const unlistenOpen = listen("open-file", () => {
       void drainPendingOpens();
     });
@@ -261,13 +243,7 @@ function MainWindow() {
   useHotkey("Mod+Shift+P", () => {
     togglePaletteMode("actions");
   });
-  useHotkey(
-    "Mod+N",
-    () => {
-      void createNewNote();
-    },
-    { meta: { name: "new note" } }
-  );
+  useHotkey("Mod+N", openDraft, { meta: { name: "new note" } });
   useHotkey(
     "Mod+,",
     () => {

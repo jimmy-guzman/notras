@@ -1,7 +1,10 @@
+import type { OpenKind } from "@/server/adapters/bindings";
+
 /**
- * A note in the library, or a markdown file outside it opened through
- * "Open With". The kind picks the read, the write, and whether the note
- * actions apply (`D54`).
+ * A note in the library, a markdown file outside it opened through "Open
+ * With", or a draft: a new note with no file yet. The kind picks the read,
+ * the write, and whether the note actions apply. A draft's `path` is `""`
+ * until its first save creates the file, which turns it into a note.
  */
 export interface Tab {
   /**
@@ -10,8 +13,19 @@ export interface Tab {
    * alive across one (`D56`). Minted in `store.ts`, so this module stays pure.
    */
   id: string;
-  kind: "external" | "note";
+  kind: "draft" | "external" | "note";
+  /**
+   * The tab that was showing when this one opened beside it, so closing this
+   * one returns there. Dropped on restore: a tab that survived a relaunch is
+   * not fresh.
+   */
+  opener?: string;
   path: string;
+}
+
+/** What backs a tab on disk. A draft is a note whose file does not exist yet. */
+export function fileKind(kind: Tab["kind"]): OpenKind {
+  return kind === "external" ? "external" : "note";
 }
 
 /** The open set and which one is showing. An empty `activeId` means no tabs. */
@@ -38,10 +52,12 @@ function indexOfId(tabs: Tab[], id: string) {
  *
  * Opening, reopening and renaming all ask this rather than comparing ids: one
  * file cannot hold two editing sessions, so they collapse onto the tab that
- * already has it.
+ * already has it. A draft has no file, so it never collapses.
  */
 function indexOfFile(tabs: Tab[], kind: Tab["kind"], path: string) {
-  return tabs.findIndex((tab) => tab.kind === kind && tab.path === path);
+  return kind === "draft"
+    ? -1
+    : tabs.findIndex((tab) => tab.kind === kind && tab.path === path);
 }
 
 /**
@@ -93,19 +109,21 @@ export function openTab(state: TabState, tab: Tab, newTab = false): TabState {
   }
 
   const active = indexOfId(state.tabs, state.activeId);
+  const showing = state.tabs[active];
 
   return {
     activeId: tab.id,
     tabs:
       newTab || active === -1
-        ? state.tabs.toSpliced(active + 1, 0, tab)
-        : state.tabs.with(active, tab),
+        ? state.tabs.toSpliced(active + 1, 0, { ...tab, opener: showing?.id })
+        : state.tabs.with(active, { ...tab, opener: showing?.opener }),
   };
 }
 
 /**
- * Close `id`, handing focus to the tab on its right, then to the one on its
- * left when it was last. Closing the final tab leaves no active tab.
+ * Close `id`, handing focus to the tab that opened it while that one is still
+ * open, then to the tab on its right, then to the one on its left when it was
+ * last. Closing the final tab leaves no active tab.
  */
 export function closeTab(state: TabState, id: string): TabState {
   const index = indexOfId(state.tabs, id);
@@ -114,37 +132,41 @@ export function closeTab(state: TabState, id: string): TabState {
     return state;
   }
 
+  const opener = state.tabs[index]?.opener;
   const tabs = state.tabs.toSpliced(index, 1);
 
   if (state.activeId !== id) {
     return { activeId: state.activeId, tabs };
   }
 
-  const next = tabs[index] ?? tabs.at(-1);
+  const next =
+    tabs.find((tab) => tab.id === opener) ?? tabs[index] ?? tabs.at(-1);
 
   return { activeId: next?.id ?? "", tabs };
 }
 
 /**
- * Follow a note that moved. A rename or a folder move is a new path (`D5`), so
- * the tab holding the old one has to move with it rather than be reopened.
+ * Follow a file that moved. A rename or a folder move is a new path, so the
+ * tab holding the old one has to move with it rather than be reopened. A
+ * draft's first save is the same move from no path to one, and makes it a note.
  *
  * Landing on a path that is already open collapses the two, since one file
  * cannot hold two editing sessions.
  */
 export function replaceNotePath(
   state: TabState,
-  from: string,
+  id: string,
   to: string
 ): TabState {
-  const index = state.tabs.findIndex((tab) => tab.path === from);
+  const index = indexOfId(state.tabs, id);
   const moved = state.tabs[index];
 
-  if (moved === undefined || from === to) {
+  if (moved === undefined || moved.path === to) {
     return state;
   }
 
-  const existing = state.tabs[indexOfFile(state.tabs, moved.kind, to)];
+  const kind = fileKind(moved.kind);
+  const existing = state.tabs[indexOfFile(state.tabs, kind, to)];
 
   if (existing !== undefined) {
     return {
@@ -156,7 +178,7 @@ export function replaceNotePath(
   // `activeId` is untouched: the id outlives the path, which is the point.
   return {
     activeId: state.activeId,
-    tabs: state.tabs.with(index, { ...moved, path: to }),
+    tabs: state.tabs.with(index, { ...moved, kind, path: to }),
   };
 }
 

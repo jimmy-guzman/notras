@@ -1174,3 +1174,17 @@ The find button answers a gap that predates this entry: with a tab open the app 
 **Constraint:** `TabSnapshot` keeps `pinned`. The bar no longer reads it, but the palette row does, to say `unpin note`.
 
 **Constraint:** the ⌘P registration in `src/layout.tsx` carries `meta: { name: "find a note" }`, the palette input's own name, so the button's tooltip reads its chord off the registration. The welcome screen's button still says `search` and draws its chord as a literal.
+
+### D89 A new note is a draft until typed, and ⌘T is gone
+
+⌘N, the strip's `+`, the tray and the palette's `new note` open a tab of kind `draft`: an empty editor with no file behind it. The first autosave with text in it calls `create_note`, Rust names the file from the content, and the tab becomes that note by id through the same `followPath` route a rename takes. A draft is not persisted, not on the reopen stack, and answers no note action until its file exists. ⌘T, until now an alias of ⌘N, is unbound.
+
+Before this every entry point wrote `untitled.md` on the keystroke that asked for it, so an unused new note sat in search, in Finder, in the most-recent pick and in whatever synced the folder. Users of editors expect an untitled buffer to exist nowhere until written, and users of browsers expect a fresh tab to cost nothing to open and close; a draft answers both. A tab is always a note here (`D10`), so the only thing ⌘T could mean is ⌘N, and one chord per action is the rule; a dead ⌘T is honest where an aliased one surprised.
+
+**Rejected: creating the file eagerly and deleting it on close when still empty.** Smaller to build, and the tab model stays two kinds. Rejected because the blank file is visible to search, Finder and sync tools for as long as the tab is open, and the delete rule has to guess from the name whether the file was ever meant.
+
+**Rejected: a blank tab with a launcher,** Obsidian's "No file is open" page. Rejected because it is a screen holding two actions the palette already offers one chord away, and the app keeps no zero state that is not the welcome screen.
+
+**Rejected: ⌘T opening the palette with ⏎ set to open beside,** Arc's ⌘T. Rejected because ⏎ in the palette would mean two things depending on how it was opened, and the strip's `+` would become a second find button.
+
+**Constraint:** the palette's create row still creates the file at once, since the user named it.

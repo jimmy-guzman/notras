@@ -235,8 +235,12 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         <ContextMenuItem onClick={closeAfter}>
           close to the right
         </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onClick={copyPath}>copy path</ContextMenuItem>
+        {tab.kind === "draft" ? null : (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={copyPath}>copy path</ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

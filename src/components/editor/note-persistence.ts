@@ -49,7 +49,7 @@ export interface PersistencePorts {
   ) => Promise<{ path: string; file: FileContent }>;
   clearStash: (path: string) => Promise<void>;
   onCleanFileMissing?: () => void;
-  onPathChanged: (from: string, to: string) => void;
+  onPathChanged: (to: string) => void;
   stash: (path: string, stash: ConflictStash) => Promise<void>;
   write: (
     path: string,
@@ -189,7 +189,7 @@ export function createNotePersistence(
       updatedAt: receipt.updatedAt,
     }));
     if (from !== receipt.path) {
-      ports.onPathChanged(from, receipt.path);
+      ports.onPathChanged(receipt.path);
     }
   };
   const stashOurs = async () => {

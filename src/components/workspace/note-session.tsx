@@ -18,6 +18,7 @@ import type {
   SelectionReader,
 } from "@/components/editor/note-document";
 import { createNotePersistence } from "@/components/editor/note-persistence";
+import type { SaveOutcome } from "@/components/editor/note-persistence";
 import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
@@ -50,6 +51,7 @@ import {
 import { noteTitle } from "@/core/notes";
 import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
 import type { ConflictStash } from "@/data/conflict-stash";
+import { createNote } from "@/data/create-note";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import { openExternalFile } from "@/data/open-external-file";
@@ -72,11 +74,12 @@ import {
   restoredCaret,
 } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
-import { tabButtonId, tabPanelId } from "@/lib/tabs/tab";
+import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { useGraphMode } from "@/lib/ui/graph";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
+import type { OpenKind } from "@/server/adapters/bindings";
 
 function bodyPrefix(raw: string) {
   return raw.length - parseNote(raw).body.length;
@@ -176,12 +179,7 @@ interface SessionBufferProps {
  * external file's image goes to the `external-image` scheme with the document
  * and the source, and Rust resolves the pair on each request.
  */
-function imageSrc(
-  src: string,
-  kind: "external" | "note",
-  from: string,
-  notesDir: string
-) {
+function imageSrc(src: string, kind: OpenKind, from: string, notesDir: string) {
   if (!isRelativeDestination(src)) {
     return hasScheme(src) ? src : "";
   }
@@ -201,6 +199,23 @@ function imageSrc(
     : convertFileSrc(`${notesDir}/${resolved}`);
 }
 
+const EMPTY_DRAFT: SessionFile = {
+  content: "",
+  revision: "",
+  updatedAt: new Date(0),
+};
+
+/** Whitespace alone is nothing typed, so it creates no file and counts as saved at no path. */
+async function createDraftFile(content: string): Promise<SaveOutcome> {
+  if (content.trim() === "") {
+    return {
+      kind: "committed",
+      receipt: { path: "", revision: "", updatedAt: new Date(0) },
+    };
+  }
+  return { kind: "committed", receipt: await createNote({ content }) };
+}
+
 /**
  * One tab's buffer, autosave, and reconciliation against disk.
  *
@@ -216,9 +231,11 @@ function SessionBuffer({
   stash,
   tab,
 }: SessionBufferProps) {
+  // Fixed for the tab's life: a draft becomes a note in place.
+  const openKind = fileKind(tab.kind);
   const { data: notes } = useQuery({
     ...noteQueries.list(),
-    enabled: tab.kind === "note",
+    enabled: openKind === "note",
   });
   const queryClient = useQueryClient();
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
@@ -247,7 +264,7 @@ function SessionBuffer({
         changePath: async (path, change) => await moveNote(path, change.folder),
         clearStash: async (path) => {
           try {
-            await clearConflictStash(tab.kind, path);
+            await clearConflictStash(openKind, path);
           } catch (error) {
             await logError(
               `could not remove the stored review: ${String(error)}`
@@ -255,25 +272,32 @@ function SessionBuffer({
             throw error;
           }
           queryClient.setQueryData(
-            noteQueries.conflict(tab.kind, path).queryKey,
+            noteQueries.conflict(openKind, path).queryKey,
             null
           );
         },
         onCleanFileMissing: () => {
           closeTab(id);
         },
-        onPathChanged: renameTab,
+        onPathChanged: (to) => {
+          renameTab(id, to);
+        },
         stash: async (path, review) => {
-          await stashConflict(tab.kind, path, review);
+          await stashConflict(openKind, path, review);
           queryClient.setQueryData(
-            noteQueries.conflict(tab.kind, path).queryKey,
+            noteQueries.conflict(openKind, path).queryKey,
             review
           );
         },
-        write: async (path, content, name, expected) =>
-          tab.kind === "external"
-            ? await writeExternalNote(path, content, name, expected)
-            : await saveNote(path, content, name, expected),
+        write: async (path, content, name, expected) => {
+          if (openKind === "external") {
+            return await writeExternalNote(path, content, name, expected);
+          }
+          // A draft has no path until this write creates its file.
+          return path === ""
+            ? await createDraftFile(content)
+            : await saveNote(path, content, name, expected);
+        },
       }
     )
   );
@@ -389,7 +413,7 @@ function SessionBuffer({
   const getTitles = () => live.current.notes?.map((meta) => meta.title) ?? [];
 
   const resolveImageSrc = (src: string) =>
-    imageSrc(src, tab.kind, live.current.path, notesDir);
+    imageSrc(src, openKind, live.current.path, notesDir);
   const documentPath = () => live.current.path;
 
   const navigation = useRef<AbortController | undefined>(undefined);
@@ -493,7 +517,7 @@ function SessionBuffer({
   // its attachments land in it; an external file's links resolve against the
   // file, and it takes no attachments.
   const linkHandling =
-    tab.kind === "note"
+    openKind === "note"
       ? {
           documentPath,
           onFileLinkClick: openFileLink,
@@ -768,8 +792,16 @@ interface NoteSessionProps {
 
 export function NoteSession({ active, tab }: NoteSessionProps) {
   const { kind, path } = tab;
-  const { data, error, refetch } = useQuery(noteQueries.file(kind, path));
-  const stash = useQuery(noteQueries.conflict(kind, path));
+  const draft = kind === "draft";
+  const openKind = fileKind(kind);
+  const { data, error, refetch } = useQuery({
+    ...noteQueries.file(openKind, path),
+    enabled: !draft,
+  });
+  const stash = useQuery({
+    ...noteQueries.conflict(openKind, path),
+    enabled: !draft,
+  });
   const { refetch: refetchStash } = stash;
   const retry = () => {
     void refetch();
@@ -778,13 +810,13 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
   // A rename changes the key (`D56`) and a failed read clears the data, and
   // neither may take the buffer with it: the tab keeps what it last read
   // (`D55`). Query's own `keepPreviousData` covers only the pending case.
-  const [lastRead, setLastRead] = useState(data);
+  const [lastRead, setLastRead] = useState(draft ? EMPTY_DRAFT : data);
   if (data !== undefined && data !== lastRead) {
     setLastRead(data);
   }
   // The stored review is keyed by path too, so a rename would otherwise leave
   // the gate below with nothing and unmount the buffer mid-session.
-  const [lastStash, setLastStash] = useState(stash.data);
+  const [lastStash, setLastStash] = useState(draft ? null : stash.data);
   if (stash.data !== undefined && stash.data !== lastStash) {
     setLastStash(stash.data);
   }

@@ -26,7 +26,9 @@ import {
   getTabHandles,
   getTabState,
   moveTab,
+  openDraft,
   openNote,
+  useTabState,
 } from "@/lib/tabs/store";
 import { tabPanelId } from "@/lib/tabs/tab";
 
@@ -129,6 +131,51 @@ function sessionHandles(id: string = tab.id) {
     throw new Error("the session did not mount");
   }
   return handles;
+}
+
+/** The session for `id` as the store holds it now, the way the workspace mounts one. */
+function LiveSession({ id }: { id: string }) {
+  const { tabs } = useTabState();
+  const live = tabs.find((entry) => entry.id === id);
+
+  return live === undefined ? null : <NoteSession active tab={live} />;
+}
+
+function refuse(command: string): never {
+  throw new Error(`unexpected command: ${command}`);
+}
+
+/** A fresh draft mounted the way the workspace does it, answering IPC through `respond` after the calls every draft makes. */
+function mountDraft(respond: Parameters<typeof mockIPC>[0]) {
+  openDraft();
+  const id = getTabState().activeId;
+  const commands: string[] = [];
+  mockIPC(async (command, args) => {
+    commands.push(command);
+    if (command === "list_notes") {
+      return [];
+    }
+    if (command.startsWith("plugin:")) {
+      return 0;
+    }
+    return await respond(command, args);
+  });
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+    },
+  });
+  client.setQueryData(notesDirQuery.queryKey, "/notes");
+  onTestFinished(() => {
+    client.clear();
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <LiveSession id={id} />
+      <Toaster />
+    </QueryClientProvider>
+  );
+  return { commands, id };
 }
 
 function review() {
@@ -1977,5 +2024,198 @@ describe(NoteSession, () => {
     expect(panel()).not.toBeNull();
     await expect(editor()).resolves.toBe(liveEditor);
     client.clear();
+  });
+
+  describe("draft", () => {
+    it("should mount an empty, focused editor without reading or creating a file", async () => {
+      const { commands, id } = mountDraft(refuse);
+
+      const surface = await editor(id);
+
+      expect(surface.state.doc.textContent).toBe("");
+      expect(surface.view.dom).toHaveFocus();
+      expect(commands).not.toContain("read_note");
+      expect(commands).not.toContain("create_note");
+      expect(getTabState().tabs.find((entry) => entry.id === id)?.kind).toBe(
+        "draft"
+      );
+    });
+
+    it("should create the file on the first save and become that note in the same editor", async () => {
+      const creates: unknown[] = [];
+      const saves: unknown[] = [];
+      const { id } = mountDraft((command, args) => {
+        if (command === "create_note") {
+          creates.push(args);
+          return {
+            path: "hello.md",
+            revision: "r1",
+            updatedAt: 1,
+            warnings: [],
+          };
+        }
+        if (command === "save_note") {
+          saves.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "hello.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        if (command === "read_note") {
+          return {
+            content: "# Hello",
+            pinned: false,
+            revision: "r1",
+            tags: [],
+            title: "Hello",
+            updatedAt: 1,
+          };
+        }
+        if (command === "read_conflict") {
+          return null;
+        }
+        return refuse(command);
+      });
+      const surface = await editor(id);
+
+      act(() => {
+        surface.commands.insertContent("# Hello");
+      });
+      await act(async () => {
+        await flushPendingWrites();
+      });
+
+      expect(creates).toStrictEqual([
+        { options: { content: "# Hello", folder: null, name: null } },
+      ]);
+      await waitFor(() => {
+        expect(
+          getTabState().tabs.find((entry) => entry.id === id)
+        ).toMatchObject({ kind: "note", path: "hello.md" });
+      });
+      await expect(editor(id)).resolves.toBe(surface);
+      await waitFor(() => {
+        expect(sessionHandles(id).changePath).toBeDefined();
+      });
+
+      act(() => {
+        typeAtEnd(surface, " there");
+      });
+      await act(async () => {
+        await flushPendingWrites();
+      });
+
+      expect(creates).toHaveLength(1);
+      expect(saves).toHaveLength(1);
+      expect(saves[0]).toMatchObject({ path: "hello.md" });
+    });
+
+    it("should land typing during the create in the created file on the next save", async () => {
+      const held = Promise.withResolvers<unknown>();
+      const saves: (InvokeArgs | undefined)[] = [];
+      const { id } = mountDraft(async (command, args) => {
+        if (command === "create_note") {
+          return await held.promise;
+        }
+        if (command === "save_note") {
+          saves.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "hello.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        if (command === "read_note") {
+          return {
+            content: "# Hello",
+            pinned: false,
+            revision: "r1",
+            tags: [],
+            title: "Hello",
+            updatedAt: 1,
+          };
+        }
+        if (command === "read_conflict") {
+          return null;
+        }
+        return refuse(command);
+      });
+      const surface = await editor(id);
+
+      act(() => {
+        surface.commands.insertContent("# Hello");
+      });
+      let flushing: Promise<boolean> | undefined;
+      act(() => {
+        flushing = flushPendingWrites();
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      act(() => {
+        typeAtEnd(surface, " there");
+      });
+      await act(async () => {
+        held.resolve({
+          path: "hello.md",
+          revision: "r1",
+          updatedAt: 1,
+          warnings: [],
+        });
+        await flushing;
+      });
+
+      expect(saves).toHaveLength(1);
+      const [save] = saves;
+      if (!savesContent(save)) {
+        throw new Error("the save carried no content");
+      }
+      expect(save).toMatchObject({ path: "hello.md" });
+      expect(save.content).toContain("Hello there");
+      await expect(editor(id)).resolves.toBe(surface);
+    });
+
+    it("should write nothing while the draft holds only whitespace", async () => {
+      const { commands, id } = mountDraft(refuse);
+      const surface = await editor(id);
+
+      act(() => {
+        surface.commands.insertContent(" ");
+      });
+      await act(async () => {
+        await flushPendingWrites();
+      });
+
+      expect(commands).not.toContain("create_note");
+      expect(getTabState().tabs.find((entry) => entry.id === id)?.kind).toBe(
+        "draft"
+      );
+    });
+
+    it("should create nothing when an untouched draft closes", async () => {
+      const { commands, id } = mountDraft(refuse);
+      await editor(id);
+
+      act(() => {
+        closeTab(id);
+      });
+      await act(async () => {
+        await flushPendingWrites();
+      });
+
+      expect(commands).not.toContain("create_note");
+      expect(
+        getTabState().tabs.find((entry) => entry.id === id)
+      ).toBeUndefined();
+    });
   });
 });

@@ -7,7 +7,7 @@ interface CreateNoteOptions {
   title?: string;
 }
 
-export async function createNote(options?: CreateNoteOptions): Promise<string> {
+export async function createNote(options?: CreateNoteOptions) {
   const receipt = await nativeCommand(
     async () =>
       await commands.createNote({
@@ -19,5 +19,5 @@ export async function createNote(options?: CreateNoteOptions): Promise<string> {
             : { kind: "title", value: options.title },
       })
   );
-  return receipt.path;
+  return { ...receipt, updatedAt: new Date(receipt.updatedAt) };
 }

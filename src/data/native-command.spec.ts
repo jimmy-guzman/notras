@@ -23,9 +23,13 @@ describe("native command", () => {
         });
         return { path: "q3-planning-2.md", updatedAt: 1234, warnings: [] };
       });
-      await expect(createNote({ title: "Q3: planning" })).resolves.toBe(
-        "q3-planning-2.md"
-      );
+      await expect(
+        createNote({ title: "Q3: planning" })
+      ).resolves.toStrictEqual({
+        path: "q3-planning-2.md",
+        updatedAt: new Date(1234),
+        warnings: [],
+      });
     });
 
     it("should acknowledge a body save even when its committed receipt carries an index warning", async () => {

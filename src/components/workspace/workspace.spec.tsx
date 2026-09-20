@@ -72,7 +72,7 @@ describe("workspace", () => {
     ).toBeInTheDocument();
   });
 
-  it("should let a new note open before library queries finish without a late restore replacing it", async () => {
+  it("should open a draft before library queries finish, creating nothing, and keep it when a late restore lands", async () => {
     localStorage.removeItem("tabs");
     mockWindows("main");
     const recent = Promise.withResolvers<unknown[]>();
@@ -95,21 +95,6 @@ describe("workspace", () => {
       }
       if (command === "list_tags") {
         return await tags.promise;
-      }
-      if (command === "create_note") {
-        return { path: "chosen.md", updatedAt: 1, warnings: [] };
-      }
-      if (command === "read_conflict") {
-        return null;
-      }
-      if (command === "read_note") {
-        return {
-          content: "# Chosen\n\nAvailable document",
-          pinned: false,
-          tags: [],
-          title: "Chosen",
-          updatedAt: 1,
-        };
       }
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
@@ -150,10 +135,12 @@ describe("workspace", () => {
       throw new Error("new note action did not render");
     }
     await user.click(button);
-    await screen.findByText("Available document");
     expect(
-      await screen.findByRole("tab", { name: "Chosen" })
+      await screen.findByRole("tab", { name: "untitled" })
     ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.querySelector(".ProseMirror")).toHaveFocus();
+    });
     act(() => {
       recent.resolve([
         {
@@ -169,11 +156,11 @@ describe("workspace", () => {
       ]);
     });
     await waitFor(() => {
-      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
-        "chosen.md",
+      expect(getTabState().tabs.map((tab) => tab.kind)).toStrictEqual([
+        "draft",
       ]);
     });
-    expect(screen.getByText("Available document")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "untitled" })).toBeInTheDocument();
   });
 
   it("should mount a restored tab's editor when it is first selected, then keep it", async () => {
