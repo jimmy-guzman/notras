@@ -387,6 +387,26 @@ describe("recent commands", () => {
     }
   );
 
+  it("should offer and run commands when recent history cannot be read", async () => {
+    const getItem = localStorage.getItem.bind(localStorage);
+    const read = vi.spyOn(localStorage, "getItem").mockImplementation((key) => {
+      if (key === "recent-actions") {
+        throw new DOMException("Storage access is denied", "SecurityError");
+      }
+      return getItem(key);
+    });
+    onTestFinished(() => {
+      read.mockRestore();
+    });
+    const palette = mount("actions", []);
+
+    expect(
+      screen.queryByRole("group", { name: "recent" })
+    ).not.toBeInTheDocument();
+    await palette.user.click(screen.getByRole("option", { name: "settings" }));
+    expect(palette.closed).toStrictEqual([false]);
+  });
+
   it("should remember a command chosen from search when the palette reopens", async () => {
     const palette = mount("actions", []);
     await palette.user.type(palette.input, "settings");

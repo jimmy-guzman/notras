@@ -51,11 +51,15 @@ const RecentActionsSchema = pipe(
 );
 
 function readRecentActions() {
-  const result = safeParse(
-    RecentActionsSchema,
-    localStorage.getItem(STORAGE_KEY)
-  );
-  return result.success ? result.output : [];
+  try {
+    const result = safeParse(
+      RecentActionsSchema,
+      localStorage.getItem(STORAGE_KEY)
+    );
+    return result.success ? result.output : [];
+  } catch {
+    return [];
+  }
 }
 
 export function ActionsView({

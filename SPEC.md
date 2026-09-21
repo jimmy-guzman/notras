@@ -294,8 +294,8 @@ What notras does, as claims checkable against a running build.
 
 - The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
 - The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives in `localStorage["focus-mode"]` beside them.
-- Recent notes live in `localStorage` under `recent-notes:` followed by the resolved library folder. Each library keeps its own last-chosen order across launches on this device. Missing or invalid history starts empty. Lists ignore missing files. A history write failure reports "could not update recent notes" with its reason and leaves the note operation in place.
-- Recent commands live in `localStorage["recent-actions"]`, shared across libraries on this device and kept across launches. Missing or invalid history starts empty. A history write failure reports "could not remember command" with its reason and still runs the chosen command.
+- Recent notes live in `localStorage` under `recent-notes:` followed by the resolved library folder. Each library keeps its own last-chosen order across launches on this device. Missing, invalid, or unreadable history starts empty. Read failures go to the log and do not prevent opening notes, even if logging fails. Lists ignore missing files. A history write failure reports "could not update recent notes" with its reason and leaves the note operation in place.
+- Recent commands live in `localStorage["recent-actions"]`, shared across libraries on this device and kept across launches. Missing, invalid, or unreadable history starts empty. A history write failure reports "could not remember command" with its reason and still runs the chosen command.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
 - The index lives under the app's cache folder, keyed by the resolved notes dir, and is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
 - A review that has not been resolved lives under the app data folder in `conflicts/`, one file per tab kind and path, and is removed by the save that resolves it.

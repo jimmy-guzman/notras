@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -36,6 +37,38 @@ describe("recent notes", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Storage is full")).toBeInTheDocument();
   });
+
+  it.each([false, true])(
+    "should return empty history after a read failure when logging fails: %s",
+    async (loggingFails) => {
+      const logged: unknown[] = [];
+      mockIPC((command, args) => {
+        logged.push({ args, command });
+        if (loggingFails) {
+          throw new Error("Log is unavailable");
+        }
+      });
+      const read = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+        throw new DOMException("Storage access is denied", "SecurityError");
+      });
+      onTestFinished(() => {
+        read.mockRestore();
+        clearMocks();
+      });
+
+      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      await waitFor(() => {
+        expect(logged).toMatchObject([
+          {
+            args: {
+              message: "could not read recent notes: Storage access is denied",
+            },
+            command: "plugin:log|log",
+          },
+        ]);
+      });
+    }
+  );
 
   it.each(["null", "{}", "bad json", "[3]", '["a.md","a.md"]'])(
     "should discard invalid history %s",

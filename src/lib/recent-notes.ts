@@ -1,3 +1,4 @@
+import { error as logError } from "@tauri-apps/plugin-log";
 import { array, check, parseJson, pipe, safeParse, string } from "valibot";
 
 import { toast } from "@/components/ui/toast";
@@ -27,12 +28,27 @@ function writeHistory(notesDir: string, paths: string[]) {
   }
 }
 
+async function logHistoryReadFailure(message: string) {
+  try {
+    await logError(message);
+  } catch {
+    // An unavailable log must not prevent opening a note.
+  }
+}
+
 export function readRecentNotes(notesDir: string): string[] {
-  const parsed = safeParse(
-    HistorySchema,
-    localStorage.getItem(storageKey(notesDir))
-  );
-  return parsed.success ? parsed.output : [];
+  try {
+    const parsed = safeParse(
+      HistorySchema,
+      localStorage.getItem(storageKey(notesDir))
+    );
+    return parsed.success ? parsed.output : [];
+  } catch (error) {
+    void logHistoryReadFailure(
+      `could not read recent notes: ${reasonOf(error) ?? String(error)}`
+    );
+    return [];
+  }
 }
 
 function orderByVisit(notesDir: string, notes: NoteMeta[]) {
