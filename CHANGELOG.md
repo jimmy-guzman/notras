@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.7.0](https://github.com/jimmy-guzman/notras/compare/v0.6.1...v0.7.0) (2026-09-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tabs:** 💥 ⌘T no longer opens a new note; use ⌘N.
+
+### Features
+
+* ✨ new theme and icon ([#223](https://github.com/jimmy-guzman/notras/issues/223)) ([10c2fbc](https://github.com/jimmy-guzman/notras/commit/10c2fbcd617a0286869388e282465bbfad7c4ae1))
+* **tabs:** ✨ keep a new note off disk until typed ([#251](https://github.com/jimmy-guzman/notras/issues/251)) ([dc8ea5f](https://github.com/jimmy-guzman/notras/commit/dc8ea5ffa8d821414e30bfae1b5746c370a3106c))
+* **ui:** ✨ pin with ⌘⇧D, find notes from the title bar ([2c1b4c6](https://github.com/jimmy-guzman/notras/commit/2c1b4c665c7bad3c9e126b0d2c4fb6528735afc9))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 keep long notes responsive while coloring ([#245](https://github.com/jimmy-guzman/notras/issues/245)) ([40c949a](https://github.com/jimmy-guzman/notras/commit/40c949a4dc3cd89f76aa40f2414001ab603fc80b)), closes [#241](https://github.com/jimmy-guzman/notras/issues/241)
+* **editor:** 🐛 keep raw html through a save ([#234](https://github.com/jimmy-guzman/notras/issues/234)) ([566c185](https://github.com/jimmy-guzman/notras/commit/566c1851ad722d6bb62daed4d31f5a27d3377f64)), closes [#229](https://github.com/jimmy-guzman/notras/issues/229)
+* **editor:** 🐛 keep rich mode responsive on long notes ([#248](https://github.com/jimmy-guzman/notras/issues/248)) ([c1e1fec](https://github.com/jimmy-guzman/notras/commit/c1e1fec202a0344c864c54ffa344a17d2db1acef)), closes [#242](https://github.com/jimmy-guzman/notras/issues/242)
+* **editor:** 🐛 keep source mode responsive on long notes ([#243](https://github.com/jimmy-guzman/notras/issues/243)) ([14c8846](https://github.com/jimmy-guzman/notras/commit/14c884675423c51b9c2aaa8e3df8cde0b6b73489)), closes [#240](https://github.com/jimmy-guzman/notras/issues/240)
+* **editor:** 🐛 land the caret after shift+enter ([#220](https://github.com/jimmy-guzman/notras/issues/220)) ([c991b56](https://github.com/jimmy-guzman/notras/commit/c991b56219477201a04f7df47d66482df101e70b))
+* **editor:** 🐛 open long notes without a stall ([#225](https://github.com/jimmy-guzman/notras/issues/225)) ([33e5dd8](https://github.com/jimmy-guzman/notras/commit/33e5dd81e283bf037936ca68bb340d47400d3d29))
+* **editor:** 🐛 parse a long note in linear time ([#236](https://github.com/jimmy-guzman/notras/issues/236)) ([f799476](https://github.com/jimmy-guzman/notras/commit/f79947647d7b15f3eb4370091d12eceb86c61136)), closes [#230](https://github.com/jimmy-guzman/notras/issues/230)
+* **editor:** 🐛 stop adjacent tables growing on every save ([#238](https://github.com/jimmy-guzman/notras/issues/238)) ([4bb5217](https://github.com/jimmy-guzman/notras/commit/4bb5217f884c706eeacfdaf6171d316412488a2e)), closes [#231](https://github.com/jimmy-guzman/notras/issues/231)
+* **editor:** 🐛 stop converting the caret on every keystroke ([#232](https://github.com/jimmy-guzman/notras/issues/232)) ([e232e0c](https://github.com/jimmy-guzman/notras/commit/e232e0c8119b19f5d367459b6334ed4f22aff3cd)), closes [#227](https://github.com/jimmy-guzman/notras/issues/227)
+* **tabs:** 🐛 keep long notes open across tab switches ([#253](https://github.com/jimmy-guzman/notras/issues/253)) ([f61287d](https://github.com/jimmy-guzman/notras/commit/f61287dbd1b68cd9dae43cd0f81f5f89d0d9fe9f)), closes [#250](https://github.com/jimmy-guzman/notras/issues/250)
+* **tabs:** 🐛 restore tabs without mounting them all ([#226](https://github.com/jimmy-guzman/notras/issues/226)) ([204a120](https://github.com/jimmy-guzman/notras/commit/204a12099d5ae64597ffd56aea1aa87710c99cc9))
+* **ui:** 🐛 drop the save glyph for a failed-save alert ([#222](https://github.com/jimmy-guzman/notras/issues/222)) ([e4e96e8](https://github.com/jimmy-guzman/notras/commit/e4e96e85409a1cfe405be528618c966bdb91b944))
+* **ui:** 🐛 highlight code off the ui thread ([#216](https://github.com/jimmy-guzman/notras/issues/216)) ([fbd04a9](https://github.com/jimmy-guzman/notras/commit/fbd04a9156ae2e3a60e017e754cb77a73e5ffa0a)), closes [#196](https://github.com/jimmy-guzman/notras/issues/196)
+* **ui:** 🐛 keep the viewport on tab return ([#218](https://github.com/jimmy-guzman/notras/issues/218)) ([4cddbbc](https://github.com/jimmy-guzman/notras/commit/4cddbbc0437c65f545159b8d469e6f5083f47983)), closes [#197](https://github.com/jimmy-guzman/notras/issues/197)
+* **ui:** 🐛 let the note fill its frame ([#224](https://github.com/jimmy-guzman/notras/issues/224)) ([2dc10dd](https://github.com/jimmy-guzman/notras/commit/2dc10dd57648bf4d6e4606cb3ac7fe990a1e10fb))
+* **ui:** 🐛 ride the scrollbar on the frame's edge ([#221](https://github.com/jimmy-guzman/notras/issues/221)) ([92bcaa7](https://github.com/jimmy-guzman/notras/commit/92bcaa734170a39208750d89e1428315a0cbee7a))
+
+
+### Refactoring
+
+* **ui:** 🔄 own the shadcn components ([#214](https://github.com/jimmy-guzman/notras/issues/214)) ([fb22eee](https://github.com/jimmy-guzman/notras/commit/fb22eee4fb227d92273e6bb12e2fcfbee2f052fb))
+
 ## [0.6.1](https://github.com/jimmy-guzman/notras/compare/v0.6.0...v0.6.1) (2026-09-16)
 
 
