@@ -1,4 +1,6 @@
 import type { LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { array, check, parseJson, pipe, safeParse, string } from "valibot";
 
 import { Chord } from "@/components/chord";
 import {
@@ -13,6 +15,8 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { toast } from "@/components/ui/toast";
+import { reasonOf } from "@/lib/ui/failure";
 import type { useChordsByName } from "@/lib/ui/shortcuts";
 
 /**
@@ -35,9 +39,48 @@ export interface PaletteAction {
 interface ActionsViewProps {
   actions: PaletteAction[];
   chordsByName: ReturnType<typeof useChordsByName>;
+  query: string;
 }
 
-export function ActionsView({ actions, chordsByName }: ActionsViewProps) {
+const STORAGE_KEY = "recent-actions";
+const RecentActionsSchema = pipe(
+  string(),
+  parseJson(),
+  array(string()),
+  check((values) => new Set(values).size === values.length)
+);
+
+function readRecentActions() {
+  const result = safeParse(
+    RecentActionsSchema,
+    localStorage.getItem(STORAGE_KEY)
+  );
+  return result.success ? result.output : [];
+}
+
+export function ActionsView({
+  actions,
+  chordsByName,
+  query,
+}: ActionsViewProps) {
+  const [history, setHistory] = useState(readRecentActions);
+  const recent =
+    query.trim() === ""
+      ? history
+          .flatMap((value) =>
+            actions.filter((action) => action.value === value)
+          )
+          .slice(0, 5)
+      : [];
+  const recentValues = new Set(recent.map((action) => action.value));
+  const groups = [
+    { actions: recent, heading: "recent" },
+    {
+      actions: actions.filter((action) => !recentValues.has(action.value)),
+      heading: "actions",
+    },
+  ];
+
   return (
     <>
       <CommandEmpty>
@@ -50,25 +93,49 @@ export function ActionsView({ actions, chordsByName }: ActionsViewProps) {
           </EmptyHeader>
         </Empty>
       </CommandEmpty>
-      <CommandGroup heading="actions">
-        {actions.map(({ Icon, label, onSelect, text, value }) => {
-          const chords = chordsByName.get(label);
+      {groups.map((group) =>
+        group.actions.length === 0 ? null : (
+          <CommandGroup heading={group.heading} key={group.heading}>
+            {group.actions.map(({ Icon, label, onSelect, text, value }) => {
+              const chords = chordsByName.get(label);
 
-          return (
-            <CommandItem key={value} onSelect={onSelect} value={value}>
-              <Icon />
-              {text}
-              {chords === undefined ? null : (
-                <CommandShortcut>
-                  {chords.map(({ hotkey, id }) => (
-                    <Chord hotkey={hotkey} key={id} />
-                  ))}
-                </CommandShortcut>
-              )}
-            </CommandItem>
-          );
-        })}
-      </CommandGroup>
+              return (
+                <CommandItem
+                  key={value}
+                  onSelect={() => {
+                    const next = [
+                      value,
+                      ...history.filter((previous) => previous !== value),
+                    ];
+                    try {
+                      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+                      setHistory(next);
+                    } catch (error) {
+                      toast.add({
+                        description: reasonOf(error),
+                        title: "could not remember command",
+                        type: "error",
+                      });
+                    }
+                    onSelect();
+                  }}
+                  value={value}
+                >
+                  <Icon />
+                  {text}
+                  {chords === undefined ? null : (
+                    <CommandShortcut>
+                      {chords.map(({ hotkey, id }) => (
+                        <Chord hotkey={hotkey} key={id} />
+                      ))}
+                    </CommandShortcut>
+                  )}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )
+      )}
     </>
   );
 }

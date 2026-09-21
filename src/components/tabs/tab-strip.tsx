@@ -48,6 +48,7 @@ import {
   closeTab,
   closeTabsAfter,
   moveTab,
+  showTab,
   useTabSnapshot,
 } from "@/lib/tabs/store";
 import type { Tab, TabStep } from "@/lib/tabs/tab";
@@ -139,7 +140,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
 
   /** A press selects, the way a native tab does, before any drag begins. */
   const startPress = (event: React.PointerEvent<HTMLButtonElement>) => {
-    select();
+    showTab(id);
     listeners?.onPointerDown?.(event);
   };
 
@@ -299,7 +300,7 @@ interface TabListProps {
 }
 
 function handleDragStart(event: DragStartEvent) {
-  activateTab(String(event.active.id));
+  showTab(String(event.active.id));
 }
 
 /**

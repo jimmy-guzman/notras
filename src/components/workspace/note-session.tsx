@@ -62,12 +62,16 @@ import { resolveExternalLink } from "@/data/resolve-external-link";
 import { saveNote } from "@/data/save-note";
 import { exportPdf } from "@/lib/export-pdf";
 import { useFocusMode } from "@/lib/prefs";
+import { renameRecentNote } from "@/lib/recent-notes";
 import {
+  activateTab,
+  cancelNoteVisit,
   clearRestoredCaret,
   closeTab,
   getTabState,
   openNote,
   openTab,
+  registerLoadedNote,
   registerTabHandles,
   registerTabSnapshot,
   renameTab,
@@ -165,6 +169,7 @@ interface SessionBufferProps {
   file: SessionFile;
   /** The file behind this buffer has gone; what is on screen is all there is. */
   missing: boolean;
+  readable: boolean;
   readFile: SessionFile | undefined;
   stash: ConflictStash | null;
   tab: Tab;
@@ -227,6 +232,7 @@ function SessionBuffer({
   active,
   file,
   missing: readMissing,
+  readable,
   readFile,
   stash,
   tab,
@@ -241,6 +247,13 @@ function SessionBuffer({
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const resolveLinks = notes === undefined ? undefined : linkResolver(notes);
   const { id } = tab;
+  useLayoutEffect(
+    () =>
+      tab.kind === "note" && readable
+        ? registerLoadedNote(id, notesDir)
+        : undefined,
+    [id, notesDir, readable, tab.kind]
+  );
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
   const focusOnMount = active && !findState.open;
@@ -261,7 +274,11 @@ function SessionBuffer({
     createNotePersistence(
       { ...file, path: tab.path, stash: stash ?? undefined },
       {
-        changePath: async (path, change) => await moveNote(path, change.folder),
+        changePath: async (path, change) => {
+          const receipt = await moveNote(path, change.folder);
+          renameRecentNote(notesDir, path, receipt.path);
+          return receipt;
+        },
         clearStash: async (path) => {
           try {
             await clearConflictStash(openKind, path);
@@ -280,7 +297,7 @@ function SessionBuffer({
           closeTab(id);
         },
         onPathChanged: (to) => {
-          renameTab(id, to);
+          renameTab(id, to, notesDir);
         },
         stash: async (path, review) => {
           await stashConflict(openKind, path, review);
@@ -294,9 +311,14 @@ function SessionBuffer({
             return await writeExternalNote(path, content, name, expected);
           }
           // A draft has no path until this write creates its file.
-          return path === ""
-            ? await createDraftFile(content)
-            : await saveNote(path, content, name, expected);
+          if (path === "") {
+            return await createDraftFile(content);
+          }
+          const outcome = await saveNote(path, content, name, expected);
+          if (outcome.kind === "committed") {
+            renameRecentNote(notesDir, path, outcome.receipt.path);
+          }
+          return outcome;
         },
       }
     )
@@ -803,7 +825,14 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
     enabled: !draft,
   });
   const { refetch: refetchStash } = stash;
+  const readFailed = error !== null || stash.isError;
+  useLayoutEffect(() => {
+    if (readFailed) {
+      cancelNoteVisit(tab.id);
+    }
+  }, [readFailed, tab.id]);
   const retry = () => {
+    activateTab(tab.id);
     void refetch();
     void refetchStash();
   };
@@ -879,6 +908,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
       active={active}
       file={file}
       missing={gone}
+      readable={error === null && !stash.isError}
       readFile={data}
       stash={stored}
       tab={tab}

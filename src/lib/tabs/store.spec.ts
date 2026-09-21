@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createNotePersistence } from "@/components/editor/note-persistence";
 import type { SaveOutcome } from "@/components/editor/note-persistence";
 import { parseNote } from "@/core/frontmatter";
+import { readRecentNotes } from "@/lib/recent-notes";
 
 import {
+  activateTab,
   adoptVaultNotes,
   changeNoteMetadata,
   closeOtherTabs,
@@ -15,14 +17,20 @@ import {
   getTabHandles,
   getTabState,
   hasTabSnapshot,
+  moveTab,
   openDraft,
+  openInitialNote,
   openNote,
+  openTab,
   persistTabs,
+  registerLoadedNote,
   registerTabHandles,
   registerTabSnapshot,
+  renameTab,
   reopenTab,
   restoredCaret,
   restoreTabs,
+  showTab,
   useTabSnapshot,
 } from "./store";
 import type { TabSnapshot } from "./store";
@@ -649,5 +657,101 @@ describe(changeNoteMetadata, () => {
       "added",
     ]);
     expect(note.store.state.status).toBe("failed");
+  });
+});
+
+describe("note choices", () => {
+  beforeEach(() => {
+    for (const tab of getTabState().tabs) {
+      closeTab(tab.id);
+    }
+    localStorage.clear();
+  });
+
+  it("should remember successful choices and leave automatic tab changes alone", () => {
+    openInitialNote("initial.md");
+    const initial = getTabState().activeId;
+    registerLoadedNote(initial, "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
+
+    openNote("chosen.md", true);
+    const chosen = getTabState().activeId;
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    registerLoadedNote(chosen, "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual(["chosen.md"]);
+    activateTab(initial);
+    expect(readRecentNotes("/notes")).toStrictEqual([
+      "initial.md",
+      "chosen.md",
+    ]);
+
+    showTab(chosen);
+    moveTab(chosen, 0);
+    closeTab(chosen);
+    expect(readRecentNotes("/notes")).toStrictEqual([
+      "initial.md",
+      "chosen.md",
+    ]);
+    reopenTab();
+    registerLoadedNote(chosen, "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual([
+      "chosen.md",
+      "initial.md",
+    ]);
+    activateTab(initial);
+    openNote("chosen.md");
+    expect(readRecentNotes("/notes")).toStrictEqual([
+      "chosen.md",
+      "initial.md",
+    ]);
+  });
+
+  it("should ignore cancelled and unreadable openings, drafts and external files", () => {
+    openNote("cancelled.md", true);
+    const cancelled = getTabState().activeId;
+    openNote("failed.md", true);
+    registerLoadedNote(cancelled, "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    closeTab(getTabState().activeId);
+    registerLoadedNote(cancelled, "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    openTab("external", "/outside.md");
+    openDraft();
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
+  });
+
+  it("should count a showing draft's first file but not a background draft", () => {
+    openDraft();
+    const draft = getTabState().activeId;
+    renameTab(draft, "first.md", "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual(["first.md"]);
+    openNote("second.md", true);
+    registerLoadedNote(getTabState().activeId, "/notes");
+    openDraft();
+    const background = getTabState().activeId;
+    activateTab(draft);
+    renameTab(background, "background.md", "/notes");
+    expect(readRecentNotes("/notes")).not.toContain("background.md");
+  });
+
+  it("should restore tabs without recording visits and keep choices in the loaded library", () => {
+    localStorage.setItem(
+      "tabs",
+      serializeTabs({
+        activeId: "restored",
+        carets: {},
+        tabs: [{ id: "restored", kind: "note", path: "a.md" }],
+      })
+    );
+    restoreTabs();
+    registerLoadedNote("restored", "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    activateTab("restored");
+    expect(readRecentNotes("/notes")).toStrictEqual(["a.md"]);
+    closeTab("restored");
+    openNote("b.md");
+    registerLoadedNote(getTabState().activeId, "/other");
+    expect(readRecentNotes("/other")).toStrictEqual(["b.md"]);
+    expect(readRecentNotes("/notes")).toStrictEqual(["a.md"]);
   });
 });

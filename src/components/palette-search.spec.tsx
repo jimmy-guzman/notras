@@ -20,7 +20,10 @@ function mount(query: string, error?: Error) {
     },
   });
   client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
-  client.setQueryData(noteQueries.list().queryKey, []);
+  if (query.trim() !== "") {
+    client.setQueryData(noteQueries.list().queryKey, []);
+  }
+
   client.setQueryData(noteQueries.tags().queryKey, []);
   const options = noteQueries.search(parseSearch(query));
   client.setQueryData(options.queryKey, []);
@@ -44,6 +47,7 @@ function mount(query: string, error?: Error) {
           CommandList,
           null,
           createElement(PaletteSearch, {
+            notesDir: "/notes",
             onCreate: () => {},
             onQueryChange: () => {},
             onSelectNote: () => {},
@@ -62,7 +66,7 @@ function mount(query: string, error?: Error) {
 }
 
 describe("palette search states", () => {
-  it("should request twenty notes pinned first then most recently updated while idle", async () => {
+  it("should request the full note list before ranking and limiting idle results", async () => {
     const recent = [
       {
         createdAt: 0,
@@ -91,13 +95,123 @@ describe("palette search states", () => {
     expect(list).toHaveBeenCalledWith({
       filters: {
         folder: null,
-        limit: 20,
+        limit: null,
         pinnedOnly: null,
         query: null,
         sort: null,
         tag: null,
       },
     });
+  });
+
+  it("should show the fresh idle list after clearing a search without a cached list", async () => {
+    const held = Promise.withResolvers<unknown[]>();
+    mockIPC(async (command) => {
+      if (command === "list_notes") {
+        return await held.promise;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+    client.setQueryData(noteQueries.search(parseSearch("old")).queryKey, [
+      {
+        createdAt: new Date(0),
+        folder: "",
+        path: "old.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Old",
+        updatedAt: new Date(0),
+      },
+    ]);
+    onTestFinished(() => {
+      held.resolve([]);
+      client.clear();
+      clearMocks();
+    });
+    const search = (query: string) => (
+      <QueryClientProvider client={client}>
+        <Command shouldFilter={false}>
+          <CommandList>
+            <PaletteSearch
+              notesDir="/notes"
+              onCreate={() => {}}
+              onQueryChange={() => {}}
+              onSelectNote={() => {}}
+              query={query}
+            />
+          </CommandList>
+        </Command>
+      </QueryClientProvider>
+    );
+    const view = render(search("old"));
+    expect(screen.getByRole("option", { name: "Old" })).toBeInTheDocument();
+    view.rerender(search(""));
+    expect(screen.getByRole("option", { name: "Old" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    act(() => {
+      held.resolve([
+        {
+          createdAt: 0,
+          folder: "",
+          path: "fresh.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "Fresh",
+          updatedAt: 0,
+        },
+      ]);
+    });
+    expect(
+      await screen.findByRole("option", { name: "Fresh" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Old" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should show idle notes after retrying a failed first read", async () => {
+    let attempts = 0;
+    mockIPC((command) => {
+      if (command === "list_notes") {
+        attempts += 1;
+        if (attempts === 1) {
+          throw Object.assign(new Error("Index unavailable"), {
+            kind: "failed",
+          });
+        }
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "fresh.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "Fresh",
+            updatedAt: 0,
+          },
+        ];
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(clearMocks);
+    mount("");
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "retry" }));
+    expect(
+      await screen.findByRole("option", { name: "Fresh" })
+    ).toBeInTheDocument();
   });
 
   it("should mark the matched text in a result snippet", () => {
@@ -127,6 +241,7 @@ describe("palette search states", () => {
         <Command shouldFilter={false}>
           <CommandList>
             <PaletteSearch
+              notesDir="/notes"
               onCreate={() => {}}
               onQueryChange={() => {}}
               onSelectNote={() => {}}
@@ -179,6 +294,7 @@ describe("palette search states", () => {
             CommandList,
             null,
             createElement(PaletteSearch, {
+              notesDir: "/notes",
               onCreate: () => {},
               onQueryChange: () => {},
               onSelectNote: () => {},
@@ -264,6 +380,7 @@ describe("palette search", () => {
         <Command shouldFilter={false}>
           <CommandList>
             <PaletteSearch
+              notesDir="/notes"
               onCreate={() => {}}
               onQueryChange={() => {}}
               onSelectNote={select}
@@ -346,6 +463,7 @@ describe("palette search", () => {
             CommandList,
             null,
             createElement(PaletteSearch, {
+              notesDir: "/notes",
               onCreate: () => {},
               onQueryChange: () => {},
               onSelectNote: () => {},

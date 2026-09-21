@@ -2,25 +2,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { Layout } from "@/layout";
+import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
-
-function limitsToOne(filters: unknown): filters is { limit: 1 } {
-  return (
-    typeof filters === "object" &&
-    filters !== null &&
-    "limit" in filters &&
-    filters.limit === 1
-  );
-}
 
 const editors = () => document.querySelectorAll(".ProseMirror").length;
 
 const NEW_NOTE = /new note/u;
 
 describe("workspace", () => {
+  beforeEach(() => {
+    localStorage.removeItem("recent-notes:/notes");
+  });
+
   it.each([
     ["welcome screen", /^search\b/u],
     ["title bar", "find a note"],
@@ -76,7 +72,6 @@ describe("workspace", () => {
     localStorage.removeItem("tabs");
     mockWindows("main");
     const recent = Promise.withResolvers<unknown[]>();
-    const listed = Promise.withResolvers<[]>();
     const tags = Promise.withResolvers<[]>();
     mockIPC(async (command, args) => {
       if (command === "get_notes_dir") {
@@ -89,9 +84,7 @@ describe("workspace", () => {
         if (args === undefined || !("filters" in args)) {
           throw new Error("list_notes requires filters");
         }
-        return limitsToOne(args.filters)
-          ? await recent.promise
-          : await listed.promise;
+        return await recent.promise;
       }
       if (command === "list_tags") {
         return await tags.promise;
@@ -112,7 +105,6 @@ describe("workspace", () => {
     onTestFinished(async () => {
       act(() => {
         recent.resolve([]);
-        listed.resolve([]);
         tags.resolve([]);
       });
       for (const tab of getTabState().tabs) {
@@ -226,14 +218,116 @@ describe("workspace", () => {
 
     await screen.findByText("Restored document");
     expect(editors()).toBe(1);
+    expect(readRecentNotes("/notes")).toStrictEqual([]);
 
     // Unmounted, the tab still wears its filename stem.
     await user.click(screen.getByRole("tab", { name: "second" }));
     await waitFor(() => {
       expect(editors()).toBe(2);
+      expect(readRecentNotes("/notes")).toStrictEqual(["second.md"]);
     });
 
     await user.click(screen.getByRole("tab", { selected: false }));
     expect(editors()).toBe(2);
+    expect(readRecentNotes("/notes")).toStrictEqual(["first.md", "second.md"]);
   });
+});
+
+describe("launch note", () => {
+  it.each([true, false])(
+    "should open the last surviving choice or fall back to last saved, with history %s",
+    async (withHistory) => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+      localStorage.clear();
+      if (withHistory) {
+        rememberNote("/notes", "chosen.md");
+        rememberNote("/notes", "missing.md");
+      }
+      mockWindows("main");
+      mockIPC((command) => {
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+        if (command === "list_notes") {
+          return [
+            {
+              createdAt: 0,
+              folder: "",
+              path: "pin.md",
+              pinned: true,
+              snippet: null,
+              tags: [],
+              title: "Pin",
+              updatedAt: 1,
+            },
+            {
+              createdAt: 0,
+              folder: "",
+              path: "newest.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Newest",
+              updatedAt: 100,
+            },
+            {
+              createdAt: 0,
+              folder: "",
+              path: "chosen.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Chosen",
+              updatedAt: 0,
+            },
+          ];
+        }
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+        if (command === "read_note") {
+          return { content: "# Opened", revision: "r1", updatedAt: 1 };
+        }
+        if (command === "read_conflict") {
+          return null;
+        }
+        if (
+          ["list_tags", "take_pending_open", "find_mentions"].includes(command)
+        ) {
+          return [];
+        }
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+        client.clear();
+        clearMocks();
+        localStorage.clear();
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+      await screen.findByRole("heading", { name: "Opened" });
+      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
+        withHistory ? "chosen.md" : "newest.md",
+      ]);
+      expect(readRecentNotes("/notes")).toStrictEqual(
+        withHistory ? ["missing.md", "chosen.md"] : []
+      );
+    }
+  );
 });
