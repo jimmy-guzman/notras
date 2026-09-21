@@ -44,6 +44,7 @@ import { isSafeUrl, normalizeUrl } from "./urls";
 
 /** Long enough to cross the gap between a link and its panel. */
 const HOVER_CLOSE_MS = 150;
+const HOVER_OPEN_MS = 300;
 
 const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
 
@@ -114,11 +115,7 @@ function hoverStateFor(
     : { editable: true, missing: false, title, url: path };
 }
 
-/**
- * The href of the link mark at `pos`, or "" where there is no link. A click
- * asks about the position it landed on, which `editor.getAttributes` cannot
- * answer, since that reads the selection.
- */
+/** The href of the link mark at `pos`, or "" where there is no link. */
 function hrefAt(state: EditorState, pos: number) {
   const link = state.doc
     .resolve(pos)
@@ -396,6 +393,48 @@ export function Editor({
     },
     { wait: HOVER_CLOSE_MS }
   );
+  const openHover = useDebouncer(
+    (target: HTMLElement) => {
+      const instance = editorRef.current;
+
+      if (
+        instance === null ||
+        instance.isDestroyed ||
+        linkEditor !== null ||
+        !target.isConnected ||
+        target.closest("[hidden], [inert]") !== null ||
+        !instance.view.dom.contains(target)
+      ) {
+        return;
+      }
+
+      const pos = instance.view.posAtDOM(target, 0);
+      const state = hoverStateFor(
+        target,
+        hrefAt(instance.state, pos + 1),
+        config.resolveWikilink
+      );
+
+      if (state === null) {
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+
+      setLinkHover({
+        ...state,
+        left: rect.left,
+        pos,
+        top: rect.bottom + 6,
+      });
+    },
+    { wait: HOVER_OPEN_MS }
+  );
+  const dismissHover = () => {
+    openHover.cancel();
+    closeHover.cancel();
+    setLinkHover(null);
+  };
   const [reading, setReading] = useState(false);
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [linkShortcut] = useState(() =>
@@ -404,6 +443,7 @@ export function Editor({
     Extension.create({
       addKeyboardShortcuts: () => ({
         "Mod-Shift-k": ({ editor: instance }) => {
+          dismissHover();
           const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
           const url = hasString(attrs, "href") ? attrs.href : "";
@@ -421,6 +461,7 @@ export function Editor({
           return true;
         },
         "Mod-Shift-o": ({ editor: instance }) => {
+          dismissHover();
           const { head } = instance.state.selection;
           const attrs = instance.getAttributes("link");
           const href = hasString(attrs, "href") ? attrs.href : "";
@@ -473,16 +514,23 @@ export function Editor({
           return fallback;
         }
       },
-      handleClickOn: (view, pos, node, _nodePos, event) => {
-        const anchor =
+      handleClickOn: (view, _pos, node, _nodePos, event) => {
+        const target =
           event.target instanceof Element
-            ? event.target.closest("a[href]")
+            ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
             : null;
 
-        // `hrefAt` reads the marks at a position and comes up empty at a link's
-        // left edge, where the anchor still knows where it goes.
-        const href =
-          hrefAt(view.state, pos) || (anchor?.getAttribute("href") ?? "");
+        // A resolved text position can belong to a link even when the pointer
+        // lands in the space beside it.
+        if (target === null) {
+          return false;
+        }
+
+        // Unsafe destinations render with an empty href. Read inside this
+        // anchor so the scheme gate can still explain why it will not open.
+        const href = target.hasAttribute("href")
+          ? hrefAt(view.state, view.posAtDOM(target, 0) + 1)
+          : "";
 
         if (href !== "") {
           followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
@@ -490,7 +538,11 @@ export function Editor({
           return true;
         }
 
-        if (node.type.name === "wikilink" && config.onWikilinkClick) {
+        if (
+          Object.hasOwn(target.dataset, "wikilink") &&
+          node.type.name === "wikilink" &&
+          config.onWikilinkClick
+        ) {
           config.onWikilinkClick(String(node.attrs.title ?? ""));
 
           return true;
@@ -499,10 +551,8 @@ export function Editor({
         return false;
       },
       handleDOMEvents: {
-        // The webview follows an anchor on `click`. ProseMirror's own click
-        // handling runs on `mouseup`, one event too early to stop it, so a
-        // link's href would reach the webview past the scheme gate whenever
-        // `handleClickOn` declines to handle it.
+        // ProseMirror handles mouseup; cancel the later click to keep navigation
+        // behind the scheme gate.
         click: (_view, event) => {
           if (
             event.target instanceof Element &&
@@ -513,10 +563,26 @@ export function Editor({
 
           return false;
         },
-        // Closing on a delay is what makes the panel reachable: the pointer has
-        // to cross a strip of editor to get to it, and closing on the way out
-        // of the link would take it away mid-journey.
-        mouseout: () => {
+        mousedown: () => {
+          dismissHover();
+
+          return false;
+        },
+        mouseout: (_view, event) => {
+          const target =
+            event.target instanceof Element
+              ? event.target.closest("a[href], [data-wikilink]")
+              : null;
+
+          if (
+            target === null ||
+            (event.relatedTarget instanceof Node &&
+              target.contains(event.relatedTarget))
+          ) {
+            return false;
+          }
+
+          openHover.cancel();
           closeHover.maybeExecute();
 
           return false;
@@ -527,30 +593,20 @@ export function Editor({
               ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
               : null;
 
-          if (target === null) {
+          if (
+            target === null ||
+            event.buttons !== 0 ||
+            (event.relatedTarget instanceof Node &&
+              target.contains(event.relatedTarget))
+          ) {
             return false;
           }
-
-          const pos = view.posAtDOM(target, 0);
-          const state = hoverStateFor(
-            target,
-            hrefAt(view.state, pos),
-            config.resolveWikilink
-          );
-
-          if (state === null) {
-            return false;
-          }
-
-          const rect = target.getBoundingClientRect();
 
           closeHover.cancel();
-          setLinkHover({
-            ...state,
-            left: rect.left,
-            pos,
-            top: rect.bottom + 6,
-          });
+          setLinkHover((previous) =>
+            previous?.pos === view.posAtDOM(target, 0) ? previous : null
+          );
+          openHover.maybeExecute(target);
 
           return false;
         },
@@ -736,6 +792,7 @@ export function Editor({
       });
     },
     onDestroy: () => {
+      dismissHover();
       config.onSelect?.(undefined);
     },
     onSelectionUpdate: ({ editor: instance }) => {
@@ -948,7 +1005,7 @@ export function Editor({
       editor.commands.setNodeSelection(pos);
     }
 
-    setLinkHover(null);
+    dismissHover();
     setLinkEditor((previous) => ({
       id: (previous?.id ?? 0) + 1,
       kind: title === null ? "link" : "wikilink",

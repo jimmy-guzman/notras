@@ -1,3 +1,4 @@
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import {
   act,
   cleanup,
@@ -15,6 +16,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { SENTINEL } from "@/components/editor/sentinel";
+import { Toaster } from "@/components/ui/toast";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
@@ -59,6 +61,154 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   return { editor: surface.editor, handle, scroller };
 };
 
+/** Deliver the pointer target and resolved position that ProseMirror supplies without relying on happy-dom layout. */
+function clickAt(
+  editor: TiptapEditor,
+  target: Element,
+  pos: number,
+  nodePos: number
+) {
+  const node = editor.state.doc.nodeAt(nodePos);
+  if (node === null) {
+    throw new Error("the clicked node does not exist");
+  }
+
+  const event = new MouseEvent("mouseup", { bubbles: true });
+  fireEvent(target, event);
+
+  return Boolean(
+    editor.view.someProp("handleClickOn", (handler) =>
+      handler(editor.view, pos, node, nodePos, event, true)
+    )
+  );
+}
+
+describe("link clicks", () => {
+  it.each(["[note](other.md)", "[note](other.md) following text"])(
+    "should leave caret placement to the editor when clicking after a link in %s",
+    async (initialContent) => {
+      const onNoteLinkClick = vi.fn<(href: string) => void>();
+      const { editor } = await mount({ initialContent, onNoteLinkClick });
+      const paragraph = screen.getByRole("paragraph");
+
+      expect(clickAt(editor, paragraph, 5, 0)).toBeFalsy();
+      expect(onNoteLinkClick).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([1, 3, 5])(
+    "should open a directly clicked link at text position %s",
+    async (pos) => {
+      const onNoteLinkClick = vi.fn<(href: string) => void>();
+      const { editor } = await mount({
+        initialContent: "[note](other.md)",
+        onNoteLinkClick,
+      });
+
+      expect(clickAt(editor, screen.getByRole("link"), pos, 1)).toBeTruthy();
+      expect(onNoteLinkClick).toHaveBeenCalledExactlyOnceWith("other.md");
+    }
+  );
+
+  it("should open a link when clicking its formatted text", async () => {
+    const onNoteLinkClick = vi.fn<(href: string) => void>();
+    const { editor } = await mount({
+      initialContent: "[**note**](other.md)",
+      onNoteLinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("note"), 3, 1)).toBeTruthy();
+    expect(onNoteLinkClick).toHaveBeenCalledExactlyOnceWith("other.md");
+  });
+
+  it("should open the clicked destination where two links meet", async () => {
+    const onNoteLinkClick = vi.fn<(href: string) => void>();
+    const { editor } = await mount({
+      initialContent: "[first](first.md)[second](second.md)",
+      onNoteLinkClick,
+    });
+
+    expect(
+      clickAt(editor, screen.getByRole("link", { name: "second" }), 6, 6)
+    ).toBeTruthy();
+    expect(onNoteLinkClick).toHaveBeenCalledExactlyOnceWith("second.md");
+  });
+
+  it("should open a clicked wikilink pill", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+    const { editor } = await mount({
+      initialContent: "[[other]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("other"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
+  });
+
+  it("should leave caret placement to the editor beside a wikilink pill", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+    const { editor } = await mount({
+      initialContent: "[[other]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByRole("paragraph"), 2, 1)).toBeFalsy();
+    expect(onWikilinkClick).not.toHaveBeenCalled();
+  });
+
+  it("should open a directly clicked relative file link", async () => {
+    const onFileLinkClick = vi.fn<(href: string) => void>();
+    const { editor } = await mount({
+      initialContent: "[report](attachments/report.pdf)",
+      onFileLinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByRole("link"), 3, 1)).toBeTruthy();
+    expect(onFileLinkClick).toHaveBeenCalledExactlyOnceWith(
+      "attachments/report.pdf"
+    );
+  });
+
+  it("should open an external URL through the native opener and prevent browser navigation", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+    const { editor } = await mount({
+      initialContent: "[site](https://example.com)",
+    });
+    const anchor = screen.getByRole("link");
+
+    expect(clickAt(editor, anchor, 3, 1)).toBeTruthy();
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("plugin:opener|open_url", {
+      openWith: undefined,
+      url: "https://example.com",
+    });
+    expect(fireEvent.click(anchor)).toBeFalsy();
+  });
+
+  it("should refuse an unsafe link and prevent browser navigation", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+    render(<Toaster />);
+    const { editor } = await mount({
+      initialContent: "[refused](vscode://file/tmp)",
+    });
+    const anchor = screen.getByText("refused");
+
+    act(() => {
+      expect(clickAt(editor, anchor, 4, 1)).toBeTruthy();
+    });
+
+    expect(anchor).toHaveAttribute("href", "");
+    expect(
+      await screen.findByText("that link uses a scheme notras will not open")
+    ).toBeVisible();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(fireEvent.click(anchor)).toBeFalsy();
+  });
+});
+
 describe("focus through the handle", () => {
   it("should keep the viewport where it was when focus reveals the caret", async () => {
     const { editor, handle, scroller } = await mount({ focusOnMount: false });
@@ -87,6 +237,301 @@ describe("focus through the handle", () => {
 
     expect(document.activeElement).toBe(editor.view.dom);
     expect(viewport.scrollTop).toBe(120);
+  });
+});
+
+describe("link hover", () => {
+  it.each(["[note](other.md)", "[[note]]"])(
+    "should wait 300 ms before showing the edit preview for %s",
+    async (initialContent) => {
+      await mount({ initialContent, resolveWikilink: () => "other.md" });
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByText("note"));
+      expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(299);
+      });
+      expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(screen.getByRole("button", { name: "edit link" })).toBeVisible();
+      expect(screen.getByText("other.md")).toBeVisible();
+    }
+  );
+
+  it("should cancel a pending preview when the pointer leaves", async () => {
+    await mount({ initialContent: "[note](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const anchor = screen.getByRole("link");
+
+    fireEvent.mouseOver(anchor);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    fireEvent.mouseOut(anchor);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+  });
+
+  it.each([100, 300])(
+    "should dismiss the preview on a press after %s ms and still open the link",
+    async (elapsed) => {
+      const onNoteLinkClick = vi.fn<(href: string) => void>();
+      const { editor } = await mount({
+        initialContent: "[note](other.md)",
+        onNoteLinkClick,
+      });
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const anchor = screen.getByRole("link");
+
+      fireEvent.mouseOver(anchor);
+      act(() => {
+        vi.advanceTimersByTime(elapsed);
+      });
+      fireEvent.mouseDown(anchor);
+      expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+      act(() => {
+        clickAt(editor, anchor, 3, 1);
+      });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+      expect(onNoteLinkClick).toHaveBeenCalledExactlyOnceWith("other.md");
+    }
+  );
+
+  it("should start a fresh delay and clear the old preview when entering another link", async () => {
+    await mount({ initialContent: "[first](first.md)[second](second.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const first = screen.getByRole("link", { name: "first" });
+    const second = screen.getByRole("link", { name: "second" });
+
+    fireEvent.mouseOver(first);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(screen.getByText("first.md")).toBeVisible();
+    fireEvent.mouseOut(first, { relatedTarget: second });
+    fireEvent.mouseOver(second, { relatedTarget: first });
+    expect(screen.queryByText("first.md")).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(screen.getByText("second.md")).toBeVisible();
+  });
+
+  it("should keep the original deadline when moving between formatted parts of a link", async () => {
+    await mount({ initialContent: "[**bold** *italic*](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const bold = screen.getByText("bold");
+    const italic = screen.getByText("italic");
+
+    fireEvent.mouseOver(bold);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    fireEvent.mouseOut(bold, { relatedTarget: italic });
+    fireEvent.mouseOver(italic, { relatedTarget: bold });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(screen.getByRole("button", { name: "edit link" })).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(screen.getByRole("button", { name: "edit link" })).toBeVisible();
+  });
+
+  it("should keep the preview reachable across the gap and open its link editor", async () => {
+    await mount({ initialContent: "[note](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const anchor = screen.getByRole("link");
+
+    fireEvent.mouseOver(anchor);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    const edit = screen.getByRole("button", { name: "edit link" });
+    fireEvent.mouseOut(anchor);
+    act(() => {
+      vi.advanceTimersByTime(149);
+    });
+    expect(edit).toBeVisible();
+    fireEvent.mouseOver(edit);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(edit).toBeVisible();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(edit);
+
+    expect(screen.getByRole("textbox", { name: "link text" })).toHaveValue(
+      "note"
+    );
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+  });
+
+  it("should close the preview 150 ms after leaving it", async () => {
+    await mount({ initialContent: "[note](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const anchor = screen.getByRole("link");
+
+    fireEvent.mouseOver(anchor);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    fireEvent.mouseOut(anchor);
+    act(() => {
+      vi.advanceTimersByTime(149);
+    });
+    expect(screen.getByRole("button", { name: "edit link" })).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+  });
+
+  it.each(["hidden", "inert"])(
+    "should discard a pending preview when its surface becomes %s",
+    async (attribute) => {
+      const { scroller } = await mount({ initialContent: "[note](other.md)" });
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByRole("link"));
+      scroller.setAttribute(attribute, "");
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      scroller.removeAttribute(attribute);
+
+      expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+    }
+  );
+
+  it("should discard a pending preview when its link is removed", async () => {
+    const { handle } = await mount({ initialContent: "[note](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    fireEvent.mouseOver(screen.getByRole("link"));
+    act(() => {
+      handle.replaceContent("plain text");
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+  });
+
+  it("should discard a pending preview when the editor is destroyed", async () => {
+    const { editor } = await mount({ initialContent: "[note](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    fireEvent.mouseOver(screen.getByRole("link"));
+    act(() => {
+      editor.destroy();
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+  });
+
+  it("should cancel a pending preview when following a link by keyboard", async () => {
+    const onNoteLinkClick = vi.fn<(href: string) => void>();
+    const { editor } = await mount({
+      initialContent: "[note](other.md)",
+      onNoteLinkClick,
+    });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    act(() => {
+      editor.commands.setTextSelection(3);
+    });
+
+    fireEvent.mouseOver(screen.getByRole("link"));
+    act(() => {
+      vi.advanceTimersByTime(100);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onNoteLinkClick).toHaveBeenCalledExactlyOnceWith("other.md");
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
+  });
+
+  it("should not revive a pending preview after opening and closing the link editor", async () => {
+    const { editor } = await mount({ initialContent: "[note](other.md)" });
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    act(() => {
+      editor.commands.setTextSelection(3);
+    });
+
+    fireEvent.mouseOver(screen.getByRole("link"));
+    act(() => {
+      vi.advanceTimersByTime(100);
+      editor.commands.keyboardShortcut("Mod-Shift-k");
+    });
+    const text = screen.getByRole("textbox", { name: "link text" });
+    expect(text).toHaveValue("note");
+    fireEvent.keyDown(text, { key: "Escape" });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.queryByRole("button", { name: "edit link" })).toBeNull();
   });
 });
 
