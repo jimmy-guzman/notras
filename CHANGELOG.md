@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.0](https://github.com/jimmy-guzman/notras/compare/v0.7.0...v0.8.0) (2026-09-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **palette:** 💥 Recent notes and startup now prefer last choice over last save.
+
+### Features
+
+* **palette:** ✨ remember recent notes and commands ([#255](https://github.com/jimmy-guzman/notras/issues/255)) ([1e7c29b](https://github.com/jimmy-guzman/notras/commit/1e7c29baaf376eaab6fe6077c2d30265cc81bd05))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 tighten link clicks & delay previews ([#256](https://github.com/jimmy-guzman/notras/issues/256)) ([d2398b9](https://github.com/jimmy-guzman/notras/commit/d2398b983de40e835be88157e19f038b00081f6a))
+
 ## [0.7.0](https://github.com/jimmy-guzman/notras/compare/v0.6.1...v0.7.0) (2026-09-20)
 
 
