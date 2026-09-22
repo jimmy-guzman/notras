@@ -8,7 +8,14 @@ import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
-import { registerTabSnapshot } from "@/lib/tabs/store";
+import { readRecentNotes } from "@/lib/recent-notes";
+import {
+  closeTab,
+  getTabState,
+  registerLoadedNote,
+  registerTabSnapshot,
+  restoreTabs,
+} from "@/lib/tabs/store";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 
@@ -44,6 +51,51 @@ describe("tab strip", () => {
     await screen.findAllByRole("tab");
     return container;
   }
+
+  it.each([false, true])(
+    "should count a tab click but leave history alone during a drag: %s",
+    async (drag) => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+      localStorage.removeItem("recent-notes:/notes");
+      const first = "a";
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "b",
+          carets: {},
+          tabs: [
+            { id: first, kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      registerLoadedNote(first, "/notes");
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+        localStorage.removeItem("recent-notes:/notes");
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+      const target = screen.getByRole("tab", { name: "a" });
+      await user.pointer({
+        coords: { x: 0, y: 0 },
+        keys: "[MouseLeft>]",
+        target,
+      });
+      expect(getTabState().activeId).toBe(first);
+      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      if (drag) {
+        await user.pointer({ coords: { x: 10, y: 0 }, target });
+      }
+      await user.pointer({ keys: "[/MouseLeft]", target });
+      expect(readRecentNotes("/notes")).toStrictEqual(drag ? [] : ["a.md"]);
+    }
+  );
 
   describe("tab labels", () => {
     it.each([String.raw`C:\notes\draft.md`, "/notes/draft.md"])(

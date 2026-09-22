@@ -3,6 +3,7 @@ import type { ReadonlyStore } from "@tanstack/react-store";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import type { FrontmatterEdit } from "@/core/frontmatter";
+import { rememberNote } from "@/lib/recent-notes";
 import type { PendingOpen } from "@/server/adapters/bindings";
 
 import type { ClosedTab, Tab, TabState } from "./tab";
@@ -62,6 +63,8 @@ const snapshots = createStore<Record<string, ReadonlyStore<TabSnapshot>>>({});
 const emptySnapshot = createStore<TabSnapshot | undefined>(undefined);
 
 let closed: ClosedTab[] = [];
+let chosenTab: string | undefined;
+const loadedNotes = new Map<string, string>();
 /** Carets read back at launch, each consumed once by the session that mounts. */
 const restored = new Map<string, number>();
 
@@ -108,10 +111,19 @@ function setState(next: TabState) {
     return;
   }
 
+  if (next.activeId !== chosenTab) {
+    chosenTab = undefined;
+  }
   // A tab that left takes both with it. Doing this here rather than at each
   // call site is what covers `openTab` replacing the active tab, where a
   // survivor would let the bars read a destroyed session.
   const open = new Set(next.tabs.map((tab) => tab.id));
+
+  for (const id of loadedNotes.keys()) {
+    if (!open.has(id)) {
+      loadedNotes.delete(id);
+    }
+  }
 
   for (const id of handles.keys()) {
     if (!open.has(id)) {
@@ -264,8 +276,45 @@ function newTab(kind: Tab["kind"], path: string): Tab {
   return { id: crypto.randomUUID(), kind, path };
 }
 
+function rememberChosenTab() {
+  const tab = getTabState().tabs.find((entry) => entry.id === chosenTab);
+  const notesDir = tab === undefined ? undefined : loadedNotes.get(tab.id);
+  if (tab?.kind === "note" && notesDir !== undefined) {
+    chosenTab = undefined;
+    rememberNote(notesDir, tab.path);
+  }
+}
+
+/** Complete a deliberate opening only after its document and stored review loaded. */
+export function registerLoadedNote(id: string, notesDir: string): () => void {
+  loadedNotes.set(id, notesDir);
+  rememberChosenTab();
+  return () => {
+    loadedNotes.delete(id);
+  };
+}
+
+/** A failed read cannot turn a later automatic refresh into a visit. */
+export function cancelNoteVisit(id: string): void {
+  loadedNotes.delete(id);
+  if (chosenTab === id) {
+    chosenTab = undefined;
+  }
+}
+
+function chooseActiveTab() {
+  chosenTab = getTabState().activeId;
+  rememberChosenTab();
+}
+
+/** Open the launch fallback without recording a choice. */
+export function openInitialNote(path: string): void {
+  setState(openInList(getTabState(), newTab("note", path)));
+}
+
 export function openTab(kind: Tab["kind"], path: string, inNewTab = false) {
   setState(openInList(getTabState(), newTab(kind, path), inNewTab));
+  chooseActiveTab();
 }
 
 export function openNote(path: string, inNewTab = false) {
@@ -309,6 +358,7 @@ export function reopenTab() {
 
   closed = rest;
   setState(openTabAt(getTabState(), entry.tab, entry.index));
+  chooseActiveTab();
 }
 
 /** Close every tab but `id`, which becomes active. */
@@ -358,13 +408,24 @@ export function moveTab(id: string, index: number) {
   setState(moveTabTo(getTabState(), id, index));
 }
 
-export function activateTab(id: string) {
+/** Show a tab without recording a visit. */
+export function showTab(id: string): void {
   setState({ activeId: id, tabs: getTabState().tabs });
 }
 
+export function activateTab(id: string) {
+  showTab(id);
+  chooseActiveTab();
+}
+
 /** Follow a tab whose save gave it a new path: a rename, a move, or a draft's first file. */
-export function renameTab(id: string, to: string) {
+export function renameTab(id: string, to: string, notesDir: string) {
+  const previous = getTabState().tabs.find((tab) => tab.id === id);
   setState(replaceNotePath(getTabState(), id, to));
+  if (previous?.kind === "draft" && getTabState().activeId === id) {
+    chosenTab = undefined;
+    rememberNote(notesDir, to);
+  }
 }
 
 /** Edit metadata through the note that owns the live document. */

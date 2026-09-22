@@ -65,7 +65,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-error-boundary": "6.1.5",
-    "shiki": "4.4.3"
+    "shiki": "4.4.3",
+    "valibot": "1.5.0"
   },
   "devDependencies": {
     "@shadcn/lint": "0.1.1",

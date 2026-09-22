@@ -25,6 +25,8 @@ import {
 import type { SearchFilter } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
+import { recentNotes } from "@/lib/recent-notes";
+import { useTabState } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 
 const VISIBLE_TAGS = 3;
@@ -159,35 +161,71 @@ function useDisplayedNotes(
   currentNotes: NoteMeta[],
   idle: boolean,
   pending: boolean,
-  query: string
+  query: string,
+  notesDir: string
 ) {
-  const readyNotes = idle ? currentNotes.slice(0, 20) : currentNotes;
+  const { activeId, tabs } = useTabState();
+  const showing = tabs.find(
+    (tab) => tab.id === activeId && tab.kind === "note"
+  )?.path;
+
+  const readyNotes = idle
+    ? recentNotes(notesDir, currentNotes)
+        .filter((note) => note.path !== showing)
+        .slice(0, 20)
+    : currentNotes;
   const [displayed, setDisplayed] = useState({
     from: currentNotes,
     idle,
     notes: readyNotes,
     query,
+    ready: !pending,
+    showing,
   });
+  if (pending && displayed.idle !== idle) {
+    setDisplayed({ ...displayed, idle, ready: false });
+  }
   if (
     !pending &&
     (displayed.from !== currentNotes ||
       displayed.idle !== idle ||
-      displayed.query !== query)
+      displayed.query !== query ||
+      displayed.showing !== showing ||
+      !displayed.ready)
   ) {
-    setDisplayed({ from: currentNotes, idle, notes: readyNotes, query });
+    const notes =
+      idle && displayed.idle && displayed.ready && displayed.from !== NO_NOTES
+        ? displayed.notes.flatMap((previous) =>
+            currentNotes.filter(
+              (note) => note.path === previous.path && note.path !== showing
+            )
+          )
+        : readyNotes;
+    setDisplayed({
+      from: currentNotes,
+      idle,
+      notes,
+      query,
+      ready: true,
+      showing,
+    });
   }
   return {
-    resultQuery: pending ? displayed.query : query,
-    visible: pending ? displayed.notes : readyNotes,
+    resultQuery: displayed.query,
+    visible: displayed.notes,
   };
 }
 
-function useSearchResults(query: string, showPicker: boolean) {
+function useSearchResults(
+  query: string,
+  showPicker: boolean,
+  notesDir: string
+) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
   const idle = query.trim() === "";
   const recent = useQuery({
-    ...noteQueries.list({ limit: 20 }),
+    ...noteQueries.list(),
     enabled: idle,
   });
   const searched = useQuery({
@@ -205,7 +243,8 @@ function useSearchResults(query: string, showPicker: boolean) {
     currentNotes,
     idle,
     pending,
-    query
+    query,
+    notesDir
   );
   const reading = showingResults && !waitingForDebounce && result.isFetching;
   const indexStatus = useQuery(indexStatusQuery);
@@ -350,6 +389,7 @@ function NoteResults({
 
 interface PaletteSearchProps {
   cursor?: number;
+  notesDir: string;
   onCreate: () => void;
   onLoadingChange?: (loading: boolean) => void;
   onQueryChange: (query: string) => void;
@@ -360,6 +400,7 @@ interface PaletteSearchProps {
 
 export function PaletteSearch({
   cursor,
+  notesDir,
   onCreate,
   onLoadingChange,
   onQueryChange,
@@ -372,7 +413,7 @@ export function PaletteSearch({
     useFilterChoices(candidate);
   const showPicker = picker !== undefined;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
-  const results = useSearchResults(query, choosingFilter);
+  const results = useSearchResults(query, choosingFilter, notesDir);
   const { indexing, pending, readingQuery, resultQuery } = results;
   useLayoutEffect(() => {
     // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect -- the parent resets its list's scroll position and sets no state

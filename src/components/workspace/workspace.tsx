@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { SearchIcon } from "lucide-react";
@@ -16,8 +16,9 @@ import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { indexStatusQuery } from "@/data/index-status";
-import { noteQueries } from "@/data/queries";
+import { noteQueries, notesDirQuery } from "@/data/queries";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
+import { lastChosenNote } from "@/lib/recent-notes";
 import {
   activateTab,
   changeNoteMetadata,
@@ -28,7 +29,7 @@ import {
   hasTabSnapshot,
   moveTab,
   openDraft,
-  openNote,
+  openInitialNote,
   reopenTab,
   useTabSnapshot,
   useTabState,
@@ -101,20 +102,21 @@ function Welcome({
 }
 
 function RecentNote({ initialTabs }: { initialTabs: TabState }) {
+  const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const latest = useQuery({
-    ...noteQueries.list({ limit: 1, sort: "updated" }),
+    ...noteQueries.list(),
     staleTime: Number.POSITIVE_INFINITY,
   });
   const opened = useRef(false);
   useEffect(() => {
     if (latest.isSuccess && !opened.current) {
       opened.current = true;
-      const [note] = latest.data;
+      const note = lastChosenNote(notesDir, latest.data);
       if (note !== undefined && getTabState() === initialTabs) {
-        openNote(note.path);
+        openInitialNote(note.path);
       }
     }
-  }, [initialTabs, latest.data, latest.isSuccess]);
+  }, [initialTabs, latest.data, latest.isSuccess, notesDir]);
   const indexStatus = useQuery(indexStatusQuery);
   const retry = async () => {
     await latest.refetch();

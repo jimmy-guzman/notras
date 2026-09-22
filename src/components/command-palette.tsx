@@ -50,6 +50,7 @@ import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { reindexAll } from "@/data/reindex";
 import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
+import { forgetNote } from "@/lib/recent-notes";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   changeNoteMetadata,
@@ -267,6 +268,7 @@ export function CommandPalette({
 
     void runAction("could not delete note", async () => {
       await deleteNote(currentNote.path);
+      forgetNote(notesDir, currentNote.path);
       closeNoteTab(currentNote.path);
       toast.add({ title: "note deleted", type: "success" });
     });
@@ -726,6 +728,7 @@ export function CommandPalette({
           {view === "find" ? (
             <PaletteSearch
               cursor={cursor}
+              notesDir={notesDir}
               onCreate={createFromQuery}
               onLoadingChange={setSearchLoading}
               onQueryChange={applySuggestion}
@@ -743,6 +746,7 @@ export function CommandPalette({
                   (matchesQuery(action.text) || matchesQuery(action.label))
               )}
               chordsByName={chordsByName}
+              query={query}
             />
           ) : null}
         </CommandList>

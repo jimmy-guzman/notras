@@ -298,6 +298,9 @@ importers:
       shiki:
         specifier: 4.4.3
         version: 4.4.3
+      valibot:
+        specifier: 1.5.0
+        version: 1.5.0(typescript@7.0.2)
     devDependencies:
       '@shadcn/lint':
         specifier: 0.1.1
@@ -4340,6 +4343,14 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
+  valibot@1.5.0:
+    resolution: {integrity: sha512-nil6AkP2TChWL43Z5uJ6GTxX01CUA+g8LWUM+N/rB9NBbkUMaUsi9PUNzlUPgoKASgmx9f7eGOYpJ04/fSa6FQ==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   validate-npm-package-name@7.0.2:
     resolution: {integrity: sha512-hVDIBwsRruT73PbK7uP5ebUt+ezEtCmzZz3F59BSr2F6OVFnJ/6h8liuvdLrQ88Xmnk6/+xGGuq+pG9WwTuy3A==}
     engines: {node: ^20.17.0 || >=22.9.0}
@@ -8070,6 +8081,10 @@ snapshots:
       react: 19.3.0
 
   util-deprecate@1.0.2: {}
+
+  valibot@1.5.0(typescript@7.0.2):
+    optionalDependencies:
+      typescript: 7.0.2
 
   validate-npm-package-name@7.0.2: {}
 

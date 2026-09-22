@@ -20,6 +20,7 @@ import { Toaster } from "@/components/ui/toast";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
+import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import {
   activateTab,
   closeTab,
@@ -186,6 +187,7 @@ describe(NoteSession, () => {
   let reads = 0;
   beforeEach(() => {
     reads = 0;
+    localStorage.removeItem("recent-notes:/notes");
     const denied = vi.fn<() => Promise<never>>().mockRejectedValue({
       kind: "failed",
       message: "Permission denied",
@@ -206,6 +208,172 @@ describe(NoteSession, () => {
     }
     clearMocks();
   });
+
+  it.each(["move", "retitle"] as const)(
+    "should carry history when a %s finishes after its tab closes",
+    async (kind) => {
+      const started = Promise.withResolvers<null>();
+      const held = Promise.withResolvers<unknown>();
+      mockIPC(async (command) => {
+        if (command === "save_note" && kind === "move") {
+          return {
+            kind: "committed",
+            receipt: {
+              path: "original.md",
+              revision: "r1",
+              updatedAt: 1,
+              warnings: [],
+            },
+          };
+        }
+        if (command === "move_note" || command === "save_note") {
+          started.resolve(null);
+          return await held.promise;
+        }
+        if (command === "read_note") {
+          return { content: "# Original", revision: "r0", updatedAt: 0 };
+        }
+        if (command === "read_conflict" || command === "clear_conflict") {
+          return null;
+        }
+        if (command === "list_notes") {
+          return [];
+        }
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      client.setQueryData(notesDirQuery.queryKey, "/notes");
+      onTestFinished(() => {
+        client.clear();
+      });
+      openNote("original.md");
+      const id = getTabState().activeId;
+      render(
+        <QueryClientProvider client={client}>
+          <LiveSession id={id} />
+        </QueryClientProvider>
+      );
+      await editor(id);
+      expect(readRecentNotes("/notes")).toStrictEqual(["original.md"]);
+      rememberNote("/notes", "other.md");
+      const { changePath } = sessionHandles(id);
+      if (changePath === undefined) {
+        throw new Error("the loaded note has no path operation");
+      }
+      await act(async () => {
+        const changed = changePath(
+          kind === "move"
+            ? { folder: "folder", kind }
+            : { kind, title: "Renamed" }
+        );
+        await started.promise;
+        closeTab(id);
+        held.resolve(
+          kind === "move"
+            ? {
+                file: { content: "# Original", revision: "r1", updatedAt: 1 },
+                path: "folder/original.md",
+                remainingSource: null,
+                warnings: [],
+              }
+            : {
+                kind: "committed",
+                receipt: {
+                  path: "renamed.md",
+                  revision: "r1",
+                  updatedAt: 1,
+                  warnings: [],
+                },
+              }
+        );
+        await changed;
+      });
+      expect(getTabState().tabs.some((entry) => entry.id === id)).toBeFalsy();
+      expect(readRecentNotes("/notes")).toStrictEqual([
+        "other.md",
+        kind === "move" ? "folder/original.md" : "renamed.md",
+      ]);
+    }
+  );
+
+  it.each(["retry", "refresh"])(
+    "should count a successful retry but not automatic recovery after a failed opening: %s",
+    async (recovery) => {
+      let readable = false;
+      mockIPC((command) => {
+        if (command === "read_note") {
+          if (!readable) {
+            throw Object.assign(new Error("Permission denied"), {
+              kind: "failed",
+            });
+          }
+          return {
+            content: "# Read\n\nAvailable",
+            revision: "r1",
+            updatedAt: 1,
+          };
+        }
+        if (command === "read_conflict") {
+          return null;
+        }
+        if (command === "list_notes") {
+          return [];
+        }
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      client.setQueryData(notesDirQuery.queryKey, "/notes");
+      onTestFinished(() => {
+        client.clear();
+      });
+      openNote("read.md");
+      const id = getTabState().activeId;
+      render(
+        <QueryClientProvider client={client}>
+          <LiveSession id={id} />
+        </QueryClientProvider>
+      );
+      await screen.findByText("could not read this note");
+      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      readable = true;
+      await act(async () => {
+        await (recovery === "retry"
+          ? userEvent
+              .setup()
+              .click(screen.getByRole("button", { name: "try again" }))
+          : client.invalidateQueries({
+              queryKey: noteQueries.fileKey("note", "read.md"),
+            }));
+      });
+      await editor(id);
+      expect(readRecentNotes("/notes")).toStrictEqual(
+        recovery === "retry" ? ["read.md"] : []
+      );
+      rememberNote("/notes", "other.md");
+      await act(async () => {
+        await client.invalidateQueries({
+          queryKey: noteQueries.fileKey("note", "read.md"),
+        });
+      });
+      expect(readRecentNotes("/notes")).toStrictEqual(
+        recovery === "retry" ? ["other.md", "read.md"] : ["other.md"]
+      );
+    }
+  );
 
   it("should edit and retain history while the note list is pending", async () => {
     const listed = Promise.withResolvers<[]>();
@@ -2082,6 +2250,7 @@ describe(NoteSession, () => {
         return refuse(command);
       });
       const surface = await editor(id);
+      expect(readRecentNotes("/notes")).toStrictEqual([]);
 
       act(() => {
         surface.commands.insertContent("# Hello");
@@ -2090,6 +2259,8 @@ describe(NoteSession, () => {
         await flushPendingWrites();
       });
 
+      expect(readRecentNotes("/notes")).toStrictEqual(["hello.md"]);
+      rememberNote("/notes", "other.md");
       expect(creates).toStrictEqual([
         { options: { content: "# Hello", folder: null, name: null } },
       ]);
@@ -2113,6 +2284,7 @@ describe(NoteSession, () => {
       expect(creates).toHaveLength(1);
       expect(saves).toHaveLength(1);
       expect(saves[0]).toMatchObject({ path: "hello.md" });
+      expect(readRecentNotes("/notes")).toStrictEqual(["other.md", "hello.md"]);
     });
 
     it("should land typing during the create in the created file on the next save", async () => {
