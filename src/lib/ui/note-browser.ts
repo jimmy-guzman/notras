@@ -3,9 +3,20 @@ import { createStore, useSelector } from "@tanstack/react-store";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-const browser = createStore(
-  localStorage.getItem("note-browser-open") === "true"
-);
+function readNoteBrowserVisibility() {
+  try {
+    return localStorage.getItem("note-browser-open") === "true";
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not restore note browser",
+      type: "error",
+    });
+    return false;
+  }
+}
+
+const browser = createStore(readNoteBrowserVisibility());
 
 browser.subscribe((open) => {
   try {

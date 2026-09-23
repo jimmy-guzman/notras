@@ -444,7 +444,7 @@ export function Workspace({
         try {
           await logError(`could not remove a listener: ${String(error)}`);
         } catch {
-          // Best effort.
+          // A logging failure must not reject the cleanup promise.
         }
       }
     };

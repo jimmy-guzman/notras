@@ -38,7 +38,6 @@ import { parseTabs, serializeTabs } from "./tab";
 
 const STORAGE_KEY = "tabs";
 
-/** A legacy store without ids, with keys in the form `kind:path`. */
 function writeLegacyStore() {
   localStorage.setItem(
     STORAGE_KEY,

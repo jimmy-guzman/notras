@@ -78,9 +78,9 @@ Index reconciliation propagates SQLite read and decoding failures. Only a missin
 
 ## Note browser
 
-`Workspace` places `NoteBrowser` and the editor in one clipped inset frame. The shadcn sidebar primitives own the browser surface and controls; `react-resizable-panels` owns the docked split and its keyboard-accessible divider. Both panels stay mounted across visibility changes and window resizing. Collection, query and scroll state survive note changes and visibility toggles. `lib/ui/note-browser.ts` persists visibility and the user-selected pixel width across launches. Window resizing clamps the visible width without overwriting the saved preference; widening restores that preference. Only user divider changes save a new width. Note sessions defer autofocus while the browser owns focus and reclaim it when the browser closes. The collection picker captures visit history when it opens and when a collection is chosen, so opening a note does not reorder the visible recent rows.
+`Workspace` keeps the browser and editor mounted. Sidebar primitives own the browser controls; `react-resizable-panels` owns the split. `lib/ui/note-browser.ts` persists visibility and the user-selected pixel width separately from the width constrained by the window. The collection picker snapshots visit history when opened or a collection is chosen, preventing note visits from reordering visible rows.
 
-The browser reads the existing indexed list query with optional previews and no result cap. Collection filtering happens over those complete results. The opt-in `includePreview` filter reuses the snippet field for the next readable body line when no search context exists. Preview reads use `note_fts.content` from the same SQLite snapshot as metadata and never reopen note files. Existing list callers retain their previous snippet behavior.
+The browser filters collections over the uncapped indexed list. `includePreview` fills the snippet only when search context is absent. Previews read `note_fts.content` in the same SQLite snapshot as metadata, without reopening files. Callers that omit the flag retain their existing snippet behavior.
 
 ## Index schema
 
