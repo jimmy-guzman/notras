@@ -148,14 +148,13 @@ export function insertSearchFilter(
 export function searchFolders(
   notes: NoteMeta[]
 ): { count: number; folder: string }[] {
-  const folders = notes.flatMap(({ folder }) => [
-    "/",
-    ...folder
-      .split("/")
-      .flatMap((_, index, parts) =>
-        folder === "" ? [] : [parts.slice(0, index + 1).join("/")]
-      ),
-  ]);
+  const folders = notes.flatMap(({ folder }) =>
+    folder === ""
+      ? []
+      : folder
+          .split("/")
+          .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
+  );
   return [...Map.groupBy(folders, (folder) => folder)]
     .map(([folder, rows]) => ({ count: rows.length, folder }))
     .toSorted((left, right) => left.folder.localeCompare(right.folder));

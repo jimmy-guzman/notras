@@ -149,7 +149,6 @@ mod tests {
         let saved = library
             .create_note(&CreateNote {
                 content: Some("# saved".into()),
-                folder: None,
                 name: Some(NoteName::Filename("saved".into())),
             })
             .unwrap();

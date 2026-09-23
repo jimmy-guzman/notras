@@ -199,12 +199,12 @@ fn collision(path: &str) -> CommandError {
         .file_stem()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
-    let folder = path
-        .parent()
-        .and_then(|folder| folder.to_str())
-        .filter(|folder| !folder.is_empty())
-        .unwrap_or("the notes root");
-    format!("A note named {name} already exists in {folder}").into()
+    match path.parent().and_then(|folder| folder.to_str()) {
+        Some(folder) if !folder.is_empty() => {
+            format!("A note named {name} already exists in {folder}").into()
+        }
+        _ => format!("A note named {name} already exists").into(),
+    }
 }
 
 /// Publish a fully written sibling, refusing a destination that already exists.
@@ -296,7 +296,6 @@ pub enum NoteName {
 #[derive(Default, Deserialize)]
 pub struct CreateNote {
     pub content: Option<String>,
-    pub folder: Option<String>,
     pub name: Option<NoteName>,
 }
 
@@ -383,14 +382,6 @@ fn suffixed_filename(base: &str, counter: usize) -> String {
         base.to_owned()
     };
     format!("{stem}{suffix}")
-}
-
-fn note_path(folder: &str, filename: &str) -> String {
-    if folder.is_empty() {
-        format!("{filename}.md")
-    } else {
-        format!("{folder}/{filename}.md")
-    }
 }
 
 fn checked_mtime(file: &File) -> Result<i64, CommandError> {
@@ -938,7 +929,6 @@ impl Library {
     }
 
     pub fn create_note(&self, options: &CreateNote) -> Result<MutationReceipt, CommandError> {
-        let folder = validate_folder(options.folder.as_deref().unwrap_or(""))?;
         let base = match &options.name {
             Some(NoteName::Filename(name)) => {
                 let filename = validate_filename(name)?;
@@ -956,8 +946,8 @@ impl Library {
                 filename_from_title(&title)
             }
         };
-        let mut path = RelativePath::parse(&note_path(&folder, &base))?;
-        let parent = ensure_folder(&self.root, &folder)?;
+        let mut path = RelativePath::parse(&format!("{base}.md"))?;
+        let parent = self.root.try_clone()?;
         let mut counter = 1;
         while match parent.symlink_metadata(path.split().1) {
             Ok(_) => true,
@@ -965,7 +955,7 @@ impl Library {
             Err(error) => return Err(error.into()),
         } {
             counter += 1;
-            path = RelativePath::parse(&note_path(&folder, &suffixed_filename(&base, counter)))?;
+            path = RelativePath::parse(&format!("{}.md", suffixed_filename(&base, counter)))?;
         }
         let target = Located {
             dir: parent,
@@ -1255,7 +1245,6 @@ mod tests {
             .create_note(&CreateNote {
                 content: Some("# Created\n\nbody".into()),
                 name: Some(NoteName::Filename("created".into())),
-                ..Default::default()
             })
             .unwrap();
 
@@ -1290,20 +1279,16 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         for (content, expected) in [
-            ("- [ ] buy **milk**", "inbox/buy-milk.md"),
-            ("buy milk\n\nsecond capture", "inbox/buy-milk-2.md"),
-            ("# buy milk", "inbox/buy-milk-3.md"),
-            (
-                "---\ntitle: Imported\n---\n```\ncode\n```",
-                "inbox/imported.md",
-            ),
-            ("![image](a.png)", "inbox/untitled.md"),
-            ("```\ncode\n```", "inbox/untitled-2.md"),
+            ("- [ ] buy **milk**", "buy-milk.md"),
+            ("buy milk\n\nsecond capture", "buy-milk-2.md"),
+            ("# buy milk", "buy-milk-3.md"),
+            ("---\ntitle: Imported\n---\n```\ncode\n```", "imported.md"),
+            ("![image](a.png)", "untitled.md"),
+            ("```\ncode\n```", "untitled-2.md"),
         ] {
             let receipt = core
                 .create_note(&CreateNote {
                     content: Some(content.into()),
-                    folder: Some("inbox".into()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -1314,7 +1299,7 @@ mod tests {
             );
         }
         assert_eq!(
-            fs::read_to_string(directory.path().join("inbox/buy-milk.md")).unwrap(),
+            fs::read_to_string(directory.path().join("buy-milk.md")).unwrap(),
             "- [ ] buy **milk**"
         );
     }
@@ -1354,7 +1339,6 @@ mod tests {
                 .create_note(&CreateNote {
                     name: Some(NoteName::Filename(name.into())),
                     content: Some("body".into()),
-                    ..Default::default()
                 })
                 .unwrap();
             assert_eq!(receipt.path, expected);
@@ -1645,12 +1629,6 @@ mod tests {
                 })
                 .is_err());
         }
-        assert!(core
-            .create_note(&CreateNote {
-                folder: Some("../outside".into()),
-                ..Default::default()
-            })
-            .is_err());
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
         let base = "a".repeat(120);
         let first = core
@@ -1779,7 +1757,6 @@ mod tests {
             .create_note(&CreateNote {
                 content: Some("# title\nbody".into()),
                 name: Some(NoteName::Filename("a".into())),
-                folder: None,
             })
             .unwrap();
         let read = core.read_note("a.md".into()).unwrap();
@@ -1899,10 +1876,7 @@ mod tests {
         )
         .unwrap_err();
 
-        assert_eq!(
-            error.message,
-            "A note named taken already exists in the notes root"
-        );
+        assert_eq!(error.message, "A note named taken already exists");
         assert_eq!(fs::read_to_string(&taken).unwrap(), "someone else's note");
     }
 
@@ -2318,19 +2292,14 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn should_reject_creating_or_moving_into_a_symlinked_folder() {
+    fn should_reject_moving_out_of_the_library_or_into_a_symlinked_folder() {
         let directory = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("note.md"), "# source").unwrap();
 
-        assert!(library
-            .create_note(&CreateNote {
-                folder: Some("linked".into()),
-                ..Default::default()
-            })
-            .is_err());
+        assert!(library.move_note("note.md".into(), "../outside").is_err());
         assert!(library.move_note("note.md".into(), "linked").is_err());
         assert_eq!(
             fs::read_to_string(directory.path().join("note.md")).unwrap(),

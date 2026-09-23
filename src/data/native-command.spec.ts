@@ -17,7 +17,6 @@ describe("native command", () => {
         expect(args).toStrictEqual({
           options: {
             content: null,
-            folder: null,
             name: { kind: "title", value: "Q3: planning" },
           },
         });

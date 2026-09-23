@@ -286,7 +286,6 @@ mod tests {
             .create_note(&CreateNote {
                 content: Some("# Recreated".into()),
                 name: Some(NoteName::Filename("gone".into())),
-                ..Default::default()
             })
             .unwrap();
         let expected = library.read_note("keep.md".into()).unwrap().revision;

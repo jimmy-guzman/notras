@@ -109,7 +109,6 @@ describe("palette search", () => {
         note("work/d.md"),
       ])
     ).toStrictEqual([
-      { count: 4, folder: "/" },
       { count: 3, folder: "work" },
       { count: 2, folder: "work/2026" },
     ]);

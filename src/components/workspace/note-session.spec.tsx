@@ -2262,7 +2262,7 @@ describe(NoteSession, () => {
       expect(readRecentNotes("/notes")).toStrictEqual(["hello.md"]);
       rememberNote("/notes", "other.md");
       expect(creates).toStrictEqual([
-        { options: { content: "# Hello", folder: null, name: null } },
+        { options: { content: "# Hello", name: null } },
       ]);
       await waitFor(() => {
         expect(

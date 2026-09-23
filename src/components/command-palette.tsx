@@ -9,6 +9,7 @@ import {
   FocusIcon,
   FolderInputIcon,
   FolderOpenIcon,
+  FolderOutputIcon,
   Link2Icon,
   ListEndIcon,
   ListXIcon,
@@ -47,6 +48,7 @@ import {
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import { noteFolder } from "@/core/notes";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { reindexAll } from "@/data/reindex";
@@ -437,6 +439,16 @@ export function CommandPalette({
       value: "move-note",
     },
     {
+      Icon: FolderOutputIcon,
+      label: "remove from folder",
+      needs: "filed",
+      onSelect: () => {
+        moveToFolder("");
+      },
+      text: "remove from folder",
+      value: "remove-from-folder",
+    },
+    {
       Icon: Trash2Icon,
       label: "delete note",
       needs: "note",
@@ -634,6 +646,7 @@ export function CommandPalette({
   const reachable = {
     editor: getTabHandles(activeId) !== undefined,
     file: activeTab !== undefined && activeTab.kind !== "draft",
+    filed: currentNote !== undefined && noteFolder(currentNote.path) !== "",
     none: true,
     note: currentNote !== undefined,
     tab: activeTab !== undefined,

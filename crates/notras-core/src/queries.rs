@@ -290,11 +290,7 @@ fn filter_matches(
     match filter {
         SearchFilter::Folder(value) => Ok(notes
             .iter()
-            .filter(|note| {
-                value == "/"
-                    || note.folder == *value
-                    || note.folder.starts_with(&format!("{value}/"))
-            })
+            .filter(|note| note.folder == *value || note.folder.starts_with(&format!("{value}/")))
             .map(|note| (note.path.clone(), None))
             .collect()),
         SearchFilter::Tag(value) => Ok(notes

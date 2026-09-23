@@ -76,10 +76,6 @@ function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
   );
 }
 
-function folderLabel(folder: string) {
-  return folder === "/" ? "notes root" : folder;
-}
-
 interface PickerChoice {
   count?: number;
   detail?: string;
@@ -109,7 +105,7 @@ function pickerChoices(
     if (filter.kind === "folder") {
       return searchFolders(notes).map(({ count, folder }) => ({
         count,
-        label: folderLabel(folder),
+        label: folder,
         value: folder,
       }));
     }

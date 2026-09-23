@@ -59,7 +59,7 @@ type Collection =
 
 function collectionLabel(collection: Collection) {
   if (collection.kind === "folder") {
-    return collection.value === "" ? "notes root" : collection.value;
+    return collection.value;
   }
   if (collection.kind === "tag") {
     return `#${collection.value}`;
@@ -88,8 +88,7 @@ function collectionNotes(
       case "folder": {
         return (
           note.folder === collection.value ||
-          (collection.value !== "" &&
-            note.folder.startsWith(`${collection.value}/`))
+          note.folder.startsWith(`${collection.value}/`)
         );
       }
       case "all": {
@@ -232,10 +231,7 @@ function Collections({
   library: UseQueryResult<NoteMeta[]>;
   onChoose: (collection: Collection) => void;
 }) {
-  const folders = searchFolders(library.data ?? []).filter(
-    ({ folder }) => folder !== "/"
-  );
-  const rootNotes = library.data?.filter((note) => note.folder === "");
+  const folders = searchFolders(library.data ?? []);
   const tags = [
     ...new Set(library.data?.flatMap((note) => note.tags)),
   ].toSorted();
@@ -284,28 +280,11 @@ function Collections({
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      {folders.length === 0 && rootNotes?.length === 0 ? null : (
+      {folders.length === 0 ? null : (
         <SidebarGroup>
           <SidebarGroupLabel>folders</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {rootNotes === undefined || rootNotes.length === 0 ? null : (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={
-                      collection.kind === "folder" && collection.value === ""
-                    }
-                    onClick={() => {
-                      onChoose({ kind: "folder", value: "" });
-                    }}
-                    onKeyDown={moveFocus}
-                  >
-                    <FolderIcon className="text-muted-foreground" />
-                    <span className="flex-1">notes root</span>
-                    <SidebarMenuBadge>{rootNotes.length}</SidebarMenuBadge>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
               {folders.map((folder) =>
                 folder.folder.includes("/") ? null : (
                   <FolderCollection
@@ -592,9 +571,7 @@ function Browser({ notesDir }: { notesDir: string }) {
                         />
                       )}
                       <span className="text-muted-foreground mt-0.5 flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate">
-                          {note.folder === "" ? "notes root" : note.folder}
-                        </span>
+                        <span className="truncate">{note.folder}</span>
                         <time
                           className="shrink-0"
                           dateTime={note.updatedAt.toISOString()}

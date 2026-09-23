@@ -3,7 +3,6 @@ import { commands } from "@/server/adapters/bindings";
 
 interface CreateNoteOptions {
   content?: string;
-  folder?: string;
   title?: string;
 }
 
@@ -12,7 +11,6 @@ export async function createNote(options?: CreateNoteOptions) {
     async () =>
       await commands.createNote({
         content: options?.content ?? null,
-        folder: options?.folder ?? null,
         name:
           options?.title === undefined
             ? null

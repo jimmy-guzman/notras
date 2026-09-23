@@ -27,15 +27,14 @@ interface FolderItemProps {
 }
 
 function FolderItem({ count, folder, onMove }: FolderItemProps) {
-  const label = folder === "/" ? "notes root" : folder;
   const move = () => {
-    onMove(folder === "/" ? "" : folder);
+    onMove(folder);
   };
 
   return (
     <CommandItem onSelect={move} value={`move-${folder}`}>
       <FolderIcon />
-      <span className="flex-1 truncate">{label}</span>
+      <span className="flex-1 truncate">{folder}</span>
       <span className={COUNT_CLASS}>{count}</span>
     </CommandItem>
   );
@@ -135,14 +134,11 @@ export function MoveView({
   const folders = searchFolders(notes.data);
   const draftFolder = query.trim();
   const matches = folders.filter(({ folder }) =>
-    (folder === "/" ? "notes root /" : folder)
-      .toLowerCase()
-      .includes(draftFolder.toLowerCase())
+    folder.toLowerCase().includes(draftFolder.toLowerCase())
   );
-  const exists =
-    folders.some(
-      ({ folder }) => folder.toLowerCase() === draftFolder.toLowerCase()
-    ) || draftFolder.toLowerCase() === "notes root";
+  const exists = folders.some(
+    ({ folder }) => folder.toLowerCase() === draftFolder.toLowerCase()
+  );
 
   return (
     <CommandGroup heading="move to">
