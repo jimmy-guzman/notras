@@ -46,7 +46,7 @@ import { isSafeUrl, normalizeUrl } from "./urls";
 const HOVER_CLOSE_MS = 150;
 const HOVER_OPEN_MS = 300;
 
-const UNSAFE_LINK_MESSAGE = "that link uses a scheme notras will not open";
+const UNSAFE_LINK_REASON = "That link uses a scheme notras will not open";
 
 /**
  * The title of the wikilink the caret sits in or beside, or "" where none is.
@@ -149,7 +149,11 @@ function followLink(
   }
 
   if (!isSafeUrl(href)) {
-    toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
+    toast.add({
+      description: UNSAFE_LINK_REASON,
+      title: "could not open link",
+      type: "error",
+    });
 
     return;
   }
@@ -645,6 +649,7 @@ export function Editor({
 
             reader.addEventListener("error", () => {
               toast.add({
+                description: reasonOf(reader.error),
                 title: "could not read the pasted image",
                 type: "error",
               });
@@ -655,6 +660,7 @@ export function Editor({
 
               if (base64 === "") {
                 toast.add({
+                  description: "The pasted image was empty",
                   title: "could not read the pasted image",
                   type: "error",
                 });
@@ -1044,7 +1050,11 @@ export function Editor({
     setLinkEditor(null);
     if (href === null) {
       if (rawUrl.trim() !== "") {
-        toast.add({ title: UNSAFE_LINK_MESSAGE, type: "error" });
+        toast.add({
+          description: UNSAFE_LINK_REASON,
+          title: "could not add link",
+          type: "error",
+        });
       }
 
       editor.commands.focus();

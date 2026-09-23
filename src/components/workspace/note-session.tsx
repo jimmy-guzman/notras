@@ -479,10 +479,11 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       const target = resolver[kind](value, live.current.path);
       if (target === undefined) {
         toast.add({
-          title:
+          description:
             kind === "title"
-              ? `no note named "${value.trim().toLowerCase()}"`
-              : `no note at ${value}`,
+              ? `No note is named "${value.trim().toLowerCase()}"`
+              : `No note is at ${value}`,
+          title: "could not follow link",
           type: "error",
         });
         return;
@@ -634,7 +635,11 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         : editorRef.current;
 
       if (target === null) {
-        toast.add({ title: "no editor to insert into", type: "error" });
+        toast.add({
+          description: "No editor is showing",
+          title: "could not insert text",
+          type: "error",
+        });
 
         return;
       }

@@ -202,8 +202,9 @@ describe("link clicks", () => {
 
     expect(anchor).toHaveAttribute("href", "");
     expect(
-      await screen.findByText("that link uses a scheme notras will not open")
+      await screen.findByText("That link uses a scheme notras will not open")
     ).toBeVisible();
+    expect(screen.getByText("could not open link")).toBeVisible();
     expect(invoke).not.toHaveBeenCalled();
     expect(fireEvent.click(anchor)).toBeFalsy();
   });

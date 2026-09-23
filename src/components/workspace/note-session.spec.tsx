@@ -1022,14 +1022,18 @@ describe(NoteSession, () => {
       );
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
     });
-    expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No note is at target.md")
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
     act(() => {
       listed.reject({ kind: "failed", message: "index unavailable" });
     });
     expect(await screen.findByText("could not open note")).toBeInTheDocument();
     expect(screen.getByText("index unavailable")).toBeInTheDocument();
-    expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No note is at target.md")
+    ).not.toBeInTheDocument();
     await expect(editor(tab.id)).resolves.toBe(liveEditor);
   });
 

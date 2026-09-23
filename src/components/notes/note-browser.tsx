@@ -13,7 +13,7 @@ import {
   SearchIcon,
   XIcon,
 } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { Highlighted } from "@/components/notes/note-label";
@@ -44,6 +44,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
@@ -409,6 +410,17 @@ function Browser({ notesDir }: { notesDir: string }) {
   const label = collectionLabel(shown);
   const notes = collectionNotes(result.data ?? [], shown, history, debounced);
 
+  // Keyed on the name, so the fallback announces itself once per folder.
+  useEffect(() => {
+    if (deleted !== undefined) {
+      toast.add({
+        description: `${deleted} is gone, so the browser shows all notes`,
+        title: "folder deleted",
+        type: "info",
+      });
+    }
+  }, [deleted]);
+
   useLayoutEffect(() => {
     if (open) {
       (picking ? scopeButton : input).current?.focus();
@@ -526,11 +538,6 @@ function Browser({ notesDir }: { notesDir: string }) {
             {result.data === undefined ? null : notes.length}
           </output>
         </SidebarGroupLabel>
-        {deleted === undefined ? null : (
-          <output className="text-muted-foreground mx-3 mb-1 block text-xs">
-            {deleted} was deleted, showing all notes
-          </output>
-        )}
         {result.isError ? (
           <div role="alert" className="p-3 text-xs">
             <p>could not load notes</p>

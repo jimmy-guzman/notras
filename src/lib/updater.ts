@@ -95,5 +95,6 @@ export function offerUpdate(update: Update) {
     },
     timeout: 0,
     title: `version ${update.version} is available`,
+    type: "info",
   });
 }

@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { nullable, object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
+import { Toaster } from "@/components/ui/toast";
 import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
 import { rememberNote } from "@/lib/recent-notes";
@@ -83,6 +84,7 @@ function mount(
   const view = render(
     <QueryClientProvider client={client}>
       <Layout />
+      <Toaster />
     </QueryClientProvider>
   );
   onTestFinished(() => {
@@ -169,8 +171,9 @@ describe("note browser", () => {
       await user.client.invalidateQueries({ queryKey: noteQueries.index });
     });
 
+    expect(await screen.findByText("folder deleted")).toBeInTheDocument();
     expect(
-      await browser.findByText("inbox was deleted, showing all notes")
+      screen.getByText("inbox is gone, so the browser shows all notes")
     ).toBeInTheDocument();
     expect(
       browser.getByRole("button", { name: "choose collection: all notes" })

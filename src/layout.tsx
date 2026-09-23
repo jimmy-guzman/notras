@@ -216,8 +216,8 @@ function MainWindow() {
       }
 
       toast.add({
-        description: "Quit cancelled",
-        title: "could not save your changes",
+        description: "Some changes could not be saved",
+        title: "could not quit",
         type: "error",
       });
 

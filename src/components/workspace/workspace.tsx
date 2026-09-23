@@ -405,7 +405,8 @@ export function Workspace({
 
       if (target === undefined) {
         toast.add({
-          title: "no editor to insert the attachment into",
+          description: "No editor is showing",
+          title: "could not attach file",
           type: "error",
         });
 

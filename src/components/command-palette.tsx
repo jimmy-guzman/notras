@@ -598,7 +598,7 @@ export function CommandPalette({
       label: "reindex library",
       needs: "none",
       onSelect: () => {
-        void runAction("could not reindex", async () => {
+        void runAction("could not reindex library", async () => {
           await reindexAll();
           toast.add({ title: "library reindexed", type: "success" });
         });
@@ -614,7 +614,10 @@ export function CommandPalette({
       onSelect: () => {
         void runAction("could not check for updates", async () => {
           if (!updatesSupported()) {
-            toast.add({ title: "update checks are off in development" });
+            toast.add({
+              title: "update checks are off in development",
+              type: "info",
+            });
 
             return;
           }

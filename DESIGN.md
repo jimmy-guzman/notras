@@ -158,6 +158,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 - **An empty state is `Empty`: a title, a description, and an action slot, at the sizes the component sets.** Find with no results reads `nothing found` over `Try different words or remove a filter`, and actions with none reads it over the chord that finds a note. A pending palette search with no previous rows keeps its results area empty until the read completes, unless the index is still scanning, when that area reads `indexing notes...` in the muted paragraph the palette's other waits use. A completed, unfiltered search with no results uses the create row in place of an empty state.
 - A pane or screen that could not load is the same `Empty`, with the failure's two parts as its title and description and the retry as an outline button in its action slot.
 - The welcome screen, shown when no tab is open, carries the mark beside one column containing the wordmark, "write another note", and the new-note and search actions. It keeps its own markup because it introduces the app rather than reporting missing content.
+- A toast's type and title wording follow `SPEC.md`'s toast claims: the type says who caused it, and an error's title is "could not" and the action.
 - Name what a control does rather than what it is. The palette entry is "move to folder", not "folder".
 
 ## Accessibility

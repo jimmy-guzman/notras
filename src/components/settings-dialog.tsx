@@ -75,7 +75,7 @@ export function SettingsDialog({
     } catch (error) {
       toast.add({
         description: reasonOf(error),
-        title: "could not change folder",
+        title: "could not update notes folder",
         type: "error",
       });
     }
