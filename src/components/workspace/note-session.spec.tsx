@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockConvertFileSrc, mockIPC } from "@tauri-apps/api/mocks";
@@ -18,7 +20,7 @@ import {
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Toaster } from "@/components/ui/toast";
 import type { ConflictStash } from "@/data/conflict-stash";
-import { noteQueries, notesDirQuery } from "@/data/queries";
+import { noteQueries, notesDirQuery, tabOpeningQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import {
@@ -29,6 +31,7 @@ import {
   moveTab,
   openDraft,
   openNote,
+  refreshTabs,
   useTabState,
 } from "@/lib/tabs/store";
 import { tabPanelId } from "@/lib/tabs/tab";
@@ -48,22 +51,80 @@ const NOOP = () => {};
 const tab = { id: "t1", kind: "note", path: "a.md" } as const;
 const UNFOLDED_CONTEXT = /# Errands\s+one\s+two/u;
 
+/** The files the fake host holds, by path, the way `read_note` and `read_external` answer them. */
+const disk = new Map<
+  string,
+  { content: string; revision: string; updatedAt: number }
+>();
+/** Every path `disk` was asked for, in order. */
+const diskReads: string[] = [];
+
+function readsPath(args: InvokeArgs | undefined): args is { path: string } {
+  return args !== undefined && "path" in args && typeof args.path === "string";
+}
+
+function movesNote(
+  args: InvokeArgs | undefined
+): args is { folder: string; path: string } {
+  return readsPath(args) && "folder" in args && typeof args.folder === "string";
+}
+
+function stashesOurs(
+  args: InvokeArgs | undefined
+): args is { stash: { ours: string } } {
+  return (
+    args !== undefined &&
+    "stash" in args &&
+    typeof args.stash === "object" &&
+    args.stash !== null &&
+    "ours" in args.stash &&
+    typeof args.stash.ours === "string"
+  );
+}
+
+/** Answer file reads from `disk`, and every other command through `respond`. */
+function withDisk(
+  respond: Parameters<typeof mockIPC>[0]
+): Parameters<typeof mockIPC>[0] {
+  const missing = vi.fn<() => Promise<never>>().mockRejectedValue({
+    kind: "not-found",
+    message: "No such file",
+  });
+  return async (command, args) => {
+    if (command !== "read_note" && command !== "read_external") {
+      return await respond(command, args);
+    }
+    if (!readsPath(args)) {
+      throw new Error(`${command} carried no path`);
+    }
+    diskReads.push(args.path);
+    return disk.get(args.path) ?? (await missing());
+  };
+}
+
+/** The session for `id` as the store holds it now, the way the workspace mounts one. */
+function LiveSession({ id }: { id: string }) {
+  const { tabs } = useTabState();
+  const live = tabs.find((entry) => entry.id === id);
+
+  return live === undefined ? null : <NoteSession active tab={live} />;
+}
+
 function mountSession(content?: string) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+  openNote(tab.path);
+  const id = getTabState().activeId;
   if (content !== undefined) {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content,
-      pinned: false,
-      revision: "r0",
-      tags: [],
-      updatedAt: new Date(1),
+    disk.set(tab.path, { content, revision: "r0", updatedAt: 1 });
+    client.setQueryData(tabOpeningQuery(id, "note", tab.path).queryKey, {
+      file: { content, revision: "r0", updatedAt: new Date(1) },
+      stash: null,
     });
     client.setQueryData(noteQueries.list().queryKey, []);
-    client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, null);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
   }
 
@@ -74,22 +135,22 @@ function mountSession(content?: string) {
       createElement(
         QueryClientProvider,
         { client },
-        createElement(NoteSession, { active: true, tab })
+        createElement(LiveSession, { id })
       )
     )
   );
   return client;
 }
 
-function panel() {
-  return document.querySelector(`[id="${tabPanelId(tab.id)}"]`);
+function panel(id: string = getTabState().activeId) {
+  return document.querySelector(`[id="${tabPanelId(id)}"]`);
 }
 
 async function settle() {
   await waitFor(() => expect(panel()).toBeInTheDocument());
 }
 
-async function editor(id: string = tab.id) {
+async function editor(id: string = getTabState().activeId) {
   await waitFor(() =>
     expect(
       document
@@ -126,20 +187,12 @@ function typeAtEnd(liveEditor: TiptapEditor, text: string) {
   liveEditor.chain().focus(end).insertContent(text).run();
 }
 
-function sessionHandles(id: string = tab.id) {
+function sessionHandles(id: string = getTabState().activeId) {
   const handles = getTabHandles(id);
   if (handles === undefined) {
     throw new Error("the session did not mount");
   }
   return handles;
-}
-
-/** The session for `id` as the store holds it now, the way the workspace mounts one. */
-function LiveSession({ id }: { id: string }) {
-  const { tabs } = useTabState();
-  const live = tabs.find((entry) => entry.id === id);
-
-  return live === undefined ? null : <NoteSession active tab={live} />;
 }
 
 function refuse(command: string): never {
@@ -188,29 +241,26 @@ async function mountConflict(
   onDisk: string,
   ipc: Parameters<typeof mockIPC>[0] = () => null
 ) {
-  mockIPC((command, args) => {
-    if (
-      command === "stash_conflict" ||
-      command === "clear_conflict" ||
-      command === "read_conflict"
-    ) {
-      return ipc(command, args) ?? null;
-    }
-    return ipc(command, args);
-  });
+  mockIPC(
+    withDisk((command, args) => {
+      if (
+        command === "stash_conflict" ||
+        command === "clear_conflict" ||
+        command === "read_conflict"
+      ) {
+        return ipc(command, args) ?? null;
+      }
+      return ipc(command, args);
+    })
+  );
   const client = mountSession(content);
   const liveEditor = await editor();
   act(() => {
     typeAtEnd(liveEditor, "Typed ");
   });
+  disk.set(tab.path, { content: onDisk, revision: "r1", updatedAt: 2 });
   act(() => {
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
-      content: onDisk,
-      pinned: false,
-      revision: "r1",
-      tags: [],
-      updatedAt: new Date(2),
-    });
+    refreshTabs((entry) => entry.path === tab.path);
   });
   await waitFor(() =>
     expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
@@ -241,6 +291,8 @@ describe(NoteSession, () => {
     for (const entry of getTabState().tabs) {
       closeTab(entry.id);
     }
+    disk.clear();
+    diskReads.length = 0;
     clearMocks();
   });
 
@@ -342,8 +394,10 @@ describe(NoteSession, () => {
     "should count a successful retry but not automatic recovery after a failed opening: %s",
     async (recovery) => {
       let readable = false;
+      let attempts = 0;
       mockIPC((command) => {
         if (command === "read_note") {
+          attempts += 1;
           if (!readable) {
             throw Object.assign(new Error("Permission denied"), {
               kind: "failed",
@@ -386,23 +440,25 @@ describe(NoteSession, () => {
       expect(readRecentNotes("/notes")).toStrictEqual([]);
       readable = true;
       await act(async () => {
-        await (recovery === "retry"
-          ? userEvent
-              .setup()
-              .click(screen.getByRole("button", { name: "try again" }))
-          : client.invalidateQueries({
-              queryKey: noteQueries.fileKey("note", "read.md"),
-            }));
+        if (recovery === "retry") {
+          await userEvent
+            .setup()
+            .click(screen.getByRole("button", { name: "try again" }));
+        } else {
+          refreshTabs((entry) => entry.path === "read.md");
+        }
       });
       await editor(id);
       expect(readRecentNotes("/notes")).toStrictEqual(
         recovery === "retry" ? ["read.md"] : []
       );
       rememberNote("/notes", "other.md");
-      await act(async () => {
-        await client.invalidateQueries({
-          queryKey: noteQueries.fileKey("note", "read.md"),
-        });
+      const before = attempts;
+      act(() => {
+        refreshTabs((entry) => entry.path === "read.md");
+      });
+      await waitFor(() => {
+        expect(attempts).toBeGreaterThan(before);
       });
       expect(readRecentNotes("/notes")).toStrictEqual(
         recovery === "retry" ? ["other.md", "read.md"] : ["other.md"]
@@ -413,31 +469,44 @@ describe(NoteSession, () => {
   it("should edit and retain history while the note list is pending", async () => {
     const listed = Promise.withResolvers<[]>();
     const writes: unknown[] = [];
-    mockIPC(async (command, args) => {
-      if (command === "list_notes") {
-        return await listed.promise;
-      }
-      if (command === "save_note") {
-        writes.push(args);
-        return {
-          kind: "committed",
-          receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
-        };
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk(async (command, args) => {
+        if (command === "list_notes") {
+          return await listed.promise;
+        }
+        if (command === "save_note") {
+          writes.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "a.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
-    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+    disk.set("a.md", {
       content: "# Available\n\nOriginal text",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(tab.id, "note", "a.md").queryKey, {
+      file: {
+        content: "# Available\n\nOriginal text",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(async () => {
       act(() => {
@@ -451,7 +520,7 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
 
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
@@ -462,7 +531,7 @@ describe(NoteSession, () => {
     act(() => {
       listed.resolve([]);
     });
-    await expect(editor()).resolves.toBe(liveEditor);
+    await expect(editor(tab.id)).resolves.toBe(liveEditor);
     act(() => {
       liveEditor.commands.undo();
     });
@@ -471,13 +540,15 @@ describe(NoteSession, () => {
 
   it("should open a file link through the note that holds it", async () => {
     const opened: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "open_linked_file") {
-        opened.push(args);
-        return null;
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "open_linked_file") {
+          opened.push(args);
+          return null;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -485,16 +556,22 @@ describe(NoteSession, () => {
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.list().queryKey, []);
-    client.setQueryData(
-      noteQueries.conflict("note", "projects/a.md").queryKey,
-      null
-    );
-    client.setQueryData(noteQueries.fileKey("note", "projects/a.md"), {
+    disk.set("projects/a.md", {
       content: "# A\n\n[spec](../docs/my%20spec.pdf)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
     });
+    client.setQueryData(
+      tabOpeningQuery("t3", "note", "projects/a.md").queryKey,
+      {
+        file: {
+          content: "# A\n\n[spec](../docs/my%20spec.pdf)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
     onTestFinished(() => {
       client.clear();
     });
@@ -527,12 +604,14 @@ describe(NoteSession, () => {
       kind: "not-found",
       message: "No such file",
     });
-    mockIPC(async (command) => {
-      if (command === "open_linked_file") {
-        return await missing();
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "open_linked_file") {
+          return await missing();
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -540,12 +619,18 @@ describe(NoteSession, () => {
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.list().queryKey, []);
-    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
-    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+    disk.set("a.md", {
       content: "# A\n\n[spec](docs/spec.pdf)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(tab.id, "note", "a.md").queryKey, {
+      file: {
+        content: "# A\n\n[spec](docs/spec.pdf)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(() => {
       client.clear();
@@ -556,7 +641,7 @@ describe(NoteSession, () => {
         <Toaster />
       </QueryClientProvider>
     );
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
@@ -569,13 +654,15 @@ describe(NoteSession, () => {
 
   it("should open a file link from an external tab against the file", async () => {
     const opened: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "open_external_file") {
-        opened.push(args);
-        return null;
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "open_external_file") {
+          opened.push(args);
+          return null;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -583,12 +670,18 @@ describe(NoteSession, () => {
     });
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
-    client.setQueryData(noteQueries.fileKey("external", path), {
+    disk.set(path, {
       content: "# Ext\n\n[spec](./spec.pdf)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t4", "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n[spec](./spec.pdf)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(() => {
       client.clear();
@@ -616,13 +709,15 @@ describe(NoteSession, () => {
 
   it("should open a markdown link from an external tab as the tab it already is", async () => {
     const resolved: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "resolve_external_link") {
-        resolved.push(args);
-        return { kind: "external", path: "/Users/me/other.md" };
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "resolve_external_link") {
+          resolved.push(args);
+          return { kind: "external", path: "/Users/me/other.md" };
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -630,12 +725,18 @@ describe(NoteSession, () => {
     });
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
-    client.setQueryData(noteQueries.fileKey("external", path), {
+    disk.set(path, {
       content: "# Ext\n\n[other](../other.md)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t7", "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n[other](../other.md)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(() => {
       client.clear();
@@ -666,10 +767,12 @@ describe(NoteSession, () => {
 
   it("should refuse a pasted image in an external tab", async () => {
     const commands: string[] = [];
-    mockIPC((command) => {
-      commands.push(command);
-      return null;
-    });
+    mockIPC(
+      withDisk((command) => {
+        commands.push(command);
+        return null;
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -677,12 +780,14 @@ describe(NoteSession, () => {
     });
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
-    client.setQueryData(noteQueries.fileKey("external", path), {
-      content: "# Ext\n\ntext",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+    disk.set(path, { content: "# Ext\n\ntext", revision: "r0", updatedAt: 1 });
+    client.setQueryData(tabOpeningQuery("t8", "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\ntext",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(() => {
       client.clear();
@@ -718,14 +823,16 @@ describe(NoteSession, () => {
   it("should export the rich view as a pdf and refuse from markdown source", async () => {
     const commands: [string, unknown][] = [];
     let printed: string | undefined;
-    mockIPC((command, args) => {
-      commands.push([command, args]);
-      if (command === "plugin:dialog|save") {
-        return "/exports/a.pdf";
-      }
-      printed = document.querySelector(".print-sheet")?.textContent ?? "";
-      return null;
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        commands.push([command, args]);
+        if (command === "plugin:dialog|save") {
+          return "/exports/a.pdf";
+        }
+        printed = document.querySelector(".print-sheet")?.textContent ?? "";
+        return null;
+      })
+    );
     mountSession("---\ntags: [study]\n---\n# Errands\n\none");
     await editor();
 
@@ -759,9 +866,11 @@ describe(NoteSession, () => {
 
   it("should render an image relative to the note and drop one the note cannot reach", async () => {
     mockConvertFileSrc("macos");
-    mockIPC((command) => {
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -769,17 +878,24 @@ describe(NoteSession, () => {
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.list().queryKey, []);
-    client.setQueryData(
-      noteQueries.conflict("note", "projects/a.md").queryKey,
-      null
-    );
-    client.setQueryData(noteQueries.fileKey("note", "projects/a.md"), {
+    disk.set("projects/a.md", {
       content:
         "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)\n\n![abs](/etc/x.png)\n\n![anchor](#x)\n\n![web](https://example.com/a.png)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
     });
+    client.setQueryData(
+      tabOpeningQuery("t5", "note", "projects/a.md").queryKey,
+      {
+        file: {
+          content:
+            "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)\n\n![abs](/etc/x.png)\n\n![anchor](#x)\n\n![web](https://example.com/a.png)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
     onTestFinished(() => {
       client.clear();
     });
@@ -808,9 +924,11 @@ describe(NoteSession, () => {
 
   it("should send an external file's image to the scheme with the document and the source", async () => {
     mockConvertFileSrc("macos");
-    mockIPC((command) => {
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -818,12 +936,18 @@ describe(NoteSession, () => {
     });
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
-    client.setQueryData(noteQueries.fileKey("external", path), {
+    disk.set(path, {
       content: "# Ext\n\n![shot](../my%20shot.png)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t6", "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n![shot](../my%20shot.png)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(() => {
       client.clear();
@@ -852,24 +976,32 @@ describe(NoteSession, () => {
 
   it("should report a failed pending link lookup without treating the destination as missing", async () => {
     const listed = Promise.withResolvers<[]>();
-    mockIPC(async (command) => {
-      if (command === "list_notes") {
-        return await listed.promise;
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "list_notes") {
+          return await listed.promise;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
-    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+    disk.set("a.md", {
       content: "# Available\n\n[Target](target.md)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(tab.id, "note", "a.md").queryKey, {
+      file: {
+        content: "# Available\n\n[Target](target.md)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(async () => {
       act(() => {
@@ -883,7 +1015,7 @@ describe(NoteSession, () => {
         <Toaster />
       </QueryClientProvider>
     );
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
@@ -898,7 +1030,7 @@ describe(NoteSession, () => {
     expect(await screen.findByText("could not open note")).toBeInTheDocument();
     expect(screen.getByText("index unavailable")).toBeInTheDocument();
     expect(screen.queryByText("no note at target.md")).not.toBeInTheDocument();
-    await expect(editor()).resolves.toBe(liveEditor);
+    await expect(editor(tab.id)).resolves.toBe(liveEditor);
   });
 
   it.each([
@@ -912,24 +1044,32 @@ describe(NoteSession, () => {
     "should ignore a delayed link $completion after $change",
     async ({ change, completion }) => {
       const listed = Promise.withResolvers<unknown[]>();
-      mockIPC(async (command) => {
-        if (command === "list_notes") {
-          return await listed.promise;
-        }
-        throw new Error(`unexpected command: ${command}`);
-      });
+      mockIPC(
+        withDisk(async (command) => {
+          if (command === "list_notes") {
+            return await listed.promise;
+          }
+          throw new Error(`unexpected command: ${command}`);
+        })
+      );
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
       client.setQueryData(notesDirQuery.queryKey, "/notes");
-      client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
-      client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+      disk.set("a.md", {
         content: "# Available\n\n[Target](target.md)",
-        pinned: false,
-        tags: [],
-        updatedAt: new Date(1),
+        revision: "r0",
+        updatedAt: 1,
+      });
+      client.setQueryData(tabOpeningQuery(tab.id, "note", "a.md").queryKey, {
+        file: {
+          content: "# Available\n\n[Target](target.md)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
       });
       onTestFinished(async () => {
         act(() => {
@@ -943,7 +1083,7 @@ describe(NoteSession, () => {
           <NoteSession active tab={tab} />
         </QueryClientProvider>
       );
-      const liveEditor = await editor();
+      const liveEditor = await editor(tab.id);
       act(() => {
         liveEditor.commands.setTextSelection(
           liveEditor.state.doc.content.size - 2
@@ -1025,24 +1165,32 @@ describe(NoteSession, () => {
         throw new Error("the originating tab did not open");
       }
       const listed = Promise.withResolvers<unknown[]>();
-      mockIPC(async (command) => {
-        if (command === "list_notes") {
-          return await listed.promise;
-        }
-        throw new Error(`unexpected command: ${command}`);
-      });
+      mockIPC(
+        withDisk(async (command) => {
+          if (command === "list_notes") {
+            return await listed.promise;
+          }
+          throw new Error(`unexpected command: ${command}`);
+        })
+      );
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
       client.setQueryData(notesDirQuery.queryKey, "/notes");
-      client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
-      client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+      disk.set("a.md", {
         content: "# Available\n\n[Target](target.md)",
-        pinned: false,
-        tags: [],
-        updatedAt: new Date(1),
+        revision: "r0",
+        updatedAt: 1,
+      });
+      client.setQueryData(tabOpeningQuery(origin.id, "note", "a.md").queryKey, {
+        file: {
+          content: "# Available\n\n[Target](target.md)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
       });
       onTestFinished(async () => {
         act(() => {
@@ -1108,24 +1256,32 @@ describe(NoteSession, () => {
 
   it("should follow only the most recently activated link while its lookup is pending", async () => {
     const listed = Promise.withResolvers<unknown[]>();
-    mockIPC(async (command) => {
-      if (command === "list_notes") {
-        return await listed.promise;
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "list_notes") {
+          return await listed.promise;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.conflict("note", "a.md").queryKey, null);
-    client.setQueryData(noteQueries.fileKey("note", "a.md"), {
+    disk.set("a.md", {
       content: "# Available\n\n[First](first.md) [Second](second.md)",
-      pinned: false,
-      tags: [],
-      updatedAt: new Date(1),
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(tab.id, "note", "a.md").queryKey, {
+      file: {
+        content: "# Available\n\n[First](first.md) [Second](second.md)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
     });
     onTestFinished(async () => {
       act(() => {
@@ -1138,7 +1294,7 @@ describe(NoteSession, () => {
         <NoteSession active tab={tab} />
       </QueryClientProvider>
     );
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     act(() => {
       liveEditor.commands.setTextSelection(13);
       liveEditor.commands.keyboardShortcut("Mod-Shift-o");
@@ -1191,23 +1347,25 @@ describe(NoteSession, () => {
           warnings: never[];
         };
       }>();
-      mockIPC(async (command, args) => {
-        if (command !== "save_note") {
-          return null;
-        }
-        writes.push(args);
-        return writes.length === 1
-          ? await held.promise
-          : {
-              kind: "committed",
-              receipt: {
-                path: "a.md",
-                revision: "r3",
-                updatedAt: 3,
-                warnings: [],
-              },
-            };
-      });
+      mockIPC(
+        withDisk(async (command, args) => {
+          if (command !== "save_note") {
+            return null;
+          }
+          writes.push(args);
+          return writes.length === 1
+            ? await held.promise
+            : {
+                kind: "committed",
+                receipt: {
+                  path: "a.md",
+                  revision: "r3",
+                  updatedAt: 3,
+                  warnings: [],
+                },
+              };
+        })
+      );
       mountSession("# Errands\n\nbody");
       await editor();
       if (sourceMode) {
@@ -1285,21 +1443,23 @@ describe(NoteSession, () => {
     "should rename for a heading touch even when its final text is unchanged in source mode %s",
     async (sourceMode) => {
       const writes: unknown[] = [];
-      mockIPC((command, args) => {
-        if (command === "save_note") {
-          writes.push(args);
-          return {
-            kind: "committed",
-            receipt: {
-              path: "errands.md",
-              revision: "r2",
-              updatedAt: 2,
-              warnings: [],
-            },
-          };
-        }
-        return null;
-      });
+      mockIPC(
+        withDisk((command, args) => {
+          if (command === "save_note") {
+            writes.push(args);
+            return {
+              kind: "committed",
+              receipt: {
+                path: "errands.md",
+                revision: "r2",
+                updatedAt: 2,
+                warnings: [],
+              },
+            };
+          }
+          return null;
+        })
+      );
       mountSession("# Errands\n\nbody");
       await editor();
       if (sourceMode) {
@@ -1330,21 +1490,23 @@ describe(NoteSession, () => {
 
   it("should recompute the filename when formatting changes the heading", async () => {
     const writes: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "save_note") {
-        writes.push(args);
-        return {
-          kind: "committed",
-          receipt: {
-            path: "errands.md",
-            revision: "r2",
-            updatedAt: 2,
-            warnings: [],
-          },
-        };
-      }
-      return null;
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "save_note") {
+          writes.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "errands.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        return null;
+      })
+    );
     mountSession("# Errands\n\nbody");
     const surface = await editor();
     act(() => {
@@ -1360,21 +1522,23 @@ describe(NoteSession, () => {
     "should rename first-line edits and keep lower-body edits unnamed in source mode %s",
     async (sourceMode) => {
       const writes: unknown[] = [];
-      mockIPC((command, args) => {
-        if (command === "save_note") {
-          writes.push(args);
-          return {
-            kind: "committed",
-            receipt: {
-              path: "a.md",
-              revision: `r${writes.length}`,
-              updatedAt: writes.length + 1,
-              warnings: [],
-            },
-          };
-        }
-        return null;
-      });
+      mockIPC(
+        withDisk((command, args) => {
+          if (command === "save_note") {
+            writes.push(args);
+            return {
+              kind: "committed",
+              receipt: {
+                path: "a.md",
+                revision: `r${writes.length}`,
+                updatedAt: writes.length + 1,
+                warnings: [],
+              },
+            };
+          }
+          return null;
+        })
+      );
       mountSession("buy milk\n\nbody");
       await editor();
       if (sourceMode) {
@@ -1404,24 +1568,26 @@ describe(NoteSession, () => {
     const path = "/outside/imported.md";
     const outside = { id: "outside-title", kind: "external", path } as const;
     const writes: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "write_external") {
-        writes.push(args);
-        return {
-          kind: "committed",
-          receipt: {
-            path: "/outside/buy-oat-milk.md",
-            revision: "r1",
-            updatedAt: 2,
-            warnings: [],
-          },
-        };
-      }
-      if (command.startsWith("plugin:")) {
-        return 0;
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "write_external") {
+          writes.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "/outside/buy-oat-milk.md",
+              revision: "r1",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -1431,12 +1597,22 @@ describe(NoteSession, () => {
       client.clear();
     });
     client.setQueryData(notesDirQuery.queryKey, "/notes");
-    client.setQueryData(noteQueries.fileKey("external", path), {
+    disk.set(path, {
       content: "buy **milk**\n\nbody",
       revision: "r0",
-      updatedAt: new Date(1),
+      updatedAt: 1,
     });
-    client.setQueryData(noteQueries.conflict("external", path).queryKey, null);
+    client.setQueryData(
+      tabOpeningQuery(outside.id, "external", path).queryKey,
+      {
+        file: {
+          content: "buy **milk**\n\nbody",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
     render(
       <QueryClientProvider client={client}>
         <TabStrip activeId={outside.id} onNew={NOOP} tabs={[outside]} />
@@ -1457,21 +1633,23 @@ describe(NoteSession, () => {
 
   it("should save the complete document from either editor mode", async () => {
     const writes: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "save_note") {
-        writes.push(args);
-        return {
-          kind: "committed",
-          receipt: {
-            path: tab.path,
-            revision: "r2",
-            updatedAt: 2,
-            warnings: [],
-          },
-        };
-      }
-      return null;
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "save_note") {
+          writes.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: tab.path,
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        return null;
+      })
+    );
     mountSession("---\ntags: [old]\n---\nbody");
     await editor();
     act(() => {
@@ -1526,23 +1704,25 @@ describe(NoteSession, () => {
       };
     }>();
     const writes: unknown[] = [];
-    mockIPC(async (command, args) => {
-      if (command === "save_note") {
-        writes.push(args);
-        return writes.length === 1
-          ? await first.promise
-          : {
-              kind: "committed",
-              receipt: {
-                path: tab.path,
-                revision: "r3",
-                updatedAt: 3,
-                warnings: [],
-              },
-            };
-      }
-      return null;
-    });
+    mockIPC(
+      withDisk(async (command, args) => {
+        if (command === "save_note") {
+          writes.push(args);
+          return writes.length === 1
+            ? await first.promise
+            : {
+                kind: "committed",
+                receipt: {
+                  path: tab.path,
+                  revision: "r3",
+                  updatedAt: 3,
+                  warnings: [],
+                },
+              };
+        }
+        return null;
+      })
+    );
     mountSession("body");
     await editor();
     act(() => {
@@ -1618,19 +1798,26 @@ describe(NoteSession, () => {
 
   it("should retain source spelling and undo through repeated rich and source switches", async () => {
     const writes: string[] = [];
-    mockIPC((command, args) => {
-      if (command === "save_note") {
-        if (!savesContent(args)) {
-          throw new Error("save content missing");
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "save_note") {
+          if (!savesContent(args)) {
+            throw new Error("save content missing");
+          }
+          writes.push(args.content);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "a.md",
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
         }
-        writes.push(args.content);
-        return {
-          kind: "committed",
-          receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
-        };
-      }
-      return null;
-    });
+        return null;
+      })
+    );
     mountSession("*hello*");
     await editor();
     act(() => {
@@ -1709,19 +1896,19 @@ describe(NoteSession, () => {
   });
 
   it("should combine a change elsewhere in the note with unsaved typing", async () => {
+    mockIPC(withDisk(refuse));
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
     act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
+    disk.set(tab.path, {
+      content: "# Chores\n\nbody",
+      revision: "r1",
+      updatedAt: 2,
+    });
     act(() => {
-      client.setQueryData(noteQueries.fileKey("note", tab.path), {
-        content: "# Chores\n\nbody",
-        pinned: false,
-        revision: "r1",
-        tags: [],
-        updatedAt: new Date(2),
-      });
+      refreshTabs((entry) => entry.path === tab.path);
     });
     await waitFor(() => {
       expect(liveEditor.getText()).toContain("Chores");
@@ -1734,19 +1921,19 @@ describe(NoteSession, () => {
   });
 
   it("should announce a change that overlaps unsaved typing", async () => {
+    mockIPC(withDisk(refuse));
     const client = mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
     act(() => {
       typeAtEnd(liveEditor, "Typed ");
     });
+    disk.set(tab.path, {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: 2,
+    });
     act(() => {
-      client.setQueryData(noteQueries.fileKey("note", tab.path), {
-        content: "# Errands\n\nbody, on disk",
-        pinned: false,
-        revision: "r1",
-        tags: [],
-        updatedAt: new Date(2),
-      });
+      refreshTabs((entry) => entry.path === tab.path);
     });
     await waitFor(() =>
       expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
@@ -1762,18 +1949,20 @@ describe(NoteSession, () => {
       kind: "failed",
       message: "Permission denied",
     });
-    mockIPC(async (command) => {
-      if (command !== "save_note") {
-        return null;
-      }
-      if (denied) {
-        return await refused();
-      }
-      return {
-        kind: "committed",
-        receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
-      };
-    });
+    mockIPC(
+      withDisk(async (command) => {
+        if (command !== "save_note") {
+          return null;
+        }
+        if (denied) {
+          return await refused();
+        }
+        return {
+          kind: "committed",
+          receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
+        };
+      })
+    );
     mountSession("# Errands\n\nbody");
     const liveEditor = await editor();
     act(() => {
@@ -1877,24 +2066,22 @@ describe(NoteSession, () => {
     );
     await user.click(screen.getByRole("button", { name: "review" }));
     expect(review()).not.toHaveAttribute("inert");
+    disk.set(tab.path, {
+      content: "# Chores\n\nbody",
+      revision: "r2",
+      updatedAt: 3,
+    });
     act(() => {
-      client.setQueryData(noteQueries.fileKey("note", tab.path), {
-        content: "# Chores\n\nbody",
-        pinned: false,
-        revision: "r2",
-        tags: [],
-        updatedAt: new Date(3),
-      });
+      refreshTabs((entry) => entry.path === tab.path);
     });
     await waitFor(() => expect(review()).not.toBeInTheDocument());
+    disk.set(tab.path, {
+      content: "# Chores\n\nbody, on disk again",
+      revision: "r3",
+      updatedAt: 4,
+    });
     act(() => {
-      client.setQueryData(noteQueries.fileKey("note", tab.path), {
-        content: "# Chores\n\nbody, on disk again",
-        pinned: false,
-        revision: "r3",
-        tags: [],
-        updatedAt: new Date(4),
-      });
+      refreshTabs((entry) => entry.path === tab.path);
     });
     await waitFor(() =>
       expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
@@ -1978,20 +2165,17 @@ describe(NoteSession, () => {
   });
 
   it("should reopen a note with its stored review and the banner", async () => {
-    mockIPC(() => null);
+    mockIPC(withDisk(() => null));
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+    disk.set(tab.path, {
       content: "# Errands\n\nbody, on disk",
-      pinned: false,
       revision: "r1",
-      tags: [],
-      updatedAt: new Date(2),
+      updatedAt: 2,
     });
-    client.setQueryData(noteQueries.list().queryKey, []);
     const stored: ConflictStash = {
       base: {
         content: "# Errands\n\nbody",
@@ -2000,10 +2184,15 @@ describe(NoteSession, () => {
       },
       ours: "# Errands\n\nbody, mine",
     };
-    client.setQueryData(
-      noteQueries.conflict("note", tab.path).queryKey,
-      stored
-    );
+    client.setQueryData(tabOpeningQuery(tab.id, "note", tab.path).queryKey, {
+      file: {
+        content: "# Errands\n\nbody, on disk",
+        revision: "r1",
+        updatedAt: new Date(2),
+      },
+      stash: stored,
+    });
+    client.setQueryData(noteQueries.list().queryKey, []);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     render(
       createElement(
@@ -2016,7 +2205,7 @@ describe(NoteSession, () => {
         )
       )
     );
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     expect(liveEditor.getText()).toContain("body, mine");
     await waitFor(() =>
       expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
@@ -2026,29 +2215,33 @@ describe(NoteSession, () => {
 
   it("should show the initial merge of stored edits and the current file in the rich editor", async () => {
     const writes: unknown[] = [];
-    mockIPC((command, args) => {
-      if (command === "save_note") {
-        writes.push(args);
-        return {
-          kind: "committed",
-          receipt: { path: "a.md", revision: "r2", updatedAt: 3, warnings: [] },
-        };
-      }
-      return null;
-    });
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "save_note") {
+          writes.push(args);
+          return {
+            kind: "committed",
+            receipt: {
+              path: "a.md",
+              revision: "r2",
+              updatedAt: 3,
+              warnings: [],
+            },
+          };
+        }
+        return null;
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+    disk.set(tab.path, {
       content: "# Updated title\n\nbody",
-      pinned: false,
       revision: "r1",
-      tags: [],
-      updatedAt: new Date(2),
+      updatedAt: 2,
     });
-    client.setQueryData(noteQueries.list().queryKey, []);
     const stored: ConflictStash = {
       base: {
         content: "# Errands\n\nbody",
@@ -2057,17 +2250,22 @@ describe(NoteSession, () => {
       },
       ours: "# Errands\n\nmy body",
     };
-    client.setQueryData(
-      noteQueries.conflict("note", tab.path).queryKey,
-      stored
-    );
+    client.setQueryData(tabOpeningQuery(tab.id, "note", tab.path).queryKey, {
+      file: {
+        content: "# Updated title\n\nbody",
+        revision: "r1",
+        updatedAt: new Date(2),
+      },
+      stash: stored,
+    });
+    client.setQueryData(noteQueries.list().queryKey, []);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     render(
       <QueryClientProvider client={client}>
         <NoteSession active tab={tab} />
       </QueryClientProvider>
     );
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     await waitFor(() => {
       expect(liveEditor.getText()).toContain("Updated title");
       expect(liveEditor.getText()).toContain("my body");
@@ -2080,23 +2278,25 @@ describe(NoteSession, () => {
   });
 
   it("should not open a note until its stored review is known", async () => {
-    mockIPC(async (command) => {
-      if (command === "read_conflict") {
-        return await Promise.withResolvers().promise;
-      }
-      return null;
-    });
+    const asked = Promise.withResolvers<null>();
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "read_conflict") {
+          asked.resolve(null);
+          return await Promise.withResolvers().promise;
+        }
+        return null;
+      })
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
-    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+    disk.set(tab.path, {
       content: "# Errands\n\nbody",
-      pinned: false,
       revision: "r0",
-      tags: [],
-      updatedAt: new Date(1),
+      updatedAt: 1,
     });
     client.setQueryData(noteQueries.list().queryKey, []);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
@@ -2111,33 +2311,67 @@ describe(NoteSession, () => {
         )
       )
     );
-    await Promise.resolve();
-    expect(panel()).toBeNull();
+    await act(async () => {
+      await asked.promise;
+    });
+    expect(panel(tab.id)).toBeNull();
     client.clear();
   });
 
-  it("should keep the stored review in the query cache as it is written and cleared", async () => {
+  it("should reopen a note without the review it resolved", async () => {
     const user = userEvent.setup();
+    let stashedOurs: string | undefined;
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
-      (command) =>
-        command === "save_note"
-          ? {
-              kind: "committed",
-              receipt: {
-                path: "a.md",
-                revision: "r2",
-                updatedAt: 3,
-                warnings: [],
-              },
-            }
-          : null
+      (command, args) => {
+        if (command === "stash_conflict") {
+          if (!stashesOurs(args)) {
+            throw new Error("the stored review carried no text");
+          }
+          stashedOurs = args.stash.ours;
+          return null;
+        }
+        if (command === "clear_conflict") {
+          stashedOurs = undefined;
+          return null;
+        }
+        if (command === "read_conflict") {
+          return stashedOurs === undefined
+            ? null
+            : {
+                base: {
+                  content: "# Errands\n\nbody",
+                  revision: "r0",
+                  updatedAt: 1,
+                },
+                ours: stashedOurs,
+              };
+        }
+        if (command === "save_note") {
+          if (!savesContent(args)) {
+            throw new Error("save content missing");
+          }
+          disk.set(tab.path, {
+            content: args.content,
+            revision: "r2",
+            updatedAt: 3,
+          });
+          return {
+            kind: "committed",
+            receipt: {
+              path: "a.md",
+              revision: "r2",
+              updatedAt: 3,
+              warnings: [],
+            },
+          };
+        }
+        return null;
+      }
     );
     await waitFor(() => {
-      expect(
-        client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
-      ).toMatchObject({ ours: "# Errands\n\nbodyTyped " });
+      expect(stashedOurs).toBe("# Errands\n\nbodyTyped ");
     });
     await user.click(screen.getByRole("button", { name: "review" }));
     await user.type(
@@ -2148,15 +2382,31 @@ describe(NoteSession, () => {
     await act(async () => {
       await flushPendingWrites();
     });
+    act(() => {
+      closeTab(getTabState().activeId);
+    });
+    openNote(tab.path);
+    const reopened = getTabState().activeId;
+    render(
+      <QueryClientProvider client={client}>
+        <LiveSession id={reopened} />
+      </QueryClientProvider>
+    );
+    const surface = await editor(reopened);
+    expect(surface.getText()).toContain("body, both");
     expect(
-      client.getQueryData(noteQueries.conflict("note", tab.path).queryKey)
-    ).toBeNull();
+      screen.queryByText("this note changed on disk")
+    ).not.toBeInTheDocument();
     client.clear();
   });
 
   it("should keep the editor across a rename while the renamed review is unknown", async () => {
-    mockIPC(async (command) =>
-      command === "read_conflict" ? await Promise.withResolvers().promise : null
+    mockIPC(
+      withDisk(async (command) =>
+        command === "read_conflict"
+          ? await Promise.withResolvers().promise
+          : null
+      )
     );
     const client = new QueryClient({
       defaultOptions: {
@@ -2164,16 +2414,21 @@ describe(NoteSession, () => {
       },
     });
     for (const path of [tab.path, "errands.md"]) {
-      client.setQueryData(noteQueries.fileKey("note", path), {
+      disk.set(path, {
         content: "# Errands\n\nbody",
-        pinned: false,
         revision: "r0",
-        tags: [],
-        updatedAt: new Date(1),
+        updatedAt: 1,
       });
     }
+    client.setQueryData(tabOpeningQuery(tab.id, "note", tab.path).queryKey, {
+      file: {
+        content: "# Errands\n\nbody",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
     client.setQueryData(noteQueries.list().queryKey, []);
-    client.setQueryData(noteQueries.conflict("note", tab.path).queryKey, null);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     const session = (path: string) =>
       createElement(
@@ -2186,12 +2441,112 @@ describe(NoteSession, () => {
         )
       );
     const view = render(session(tab.path));
-    const liveEditor = await editor();
+    const liveEditor = await editor(tab.id);
     view.rerender(session("errands.md"));
     await Promise.resolve();
-    expect(panel()).not.toBeNull();
-    await expect(editor()).resolves.toBe(liveEditor);
+    expect(panel(tab.id)).not.toBeNull();
+    await expect(editor(tab.id)).resolves.toBe(liveEditor);
     client.clear();
+  });
+
+  it("should keep the tab and its editor when a note moves into a folder and back", async () => {
+    let moving = Promise.withResolvers<null>();
+    let moved = Promise.withResolvers<null>();
+    mockIPC(
+      withDisk(async (command, args) => {
+        if (command === "move_note") {
+          if (!movesNote(args)) {
+            throw new Error("the move carried no path or folder");
+          }
+          const { folder, path: from } = args;
+          const file = disk.get(from);
+          if (file === undefined) {
+            throw new Error(`nothing at ${from}`);
+          }
+          const name = from.split("/").at(-1) ?? from;
+          const to = folder === "" ? name : `${folder}/${name}`;
+          disk.delete(from);
+          disk.set(to, file);
+          moving.resolve(null);
+          await moved.promise;
+          return { file, path: to, remainingSource: null, warnings: [] };
+        }
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+        return refuse(command);
+      })
+    );
+    mountSession("# Errands\n\nbody");
+    const id = getTabState().activeId;
+    const liveEditor = await editor(id);
+    const { changePath } = sessionHandles(id);
+    if (changePath === undefined) {
+      throw new Error("the loaded note has no path operation");
+    }
+    const watched = new Set([tab.path, "folder/a.md"]);
+
+    const intoFolder = changePath({ folder: "folder", kind: "move" });
+    await act(async () => {
+      await moving.promise;
+    });
+    const beforeInto = diskReads.length;
+    act(() => {
+      refreshTabs((entry) => entry.kind === "note" && watched.has(entry.path));
+    });
+    await waitFor(() => {
+      expect(diskReads.slice(beforeInto)).toStrictEqual([tab.path]);
+    });
+    expect(disk.has(tab.path)).toBeFalsy();
+    await act(async () => {
+      await sleep(0);
+    });
+    await act(async () => {
+      moved.resolve(null);
+      await intoFolder;
+    });
+    act(() => {
+      refreshTabs((entry) => entry.kind === "note" && watched.has(entry.path));
+    });
+
+    moving = Promise.withResolvers<null>();
+    moved = Promise.withResolvers<null>();
+    const back = changePath({ folder: "", kind: "move" });
+    await act(async () => {
+      await moving.promise;
+    });
+    const beforeBack = diskReads.length;
+    act(() => {
+      refreshTabs((entry) => entry.kind === "note" && watched.has(entry.path));
+    });
+    await waitFor(() => {
+      expect(diskReads.slice(beforeBack)).toStrictEqual(["folder/a.md"]);
+    });
+    await act(async () => {
+      await sleep(0);
+    });
+    await act(async () => {
+      moved.resolve(null);
+      await back;
+    });
+    const beforeSettled = diskReads.length;
+    act(() => {
+      refreshTabs((entry) => entry.kind === "note" && watched.has(entry.path));
+    });
+    await waitFor(() => {
+      expect(diskReads.slice(beforeSettled)).toStrictEqual([tab.path]);
+    });
+    await act(async () => {
+      await sleep(0);
+    });
+
+    expect(getTabState().tabs.find((entry) => entry.id === id)).toMatchObject({
+      kind: "note",
+      path: tab.path,
+    });
+    await expect(editor(id)).resolves.toBe(liveEditor);
+    expect(liveEditor.getText()).toContain("Errands");
+    expect(liveEditor.getText()).toContain("body");
   });
 
   describe("draft", () => {

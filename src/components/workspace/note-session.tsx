@@ -56,8 +56,9 @@ import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
 import { openExternalFile } from "@/data/open-external-file";
 import { openLinkedFile } from "@/data/open-linked-file";
-import type { SessionFile } from "@/data/queries";
-import { noteQueries, notesDirQuery } from "@/data/queries";
+import { noteQueries, notesDirQuery, tabOpeningQuery } from "@/data/queries";
+import { readSessionFile } from "@/data/read-session-file";
+import type { SessionFile } from "@/data/read-session-file";
 import { resolveExternalLink } from "@/data/resolve-external-link";
 import { saveNote } from "@/data/save-note";
 import { exportPdf } from "@/lib/export-pdf";
@@ -73,6 +74,7 @@ import {
   openTab,
   registerLoadedNote,
   registerTabHandles,
+  registerTabRefresh,
   registerTabSnapshot,
   renameTab,
   restoredCaret,
@@ -168,10 +170,6 @@ async function exportRevealed(
 interface SessionBufferProps {
   active: boolean;
   file: SessionFile;
-  /** The file behind this buffer has gone; what is on screen is all there is. */
-  missing: boolean;
-  readable: boolean;
-  readFile: SessionFile | undefined;
   stash: ConflictStash | null;
   tab: Tab;
 }
@@ -226,18 +224,10 @@ async function createDraftFile(content: string): Promise<SaveOutcome> {
  * One tab's buffer, autosave, and reconciliation against disk.
  *
  * Several are alive at once, so nothing here may register a window listener or
- * a hotkey: those belong to the workspace, and `D53` says why.
+ * a hotkey: those belong to the workspace.
  */
 // oxlint-disable-next-line react-doctor/no-giant-component -- the split is tracked in #203
-function SessionBuffer({
-  active,
-  file,
-  missing: readMissing,
-  readable,
-  readFile,
-  stash,
-  tab,
-}: SessionBufferProps) {
+function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   // Fixed for the tab's life: a draft becomes a note in place.
   const openKind = fileKind(tab.kind);
   const { data: notes } = useQuery({
@@ -248,13 +238,6 @@ function SessionBuffer({
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const resolveLinks = notes === undefined ? undefined : linkResolver(notes);
   const { id } = tab;
-  useLayoutEffect(
-    () =>
-      tab.kind === "note" && readable
-        ? registerLoadedNote(id, notesDir)
-        : undefined,
-    [id, notesDir, readable, tab.kind]
-  );
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
   const browserOpen = useNoteBrowser();
@@ -290,10 +273,6 @@ function SessionBuffer({
             );
             throw error;
           }
-          queryClient.setQueryData(
-            noteQueries.conflict(openKind, path).queryKey,
-            null
-          );
         },
         onCleanFileMissing: () => {
           closeTab(id);
@@ -301,12 +280,9 @@ function SessionBuffer({
         onPathChanged: (to) => {
           renameTab(id, to, notesDir);
         },
+        read: async (path) => await readSessionFile(openKind, path),
         stash: async (path, review) => {
           await stashConflict(openKind, path, review);
-          queryClient.setQueryData(
-            noteQueries.conflict(openKind, path).queryKey,
-            review
-          );
         },
         write: async (path, content, name, expected) => {
           if (openKind === "external") {
@@ -349,18 +325,56 @@ function SessionBuffer({
     };
     return persistence.onDocumentChanged(replaceDocument);
   }, [persistence]);
+  // A read replaces the document through the editor, so none may land before
+  // one is attached. The first read on attach catches anything that changed
+  // between the opening read and now.
+  const ready = findHandle !== null;
   useLayoutEffect(() => {
-    if (findHandle !== null) {
-      persistence.receiveFile(tab.path, readFile, readMissing);
+    if (ready) {
+      void persistence.refresh();
     }
-  }, [findHandle, persistence, readFile, readMissing, tab.path]);
+  }, [persistence, ready]);
+  useLayoutEffect(
+    () => (ready ? registerTabRefresh(id, persistence.refresh) : undefined),
+    [id, persistence, ready]
+  );
   useLayoutEffect(
     () => registerTabSnapshot(id, persistence.snapshot),
     [id, persistence]
   );
   const { body } = parseNote(autosave.content);
-  const { changedAgain, missing, reason, sourceMode, status, theirs } =
-    autosave;
+  const {
+    changedAgain,
+    missing,
+    reason,
+    sourceMode,
+    status,
+    theirs,
+    unreadable,
+  } = autosave;
+  const readable = !missing && unreadable === undefined;
+  useLayoutEffect(
+    () =>
+      tab.kind === "note" && readable
+        ? registerLoadedNote(id, notesDir)
+        : undefined,
+    [id, notesDir, readable, tab.kind]
+  );
+  // A failed read cannot turn a later automatic refresh into a visit.
+  useLayoutEffect(() => {
+    if (!readable) {
+      cancelNoteVisit(id);
+    }
+  }, [id, readable]);
+  useEffect(() => {
+    if (unreadable !== undefined) {
+      toast.add({
+        description: unreadable,
+        title: "could not read this note",
+        type: "error",
+      });
+    }
+  }, [unreadable]);
   const [reviewing, setReviewing] = useState(false);
   const showReview = reviewing && status === "conflict";
   const reviewButton = useRef<HTMLButtonElement>(null);
@@ -811,109 +825,82 @@ interface NoteSessionProps {
 }
 
 /**
- * One open tab, from its file on disk to a live editor. Reads its own content
- * and re-reads when the watcher reports the folder changed (`D53`).
+ * One open tab, from its file on disk to a live editor. It reads the file once
+ * to mount the editor; after that the buffer re-reads through its persistence.
  */
-
 export function NoteSession({ active, tab }: NoteSessionProps) {
-  const { kind, path } = tab;
-  const draft = kind === "draft";
-  const openKind = fileKind(kind);
-  const { data, error, refetch } = useQuery({
-    ...noteQueries.file(openKind, path),
-    enabled: !draft,
+  // A draft opens on nothing. Its first save turns the tab into a note, and
+  // the opening query already holds this under the tab's id, so it never reads.
+  const {
+    data: opened,
+    error,
+    refetch,
+  } = useQuery({
+    ...tabOpeningQuery(tab.id, fileKind(tab.kind), tab.path),
+    initialData:
+      tab.kind === "draft" ? { file: EMPTY_DRAFT, stash: null } : undefined,
   });
-  const stash = useQuery({
-    ...noteQueries.conflict(openKind, path),
-    enabled: !draft,
-  });
-  const { refetch: refetchStash } = stash;
-  const readFailed = error !== null || stash.isError;
+  const opening = opened === undefined;
+  const failed = error !== null;
+  // Only a missing file is a deletion. A permission or IO failure leaves the
+  // tab open to say why and try again.
+  const gone = error instanceof FileError && error.kind === "not-found";
+  // A string rather than the error instance, so a retry that fails the same
+  // way leaves the effect alone and stacks no second toast.
+  const reason = failed && !gone ? reasonOf(error) : undefined;
+
   useLayoutEffect(() => {
-    if (readFailed) {
+    if (failed) {
       cancelNoteVisit(tab.id);
     }
-  }, [readFailed, tab.id]);
-  const retry = () => {
-    activateTab(tab.id);
-    void refetch();
-    void refetchStash();
-  };
-  // A rename changes the key (`D56`) and a failed read clears the data, and
-  // neither may take the buffer with it: the tab keeps what it last read
-  // (`D55`). Query's own `keepPreviousData` covers only the pending case.
-  const [lastRead, setLastRead] = useState(draft ? EMPTY_DRAFT : data);
-  if (data !== undefined && data !== lastRead) {
-    setLastRead(data);
-  }
-  // The stored review is keyed by path too, so a rename would otherwise leave
-  // the gate below with nothing and unmount the buffer mid-session.
-  const [lastStash, setLastStash] = useState(draft ? null : stash.data);
-  if (stash.data !== undefined && stash.data !== lastStash) {
-    setLastStash(stash.data);
-  }
-
-  const file = data ?? lastRead;
-  const stored = stash.data === undefined ? lastStash : stash.data;
-
-  // Only a missing file is a deletion. A permission or IO failure leaves the
-  // note where it was, so the tab keeps what it last read (`D55`).
-  const gone = error instanceof FileError && error.kind === "not-found";
-  const unreadable = error !== null && !gone;
-  // A string rather than the error instance, so a re-read that fails the same
-  // way leaves the effect alone and stacks no second toast.
-  const reason = unreadable ? reasonOf(error) : undefined;
+  }, [failed, tab.id]);
 
   useEffect(() => {
-    if (unreadable) {
+    if (reason !== undefined) {
       toast.add({
         description: reason,
         title: "could not read this note",
         type: "error",
       });
     }
-  }, [unreadable, reason]);
+  }, [reason]);
 
-  // Nothing was ever read, so there is no buffer to protect and nothing to
-  // show. A failed re-read of a tab that does have one is the buffer's own
-  // decision, made in `SessionBuffer`.
   useEffect(() => {
-    if (gone && file === undefined) {
+    if (gone) {
       closeTab(tab.id);
     }
-  }, [gone, file, tab.id]);
+  }, [gone, tab.id]);
 
-  if (file === undefined) {
-    return unreadable ? (
+  // Until the editor mounts, a change on disk retries the opening read.
+  useEffect(
+    () =>
+      opening
+        ? registerTabRefresh(tab.id, async () => {
+            await refetch();
+          })
+        : undefined,
+    [opening, refetch, tab.id]
+  );
+
+  if (opened === undefined) {
+    return reason === undefined ? null : (
       <UnreadableNote
         active={active}
         id={tab.id}
         reason={reason}
-        retry={retry}
+        retry={() => {
+          activateTab(tab.id);
+          void refetch();
+        }}
       />
-    ) : null;
-  }
-  // Opening without knowing whether a review is stored would start from the
-  // disk file and lose the stashed text on the first save.
-  if (stored === undefined) {
-    return stash.isError ? (
-      <UnreadableNote
-        active={active}
-        id={tab.id}
-        reason={reasonOf(stash.error)}
-        retry={retry}
-      />
-    ) : null;
+    );
   }
 
   return (
     <SessionBuffer
       active={active}
-      file={file}
-      missing={gone}
-      readable={error === null && !stash.isError}
-      readFile={data}
-      stash={stored}
+      file={opened.file}
+      stash={opened.stash}
       tab={tab}
     />
   );

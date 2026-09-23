@@ -3,7 +3,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getNote } from "@/data/get-note";
-import { noteQueries } from "@/data/queries";
+import { noteQueries, tabOpeningQuery } from "@/data/queries";
 
 describe("queries", () => {
   afterEach(clearMocks);
@@ -74,7 +74,7 @@ describe("queries", () => {
       client.clear();
     });
 
-    it("should invalidate saved queries together while leaving direct file reads independent", async () => {
+    it("should invalidate saved queries together while leaving a tab's opening read alone", async () => {
       const client = new QueryClient({
         defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
       });
@@ -86,9 +86,9 @@ describe("queries", () => {
             updatedAt: 1000,
           };
         }
-        return [];
+        return command === "read_conflict" ? null : [];
       });
-      await client.query(noteQueries.file("note", "atlas.md"));
+      await client.query(tabOpeningQuery("tab-1", "note", "atlas.md"));
       await client.query(noteQueries.mentions("atlas.md"));
       await client.query(noteQueries.tags());
       await client.invalidateQueries({ queryKey: noteQueries.index });
@@ -100,8 +100,9 @@ describe("queries", () => {
         client.getQueryState(noteQueries.tags().queryKey)?.isInvalidated
       ).toBeTruthy();
       expect(
-        client.getQueryState(noteQueries.fileKey("note", "atlas.md"))
-          ?.isInvalidated
+        client.getQueryState(
+          tabOpeningQuery("tab-1", "note", "atlas.md").queryKey
+        )?.isInvalidated
       ).toBeFalsy();
       client.clear();
     });
