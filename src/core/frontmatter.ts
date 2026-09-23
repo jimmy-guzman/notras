@@ -38,6 +38,10 @@ const CLOSING_DELIMITERS = new Set(["---", "..."]);
 
 const TRAILING_CR = /\r$/u;
 
+function stripTrailingCR(line: string) {
+  return line.replace(TRAILING_CR, "");
+}
+
 function cleanTag(raw: string) {
   const tag = raw
     .trim()
@@ -202,9 +206,8 @@ export function parseNote(content: string): ParsedNote {
 
   // CRLF files leave a trailing \r on every split line; strip it here so
   // `composeNote`'s \n joins cannot emit a block with mixed line endings.
-  const strip = (line: string) => line.replace(TRAILING_CR, "");
-  const rawLines = lines.slice(1, closeIndex).map(strip);
-  const close = strip(lines[closeIndex] ?? "---");
+  const rawLines = lines.slice(1, closeIndex).map(stripTrailingCR);
+  const close = stripTrailingCR(lines[closeIndex] ?? "---");
   const body = lines.slice(closeIndex + 1).join("\n");
   const frontmatter: Frontmatter = {
     pinned: false,

@@ -8,6 +8,7 @@ export async function getNotes(filters: NoteFilters = {}) {
     async () =>
       await commands.listNotes({
         folder: filters.folder ?? null,
+        includePreview: filters.includePreview ?? null,
         limit: filters.limit ?? null,
         pinnedOnly: filters.pinnedOnly ?? null,
         query: filters.query ?? null,

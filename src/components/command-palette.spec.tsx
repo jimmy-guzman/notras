@@ -28,6 +28,7 @@ import {
   registerTabHandles,
   registerTabSnapshot,
 } from "@/lib/tabs/store";
+import { closeNoteBrowser } from "@/lib/ui/note-browser";
 
 const FOUND_NOTE = /Found/u;
 const CREATE_NOTE = /create/u;
@@ -376,6 +377,7 @@ describe("recent commands", () => {
       expect(
         screen.getAllByRole("option").map((row) => row.textContent)
       ).toStrictEqual([
+        "browse notes",
         "new note",
         "turn on focus mode",
         "reopen last closed tab",
@@ -648,6 +650,44 @@ describe("recent commands", () => {
         "option",
         { name: "quick capture" }
       )
+    ).toBeInTheDocument();
+  });
+
+  it("should name the browser toggle for its next action and retain its recent command", async () => {
+    closeNoteBrowser();
+    onTestFinished(() => {
+      act(closeNoteBrowser);
+      localStorage.removeItem("note-browser-open");
+    });
+    const palette = mount("actions", []);
+    await palette.user.click(
+      screen.getByRole("option", { name: "browse notes" })
+    );
+    expect(localStorage.getItem("note-browser-open")).toBe("true");
+    expect(palette.closed).toStrictEqual([false]);
+    palette.unmount();
+    const reopened = mount("actions", []);
+    expect(
+      within(screen.getByRole("group", { name: "recent" })).getByRole(
+        "option",
+        { name: "close note browser" }
+      )
+    ).toBeInTheDocument();
+    await reopened.user.type(reopened.input, "close note browser");
+    await reopened.user.click(
+      screen.getByRole("option", { name: "close note browser" })
+    );
+    expect(localStorage.getItem("note-browser-open")).toBe("false");
+    expect(reopened.closed).toStrictEqual([false]);
+    reopened.unmount();
+    mount("actions", []);
+    expect(
+      within(screen.getByRole("group", { name: "recent" })).getAllByRole(
+        "option"
+      )
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("option", { name: "browse notes" })
     ).toBeInTheDocument();
   });
 

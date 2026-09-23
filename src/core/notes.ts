@@ -17,6 +17,7 @@ export interface NoteMeta {
 
 export interface NoteFilters {
   folder?: string;
+  includePreview?: boolean;
   limit?: number;
   pinnedOnly?: boolean;
   query?: string;

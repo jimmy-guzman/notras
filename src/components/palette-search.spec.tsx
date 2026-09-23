@@ -95,6 +95,7 @@ describe("palette search states", () => {
     expect(list).toHaveBeenCalledWith({
       filters: {
         folder: null,
+        includePreview: null,
         limit: null,
         pinnedOnly: null,
         query: null,

@@ -58,6 +58,7 @@ pub struct NoteMeta {
 #[serde(rename_all = "camelCase")]
 pub struct NoteFilters {
     pub folder: Option<String>,
+    pub include_preview: Option<bool>,
     pub limit: Option<u32>,
     pub pinned_only: Option<bool>,
     pub query: Option<String>,
@@ -178,6 +179,7 @@ fn select_notes(
         "SELECT created_at, folder, path, pinned, title, updated_at FROM note WHERE id = ?1",
     )?;
     let mut tags = conn.prepare("SELECT tag FROM note_tag WHERE path = ?1 ORDER BY rowid")?;
+    let mut preview = conn.prepare("SELECT content FROM note_fts WHERE rowid = ?1")?;
     // The row shows about nine tokens on one line, and FTS5 centres the hit
     // in the window or starts it at a sentence, so 8 keeps the mark visible.
     let mut snippet = conn.prepare(
@@ -224,6 +226,19 @@ fn select_notes(
         let note_tags = tags
             .query_map([&path], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?;
+        let context = if context.is_none() && filters.include_preview == Some(true) {
+            let body: String = preview.query_row([id], |row| row.get(0))?;
+            crate::markdown::body_title(&body).and_then(|title| {
+                let remaining = body
+                    .split_inclusive('\n')
+                    .skip(title.line + 1)
+                    .collect::<String>();
+                crate::markdown::body_title(&remaining)
+                    .map(|line| line.text.chars().take(180).collect())
+            })
+        } else {
+            context
+        };
         metadata.query_row([id], |row| {
             Ok(NoteMeta {
                 created_at: row.get(0)?,
@@ -458,6 +473,46 @@ mod tests {
                 (updated_at, path),
             )
             .unwrap();
+    }
+
+    #[test]
+    fn should_opt_into_readable_indexed_previews_without_changing_search_hits() {
+        let (directory, core) = library();
+        save(
+            &core,
+            "preview.md",
+            "---\ntags: [work]\n---\n# Title\n\n```rs\nhidden\n```\n\nA **readable** preview.",
+            2,
+        );
+        save(&core, "empty.md", "# Title only", 1);
+        let view = core.read_view().unwrap();
+        assert!(view
+            .list_notes(&NoteFilters::default())
+            .unwrap()
+            .iter()
+            .all(|note| note.snippet.is_none()));
+        fs::remove_file(directory.path().join("preview.md")).unwrap();
+        let notes = view
+            .list_notes(&NoteFilters {
+                include_preview: Some(true),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(notes[0].snippet.as_deref(), Some("A readable preview."));
+        assert_eq!(notes[1].snippet, None);
+        let matched = view
+            .list_notes(&NoteFilters {
+                include_preview: Some(true),
+                query: Some("readable".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(matched.len(), 1);
+        assert!(matched[0]
+            .snippet
+            .as_ref()
+            .unwrap()
+            .contains("\u{1}readable\u{2}"));
     }
 
     #[test]

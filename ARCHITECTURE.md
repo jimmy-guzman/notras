@@ -76,6 +76,12 @@ Index reconciliation propagates SQLite read and decoding failures. Only a missin
 
 **Frontmatter has two parsers.** TypeScript parses and edits the live document; Rust parses persisted documents for indexing. Both interpret `pinned`, `tags`, and imported `title` values. Pin and tag controls update the session document, preserving unknown fields and the closing delimiter. They share its history and persistence with source edits.
 
+## Note browser
+
+`Workspace` keeps the browser and editor mounted. Sidebar primitives own the browser controls; `react-resizable-panels` owns the split. `lib/ui/note-browser.ts` persists visibility and the user-selected pixel width separately from the width constrained by the window. The collection picker snapshots visit history when opened or a collection is chosen, preventing note visits from reordering visible rows.
+
+The browser filters collections over the uncapped indexed list. `includePreview` fills the snippet only when search context is absent. Previews read `note_fts.content` in the same SQLite snapshot as metadata, without reopening files. Callers that omit the flag retain their existing snippet behavior.
+
 ## Index schema
 
 Rust owns the tables and their queries. The webview sends structured filters and receives typed results; it holds no schema mirror or SQL builder.

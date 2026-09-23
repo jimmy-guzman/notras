@@ -21,36 +21,36 @@ import type { Tab } from "@/lib/tabs/tab";
 
 const NOOP = () => {};
 
+async function mountStrip(tabs: Tab[]) {
+  mockIPC((command) => {
+    if (command === "get_notes_dir") {
+      return "/notes";
+    }
+    if (command.startsWith("plugin:")) {
+      return 0;
+    }
+    throw new Error(`unexpected command: ${command}`);
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const { container } = render(
+    <QueryClientProvider client={client}>
+      <Suspense fallback={null}>
+        <Titlebar>
+          <TabStrip activeId={tabs[0]?.id ?? ""} onNew={NOOP} tabs={tabs} />
+        </Titlebar>
+      </Suspense>
+    </QueryClientProvider>
+  );
+  await screen.findAllByRole("tab");
+  return container;
+}
+
 describe("tab strip", () => {
   afterEach(() => {
     clearMocks();
   });
-
-  async function mountStrip(tabs: Tab[]) {
-    mockIPC((command) => {
-      if (command === "get_notes_dir") {
-        return "/notes";
-      }
-      if (command.startsWith("plugin:")) {
-        return 0;
-      }
-      throw new Error(`unexpected command: ${command}`);
-    });
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const { container } = render(
-      <QueryClientProvider client={client}>
-        <Suspense fallback={null}>
-          <Titlebar>
-            <TabStrip activeId={tabs[0]?.id ?? ""} onNew={NOOP} tabs={tabs} />
-          </Titlebar>
-        </Suspense>
-      </QueryClientProvider>
-    );
-    await screen.findAllByRole("tab");
-    return container;
-  }
 
   it.each([false, true])(
     "should count a tab click but leave history alone during a drag: %s",

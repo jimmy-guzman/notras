@@ -13,6 +13,7 @@ import {
   ListEndIcon,
   ListXIcon,
   NotebookPenIcon,
+  PanelLeftIcon,
   PencilIcon,
   PinIcon,
   PlusIcon,
@@ -70,6 +71,7 @@ import { reasonOf } from "@/lib/ui/failure";
 import { openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
+import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands } from "@/server/adapters/bindings";
@@ -319,6 +321,7 @@ export function CommandPalette({
   };
 
   const focusModeEnabled = useFocusMode();
+  const noteBrowserOpen = useNoteBrowser();
 
   // pdf.rs prints through AppKit, so the row exists where AppKit does.
   const exportPdfAction: PaletteAction = {
@@ -338,6 +341,17 @@ export function CommandPalette({
   };
 
   const actions: PaletteAction[] = [
+    {
+      Icon: PanelLeftIcon,
+      label: "browse notes",
+      needs: "none",
+      onSelect: () => {
+        close();
+        toggleNoteBrowser();
+      },
+      text: noteBrowserOpen ? "close note browser" : "browse notes",
+      value: "browse-notes",
+    },
     {
       Icon: SearchIcon,
       label: "find in note",

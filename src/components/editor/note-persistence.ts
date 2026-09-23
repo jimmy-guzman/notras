@@ -288,17 +288,17 @@ export function createNotePersistence(
       reconcileFile();
     }
   };
+  const tryWrite = async () => {
+    try {
+      await write();
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const save = async () => {
-    const run = async () => {
-      try {
-        await write();
-        return true;
-      } catch {
-        return false;
-      }
-    };
     // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
-    const next = tail.then(run, run);
+    const next = tail.then(tryWrite, tryWrite);
     tail = next;
     return await next;
   };
