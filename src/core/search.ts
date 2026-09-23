@@ -150,12 +150,17 @@ export function searchFolders(
   folders: string[],
   notes: NoteMeta[]
 ): { count: number; folder: string }[] {
+  const counts = Map.groupBy(
+    notes.flatMap(({ folder }) =>
+      folder === ""
+        ? []
+        : folder
+            .split("/")
+            .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
+    ),
+    (folder) => folder
+  );
   return folders
-    .map((folder) => ({
-      count: notes.filter(
-        (note) => note.folder === folder || note.folder.startsWith(`${folder}/`)
-      ).length,
-      folder,
-    }))
+    .map((folder) => ({ count: counts.get(folder)?.length ?? 0, folder }))
     .toSorted((left, right) => left.folder.localeCompare(right.folder));
 }
