@@ -33,8 +33,8 @@ async function hideCapture(saving: { current: boolean }) {
 }
 
 /**
- * The quick-capture window: a bare editor. Esc (or ⌘⏎) saves the jot into
- * `inbox/` and hides the window; empty captures are discarded. Escape closes
+ * The quick-capture window: a bare editor. Esc (or ⌘⏎) saves the jot as a new
+ * note and hides the window; empty captures are discarded. Escape closes
  * find first when its bar is open.
  */
 export function CaptureWindow() {
@@ -62,10 +62,7 @@ export function CaptureWindow() {
     savingRef.current = true;
     if (content.trim() !== "") {
       try {
-        await createNote({
-          content,
-          folder: "inbox",
-        });
+        await createNote({ content });
       } catch (error) {
         savingRef.current = false;
         // Keep the jot on screen -- hiding would lose it.
@@ -120,7 +117,7 @@ export function CaptureWindow() {
         <FindBar controller={find} />
       </div>
       <footer className="text-muted-foreground flex h-8 shrink-0 items-center justify-end gap-1 p-1 text-xs">
-        <Chord hotkey="Escape" /> saves to inbox
+        <Chord hotkey="Escape" /> saves note
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}
       <Toaster />

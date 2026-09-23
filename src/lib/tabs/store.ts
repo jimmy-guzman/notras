@@ -69,6 +69,7 @@ const loadedNotes = new Map<string, string>();
 const restored = new Map<string, number>();
 
 const handles = new Map<string, TabHandles>();
+const refreshers = new Map<string, () => Promise<void>>();
 
 export function getTabState() {
   return tabs.state;
@@ -253,6 +254,28 @@ export function registerTabHandles(id: string, next: TabHandles) {
 }
 
 /** Connect the bars to the session's derived state for its mounted lifetime. */
+/**
+ * How a tab re-reads its file when the disk may have changed. The latest
+ * registration wins, and releasing an older one leaves the newer in place.
+ */
+export function registerTabRefresh(id: string, refresh: () => Promise<void>) {
+  refreshers.set(id, refresh);
+  return () => {
+    if (refreshers.get(id) === refresh) {
+      refreshers.delete(id);
+    }
+  };
+}
+
+/** Ask every open tab that `holds` matches to re-read its file. */
+export function refreshTabs(holds: (tab: Tab) => boolean) {
+  for (const tab of getTabState().tabs) {
+    if (holds(tab)) {
+      void refreshers.get(tab.id)?.();
+    }
+  }
+}
+
 export function registerTabSnapshot(
   id: string,
   snapshot: ReadonlyStore<TabSnapshot>

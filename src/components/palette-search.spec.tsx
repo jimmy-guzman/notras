@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
@@ -22,6 +24,7 @@ function mount(query: string, error?: Error) {
   client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
   if (query.trim() !== "") {
     client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.folders().queryKey, []);
   }
 
   client.setQueryData(noteQueries.tags().queryKey, []);
@@ -66,6 +69,51 @@ function mount(query: string, error?: Error) {
 }
 
 describe("palette search states", () => {
+  it("should offer folder choices only once their notes have loaded", async () => {
+    const notes = Promise.withResolvers<unknown[]>();
+    const folders = Promise.withResolvers<string[]>();
+    mockIPC(async (command) => {
+      if (command === "list_notes") {
+        return await notes.promise;
+      }
+      if (command === "list_folders") {
+        return await folders.promise;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(clearMocks);
+    const { rerender } = mount("");
+    rerender("folder:");
+
+    await act(async () => {
+      folders.resolve(["work"]);
+      // A macrotask lets the folder read land in the query before asserting.
+      await sleep(0);
+    });
+
+    expect(screen.getByText("loading suggestions...")).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /work/u })).toBeNull();
+    await act(async () => {
+      notes.resolve([
+        {
+          createdAt: 0,
+          folder: "work",
+          path: "work/plan.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "Plan",
+          updatedAt: 1,
+        },
+      ]);
+      await notes.promise;
+    });
+
+    expect(
+      await screen.findByRole("option", { name: "work 1" })
+    ).toBeInTheDocument();
+  });
+
   it("should request the full note list before ranking and limiting idle results", async () => {
     const recent = [
       {

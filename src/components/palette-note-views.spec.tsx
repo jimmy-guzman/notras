@@ -100,6 +100,10 @@ describe("palette note views", () => {
         updatedAt: new Date(1),
       }))
     );
+    client.setQueryData(noteQueries.folders().queryKey, [
+      "Client Work",
+      "Client Work/2026",
+    ]);
     const { container: host } = mount(
       createElement(MoveView, {
         onCancel: () => {},
@@ -119,6 +123,74 @@ describe("palette note views", () => {
     expect(selected.textContent).toContain("Client Work");
     await user.click(selected);
     expect(moved).toStrictEqual(["Client Work"]);
+  });
+
+  it("should keep loading folders while an older notes failure sits beside cached notes", () => {
+    mockIPC(async () => await Promise.withResolvers<never>().promise);
+    onTestFinished(clearMocks);
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client
+      .getQueryCache()
+      .find({ queryKey: noteQueries.list().queryKey })
+      ?.setState({ error: new Error("index unavailable"), status: "error" });
+    const { container: host } = mount(
+      createElement(MoveView, {
+        onCancel: () => {},
+        onMove: () => {},
+        onMoveToNewFolder: () => {},
+        query: "",
+      }),
+      client
+    );
+
+    expect(host.textContent).toContain("loading folders...");
+    expect(host.textContent).not.toContain("index unavailable");
+  });
+
+  it("should offer an existing empty folder instead of creating it", async () => {
+    const user = userEvent.setup();
+    const moved: string[] = [];
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    client.setQueryData(noteQueries.list().queryKey, [
+      {
+        createdAt: new Date(1),
+        folder: "",
+        path: "note.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Note",
+        updatedAt: new Date(1),
+      },
+    ]);
+    client.setQueryData(noteQueries.folders().queryKey, ["inbox"]);
+    const { container: host } = mount(
+      createElement(MoveView, {
+        onCancel: () => {},
+        onMove: (folder) => {
+          moved.push(folder);
+        },
+        onMoveToNewFolder: () => {
+          moved.push("new");
+        },
+        query: "inbox",
+      }),
+      client
+    );
+    expect(host.textContent).not.toContain("new folder");
+    const selected = screen.getByRole("option", { selected: true });
+    expect(selected.textContent).toBe("inbox");
+    await user.click(selected);
+    expect(moved).toStrictEqual(["inbox"]);
   });
 
   it.each(["available", "pending", "failed"])(

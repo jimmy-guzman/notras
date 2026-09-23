@@ -41,6 +41,17 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
     },
   });
   client.setQueryData(noteQueries.list().queryKey, notes);
+  // A disk holding these notes holds their folders and every ancestor.
+  client.setQueryData(noteQueries.folders().queryKey, [
+    ...new Set(
+      notes.flatMap(({ folder }) =>
+        folder
+          .split("/")
+          .filter((part) => part !== "")
+          .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
+      )
+    ),
+  ]);
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   const closed: boolean[] = [];
   onTestFinished(() => {
@@ -307,6 +318,61 @@ describe("command palette keyboard", () => {
 });
 
 describe("command palette actions", () => {
+  it("should take a note in a folder out of it through the showing session", async () => {
+    openNote("projects/atlas.md");
+    registerTabSnapshot(
+      getTabState().activeId,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+        words: 1,
+      }))
+    );
+    const changes: unknown[] = [];
+    registerTabHandles(getTabState().activeId, {
+      changePath: async (change) => {
+        changes.push(change);
+      },
+      exportPdf: async () => null,
+      getCaret: () => 0,
+      insertText: () => {},
+      toggleSource: () => {},
+    });
+    const palette = mount("actions", []);
+    await palette.user.click(
+      screen.getByRole("option", { name: "remove from folder" })
+    );
+    expect(changes).toStrictEqual([{ folder: "", kind: "move" }]);
+    expect(palette.closed).toStrictEqual([false]);
+  });
+
+  it("should not offer remove from folder for a note outside any folder", () => {
+    openNote("atlas.md");
+    registerTabSnapshot(
+      getTabState().activeId,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+        words: 1,
+      }))
+    );
+    mount("actions", []);
+    expect(
+      screen.getByRole("option", { name: "move to folder..." })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "remove from folder" })
+    ).not.toBeInTheDocument();
+  });
+
   it("should export a pdf through the showing tab's session and close on macOS", async () => {
     // happy-dom does not report macOS, and the row exists only there.
     vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
@@ -984,7 +1050,7 @@ describe("steady palette searches", () => {
     await palette.user.clear(palette.input);
     await palette.user.type(palette.input, "folder:");
     expect(document.querySelector('[role="option"]')?.textContent).toContain(
-      "notes root"
+      "work"
     );
     expect(document.body.textContent).not.toContain("index unavailable");
     expect(document.body.textContent).not.toContain("incomplete filter");

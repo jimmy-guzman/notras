@@ -23,8 +23,10 @@ import {
   openNote,
   openTab,
   persistTabs,
+  refreshTabs,
   registerLoadedNote,
   registerTabHandles,
+  registerTabRefresh,
   registerTabSnapshot,
   renameTab,
   reopenTab,
@@ -331,6 +333,40 @@ describe("store", () => {
     });
   });
 
+  describe(refreshTabs, () => {
+    it("should re-read only the open tabs that hold a changed path", () => {
+      openNote("refresh/a.md", true);
+      openNote("refresh/b.md", true);
+      const refreshed: string[] = [];
+      for (const tab of getTabState().tabs) {
+        registerTabRefresh(tab.id, async () => {
+          refreshed.push(tab.path);
+        });
+      }
+
+      refreshTabs((tab) => tab.path === "refresh/b.md");
+
+      expect(refreshed).toStrictEqual(["refresh/b.md"]);
+    });
+
+    it("should keep a newer refresher when an older registration is released", () => {
+      openNote("refresh/c.md", true);
+      const id = getTabState().activeId;
+      const refreshed: string[] = [];
+      const releaseOlder = registerTabRefresh(id, async () => {
+        refreshed.push("older");
+      });
+      registerTabRefresh(id, async () => {
+        refreshed.push("newer");
+      });
+
+      releaseOlder();
+      refreshTabs((tab) => tab.id === id);
+
+      expect(refreshed).toStrictEqual(["newer"]);
+    });
+  });
+
   describe(closeOtherTabs, () => {
     beforeEach(() => {
       localStorage.clear();
@@ -550,6 +586,9 @@ describe(changeNoteMetadata, () => {
         },
         clearStash: async () => {},
         onPathChanged: () => {},
+        read: () => {
+          throw new Error("no read requested");
+        },
         stash: async () => {},
         write: async (_path, content) => {
           writes.push(content);
@@ -623,6 +662,9 @@ describe(changeNoteMetadata, () => {
         },
         clearStash: async () => {},
         onPathChanged: () => {},
+        read: () => {
+          throw new Error("no read requested");
+        },
         stash: async () => {},
         write: async () => await held.promise,
       }

@@ -1,65 +1,48 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createNotePersistence } from "@/components/editor/note-persistence";
+import { FileError } from "@/core/errors";
 
 import { useAutosave } from "./use-autosave";
 
 const AUTOSAVE_DELAY_MS = 800;
 
-interface AutosaveProps {
-  duringCommit?: () => void;
-  enabled: boolean;
-}
-
 function mountAutosave(
   write: (path: string, content: string) => Promise<Date>
 ) {
-  const initialProps: AutosaveProps = {
-    enabled: true,
-  };
-  const { result, rerender } = renderHook(
-    ({ enabled, duringCommit }: AutosaveProps) => {
-      // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
-      const [persistence] = useState(() =>
-        createNotePersistence(
-          {
-            content: "",
-            path: "note.md",
-            revision: "r0",
-            updatedAt: new Date(0),
-          },
-          {
-            changePath: () => {
-              throw new Error("no path action requested");
-            },
-            clearStash: async () => {},
-            onPathChanged: () => {},
-            stash: async () => {},
-            write: async (path, content) => ({
-              kind: "committed",
-              receipt: {
-                path,
-                revision: content,
-                updatedAt: await write(path, content),
-              },
-            }),
-          }
-        )
-      );
-      useLayoutEffect(() => {
-        persistence.receiveFile(
-          "note.md",
-          { content: "", revision: "r0", updatedAt: new Date(0) },
-          !enabled
-        );
-        duringCommit?.();
-      }, [duringCommit, enabled, persistence]);
-      return useAutosave(persistence);
+  let onDisk = true;
+  const persistence = createNotePersistence(
+    {
+      content: "",
+      path: "note.md",
+      revision: "r0",
+      updatedAt: new Date(0),
     },
-    { initialProps }
+    {
+      changePath: () => {
+        throw new Error("no path action requested");
+      },
+      clearStash: async () => {},
+      onPathChanged: () => {},
+      read: async () => {
+        if (!onDisk) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return { content: "", revision: "r0", updatedAt: new Date(0) };
+      },
+      stash: async () => {},
+      write: async (path, content) => ({
+        kind: "committed",
+        receipt: {
+          path,
+          revision: content,
+          updatedAt: await write(path, content),
+        },
+      }),
+    }
   );
+  const { result } = renderHook(() => useAutosave(persistence));
 
   return {
     async flush() {
@@ -72,18 +55,11 @@ function mountAutosave(
     get reason() {
       return result.current.reason;
     },
-    setEnabled(enabled: boolean) {
-      rerender({ enabled });
-    },
-    async setEnabledMidCommit(enabled: boolean) {
-      // A layout effect lets the timer fire before passive effects, even though renderHook flushes both.
-      rerender({
-        duringCommit: () => {
-          vi.advanceTimersByTime(AUTOSAVE_DELAY_MS);
-        },
-        enabled,
+    async setOnDisk(present: boolean) {
+      onDisk = present;
+      await act(async () => {
+        await persistence.refresh();
       });
-      await Promise.resolve();
     },
     async settle() {
       await act(async () => {
@@ -136,7 +112,7 @@ describe(useAutosave, () => {
     expect(harness.status).toBe("saved");
   });
 
-  it("should not write while disabled", async () => {
+  it("should not write while the file is missing", async () => {
     const written: string[] = [];
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
@@ -144,7 +120,7 @@ describe(useAutosave, () => {
       return new Date(1);
     });
 
-    harness.setEnabled(false);
+    await harness.setOnDisk(false);
     harness.type("typed while the file was gone");
     await harness.settle();
 
@@ -159,7 +135,7 @@ describe(useAutosave, () => {
       return new Date(1);
     });
 
-    harness.setEnabled(false);
+    await harness.setOnDisk(false);
     harness.type("the file is gone but this is on screen");
 
     // A false here cancels the quit, which would leave the app unquittable
@@ -168,7 +144,7 @@ describe(useAutosave, () => {
     expect(written).toStrictEqual([]);
   });
 
-  it("should not write through a timer that fires before effects flush", async () => {
+  it("should not write once a read found the file missing while the debounce was pending", async () => {
     const written: string[] = [];
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
@@ -177,13 +153,13 @@ describe(useAutosave, () => {
     });
 
     harness.type("about to be deleted");
-    await harness.setEnabledMidCommit(false);
+    await harness.setOnDisk(false);
     await harness.settle();
 
     expect(written).toStrictEqual([]);
   });
 
-  it("should write what is on screen after being re-enabled", async () => {
+  it("should write what is on screen once the file is back", async () => {
     const written: string[] = [];
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
@@ -194,9 +170,9 @@ describe(useAutosave, () => {
     harness.type("first");
     await harness.settle();
 
-    harness.setEnabled(false);
+    await harness.setOnDisk(false);
     harness.type("first, plus everything typed while the file was gone");
-    harness.setEnabled(true);
+    await harness.setOnDisk(true);
     await harness.flush();
 
     expect(written).toStrictEqual([

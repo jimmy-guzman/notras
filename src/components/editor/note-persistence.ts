@@ -1,6 +1,7 @@
 import { Debouncer } from "@tanstack/react-pacer";
 import { createStore } from "@tanstack/react-store";
 
+import { FileError } from "@/core/errors";
 import { composeNote, parseNote, updateFrontmatter } from "@/core/frontmatter";
 import type { FrontmatterEdit } from "@/core/frontmatter";
 import { mergeDocuments } from "@/core/merge";
@@ -50,6 +51,8 @@ export interface PersistencePorts {
   clearStash: (path: string) => Promise<void>;
   onCleanFileMissing?: () => void;
   onPathChanged: (to: string) => void;
+  /** The file at `path` now. Rejects with a `not-found` `FileError` when nothing is there. */
+  read: (path: string) => Promise<FileContent>;
   stash: (path: string, stash: ConflictStash) => Promise<void>;
   write: (
     path: string,
@@ -70,6 +73,8 @@ interface PersistenceState {
   sourceMode: boolean;
   status: SaveStatus;
   theirs: FileContent | undefined;
+  /** Why the newest read failed for a reason other than a missing file. */
+  unreadable: string | undefined;
   updatedAt: Date;
   writing: boolean;
 }
@@ -121,6 +126,7 @@ export function createNotePersistence(
     sourceMode: false,
     status: resumed === undefined ? "saved" : "dirty",
     theirs: undefined,
+    unreadable: undefined,
     updatedAt: resumed?.base.updatedAt ?? initial.updatedAt,
     writing: false,
   });
@@ -137,6 +143,7 @@ export function createNotePersistence(
       sourceMode: current.sourceMode,
       status: current.status,
       theirs: current.theirs,
+      unreadable: current.unreadable,
       updatedAt: current.updatedAt,
       writing: current.writing,
     };
@@ -155,8 +162,14 @@ export function createNotePersistence(
     };
   });
   let observation:
-    | { path: string; file: FileContent | undefined; missing: boolean }
+    | ({ ticket: number } & (
+        | { kind: "file"; file: FileContent }
+        | { kind: "missing" }
+      ))
     | undefined;
+  // Every read takes a ticket, and a path change or disposal takes one too, so
+  // only the newest read of the current path is ever reconciled.
+  let latest = 0;
   let owners = 0;
   let edits = resumed === undefined ? 0 : 1;
   let savedEdits = 0;
@@ -189,6 +202,7 @@ export function createNotePersistence(
       updatedAt: receipt.updatedAt,
     }));
     if (from !== receipt.path) {
+      latest += 1;
       ports.onPathChanged(receipt.path);
     }
   };
@@ -484,36 +498,52 @@ export function createNotePersistence(
     ) {
       return;
     }
-    const { path, file, missing } = observation;
+    const read = observation;
     observation = undefined;
-    if (path !== state.state.path) {
+    if (read.ticket !== latest) {
       return;
     }
-    if (missing && state.state.missing) {
+    if (read.kind === "file") {
+      reconcileContent(read.file);
       return;
     }
-    if (missing) {
-      const clean = state.state.status === "saved";
-      state.setState((previous) => ({ ...previous, missing: true }));
-      if (clean) {
-        ports.onCleanFileMissing?.();
-      }
+    if (state.state.missing) {
       return;
     }
-    if (file === undefined) {
-      return;
+    const clean = state.state.status === "saved";
+    state.setState((previous) => ({ ...previous, missing: true }));
+    if (clean) {
+      ports.onCleanFileMissing?.();
     }
-    reconcileContent(file);
   };
-  const receiveFile = (
-    path: string,
-    file: FileContent | undefined,
-    missing: boolean
-  ) => {
-    if (path !== state.state.path) {
+  const observe = async (path: string) => {
+    try {
+      return { file: await ports.read(path), kind: "file" } as const;
+    } catch (error) {
+      return error instanceof FileError && error.kind === "not-found"
+        ? ({ kind: "missing" } as const)
+        : ({ kind: "failed", reason: reasonOf(error) } as const);
+    }
+  };
+  const refresh = async () => {
+    const { path } = state.state;
+    if (path === "") {
       return;
     }
-    observation = { file, missing, path };
+    latest += 1;
+    const ticket = latest;
+    const read = await observe(path);
+    if (ticket !== latest) {
+      return;
+    }
+    state.setState((previous) => ({
+      ...previous,
+      unreadable: read.kind === "failed" ? read.reason : undefined,
+    }));
+    if (read.kind === "failed") {
+      return;
+    }
+    observation = { ...read, ticket };
     reconcileFile();
   };
   const resolve = async (content: string) => {
@@ -559,7 +589,8 @@ export function createNotePersistence(
         }
       };
     },
-    receiveFile,
+    /** Re-read the committed path; a failed read never rejects, and only the newest read counts. */
+    refresh,
     resolve,
     retain: () => {
       owners += 1;
@@ -569,6 +600,7 @@ export function createNotePersistence(
           await flush();
         } finally {
           if (owners === 0) {
+            latest += 1;
             debouncer.cancel();
             document.destroy();
           }

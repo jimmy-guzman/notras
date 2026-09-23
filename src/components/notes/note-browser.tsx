@@ -13,7 +13,7 @@ import {
   SearchIcon,
   XIcon,
 } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { Highlighted } from "@/components/notes/note-label";
@@ -44,6 +44,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
@@ -59,12 +60,27 @@ type Collection =
 
 function collectionLabel(collection: Collection) {
   if (collection.kind === "folder") {
-    return collection.value === "" ? "notes root" : collection.value;
+    return collection.value;
   }
   if (collection.kind === "tag") {
     return `#${collection.value}`;
   }
   return collection.kind === "all" ? "all notes" : collection.kind;
+}
+
+/**
+ * The collection to show. A chosen folder deleted on disk leaves nothing to
+ * show, so the browser shows every note and names the folder that went.
+ */
+function shownCollection(
+  collection: Collection,
+  folders: string[] | undefined
+): { deleted?: string; shown: Collection } {
+  return collection.kind === "folder" &&
+    folders !== undefined &&
+    !folders.includes(collection.value)
+    ? { deleted: collection.value, shown: { kind: "all" } }
+    : { shown: collection };
 }
 
 function collectionNotes(
@@ -88,8 +104,7 @@ function collectionNotes(
       case "folder": {
         return (
           note.folder === collection.value ||
-          (collection.value !== "" &&
-            note.folder.startsWith(`${collection.value}/`))
+          note.folder.startsWith(`${collection.value}/`)
         );
       }
       case "all": {
@@ -185,7 +200,9 @@ function FolderCollection({
       <span className="min-w-0 flex-1 truncate">
         {folder.folder.split("/").at(-1)}
       </span>
-      <SidebarMenuBadge>{folder.count}</SidebarMenuBadge>
+      {folder.count === 0 ? null : (
+        <SidebarMenuBadge>{folder.count}</SidebarMenuBadge>
+      )}
     </SidebarMenuButton>
   );
   return (
@@ -224,18 +241,22 @@ function FolderCollection({
 function Collections({
   collection,
   history,
+  known,
   library,
   onChoose,
 }: {
   collection: Collection;
   history: string[];
+  known: UseQueryResult<string[]>;
   library: UseQueryResult<NoteMeta[]>;
   onChoose: (collection: Collection) => void;
 }) {
-  const folders = searchFolders(library.data ?? []).filter(
-    ({ folder }) => folder !== "/"
-  );
-  const rootNotes = library.data?.filter((note) => note.folder === "");
+  // Counts come from the notes, so no folder row draws before both have loaded.
+  const folders =
+    known.data === undefined || library.data === undefined
+      ? []
+      : searchFolders(known.data, library.data);
+  const failure = library.error ?? known.error;
   const tags = [
     ...new Set(library.data?.flatMap((note) => note.tags)),
   ].toSorted();
@@ -284,28 +305,11 @@ function Collections({
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      {folders.length === 0 && rootNotes?.length === 0 ? null : (
+      {folders.length === 0 ? null : (
         <SidebarGroup>
           <SidebarGroupLabel>folders</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {rootNotes === undefined || rootNotes.length === 0 ? null : (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={
-                      collection.kind === "folder" && collection.value === ""
-                    }
-                    onClick={() => {
-                      onChoose({ kind: "folder", value: "" });
-                    }}
-                    onKeyDown={moveFocus}
-                  >
-                    <FolderIcon className="text-muted-foreground" />
-                    <span className="flex-1">notes root</span>
-                    <SidebarMenuBadge>{rootNotes.length}</SidebarMenuBadge>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
               {folders.map((folder) =>
                 folder.folder.includes("/") ? null : (
                   <FolderCollection
@@ -352,17 +356,18 @@ function Collections({
           </SidebarGroupContent>
         </SidebarGroup>
       )}
-      {library.isPending ? (
+      {library.isPending || known.isPending ? (
         <p className="text-muted-foreground p-3 text-xs">
           loading collections...
         </p>
       ) : null}
-      {library.isError ? (
+      {failure === null ? null : (
         <div role="alert" className="p-3 text-xs">
-          <p>{reasonOf(library.error)}</p>
+          <p>{reasonOf(failure)}</p>
           <Button
             onClick={() => {
               void library.refetch();
+              void known.refetch();
             }}
             size="sm"
             variant="ghost"
@@ -370,7 +375,7 @@ function Collections({
             retry
           </Button>
         </div>
-      ) : null}
+      )}
     </ScrollArea>
   );
 }
@@ -388,6 +393,7 @@ function Browser({ notesDir }: { notesDir: string }) {
   const rows = useRef<HTMLUListElement>(null);
   const scopeButton = useRef<HTMLButtonElement>(null);
   const library = useQuery({ ...noteQueries.list(), enabled: open });
+  const known = useQuery({ ...noteQueries.folders(), enabled: open });
   const result = useQuery({
     ...noteQueries.list({
       includePreview: true,
@@ -400,13 +406,20 @@ function Browser({ notesDir }: { notesDir: string }) {
   const status = useQuery({ ...indexStatusQuery, enabled: open });
   const pending =
     query !== debounced || result.isLoading || result.isPlaceholderData;
-  const label = collectionLabel(collection);
-  const notes = collectionNotes(
-    result.data ?? [],
-    collection,
-    history,
-    debounced
-  );
+  const { deleted, shown } = shownCollection(collection, known.data);
+  const label = collectionLabel(shown);
+  const notes = collectionNotes(result.data ?? [], shown, history, debounced);
+
+  // Keyed on the name, so the fallback announces itself once per folder.
+  useEffect(() => {
+    if (deleted !== undefined) {
+      toast.add({
+        description: `${deleted} is gone, so the browser shows all notes`,
+        title: "folder deleted",
+        type: "info",
+      });
+    }
+  }, [deleted]);
 
   useLayoutEffect(() => {
     if (open) {
@@ -511,8 +524,9 @@ function Browser({ notesDir }: { notesDir: string }) {
       </SidebarHeader>
       <SidebarContent hidden={!picking}>
         <Collections
-          collection={collection}
+          collection={shown}
           history={history}
+          known={known}
           library={library}
           onChoose={choose}
         />
@@ -592,9 +606,7 @@ function Browser({ notesDir }: { notesDir: string }) {
                         />
                       )}
                       <span className="text-muted-foreground mt-0.5 flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate">
-                          {note.folder === "" ? "notes root" : note.folder}
-                        </span>
+                        <span className="truncate">{note.folder}</span>
                         <time
                           className="shrink-0"
                           dateTime={note.updatedAt.toISOString()}

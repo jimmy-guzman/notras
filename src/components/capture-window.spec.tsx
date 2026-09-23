@@ -41,7 +41,7 @@ describe("capture window", () => {
         mockIPC(async (command, args) => {
           if (command === "create_note") {
             writes.push(args);
-            return { path: "inbox/jot.md", updatedAt: 1, warnings: [] };
+            return { path: "jot.md", updatedAt: 1, warnings: [] };
           }
           if (command === "plugin:window|hide") {
             hides.push(command);
@@ -83,14 +83,14 @@ describe("capture window", () => {
       }
     );
 
-    it("should let native creation name a capture from its content", async () => {
+    it("should create a capture outside any folder and let native creation name it", async () => {
       const user = userEvent.setup();
       const writes: unknown[] = [];
       mockIPC((command, args) => {
         if (command === "create_note") {
           writes.push(args);
           return {
-            path: "inbox/a-captured-thought.md",
+            path: "a-captured-thought.md",
             updatedAt: 1,
             warnings: [],
           };
@@ -103,14 +103,8 @@ describe("capture window", () => {
       });
       await user.keyboard("{Escape}");
       await waitFor(() => {
-        expect(writes).toMatchObject([
-          {
-            options: {
-              content: "a captured thought",
-              folder: "inbox",
-              name: null,
-            },
-          },
+        expect(writes).toStrictEqual([
+          { options: { content: "a captured thought", name: null } },
         ]);
       });
     });
@@ -123,13 +117,13 @@ describe("capture window", () => {
         if (command === "create_note") {
           writes.push(args);
           return {
-            path: "inbox/jot.md",
+            path: "jot.md",
             updatedAt: 1,
             warnings: [
               {
                 kind: "index",
                 message: "the index is read-only",
-                path: "inbox/jot.md",
+                path: "jot.md",
               },
             ],
           };

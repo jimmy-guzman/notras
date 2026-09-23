@@ -290,11 +290,7 @@ fn filter_matches(
     match filter {
         SearchFilter::Folder(value) => Ok(notes
             .iter()
-            .filter(|note| {
-                value == "/"
-                    || note.folder == *value
-                    || note.folder.starts_with(&format!("{value}/"))
-            })
+            .filter(|note| note.folder == *value || note.folder.starts_with(&format!("{value}/")))
             .map(|note| (note.path.clone(), None))
             .collect()),
         SearchFilter::Tag(value) => Ok(notes
@@ -360,6 +356,13 @@ fn filter_matches(
 impl ReadView {
     pub fn list_notes(&self, filters: &NoteFilters) -> Result<Vec<NoteMeta>, CommandError> {
         select_notes(&self.conn, filters, &[])
+    }
+
+    /// Every folder a note could be filed in, empty ones included, by path.
+    pub fn list_folders(&self) -> Result<Vec<String>, CommandError> {
+        let mut statement = self.conn.prepare("SELECT path FROM folder ORDER BY path")?;
+        let rows = statement.query_map([], |row| row.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {

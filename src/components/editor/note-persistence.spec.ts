@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { FileError } from "@/core/errors";
+
 import { createNotePersistence } from "./note-persistence";
 import type { SaveOutcome } from "./note-persistence";
+
+interface DiskFile {
+  content: string;
+  revision: string;
+  updatedAt: Date;
+}
 
 const initial = {
   content: "# Errands\n\nbody",
@@ -11,14 +19,21 @@ const initial = {
 } as const;
 
 describe("note persistence", () => {
-  it("should keep the replacement document listener when the previous listener unsubscribes", () => {
+  it("should keep the replacement document listener when the previous listener unsubscribes", async () => {
     const observed: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: () => {
         throw new Error("no write requested");
@@ -31,29 +46,30 @@ describe("note persistence", () => {
       observed.push(content);
     });
     unsubscribePrevious();
-    note.receiveFile(
-      initial.path,
-      { content: "# Updated", revision: "r1", updatedAt: new Date(1) },
-      false
-    );
+    disk = { content: "# Updated", revision: "r1", updatedAt: new Date(1) };
+    await note.refresh();
     expect(observed).toStrictEqual(["# Updated"]);
     unsubscribeCurrent();
-    note.receiveFile(
-      initial.path,
-      { content: "# Later", revision: "r2", updatedAt: new Date(2) },
-      false
-    );
+    disk = { content: "# Later", revision: "r2", updatedAt: new Date(2) };
+    await note.refresh();
     expect(observed).toStrictEqual(["# Updated"]);
   });
 
   it("should defer a missing-file observation while newer typing overlaps a save", async () => {
     const held = Promise.withResolvers<SaveOutcome>();
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async () => await held.promise,
     });
@@ -61,14 +77,16 @@ describe("note persistence", () => {
     const saving = note.save();
     await Promise.resolve();
     note.edit({ content: "# Errands\n\nnewer typing", mode: "body" });
-    note.receiveFile("shopping.md", undefined, true);
+    disk = undefined;
+    await note.refresh();
     expect(note.store.state.missing).toBeFalsy();
     held.resolve({
       kind: "committed",
       receipt: { path: "shopping.md", revision: "r1", updatedAt: new Date(1) },
     });
     await saving;
-    note.receiveFile("shopping.md", undefined, true);
+    disk = undefined;
+    await note.refresh();
     expect(note.store.state.missing).toBeTruthy();
     expect(note.store.state.content).toContain("newer typing");
   });
@@ -83,6 +101,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, content, name) => {
         writes.push({ content, name, path });
@@ -143,6 +164,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, content, name) => {
         writes.push({ content, name, path });
@@ -194,6 +218,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (_path, _content, name) => {
         expect(name).toStrictEqual({ kind: "content" });
@@ -224,12 +251,19 @@ describe("note persistence", () => {
 
   it("should not request renaming after reads, external updates, or body edits", async () => {
     const writes: unknown[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path, _content, name) => {
         writes.push(name);
@@ -241,15 +275,12 @@ describe("note persistence", () => {
     });
     await note.flush();
     expect(writes).toStrictEqual([]);
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Changed elsewhere\n\nbody",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Changed elsewhere\n\nbody",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await note.flush();
     expect(writes).toStrictEqual([]);
     note.edit({ content: "# Changed elsewhere\n\nnew body", mode: "body" });
@@ -265,6 +296,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, _content, name) => {
         writes.push(name);
@@ -298,6 +332,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path) => ({
         kind: "committed",
@@ -326,6 +363,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, content) => {
         writes.push(content);
@@ -363,12 +403,19 @@ describe("note persistence", () => {
   it("should adopt a clean external metadata change without saving or renaming", async () => {
     const writes: string[] = [];
     const observed: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path, content) => {
         writes.push(content);
@@ -382,11 +429,8 @@ describe("note persistence", () => {
       observed.push(content);
     });
     const externalContent = "---\ntags: [external]\n---\n# Errands\n\nbody";
-    note.receiveFile(
-      "shopping.md",
-      { content: externalContent, revision: "r1", updatedAt: new Date(1) },
-      false
-    );
+    disk = { content: externalContent, revision: "r1", updatedAt: new Date(1) };
+    await note.refresh();
     expect(note.store.state.content).toBe(externalContent);
     await note.flush();
     expect(writes).toStrictEqual([]);
@@ -395,12 +439,19 @@ describe("note persistence", () => {
 
   it("should reconcile a newer file observed during a save without receiving it twice", async () => {
     const held = Promise.withResolvers<SaveOutcome>();
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async () => await held.promise,
     });
@@ -408,15 +459,12 @@ describe("note persistence", () => {
     note.edit({ content: "# Errands\n\nlocal edit", mode: "body" });
     const saving = note.save();
     await Promise.resolve();
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nexternal edit",
-        revision: "r2",
-        updatedAt: new Date(2),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nexternal edit",
+      revision: "r2",
+      updatedAt: new Date(2),
+    };
+    await note.refresh();
     expect(note.store.state.content).toContain("local edit");
     held.resolve({
       kind: "committed",
@@ -431,6 +479,7 @@ describe("note persistence", () => {
   it("should discard a deferred missing observation after the save changes the path", async () => {
     const held = Promise.withResolvers<SaveOutcome>();
     let closed = false;
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
@@ -440,13 +489,20 @@ describe("note persistence", () => {
         closed = true;
       },
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async () => await held.promise,
     });
     const release = note.retain();
     const saving = note.changePath({ kind: "retitle", title: "Weekend" });
     await Promise.resolve();
-    note.receiveFile("shopping.md", undefined, true);
+    disk = undefined;
+    await note.refresh();
     held.resolve({
       kind: "committed",
       receipt: { path: "weekend.md", revision: "r1", updatedAt: new Date(1) },
@@ -470,6 +526,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, content, name) => {
         writes.push({ content, name, path });
@@ -524,12 +583,19 @@ describe("note persistence", () => {
 
   it("should combine an external change with unsaved typing and save the result", async () => {
     const writes: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path, content) => {
         writes.push(content);
@@ -540,11 +606,12 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody\n\nmine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
-      false
-    );
+    disk = {
+      content: "# Chores\n\nbody",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.store.state.content).toBe("# Chores\n\nbody\n\nmine");
     expect(note.store.state.status).toBe("dirty");
     expect(note.store.state.base.revision).toBe("r1");
@@ -555,12 +622,19 @@ describe("note persistence", () => {
 
   it("should not rename after a merged heading, and reset undo at the merge", async () => {
     const names: unknown[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path, _content, name) => {
         names.push(name);
@@ -571,50 +645,62 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
-      false
-    );
+    disk = {
+      content: "# Chores\n\nbody",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.applyHistory("undo")).toBeFalsy();
     await note.flush();
     expect(names).toStrictEqual([null]);
   });
 
-  it("should take identical edits on both sides without review", () => {
+  it("should take identical edits on both sides without review", async () => {
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: () => {
         throw new Error("no save requested");
       },
     });
     note.edit({ content: "# Errands\n\nsame words", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nsame words",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nsame words",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.store.state.content).toBe("# Errands\n\nsame words");
     expect(note.store.state.status).toBe("dirty");
     expect(note.store.state.theirs).toBeUndefined();
   });
 
   it("should keep newer typing when its own save echoes back", async () => {
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path) => ({
         kind: "committed",
@@ -624,27 +710,31 @@ describe("note persistence", () => {
     note.edit({ content: "# Errands\n\nsaved words", mode: "body" });
     await note.flush();
     note.edit({ content: "# Errands\n\nsaved words, and more", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nsaved words",
-        revision: "r1",
-        updatedAt: new Date(4),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nsaved words",
+      revision: "r1",
+      updatedAt: new Date(4),
+    };
+    await note.refresh();
     expect(note.store.state.content).toBe("# Errands\n\nsaved words, and more");
     expect(note.store.state.status).toBe("dirty");
     expect(note.store.state.updatedAt).toStrictEqual(new Date(4));
   });
 
   it("should ignore a read older than its last save", async () => {
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path) => ({
         kind: "committed",
@@ -653,11 +743,12 @@ describe("note persistence", () => {
     });
     note.edit({ content: "# Errands\n\nsaved words", mode: "body" });
     await note.flush();
-    note.receiveFile(
-      "shopping.md",
-      { content: "# Errands\n\nbody", revision: "r0", updatedAt: new Date(3) },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody",
+      revision: "r0",
+      updatedAt: new Date(3),
+    };
+    await note.refresh();
     expect(note.store.state.content).toBe("# Errands\n\nsaved words");
     expect(note.store.state.status).toBe("saved");
   });
@@ -665,12 +756,19 @@ describe("note persistence", () => {
   it("should pause saving and stash the review when edits overlap", async () => {
     const writes: string[] = [];
     const stashes: unknown[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async (path, stash) => {
         stashes.push({ path, stash });
       },
@@ -683,15 +781,12 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.store.state.status).toBe("conflict");
     expect(note.store.state.content).toBe("# Errands\n\nbody, mine");
     expect(note.store.state.theirs).toStrictEqual({
@@ -731,12 +826,19 @@ describe("note persistence", () => {
   });
 
   it("should report an unsafe quit when the review cannot be stashed", async () => {
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: () => {
         throw new Error("The disk is full");
       },
@@ -745,15 +847,12 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await Promise.resolve();
     expect(note.store.state.reason).toBe("The disk is full");
     await expect(note.flush()).resolves.toBeFalsy();
@@ -764,27 +863,31 @@ describe("note persistence", () => {
   });
 
   it("should refuse a folder move while a review is open", async () => {
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: () => {
         throw new Error("no save requested");
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await expect(
       note.changePath({ folder: "archive", kind: "move" })
     ).rejects.toThrow("This note needs review before it can move");
@@ -793,12 +896,19 @@ describe("note persistence", () => {
 
   it("should note a file that changes again during review without stashing twice", async () => {
     const stashes: unknown[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async (_path, stash) => {
         stashes.push(stash.ours);
       },
@@ -807,34 +917,25 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(2),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(2),
+    };
+    await note.refresh();
     expect(note.store.state.changedAgain).toBeFalsy();
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk again",
-        revision: "r2",
-        updatedAt: new Date(3),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk again",
+      revision: "r2",
+      updatedAt: new Date(3),
+    };
+    await note.refresh();
     expect(note.store.state.status).toBe("conflict");
     expect(note.store.state.changedAgain).toBeTruthy();
     expect(note.store.state.theirs?.revision).toBe("r2");
@@ -845,6 +946,7 @@ describe("note persistence", () => {
   it("should leave review and clear the stash once a later change combines", async () => {
     const cleared: string[] = [];
     const writes: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
@@ -853,6 +955,12 @@ describe("note persistence", () => {
         cleared.push(path);
       },
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path, content) => {
         writes.push(content);
@@ -863,25 +971,19 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await Promise.resolve();
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Chores\n\nbody",
-        revision: "r2",
-        updatedAt: new Date(2),
-      },
-      false
-    );
+    disk = {
+      content: "# Chores\n\nbody",
+      revision: "r2",
+      updatedAt: new Date(2),
+    };
+    await note.refresh();
     expect(note.store.state.status).toBe("dirty");
     expect(note.store.state.content).toBe("# Chores\n\nbody, mine");
     await note.flush();
@@ -892,6 +994,7 @@ describe("note persistence", () => {
 
   it("should keep a committed save when its stored review cannot be removed, and try again on each flush", async () => {
     let clears = 0;
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
@@ -901,6 +1004,12 @@ describe("note persistence", () => {
         throw new Error("Permission denied");
       },
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path) => ({
         kind: "committed",
@@ -908,21 +1017,19 @@ describe("note persistence", () => {
       }),
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await Promise.resolve();
-    note.receiveFile(
-      "shopping.md",
-      { content: "# Chores\n\nbody", revision: "r2", updatedAt: new Date(2) },
-      false
-    );
+    disk = {
+      content: "# Chores\n\nbody",
+      revision: "r2",
+      updatedAt: new Date(2),
+    };
+    await note.refresh();
     await expect(note.flush()).resolves.toBeTruthy();
     expect(note.store.state.status).toBe("saved");
     expect(note.store.state.reason).toBeUndefined();
@@ -934,23 +1041,31 @@ describe("note persistence", () => {
   });
 
   it("should hold a failed save through an external change that combines cleanly", async () => {
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async () => await Promise.reject(new Error("Permission denied")),
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
     await expect(note.flush()).resolves.toBeFalsy();
     expect(note.store.state.status).toBe("failed");
-    note.receiveFile(
-      "shopping.md",
-      { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
-      false
-    );
+    disk = {
+      content: "# Chores\n\nbody",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.store.state).toMatchObject({
       content: "# Chores\n\nbody, mine",
       reason: "Permission denied",
@@ -960,12 +1075,19 @@ describe("note persistence", () => {
 
   it("should hold a pin change with the unsaved text while a review is open", async () => {
     const stashes: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async (_path, stash) => {
         stashes.push(stash.ours);
       },
@@ -974,15 +1096,12 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await note.editMetadata(() => ({ pinned: true }));
     expect(note.store.state.status).toBe("conflict");
     expect(note.snapshot.state.pinned).toBeTruthy();
@@ -994,6 +1113,7 @@ describe("note persistence", () => {
   it("should resolve a review, save the result, and clear the stored review", async () => {
     const cleared: string[] = [];
     const writes: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(initial, {
       changePath: () => {
         throw new Error("no move requested");
@@ -1002,6 +1122,12 @@ describe("note persistence", () => {
         cleared.push(path);
       },
       onPathChanged: () => {},
+      read: async () => {
+        if (disk === undefined) {
+          throw new FileError({ kind: "not-found", message: "No such file" });
+        }
+        return disk;
+      },
       stash: async () => {},
       write: async (path, content) => {
         writes.push(content);
@@ -1012,15 +1138,12 @@ describe("note persistence", () => {
       },
     });
     note.edit({ content: "# Errands\n\nbody, mine", mode: "body" });
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     await Promise.resolve();
     await note.resolve("# Errands\n\nbody, both");
     expect(note.store.state.content).toBe("# Errands\n\nbody, both");
@@ -1042,6 +1165,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, _content, _name, expected) => {
         sent.push(expected);
@@ -1071,6 +1197,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (path, content, _name, expected) => {
         writes.push({ content, expected });
@@ -1107,6 +1236,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async (_path, content) => {
         writes.push(content);
@@ -1137,6 +1269,9 @@ describe("note persistence", () => {
       },
       clearStash: async () => {},
       onPathChanged: () => {},
+      read: () => {
+        throw new Error("no read requested");
+      },
       stash: async () => {},
       write: async () => ({
         file: {
@@ -1157,6 +1292,7 @@ describe("note persistence", () => {
 
   it("should resume a stored review and hold it again once the file arrives", async () => {
     const writes: string[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(
       {
         ...initial,
@@ -1178,6 +1314,12 @@ describe("note persistence", () => {
         },
         clearStash: async () => {},
         onPathChanged: () => {},
+        read: async () => {
+          if (disk === undefined) {
+            throw new FileError({ kind: "not-found", message: "No such file" });
+          }
+          return disk;
+        },
         stash: async () => {},
         write: async (_path, content) => {
           writes.push(content);
@@ -1187,15 +1329,12 @@ describe("note persistence", () => {
     );
     expect(note.store.state.content).toBe("# Errands\n\nbody, mine");
     expect(note.store.state.status).toBe("dirty");
-    note.receiveFile(
-      "shopping.md",
-      {
-        content: "# Errands\n\nbody, on disk",
-        revision: "r1",
-        updatedAt: new Date(1),
-      },
-      false
-    );
+    disk = {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.store.state.status).toBe("conflict");
     expect(note.store.state.theirs?.revision).toBe("r1");
     expect(note.store.state.content).toBe("# Errands\n\nbody, mine");
@@ -1206,6 +1345,7 @@ describe("note persistence", () => {
   it("should resume a stored review and save once the file no longer overlaps", async () => {
     const cleared: string[] = [];
     const writes: { content: string; expected: string }[] = [];
+    let disk: DiskFile | undefined = initial;
     const note = createNotePersistence(
       {
         ...initial,
@@ -1229,6 +1369,12 @@ describe("note persistence", () => {
           cleared.push(path);
         },
         onPathChanged: () => {},
+        read: async () => {
+          if (disk === undefined) {
+            throw new FileError({ kind: "not-found", message: "No such file" });
+          }
+          return disk;
+        },
         stash: async () => {},
         write: async (path, content, _name, expected) => {
           writes.push({ content, expected });
@@ -1239,11 +1385,12 @@ describe("note persistence", () => {
         },
       }
     );
-    note.receiveFile(
-      "shopping.md",
-      { content: "# Chores\n\nbody", revision: "r1", updatedAt: new Date(1) },
-      false
-    );
+    disk = {
+      content: "# Chores\n\nbody",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
     expect(note.store.state.content).toBe("# Chores\n\nbody, mine");
     await note.flush();
     expect(writes).toStrictEqual([
@@ -1251,5 +1398,175 @@ describe("note persistence", () => {
     ]);
     expect(cleared).toStrictEqual(["shopping.md"]);
     expect(note.store.state.status).toBe("saved");
+  });
+
+  it("should drop a read that finishes after the note moved away and back", async () => {
+    const reads: PromiseWithResolvers<DiskFile>[] = [];
+    let closed = false;
+    const note = createNotePersistence(initial, {
+      changePath: async (_path, change) => ({
+        file: {
+          content: initial.content,
+          revision: "r0",
+          updatedAt: new Date(0),
+        },
+        path:
+          change.folder === "" ? "shopping.md" : `${change.folder}/shopping.md`,
+      }),
+      clearStash: async () => {},
+      onCleanFileMissing: () => {
+        closed = true;
+      },
+      onPathChanged: () => {},
+      read: async () => {
+        const read = Promise.withResolvers<DiskFile>();
+        reads.push(read);
+        return await read.promise;
+      },
+      stash: async () => {},
+      write: () => {
+        throw new Error("no write requested");
+      },
+    });
+    const early = note.refresh();
+    await note.changePath({ folder: "inbox", kind: "move" });
+    await note.changePath({ folder: "", kind: "move" });
+    reads[0]?.reject(
+      new FileError({ kind: "not-found", message: "No such file" })
+    );
+    await early;
+    expect(note.store.state).toMatchObject({
+      missing: false,
+      path: "shopping.md",
+    });
+    expect(closed).toBeFalsy();
+  });
+
+  it("should apply only the newest of overlapping reads", async () => {
+    const reads: PromiseWithResolvers<DiskFile>[] = [];
+    let closed = false;
+    const note = createNotePersistence(initial, {
+      changePath: () => {
+        throw new Error("no move requested");
+      },
+      clearStash: async () => {},
+      onCleanFileMissing: () => {
+        closed = true;
+      },
+      onPathChanged: () => {},
+      read: async () => {
+        const read = Promise.withResolvers<DiskFile>();
+        reads.push(read);
+        return await read.promise;
+      },
+      stash: async () => {},
+      write: () => {
+        throw new Error("no write requested");
+      },
+    });
+    const older = note.refresh();
+    const newer = note.refresh();
+    reads[1]?.reject(
+      new FileError({ kind: "not-found", message: "No such file" })
+    );
+    await newer;
+    reads[0]?.resolve({
+      content: initial.content,
+      revision: "r0",
+      updatedAt: new Date(5),
+    });
+    await older;
+    expect(note.store.state.missing).toBeTruthy();
+    expect(closed).toBeTruthy();
+  });
+
+  it("should drop a read that finishes after the session is released", async () => {
+    const read = Promise.withResolvers<DiskFile>();
+    const observed: string[] = [];
+    const note = createNotePersistence(initial, {
+      changePath: () => {
+        throw new Error("no move requested");
+      },
+      clearStash: async () => {},
+      onPathChanged: () => {},
+      read: async () => await read.promise,
+      stash: async () => {},
+      write: () => {
+        throw new Error("no write requested");
+      },
+    });
+    note.onDocumentChanged((content) => {
+      observed.push(content);
+    });
+    const release = note.retain();
+    const reading = note.refresh();
+    await release();
+    read.resolve({
+      content: "# Later",
+      revision: "r1",
+      updatedAt: new Date(1),
+    });
+    await reading;
+    expect(observed).toStrictEqual([]);
+  });
+
+  it("should report a read that fails for another reason until a read lands", async () => {
+    let failure: Error | undefined = new FileError({
+      kind: "failed",
+      message: "Permission denied",
+    });
+    const note = createNotePersistence(initial, {
+      changePath: () => {
+        throw new Error("no move requested");
+      },
+      clearStash: async () => {},
+      onPathChanged: () => {},
+      read: async () => {
+        if (failure !== undefined) {
+          throw failure;
+        }
+        return {
+          content: initial.content,
+          revision: "r0",
+          updatedAt: new Date(0),
+        };
+      },
+      stash: async () => {},
+      write: () => {
+        throw new Error("no write requested");
+      },
+    });
+    await note.refresh();
+    expect(note.store.state).toMatchObject({
+      missing: false,
+      unreadable: "Permission denied",
+    });
+    failure = undefined;
+    await note.refresh();
+    expect(note.store.state.unreadable).toBeUndefined();
+  });
+
+  it("should read nothing for a draft", async () => {
+    const reads: string[] = [];
+    const note = createNotePersistence(
+      { content: "", path: "", revision: "", updatedAt: new Date(0) },
+      {
+        changePath: () => {
+          throw new Error("no move requested");
+        },
+        clearStash: async () => {},
+        onPathChanged: () => {},
+        read: async (path) => {
+          reads.push(path);
+          return { content: "", revision: "", updatedAt: new Date(0) };
+        },
+        stash: async () => {},
+        write: () => {
+          throw new Error("no write requested");
+        },
+      }
+    );
+    await note.refresh();
+    expect(reads).toStrictEqual([]);
   });
 });

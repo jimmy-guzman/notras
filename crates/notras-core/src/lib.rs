@@ -149,7 +149,6 @@ mod tests {
         let saved = library
             .create_note(&CreateNote {
                 content: Some("# saved".into()),
-                folder: None,
                 name: Some(NoteName::Filename("saved".into())),
             })
             .unwrap();
@@ -222,7 +221,10 @@ mod tests {
         while !library.advance_scan(&mut scan).unwrap() {}
         let mut changed = library.finish_scan(scan).unwrap();
         changed.sort();
-        assert_eq!(changed, ["after/note.md", "before/note.md"]);
+        assert_eq!(
+            changed,
+            ["after", "after/note.md", "before", "before/note.md"]
+        );
         let notes = library
             .read_view()
             .unwrap()

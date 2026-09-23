@@ -29,6 +29,7 @@ pub struct Scan {
     force: bool,
     full: bool,
     seen: HashSet<String>,
+    folders: HashSet<String>,
     shadowed: Vec<String>,
     paths_complete: bool,
     cleanup: Option<(i64, i64)>,
@@ -53,6 +54,7 @@ impl Scan {
             force,
             full: true,
             seen: HashSet::new(),
+            folders: HashSet::new(),
             shadowed: Vec::new(),
             paths_complete: true,
             cleanup: None,
@@ -127,6 +129,45 @@ impl Scan {
         Ok(())
     }
 
+    fn folder(&mut self, conn: &Connection, relative: &str) -> Result<(), IndexError> {
+        if RelativePath::parse(relative).is_err() || !index::is_note_folder(relative) {
+            return Ok(());
+        }
+        if index::record_folder(conn, relative)? {
+            self.report.changed.push(relative.to_owned());
+        }
+        self.folders.insert(relative.to_owned());
+        Ok(())
+    }
+
+    /// Forget folders a complete walk did not find, keeping any under a
+    /// directory it could not list.
+    fn prune_folders(&mut self, conn: &Connection, root: &Dir) -> Result<(), IndexError> {
+        let known = conn
+            .prepare("SELECT path FROM folder")?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for path in known {
+            let prefix = format!("{path}/");
+            if self.folders.contains(&path)
+                || self.shadowed.iter().any(|dir| prefix.starts_with(dir))
+            {
+                continue;
+            }
+            // A foreground move may have created it after the walk passed its parent.
+            if root
+                .symlink_metadata(&path)
+                .is_ok_and(|metadata| metadata.is_dir())
+            {
+                continue;
+            }
+            if index::remove_folder(conn, &path)? {
+                self.report.changed.push(path);
+            }
+        }
+        Ok(())
+    }
+
     fn child(
         &mut self,
         conn: &Connection,
@@ -156,7 +197,10 @@ impl Scan {
         };
         if kind.is_dir() {
             match dir.open_dir_nofollow(name) {
-                Ok(child_dir) => self.list(child_dir, child),
+                Ok(child_dir) => {
+                    self.folder(conn, &child)?;
+                    self.list(child_dir, child);
+                }
                 Err(error) => self.unreadable(&child, error),
             }
         } else if kind.is_file() && index::is_note_file(Path::new(name)) {
@@ -215,6 +259,7 @@ impl Scan {
         }
         if let Some(deletions) = &mut self.deletions {
             let Some(path) = deletions.next() else {
+                self.prune_folders(conn, root)?;
                 return Ok(true);
             };
             // A foreground create or move may have arrived after directory enumeration.
@@ -268,6 +313,92 @@ mod tests {
     use crate::{CreateNote, Library, NoteName, SaveOutcome};
 
     #[test]
+    fn should_list_every_folder_a_note_could_be_filed_in() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join("projects/empty")).unwrap();
+        fs::write(directory.path().join("projects/plan.md"), "# Plan").unwrap();
+        fs::create_dir(directory.path().join(".hidden")).unwrap();
+        fs::create_dir(directory.path().join("attachments")).unwrap();
+        fs::write(directory.path().join("attachments/shot.png"), [0]).unwrap();
+        fs::create_dir(directory.path().join("images")).unwrap();
+        fs::write(directory.path().join("images/shot.png"), [0]).unwrap();
+        #[cfg(unix)]
+        {
+            let outside = tempfile::tempdir().unwrap();
+            std::os::unix::fs::symlink(outside.path(), directory.path().join("linked")).unwrap();
+        }
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+
+        assert_eq!(
+            library.read_view().unwrap().list_folders().unwrap(),
+            ["images", "projects", "projects/empty"]
+        );
+    }
+
+    #[test]
+    fn should_report_and_forget_empty_folders_removed_or_renamed_on_disk() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("empty")).unwrap();
+        fs::create_dir(directory.path().join("named")).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+
+        fs::remove_dir(directory.path().join("empty")).unwrap();
+        fs::rename(
+            directory.path().join("named"),
+            directory.path().join("renamed"),
+        )
+        .unwrap();
+        fs::create_dir(directory.path().join("fresh")).unwrap();
+        let mut scan = library.begin_observations(vec![
+            library.directory().join("empty"),
+            library.directory().join("named"),
+            library.directory().join("renamed"),
+            library.directory().join("fresh"),
+        ]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        let mut changed = library.finish_scan(scan).unwrap();
+        changed.sort();
+
+        assert_eq!(changed, ["empty", "fresh", "named", "renamed"]);
+        assert_eq!(
+            library.read_view().unwrap().list_folders().unwrap(),
+            ["fresh", "renamed"]
+        );
+    }
+
+    #[test]
+    fn should_list_a_folder_a_move_creates_and_keep_it_once_emptied() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+
+        library.move_note("note.md".into(), "inbox/later").unwrap();
+        assert_eq!(
+            library.read_view().unwrap().list_folders().unwrap(),
+            ["inbox", "inbox/later"]
+        );
+        library.move_note("inbox/later/note.md".into(), "").unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+
+        assert_eq!(
+            library.read_view().unwrap().list_folders().unwrap(),
+            ["inbox", "inbox/later"]
+        );
+    }
+
+    #[test]
     fn should_preserve_saves_moves_and_recreated_files_during_cleanup() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("keep.md"), "# Keep").unwrap();
@@ -286,7 +417,6 @@ mod tests {
             .create_note(&CreateNote {
                 content: Some("# Recreated".into()),
                 name: Some(NoteName::Filename("gone".into())),
-                ..Default::default()
             })
             .unwrap();
         let expected = library.read_note("keep.md".into()).unwrap().revision;

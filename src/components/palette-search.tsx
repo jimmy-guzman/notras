@@ -76,10 +76,6 @@ function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
   );
 }
 
-function folderLabel(folder: string) {
-  return folder === "/" ? "notes root" : folder;
-}
-
 interface PickerChoice {
   count?: number;
   detail?: string;
@@ -103,13 +99,14 @@ const PRESENTATION: Record<
 function pickerChoices(
   filter: SearchFilter,
   notes: NoteMeta[],
+  folders: string[],
   tags: { count: number; tag: string }[]
 ) {
   const choices: PickerChoice[] = (() => {
     if (filter.kind === "folder") {
-      return searchFolders(notes).map(({ count, folder }) => ({
+      return searchFolders(folders, notes).map(({ count, folder }) => ({
         count,
-        label: folderLabel(folder),
+        label: folder,
         value: folder,
       }));
     }
@@ -150,6 +147,7 @@ function filterHelp(kind: SearchFilter["kind"] | undefined) {
 }
 
 const NO_NOTES: NoteMeta[] = [];
+const NO_FOLDERS: string[] = [];
 
 function stopCommandKeys(event: React.KeyboardEvent) {
   if (event.key !== "Escape") {
@@ -272,22 +270,45 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
     ...noteQueries.tags(),
     enabled: candidate?.kind === "tag",
   });
-  const choicesQuery = candidate?.kind === "tag" ? tags : suggestions;
+  const folders = useQuery({
+    ...noteQueries.folders(),
+    enabled: candidate?.kind === "folder",
+  });
+  // Folder choices need the notes too, for their counts.
+  const choicesQueries = (() => {
+    if (candidate?.kind === "tag") {
+      return [tags];
+    }
+    return candidate?.kind === "folder"
+      ? [folders, suggestions]
+      : [suggestions];
+  })();
   const needsChoices =
     candidate !== undefined &&
     ["folder", "to", "from", "tag"].includes(candidate.kind);
   const choicesPending =
-    needsChoices && choicesQuery.data === undefined && choicesQuery.isPending;
-  const choicesFailed =
-    needsChoices && choicesQuery.data === undefined && choicesQuery.isError;
+    needsChoices &&
+    choicesQueries.some((query) => query.data === undefined && query.isPending);
+  const choicesError = needsChoices
+    ? choicesQueries.find((query) => query.data === undefined && query.isError)
+        ?.error
+    : undefined;
+  // Choices wait for all their data, so no count draws before its notes.
   const picker =
-    candidate === undefined
+    candidate === undefined || choicesPending
       ? undefined
-      : pickerChoices(candidate, suggestions.data ?? NO_NOTES, tags.data ?? []);
+      : pickerChoices(
+          candidate,
+          suggestions.data ?? NO_NOTES,
+          folders.data ?? NO_FOLDERS,
+          tags.data ?? []
+        );
   const retryChoices = async () => {
-    await choicesQuery.refetch();
+    await Promise.all(
+      choicesQueries.map(async (query) => await query.refetch())
+    );
   };
-  return { choicesFailed, choicesPending, choicesQuery, picker, retryChoices };
+  return { choicesError, choicesPending, picker, retryChoices };
 }
 
 interface NoteResultsProps {
@@ -409,9 +430,10 @@ export function PaletteSearch({
   query,
 }: PaletteSearchProps) {
   const candidate = searchSuggestion(query, cursor);
-  const { choicesFailed, choicesPending, choicesQuery, picker, retryChoices } =
+  const { choicesError, choicesPending, picker, retryChoices } =
     useFilterChoices(candidate);
   const showPicker = picker !== undefined;
+  const choicesFailed = choicesError !== undefined;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
   const results = useSearchResults(query, choosingFilter, notesDir);
   const { indexing, pending, readingQuery, resultQuery } = results;
@@ -449,7 +471,7 @@ export function PaletteSearch({
       {choicesFailed ? (
         <output className="block p-4 text-sm">
           <span className="block">could not load suggestions</span>
-          <span className="block">{reasonOf(choicesQuery.error)}</span>
+          <span className="block">{reasonOf(choicesError)}</span>
           <Button
             onClick={() => {
               void retryChoices();

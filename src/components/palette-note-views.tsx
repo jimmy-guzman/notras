@@ -27,16 +27,15 @@ interface FolderItemProps {
 }
 
 function FolderItem({ count, folder, onMove }: FolderItemProps) {
-  const label = folder === "/" ? "notes root" : folder;
   const move = () => {
-    onMove(folder === "/" ? "" : folder);
+    onMove(folder);
   };
 
   return (
     <CommandItem onSelect={move} value={`move-${folder}`}>
       <FolderIcon />
-      <span className="flex-1 truncate">{label}</span>
-      <span className={COUNT_CLASS}>{count}</span>
+      <span className="flex-1 truncate">{folder}</span>
+      <span className={COUNT_CLASS}>{count === 0 ? null : count}</span>
     </CommandItem>
   );
 }
@@ -106,16 +105,24 @@ export function MoveView({
   query,
 }: MoveViewProps) {
   const notes = useQuery(noteQueries.list());
+  const known = useQuery(noteQueries.folders());
   const retry = async () => {
-    await notes.refetch();
+    await Promise.all([notes.refetch(), known.refetch()]);
   };
-  if (notes.data === undefined) {
+  if (notes.data === undefined || known.data === undefined) {
+    // Only a query with nothing to show can fail the view; a stale error
+    // beside cached data waits for the other query instead.
+    const failure =
+      [notes, known].find((read) => read.data === undefined && read.isError)
+        ?.error ?? null;
     return (
       <output className="block p-4 text-sm">
-        {notes.isError ? (
+        {failure === null ? (
+          "loading folders..."
+        ) : (
           <>
             <span className="block">could not load folders</span>
-            <span className="block">{reasonOf(notes.error)}</span>
+            <span className="block">{reasonOf(failure)}</span>
             <Button
               onClick={() => {
                 void retry();
@@ -126,23 +133,18 @@ export function MoveView({
               retry
             </Button>
           </>
-        ) : (
-          "loading folders..."
         )}
       </output>
     );
   }
-  const folders = searchFolders(notes.data);
+  const folders = searchFolders(known.data, notes.data);
   const draftFolder = query.trim();
   const matches = folders.filter(({ folder }) =>
-    (folder === "/" ? "notes root /" : folder)
-      .toLowerCase()
-      .includes(draftFolder.toLowerCase())
+    folder.toLowerCase().includes(draftFolder.toLowerCase())
   );
-  const exists =
-    folders.some(
-      ({ folder }) => folder.toLowerCase() === draftFolder.toLowerCase()
-    ) || draftFolder.toLowerCase() === "notes root";
+  const exists = folders.some(
+    ({ folder }) => folder.toLowerCase() === draftFolder.toLowerCase()
+  );
 
   return (
     <CommandGroup heading="move to">

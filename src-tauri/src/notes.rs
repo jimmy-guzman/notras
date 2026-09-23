@@ -192,6 +192,16 @@ pub async fn list_notes<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn list_folders<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, CommandError> {
+    run_blocking(move || {
+        let state = app.state::<AppState>();
+        state.library.query(|view| view.list_folders())
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn list_tags<R: Runtime>(app: AppHandle<R>) -> Result<Vec<CountedTag>, CommandError> {
     run_blocking(move || {
         let state = app.state::<AppState>();

@@ -6,12 +6,12 @@ import { getGraph } from "@/data/get-graph";
 import type { GraphTarget, OpenKind } from "@/server/adapters/bindings";
 
 import { readConflictStash } from "./conflict-stash";
-import { readExternalNote } from "./external-note";
+import { getFolders } from "./get-folders";
 import { getMentions } from "./get-mentions";
-import { getNote } from "./get-note";
 import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
 import { getNotesDir } from "./notes-dir";
+import { readSessionFile } from "./read-session-file";
 import { searchNotes } from "./search-notes";
 
 declare module "@tanstack/react-query" {
@@ -24,37 +24,16 @@ declare module "@tanstack/react-query" {
 // to `any`.
 const all = ["notes"] as const;
 const index = [...all, "index"] as const;
-const fileKey = (kind: OpenKind, path: string) =>
-  [...all, "file", kind, path] as const;
-
-/** One tab's file content, revision and timestamp as of the last read. */
-export interface SessionFile {
-  content: string;
-  revision: string;
-  updatedAt: Date;
-}
 
 /** Keyed generic to specific: every invalidation is one prefix. */
 export const noteQueries = {
   all,
-  conflict: (kind: OpenKind, path: string) =>
+  folders: () =>
     queryOptions({
-      queryFn: async () => await readConflictStash(kind, path),
-      queryKey: [...all, "conflict", kind, path] as const,
+      meta: { what: "could not refresh the folder list" },
+      queryFn: getFolders,
+      queryKey: [...index, "folders"] as const,
     }),
-  file: (kind: OpenKind, path: string) =>
-    queryOptions({
-      queryFn: async () =>
-        kind === "external"
-          ? await readExternalNote(path)
-          : await getNote(path),
-      queryKey: fileKey(kind, path),
-      // No payload names a path outside the notes dir, so focus is the signal.
-      // "always" and not `true`: staleTime is infinite, so a stale check the
-      // query can never fail would refetch on nothing.
-      refetchOnWindowFocus: kind === "external" ? "always" : false,
-    }),
-  fileKey,
   graph: (target: GraphTarget) =>
     queryOptions({
       meta: { what: "could not refresh the graph" },
@@ -87,6 +66,25 @@ export const noteQueries = {
       queryKey: [...index, "tags"] as const,
     }),
 };
+
+/**
+ * What a tab needs before its editor mounts: the file, then any stored review,
+ * read once for the tab's life. Keyed by the tab rather than the path, so a
+ * move or rename cannot hand the tab another path's read, and outside the
+ * notes prefix, so no invalidation re-reads it; the session does that itself.
+ */
+export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
+  queryOptions({
+    // Discarded with the session, so reopening the same tab reads afresh.
+    gcTime: 0,
+    queryFn: async () => {
+      // File first, so a missing file is never mistaken for a missing review.
+      const file = await readSessionFile(kind, path);
+      return { file, stash: await readConflictStash(kind, path) };
+    },
+    queryKey: ["tab-opening", id] as const,
+    staleTime: "static",
+  });
 
 /** Settings rather than index: no write to a note can move it. */
 export const notesDirQuery = queryOptions({

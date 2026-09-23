@@ -41,6 +41,9 @@ async getNotesDir() : Promise<string> {
 async indexStatus() : Promise<IndexStatus> {
     return await TAURI_INVOKE("index_status");
 },
+async listFolders() : Promise<string[]> {
+    return await TAURI_INVOKE("list_folders");
+},
 async listNotes(filters: NoteFilters) : Promise<NoteMeta[]> {
     return await TAURI_INVOKE("list_notes", { filters });
 },
@@ -144,7 +147,7 @@ export type CommandError = { kind: ErrorKind; message: string }
  */
 export type ConflictStash = { base: NoteFile; ours: string }
 export type CountedTag = { count: number; tag: string }
-export type CreateNote = { content: string | null; folder: string | null; name: NoteName | null }
+export type CreateNote = { content: string | null; name: NoteName | null }
 export type DeleteReceipt = { path: string; warnings: MutationWarning[] }
 /**
  * Why a command failed. A webview tab has to tell a file that is gone from a

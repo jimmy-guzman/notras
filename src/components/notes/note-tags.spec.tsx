@@ -39,6 +39,9 @@ describe("note tags", () => {
           },
           clearStash: async () => {},
           onPathChanged: () => {},
+          read: () => {
+            throw new Error("no read requested");
+          },
           stash: async () => {},
           write: async (_path, content) => {
             writes.push(content);

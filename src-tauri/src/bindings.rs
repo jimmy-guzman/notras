@@ -39,6 +39,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir::<tauri::Wry>,
             notes::index_status::<tauri::Wry>,
+            notes::list_folders::<tauri::Wry>,
             notes::list_notes::<tauri::Wry>,
             notes::list_tags::<tauri::Wry>,
             notes::read_graph::<tauri::Wry>,
@@ -264,10 +265,10 @@ mod tests {
         let receipt = invoke(
             &window,
             "create_note",
-            json!({"options": {"folder": "ideas", "name": {"kind": "filename", "value": "a"}, "content": "# first\nbody"}}),
+            json!({"options": {"name": {"kind": "filename", "value": "a"}, "content": "# first\nbody"}}),
         )
         .unwrap();
-        assert_eq!(receipt["path"], "ideas/a.md");
+        assert_eq!(receipt["path"], "a.md");
         assert!(receipt["updatedAt"].as_i64().unwrap() > 0);
         let revision = receipt["revision"].as_str().unwrap();
         assert_eq!(revision.len(), 64);
@@ -275,66 +276,63 @@ mod tests {
             .chars()
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         assert_eq!(
-            fs::read_to_string(directory.path().join("ideas/a.md")).unwrap(),
+            fs::read_to_string(directory.path().join("a.md")).unwrap(),
             "# first\nbody"
         );
         assert_eq!(
-            invoke(&window, "read_note", json!({"path": "ideas/a.md"})).unwrap(),
+            invoke(&window, "read_note", json!({"path": "a.md"})).unwrap(),
             json!({
                 "content": "# first\nbody", "updatedAt": receipt["updatedAt"],
                 "revision": revision
             })
         );
-        assert_eq!(
-            changes.recv().unwrap(),
-            (json!({"paths": ["ideas/a.md"]}), true)
-        );
+        assert_eq!(changes.recv().unwrap(), (json!({"paths": ["a.md"]}), true));
         let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
         assert_eq!(notes.as_array().unwrap().len(), 1);
-        assert_eq!(notes[0]["path"], "ideas/a.md");
+        assert_eq!(notes[0]["path"], "a.md");
         assert_eq!(notes[0]["title"], "first");
 
         let outcome = invoke(
             &window,
             "save_note",
-            json!({"path": "ideas/a.md", "content": "# second", "expected": revision}),
+            json!({"path": "a.md", "content": "# second", "expected": revision}),
         )
         .unwrap();
         assert_eq!(outcome["kind"], "committed");
         let saved = &outcome["receipt"];
-        assert_eq!(saved["path"], "ideas/a.md");
+        assert_eq!(saved["path"], "a.md");
         assert_ne!(saved["revision"], receipt["revision"]);
-        assert_eq!(
-            changes.recv().unwrap(),
-            (json!({"paths": ["ideas/a.md"]}), true)
-        );
+        assert_eq!(changes.recv().unwrap(), (json!({"paths": ["a.md"]}), true));
         let moved = invoke(
             &window,
             "move_note",
-            json!({"path": "ideas/a.md", "folder": ""}),
+            json!({"path": "a.md", "folder": "ideas"}),
         )
         .unwrap();
-        assert_eq!(moved["path"], "a.md");
+        assert_eq!(moved["path"], "ideas/a.md");
         assert_eq!(moved["file"]["revision"], saved["revision"]);
         assert_eq!(
             changes.recv().unwrap(),
-            (json!({"paths": ["ideas/a.md", "a.md"]}), true)
+            (json!({"paths": ["a.md", "ideas/a.md"]}), true)
         );
-        assert!(!directory.path().join("ideas/a.md").exists());
+        assert!(!directory.path().join("a.md").exists());
         assert_eq!(
-            fs::read_to_string(directory.path().join("a.md")).unwrap(),
+            fs::read_to_string(directory.path().join("ideas/a.md")).unwrap(),
             "# second"
         );
         let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
         assert_eq!(notes.as_array().unwrap().len(), 1);
-        assert_eq!(notes[0]["path"], "a.md");
+        assert_eq!(notes[0]["path"], "ideas/a.md");
         assert_eq!(notes[0]["title"], "second");
         assert_eq!(
-            invoke(&window, "delete_note", json!({"path": "a.md"})).unwrap(),
-            json!({"path": "a.md", "warnings": []})
+            invoke(&window, "delete_note", json!({"path": "ideas/a.md"})).unwrap(),
+            json!({"path": "ideas/a.md", "warnings": []})
         );
-        assert_eq!(changes.recv().unwrap(), (json!({"paths": ["a.md"]}), true));
-        assert!(!directory.path().join("a.md").exists());
+        assert_eq!(
+            changes.recv().unwrap(),
+            (json!({"paths": ["ideas/a.md"]}), true)
+        );
+        assert!(!directory.path().join("ideas/a.md").exists());
         assert_eq!(
             invoke(&window, "list_notes", json!({"filters": {}})).unwrap(),
             json!([])
@@ -345,20 +343,20 @@ mod tests {
             &window,
             "create_note",
             json!({"options": {
-                "content": "- [ ] buy **milk**", "folder": "inbox"
+                "content": "- [ ] buy **milk**"
             }}),
         )
         .unwrap();
-        assert_eq!(capture["path"], "inbox/buy-milk.md");
+        assert_eq!(capture["path"], "buy-milk.md");
         let collision = invoke(
             &window,
             "create_note",
             json!({"options": {
-                "content": "buy milk", "folder": "inbox"
+                "content": "buy milk"
             }}),
         )
         .unwrap();
-        assert_eq!(collision["path"], "inbox/buy-milk-2.md");
+        assert_eq!(collision["path"], "buy-milk-2.md");
         let renamed = invoke(
             &window,
             "save_note",
@@ -368,9 +366,9 @@ mod tests {
             }),
         )
         .unwrap();
-        assert_eq!(renamed["receipt"]["path"], "inbox/buy-oat-milk.md");
+        assert_eq!(renamed["receipt"]["path"], "buy-oat-milk.md");
         assert_eq!(
-            fs::read_to_string(directory.path().join("inbox/buy-oat-milk.md")).unwrap(),
+            fs::read_to_string(directory.path().join("buy-oat-milk.md")).unwrap(),
             "buy oat milk"
         );
     }
@@ -409,14 +407,14 @@ mod tests {
         let receipt = invoke(
             &capture,
             "create_note",
-            json!({"options": {"folder": "inbox", "content": "a captured thought"}}),
+            json!({"options": {"content": "a captured thought"}}),
         )
         .unwrap();
         let (event, unlocked) = warnings.recv().unwrap();
         assert!(unlocked);
         assert_eq!(event["warnings"], receipt["warnings"]);
         assert_eq!(receipt["warnings"][0]["kind"], "index");
-        assert_eq!(receipt["path"], "inbox/a-captured-thought.md");
+        assert_eq!(receipt["path"], "a-captured-thought.md");
         assert_eq!(
             invoke(&capture, "read_note", json!({"path": receipt["path"]})).unwrap()["content"],
             "a captured thought"
@@ -425,7 +423,7 @@ mod tests {
         conn.execute_batch("DROP TRIGGER refuse_insert").unwrap();
         let notes = invoke(&capture, "list_notes", json!({"filters": {}})).unwrap();
         assert_eq!(notes.as_array().unwrap().len(), 1);
-        assert_eq!(notes[0]["path"], "inbox/a-captured-thought.md");
+        assert_eq!(notes[0]["path"], "a-captured-thought.md");
     }
 
     #[test]
@@ -925,6 +923,7 @@ mod tests {
     fn should_serve_typed_saved_queries_through_the_production_registry() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("atlas.md"), "# Atlas\n[[Source]]").unwrap();
+        fs::create_dir(directory.path().join("inbox")).unwrap();
         fs::write(
             directory.path().join("source.md"),
             "---\ntags: [work]\n---\n# Source\nAtlas in prose",
@@ -954,6 +953,10 @@ mod tests {
         assert_eq!(
             invoke(&window, "list_tags", json!({})).unwrap(),
             json!([{"tag":"work","count":1}])
+        );
+        assert_eq!(
+            invoke(&window, "list_folders", json!({})).unwrap(),
+            json!(["inbox"])
         );
         let mentions = invoke(&window, "find_mentions", json!({"path":"atlas.md"})).unwrap();
         assert_eq!(mentions[0]["note"]["title"], "Source");

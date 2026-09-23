@@ -49,7 +49,7 @@ Search runs on a SQLite index built from the files. Delete it and the next launc
 ### Files and the system
 
 - drop a file on a note: it lands in `attachments/` with a link inserted
-- `⌘⇧N` quick capture from any app, and `esc` saves it to `inbox/`
+- `⌘⇧N` quick capture from any app, and `esc` saves it as a new note
 - "Open With" opens markdown files from outside the folder (macOS)
 - export a note as a PDF (macOS)
 - menu-bar tray and launch at login

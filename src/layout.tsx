@@ -20,7 +20,7 @@ import { applyIndexStatus } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { openDraft, openTab, persistTabs } from "@/lib/tabs/store";
+import { openDraft, openTab, persistTabs, refreshTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
@@ -125,17 +125,14 @@ function MainWindow() {
 
       if (paths.length === 0) {
         void queryClient.invalidateQueries({ queryKey: noteQueries.all });
+        refreshTabs(() => true);
 
         return;
       }
 
       void queryClient.invalidateQueries({ queryKey: noteQueries.index });
-
-      for (const path of paths) {
-        void queryClient.invalidateQueries({
-          queryKey: noteQueries.fileKey("note", path),
-        });
-      }
+      const changed = new Set(paths);
+      refreshTabs((tab) => tab.kind === "note" && changed.has(tab.path));
     });
 
     const unlistenStatus = events.indexStatus.listen((event) => {
@@ -144,6 +141,18 @@ function MainWindow() {
 
     return disposeLater(unlisten, unlistenStatus);
   }, [queryClient]);
+
+  // The watcher covers only the notes folder, so an external file is re-read
+  // whenever the window comes back, in case another app changed it meanwhile.
+  useEffect(() => {
+    const refreshExternal = () => {
+      refreshTabs((tab) => tab.kind === "external");
+    };
+    window.addEventListener("focus", refreshExternal);
+    return () => {
+      window.removeEventListener("focus", refreshExternal);
+    };
+  }, []);
 
   // Tray menu + "Open With" plumbing from Rust.
   useEffect(() => {
@@ -207,8 +216,8 @@ function MainWindow() {
       }
 
       toast.add({
-        description: "Quit cancelled",
-        title: "could not save your changes",
+        description: "Some changes could not be saved",
+        title: "could not quit",
         type: "error",
       });
 
