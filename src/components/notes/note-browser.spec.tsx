@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { nullable, object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
+import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
 import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
@@ -12,7 +13,8 @@ import { closeNoteBrowser } from "@/lib/ui/note-browser";
 import type { NoteMeta } from "@/server/adapters/bindings";
 
 function mount(
-  list: (query: string | null) => NoteMeta[] | Promise<NoteMeta[]>
+  list: (query: string | null) => NoteMeta[] | Promise<NoteMeta[]>,
+  folders?: () => string[]
 ) {
   localStorage.clear();
   closeNoteBrowser();
@@ -30,6 +32,23 @@ function mount(
         args
       );
       return await list(filters.query);
+    }
+    if (command === "list_folders") {
+      if (folders !== undefined) {
+        return folders();
+      }
+      // A disk holding these notes holds their folders and every ancestor.
+      const notes = await list(null);
+      return [
+        ...new Set(
+          notes.flatMap(({ folder }) =>
+            folder
+              .split("/")
+              .filter((part) => part !== "")
+              .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
+          )
+        ),
+      ];
     }
     if (command === "read_note") {
       return {
@@ -76,10 +95,89 @@ function mount(
     clearMocks();
     localStorage.clear();
   });
-  return userEvent.setup();
+  return Object.assign(userEvent.setup(), { client });
 }
 
 describe("note browser", () => {
+  it("should list an empty folder without a count", async () => {
+    const user = mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "work",
+          path: "work/one.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => ["inbox", "work"]
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+    await user.click(
+      browser.getByRole("button", { name: "choose collection: all notes" })
+    );
+
+    expect(
+      await browser.findByRole("button", { name: /^inbox$/u })
+    ).toBeInTheDocument();
+    expect(
+      browser.getByRole("button", { name: /^work 1$/u })
+    ).toBeInTheDocument();
+  });
+
+  it("should show all notes and say so when the chosen folder is deleted", async () => {
+    let folders = ["inbox", "work"];
+    const user = mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "work",
+          path: "work/one.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => folders
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+    await user.click(
+      browser.getByRole("button", { name: "choose collection: all notes" })
+    );
+    await user.click(await browser.findByRole("button", { name: /^inbox$/u }));
+    expect(
+      browser.getByRole("button", { name: "choose collection: inbox" })
+    ).toBeInTheDocument();
+
+    folders = ["work"];
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+
+    expect(
+      await browser.findByText("inbox was deleted, showing all notes")
+    ).toBeInTheDocument();
+    expect(
+      browser.getByRole("button", { name: "choose collection: all notes" })
+    ).toBeInTheDocument();
+    expect(browser.getByText("One")).toBeInTheDocument();
+  });
+
   it("should retain browser focus and query while opening notes, then return focus to the editor on close", async () => {
     const user = mount(() => [
       {

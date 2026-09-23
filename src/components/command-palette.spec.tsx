@@ -41,6 +41,17 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
     },
   });
   client.setQueryData(noteQueries.list().queryKey, notes);
+  // A disk holding these notes holds their folders and every ancestor.
+  client.setQueryData(noteQueries.folders().queryKey, [
+    ...new Set(
+      notes.flatMap(({ folder }) =>
+        folder
+          .split("/")
+          .filter((part) => part !== "")
+          .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
+      )
+    ),
+  ]);
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   const closed: boolean[] = [];
   onTestFinished(() => {

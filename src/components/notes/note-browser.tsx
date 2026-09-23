@@ -67,6 +67,21 @@ function collectionLabel(collection: Collection) {
   return collection.kind === "all" ? "all notes" : collection.kind;
 }
 
+/**
+ * The collection to show. A chosen folder deleted on disk leaves nothing to
+ * show, so the browser shows every note and names the folder that went.
+ */
+function shownCollection(
+  collection: Collection,
+  folders: string[] | undefined
+): { deleted?: string; shown: Collection } {
+  return collection.kind === "folder" &&
+    folders !== undefined &&
+    !folders.includes(collection.value)
+    ? { deleted: collection.value, shown: { kind: "all" } }
+    : { shown: collection };
+}
+
 function collectionNotes(
   notes: NoteMeta[],
   collection: Collection,
@@ -184,7 +199,9 @@ function FolderCollection({
       <span className="min-w-0 flex-1 truncate">
         {folder.folder.split("/").at(-1)}
       </span>
-      <SidebarMenuBadge>{folder.count}</SidebarMenuBadge>
+      {folder.count === 0 ? null : (
+        <SidebarMenuBadge>{folder.count}</SidebarMenuBadge>
+      )}
     </SidebarMenuButton>
   );
   return (
@@ -223,15 +240,22 @@ function FolderCollection({
 function Collections({
   collection,
   history,
+  known,
   library,
   onChoose,
 }: {
   collection: Collection;
   history: string[];
+  known: UseQueryResult<string[]>;
   library: UseQueryResult<NoteMeta[]>;
   onChoose: (collection: Collection) => void;
 }) {
-  const folders = searchFolders(library.data ?? []);
+  // Counts come from the notes, so no folder row draws before both have loaded.
+  const folders =
+    known.data === undefined || library.data === undefined
+      ? []
+      : searchFolders(known.data, library.data);
+  const failure = library.error ?? known.error;
   const tags = [
     ...new Set(library.data?.flatMap((note) => note.tags)),
   ].toSorted();
@@ -331,17 +355,18 @@ function Collections({
           </SidebarGroupContent>
         </SidebarGroup>
       )}
-      {library.isPending ? (
+      {library.isPending || known.isPending ? (
         <p className="text-muted-foreground p-3 text-xs">
           loading collections...
         </p>
       ) : null}
-      {library.isError ? (
+      {failure === null ? null : (
         <div role="alert" className="p-3 text-xs">
-          <p>{reasonOf(library.error)}</p>
+          <p>{reasonOf(failure)}</p>
           <Button
             onClick={() => {
               void library.refetch();
+              void known.refetch();
             }}
             size="sm"
             variant="ghost"
@@ -349,7 +374,7 @@ function Collections({
             retry
           </Button>
         </div>
-      ) : null}
+      )}
     </ScrollArea>
   );
 }
@@ -367,6 +392,7 @@ function Browser({ notesDir }: { notesDir: string }) {
   const rows = useRef<HTMLUListElement>(null);
   const scopeButton = useRef<HTMLButtonElement>(null);
   const library = useQuery({ ...noteQueries.list(), enabled: open });
+  const known = useQuery({ ...noteQueries.folders(), enabled: open });
   const result = useQuery({
     ...noteQueries.list({
       includePreview: true,
@@ -379,13 +405,9 @@ function Browser({ notesDir }: { notesDir: string }) {
   const status = useQuery({ ...indexStatusQuery, enabled: open });
   const pending =
     query !== debounced || result.isLoading || result.isPlaceholderData;
-  const label = collectionLabel(collection);
-  const notes = collectionNotes(
-    result.data ?? [],
-    collection,
-    history,
-    debounced
-  );
+  const { deleted, shown } = shownCollection(collection, known.data);
+  const label = collectionLabel(shown);
+  const notes = collectionNotes(result.data ?? [], shown, history, debounced);
 
   useLayoutEffect(() => {
     if (open) {
@@ -490,8 +512,9 @@ function Browser({ notesDir }: { notesDir: string }) {
       </SidebarHeader>
       <SidebarContent hidden={!picking}>
         <Collections
-          collection={collection}
+          collection={shown}
           history={history}
+          known={known}
           library={library}
           onChoose={choose}
         />
@@ -503,6 +526,11 @@ function Browser({ notesDir }: { notesDir: string }) {
             {result.data === undefined ? null : notes.length}
           </output>
         </SidebarGroupLabel>
+        {deleted === undefined ? null : (
+          <output className="text-muted-foreground mx-3 mb-1 block text-xs">
+            {deleted} was deleted, showing all notes
+          </output>
+        )}
         {result.isError ? (
           <div role="alert" className="p-3 text-xs">
             <p>could not load notes</p>

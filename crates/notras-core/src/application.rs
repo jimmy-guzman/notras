@@ -567,6 +567,27 @@ fn reconcile(core: &Library, paths: &[&str]) -> Vec<MutationWarning> {
     warnings
 }
 
+/// Index every folder on the way to `folder`, so the first note moved into a
+/// new folder lists it before the watcher's rescan arrives.
+fn record_folders(core: &Library, folder: &str) -> Vec<MutationWarning> {
+    let mut warnings = Vec::new();
+    if folder.is_empty() || !index::is_note_folder(folder) {
+        return warnings;
+    }
+    let ancestors = folder.match_indices('/').map(|(end, _)| &folder[..end]);
+    for path in ancestors.chain([folder]) {
+        if let Err(error) = index::record_folder(&core.conn, path) {
+            core.index_dirty.set(true);
+            log::error!("created {path}, but indexing it failed: {error}");
+            warnings.push(MutationWarning::Index {
+                path: path.to_owned(),
+                message: CommandError::from(error).message,
+            });
+        }
+    }
+    warnings
+}
+
 fn publish_move(
     core: &Library,
     from: &RelativePath,
@@ -616,6 +637,7 @@ fn publish_move(
         }
     };
     warnings.extend(reconcile(core, &[from.as_str(), to.as_str()]));
+    warnings.extend(record_folders(core, folder));
     Ok(PathMutationReceipt {
         path: to.as_str().to_owned(),
         file: NoteFile {
@@ -1064,8 +1086,8 @@ impl Library {
             .ok_or("The path is not valid Unicode")?
             .to_owned();
 
-        RelativePath::parse(&format!("attachments/{name}"))?;
-        let dir = ensure_folder(&self.root, "attachments")?;
+        RelativePath::parse(&format!("{}/{name}", index::ATTACHMENTS))?;
+        let dir = ensure_folder(&self.root, index::ATTACHMENTS)?;
 
         let (stem, ext) = match name.rsplit_once('.') {
             Some((stem, ext)) => (stem.to_string(), format!(".{ext}")),
@@ -1082,7 +1104,7 @@ impl Library {
             candidate = format!("{stem}-{counter}{ext}");
         }
 
-        let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
+        let relative = RelativePath::parse(&format!("{}/{candidate}", index::ATTACHMENTS))?;
         let target = Located {
             dir,
             name: candidate,
@@ -1124,7 +1146,7 @@ impl Library {
             .decode(base64_data)
             .map_err(|error| CommandError::with_source("The pasted image is not valid", error))?;
 
-        let dir = ensure_folder(&self.root, "attachments")?;
+        let dir = ensure_folder(&self.root, index::ATTACHMENTS)?;
 
         let stamp = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1141,7 +1163,7 @@ impl Library {
             candidate = format!("pasted-{stamp}-{counter}.png");
         }
 
-        let relative = RelativePath::parse(&format!("attachments/{candidate}"))?;
+        let relative = RelativePath::parse(&format!("{}/{candidate}", index::ATTACHMENTS))?;
         let target = Located {
             dir,
             name: candidate,

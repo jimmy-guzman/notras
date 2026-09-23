@@ -358,6 +358,13 @@ impl ReadView {
         select_notes(&self.conn, filters, &[])
     }
 
+    /// Every folder a note could be filed in, empty ones included, by path.
+    pub fn list_folders(&self) -> Result<Vec<String>, CommandError> {
+        let mut statement = self.conn.prepare("SELECT path FROM folder ORDER BY path")?;
+        let rows = statement.query_map([], |row| row.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn list_tags(&self) -> Result<Vec<CountedTag>, CommandError> {
         let mut statement = self
             .conn

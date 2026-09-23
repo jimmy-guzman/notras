@@ -100,15 +100,20 @@ describe("palette search", () => {
     });
   });
 
-  it("should include ancestor folders and count their entire subtree", () => {
+  it("should list every folder and count the notes in its entire subtree", () => {
     expect(
-      searchFolders([
-        note("a.md"),
-        note("work/2026/b.md"),
-        note("work/2026/c.md"),
-        note("work/d.md"),
-      ])
+      searchFolders(
+        ["work/2026", "empty", "work"],
+        [
+          note("a.md"),
+          note("work/2026/b.md"),
+          note("work/2026/c.md"),
+          note("work/d.md"),
+          note("workbench/e.md"),
+        ]
+      )
     ).toStrictEqual([
+      { count: 0, folder: "empty" },
       { count: 3, folder: "work" },
       { count: 2, folder: "work/2026" },
     ]);

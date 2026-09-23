@@ -6,6 +6,7 @@ import { getGraph } from "@/data/get-graph";
 import type { GraphTarget, OpenKind } from "@/server/adapters/bindings";
 
 import { readConflictStash } from "./conflict-stash";
+import { getFolders } from "./get-folders";
 import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
@@ -27,6 +28,12 @@ const index = [...all, "index"] as const;
 /** Keyed generic to specific: every invalidation is one prefix. */
 export const noteQueries = {
   all,
+  folders: () =>
+    queryOptions({
+      meta: { what: "could not refresh the folder list" },
+      queryFn: getFolders,
+      queryKey: [...index, "folders"] as const,
+    }),
   graph: (target: GraphTarget) =>
     queryOptions({
       meta: { what: "could not refresh the graph" },

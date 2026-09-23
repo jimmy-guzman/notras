@@ -89,10 +89,13 @@ Rust owns the tables and their queries. The webview sends structured filters and
 ```sql
 note(id INTEGER PK, path TEXT NOT NULL UNIQUE, title TEXT, folder TEXT, pinned INT, created_at INT, updated_at INT, body_line_offset INT)
 note_tag(path TEXT, tag TEXT, PRIMARY KEY(path, tag))
+folder(path TEXT PK)  -- every directory a note could be filed in, empty ones included; never attachments/
 note_prose_fallback(path TEXT PK)  -- bodies requiring literal phrase scanning
 note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per link destination, kind distinguishing wikilink, link, and destination, indexed by path
 note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet() + highlight()
 ```
+
+A scan records every directory it walks, except hidden, symlinked and `attachments/` ones, and a complete scan removes folders it no longer finds. Added and removed folders join the scan's changed paths, so a folder created or deleted with no note in it still emits `notes-changed`. `move_note` records the folders it creates before it returns.
 
 `note.id` is an internal SQLite key, shared with `note_fts.rowid`. It remains stable through note updates and database compaction. Paths remain note identity outside the index. Updates and deletes address FTS rows through this key; deleting a note removes its FTS entry before its key disappears, within the same transaction. The body remains in FTS, so prose queries do not duplicate document storage.
 
@@ -253,7 +256,7 @@ One component serves two doors. `find` and `actions` are the two root members of
 
 `filters` has its own draft input and returns to the preserved find query. Its entry button sits outside the Command list, so asynchronous result selection cannot land on a filter action. `move`, `delete`, `rename`, and `tags` are the note sub-views of `PaletteView`, all entered from actions and all returning to it with an empty input, since each repurposes the palette input for its own draft. The tags view is the one place an action row does not dismiss the palette: toggling calls `changeNoteMetadata` rather than `runAction`, so several tags can be set in one visit (`D31`).
 
-`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes` sends the complete query to Rust through `noteQueries.search`, under the index invalidation prefix. Rust reads ranked FTS candidates, intersects filters, and caps the result at 30. Saved relationship queries resolve indexed links with operation-local title and path maps, then combine them with narrowed prose scans. Only completed results cross IPC. Folder suggestions and move choices derive ancestors and subtree counts from the note list. The input caret identifies the token to suggest and replace. The counted tag vocabulary comes from `list_tags` when a tag picker opens. Palette search reads the full note list. `src/lib/recent-notes.ts` orders it by pins, then visit history, then modification time and file path. The palette excludes the showing note before taking 20. Search reads its own suggestions; move and tag views request their choices when opened. Pending and failed choice queries have local states instead of becoming empty results.
+`src/core/search.ts` parses palette text into free text and typed AND filters. `searchNotes` sends the complete query to Rust through `noteQueries.search`, under the index invalidation prefix. Rust reads ranked FTS candidates, intersects filters, and caps the result at 30. Saved relationship queries resolve indexed links with operation-local title and path maps, then combine them with narrowed prose scans. Only completed results cross IPC. The browser's folders, folder suggestions and move choices list the index's folders through `noteQueries.folders()` and count each one's subtree from the note list, so an empty folder stays listed. The input caret identifies the token to suggest and replace. The counted tag vocabulary comes from `list_tags` when a tag picker opens. Palette search reads the full note list. `src/lib/recent-notes.ts` orders it by pins, then visit history, then modification time and file path. The palette excludes the showing note before taking 20. Search reads its own suggestions; move and tag views request their choices when opened. Pending and failed choice queries have local states instead of becoming empty results.
 
 ### Preferences
 

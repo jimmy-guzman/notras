@@ -41,6 +41,9 @@ async getNotesDir() : Promise<string> {
 async indexStatus() : Promise<IndexStatus> {
     return await TAURI_INVOKE("index_status");
 },
+async listFolders() : Promise<string[]> {
+    return await TAURI_INVOKE("list_folders");
+},
 async listNotes(filters: NoteFilters) : Promise<NoteMeta[]> {
     return await TAURI_INVOKE("list_notes", { filters });
 },

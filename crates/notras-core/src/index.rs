@@ -51,7 +51,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 9;
+const SCHEMA_VERSION: i64 = 10;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -61,6 +61,9 @@ const SCHEMA_VERSION: i64 = 9;
 /// of notes, and `target` is the text as written rather than a resolved path:
 /// native queries resolve it on read, so a note created or retitled later is
 /// found by links written before it existed.
+///
+/// `folder` holds every directory a note could be filed in, including empty
+/// ones, so a folder outlives the last note moved out of it.
 pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("PRAGMA journal_mode = WAL;")?;
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
@@ -69,6 +72,7 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
         log::info!("index schema {version} is behind {SCHEMA_VERSION}, rebuilding for the rescan");
         tx.execute_batch(
             "DROP TABLE IF EXISTS note_fts;
+             DROP TABLE IF EXISTS folder;
              DROP TABLE IF EXISTS note_link;
              DROP TABLE IF EXISTS note_tag;
              DROP TABLE IF EXISTS note_prose_fallback;
@@ -85,6 +89,9 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
            created_at INTEGER NOT NULL,
            updated_at INTEGER NOT NULL,
            body_line_offset INTEGER NOT NULL DEFAULT 0
+         );
+         CREATE TABLE IF NOT EXISTS folder (
+           path TEXT PRIMARY KEY
          );
          CREATE TABLE IF NOT EXISTS note_prose_fallback (
            path TEXT PRIMARY KEY
@@ -132,6 +139,28 @@ pub fn relative_path(notes_dir: &Path, path: &Path) -> Option<String> {
     RelativePath::from_host(notes_dir, path)
         .ok()
         .map(RelativePath::into_string)
+}
+
+/// The directory where the app keeps files notes embed. It holds no notes of
+/// its own, so it is never listed as a folder.
+pub const ATTACHMENTS: &str = "attachments";
+
+/// Whether a directory is a place to file notes: anything but the app's store.
+pub fn is_note_folder(rel_path: &str) -> bool {
+    rel_path.split('/').next() != Some(ATTACHMENTS)
+}
+
+/// Record a folder, answering whether it is new to the index.
+pub fn record_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool> {
+    Ok(conn.execute(
+        "INSERT OR IGNORE INTO folder (path) VALUES (?1)",
+        [rel_path],
+    )? == 1)
+}
+
+/// Forget a folder, answering whether the index held it.
+pub fn remove_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool> {
+    Ok(conn.execute("DELETE FROM folder WHERE path = ?1", [rel_path])? == 1)
 }
 
 fn folder_of(rel_path: &str) -> String {
@@ -652,8 +681,9 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        let changed = scan_all(&conn, &root(&dir), &dir).unwrap().changed;
-        assert_eq!(changed.len(), 2);
+        let mut changed = scan_all(&conn, &root(&dir), &dir).unwrap().changed;
+        changed.sort();
+        assert_eq!(changed, ["ideas.md", "work", "work/meeting.md"]);
 
         let rows = select(
             &conn,

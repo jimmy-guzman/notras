@@ -145,17 +145,17 @@ export function insertSearchFilter(
   return `${before}${before === "" || WHITESPACE.test(before.at(-1) ?? "") ? "" : " "}${prefix}${value} ${after}`;
 }
 
+/** Every folder, empty ones included, with the number of notes anywhere under it. */
 export function searchFolders(
+  folders: string[],
   notes: NoteMeta[]
 ): { count: number; folder: string }[] {
-  const folders = notes.flatMap(({ folder }) =>
-    folder === ""
-      ? []
-      : folder
-          .split("/")
-          .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
-  );
-  return [...Map.groupBy(folders, (folder) => folder)]
-    .map(([folder, rows]) => ({ count: rows.length, folder }))
+  return folders
+    .map((folder) => ({
+      count: notes.filter(
+        (note) => note.folder === folder || note.folder.startsWith(`${folder}/`)
+      ).length,
+      folder,
+    }))
     .toSorted((left, right) => left.folder.localeCompare(right.folder));
 }

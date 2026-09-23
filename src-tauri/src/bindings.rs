@@ -39,6 +39,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir::<tauri::Wry>,
             notes::index_status::<tauri::Wry>,
+            notes::list_folders::<tauri::Wry>,
             notes::list_notes::<tauri::Wry>,
             notes::list_tags::<tauri::Wry>,
             notes::read_graph::<tauri::Wry>,
@@ -922,6 +923,7 @@ mod tests {
     fn should_serve_typed_saved_queries_through_the_production_registry() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("atlas.md"), "# Atlas\n[[Source]]").unwrap();
+        fs::create_dir(directory.path().join("inbox")).unwrap();
         fs::write(
             directory.path().join("source.md"),
             "---\ntags: [work]\n---\n# Source\nAtlas in prose",
@@ -951,6 +953,10 @@ mod tests {
         assert_eq!(
             invoke(&window, "list_tags", json!({})).unwrap(),
             json!([{"tag":"work","count":1}])
+        );
+        assert_eq!(
+            invoke(&window, "list_folders", json!({})).unwrap(),
+            json!(["inbox"])
         );
         let mentions = invoke(&window, "find_mentions", json!({"path":"atlas.md"})).unwrap();
         assert_eq!(mentions[0]["note"]["title"], "Source");
