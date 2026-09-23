@@ -75,6 +75,8 @@ export const noteQueries = {
  */
 export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
   queryOptions({
+    // Discarded with the session, so reopening the same tab reads afresh.
+    gcTime: 0,
     queryFn: async () => {
       // File first, so a missing file is never mistaken for a missing review.
       const file = await readSessionFile(kind, path);

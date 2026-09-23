@@ -32,6 +32,7 @@ import {
   openDraft,
   openNote,
   refreshTabs,
+  reopenTab,
   useTabState,
 } from "@/lib/tabs/store";
 import { tabPanelId } from "@/lib/tabs/tab";
@@ -2215,6 +2216,60 @@ describe(NoteSession, () => {
       expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
     );
     client.clear();
+  });
+
+  it("should read a reopened tab's stored review afresh rather than from its first opening", async () => {
+    let stored: ConflictStash | null = null;
+    mockIPC(
+      withDisk((command) => (command === "read_conflict" ? stored : null))
+    );
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    disk.set("errands.md", {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: 2,
+    });
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    openNote("errands.md");
+    const id = getTabState().activeId;
+    render(
+      <QueryClientProvider client={client}>
+        <LiveSession id={id} />
+      </QueryClientProvider>
+    );
+    const opened = await editor(id);
+    expect(opened.getText()).toContain("body, on disk");
+
+    act(() => {
+      closeTab(id);
+    });
+    stored = {
+      base: {
+        content: "# Errands\n\nbody",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      ours: "# Errands\n\nbody, mine",
+    };
+    await act(async () => {
+      await sleep(0);
+      reopenTab();
+    });
+
+    expect(getTabState().activeId).toBe(id);
+    const reopened = await editor(id);
+    expect(reopened.getText()).toContain("body, mine");
+    await waitFor(() =>
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+    );
   });
 
   it("should show the initial merge of stored edits and the current file in the rich editor", async () => {
