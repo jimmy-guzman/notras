@@ -183,6 +183,41 @@ function review() {
   return screen.queryByRole("region", { name: "review overlapping edits" });
 }
 
+async function mountConflict(
+  content: string,
+  onDisk: string,
+  ipc: Parameters<typeof mockIPC>[0] = () => null
+) {
+  mockIPC((command, args) => {
+    if (
+      command === "stash_conflict" ||
+      command === "clear_conflict" ||
+      command === "read_conflict"
+    ) {
+      return ipc(command, args) ?? null;
+    }
+    return ipc(command, args);
+  });
+  const client = mountSession(content);
+  const liveEditor = await editor();
+  act(() => {
+    typeAtEnd(liveEditor, "Typed ");
+  });
+  act(() => {
+    client.setQueryData(noteQueries.fileKey("note", tab.path), {
+      content: onDisk,
+      pinned: false,
+      revision: "r1",
+      tags: [],
+      updatedAt: new Date(2),
+    });
+  });
+  await waitFor(() =>
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
+  );
+  return { client, liveEditor };
+}
+
 describe(NoteSession, () => {
   let reads = 0;
   beforeEach(() => {
@@ -1765,41 +1800,6 @@ describe(NoteSession, () => {
       screen.queryByText("this note could not be saved")
     ).not.toBeInTheDocument();
   });
-
-  async function mountConflict(
-    content: string,
-    onDisk: string,
-    ipc: Parameters<typeof mockIPC>[0] = () => null
-  ) {
-    mockIPC((command, args) => {
-      if (
-        command === "stash_conflict" ||
-        command === "clear_conflict" ||
-        command === "read_conflict"
-      ) {
-        return ipc(command, args) ?? null;
-      }
-      return ipc(command, args);
-    });
-    const client = mountSession(content);
-    const liveEditor = await editor();
-    act(() => {
-      typeAtEnd(liveEditor, "Typed ");
-    });
-    act(() => {
-      client.setQueryData(noteQueries.fileKey("note", tab.path), {
-        content: onDisk,
-        pinned: false,
-        revision: "r1",
-        tags: [],
-        updatedAt: new Date(2),
-      });
-    });
-    await waitFor(() =>
-      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-    );
-    return { client, liveEditor };
-  }
 
   it("should open the review from the banner, hide the note, and come back on escape", async () => {
     const user = userEvent.setup();

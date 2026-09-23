@@ -166,7 +166,7 @@ export type MutationReceipt = { path: string; revision: string; updatedAt: numbe
 export type MutationWarning = { kind: "index"; path: string; message: string } | { kind: "cleanup"; path: string; message: string }
 export type MutationWarnings = { warnings: MutationWarning[] }
 export type NoteFile = { content: string; revision: string; updatedAt: number }
-export type NoteFilters = { folder: string | null; limit: number | null; pinnedOnly: boolean | null; query: string | null; sort: NoteSort | null; tag: string | null }
+export type NoteFilters = { folder: string | null; includePreview: boolean | null; limit: number | null; pinnedOnly: boolean | null; query: string | null; sort: NoteSort | null; tag: string | null }
 /**
  * One indexed note. In a search result, `title` and `snippet` wrap matched tokens in U+0001 and U+0002, which no markdown file carries.
  */

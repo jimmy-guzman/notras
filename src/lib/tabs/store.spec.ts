@@ -38,6 +38,21 @@ import { parseTabs, serializeTabs } from "./tab";
 
 const STORAGE_KEY = "tabs";
 
+/** A legacy store without ids, with keys in the form `kind:path`. */
+function writeLegacyStore() {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      activeId: "note:b.md",
+      carets: { "note:a.md": 12, "note:b.md": 34 },
+      tabs: [
+        { kind: "note", path: "a.md" },
+        { kind: "note", path: "b.md" },
+      ],
+    })
+  );
+}
+
 describe("store", () => {
   it("should receive snapshots registered after the consumer mounts", ({
     onTestFinished,
@@ -72,21 +87,6 @@ describe("store", () => {
     });
     expect(result.current?.title).toBe("Edited");
   });
-
-  /** A store as versions before `D56` wrote it: no ids, keys are `kind:path`. */
-  function writeLegacyStore() {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        activeId: "note:b.md",
-        carets: { "note:a.md": 12, "note:b.md": 34 },
-        tabs: [
-          { kind: "note", path: "a.md" },
-          { kind: "note", path: "b.md" },
-        ],
-      })
-    );
-  }
 
   describe(restoreTabs, () => {
     beforeEach(() => {

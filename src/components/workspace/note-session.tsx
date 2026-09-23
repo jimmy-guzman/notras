@@ -82,6 +82,7 @@ import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { useGraphMode } from "@/lib/ui/graph";
+import { noteBrowserHasFocus, useNoteBrowser } from "@/lib/ui/note-browser";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import type { OpenKind } from "@/server/adapters/bindings";
 
@@ -256,7 +257,8 @@ function SessionBuffer({
   );
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
-  const focusOnMount = active && !findState.open;
+  const browserOpen = useNoteBrowser();
+  const focusOnMount = active && !findState.open && !noteBrowserHasFocus();
   const [findHandle, setFindHandle] = useState<FindHandle | null>(null);
 
   useEffect(
@@ -686,7 +688,8 @@ function SessionBuffer({
       !active ||
       graphMode ||
       reviewingRef.current ||
-      noteFind.store.state.open
+      noteFind.store.state.open ||
+      (browserOpen && noteBrowserHasFocus())
     ) {
       return;
     }
@@ -696,7 +699,7 @@ function SessionBuffer({
     } else {
       editorRef.current?.focus();
     }
-  }, [active, graphMode, persistence]);
+  }, [active, browserOpen, graphMode, persistence]);
 
   return (
     <div

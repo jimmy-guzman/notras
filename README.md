@@ -92,6 +92,7 @@ notras checks for updates on launch. A new version shows a toast with an install
 
 | Shortcut     | Action                           |
 | ------------ | -------------------------------- |
+| `⌘\`         | toggle the note browser          |
 | `⌘P`         | find a note                      |
 | `⌘⇧P`        | run an action                    |
 | `⌘N`         | new note, in a new tab           |

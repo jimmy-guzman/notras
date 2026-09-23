@@ -4,7 +4,7 @@ Interface conventions for notras. Every rule here is either implemented in `src/
 
 ## Operating principles
 
-- **The window is the editor.** There is no sidebar and no note list on screen. Anything that is not the note reaches it through ⌘P, ⌘⇧P, a dialog, or the status strip. The one exception is the tab strip, which carries the open set and the controls acting on it: opening, selecting, closing and reordering a tab (`D52`), and after it the find button, a door into ⌘P for a hand on the mouse (`D88`). Renaming, moving, pinning and tagging act on the note rather than the tab, so they stay in the palette, and finding a note is still the palette's job. The two bands carry the note's state and the editor's view state.
+- **The editor owns the window, with an optional note browser.** The browser starts collapsed and opens beside the note through the titlebar, ⌘\ or the palette. Its single column switches between collections and note rows. It remains docked beside the editor at all supported window widths. Renaming, moving, pinning and tagging stay in the palette. The two bands carry the note's state and the editor's view state.
 - **Keyboard first.** Every action has a shortcut or a palette entry. A feature reachable only by mouse is unfinished.
 - **Case by role.** Controls and titles are lowercase, prose is sentence case, and xs section labels are uppercase through CSS (`D84`).
 - **Default to less.** Add nothing that does not earn its place, then remove one more thing. A new bar item is the last resort; the palette is the first, and one that arrives displaces something rather than joining it: the tab strip took the title's place in the band rather than adding a band (`D52`).
@@ -30,6 +30,8 @@ Both stacks resolve from the platform and installed fonts. The app bundles no fo
 - Headings scale from the body size: `1.88em`, `1.56em`, `1.33em`, then body size for h4, h5 and h6. The ratio is 1.2 a step and stops at h3, which is where a note stops needing ranks. One weight, 600, and one ink, `--foreground`, serve all six, so size alone ranks them, and each takes the same air as any other block: one line, divided back down by the level's scale so it does not grow with the heading.
 - Both bars set `text-xs` once, on the titlebar and the footer, and everything in them inherits it: tabs, the overflow count, tag chips, the word count. Palette metadata takes `text-xs` too, and other UI text inherits the base size. Do not invent a per-component size. The sizes in hand-written CSS for floating surfaces, the code-block toolbar, and source mode are not precedents.
 - Mono carries code and machine text, including a suggestion's shorthand hint. The welcome wordmark and README hero use system sans.
+
+The note browser uses 14px note titles and 12px previews, metadata and collection controls. Its search and collection controls are 32px tall, expanding to at least 44px for coarse pointers. The titlebar and status strip retain their compact controls. The browser starts at 296px and resizes between 200px and 480px while leaving at least 240px for the editor. Both panes use `--background` inside one rounded outer frame beneath the titlebar. A 1px draggable `--border` separates them, with no gap or rounded corners at their shared edge. Search uses the visible `--input` border. Active rows have an accent fill and a pink leading marker; keyboard focus uses an inset ring that stays inside the scroll viewport.
 
 ## Color
 

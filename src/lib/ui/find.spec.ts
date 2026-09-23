@@ -7,6 +7,17 @@ import { createFindHandle, Find } from "@/components/editor/find";
 import { createFindController } from "./find";
 
 const editors: Editor[] = [];
+function mount(content: string) {
+  const editor = new Editor({
+    content,
+    contentType: "markdown",
+    element: document.createElement("div"),
+    extensions: [...createEditorExtensions({}), Find],
+  });
+  editors.push(editor);
+  return { editor, handle: createFindHandle(editor) };
+}
+
 describe("find", () => {
   afterEach(() => {
     for (const editor of editors) {
@@ -14,17 +25,6 @@ describe("find", () => {
     }
     editors.length = 0;
   });
-  function mount(content: string) {
-    const editor = new Editor({
-      content,
-      contentType: "markdown",
-      element: document.createElement("div"),
-      extensions: [...createEditorExtensions({}), Find],
-    });
-    editors.push(editor);
-    return { editor, handle: createFindHandle(editor) };
-  }
-
   describe("window find controller", () => {
     it("should seed single-line selections and retain the query across editor handoff", () => {
       const first = mount("Atlas Atlas");

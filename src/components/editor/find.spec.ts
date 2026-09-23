@@ -7,6 +7,17 @@ import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "./find";
 
 const editors: Editor[] = [];
+function mount(content: string) {
+  const editor = new Editor({
+    content,
+    contentType: "markdown",
+    element: document.createElement("div"),
+    extensions: [...createEditorExtensions({}), Find],
+  });
+  editors.push(editor);
+  return { editor, find: createFindHandle(editor) };
+}
+
 describe("find", () => {
   afterEach(() => {
     for (const editor of editors) {
@@ -14,17 +25,6 @@ describe("find", () => {
     }
     editors.length = 0;
   });
-
-  function mount(content: string) {
-    const editor = new Editor({
-      content,
-      contentType: "markdown",
-      element: document.createElement("div"),
-      extensions: [...createEditorExtensions({}), Find],
-    });
-    editors.push(editor);
-    return { editor, find: createFindHandle(editor) };
-  }
 
   describe("find in rich text", () => {
     it("should find literal text across formatting and link labels within a block", () => {
