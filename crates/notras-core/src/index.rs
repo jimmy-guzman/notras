@@ -857,6 +857,73 @@ mod tests {
     }
 
     #[test]
+    fn should_rebuild_an_index_with_an_older_shape() {
+        let directory = tempfile::tempdir().unwrap();
+        let cache = directory.path().join(".index");
+        let index_dir = cache.join(crate::index_key(&directory.path().canonicalize().unwrap()));
+        fs::create_dir_all(&index_dir).unwrap();
+        let content = "---\ntags: [z, a]\n---\n# Current\nfresh [[Other]]";
+        fs::write(directory.path().join("note.md"), content).unwrap();
+        let modified = timestamp_millis(
+            fs::metadata(directory.path().join("note.md"))
+                .unwrap()
+                .modified(),
+        )
+        .unwrap();
+        let conn = Connection::open(index_dir.join(DATABASE)).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE note (path TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content, tokenize='unicode61');
+             INSERT INTO note_fts (rowid, path, title, content) VALUES (99, 'note.md', 'Old', 'stale');"
+        ).unwrap();
+        conn.pragma_update(None, "user_version", SCHEMA_VERSION - 1)
+            .unwrap();
+        conn.execute(
+            "INSERT INTO note VALUES ('note.md', 'Old', '', 0, 0, ?1)",
+            [modified],
+        )
+        .unwrap();
+        drop(conn);
+
+        let core = crate::Library::open(directory.path(), &cache).unwrap();
+        let mut scan = core.begin_scan(false);
+        while !core.advance_scan(&mut scan).unwrap() {}
+        assert_eq!(core.finish_scan(scan).unwrap(), ["note.md"]);
+        let notes = core
+            .read_view()
+            .unwrap()
+            .list_notes(&crate::NoteFilters {
+                query: Some("fresh".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].title, "Current");
+        assert_eq!(notes[0].tags, ["z", "a"]);
+        assert_eq!(
+            notes[0].snippet.as_deref(),
+            Some("# Current\n\u{1}fresh\u{2} [[Other]]")
+        );
+        assert!(core
+            .read_view()
+            .unwrap()
+            .list_notes(&crate::NoteFilters {
+                query: Some("stale".into()),
+                ..Default::default()
+            })
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            select(&core.conn, "SELECT target FROM note_link", &[]).unwrap(),
+            vec![vec![json!("Other")]]
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join("note.md")).unwrap(),
+            content
+        );
+    }
+
+    #[test]
     fn should_find_bare_mentions_of_a_title() {
         let dir_directory = tempfile::tempdir().unwrap();
         let dir = dir_directory.path().to_owned();
