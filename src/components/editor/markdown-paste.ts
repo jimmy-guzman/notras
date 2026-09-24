@@ -29,6 +29,7 @@ async function pasteNativeCode(
   editor: Editor,
   readCodeClipboard: ReadCodeClipboard,
   text: string,
+  markdown: boolean,
   slice: Slice,
   paste: PendingPaste,
   pending: Set<PendingPaste>,
@@ -55,7 +56,7 @@ async function pasteNativeCode(
           type: "codeBlock",
         })
         .run();
-    } else if (editor.markdown && MARKDOWN_PASTE_PATTERN.test(text)) {
+    } else if (editor.markdown && markdown) {
       chain.insertContent(editor.markdown.parse(text)).run();
     } else {
       chain
@@ -113,11 +114,17 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             }
 
             const text = event.clipboardData?.getData("text/plain");
+            const html = event.clipboardData?.getData("text/html") ?? "";
             const manager = this.editor.markdown;
 
             if (text === undefined || text === "") {
               return false;
             }
+
+            // Rich sources such as browsers, Slack and Docs put their own
+            // flattening of the HTML in plain text, and a line in it that
+            // looks like markdown is no sign the HTML is.
+            const markdown = html === "" && MARKDOWN_PASTE_PATTERN.test(text);
 
             if (this.options.readCodeClipboard !== null) {
               const paste = { selection: view.state.selection.getBookmark() };
@@ -127,6 +134,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 this.editor,
                 this.options.readCodeClipboard,
                 text,
+                markdown,
                 slice,
                 paste,
                 pending,
@@ -135,7 +143,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
               return true;
             }
 
-            if (!(manager && MARKDOWN_PASTE_PATTERN.test(text))) {
+            if (!(manager && markdown)) {
               return false;
             }
             return this.editor.commands.insertContent(manager.parse(text));

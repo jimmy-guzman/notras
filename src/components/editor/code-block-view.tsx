@@ -4,30 +4,15 @@ import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState } from "react";
 
-import { contentOf, hasString } from "@/components/editor/attrs";
+import { hasString } from "@/components/editor/attrs";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-function markdownOf({
-  editor,
-  node,
-}: Pick<ReactNodeViewProps, "editor" | "node">) {
-  if (editor.markdown === undefined) {
-    throw new Error("The Markdown serializer is unavailable");
-  }
-
-  return editor.markdown.serialize(contentOf(node));
-}
-
 /**
- * Copy a block as markdown and edit its fence language from a hover toolbar.
+ * Copy a block's code and edit its fence language from a hover toolbar.
  */
-export function CodeBlockView({
-  editor,
-  node,
-  updateAttributes,
-}: ReactNodeViewProps) {
+export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const language = hasString(node.attrs, "language") ? node.attrs.language : "";
   const languageLabel = language === "" ? "plain" : language;
   const [copied, setCopied] = useState(false);
@@ -54,7 +39,7 @@ export function CodeBlockView({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(markdownOf({ editor, node }));
+      await navigator.clipboard.writeText(node.textContent);
       setCopied(true);
       clearCopied();
     } catch (error) {

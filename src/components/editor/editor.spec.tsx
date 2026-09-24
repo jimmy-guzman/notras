@@ -14,7 +14,10 @@ import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { createEditorExtensions } from "@/components/editor/extensions";
+import {
+  createEditorExtensions,
+  serializeMarkdown,
+} from "@/components/editor/extensions";
 import { SENTINEL } from "@/components/editor/sentinel";
 import { Toaster } from "@/components/ui/toast";
 
@@ -703,50 +706,30 @@ describe("code block clipboard", () => {
   });
 
   it.each([
-    ["named", "```ts\nconst value = 1;\n```"],
-    ["plain", "```\nplain code\n```"],
-    ["unknown language", "```mermaid\ngraph TD\n```"],
-    ["empty", "```ts\n\n```"],
-    ["nested fences", "````markdown\n```ts\nconst value = 1;\n```\n````"],
+    ["named", "```ts\nconst value = 1;\n```", "const value = 1;"],
+    ["plain", "```\nplain code\n```", "plain code"],
+    ["unknown language", "```mermaid\ngraph TD\n```", "graph TD"],
+    ["empty", "```ts\n\n```", ""],
+    [
+      "nested fences",
+      "````markdown\n```ts\nconst value = 1;\n```\n````",
+      "```ts\nconst value = 1;\n```",
+    ],
   ])(
-    "should copy a %s code block as fenced markdown",
-    async (_name, markdown) => {
-      const { scroller } = await mount({ initialContent: markdown });
+    "should copy a %s code block as its code",
+    async (_name, markdown, code) => {
+      await mount({ initialContent: markdown });
       const user = userEvent.setup();
       const copy = screen.getByRole("button", { name: "copy code" });
-      const surface = scroller.querySelector(".ProseMirror");
-
-      if (!(copy instanceof HTMLButtonElement) || surface === null) {
-        throw new Error("the code block did not render");
-      }
 
       await user.click(copy);
 
-      const copied = await navigator.clipboard.readText();
-
-      expect(copied).toBe(markdown);
+      await expect(navigator.clipboard.readText()).resolves.toBe(code);
       expect(copy.textContent).toBe("copied");
-
-      const pasted = new TiptapEditor({
-        content: "",
-        extensions: createEditorExtensions({}),
-      });
-      const clipboardData = new DataTransfer();
-
-      clipboardData.setData("text/plain", copied);
-      pasted.view.dom.dispatchEvent(
-        new ClipboardEvent("paste", { clipboardData })
-      );
-
-      expect(pasted.state.doc.firstChild?.type.name).toBe("codeBlock");
-      expect(pasted.state.doc.firstChild?.textContent).toBe(
-        surface.querySelector("pre code")?.textContent
-      );
-      pasted.destroy();
     }
   );
 
-  it("should copy the newly selected language and preserve it in markdown", async () => {
+  it("should save the newly selected language in markdown", async () => {
     const { handle } = await mount({
       initialContent: "```mermaid\ngraph TD\n```",
     });
@@ -754,25 +737,244 @@ describe("code block clipboard", () => {
     const language = screen.getByRole<HTMLSelectElement>("combobox", {
       name: "code language",
     });
-    const copy = screen.getByRole("button", { name: "copy code" });
 
     expect(language.value).toBe("mermaid");
     expect(language.options).toHaveLength(1);
     await user.hover(language);
     expect(language.options.length).toBeGreaterThan(1);
     await user.selectOptions(language, "typescript");
-    await user.click(copy);
 
     expect(language.value).toBe("typescript");
     expect(handle.getContent().trimEnd()).toBe("```typescript\ngraph TD\n```");
-    await expect(navigator.clipboard.readText()).resolves.toBe(
-      "```typescript\ngraph TD\n```"
-    );
 
     await user.selectOptions(language, "");
 
     expect(handle.getContent().trimEnd()).toBe("```\ngraph TD\n```");
   });
+});
+
+/** The document range holding `text`, for selecting words the way a user would. */
+function rangeOf(editor: TiptapEditor, text: string) {
+  const ranges: { from: number; to: number }[] = [];
+
+  editor.state.doc.descendants((node, pos) => {
+    const index = node.text?.indexOf(text) ?? -1;
+
+    if (index !== -1) {
+      ranges.push({ from: pos + index, to: pos + index + text.length });
+    }
+  });
+
+  const [range] = ranges;
+
+  if (range === undefined) {
+    throw new Error(`the document has no "${text}"`);
+  }
+
+  return range;
+}
+
+/**
+ * A native event: user-event copies the DOM selection it tracks itself, and
+ * ProseMirror writes the clipboard from its own.
+ */
+function copyBetween(editor: TiptapEditor, from: number, to: number) {
+  const clipboardData = new DataTransfer();
+
+  act(() => {
+    editor.commands.setTextSelection({ from, to });
+  });
+  editor.view.dom.dispatchEvent(
+    new ClipboardEvent("copy", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    })
+  );
+
+  return clipboardData;
+}
+
+describe("copy", () => {
+  it.each([
+    [
+      "words in a list item",
+      "- first words\n- second",
+      "words",
+      "words",
+      "words",
+    ],
+    [
+      "link text",
+      "see [the site](https://example.com) now",
+      "the site",
+      "the site",
+      "the site",
+    ],
+    ["bold text", "**bold** text", "bold", "text", "bold text"],
+    ["a heading", "## heading text", "heading", "text", "heading text"],
+    [
+      "a table cell",
+      "| a | b |\n| --- | --- |\n| cell | x |",
+      "cell",
+      "cell",
+      "cell",
+    ],
+    [
+      "a line of code",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+      "const b",
+      "2;",
+      "const b = 2;",
+    ],
+    [
+      "a wikilink",
+      "see [[Other note]] here",
+      "see",
+      "here",
+      "see Other note here",
+    ],
+    ["an image", "a ![pic](attachments/x.png) b", "a", "b", "a pic b"],
+  ])(
+    "should copy %s as the text it shows",
+    async (_name, initialContent, first, last, text) => {
+      const { editor } = await mount({ initialContent });
+      const copied = copyBetween(
+        editor,
+        rangeOf(editor, first).from,
+        rangeOf(editor, last).to
+      );
+
+      expect(copied.getData("text/plain")).toBe(text);
+    }
+  );
+
+  it("should copy a selection across list items as markdown", async () => {
+    const { editor } = await mount({ initialContent: "- a\n- b" });
+    const copied = copyBetween(
+      editor,
+      rangeOf(editor, "a").from,
+      rangeOf(editor, "b").to
+    );
+
+    expect(copied.getData("text/plain")).toBe("- a\n- b");
+  });
+
+  it.each([
+    [1, "a\n\n\n\nb"],
+    [2, "a\n\n\n\n\n\nb"],
+    [3, "a\n\n\n\n\n\n\n\nb"],
+  ])(
+    "should copy %i blank paragraphs as that many blank blocks",
+    async (blanks, text) => {
+      const { editor } = await mount({ initialContent: "a" });
+
+      act(() => {
+        editor.commands.setContent({
+          content: [
+            { content: [{ text: "a", type: "text" }], type: "paragraph" },
+            ...Array.from({ length: blanks }, () => ({ type: "paragraph" })),
+            { content: [{ text: "b", type: "text" }], type: "paragraph" },
+          ],
+          type: "doc",
+        });
+      });
+
+      const copied = copyBetween(
+        editor,
+        rangeOf(editor, "a").from,
+        rangeOf(editor, "b").to
+      );
+
+      expect(copied.getData("text/plain")).toBe(text);
+    }
+  );
+
+  it("should copy an image by its path in the notes folder rather than the app's URL", async () => {
+    const { editor, scroller } = await mount({
+      initialContent: "a ![pic](attachments/x.png) b",
+      resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
+    });
+    const copied = copyBetween(
+      editor,
+      rangeOf(editor, "a").from,
+      rangeOf(editor, "b").to
+    );
+
+    expect(scroller.querySelector("img")?.getAttribute("src")).toBe(
+      "asset://localhost/notes/attachments/x.png"
+    );
+    expect(copied.getData("text/html")).toContain('src="attachments/x.png"');
+    expect(copied.getData("text/html")).not.toContain("asset://");
+  });
+
+  it.each([
+    ["the notes root", "b.md", "attachments/x.png"],
+    ["a folder", "projects/b.md", "../attachments/x.png"],
+    ["a nested folder", "projects/deep/b.md", "../../attachments/x.png"],
+  ])(
+    "should keep an image copied from a folder showing when pasted into a note in %s",
+    async (_name, target, destination) => {
+      const { editor } = await mount({
+        documentPath: () => "projects/a.md",
+        initialContent: "a ![pic](../attachments/x.png) b",
+      });
+      const copied = copyBetween(
+        editor,
+        rangeOf(editor, "a").from,
+        rangeOf(editor, "b").to
+      );
+      const { editor: pasted, handle } = await mount({
+        documentPath: () => target,
+        initialContent: "",
+      });
+
+      pasted.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: copied })
+      );
+
+      expect(handle.getContent().trimEnd()).toBe(`a ![pic](${destination}) b`);
+    }
+  );
+
+  it.each([
+    ["words from a list item", "- first words", "words", "words", "words"],
+    [
+      "a link",
+      "see [the site](https://example.com)",
+      "the site",
+      "the site",
+      "[the site](https://example.com)",
+    ],
+    [
+      "a wikilink",
+      "see [[Other note]] here",
+      "see",
+      "here",
+      "see [[Other note]] here",
+    ],
+  ])(
+    "should paste %s copied from a note as they read",
+    async (_name, initialContent, first, last, markdown) => {
+      const { editor } = await mount({ initialContent });
+      const copied = copyBetween(
+        editor,
+        rangeOf(editor, first).from,
+        rangeOf(editor, last).to
+      );
+      const pasted = new TiptapEditor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+
+      pasted.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: copied })
+      );
+
+      expect(serializeMarkdown(pasted)).toBe(markdown);
+      pasted.destroy();
+    }
+  );
 });
 
 describe("line breaks", () => {

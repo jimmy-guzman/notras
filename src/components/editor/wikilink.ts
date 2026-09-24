@@ -155,4 +155,6 @@ export const Wikilink = Node.create<WikilinkOptions>({
   },
 
   renderMarkdown: (node) => `[[${String(node.attrs?.title ?? "")}]]`,
+
+  renderText: ({ node }) => String(node.attrs.title ?? ""),
 });

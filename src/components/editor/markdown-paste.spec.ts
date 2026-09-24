@@ -4,7 +4,10 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Editor } from "@tiptap/core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createEditorExtensions } from "@/components/editor/extensions";
+import {
+  createEditorExtensions,
+  serializeMarkdown,
+} from "@/components/editor/extensions";
 import type { CodeClipboard } from "@/lib/ui/code-clipboard";
 
 let editor: Editor | undefined;
@@ -189,6 +192,34 @@ describe("markdown paste", () => {
         type: "paragraph",
       });
     });
+
+    it.each([
+      ["the app", async () => null],
+      ["a browser", undefined],
+    ])(
+      "should keep rich HTML when its plain text looks like markdown in %s",
+      async (_name, readCodeClipboard) => {
+        editor = new Editor({
+          content: "",
+          extensions: createEditorExtensions({ readCodeClipboard }),
+        });
+        const clipboardData = new DataTransfer();
+
+        clipboardData.setData("text/plain", "- one\n- two");
+        clipboardData.setData(
+          "text/html",
+          '<p><a href="https://example.com">one</a> and <em>two</em></p>'
+        );
+        editor.view.dom.dispatchEvent(
+          new ClipboardEvent("paste", { clipboardData })
+        );
+        await sleep(0);
+
+        expect(serializeMarkdown(editor)).toBe(
+          "[one](https://example.com) and *two*"
+        );
+      }
+    );
 
     it("should still parse markdown when no native code metadata exists", async () => {
       editor = new Editor({
