@@ -42,7 +42,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 - **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and diff cleanly, so it is exempt from the comment rule above and excluded in `oxlint.config.ts` and `oxfmt.config.ts` (`D40`). Change the note surface through the `.typeset-note` preset in `src/styles.css`, never in the vendored file.
 
-- **Prefer named exports.** Use the `@/*` alias for anything under `src/`.
+- **Prefer named exports.** Reach a file in another folder under `src/` through the `@/*` alias, never a `../` path. A file in the same folder imports with `./`.
 
 - **Ultracite, on oxlint and oxfmt, is the only JS/TS formatter and linter** (`D15`, `D41`, `D82`), and it is dev tooling only. Rust uses rustfmt and Clippy. A rule is turned off or narrowed only in `oxlint.config.ts`, with the reason on the line above it. Everywhere else a false positive is suppressed at the call site with `oxlint-disable-next-line` and a reason after `--`. Inline event handlers are allowed. Let the React Compiler own memoization (`ARCHITECTURE.md`). Add `useCallback`, `useMemo`, or `memo` only when profiling identifies a performance problem and before-and-after measurements verify the benefit. Never suppress a `react/*` diagnostic owned by the compiler, since suppressions hide compilation bailouts. `src/components/ui/**` is owned code under the same rules, and `@shadcn/lint` keeps a component's appearance inside its file and leaves a call site only placement (`D85`).
 
