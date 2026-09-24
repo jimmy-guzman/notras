@@ -1,13 +1,9 @@
-import { error as logError } from "@tauri-apps/plugin-log";
-import { array, check, parseJson, pipe, safeParse, string } from "valibot";
+import { array, check, pipe, string } from "valibot";
 
-import { toast } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
-import { reasonOf } from "@/lib/ui/failure";
+import { readStored, writeStored } from "@/lib/storage";
 
 const HistorySchema = pipe(
-  string(),
-  parseJson(),
   array(string()),
   check((paths) => new Set(paths).size === paths.length)
 );
@@ -17,38 +13,17 @@ function storageKey(notesDir: string) {
 }
 
 function writeHistory(notesDir: string, paths: string[]) {
-  try {
-    localStorage.setItem(storageKey(notesDir), JSON.stringify(paths));
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not update recent notes",
-      type: "error",
-    });
-  }
-}
-
-async function logHistoryReadFailure(message: string) {
-  try {
-    await logError(message);
-  } catch {
-    // An unavailable log must not prevent opening a note.
-  }
+  writeStored(storageKey(notesDir), paths, "could not update recent notes");
 }
 
 export function readRecentNotes(notesDir: string): string[] {
-  try {
-    const parsed = safeParse(
+  return (
+    readStored(
+      storageKey(notesDir),
       HistorySchema,
-      localStorage.getItem(storageKey(notesDir))
-    );
-    return parsed.success ? parsed.output : [];
-  } catch (error) {
-    void logHistoryReadFailure(
-      `could not read recent notes: ${reasonOf(error) ?? String(error)}`
-    );
-    return [];
-  }
+      "could not read recent notes"
+    ) ?? []
+  );
 }
 
 function orderByVisit(notesDir: string, notes: NoteMeta[]) {

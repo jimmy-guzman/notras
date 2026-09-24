@@ -1,3 +1,4 @@
+import { is, parse } from "valibot";
 import { describe, expect, it } from "vitest";
 
 import type { TabState } from "./tab";
@@ -8,7 +9,7 @@ import {
   moveTabTo,
   openTab,
   openTabAt,
-  parseTabs,
+  PersistedTabsSchema,
   pushClosed,
   replaceNotePath,
   serializeTabs,
@@ -20,7 +21,7 @@ import {
 
 const WHITESPACE = /\s/u;
 
-/** Ids are opaque (`D56`), so the specs use a readable one per path. */
+/** Ids are opaque, so the specs use a readable one per path. */
 const note = (path: string) =>
   ({ id: `id-${path}`, kind: "note", path }) as const;
 
@@ -39,7 +40,7 @@ describe("tabButtonId and tabPanelId", () => {
   it("should give a tab and its panel ids an aria reference can resolve", () => {
     // Both are read from `aria-controls` and `aria-labelledby`, which are
     // space-separated ID lists: whitespace in an id splits the reference and
-    // the pairing breaks. Ids are minted in `store.ts` (`D56`).
+    // the pairing breaks. Ids are minted in `store.ts`.
     const id = crypto.randomUUID();
 
     expect(tabButtonId(id)).not.toMatch(WHITESPACE);
@@ -283,7 +284,7 @@ describe(replaceNotePath, () => {
   it("should keep the moved tab's id, so its editing session survives", () => {
     // The workspace keys each `NoteSession` by this id. Deriving it from the
     // path remounted the editor on every rename, losing undo history, the
-    // caret and the scroll position (`D56`).
+    // caret and the scroll position.
     const next = replaceNotePath(three, "id-b.md", "work/b.md");
 
     expect(next.tabs[1]?.id).toBe(note("b.md").id);
@@ -551,57 +552,44 @@ describe(openTabAt, () => {
   });
 });
 
-describe(parseTabs, () => {
+describe("persisted tabs", () => {
   it("should reject a set holding one id twice", () => {
-    const raw = JSON.stringify({
-      activeId: "same",
-      carets: {},
-      tabs: [
-        { id: "same", kind: "note", path: "a.md" },
-        { id: "same", kind: "note", path: "b.md" },
-      ],
-    });
-
-    expect(parseTabs(raw)).toBeUndefined();
+    expect(
+      is(PersistedTabsSchema, {
+        activeId: "same",
+        carets: {},
+        tabs: [
+          { id: "same", kind: "note", path: "a.md" },
+          { id: "same", kind: "note", path: "b.md" },
+        ],
+      })
+    ).toBeFalsy();
   });
 
   it("should reject a set holding one file twice", () => {
-    const raw = JSON.stringify({
-      activeId: "first",
-      carets: {},
-      tabs: [
-        { id: "first", kind: "note", path: "a.md" },
-        { id: "second", kind: "note", path: "a.md" },
-      ],
-    });
-
-    expect(parseTabs(raw)).toBeUndefined();
-  });
-
-  it("should reject a set written without ids holding one file twice", () => {
-    const raw = JSON.stringify({
-      activeId: "note:a.md",
-      carets: {},
-      tabs: [
-        { kind: "note", path: "a.md" },
-        { kind: "note", path: "a.md" },
-      ],
-    });
-
-    expect(parseTabs(raw)).toBeUndefined();
+    expect(
+      is(PersistedTabsSchema, {
+        activeId: "first",
+        carets: {},
+        tabs: [
+          { id: "first", kind: "note", path: "a.md" },
+          { id: "second", kind: "note", path: "a.md" },
+        ],
+      })
+    ).toBeFalsy();
   });
 
   it("should keep a note and an external file at the same path apart", () => {
-    const raw = JSON.stringify({
-      activeId: "n",
-      carets: {},
-      tabs: [
-        { id: "n", kind: "note", path: "a.md" },
-        { id: "x", kind: "external", path: "a.md" },
-      ],
-    });
-
-    expect(parseTabs(raw)?.tabs).toHaveLength(2);
+    expect(
+      is(PersistedTabsSchema, {
+        activeId: "n",
+        carets: {},
+        tabs: [
+          { id: "n", kind: "note", path: "a.md" },
+          { id: "x", kind: "external", path: "a.md" },
+        ],
+      })
+    ).toBeTruthy();
   });
 
   it("should round-trip what serializeTabs wrote", () => {
@@ -611,28 +599,44 @@ describe(parseTabs, () => {
       tabs: [note("a.md"), external("/tmp/x.md")],
     };
 
-    expect(parseTabs(serializeTabs(value))).toStrictEqual(value);
-  });
-
-  it("should reject text that is not json", () => {
-    expect(parseTabs("{oops")).toBeUndefined();
+    expect(
+      parse(PersistedTabsSchema, JSON.parse(serializeTabs(value)))
+    ).toStrictEqual(value);
   });
 
   it("should reject a set with a malformed tab", () => {
     expect(
-      parseTabs('{"activeId":"id-a.md","tabs":[{"kind":"folder","path":"a"}]}')
-    ).toBeUndefined();
+      is(PersistedTabsSchema, {
+        activeId: "a",
+        carets: {},
+        tabs: [{ id: "a", kind: "folder", path: "a" }],
+      })
+    ).toBeFalsy();
   });
 
   it("should reject a missing tab list", () => {
-    expect(parseTabs('{"activeId":"id-a.md"}')).toBeUndefined();
+    expect(
+      is(PersistedTabsSchema, { activeId: "id-a.md", carets: {} })
+    ).toBeFalsy();
   });
 
-  it("should drop caret offsets that are not numbers", () => {
-    const parsed = parseTabs(
-      '{"activeId":"","tabs":[],"carets":{"a":"nope","b":7}}'
-    );
+  it("should reject a caret offset that is not a number", () => {
+    expect(
+      is(PersistedTabsSchema, {
+        activeId: "",
+        carets: { a: "nope", b: 7 },
+        tabs: [],
+      })
+    ).toBeFalsy();
+  });
 
-    expect(parsed?.carets).toStrictEqual({ b: 7 });
+  it("should reject a tab without an id", () => {
+    expect(
+      is(PersistedTabsSchema, {
+        activeId: "",
+        carets: {},
+        tabs: [{ kind: "note", path: "a.md" }],
+      })
+    ).toBeFalsy();
   });
 });

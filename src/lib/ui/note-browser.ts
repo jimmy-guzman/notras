@@ -1,66 +1,36 @@
 import { createStore, useSelector } from "@tanstack/react-store";
+import { boolean, maxValue, minValue, number, pipe } from "valibot";
 
-import { toast } from "@/components/ui/toast";
-import { reasonOf } from "@/lib/ui/failure";
+import { readStored, writeStored } from "@/lib/storage";
 
-function readNoteBrowserVisibility() {
-  try {
-    return localStorage.getItem("note-browser-open") === "true";
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not restore note browser",
-      type: "error",
-    });
-    return false;
-  }
-}
-
-const browser = createStore(readNoteBrowserVisibility());
+const browser = createStore(
+  readStored(
+    "note-browser-open",
+    boolean(),
+    "could not read note browser visibility"
+  ) ?? false
+);
 
 browser.subscribe((open) => {
-  try {
-    localStorage.setItem("note-browser-open", String(open));
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not remember note browser",
-      type: "error",
-    });
-  }
+  writeStored("note-browser-open", open, "could not remember note browser");
 });
 
 export function readNoteBrowserWidth(): number {
-  try {
-    const saved = localStorage.getItem("note-browser-width");
-    if (saved === null) {
-      return 296;
-    }
-    const width = Number(saved);
-    if (!Number.isFinite(width) || width < 200 || width > 480) {
-      throw new Error("The saved width must be between 200 and 480 pixels.");
-    }
-    return width;
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not restore note browser width",
-      type: "error",
-    });
-    return 296;
-  }
+  return (
+    readStored(
+      "note-browser-width",
+      pipe(number(), minValue(200), maxValue(480)),
+      "could not read note browser width"
+    ) ?? 296
+  );
 }
 
 export function rememberNoteBrowserWidth(width: number): void {
-  try {
-    localStorage.setItem("note-browser-width", String(width));
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not remember note browser width",
-      type: "error",
-    });
-  }
+  writeStored(
+    "note-browser-width",
+    width,
+    "could not remember note browser width"
+  );
 }
 
 export function useNoteBrowser() {

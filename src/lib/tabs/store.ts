@@ -2,8 +2,11 @@ import { batch, createStore, useSelector } from "@tanstack/react-store";
 import type { ReadonlyStore } from "@tanstack/react-store";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
+import { toast } from "@/components/ui/toast";
 import type { FrontmatterEdit } from "@/core/frontmatter";
 import { rememberNote } from "@/lib/recent-notes";
+import { readStored } from "@/lib/storage";
+import { reasonOf } from "@/lib/ui/failure";
 import type { PendingOpen } from "@/server/adapters/bindings";
 
 import type { ClosedTab, Tab, TabState } from "./tab";
@@ -11,11 +14,10 @@ import {
   adoptNote,
   closeDrafts,
   closeTab as closeInList,
-  legacyTabId,
   moveTabTo,
   openTab as openInList,
   openTabAt,
-  parseTabs,
+  PersistedTabsSchema,
   pushClosed,
   replaceNotePath,
   serializeTabs,
@@ -45,7 +47,7 @@ export interface TabHandles {
   toggleSource: () => void;
 }
 
-/** What a session publishes for the bars and the palette to draw (`D53`). */
+/** What a session publishes for the bars and the palette to draw. */
 export interface TabSnapshot {
   pinned: boolean;
   /** Why the last save failed, or why a review could not be stored. */
@@ -144,7 +146,15 @@ function setState(next: TabState) {
     tabs.setState(() => next);
   });
 
-  persistTabs();
+  try {
+    persistTabs();
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not remember tabs",
+      type: "error",
+    });
+  }
 }
 
 /**
@@ -153,37 +163,28 @@ function setState(next: TabState) {
  * against disk here.
  */
 export function restoreTabs() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  const parsed = raw === null ? undefined : parseTabs(raw);
+  const parsed = readStored(
+    STORAGE_KEY,
+    PersistedTabsSchema,
+    "could not read tabs"
+  );
 
   if (parsed === undefined || parsed.tabs.length === 0) {
     return false;
   }
 
-  // A store written before `D56` has no ids and keys its carets and active tab
-  // by `kind:path`. Minting here, the one place holding both the old key and
-  // the new id, keeps a path-shaped id out of the live set and off the DOM.
-  const ids = new Map<string, string>();
-  const tabList = parsed.tabs.map((tab) => {
-    const fresh = tab.id ?? crypto.randomUUID();
+  const { activeId, carets, tabs: tabList } = parsed;
 
-    ids.set(tab.id ?? legacyTabId(tab), fresh);
-
-    return { id: fresh, kind: tab.kind, path: tab.path };
-  });
-
-  for (const [key, caret] of Object.entries(parsed.carets)) {
-    const id = ids.get(key);
-
-    if (id !== undefined) {
-      restored.set(id, caret);
-    }
+  for (const [id, caret] of Object.entries(carets)) {
+    restored.set(id, caret);
   }
 
   const [first] = tabList;
 
   setState({
-    activeId: ids.get(parsed.activeId) ?? first?.id ?? "",
+    activeId: tabList.some((tab) => tab.id === activeId)
+      ? activeId
+      : (first?.id ?? ""),
     tabs: tabList,
   });
 
@@ -191,9 +192,9 @@ export function restoreTabs() {
 }
 
 /**
- * A store an older build wrote holds a vault note opened through "Open With"
- * as an external tab. Ask which restored external tabs are notes today and
- * adopt those, so one file never carries two sessions.
+ * Adopt restored external tabs that are notes today, so one file never carries
+ * two sessions. A notes folder change can put an external file inside the
+ * library.
  */
 export async function adoptVaultNotes(
   classify: (paths: string[]) => Promise<PendingOpen[]>
@@ -293,7 +294,7 @@ export function registerTabSnapshot(
 
 /**
  * A tab's id, minted here rather than in `tab.ts` so the list algebra stays
- * pure and its spec can assert against literal ids (`D56`).
+ * pure and its spec can assert against literal ids.
  */
 function newTab(kind: Tab["kind"], path: string): Tab {
   return { id: crypto.randomUUID(), kind, path };

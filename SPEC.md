@@ -120,7 +120,7 @@ What notras does, as claims checkable against a running build.
 
 ## Browse notes
 
-- The titlebar button, shortcut and palette action toggle the browser. It starts collapsed and remembers visibility across launches. If that preference cannot be read, it reports the failure and starts collapsed. The palette reads "browse notes" when closed and "close note browser" when open, retaining its shortcut and command history.
+- The titlebar button, shortcut and palette action toggle the browser. It starts collapsed and remembers visibility across launches. The palette reads "browse notes" when closed and "close note browser" when open, retaining its shortcut and command history.
 - The browser stays docked at all supported window widths. It starts at 296px and resizes between 200px and 480px, leaving at least 240px for the editor. Dragging or arrow keys on the divider resize it. The chosen pixel width survives reopening and relaunching; narrow windows constrain it without changing the saved preference. Widening restores it.
 - The collection picker replaces note rows with all notes, pinned, recent, indexed folders and tags. Escape returns to notes. Folders include descendants. The picker has no entry for notes outside any folder; all notes, recent and search reach them. An empty folder is listed without a count. A chosen folder deleted on disk leaves the browser on all notes, with a toast naming the folder that was deleted. Recent uses successful library visits in the order captured when choosing the collection. Other idle collections sort by last saved.
 - Search uses palette matching and ranking without a result cap, within the selected collection. Changing collections preserves the query; all notes removes the collection filter. Query, collection and scroll position survive note changes and browser toggles. Opening the browser focuses search; ArrowDown focuses the first available result. Arrow keys, Home and End move among rows. Enter opens a note; Mod-click opens it beside the showing tab. Opening keeps the browser open and focus on the row. Escape from notes or the close button closes the browser and returns focus to the editor.
@@ -303,9 +303,12 @@ What notras does, as claims checkable against a running build.
 ## What is stored where
 
 - The notes folder lives in Tauri's `settings.json`. Launch at login lives with the OS.
-- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. Focus mode lives in `localStorage["focus-mode"]` beside them.
-- Recent notes live in `localStorage` under `recent-notes:` followed by the resolved library folder. Each library keeps its own last-chosen order across launches on this device. Missing, invalid, or unreadable history starts empty. Read failures go to the log and do not prevent opening notes, even if logging fails. Lists ignore missing files. A history write failure reports "could not update recent notes" with its reason and leaves the note operation in place.
-- Recent commands live in `localStorage["recent-actions"]`, shared across libraries on this device and kept across launches. Missing, invalid, or unreadable history starts empty. A history write failure reports "could not remember command" with its reason and still runs the chosen command.
+- A value in `localStorage` that is missing or invalid starts at its default. A failed read also goes to the log. A failed write reports what could not be remembered, with its reason, and keeps the change.
+- The open tabs, the active tab, and each tab's caret live in `localStorage["tabs"]`. The default is no tabs.
+- Focus mode lives in `localStorage["focus-mode"]`, off by default.
+- Note browser visibility and chosen width live in `localStorage["note-browser-open"]` and `localStorage["note-browser-width"]`. A width outside 200px to 480px is invalid.
+- Recent notes live in `localStorage` under `recent-notes:` followed by the resolved library folder. Each library keeps its own last-chosen order across launches on this device, empty by default. Lists ignore missing files.
+- Recent commands live in `localStorage["recent-actions"]`, shared across libraries on this device and kept across launches, empty by default.
 - Pins, tags, and a `title:` key live in the note's frontmatter. Attachments live in `attachments/`.
 - The index lives under the app's cache folder, keyed by the resolved notes dir, and is derived and disposable. Bare mentions are never stored; they are found when a note is showing.
 - A review that has not been resolved lives under the app data folder in `conflicts/`, one file per tab kind and path, and is removed by the save that resolves it.

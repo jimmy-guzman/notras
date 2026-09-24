@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
-import { array, check, parseJson, pipe, safeParse, string } from "valibot";
+import { array, check, pipe, string } from "valibot";
 
 import { Chord } from "@/components/chord";
 import {
@@ -15,8 +15,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { toast } from "@/components/ui/toast";
-import { reasonOf } from "@/lib/ui/failure";
+import { readStored, writeStored } from "@/lib/storage";
 import type { useChordsByName } from "@/lib/ui/shortcuts";
 
 /**
@@ -51,30 +50,23 @@ interface ActionsViewProps {
 
 const STORAGE_KEY = "recent-actions";
 const RecentActionsSchema = pipe(
-  string(),
-  parseJson(),
   array(string()),
   check((values) => new Set(values).size === values.length)
 );
-
-function readRecentActions() {
-  try {
-    const result = safeParse(
-      RecentActionsSchema,
-      localStorage.getItem(STORAGE_KEY)
-    );
-    return result.success ? result.output : [];
-  } catch {
-    return [];
-  }
-}
 
 export function ActionsView({
   actions,
   chordsByName,
   query,
 }: ActionsViewProps) {
-  const [history, setHistory] = useState(readRecentActions);
+  const [history, setHistory] = useState(
+    () =>
+      readStored(
+        STORAGE_KEY,
+        RecentActionsSchema,
+        "could not read recent commands"
+      ) ?? []
+  );
   const recent =
     query.trim() === ""
       ? history
@@ -118,16 +110,12 @@ export function ActionsView({
                       value,
                       ...history.filter((previous) => previous !== value),
                     ];
-                    try {
-                      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-                      setHistory(next);
-                    } catch (error) {
-                      toast.add({
-                        description: reasonOf(error),
-                        title: "could not remember command",
-                        type: "error",
-                      });
-                    }
+                    writeStored(
+                      STORAGE_KEY,
+                      next,
+                      "could not remember command"
+                    );
+                    setHistory(next);
                     onSelect();
                   }}
                   value={value}
