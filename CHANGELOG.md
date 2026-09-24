@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.0](https://github.com/jimmy-guzman/notras/compare/v0.8.0...v0.9.0) (2026-09-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **notes:** 💥 Capture no longer saves to inbox/, and folder:/ matches nothing.
+
+### Features
+
+* **browser:** ✨ add visual note browsing ([#258](https://github.com/jimmy-guzman/notras/issues/258)) ([70a80c4](https://github.com/jimmy-guzman/notras/commit/70a80c41c7af4c7b7d0efcf822a1f876031ed5bf))
+* **notes:** ✨ save every new note to one place ([#262](https://github.com/jimmy-guzman/notras/issues/262)) ([6ac9364](https://github.com/jimmy-guzman/notras/commit/6ac93648a4f103139a75c764656652681ba771b7))
+
+
+### Bug Fixes
+
+* **storage:** 🐛 keep working when saved state fails ([#264](https://github.com/jimmy-guzman/notras/issues/264)) ([507b54e](https://github.com/jimmy-guzman/notras/commit/507b54eeeb9127c68886e8399976ac3ca2126cc3)), closes [#259](https://github.com/jimmy-guzman/notras/issues/259)
+
 ## [0.8.0](https://github.com/jimmy-guzman/notras/compare/v0.7.0...v0.8.0) (2026-09-22)
 
 
