@@ -475,6 +475,38 @@ describe("recent commands", () => {
     expect(palette.closed).toStrictEqual([false]);
   });
 
+  it("should log a recent history read failure", async () => {
+    const logged: { args: unknown; command: string }[] = [];
+    mockIPC((command, args) => {
+      logged.push({ args, command });
+    });
+    const getItem = localStorage.getItem.bind(localStorage);
+    const read = vi.spyOn(localStorage, "getItem").mockImplementation((key) => {
+      if (key === "recent-actions") {
+        throw new DOMException("Storage access is denied", "SecurityError");
+      }
+      return getItem(key);
+    });
+    onTestFinished(() => {
+      read.mockRestore();
+      clearMocks();
+    });
+    mount("actions", []);
+
+    await waitFor(() => {
+      expect(
+        logged.filter(({ command }) => command === "plugin:log|log")
+      ).toMatchObject([
+        {
+          args: {
+            message: "could not read recent commands: Storage access is denied",
+          },
+          command: "plugin:log|log",
+        },
+      ]);
+    });
+  });
+
   it("should remember a command chosen from search when the palette reopens", async () => {
     const palette = mount("actions", []);
     await palette.user.type(palette.input, "settings");

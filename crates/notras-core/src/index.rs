@@ -845,140 +845,14 @@ mod tests {
         assert!(select(&conn, "SELECT path FROM note_link", &[])
             .unwrap()
             .is_empty());
+        assert!(select(&conn, "SELECT path FROM note_fts", &[])
+            .unwrap()
+            .is_empty());
 
         assert_eq!(scan_all(&conn, &root(&dir), &dir).unwrap().changed.len(), 1);
         assert_eq!(
             select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
             vec![vec![json!("b")]]
-        );
-    }
-
-    #[test]
-    fn should_rebuild_version_eight_titles_without_renaming_unchanged_files() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("imported.md");
-        let content = "buy **milk**\n\nbody";
-        fs::write(&path, content).unwrap();
-        {
-            let core =
-                crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-            let mut scan = core.begin_scan(false);
-            while !core.advance_scan(&mut scan).unwrap() {}
-            core.finish_scan(scan).unwrap();
-            core.conn
-                .execute_batch("UPDATE note SET title = 'imported'; PRAGMA user_version = 8;")
-                .unwrap();
-        }
-        let core =
-            crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        let mut scan = core.begin_scan(false);
-        while !core.advance_scan(&mut scan).unwrap() {}
-        core.finish_scan(scan).unwrap();
-        assert_eq!(
-            select(&core.conn, "SELECT path, title FROM note", &[]).unwrap(),
-            vec![vec![json!("imported.md"), json!("buy milk")]]
-        );
-        assert_eq!(fs::read_to_string(path).unwrap(), content);
-        assert!(!directory.path().join("buy-milk.md").exists());
-    }
-
-    #[test]
-    fn should_rebuild_version_seven_with_original_prose_line_numbers() {
-        let directory = tempfile::tempdir().unwrap();
-        let content = "---\ntags: [work]\n---\n# Source\nAda wrote this.";
-        fs::write(directory.path().join("source.md"), content).unwrap();
-        {
-            let library =
-                crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-            let mut scan = library.begin_scan(false);
-            while !library.advance_scan(&mut scan).unwrap() {}
-            library.finish_scan(scan).unwrap();
-            library
-                .conn
-                .execute_batch(
-                    "ALTER TABLE note DROP COLUMN body_line_offset; PRAGMA user_version = 7;",
-                )
-                .unwrap();
-        }
-
-        let library =
-            crate::Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        let mut scan = library.begin_scan(false);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
-
-        let found = scan_prose(&library.conn, vec!["source.md".into()], "Ada", true).unwrap();
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].line, 5);
-        assert_eq!(
-            fs::read_to_string(directory.path().join("source.md")).unwrap(),
-            content
-        );
-    }
-
-    #[test]
-    fn should_rebuild_version_six_search_rows_from_unchanged_files() {
-        let directory = tempfile::tempdir().unwrap();
-        let cache = directory.path().join(".index");
-        let index_dir = cache.join(crate::index_key(&directory.path().canonicalize().unwrap()));
-        fs::create_dir_all(&index_dir).unwrap();
-        let content = "---\ntags: [z, a]\n---\n# Current\nfresh [[Other]]";
-        fs::write(directory.path().join("note.md"), content).unwrap();
-        let modified = timestamp_millis(
-            fs::metadata(directory.path().join("note.md"))
-                .unwrap()
-                .modified(),
-        )
-        .unwrap();
-        let conn = Connection::open(index_dir.join(DATABASE)).unwrap();
-        conn.execute_batch(
-            "CREATE TABLE note (path TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-             CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content, tokenize='unicode61');
-             INSERT INTO note_fts (rowid, path, title, content) VALUES (99, 'note.md', 'Old', 'stale');
-             PRAGMA user_version = 6;"
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO note VALUES ('note.md', 'Old', '', 0, 0, ?1)",
-            [modified],
-        )
-        .unwrap();
-        drop(conn);
-
-        let core = crate::Library::open(directory.path(), &cache).unwrap();
-        let mut scan = core.begin_scan(false);
-        while !core.advance_scan(&mut scan).unwrap() {}
-        assert_eq!(core.finish_scan(scan).unwrap(), ["note.md"]);
-        let notes = core
-            .read_view()
-            .unwrap()
-            .list_notes(&crate::NoteFilters {
-                query: Some("fresh".into()),
-                ..Default::default()
-            })
-            .unwrap();
-        assert_eq!(notes.len(), 1);
-        assert_eq!(notes[0].title, "Current");
-        assert_eq!(notes[0].tags, ["z", "a"]);
-        assert_eq!(
-            notes[0].snippet.as_deref(),
-            Some("# Current\n\u{1}fresh\u{2} [[Other]]")
-        );
-        assert!(core
-            .read_view()
-            .unwrap()
-            .list_notes(&crate::NoteFilters {
-                query: Some("stale".into()),
-                ..Default::default()
-            })
-            .unwrap()
-            .is_empty());
-        assert_eq!(
-            select(&core.conn, "SELECT target FROM note_link", &[]).unwrap(),
-            vec![vec![json!("Other")]]
-        );
-        assert_eq!(
-            fs::read_to_string(directory.path().join("note.md")).unwrap(),
-            content
         );
     }
 

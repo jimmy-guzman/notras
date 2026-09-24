@@ -1,9 +1,19 @@
 import { createStore } from "@tanstack/react-store";
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { createElement } from "react";
+import { parse } from "valibot";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createNotePersistence } from "@/components/editor/note-persistence";
 import type { SaveOutcome } from "@/components/editor/note-persistence";
+import { Toaster } from "@/components/ui/toast";
 import { parseNote } from "@/core/frontmatter";
 import { readRecentNotes } from "@/lib/recent-notes";
 
@@ -36,23 +46,9 @@ import {
   useTabSnapshot,
 } from "./store";
 import type { TabSnapshot } from "./store";
-import { parseTabs, serializeTabs } from "./tab";
+import { PersistedTabsSchema, serializeTabs } from "./tab";
 
 const STORAGE_KEY = "tabs";
-
-function writeLegacyStore() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      activeId: "note:b.md",
-      carets: { "note:a.md": 12, "note:b.md": 34 },
-      tabs: [
-        { kind: "note", path: "a.md" },
-        { kind: "note", path: "b.md" },
-      ],
-    })
-  );
-}
 
 describe("store", () => {
   it("should receive snapshots registered after the consumer mounts", ({
@@ -98,6 +94,38 @@ describe("store", () => {
       expect(restoreTabs()).toBeFalsy();
     });
 
+    it("should report nothing to restore from a store that is not json", () => {
+      localStorage.setItem(STORAGE_KEY, "{oops");
+
+      expect(restoreTabs()).toBeFalsy();
+    });
+
+    it("should log and report nothing to restore when the store cannot be read", async ({
+      onTestFinished,
+    }) => {
+      const logged: { args: unknown; command: string }[] = [];
+      mockIPC((command, args) => {
+        logged.push({ args, command });
+      });
+      const read = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+        throw new DOMException("Storage access is denied", "SecurityError");
+      });
+      onTestFinished(() => {
+        read.mockRestore();
+        clearMocks();
+      });
+
+      expect(restoreTabs()).toBeFalsy();
+      await waitFor(() => {
+        expect(logged).toMatchObject([
+          {
+            args: { message: "could not read tabs: Storage access is denied" },
+            command: "plugin:log|log",
+          },
+        ]);
+      });
+    });
+
     it("should reopen the tabs a current store holds", () => {
       localStorage.setItem(
         STORAGE_KEY,
@@ -137,7 +165,10 @@ describe("store", () => {
       persistTabs();
 
       expect(
-        parseTabs(localStorage.getItem(STORAGE_KEY) ?? "")?.carets
+        parse(
+          PersistedTabsSchema,
+          JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "")
+        ).carets
       ).toStrictEqual({
         "kept-a": 12,
         "kept-b": 7,
@@ -176,38 +207,39 @@ describe("store", () => {
       closeTab("kept-a");
       expect(hasTabSnapshot("kept-a")).toBeFalsy();
     });
+  });
 
-    it("should reopen a store written before tabs had ids", () => {
-      writeLegacyStore();
-
-      expect(restoreTabs()).toBeTruthy();
-      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
-        "a.md",
-        "b.md",
-      ]);
+  it("should close the tab and report when the open set cannot be written", async ({
+    onTestFinished,
+  }) => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      serializeTabs({
+        activeId: "kept-a",
+        carets: {},
+        tabs: [
+          { id: "kept-a", kind: "note", path: "a.md" },
+          { id: "kept-b", kind: "note", path: "b.md" },
+        ],
+      })
+    );
+    restoreTabs();
+    render(createElement(Toaster));
+    const write = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage is full", "QuotaExceededError");
+    });
+    onTestFinished(() => {
+      write.mockRestore();
     });
 
-    it("should mint ids that carry no path, for a store written without them", () => {
-      writeLegacyStore();
-      restoreTabs();
-
-      // A path-shaped id reaches `aria-controls` and breaks the reference as
-      // soon as a filename contains a space, which is what `D56` removes.
-      for (const tab of getTabState().tabs) {
-        expect(tab.id).not.toContain(tab.path);
-      }
-    });
-
-    it("should carry the active tab and every caret onto the minted ids", () => {
-      writeLegacyStore();
-      restoreTabs();
-
-      const [a, b] = getTabState().tabs;
-
-      expect(getTabState().activeId).toBe(b?.id);
-      expect(restoredCaret(a?.id ?? "")).toBe(12);
-      expect(restoredCaret(b?.id ?? "")).toBe(34);
-    });
+    expect(() => {
+      closeTab("kept-a");
+    }).not.toThrow();
+    expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-b"]);
+    expect(
+      await screen.findByText("could not remember tabs")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Storage is full")).toBeInTheDocument();
   });
 
   describe(adoptVaultNotes, () => {
@@ -232,7 +264,10 @@ describe("store", () => {
         { id: "kept-x", kind: "note", path: "a.md" },
       ]);
       expect(
-        parseTabs(localStorage.getItem(STORAGE_KEY) ?? "")?.tabs
+        parse(
+          PersistedTabsSchema,
+          JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "")
+        ).tabs
       ).toStrictEqual([{ id: "kept-x", kind: "note", path: "a.md" }]);
     });
 
@@ -485,13 +520,15 @@ describe("store", () => {
 
       persistTabs();
 
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const persisted = raw === null ? undefined : parseTabs(raw);
-      expect(persisted?.tabs.map((tab) => tab.id)).toStrictEqual([
+      const persisted = parse(
+        PersistedTabsSchema,
+        JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "")
+      );
+      expect(persisted.tabs.map((tab) => tab.id)).toStrictEqual([
         "kept-a",
         "kept-b",
       ]);
-      expect(persisted?.activeId).toBe("kept-a");
+      expect(persisted.activeId).toBe("kept-a");
       expect(getTabState().tabs).toHaveLength(4);
     });
   });

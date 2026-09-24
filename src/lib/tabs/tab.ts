@@ -1,3 +1,15 @@
+import {
+  array,
+  check,
+  finite,
+  number,
+  object,
+  picklist,
+  pipe,
+  record,
+  string,
+} from "valibot";
+
 import type { OpenKind } from "@/server/adapters/bindings";
 
 /**
@@ -10,7 +22,7 @@ export interface Tab {
   /**
    * Stable for as long as the tab is open, and opaque: it survives the rename
    * that gives the tab a new `path`, which is what keeps the editing session
-   * alive across one (`D56`). Minted in `store.ts`, so this module stays pure.
+   * alive across one. Minted in `store.ts`, so this module stays pure.
    */
   id: string;
   kind: "draft" | "external" | "note";
@@ -207,8 +219,7 @@ export function replaceNotePath(
 
 /**
  * Turn the external tab `id` into the note at `path`, collapsing onto that
- * note's tab when it is already open. A store written before Rust classified
- * "Open With" paths holds a vault note this way.
+ * note's tab when it is already open.
  */
 export function adoptNote(state: TabState, id: string, path: string): TabState {
   const index = indexOfId(state.tabs, id);
@@ -297,122 +308,32 @@ export function openTabAt(state: TabState, tab: Tab, index: number): TabState {
 }
 
 /**
- * A tab as it was read back off disk. A store written before `D56` carries no
- * `id`, and keys its carets and active tab by `kind:path` instead. Minting one
- * is `store.ts`'s job, so nothing here has to be impure to read an old store.
+ * Carets are offsets into each tab's markdown body. A tab held twice, by id or
+ * by file, is rejected: one file cannot hold two editing sessions, and ids key
+ * every map in the store.
  */
-export interface PersistedTab {
-  id?: string;
-  kind: Tab["kind"];
-  path: string;
-}
+export const PersistedTabsSchema = object({
+  activeId: string(),
+  carets: record(string(), pipe(number(), finite())),
+  tabs: pipe(
+    array(
+      object({
+        id: string(),
+        kind: picklist(["external", "note"]),
+        path: string(),
+      })
+    ),
+    check(
+      (tabs) =>
+        new Set(tabs.map((tab) => tab.id)).size === tabs.length &&
+        new Set(tabs.map((tab) => `${tab.kind}:${tab.path}`)).size ===
+          tabs.length
+    )
+  ),
+});
 
-/** The open set as it survives a quit: the tabs, the active one, and carets. */
-export interface PersistedTabs {
-  activeId: string;
-  /** Caret offset into each tab's markdown body, by tab id. */
-  carets: Record<string, number>;
-  tabs: PersistedTab[];
-}
-
-/** The key an id-less tab was persisted under, before `D56`. */
-export function legacyTabId(tab: PersistedTab) {
-  return `${tab.kind}:${tab.path}`;
-}
-
-export function serializeTabs(value: PersistedTabs) {
+export function serializeTabs(
+  value: TabState & { carets: Record<string, number> }
+) {
   return JSON.stringify(value);
-}
-
-function isPersistedTab(value: unknown): value is PersistedTab {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "kind" in value &&
-    (value.kind === "external" || value.kind === "note") &&
-    "path" in value &&
-    typeof value.path === "string" &&
-    (!("id" in value) || typeof value.id === "string")
-  );
-}
-
-function isStoredTabs(
-  value: unknown
-): value is { activeId: string; tabs: unknown[] } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "activeId" in value &&
-    typeof value.activeId === "string" &&
-    "tabs" in value &&
-    Array.isArray(value.tabs)
-  );
-}
-
-function isObject(value: unknown): value is object {
-  return typeof value === "object" && value !== null;
-}
-
-function isOffset(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-/**
- * Read back what `serializeTabs` wrote, or nothing.
- *
- * A malformed store is rejected whole rather than partly recovered: half a tab
- * set is not a state anyone chose, and the caller already has a launch
- * behaviour for having no tabs.
- */
-function readJson(raw: string) {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Whether the set holds a tab twice, by id or by the file it points at.
- *
- * One file cannot hold two editing sessions, and two tabs under one id collide
- * in every map the store keys by it, including the snapshot the bars read.
- * A store carrying either was not written by this app, so it is rejected whole
- * like any other malformed one. Id-less tabs are compared on the key they were
- * persisted under, since that is the identity they had.
- */
-function hasDuplicateTab(tabs: PersistedTab[]) {
-  const ids = new Set<string>();
-  const files = new Set<string>();
-
-  for (const tab of tabs) {
-    const file = legacyTabId(tab);
-
-    if (ids.has(tab.id ?? file) || files.has(file)) {
-      return true;
-    }
-
-    ids.add(tab.id ?? file);
-    files.add(file);
-  }
-
-  return false;
-}
-
-export function parseTabs(raw: string): PersistedTabs | undefined {
-  const parsed = readJson(raw);
-
-  return isStoredTabs(parsed) &&
-    parsed.tabs.every(isPersistedTab) &&
-    !hasDuplicateTab(parsed.tabs)
-    ? {
-        activeId: parsed.activeId,
-        carets: Object.fromEntries(
-          Object.entries(
-            "carets" in parsed && isObject(parsed.carets) ? parsed.carets : {}
-          ).filter((entry): entry is [string, number] => isOffset(entry[1]))
-        ),
-        tabs: parsed.tabs,
-      }
-    : undefined;
 }
