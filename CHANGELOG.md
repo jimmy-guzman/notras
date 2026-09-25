@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/jimmy-guzman/notras/compare/v0.9.0...v0.9.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 copy/paste text & images as you see them ([#269](https://github.com/jimmy-guzman/notras/issues/269)) ([8acf1bb](https://github.com/jimmy-guzman/notras/commit/8acf1bba6af3ef65f90815db8fec5138c50a2ea7))
+
 ## [0.9.0](https://github.com/jimmy-guzman/notras/compare/v0.8.0...v0.9.0) (2026-09-24)
 
 
