@@ -5,7 +5,7 @@ import type { SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 
 import { toast } from "@/components/ui/toast";
-import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
+import type { ReadClipboardSource } from "@/lib/ui/clipboard-source";
 import { reasonOf } from "@/lib/ui/failure";
 
 interface PendingPaste {
@@ -13,7 +13,7 @@ interface PendingPaste {
 }
 
 interface MarkdownPasteOptions {
-  readCodeClipboard: ReadCodeClipboard | null;
+  readClipboardSource: ReadClipboardSource | null;
 }
 
 const MARKDOWN_PASTE_PATTERN =
@@ -25,17 +25,18 @@ function containsCodeBlock(content: Fragment): boolean {
   );
 }
 
-async function pasteNativeCode(
+async function pasteBySource(
   editor: Editor,
-  readCodeClipboard: ReadCodeClipboard,
+  readClipboardSource: ReadClipboardSource,
   text: string,
+  markdown: boolean,
   slice: Slice,
   paste: PendingPaste,
   pending: Set<PendingPaste>,
   previous: Promise<void>
 ) {
   try {
-    const [code] = await Promise.all([readCodeClipboard(text), previous]);
+    const [source] = await Promise.all([readClipboardSource(text), previous]);
 
     if (editor.isDestroyed) {
       return;
@@ -47,15 +48,15 @@ async function pasteNativeCode(
       return true;
     });
 
-    if (code !== null) {
+    if (source?.kind === "code") {
       chain
         .insertContent({
-          attrs: { language: code.language },
+          attrs: { language: source.language },
           content: [{ text: text.replaceAll(/\r\n?/gu, "\n"), type: "text" }],
           type: "codeBlock",
         })
         .run();
-    } else if (editor.markdown && MARKDOWN_PASTE_PATTERN.test(text)) {
+    } else if (editor.markdown && markdown && source === null) {
       chain.insertContent(editor.markdown.parse(text)).run();
     } else {
       chain
@@ -91,10 +92,10 @@ async function pasteNativeCode(
   }
 }
 
-/** Parse markdown only after code-aware clipboard handling has declined it. */
+/** Parse markdown only when neither the HTML nor the clipboard's source says otherwise. */
 export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   addOptions() {
-    return { readCodeClipboard: null };
+    return { readClipboardSource: null };
   },
   addProseMirrorPlugins() {
     const pending = new Set<PendingPaste>();
@@ -113,20 +114,27 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             }
 
             const text = event.clipboardData?.getData("text/plain");
+            const html = event.clipboardData?.getData("text/html") ?? "";
             const manager = this.editor.markdown;
 
             if (text === undefined || text === "") {
               return false;
             }
 
-            if (this.options.readCodeClipboard !== null) {
+            // Rich sources such as browsers, Slack and Docs put their own
+            // flattening of the HTML in plain text, and a line in it that
+            // looks like markdown is no sign the HTML is.
+            const markdown = html === "" && MARKDOWN_PASTE_PATTERN.test(text);
+
+            if (this.options.readClipboardSource !== null) {
               const paste = { selection: view.state.selection.getBookmark() };
 
               pending.add(paste);
-              previous = pasteNativeCode(
+              previous = pasteBySource(
                 this.editor,
-                this.options.readCodeClipboard,
+                this.options.readClipboardSource,
                 text,
+                markdown,
                 slice,
                 paste,
                 pending,
@@ -135,7 +143,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
               return true;
             }
 
-            if (!(manager && MARKDOWN_PASTE_PATTERN.test(text))) {
+            if (!(manager && markdown)) {
               return false;
             }
             return this.editor.commands.insertContent(manager.parse(text));

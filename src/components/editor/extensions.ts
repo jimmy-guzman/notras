@@ -17,7 +17,9 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import type { MarkdownExtensionOptions } from "@tiptap/markdown";
+import { DOMSerializer } from "@tiptap/pm/model";
 import type { Node } from "@tiptap/pm/model";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
@@ -34,7 +36,7 @@ import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
-import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
+import type { ReadClipboardSource } from "@/lib/ui/clipboard-source";
 import {
   escapeMarkdownLabel,
   escapeMarkdownTitle,
@@ -52,7 +54,7 @@ export interface EditorExtensionOptions {
   getTitles?: () => string[];
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   placeholderText?: string;
-  readCodeClipboard?: ReadCodeClipboard;
+  readClipboardSource?: ReadClipboardSource;
   resolveImageSrc?: (src: string) => string;
 }
 
@@ -127,6 +129,23 @@ const NoteImage = Image.extend<NoteImageOptions>({
       resolveSrc: (src: string) => src,
     };
   },
+  // The rendered element's URL only loads inside this app and names the home
+  // folder, so a copy carries the note's own destination instead.
+  addProseMirrorPlugins() {
+    const serializer = DOMSerializer.fromSchema(this.editor.schema);
+
+    return [
+      new Plugin({
+        key: new PluginKey("imageClipboard"),
+        props: {
+          clipboardSerializer: new DOMSerializer(
+            { ...serializer.nodes, image: (node) => ["img", node.attrs] },
+            serializer.marks
+          ),
+        },
+      }),
+    ];
+  },
   renderHTML({ HTMLAttributes }) {
     const src = hasString(HTMLAttributes, "src") ? HTMLAttributes.src : "";
 
@@ -151,6 +170,8 @@ const NoteImage = Image.extend<NoteImageOptions>({
       ? `![${label}](${destination} "${escapeMarkdownTitle(title)}")`
       : `![${label}](${destination})`;
   },
+  renderText: ({ node }) =>
+    hasString(node.attrs, "alt") ? node.attrs.alt : "",
 });
 
 const NoteLink = Link.extend({
@@ -412,6 +433,16 @@ function renderBlock(
   return block;
 }
 
+function blockMarkdown(manager: MarkdownConverter, doc: Node) {
+  const blocks = doc.content.content.map((node, index, siblings) =>
+    renderBlock(manager, node, siblings[index - 1])
+  );
+
+  return blocks.every((block) => block.droppable)
+    ? blocks.map((block) => block.bare)
+    : blocks.map((block) => block.escaped);
+}
+
 /**
  * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` in every
  * text node with no regard for context, so `snake_case` gains a backslash on
@@ -424,18 +455,29 @@ function renderBlock(
  * construct that reaches across, is a block that fails its own check.
  */
 export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
-  const blocks = doc.content.content.map((node, index, siblings) =>
-    renderBlock(manager, node, siblings[index - 1])
-  );
-  const markdown = blocks.every((block) => block.droppable)
-    ? blocks.map((block) => block.bare).join("\n\n")
-    : blocks.map((block) => block.escaped).join("\n\n");
+  const markdown = blockMarkdown(manager, doc).join("\n\n");
 
   // Upstream writes nothing for a document holding only spaces and `&nbsp;`.
   return markdown.replaceAll("&nbsp;", "").replaceAll("\u00A0", "").trim() ===
     ""
     ? ""
     : markdown;
+}
+
+/**
+ * The form a copy puts in plain text. The file keeps a run of blank paragraphs
+ * as `&nbsp;`, which a plain-text target shows literally, so each is a blank
+ * block here.
+ */
+export function copiedMarkdown(manager: MarkdownConverter, doc: Node) {
+  return blockMarkdown(manager, doc)
+    .map((block, index) =>
+      doc.child(index).type.name === "paragraph" &&
+      doc.child(index).childCount === 0
+        ? ""
+        : block
+    )
+    .join("\n\n");
 }
 
 export function converterOf(editor: Editor) {
@@ -524,7 +566,7 @@ export function createEditorExtensions(
       marked: createNoteMarked(),
     }),
     MarkdownPaste.configure({
-      readCodeClipboard: options.readCodeClipboard ?? null,
+      readClipboardSource: options.readClipboardSource ?? null,
     }),
     CodeBlockShiki.extend({
       addNodeView() {

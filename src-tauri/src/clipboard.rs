@@ -2,16 +2,26 @@ use serde::Serialize;
 
 use notras_core::CommandError;
 
+/// Where the pasted text came from, as far as the native clipboard says.
 #[derive(Debug, PartialEq, Serialize, specta::Type)]
-pub struct CodeClipboard {
-    language: Option<String>,
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[cfg_attr(
+    not(any(target_os = "macos", test)),
+    expect(dead_code, reason = "only the macOS reader constructs it")
+)]
+pub enum ClipboardSource {
+    /// A code editor, with the language it named.
+    Code { language: Option<String> },
+    /// A native rich-text app, such as Terminal, whose plain text flattens its
+    /// formatting rather than writing markdown.
+    RichText,
 }
 
 #[cfg(any(target_os = "macos", test))]
 mod metadata {
     use serde::Deserialize;
 
-    use super::{CodeClipboard, CommandError};
+    use super::{ClipboardSource, CommandError};
 
     const INVALID: &str = "The clipboard metadata is invalid";
 
@@ -50,7 +60,7 @@ mod metadata {
     }
 
     /// Decode Chromium's Pickle map, whose strings are UTF-16 and aligned to four bytes.
-    pub(super) fn chromium(data: &[u8]) -> Result<Option<CodeClipboard>, CommandError> {
+    pub(super) fn chromium(data: &[u8]) -> Result<Option<ClipboardSource>, CommandError> {
         let payload_size = usize::try_from(read_u32(&mut &data[..])?)
             .map_err(|error| CommandError::with_source(INVALID, error))?;
         let header_size = data.len().checked_sub(payload_size).ok_or(INVALID)?;
@@ -65,7 +75,7 @@ mod metadata {
             if kind == "vscode-editor-data" {
                 let metadata: VsCode = serde_json::from_str(&value)
                     .map_err(|error| CommandError::with_source(INVALID, error))?;
-                return Ok(Some(CodeClipboard {
+                return Ok(Some(ClipboardSource::Code {
                     language: metadata.mode,
                 }));
             }
@@ -73,7 +83,10 @@ mod metadata {
         Ok(None)
     }
 
-    pub(super) fn zed(data: &[u8], text_len: usize) -> Result<Option<CodeClipboard>, CommandError> {
+    pub(super) fn zed(
+        data: &[u8],
+        text_len: usize,
+    ) -> Result<Option<ClipboardSource>, CommandError> {
         let selections: Vec<ZedSelection> = serde_json::from_slice(data)
             .map_err(|error| CommandError::with_source(INVALID, error))?;
         if selections.is_empty() {
@@ -82,12 +95,19 @@ mod metadata {
         if selections.iter().any(|selection| selection.len > text_len) {
             return Err(INVALID.into());
         }
-        Ok(Some(CodeClipboard { language: None }))
+        Ok(Some(ClipboardSource::Code { language: None }))
+    }
+
+    /// Rich text with no HTML beside it comes from a native app. A web or
+    /// Electron source writes HTML, which the webview already hands over.
+    pub(super) fn rich_text(types: &[String]) -> Option<ClipboardSource> {
+        let has = |kind: &str| types.iter().any(|present| present == kind);
+        (has("public.rtf") && !has("public.html")).then_some(ClipboardSource::RichText)
     }
 }
 
 #[cfg(target_os = "macos")]
-fn read_matching_clipboard(text: &str) -> Result<Option<CodeClipboard>, CommandError> {
+fn read_matching_clipboard(text: &str) -> Result<Option<ClipboardSource>, CommandError> {
     use objc2_app_kit::NSPasteboard;
     use objc2_foundation::ns_string;
 
@@ -104,6 +124,10 @@ fn read_matching_clipboard(text: &str) -> Result<Option<CodeClipboard>, CommandE
     // map carrying VS Code and Cursor's language. Read them only for this paste.
     let chromium = board.dataForType(ns_string!("org.chromium.web-custom-data"));
     let zed = board.dataForType(ns_string!("zed-metadata"));
+    let types: Vec<String> = board
+        .types()
+        .map(|types| types.iter().map(|kind| kind.to_string()).collect())
+        .unwrap_or_default();
     if board.changeCount() != change_count {
         return Ok(None);
     }
@@ -113,14 +137,16 @@ fn read_matching_clipboard(text: &str) -> Result<Option<CodeClipboard>, CommandE
         }
     }
     if let Some(data) = zed {
-        return metadata::zed(&data.to_vec(), text.len());
+        if let Some(code) = metadata::zed(&data.to_vec(), text.len())? {
+            return Ok(Some(code));
+        }
     }
-    Ok(None)
+    Ok(metadata::rich_text(&types))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{metadata, CodeClipboard};
+    use super::{metadata, ClipboardSource};
 
     fn chromium_bytes(kind: &str, value: &str) -> Vec<u8> {
         let mut payload = 1_u32.to_le_bytes().to_vec();
@@ -147,7 +173,7 @@ mod tests {
         );
         assert_eq!(
             metadata::chromium(&data).unwrap(),
-            Some(CodeClipboard {
+            Some(ClipboardSource::Code {
                 language: Some("typescript".into())
             })
         );
@@ -158,7 +184,7 @@ mod tests {
         let data = chromium_bytes("vscode-editor-data", r#"{"version":1,"mode":null}"#);
         assert_eq!(
             metadata::chromium(&data).unwrap(),
-            Some(CodeClipboard { language: None })
+            Some(ClipboardSource::Code { language: None })
         );
     }
 
@@ -204,8 +230,25 @@ mod tests {
         let data = br#"[{"len":12,"is_entire_line":false,"first_line_indent":0}]"#;
         assert_eq!(
             metadata::zed(data, 12).unwrap(),
-            Some(CodeClipboard { language: None })
+            Some(ClipboardSource::Code { language: None })
         );
+    }
+
+    #[test]
+    fn should_recognize_rich_text_from_a_native_app() {
+        let terminal = ["public.rtf", "public.utf8-plain-text"].map(String::from);
+        assert_eq!(
+            metadata::rich_text(&terminal),
+            Some(ClipboardSource::RichText)
+        );
+    }
+
+    #[test]
+    fn should_leave_plain_and_web_copies_alone() {
+        let plain = ["public.utf8-plain-text"].map(String::from);
+        let web = ["public.html", "public.rtf", "public.utf8-plain-text"].map(String::from);
+        assert_eq!(metadata::rich_text(&plain), None);
+        assert_eq!(metadata::rich_text(&web), None);
     }
 
     #[test]
@@ -215,10 +258,10 @@ mod tests {
     }
 }
 
-/// Read code editor metadata only when the native clipboard still matches the pasted text.
+/// Read where the pasted text came from, only while the native clipboard still matches it.
 #[tauri::command]
 #[specta::specta]
-pub fn read_code_clipboard(text: String) -> Result<Option<CodeClipboard>, CommandError> {
+pub fn read_clipboard_source(text: String) -> Result<Option<ClipboardSource>, CommandError> {
     #[cfg(target_os = "macos")]
     {
         read_matching_clipboard(&text)

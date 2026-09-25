@@ -1,9 +1,15 @@
 import { useDebouncer } from "@tanstack/react-pacer";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { Editor as TiptapEditor } from "@tiptap/core";
-import { Extension, getMarkRange } from "@tiptap/core";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { EditorEvents, Editor as TiptapEditor } from "@tiptap/core";
+import {
+  Extension,
+  getMarkRange,
+  getTextBetween,
+  getTextSerializersFromSchema,
+} from "@tiptap/core";
+import { Fragment, Slice } from "@tiptap/pm/model";
+import type { Node as ProseMirrorNode, Schema } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
@@ -14,15 +20,20 @@ import { hasString } from "@/components/editor/attrs";
 import { revealSyntax } from "@/components/editor/code-block-shiki";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
-import { isNotePath, isRelativeDestination } from "@/core/links";
+import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
 import { styleNonce } from "@/lib/style-nonce";
-import { readCodeClipboard } from "@/lib/ui/code-clipboard";
+import { readClipboardSource } from "@/lib/ui/clipboard-source";
 import { reasonOf } from "@/lib/ui/failure";
-import { attachmentDestination } from "@/lib/utils/attachments";
+import {
+  attachmentDestination,
+  decodeAttachmentPath,
+  encodeAttachmentPath,
+} from "@/lib/utils/attachments";
 
 import {
   converterOf,
+  copiedMarkdown,
   createEditorExtensions,
   fileMarkdown,
   serializeMarkdown,
@@ -73,6 +84,66 @@ function wordsAt(state: EditorState) {
   return range
     ? state.doc.textBetween(range.from, range.to)
     : state.doc.textBetween(from, to);
+}
+
+/** The slice with every image's source rewritten by `rewrite`. */
+function withImageSources(slice: Slice, rewrite: (src: string) => string) {
+  const rewritten = (content: Fragment): Fragment =>
+    Fragment.from(
+      content.content.map((node) => {
+        if (node.type.name === "image") {
+          const src = hasString(node.attrs, "src") ? node.attrs.src : "";
+
+          return node.type.create(
+            { ...node.attrs, src: rewrite(src) },
+            null,
+            node.marks
+          );
+        }
+
+        return node.isLeaf ? node : node.copy(rewritten(node.content));
+      })
+    );
+
+  return new Slice(rewritten(slice.content), slice.openStart, slice.openEnd);
+}
+
+/**
+ * An image's source from the notes folder rather than from the note at
+ * `from`, or the source as written where it is not a file in the library.
+ */
+function librarySrc(src: string, from: string) {
+  const path = isRelativeDestination(src)
+    ? foldPath(decodeAttachmentPath(src), from)
+    : undefined;
+
+  return path === undefined ? src : encodeAttachmentPath(path);
+}
+
+/**
+ * Words copy as they read, and blocks copy as markdown.
+ */
+function clipboardText(
+  slice: Slice,
+  schema: Schema,
+  manager: TiptapEditor["markdown"]
+) {
+  const doc = schema.topNodeType.create(null, slice.content);
+  const text = getTextBetween(
+    doc,
+    { from: 0, to: doc.content.size },
+    { textSerializers: getTextSerializersFromSchema(schema) }
+  );
+
+  if (slice.content.firstChild?.isInline !== false) {
+    return text;
+  }
+
+  try {
+    return manager ? copiedMarkdown(manager, doc) : text;
+  } catch {
+    return text;
+  }
 }
 
 /** `readAsDataURL` settles with a string; the type also covers the other readers. */
@@ -501,23 +572,8 @@ export function Editor({
           "typeset typeset-note mx-auto w-full max-w-2xl px-6 py-6 focus:outline-none",
         spellcheck: "true",
       },
-      // Copying out of the editor puts markdown on the clipboard.
-      clipboardTextSerializer: (slice, view) => {
-        const fallback = slice.content.textBetween(
-          0,
-          slice.content.size,
-          "\n\n"
-        );
-
-        try {
-          const doc = view.state.schema.topNodeType.create(null, slice.content);
-          const manager = editorRef.current?.markdown;
-
-          return manager ? fileMarkdown(manager, doc) : fallback;
-        } catch {
-          return fallback;
-        }
-      },
+      clipboardTextSerializer: (slice, view) =>
+        clipboardText(slice, view.state.schema, editorRef.current?.markdown),
       handleClickOn: (view, _pos, node, _nodePos, event) => {
         const target =
           event.target instanceof Element
@@ -615,7 +671,7 @@ export function Editor({
           return false;
         },
       },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
         const clipboard = event.clipboardData;
 
         if (!clipboard) {
@@ -642,12 +698,38 @@ export function Editor({
             return true;
           }
 
+          // An image inserted into code splits the block and turns the code
+          // after it into prose.
+          if (view.state.selection.$from.parent.type.spec.code === true) {
+            toast.add({
+              description: "An image cannot go inside code",
+              title: "could not paste image",
+              type: "error",
+            });
+
+            return true;
+          }
+
           const blob = imageItem.getAsFile();
+          const instance = editorRef.current;
 
-          if (blob) {
+          if (blob && instance) {
             const reader = new FileReader();
+            // The file is saved before the image goes in, and the note can
+            // change meanwhile, so the paste point moves with each edit.
+            let point = view.state.selection.getBookmark();
+            const follow = ({
+              appendedTransactions,
+              transaction,
+            }: EditorEvents["transaction"]) => {
+              for (const applied of [transaction, ...appendedTransactions]) {
+                point = point.map(applied.mapping);
+              }
+            };
 
+            instance.on("transaction", follow);
             reader.addEventListener("error", () => {
+              instance.off("transaction", follow);
               toast.add({
                 description: reasonOf(reader.error),
                 title: "could not read the pasted image",
@@ -659,6 +741,7 @@ export function Editor({
               const base64 = result.split(",")[1] ?? "";
 
               if (base64 === "") {
+                instance.off("transaction", follow);
                 toast.add({
                   description: "The pasted image was empty",
                   title: "could not read the pasted image",
@@ -671,13 +754,19 @@ export function Editor({
               try {
                 const relativePath = await attachImage(base64);
 
-                editorRef.current
-                  ?.chain()
-                  .focus()
-                  .setImage({
-                    src: attachmentDestination(relativePath, from),
-                  })
-                  .run();
+                if (!instance.isDestroyed) {
+                  instance
+                    .chain()
+                    .focus()
+                    .command(({ tr }) => {
+                      tr.setSelection(point.resolve(tr.doc));
+                      return true;
+                    })
+                    .setImage({
+                      src: attachmentDestination(relativePath, from),
+                    })
+                    .run();
+                }
               } catch (error) {
                 toast.add({
                   description: reasonOf(error),
@@ -685,6 +774,8 @@ export function Editor({
                   type: "error",
                 });
               }
+
+              instance.off("transaction", follow);
             };
 
             reader.addEventListener("load", () => {
@@ -698,13 +789,46 @@ export function Editor({
 
         return false;
       },
+      // Words selected inside one block copy without the blocks around them,
+      // so words from a list item paste as words rather than as a new item.
+      transformCopied: (slice, view) => {
+        const { $from, $to } = view.state.selection;
+        const from =
+          config.documentPath === undefined ? "" : config.documentPath();
+        const copied =
+          $from.sameParent($to) && $from.parent.isTextblock
+            ? new Slice(
+                $from.parent.content.cut($from.parentOffset, $to.parentOffset),
+                0,
+                0
+              )
+            : slice;
+
+        return from === null
+          ? copied
+          : withImageSources(copied, (src) => librarySrc(src, from));
+      },
+      // A copied image names its file from the notes folder, so the note it
+      // lands in writes its own way there.
+      transformPasted: (slice, _view, plain) => {
+        const from =
+          config.documentPath === undefined ? "" : config.documentPath();
+
+        return from === null || plain
+          ? slice
+          : withImageSources(slice, (src) =>
+              isRelativeDestination(src)
+                ? attachmentDestination(decodeAttachmentPath(src), from)
+                : src
+            );
+      },
     },
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
         onHistory: config.onHistory,
         placeholderText: config.placeholderText,
-        readCodeClipboard: isTauri() ? readCodeClipboard : undefined,
+        readClipboardSource: isTauri() ? readClipboardSource : undefined,
         resolveImageSrc: config.resolveImageSrc,
       }),
       Find,

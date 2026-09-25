@@ -29,7 +29,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
         // Specta collects metadata in a nested function, which needs a concrete
         // runtime. Tauri infers the actual handler runtime independently.
         .commands(tauri_specta::collect_commands![
-            clipboard::read_code_clipboard,
+            clipboard::read_clipboard_source,
             notes::attach_file::<tauri::Wry>,
             notes::attach_image::<tauri::Wry>,
             notes::cancel_quit,
@@ -502,11 +502,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let attachment =
-            invoke(&window, "attach_image", json!({"base64Data": "aGVsbG8="})).unwrap();
+        let attachment = invoke(
+            &window,
+            "attach_image",
+            json!({"base64Data": "iVBORw0KGgo="}),
+        )
+        .unwrap();
         assert_eq!(
             fs::read(directory.path().join(attachment.as_str().unwrap())).unwrap(),
-            b"hello"
+            b"\x89PNG\r\n\x1a\n"
         );
     }
 
