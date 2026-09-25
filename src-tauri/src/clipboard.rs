@@ -5,6 +5,10 @@ use notras_core::CommandError;
 /// Where the pasted text came from, as far as the native clipboard says.
 #[derive(Debug, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+#[cfg_attr(
+    not(any(target_os = "macos", test)),
+    expect(dead_code, reason = "only the macOS reader constructs it")
+)]
 pub enum ClipboardSource {
     /// A code editor, with the language it named.
     Code { language: Option<String> },
