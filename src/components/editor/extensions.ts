@@ -15,6 +15,7 @@ import { Code } from "@tiptap/extension-code";
 import { Image } from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
+import { ListItem } from "@tiptap/extension-list";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
@@ -110,6 +111,37 @@ const NoteParagraph = Paragraph.extend({
     }
 
     return Paragraph.config.parseMarkdown?.(token, helpers) ?? [];
+  },
+});
+
+/** marked reads a marker line that ends in a space as a paragraph. */
+const MARKER_LINE_SPACES = /(?<=^\S+) +(?=\n)/u;
+
+/**
+ * Lead an item that opens with another block with the empty paragraph the
+ * schema requires, and write that paragraph as a bare marker line.
+ *
+ * TODO: drop the parser once `@tiptap/extension-list` builds a legal item.
+ * Through 3.31.3 it keeps a table, fence, quote or list as the item's first
+ * child.
+ */
+const NoteListItem = ListItem.extend({
+  parseMarkdown(token, helpers) {
+    const item = ListItem.config.parseMarkdown?.(token, helpers) ?? [];
+
+    if (Array.isArray(item) || item.content?.[0]?.type === "paragraph") {
+      return item;
+    }
+
+    return {
+      ...item,
+      content: [{ type: "paragraph" }, ...(item.content ?? [])],
+    };
+  },
+  renderMarkdown(node, helpers, context) {
+    return (
+      ListItem.config.renderMarkdown?.(node, helpers, context) ?? ""
+    ).replace(MARKER_LINE_SPACES, "");
   },
 });
 
@@ -616,6 +648,7 @@ export function createEditorExtensions(
       // never lets reach the page. `DragSelection` marks its own drops.
       dropcursor: false,
       link: false,
+      listItem: false,
       orderedList: false,
       paragraph: false,
       strike: false,
@@ -660,6 +693,7 @@ export function createEditorExtensions(
       openOnClick: false,
     }),
     NoteParagraph,
+    NoteListItem,
     NoteMarkdown.configure({
       marked: createNoteMarked(),
     }),

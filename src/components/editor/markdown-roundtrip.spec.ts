@@ -203,6 +203,26 @@ describe("markdown round-trip", () => {
     expect(roundtrip(markdown)).toBe(markdown);
   });
 
+  it.each([
+    ["table", "- | a |\n  |---|\n  | 1 |"],
+    ["codeBlock", "- ```\n  code\n  ```"],
+    ["blockquote", "- > quote"],
+    ["bulletList", "-\n  - nested"],
+  ])("should keep a %s that opens a list item inside it", (type, markdown) => {
+    const saved = roundtrip(markdown);
+    const reopened = load(saved);
+    const item = reopened.state.doc.child(0).child(0);
+
+    expect(item.type.name).toBe("listItem");
+    expect(item.child(1).type.name).toBe(type);
+    expect(serializeMarkdown(reopened)).toBe(saved);
+    reopened.destroy();
+  });
+
+  it("should keep a quote that opens an ordered item as typed", () => {
+    expect(roundtrip("1. > quote")).toBe("1. > quote");
+  });
+
   it("should write a table cell's underscore as typed", () => {
     const compact = roundtrip("| a\\_b |\n| --- |\n| c |")
       .replaceAll(/ +/gu, " ")
