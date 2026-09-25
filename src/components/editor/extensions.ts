@@ -1,4 +1,9 @@
-import type { CommandProps, Editor, Extensions } from "@tiptap/core";
+import type {
+  CommandProps,
+  Editor,
+  Extensions,
+  JSONContent,
+} from "@tiptap/core";
 import {
   Extension,
   InputRule,
@@ -377,11 +382,76 @@ function dropEscapes(text: string) {
 
 type MarkdownConverter = NonNullable<Editor["markdown"]>;
 
+interface StandIns {
+  amp: string;
+  gt: string;
+  lt: string;
+}
+
+/**
+ * Three private-use characters the JSON never holds, standing in for what
+ * upstream turns into entities in prose. Icon fonts live in these ranges, so
+ * no fixed choice is safe.
+ */
+function freeStandIns(json: JSONContent[]): StandIns {
+  const held = new Set(JSON.stringify(json));
+  const free: string[] = [];
+
+  for (let code = 0xf_00_00; code <= 0x10_ff_fd && free.length < 3; code += 1) {
+    const char = String.fromCodePoint(code);
+
+    if (!held.has(char)) {
+      free.push(char);
+    }
+  }
+
+  const [amp, lt, gt] = free;
+
+  if (amp === undefined || lt === undefined || gt === undefined) {
+    throw new Error("The block holds every private-use character");
+  }
+
+  return { amp, gt, lt };
+}
+
+function withoutStandIns(markdown: string, standIns: StandIns) {
+  return markdown
+    .replaceAll(standIns.amp, "&")
+    .replaceAll(standIns.lt, "<")
+    .replaceAll(standIns.gt, ">");
+}
+
+function withStandIns(json: JSONContent, standIns: StandIns) {
+  const copy = { ...json };
+
+  if (json.text !== undefined) {
+    copy.text = json.text
+      .replaceAll("&", standIns.amp)
+      .replaceAll("<", standIns.lt)
+      .replaceAll(">", standIns.gt);
+  }
+
+  if (json.content !== undefined) {
+    copy.content = json.content.map((child) => withStandIns(child, standIns));
+  }
+
+  return copy;
+}
+
+/**
+ * The forms a block can take in the file, in the order they are preferred:
+ * with neither backslashes nor entities, without backslashes, then without
+ * entities. Upstream's own output, with both, always reads back.
+ */
+const FORMS = ["typed", "bare", "unencoded"] as const;
+
+type Form = (typeof FORMS)[number];
+
 interface RenderedBlock {
-  bare: string;
-  droppable: boolean;
   escaped: string;
+  forms: Record<Form, string>;
   previous: Node | undefined;
+  readsBack: Set<Form>;
 }
 
 /**
@@ -400,6 +470,21 @@ function reparses(manager: MarkdownConverter, bare: string, escaped: string) {
   }
 }
 
+function renderInDoc(
+  manager: MarkdownConverter,
+  json: JSONContent,
+  previous: JSONContent | undefined
+) {
+  const siblings = previous === undefined ? [json] : [previous, json];
+
+  return manager.renderNodeToMarkdown(
+    json,
+    { content: siblings, type: "doc" },
+    siblings.length - 1,
+    0
+  );
+}
+
 function renderBlock(
   manager: MarkdownConverter,
   node: Node,
@@ -412,20 +497,30 @@ function renderBlock(
   }
 
   const json = contentOf(node);
-  const siblings =
-    previous === undefined ? [json] : [contentOf(previous), json];
-  const escaped = manager.renderNodeToMarkdown(
-    json,
-    { content: siblings, type: "doc" },
-    siblings.length - 1,
-    0
+  const before = previous === undefined ? undefined : contentOf(previous);
+  const escaped = renderInDoc(manager, json, before);
+  const standIns = freeStandIns(before === undefined ? [json] : [before, json]);
+  // Code and raw HTML text is written verbatim, so only prose loses entities.
+  const unencoded = renderInDoc(
+    manager,
+    withStandIns(json, standIns),
+    before === undefined ? undefined : withStandIns(before, standIns)
   );
-  const bare = mapProse(escaped, dropEscapes);
+  const forms = {
+    bare: mapProse(escaped, dropEscapes),
+    typed: withoutStandIns(mapProse(unencoded, dropEscapes), standIns),
+    unencoded: withoutStandIns(unencoded, standIns),
+  };
   const block: RenderedBlock = {
-    bare,
-    droppable: bare === escaped || reparses(manager, bare, escaped),
     escaped,
+    forms,
     previous,
+    readsBack: new Set(
+      FORMS.filter(
+        (form) =>
+          forms[form] === escaped || reparses(manager, forms[form], escaped)
+      )
+    ),
   };
 
   rendered.set(node, block);
@@ -437,18 +532,21 @@ function blockMarkdown(manager: MarkdownConverter, doc: Node) {
   const blocks = doc.content.content.map((node, index, siblings) =>
     renderBlock(manager, node, siblings[index - 1])
   );
+  const form = FORMS.find((candidate) =>
+    blocks.every((block) => block.readsBack.has(candidate))
+  );
 
-  return blocks.every((block) => block.droppable)
-    ? blocks.map((block) => block.bare)
-    : blocks.map((block) => block.escaped);
+  return blocks.map((block) =>
+    form === undefined ? block.escaped : block.forms[form]
+  );
 }
 
 /**
- * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` in every
- * text node with no regard for context, so `snake_case` gains a backslash on
- * its first save. Re-parsing the stripped text leaves marked the authority on
- * which escape was load-bearing, per document: one construct that needs its
- * backslash keeps every other escape in the file with it.
+ * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` and
+ * encodes `& < >` in every text node with no regard for context. Re-parsing
+ * the stripped text leaves marked the authority on which escape was
+ * load-bearing, per document: one construct that needs its backslash keeps
+ * every other escape in the file with it.
  *
  * Asking per top-level block gives the same answer: blocks parse apart once a
  * blank line separates them, and a link reference definition, the one
