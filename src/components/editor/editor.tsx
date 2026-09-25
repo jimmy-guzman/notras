@@ -1,7 +1,7 @@
 import { useDebouncer } from "@tanstack/react-pacer";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { Editor as TiptapEditor } from "@tiptap/core";
+import type { EditorEvents, Editor as TiptapEditor } from "@tiptap/core";
 import {
   Extension,
   getMarkRange,
@@ -718,8 +718,13 @@ export function Editor({
             // The file is saved before the image goes in, and the note can
             // change meanwhile, so the paste point moves with each edit.
             let point = view.state.selection.getBookmark();
-            const follow = ({ transaction }: { transaction: Transaction }) => {
-              point = point.map(transaction.mapping);
+            const follow = ({
+              appendedTransactions,
+              transaction,
+            }: EditorEvents["transaction"]) => {
+              for (const applied of [transaction, ...appendedTransactions]) {
+                point = point.map(applied.mapping);
+              }
             };
 
             instance.on("transaction", follow);

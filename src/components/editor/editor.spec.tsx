@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { Selection } from "@tiptap/pm/state";
+import { Plugin, Selection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -1012,6 +1012,40 @@ describe("image paste", () => {
     act(() => {
       editor.commands.insertContentAt(1, "new ");
       editor.commands.setTextSelection(1);
+    });
+    saved.resolve("attachments/pasted-1.png");
+
+    await waitFor(() => {
+      expect(handle.getContent().trimEnd()).toBe(
+        "new before ![](attachments/pasted-1.png)after"
+      );
+    });
+  });
+
+  it("should place the image where it was pasted after a plugin appends an edit while it saves", async () => {
+    const saved = Promise.withResolvers<string>();
+    mockIPC(async (command) =>
+      command === "attach_image" ? await saved.promise : null
+    );
+    onTestFinished(clearMocks);
+    const { editor, handle } = await mount({ initialContent: "before after" });
+
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "after").from);
+    });
+    pasteImage(editor);
+    act(() => {
+      editor.registerPlugin(
+        new Plugin({
+          appendTransaction: (transactions, _old, state) =>
+            transactions.some(
+              (transaction) => transaction.getMeta("prefix") === true
+            )
+              ? state.tr.insertText("new ", 1)
+              : null,
+        })
+      );
+      editor.view.dispatch(editor.state.tr.setMeta("prefix", true));
     });
     saved.resolve("attachments/pasted-1.png");
 
