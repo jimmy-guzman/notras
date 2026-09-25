@@ -937,6 +937,18 @@ pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> 
         .collect()
 }
 
+/// The extension for an image's bytes, read from its signature rather than
+/// from the type the webview reports.
+fn image_extension(bytes: &[u8]) -> Option<&'static str> {
+    match bytes {
+        [0x89, b'P', b'N', b'G', ..] => Some("png"),
+        [0xFF, 0xD8, 0xFF, ..] => Some("jpg"),
+        [b'G', b'I', b'F', b'8', ..] => Some("gif"),
+        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => Some("webp"),
+        _ => None,
+    }
+}
+
 impl Library {
     pub fn read_note(&self, path: String) -> Result<NoteFile, CommandError> {
         let relative = RelativePath::parse(&path)?;
@@ -1145,6 +1157,8 @@ impl Library {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(base64_data)
             .map_err(|error| CommandError::with_source("The pasted image is not valid", error))?;
+        let extension =
+            image_extension(&bytes).ok_or("The pasted image is not a PNG, JPEG, GIF or WebP")?;
 
         let dir = ensure_folder(&self.root, index::ATTACHMENTS)?;
 
@@ -1152,7 +1166,7 @@ impl Library {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_millis())
             .unwrap_or_default();
-        let mut candidate = format!("pasted-{stamp}.png");
+        let mut candidate = format!("pasted-{stamp}.{extension}");
         let mut counter = 1;
         while match dir.symlink_metadata(&candidate) {
             Ok(_) => true,
@@ -1160,7 +1174,7 @@ impl Library {
             Err(error) => return Err(error.into()),
         } {
             counter += 1;
-            candidate = format!("pasted-{stamp}-{counter}.png");
+            candidate = format!("pasted-{stamp}-{counter}.{extension}");
         }
 
         let relative = RelativePath::parse(&format!("{}/{candidate}", index::ATTACHMENTS))?;
@@ -1422,6 +1436,41 @@ mod tests {
 
         assert_eq!(error.message, "The pasted image is not valid");
         assert!(error.source().unwrap().is::<base64::DecodeError>());
+        assert!(!directory.path().join("attachments").exists());
+    }
+
+    #[test]
+    fn should_name_a_pasted_image_by_its_format() {
+        use base64::Engine as _;
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let cases: [(&[u8], &str); 4] = [
+            (b"\x89PNG\r\n\x1a\n", ".png"),
+            (b"\xFF\xD8\xFF\xE0", ".jpg"),
+            (b"GIF89a", ".gif"),
+            (b"RIFF\0\0\0\0WEBPVP8 ", ".webp"),
+        ];
+
+        for (bytes, extension) in cases {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+            let path = library.attach_image(&encoded).unwrap();
+
+            assert!(path.starts_with("attachments/pasted-"), "{path}");
+            assert!(path.ends_with(extension), "{path}");
+            assert_eq!(fs::read(directory.path().join(&path)).unwrap(), bytes);
+        }
+    }
+
+    #[test]
+    fn should_refuse_pasted_bytes_that_are_not_an_image() {
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let error = library.attach_image("aGVsbG8=").unwrap_err();
+
+        assert_eq!(
+            error.message,
+            "The pasted image is not a PNG, JPEG, GIF or WebP"
+        );
         assert!(!directory.path().join("attachments").exists());
     }
 
@@ -2342,7 +2391,7 @@ mod tests {
         assert!(library
             .attach_file(&outside.path().join("source.txt"))
             .is_err());
-        assert!(library.attach_image("aW1hZ2U=").is_err());
+        assert!(library.attach_image("iVBORw0KGgo=").is_err());
         assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 1);
     }
 

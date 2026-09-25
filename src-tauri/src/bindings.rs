@@ -502,11 +502,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let attachment =
-            invoke(&window, "attach_image", json!({"base64Data": "aGVsbG8="})).unwrap();
+        let attachment = invoke(
+            &window,
+            "attach_image",
+            json!({"base64Data": "iVBORw0KGgo="}),
+        )
+        .unwrap();
         assert_eq!(
             fs::read(directory.path().join(attachment.as_str().unwrap())).unwrap(),
-            b"hello"
+            b"\x89PNG\r\n\x1a\n"
         );
     }
 
