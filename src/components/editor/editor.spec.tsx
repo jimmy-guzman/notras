@@ -977,6 +977,73 @@ describe("copy", () => {
   );
 });
 
+function pasteImage(editor: TiptapEditor) {
+  const clipboardData = new DataTransfer();
+
+  clipboardData.items.add(
+    new File([new Uint8Array([137, 80, 78, 71])], "shot.png", {
+      type: "image/png",
+    })
+  );
+  act(() => {
+    editor.view.dom.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      })
+    );
+  });
+}
+
+describe("image paste", () => {
+  it("should place the image where it was pasted after the note changes while it saves", async () => {
+    const saved = Promise.withResolvers<string>();
+    mockIPC(async (command) =>
+      command === "attach_image" ? await saved.promise : null
+    );
+    onTestFinished(clearMocks);
+    const { editor, handle } = await mount({ initialContent: "before after" });
+
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "after").from);
+    });
+    pasteImage(editor);
+    act(() => {
+      editor.commands.insertContentAt(1, "new ");
+      editor.commands.setTextSelection(1);
+    });
+    saved.resolve("attachments/pasted-1.png");
+
+    await waitFor(() => {
+      expect(handle.getContent().trimEnd()).toBe(
+        "new before ![](attachments/pasted-1.png)after"
+      );
+    });
+  });
+
+  it("should refuse an image pasted inside code", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+    render(<Toaster />);
+    const { editor, handle } = await mount({
+      initialContent: "```\ncode\n```",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "de").from);
+    });
+    pasteImage(editor);
+
+    await expect(
+      screen.findByText("An image cannot go inside code")
+    ).resolves.toBeDefined();
+    expect(handle.getContent().trimEnd()).toBe("```\ncode\n```");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
 describe("line breaks", () => {
   it("should break the line inside the block on shift+enter", async () => {
     const { editor, handle } = await mount({

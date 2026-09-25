@@ -671,7 +671,7 @@ export function Editor({
           return false;
         },
       },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
         const clipboard = event.clipboardData;
 
         if (!clipboard) {
@@ -698,12 +698,33 @@ export function Editor({
             return true;
           }
 
+          // An image inserted into code splits the block and turns the code
+          // after it into prose.
+          if (view.state.selection.$from.parent.type.spec.code === true) {
+            toast.add({
+              description: "An image cannot go inside code",
+              title: "could not paste image",
+              type: "error",
+            });
+
+            return true;
+          }
+
           const blob = imageItem.getAsFile();
+          const instance = editorRef.current;
 
-          if (blob) {
+          if (blob && instance) {
             const reader = new FileReader();
+            // The file is saved before the image goes in, and the note can
+            // change meanwhile, so the paste point moves with each edit.
+            let point = view.state.selection.getBookmark();
+            const follow = ({ transaction }: { transaction: Transaction }) => {
+              point = point.map(transaction.mapping);
+            };
 
+            instance.on("transaction", follow);
             reader.addEventListener("error", () => {
+              instance.off("transaction", follow);
               toast.add({
                 description: reasonOf(reader.error),
                 title: "could not read the pasted image",
@@ -715,6 +736,7 @@ export function Editor({
               const base64 = result.split(",")[1] ?? "";
 
               if (base64 === "") {
+                instance.off("transaction", follow);
                 toast.add({
                   description: "The pasted image was empty",
                   title: "could not read the pasted image",
@@ -727,13 +749,19 @@ export function Editor({
               try {
                 const relativePath = await attachImage(base64);
 
-                editorRef.current
-                  ?.chain()
-                  .focus()
-                  .setImage({
-                    src: attachmentDestination(relativePath, from),
-                  })
-                  .run();
+                if (!instance.isDestroyed) {
+                  instance
+                    .chain()
+                    .focus()
+                    .command(({ tr }) => {
+                      tr.setSelection(point.resolve(tr.doc));
+                      return true;
+                    })
+                    .setImage({
+                      src: attachmentDestination(relativePath, from),
+                    })
+                    .run();
+                }
               } catch (error) {
                 toast.add({
                   description: reasonOf(error),
@@ -741,6 +769,8 @@ export function Editor({
                   type: "error",
                 });
               }
+
+              instance.off("transaction", follow);
             };
 
             reader.addEventListener("load", () => {
@@ -754,8 +784,6 @@ export function Editor({
 
         return false;
       },
-      // Words selected inside one block copy without the blocks around them,
-      // so words from a list item paste as words rather than as a new item.
       // Words selected inside one block copy without the blocks around them,
       // so words from a list item paste as words rather than as a new item.
       transformCopied: (slice, view) => {
