@@ -5,7 +5,7 @@ import type { SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 
 import { toast } from "@/components/ui/toast";
-import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
+import type { ReadClipboardSource } from "@/lib/ui/clipboard-source";
 import { reasonOf } from "@/lib/ui/failure";
 
 interface PendingPaste {
@@ -13,7 +13,7 @@ interface PendingPaste {
 }
 
 interface MarkdownPasteOptions {
-  readCodeClipboard: ReadCodeClipboard | null;
+  readClipboardSource: ReadClipboardSource | null;
 }
 
 const MARKDOWN_PASTE_PATTERN =
@@ -25,9 +25,9 @@ function containsCodeBlock(content: Fragment): boolean {
   );
 }
 
-async function pasteNativeCode(
+async function pasteBySource(
   editor: Editor,
-  readCodeClipboard: ReadCodeClipboard,
+  readClipboardSource: ReadClipboardSource,
   text: string,
   markdown: boolean,
   slice: Slice,
@@ -36,7 +36,7 @@ async function pasteNativeCode(
   previous: Promise<void>
 ) {
   try {
-    const [code] = await Promise.all([readCodeClipboard(text), previous]);
+    const [source] = await Promise.all([readClipboardSource(text), previous]);
 
     if (editor.isDestroyed) {
       return;
@@ -48,15 +48,15 @@ async function pasteNativeCode(
       return true;
     });
 
-    if (code !== null) {
+    if (source?.kind === "code") {
       chain
         .insertContent({
-          attrs: { language: code.language },
+          attrs: { language: source.language },
           content: [{ text: text.replaceAll(/\r\n?/gu, "\n"), type: "text" }],
           type: "codeBlock",
         })
         .run();
-    } else if (editor.markdown && markdown) {
+    } else if (editor.markdown && markdown && source === null) {
       chain.insertContent(editor.markdown.parse(text)).run();
     } else {
       chain
@@ -92,10 +92,10 @@ async function pasteNativeCode(
   }
 }
 
-/** Parse markdown only after code-aware clipboard handling has declined it. */
+/** Parse markdown only when neither the HTML nor the clipboard's source says otherwise. */
 export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   addOptions() {
-    return { readCodeClipboard: null };
+    return { readClipboardSource: null };
   },
   addProseMirrorPlugins() {
     const pending = new Set<PendingPaste>();
@@ -126,13 +126,13 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             // looks like markdown is no sign the HTML is.
             const markdown = html === "" && MARKDOWN_PASTE_PATTERN.test(text);
 
-            if (this.options.readCodeClipboard !== null) {
+            if (this.options.readClipboardSource !== null) {
               const paste = { selection: view.state.selection.getBookmark() };
 
               pending.add(paste);
-              previous = pasteNativeCode(
+              previous = pasteBySource(
                 this.editor,
-                this.options.readCodeClipboard,
+                this.options.readClipboardSource,
                 text,
                 markdown,
                 slice,

@@ -36,7 +36,7 @@ import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
-import type { ReadCodeClipboard } from "@/lib/ui/code-clipboard";
+import type { ReadClipboardSource } from "@/lib/ui/clipboard-source";
 import {
   escapeMarkdownLabel,
   escapeMarkdownTitle,
@@ -54,7 +54,7 @@ export interface EditorExtensionOptions {
   getTitles?: () => string[];
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   placeholderText?: string;
-  readCodeClipboard?: ReadCodeClipboard;
+  readClipboardSource?: ReadClipboardSource;
   resolveImageSrc?: (src: string) => string;
 }
 
@@ -566,7 +566,7 @@ export function createEditorExtensions(
       marked: createNoteMarked(),
     }),
     MarkdownPaste.configure({
-      readCodeClipboard: options.readCodeClipboard ?? null,
+      readClipboardSource: options.readClipboardSource ?? null,
     }),
     CodeBlockShiki.extend({
       addNodeView() {

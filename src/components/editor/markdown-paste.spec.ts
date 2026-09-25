@@ -8,7 +8,7 @@ import {
   createEditorExtensions,
   serializeMarkdown,
 } from "@/components/editor/extensions";
-import type { CodeClipboard } from "@/lib/ui/code-clipboard";
+import type { ClipboardSource } from "@/lib/ui/clipboard-source";
 
 let editor: Editor | undefined;
 
@@ -35,7 +35,7 @@ describe("markdown paste", () => {
         editor = new Editor({
           content: "before replace after",
           extensions: createEditorExtensions({
-            readCodeClipboard: () => {
+            readClipboardSource: () => {
               throw new Error(reason);
             },
           }),
@@ -65,12 +65,12 @@ describe("markdown paste", () => {
     );
 
     it("should wait for an earlier paste before inserting a failed paste", async () => {
-      const first = Promise.withResolvers<CodeClipboard | null>();
+      const first = Promise.withResolvers<ClipboardSource | null>();
 
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: async (text) =>
+          readClipboardSource: async (text) =>
             text === "first"
               ? await first.promise
               : await Promise.reject(
@@ -90,12 +90,12 @@ describe("markdown paste", () => {
     });
 
     it("should leave an unmounted editor alone when the clipboard read fails", async () => {
-      const clipboard = Promise.withResolvers<CodeClipboard | null>();
+      const clipboard = Promise.withResolvers<ClipboardSource | null>();
 
       editor = new Editor({
         content: "before",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => await clipboard.promise,
+          readClipboardSource: async () => await clipboard.promise,
         }),
       });
       pasteText(editor, "after");
@@ -107,20 +107,20 @@ describe("markdown paste", () => {
     });
 
     it("should keep consecutive native pastes in their original order", async () => {
-      const first = Promise.withResolvers<CodeClipboard | null>();
-      const second = Promise.withResolvers<CodeClipboard | null>();
+      const first = Promise.withResolvers<ClipboardSource | null>();
+      const second = Promise.withResolvers<ClipboardSource | null>();
 
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: async (text) =>
+          readClipboardSource: async (text) =>
             text === "first" ? await first.promise : await second.promise,
         }),
       });
       pasteText(editor, "first");
       pasteText(editor, "second");
-      second.resolve({ language: "python" });
-      first.resolve({ language: "python" });
+      second.resolve({ kind: "code", language: "python" });
+      first.resolve({ kind: "code", language: "python" });
       await sleep(0);
 
       expect(editor.state.doc.textContent).toBe("firstsecond");
@@ -130,7 +130,10 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => ({ language: "python" }),
+          readClipboardSource: async () => ({
+            kind: "code",
+            language: "python",
+          }),
         }),
       });
       const clipboardData = new DataTransfer();
@@ -158,7 +161,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => ({ language: null }),
+          readClipboardSource: async () => ({ kind: "code", language: null }),
         }),
       });
       pasteText(editor, "# comment\nprint(1)");
@@ -175,7 +178,7 @@ describe("markdown paste", () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => null,
+          readClipboardSource: async () => null,
         }),
       });
       const clipboardData = new DataTransfer();
@@ -198,10 +201,10 @@ describe("markdown paste", () => {
       ["a browser", undefined],
     ])(
       "should keep rich HTML when its plain text looks like markdown in %s",
-      async (_name, readCodeClipboard) => {
+      async (_name, readClipboardSource) => {
         editor = new Editor({
           content: "",
-          extensions: createEditorExtensions({ readCodeClipboard }),
+          extensions: createEditorExtensions({ readClipboardSource }),
         });
         const clipboardData = new DataTransfer();
 
@@ -221,11 +224,28 @@ describe("markdown paste", () => {
       }
     );
 
+    it("should paste text copied from a rich-text app as text", async () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => ({ kind: "richText" }),
+        }),
+      });
+      pasteText(editor, "# install deps\nnpm install");
+      await sleep(0);
+
+      expect(editor.getJSON().content?.map((node) => node.type)).toEqual([
+        "paragraph",
+        "paragraph",
+      ]);
+      expect(editor.state.doc.textContent).toBe("# install depsnpm install");
+    });
+
     it("should still parse markdown when no native code metadata exists", async () => {
       editor = new Editor({
         content: "",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => null,
+          readClipboardSource: async () => null,
         }),
       });
       pasteText(editor, "~~~ts\nconst value = 1;\n~~~");
@@ -236,18 +256,18 @@ describe("markdown paste", () => {
     });
 
     it("should track the insertion point through edits while reading the clipboard", async () => {
-      const clipboard = Promise.withResolvers<CodeClipboard | null>();
+      const clipboard = Promise.withResolvers<ClipboardSource | null>();
 
       editor = new Editor({
         content: "before after",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => await clipboard.promise,
+          readClipboardSource: async () => await clipboard.promise,
         }),
       });
       editor.commands.setTextSelection(8);
       pasteText(editor, "print(1)");
       editor.commands.insertContentAt(1, "new ");
-      clipboard.resolve({ language: "python" });
+      clipboard.resolve({ kind: "code", language: "python" });
       await sleep(0);
 
       expect(editor.state.doc.textContent).toBe("new before print(1)after");
@@ -255,17 +275,17 @@ describe("markdown paste", () => {
     });
 
     it("should leave an unmounted editor alone when the clipboard read finishes", async () => {
-      const clipboard = Promise.withResolvers<CodeClipboard | null>();
+      const clipboard = Promise.withResolvers<ClipboardSource | null>();
 
       editor = new Editor({
         content: "before",
         extensions: createEditorExtensions({
-          readCodeClipboard: async () => await clipboard.promise,
+          readClipboardSource: async () => await clipboard.promise,
         }),
       });
       pasteText(editor, "print(1)");
       editor.destroy();
-      clipboard.resolve({ language: "python" });
+      clipboard.resolve({ kind: "code", language: "python" });
       await sleep(0);
 
       expect(editor.state.doc.textContent).toBe("before");

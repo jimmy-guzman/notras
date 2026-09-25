@@ -29,7 +29,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
         // Specta collects metadata in a nested function, which needs a concrete
         // runtime. Tauri infers the actual handler runtime independently.
         .commands(tauri_specta::collect_commands![
-            clipboard::read_code_clipboard,
+            clipboard::read_clipboard_source,
             notes::attach_file::<tauri::Wry>,
             notes::attach_image::<tauri::Wry>,
             notes::cancel_quit,

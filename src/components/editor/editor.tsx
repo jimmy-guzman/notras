@@ -23,7 +23,7 @@ import { toast } from "@/components/ui/toast";
 import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
 import { styleNonce } from "@/lib/style-nonce";
-import { readCodeClipboard } from "@/lib/ui/code-clipboard";
+import { readClipboardSource } from "@/lib/ui/clipboard-source";
 import { reasonOf } from "@/lib/ui/failure";
 import {
   attachmentDestination,
@@ -795,7 +795,7 @@ export function Editor({
         getTitles: config.titles,
         onHistory: config.onHistory,
         placeholderText: config.placeholderText,
-        readCodeClipboard: isTauri() ? readCodeClipboard : undefined,
+        readClipboardSource: isTauri() ? readClipboardSource : undefined,
         resolveImageSrc: config.resolveImageSrc,
       }),
       Find,

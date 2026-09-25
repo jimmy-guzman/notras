@@ -6,10 +6,10 @@
 
 export const commands = {
 /**
- * Read code editor metadata only when the native clipboard still matches the pasted text.
+ * Read where the pasted text came from, only while the native clipboard still matches it.
  */
-async readCodeClipboard(text: string) : Promise<CodeClipboard | null> {
-    return await TAURI_INVOKE("read_code_clipboard", { text });
+async readClipboardSource(text: string) : Promise<ClipboardSource | null> {
+    return await TAURI_INVOKE("read_clipboard_source", { text });
 },
 async attachFile(source: string) : Promise<string> {
     return await TAURI_INVOKE("attach_file", { source });
@@ -137,7 +137,19 @@ notesChanged: "notes-changed"
 
 /** user-defined types **/
 
-export type CodeClipboard = { language: string | null }
+/**
+ * Where the pasted text came from, as far as the native clipboard says.
+ */
+export type ClipboardSource = 
+/**
+ * A code editor, with the language it named.
+ */
+{ kind: "code"; language: string | null } | 
+/**
+ * A native rich-text app, such as Terminal, whose plain text flattens its
+ * formatting rather than writing markdown.
+ */
+{ kind: "richText" }
 /**
  * A command failure: the kind the caller branches on, and the message it shows.
  */
