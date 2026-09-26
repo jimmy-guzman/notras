@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/jimmy-guzman/notras/compare/v0.9.1...v0.9.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 save &lt; &gt; & and list blocks as you typed them ([#273](https://github.com/jimmy-guzman/notras/issues/273)) ([c731cae](https://github.com/jimmy-guzman/notras/commit/c731cae087405e1b2212567223cfa6c60a0f0749))
+
 ## [0.9.1](https://github.com/jimmy-guzman/notras/compare/v0.9.0...v0.9.1) (2026-09-25)
 
 
