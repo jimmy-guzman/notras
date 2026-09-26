@@ -118,12 +118,9 @@ const NoteParagraph = Paragraph.extend({
 const MARKER_LINE_SPACES = /(?<=^\S+) +(?=\n)/u;
 
 /**
- * Lead an item that opens with another block with the empty paragraph the
- * schema requires, and write that paragraph as a bare marker line.
- *
  * TODO: drop the parsers here and on `NoteOrderedList` once
- * `@tiptap/extension-list` builds a legal item. Through 3.31.3 it keeps a
- * table, fence, quote or list as the item's first child.
+ * `@tiptap/extension-list` leads an item with a paragraph. Through 3.31.3 an
+ * item can open with a table, fence, quote or list, which the schema rejects.
  */
 const NoteListItem = ListItem.extend({
   parseMarkdown(token, helpers) {
@@ -497,9 +494,8 @@ function withStandIns(json: JSONContent, standIns: StandIns) {
 }
 
 /**
- * The forms a block can take in the file, in the order they are preferred:
- * with neither backslashes nor entities, without backslashes, then without
- * entities. Upstream's own output, with both, always reads back.
+ * Preferred first: `typed` drops backslashes and entities, `bare` only
+ * backslashes, `unencoded` only entities.
  */
 const FORMS = ["typed", "bare", "unencoded"] as const;
 
@@ -604,7 +600,7 @@ function blockMarkdown(manager: MarkdownConverter, doc: Node) {
  * encodes `& < >` in every text node with no regard for context. Re-parsing
  * the stripped text leaves marked the authority on which escape was
  * load-bearing, per document: one construct that needs its backslash keeps
- * every other escape in the file with it.
+ * every other backslash in the file, and an entity likewise.
  *
  * Asking per top-level block gives the same answer: blocks parse apart once a
  * blank line separates them, and a link reference definition, the one
