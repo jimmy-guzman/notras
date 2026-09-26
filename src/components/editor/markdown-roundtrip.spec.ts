@@ -219,6 +219,16 @@ describe("markdown round-trip", () => {
     reopened.destroy();
   });
 
+  it("should keep a code block under an empty numbered item inside it", () => {
+    const markdown = "1.\n   ```\n   code\n   ```";
+    const editor = load(markdown);
+    const item = editor.state.doc.child(0).child(0);
+
+    expect(item.child(1).type.name).toBe("codeBlock");
+    expect(serializeMarkdown(editor)).toBe(markdown);
+    editor.destroy();
+  });
+
   it("should keep a quote that opens an ordered item as typed", () => {
     expect(roundtrip("1. > quote")).toBe("1. > quote");
   });

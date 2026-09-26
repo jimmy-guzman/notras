@@ -15,7 +15,7 @@ import { Code } from "@tiptap/extension-code";
 import { Image } from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
-import { ListItem } from "@tiptap/extension-list";
+import { ListItem, OrderedList } from "@tiptap/extension-list";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
@@ -121,9 +121,9 @@ const MARKER_LINE_SPACES = /(?<=^\S+) +(?=\n)/u;
  * Lead an item that opens with another block with the empty paragraph the
  * schema requires, and write that paragraph as a bare marker line.
  *
- * TODO: drop the parser once `@tiptap/extension-list` builds a legal item.
- * Through 3.31.3 it keeps a table, fence, quote or list as the item's first
- * child.
+ * TODO: drop the parsers here and on `NoteOrderedList` once
+ * `@tiptap/extension-list` builds a legal item. Through 3.31.3 it keeps a
+ * table, fence, quote or list as the item's first child.
  */
 const NoteListItem = ListItem.extend({
   parseMarkdown(token, helpers) {
@@ -142,6 +142,32 @@ const NoteListItem = ListItem.extend({
     return (
       ListItem.config.renderMarkdown?.(node, helpers, context) ?? ""
     ).replace(MARKER_LINE_SPACES, "");
+  },
+});
+
+/**
+ * An ordered list builds its items without the item's parser, so it leads
+ * them with the paragraph `NoteListItem` does.
+ */
+const NoteOrderedList = BoundedOrderedList.extend({
+  parseMarkdown(token, helpers) {
+    const list = OrderedList.config.parseMarkdown?.(token, helpers) ?? [];
+
+    if (Array.isArray(list)) {
+      return list;
+    }
+
+    return {
+      ...list,
+      content: list.content?.map((item) =>
+        item.content?.[0]?.type === "paragraph"
+          ? item
+          : {
+              ...item,
+              content: [{ type: "paragraph" }, ...(item.content ?? [])],
+            }
+      ),
+    };
   },
 });
 
@@ -707,7 +733,7 @@ export function createEditorExtensions(
     }),
     TableKit.configure({ table: false }),
     BoundedTable.configure({ resizable: false }),
-    BoundedOrderedList,
+    NoteOrderedList,
     BoundedTaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({
