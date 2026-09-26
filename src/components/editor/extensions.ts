@@ -1,4 +1,9 @@
-import type { CommandProps, Editor, Extensions } from "@tiptap/core";
+import type {
+  CommandProps,
+  Editor,
+  Extensions,
+  JSONContent,
+} from "@tiptap/core";
 import {
   Extension,
   InputRule,
@@ -10,6 +15,7 @@ import { Code } from "@tiptap/extension-code";
 import { Image } from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
+import { ListItem, OrderedList } from "@tiptap/extension-list";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
@@ -105,6 +111,60 @@ const NoteParagraph = Paragraph.extend({
     }
 
     return Paragraph.config.parseMarkdown?.(token, helpers) ?? [];
+  },
+});
+
+/** marked reads a marker line that ends in a space as a paragraph. */
+const MARKER_LINE_SPACES = /(?<=^\S+) +(?=\n)/u;
+
+/**
+ * TODO: drop the parsers here and on `NoteOrderedList` once
+ * `@tiptap/extension-list` leads an item with a paragraph. Through 3.31.3 an
+ * item can open with a table, fence, quote or list, which the schema rejects.
+ */
+const NoteListItem = ListItem.extend({
+  parseMarkdown(token, helpers) {
+    const item = ListItem.config.parseMarkdown?.(token, helpers) ?? [];
+
+    if (Array.isArray(item) || item.content?.[0]?.type === "paragraph") {
+      return item;
+    }
+
+    return {
+      ...item,
+      content: [{ type: "paragraph" }, ...(item.content ?? [])],
+    };
+  },
+  renderMarkdown(node, helpers, context) {
+    return (
+      ListItem.config.renderMarkdown?.(node, helpers, context) ?? ""
+    ).replace(MARKER_LINE_SPACES, "");
+  },
+});
+
+/**
+ * An ordered list builds its items without the item's parser, so it leads
+ * them with the paragraph `NoteListItem` does.
+ */
+const NoteOrderedList = BoundedOrderedList.extend({
+  parseMarkdown(token, helpers) {
+    const list = OrderedList.config.parseMarkdown?.(token, helpers) ?? [];
+
+    if (Array.isArray(list)) {
+      return list;
+    }
+
+    return {
+      ...list,
+      content: list.content?.map((item) =>
+        item.content?.[0]?.type === "paragraph"
+          ? item
+          : {
+              ...item,
+              content: [{ type: "paragraph" }, ...(item.content ?? [])],
+            }
+      ),
+    };
   },
 });
 
@@ -377,11 +437,75 @@ function dropEscapes(text: string) {
 
 type MarkdownConverter = NonNullable<Editor["markdown"]>;
 
+interface StandIns {
+  amp: string;
+  gt: string;
+  lt: string;
+}
+
+/**
+ * Three private-use characters the JSON never holds, standing in for what
+ * upstream turns into entities in prose. Icon fonts live in these ranges, so
+ * no fixed choice is safe.
+ */
+function freeStandIns(json: JSONContent[]): StandIns {
+  const held = new Set(JSON.stringify(json));
+  const free: string[] = [];
+
+  for (let code = 0xf_00_00; code <= 0x10_ff_fd && free.length < 3; code += 1) {
+    const char = String.fromCodePoint(code);
+
+    if (!held.has(char)) {
+      free.push(char);
+    }
+  }
+
+  const [amp, lt, gt] = free;
+
+  if (amp === undefined || lt === undefined || gt === undefined) {
+    throw new Error("The block holds every private-use character");
+  }
+
+  return { amp, gt, lt };
+}
+
+function withoutStandIns(markdown: string, standIns: StandIns) {
+  return markdown
+    .replaceAll(standIns.amp, "&")
+    .replaceAll(standIns.lt, "<")
+    .replaceAll(standIns.gt, ">");
+}
+
+function withStandIns(json: JSONContent, standIns: StandIns) {
+  const copy = { ...json };
+
+  if (json.text !== undefined) {
+    copy.text = json.text
+      .replaceAll("&", standIns.amp)
+      .replaceAll("<", standIns.lt)
+      .replaceAll(">", standIns.gt);
+  }
+
+  if (json.content !== undefined) {
+    copy.content = json.content.map((child) => withStandIns(child, standIns));
+  }
+
+  return copy;
+}
+
+/**
+ * Preferred first: `typed` drops backslashes and entities, `bare` only
+ * backslashes, `unencoded` only entities.
+ */
+const FORMS = ["typed", "bare", "unencoded"] as const;
+
+type Form = (typeof FORMS)[number];
+
 interface RenderedBlock {
-  bare: string;
-  droppable: boolean;
   escaped: string;
+  forms: Record<Form, string>;
   previous: Node | undefined;
+  readsBack: Set<Form>;
 }
 
 /**
@@ -400,6 +524,21 @@ function reparses(manager: MarkdownConverter, bare: string, escaped: string) {
   }
 }
 
+function renderInDoc(
+  manager: MarkdownConverter,
+  json: JSONContent,
+  previous: JSONContent | undefined
+) {
+  const siblings = previous === undefined ? [json] : [previous, json];
+
+  return manager.renderNodeToMarkdown(
+    json,
+    { content: siblings, type: "doc" },
+    siblings.length - 1,
+    0
+  );
+}
+
 function renderBlock(
   manager: MarkdownConverter,
   node: Node,
@@ -412,20 +551,30 @@ function renderBlock(
   }
 
   const json = contentOf(node);
-  const siblings =
-    previous === undefined ? [json] : [contentOf(previous), json];
-  const escaped = manager.renderNodeToMarkdown(
-    json,
-    { content: siblings, type: "doc" },
-    siblings.length - 1,
-    0
+  const before = previous === undefined ? undefined : contentOf(previous);
+  const escaped = renderInDoc(manager, json, before);
+  const standIns = freeStandIns(before === undefined ? [json] : [before, json]);
+  // Code and raw HTML text is written verbatim, so only prose loses entities.
+  const unencoded = renderInDoc(
+    manager,
+    withStandIns(json, standIns),
+    before === undefined ? undefined : withStandIns(before, standIns)
   );
-  const bare = mapProse(escaped, dropEscapes);
+  const forms = {
+    bare: mapProse(escaped, dropEscapes),
+    typed: withoutStandIns(mapProse(unencoded, dropEscapes), standIns),
+    unencoded: withoutStandIns(unencoded, standIns),
+  };
   const block: RenderedBlock = {
-    bare,
-    droppable: bare === escaped || reparses(manager, bare, escaped),
     escaped,
+    forms,
     previous,
+    readsBack: new Set(
+      FORMS.filter(
+        (form) =>
+          forms[form] === escaped || reparses(manager, forms[form], escaped)
+      )
+    ),
   };
 
   rendered.set(node, block);
@@ -437,18 +586,21 @@ function blockMarkdown(manager: MarkdownConverter, doc: Node) {
   const blocks = doc.content.content.map((node, index, siblings) =>
     renderBlock(manager, node, siblings[index - 1])
   );
+  const form = FORMS.find((candidate) =>
+    blocks.every((block) => block.readsBack.has(candidate))
+  );
 
-  return blocks.every((block) => block.droppable)
-    ? blocks.map((block) => block.bare)
-    : blocks.map((block) => block.escaped);
+  return blocks.map((block) =>
+    form === undefined ? block.escaped : block.forms[form]
+  );
 }
 
 /**
- * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` in every
- * text node with no regard for context, so `snake_case` gains a backslash on
- * its first save. Re-parsing the stripped text leaves marked the authority on
- * which escape was load-bearing, per document: one construct that needs its
- * backslash keeps every other escape in the file with it.
+ * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` and
+ * encodes `& < >` in every text node with no regard for context. Re-parsing
+ * the stripped text leaves marked the authority on which escape was
+ * load-bearing, per document: one construct that needs its backslash keeps
+ * every other backslash in the file, and an entity likewise.
  *
  * Asking per top-level block gives the same answer: blocks parse apart once a
  * blank line separates them, and a link reference definition, the one
@@ -518,6 +670,7 @@ export function createEditorExtensions(
       // never lets reach the page. `DragSelection` marks its own drops.
       dropcursor: false,
       link: false,
+      listItem: false,
       orderedList: false,
       paragraph: false,
       strike: false,
@@ -562,6 +715,7 @@ export function createEditorExtensions(
       openOnClick: false,
     }),
     NoteParagraph,
+    NoteListItem,
     NoteMarkdown.configure({
       marked: createNoteMarked(),
     }),
@@ -575,7 +729,7 @@ export function createEditorExtensions(
     }),
     TableKit.configure({ table: false }),
     BoundedTable.configure({ resizable: false }),
-    BoundedOrderedList,
+    NoteOrderedList,
     BoundedTaskList,
     TaskItem.configure({ nested: true }),
     NoteImage.configure({

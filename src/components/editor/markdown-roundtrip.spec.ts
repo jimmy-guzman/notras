@@ -164,6 +164,75 @@ describe("markdown round-trip", () => {
     expect(roundtrip(markdown)).toBe(markdown);
   });
 
+  it.each([
+    ["angle brackets", "1 < 2 and a > b"],
+    ["an arrow", "a -> b"],
+    ["ampersands", "AT&T and R&D"],
+    ["an angle bracket beside a code span", "`a < b` and a < b"],
+    ["an ampersand in a link label", "[Q&A](https://example.com)"],
+    ["an angle bracket in a list item", "- a < b"],
+    ["an angle bracket beside icon glyphs", " \u{F0000} 1 < 2"],
+  ])("should write %s in prose as typed", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it.each([
+    ["a tag", "&lt;div&gt;"],
+    ["an entity", "&amp;nbsp;"],
+    ["a blockquote", "&gt; not a quote"],
+  ])("should keep the entity that stops %s", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should drop backslashes from a note that keeps its entities", () => {
+    expect(roundtrip("snake\\_case\n\n&lt;div&gt;")).toBe(
+      "snake_case\n\n&lt;div&gt;"
+    );
+  });
+
+  it("should drop entities from a note that keeps its backslashes", () => {
+    const markdown = "\\* not a bullet\n\n1 < 2";
+
+    expect(roundtrip("\\* not a bullet\n\n1 &lt; 2")).toBe(markdown);
+  });
+
+  it("should keep raw html entities byte for byte beside a bare angle bracket", () => {
+    const markdown =
+      '<div>Tom &amp; Jerry</div>\n\n<span title="a &lt; b">x</span> and 1 < 2';
+
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it.each([
+    ["table", "- | a |\n  |---|\n  | 1 |"],
+    ["codeBlock", "- ```\n  code\n  ```"],
+    ["blockquote", "- > quote"],
+    ["bulletList", "-\n  - nested"],
+  ])("should keep a %s that opens a list item inside it", (type, markdown) => {
+    const saved = roundtrip(markdown);
+    const reopened = load(saved);
+    const item = reopened.state.doc.child(0).child(0);
+
+    expect(item.type.name).toBe("listItem");
+    expect(item.child(1).type.name).toBe(type);
+    expect(serializeMarkdown(reopened)).toBe(saved);
+    reopened.destroy();
+  });
+
+  it("should keep a code block under an empty numbered item inside it", () => {
+    const markdown = "1.\n   ```\n   code\n   ```";
+    const editor = load(markdown);
+    const item = editor.state.doc.child(0).child(0);
+
+    expect(item.child(1).type.name).toBe("codeBlock");
+    expect(serializeMarkdown(editor)).toBe(markdown);
+    editor.destroy();
+  });
+
+  it("should keep a quote that opens an ordered item as typed", () => {
+    expect(roundtrip("1. > quote")).toBe("1. > quote");
+  });
+
   it("should write a table cell's underscore as typed", () => {
     const compact = roundtrip("| a\\_b |\n| --- |\n| c |")
       .replaceAll(/ +/gu, " ")
