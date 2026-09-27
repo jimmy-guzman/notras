@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CodeBlockShiki,
   revealSyntax,
+  syntaxSettled,
 } from "@/components/editor/code-block-shiki";
 import { highlightCode } from "@/components/editor/syntax-highlighter";
 import type { SyntaxRequest } from "@/components/editor/syntax-highlighter";
@@ -124,6 +125,23 @@ describe("code block highlighting", () => {
     await vi.waitFor(() => {
       expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
     });
+  });
+
+  it("should settle once every answer in flight has landed", async ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("ts", "const a = 1;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    expect(coloredText(editor, "syntax-keyword")).toBe("");
+
+    await syntaxSettled(editor.view);
+    expect(coloredText(editor, "syntax-keyword")).toBe("const");
+
+    editor.commands.insertContentAt({ from: 1, to: 6 }, "let");
+    await syntaxSettled(editor.view);
+    expect(coloredText(editor, "syntax-keyword")).toBe("let");
   });
 
   it("should keep an edited block's colors until its new tokens arrive", async ({

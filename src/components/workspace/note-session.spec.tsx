@@ -865,6 +865,28 @@ describe(NoteSession, () => {
     expect(commands).toStrictEqual([]);
   });
 
+  it("should color code in a pdf exported before its highlighting arrived", async () => {
+    let printed: string | null | undefined;
+    mockIPC(
+      withDisk((command) => {
+        if (command === "plugin:dialog|save") {
+          return "/exports/a.pdf";
+        }
+        printed = document.querySelector(
+          ".print-sheet .syntax-token"
+        )?.textContent;
+        return null;
+      })
+    );
+    mountSession("# Code\n\n```ts\nconst a = 1;\n```");
+    const liveEditor = await editor();
+    expect(liveEditor.view.dom.querySelector(".syntax-token")).toBeNull();
+
+    await expect(sessionHandles().exportPdf()).resolves.toBe("/exports/a.pdf");
+
+    expect(printed).toBe("const");
+  });
+
   it("should render an image relative to the note and drop one the note cannot reach", async () => {
     mockConvertFileSrc("macos");
     mockIPC(

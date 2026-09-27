@@ -70,6 +70,7 @@ const key = new PluginKey<SyntaxState>("syntax");
 let nextBlockId = 0;
 const remembered = new Map<string, SyntaxToken[][]>();
 let rememberedSize = 0;
+const settling = new WeakMap<EditorView, () => Promise<void>>();
 
 function isMeta(value: unknown): value is SyntaxMeta {
   return typeof value === "object" && value !== null && "answers" in value;
@@ -316,6 +317,15 @@ function setViewport(view: EditorView, viewport: Range) {
   );
 }
 
+/** Resolve once every highlighting answer in flight has landed, or at once when none is. A failed worker owes nothing, so a print after it carries plain code. */
+export async function syntaxSettled(view: EditorView): Promise<void> {
+  const settled = settling.get(view);
+  if (settled === undefined) {
+    throw new Error("The syntax plugin is not installed");
+  }
+  await settled();
+}
+
 /** Decorate every block whole, for a print; the returned function windows them again. */
 export function revealSyntax(view: EditorView): () => void {
   const { viewport } = syntaxState(view.state);
@@ -361,6 +371,7 @@ function syntaxPlugin() {
       // A reconfigure that drops the plugin swaps the state before destroying its view.
       let last = view.state;
       const answers: Answer[] = [];
+      let settled: PromiseWithResolvers<undefined> | undefined;
 
       async function highlight(block: number, language: string, text: string) {
         if (failed) {
@@ -454,6 +465,10 @@ function syntaxPlugin() {
               .setMeta("addToHistory", false)
           );
         }
+        if (outstanding === 0) {
+          settled?.resolve(undefined);
+          settled = undefined;
+        }
         if (outstanding > 0 || (follow && windowed())) {
           frame = requestAnimationFrame(tick);
         }
@@ -477,11 +492,18 @@ function syntaxPlugin() {
         capture: true,
         passive: true,
       });
+      settling.set(view, async () => {
+        settled ??= Promise.withResolvers<undefined>();
+        schedule();
+        await settled.promise;
+      });
 
       return {
         destroy() {
           live = false;
           cancelAnimationFrame(frame);
+          settling.delete(view);
+          settled?.resolve(undefined);
           document.removeEventListener("scroll", onScroll, { capture: true });
           const { blocks } = syntaxState(last);
           for (const [index, { node }] of codeBlocks(last.doc).entries()) {
