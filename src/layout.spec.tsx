@@ -309,4 +309,102 @@ describe("layout", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("Available document")).toBeInTheDocument();
   });
+
+  it("should save every open tab when the window loses focus", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [
+          { id: "first", kind: "note", path: "first.md" },
+          { id: "second", kind: "note", path: "second.md" },
+        ],
+      })
+    );
+    mockWindows("main");
+    const saved: string[] = [];
+    mockIPC((command, args) => {
+      if (command === "classify_open_paths") {
+        return [
+          { kind: "note", path: "first.md" },
+          { kind: "note", path: "second.md" },
+        ];
+      }
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+      if (command === "read_conflict") {
+        return null;
+      }
+      if (command === "read_note") {
+        const { path } = parse(object({ path: string() }), args);
+        return {
+          content: `# ${path}\n\nbody of ${path}`,
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+      if (command === "save_note") {
+        const { path } = parse(object({ path: string() }), args);
+        saved.push(path);
+        return {
+          kind: "committed",
+          receipt: { path, revision: "r2", updatedAt: 2, warnings: [] },
+        };
+      }
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("body of first.md")).toBeInTheDocument();
+    await user.keyboard("typed ");
+    await user.click(screen.getByRole("tab", { name: /second/iu }));
+    expect(await screen.findByText("body of second.md")).toBeInTheDocument();
+    await user.keyboard("typed ");
+
+    // Neither 800ms debounce has run, so only the blur can write them.
+    expect(saved).toStrictEqual([]);
+
+    act(() => {
+      fireEvent.blur(window);
+    });
+
+    await waitFor(
+      () => {
+        expect(saved.toSorted()).toStrictEqual(["first.md", "second.md"]);
+      },
+      { timeout: 400 }
+    );
+  });
 });
