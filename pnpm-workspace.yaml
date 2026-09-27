@@ -1,5 +1,8 @@
 allowBuilds:
+  # The native smoke driver embeds WebDriver and never launches Edge or Firefox.
+  edgedriver: false
   esbuild: true
+  geckodriver: false
   lefthook: true
   msgpackr-extract: true
 autoInstallPeers: false
@@ -14,3 +17,7 @@ minimumReleaseAgeExclude:
   - "@tauri-apps/plugin-opener@2.5.5"
   - "@tauri-apps/plugin-updater@2.11.0"
 saveExact: true
+packageExtensions:
+  "@wdio/globals@9.29.1":
+    dependencies:
+      expect-webdriverio: "5.6.5"
