@@ -1,4 +1,4 @@
-import { Suspense, use, useDeferredValue } from "react";
+import { Suspense, use, useDeferredValue, useMemo } from "react";
 import type { FallbackProps } from "react-error-boundary";
 import { ErrorBoundary } from "react-error-boundary";
 
@@ -16,9 +16,6 @@ export type DiagramResponse = { id: number } & Drawn;
 
 let nextId = 0;
 const pending = new Map<number, PromiseWithResolvers<Drawn>>();
-const DRAWING_LIMIT = 32;
-/** `use` needs the same promise for the same code across renders. */
-const drawings = new Map<string, Promise<Drawn>>();
 let instance: undefined | Worker;
 
 function start() {
@@ -58,25 +55,15 @@ async function request(code: string) {
   const message: DiagramRequest = { code, id: nextId };
   // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin
   instance.postMessage(message);
-  try {
-    return await resolvers.promise;
-  } catch (error) {
-    // A failed drawing is not kept, so the next render asks again.
-    drawings.delete(code);
-    throw error;
-  }
+  return await resolvers.promise;
 }
 
-// oxlint-disable-next-line typescript/promise-function-async -- `use` needs the same promise across renders, and an async wrapper would mint a new one per call
-function drawingOf(code: string) {
-  const drawing = drawings.get(code) ?? request(code);
-  drawings.set(code, drawing);
-  const [oldest] = drawings.keys();
-  if (oldest !== undefined && drawings.size > DRAWING_LIMIT) {
-    drawings.delete(oldest);
-  }
-  return drawing;
-}
+// The attributes a `style` or `linkStyle` value reaches, and what a value
+// there may be: a color, a width, or one of the drawing's own variables and
+// fragments, so nothing that could name a resource.
+const PAINTED = ["color", "fill", "stroke", "stroke-width"];
+const PAINT =
+  /^(?:#[\da-f]{3,8}|[a-z]+|\d+(?:\.\d+)?(?:px|em|%)?|var\(--[\w-]+\)|url\(#[\w-]+\)|(?:rgb|hsl)a?\([\d.,%\s/]+\))$/iu;
 
 function toElement(markup: string) {
   const svg = new DOMParser().parseFromString(
@@ -97,11 +84,10 @@ function toElement(markup: string) {
   }
   // The root carries the library's default inks; the stylesheet sets the app's.
   svg.removeAttribute("style");
-  // A `style` or `linkStyle` value reaches a fill or stroke as written, so a
-  // reference to anything but a fragment of the drawing goes.
   for (const element of svg.querySelectorAll("*")) {
-    for (const name of element.getAttributeNames()) {
-      if (/url\((?!["']?#)/u.test(element.getAttribute(name) ?? "")) {
+    for (const name of PAINTED) {
+      const value = element.getAttribute(name);
+      if (value !== null && !PAINT.test(value)) {
         element.removeAttribute(name);
       }
     }
@@ -112,8 +98,8 @@ function toElement(markup: string) {
   return svg;
 }
 
-function Drawing({ code }: { code: string }) {
-  const drawn = use(drawingOf(code));
+function Drawing({ drawing }: { drawing: Promise<Drawn> }) {
+  const drawn = use(drawing);
 
   if ("reason" in drawn) {
     return (
@@ -152,15 +138,23 @@ function renderLoadFailure({ error }: FallbackProps) {
 export function MermaidDiagram({ code }: { code: string }) {
   // The last drawing stays on screen while the next one is laid out.
   const settled = useDeferredValue(code);
+  // `use` needs one promise per code across the renders a suspended first
+  // draw retries, and this component stays committed while the drawing
+  // suspends below it, so the promise lives here rather than in a cache.
+  const drawing = useMemo(
+    (): Promise<Drawn> | undefined =>
+      settled.trim() === "" ? undefined : request(settled),
+    [settled]
+  );
 
-  if (settled.trim() === "") {
+  if (drawing === undefined) {
     return null;
   }
 
   return (
     <ErrorBoundary fallbackRender={renderLoadFailure} resetKeys={[settled]}>
       <Suspense fallback={null}>
-        <Drawing code={settled} />
+        <Drawing drawing={drawing} />
       </Suspense>
     </ErrorBoundary>
   );

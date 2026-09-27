@@ -831,13 +831,14 @@ describe("mermaid diagrams", () => {
   it("should drop a reference to anything outside the drawing", async () => {
     await mount({
       initialContent:
-        "before\n\n```mermaid\ngraph TD\n  A --> B\n  linkStyle 0 stroke:url(http://evil/x)\n  style A fill:url(http://evil/x),stroke:#f00\n```",
+        "before\n\n```mermaid\ngraph TD\n  A --> B\n  linkStyle 0 stroke:URL(http://evil/x)\n  style A fill:rgb(255 0 0),stroke:#f00\n  style B fill:url(http://evil/x)\n```",
     });
 
     const diagram = await screen.findByRole("img", { name: "diagram" });
 
-    expect(diagram.outerHTML).not.toMatch(/url\((?!#)/u);
+    expect(diagram.outerHTML).not.toMatch(/url\((?!#)/iu);
     expect(diagram.querySelector('[stroke="#f00"]')).not.toBeNull();
+    expect(diagram.querySelector('[fill="rgb(255 0 0)"]')).not.toBeNull();
   });
 
   it("should try again after the renderer fails once the fence changes", async () => {
