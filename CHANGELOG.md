@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/jimmy-guzman/notras/compare/v0.10.0...v0.10.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 copy a code block with its fence ([#290](https://github.com/jimmy-guzman/notras/issues/290)) ([f3f6e7d](https://github.com/jimmy-guzman/notras/commit/f3f6e7d0ddbf062019f7b78c435236c9e9e87758))
+* **editor:** 🐛 draw diagrams in a note's first paint ([#291](https://github.com/jimmy-guzman/notras/issues/291)) ([0490a4d](https://github.com/jimmy-guzman/notras/commit/0490a4dd0c5969b03d3abc300f65d4428b75a1fc))
+
 ## [0.10.0](https://github.com/jimmy-guzman/notras/compare/v0.9.1...v0.10.0) (2026-09-27)
 
 
