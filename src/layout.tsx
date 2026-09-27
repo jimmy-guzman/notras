@@ -154,6 +154,17 @@ function MainWindow() {
     };
   }, []);
 
+  // A session may not hold a window listener, so blur flushes them all here.
+  useEffect(() => {
+    const flushAll = () => {
+      void flushPendingWrites();
+    };
+    window.addEventListener("blur", flushAll);
+    return () => {
+      window.removeEventListener("blur", flushAll);
+    };
+  }, []);
+
   // Tray menu + "Open With" plumbing from Rust.
   useEffect(() => {
     // Rust queues every "Open With" path and only signals that the queue has

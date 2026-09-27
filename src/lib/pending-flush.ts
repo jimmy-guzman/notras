@@ -3,10 +3,7 @@ type Flush = () => Promise<boolean>;
 
 const flushes = new Set<Flush>();
 
-/**
- * Register a buffer's flush so a quit can wait for it. Returns the unregister
- * function -- call it from the effect cleanup.
- */
+/** Add a buffer's flush to the set `flushPendingWrites` runs; returns its unregister. */
 export function registerPendingFlush(flush: Flush) {
   flushes.add(flush);
 
@@ -16,10 +13,9 @@ export function registerPendingFlush(flush: Flush) {
 }
 
 /**
- * Run every registered flush and report whether the quit may go ahead. Used on
- * quit: the Rust side holds the exit until this resolves, so a debounced buffer
- * is never lost to a ⌘Q -- and a `false` here means a write it could have
- * landed did not, so the caller must call the quit off.
+ * Run every registered flush and report whether all of them permit the quit. A
+ * `false` means a write it could have landed did not, so the caller must call
+ * off whatever needed the buffers on disk.
  *
  * True does not mean every buffer is on disk. A buffer whose file has gone
  * reports true while still holding text, because it stopped writing on purpose

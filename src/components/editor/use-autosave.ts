@@ -17,19 +17,15 @@ async function releaseThenUnregister(
   }
 }
 
-/** Bind window lifecycle to the session; editing and scheduling live in the session. */
+/** Register the session's flush with pending-flush and hold the session until it settles. */
 export function useAutosave(persistence: NotePersistence) {
   const state = useSelector(persistence.store);
   useEffect(() => {
     const release = persistence.retain();
-    const flush = async () => await persistence.flush();
-    const blur = () => {
-      void flush();
-    };
-    window.addEventListener("blur", blur);
-    const unregister = registerPendingFlush(flush);
+    const unregister = registerPendingFlush(
+      async () => await persistence.flush()
+    );
     return () => {
-      window.removeEventListener("blur", blur);
       void releaseThenUnregister(release, unregister);
     };
   }, [persistence]);
