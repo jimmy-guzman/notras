@@ -33,6 +33,7 @@ import {
   decodeAttachmentPath,
   encodeAttachmentPath,
 } from "@/lib/utils/attachments";
+import { commands } from "@/server/adapters/bindings";
 
 import {
   converterOf,
@@ -831,12 +832,17 @@ export function Editor({
             );
       },
     },
+    // MarkdownPaste alone decides whether pasted text is markdown.
+    enablePasteRules: ["link"],
     extensions: [
       ...createEditorExtensions({
         getTitles: config.titles,
         onHistory: config.onHistory,
         placeholderText: config.placeholderText,
         readClipboardSource: isTauri() ? readClipboardSource : undefined,
+        readClipboardText: isTauri()
+          ? async () => await commands.readClipboardText()
+          : undefined,
         resolveImageSrc: config.resolveImageSrc,
       }),
       Find,

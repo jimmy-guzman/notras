@@ -272,3 +272,17 @@ pub fn read_clipboard_source(text: String) -> Result<Option<ClipboardSource>, Co
         Ok(None)
     }
 }
+
+/// The clipboard's plain text, if it holds any.
+#[tauri::command]
+#[specta::specta]
+pub fn read_clipboard_text() -> Result<Option<String>, CommandError> {
+    match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+        Ok(text) => Ok(Some(text)),
+        Err(arboard::Error::ContentNotAvailable) => Ok(None),
+        Err(error) => Err(CommandError::with_source(
+            "The clipboard could not be read",
+            error,
+        )),
+    }
+}

@@ -1,5 +1,6 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
+import { keydownHandler } from "@tiptap/pm/keymap";
 import type { Fragment, Slice } from "@tiptap/pm/model";
 import type { SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
@@ -9,6 +10,7 @@ import { toast } from "@/components/ui/toast";
 import type {
   ClipboardSource,
   ReadClipboardSource,
+  ReadClipboardText,
 } from "@/lib/ui/clipboard-source";
 import { reasonOf } from "@/lib/ui/failure";
 
@@ -18,10 +20,11 @@ interface PendingPaste {
 
 interface MarkdownPasteOptions {
   readClipboardSource: ReadClipboardSource | null;
+  readClipboardText: ReadClipboardText | null;
 }
 
 const MARKDOWN_PASTE_PATTERN =
-  /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+[.)]\s|^\s*>\s|^ {0,3}(?:`{3,}|~{3,})|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|^\s*[-*_]{3,}\s*$|^\|.+\|/mu;
+  /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+[.)]\s|^\s*>\s|^ {0,3}(?:`{3,}|~{3,})|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|(?:^|[^`])`[^`\n]+`(?!`)|(?:^|[\s(])(?<marker>[*_~])[^\s*_~](?:[^\n]*?\S)?\k<marker>(?![\w*_~])|^\s*[-*_]{3,}\s*$|^\|.+\|/mu;
 
 const EDITOR_METADATA = pipe(
   string(),
@@ -137,13 +140,51 @@ async function pasteBySource(
 }
 
 /**
+ * `pasteText` passes the paste handlers no clipboard data, so none of them
+ * reads the text as markdown or HTML.
+ */
+async function pastePlainText(
+  editor: Editor,
+  readClipboardText: ReadClipboardText,
+  paste: PendingPaste,
+  pending: Set<PendingPaste>,
+  previous: Promise<void>
+) {
+  try {
+    const [text] = await Promise.all([readClipboardText(), previous]);
+
+    if (editor.isDestroyed) {
+      return;
+    }
+    if (text === null || text === "") {
+      throw new Error("The clipboard holds no text");
+    }
+
+    const { state, view } = editor;
+
+    view.dispatch(state.tr.setSelection(paste.selection.resolve(state.doc)));
+    view.pasteText(text);
+  } catch (error) {
+    toast.add({
+      description: reasonOf(error),
+      title: "could not paste",
+      type: "error",
+    });
+  } finally {
+    pending.delete(paste);
+    await previous;
+  }
+}
+
+/**
  * Paste by the clipboard's source: the editor metadata on the event, the
  * native reader when the webview omits it, and markdown only when neither
- * the HTML nor the source says otherwise.
+ * the HTML nor the source says otherwise. ⌘⌥⇧V pastes the plain text as
+ * typed.
  */
 export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   addOptions() {
-    return { readClipboardSource: null };
+    return { readClipboardSource: null, readClipboardText: null };
   },
   addProseMirrorPlugins() {
     const pending = new Set<PendingPaste>();
@@ -153,6 +194,25 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
       new Plugin({
         key: new PluginKey("markdownPaste"),
         props: {
+          handleKeyDown: keydownHandler({
+            "Mod-Alt-Shift-v": (state) => {
+              if (this.options.readClipboardText === null) {
+                return false;
+              }
+
+              const paste = { selection: state.selection.getBookmark() };
+
+              pending.add(paste);
+              previous = pastePlainText(
+                this.editor,
+                this.options.readClipboardText,
+                paste,
+                pending,
+                previous
+              );
+              return true;
+            },
+          }),
           handlePaste: (view, event, slice) => {
             if (
               view.state.selection.$from.parent.type.spec.code === true ||

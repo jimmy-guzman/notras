@@ -1,13 +1,16 @@
 /* oxlint-disable vitest/prefer-strict-equal -- ProseMirror attrs have a null prototype, so a literal never strictly equals getJSON() output */
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { render, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
+import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   createEditorExtensions,
   serializeMarkdown,
 } from "@/components/editor/extensions";
+import { Toaster } from "@/components/ui/toast";
 import type { ClipboardSource } from "@/lib/ui/clipboard-source";
 
 let editor: Editor | undefined;
@@ -400,6 +403,25 @@ describe("markdown paste", () => {
       }
     );
 
+    it("should keep markdown marks literal in text copied from a rich-text app", async () => {
+      editor = new Editor({
+        content: "",
+        enablePasteRules: ["link"],
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => ({ kind: "richText" }),
+        }),
+      });
+      pasteText(editor, "run **x** and `ls`");
+      await sleep(0);
+
+      expect(editor.getJSON().content).toEqual([
+        {
+          content: [{ text: "run **x** and `ls`", type: "text" }],
+          type: "paragraph",
+        },
+      ]);
+    });
+
     it("should paste text copied from a rich-text app as text", async () => {
       editor = new Editor({
         content: "",
@@ -588,6 +610,27 @@ describe("markdown paste", () => {
       expect(editor.state.doc.textContent).toBe("const value = 1;");
     });
 
+    it("should paste inline code and single-marker emphasis as rich text", () => {
+      editor = new Editor({
+        content: "",
+        enablePasteRules: ["link"],
+        extensions: createEditorExtensions({}),
+      });
+      pasteText(editor, "use `npm` and *it*");
+
+      expect(editor.getJSON().content).toEqual([
+        {
+          content: [
+            { text: "use ", type: "text" },
+            { marks: [{ type: "code" }], text: "npm", type: "text" },
+            { text: " and ", type: "text" },
+            { marks: [{ type: "italic" }], text: "it", type: "text" },
+          ],
+          type: "paragraph",
+        },
+      ]);
+    });
+
     it("should still paste markdown prose as rich text", () => {
       editor = new Editor({
         content: "",
@@ -606,6 +649,80 @@ describe("markdown paste", () => {
           type: "paragraph",
         },
       ]);
+    });
+  });
+
+  describe("plain paste", () => {
+    it("should paste markdown-looking text as typed", async () => {
+      editor = new Editor({
+        content: "",
+        enablePasteRules: ["link"],
+        extensions: createEditorExtensions({
+          readClipboardText: async () => "# heading\n**bold**",
+        }),
+      });
+
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+      await sleep(0);
+
+      expect(editor.getJSON().content).toEqual([
+        { content: [{ text: "# heading", type: "text" }], type: "paragraph" },
+        { content: [{ text: "**bold**", type: "text" }], type: "paragraph" },
+      ]);
+    });
+
+    it("should paste where the key was pressed after the selection moves", async () => {
+      const clipboard = Promise.withResolvers<string>();
+
+      editor = new Editor({
+        content: "before replace after",
+        enablePasteRules: ["link"],
+        extensions: createEditorExtensions({
+          readClipboardText: async () => await clipboard.promise,
+        }),
+      });
+      editor.commands.setTextSelection({ from: 8, to: 15 });
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+      editor.commands.setTextSelection(1);
+      editor.commands.insertContent("x");
+      clipboard.resolve("*plain*");
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("xbefore *plain* after");
+    });
+
+    it("should explain a clipboard with no text", async () => {
+      render(createElement(Toaster));
+      editor = new Editor({
+        content: "note",
+        extensions: createEditorExtensions({
+          readClipboardText: async () => null,
+        }),
+      });
+
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+
+      await expect(
+        screen.findByText("The clipboard holds no text")
+      ).resolves.toBeDefined();
+      expect(editor.state.doc.textContent).toBe("note");
+    });
+
+    it("should still link a pasted URL", async () => {
+      editor = new Editor({
+        content: "",
+        enablePasteRules: ["link"],
+        extensions: createEditorExtensions({
+          readClipboardText: async () => "see https://example.com",
+        }),
+      });
+
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe(
+        "see [https://example.com](https://example.com)"
+      );
     });
   });
 });

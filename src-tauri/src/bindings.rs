@@ -30,6 +30,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
         // runtime. Tauri infers the actual handler runtime independently.
         .commands(tauri_specta::collect_commands![
             clipboard::read_clipboard_source,
+            clipboard::read_clipboard_text,
             notes::attach_file::<tauri::Wry>,
             notes::attach_image::<tauri::Wry>,
             notes::cancel_quit,
