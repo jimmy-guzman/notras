@@ -175,7 +175,16 @@ export function createNotePersistence(
   let savedEdits = 0;
   let savedName = document.nameId();
   let stashedAt = resumed === undefined ? undefined : initial.path;
+  /** Copies a relocation left at old paths, kept until each clear succeeds. */
+  const staleStashes = new Set<string>();
   let tail: Promise<unknown> = Promise.resolve();
+  /** Run after every queued write and path change, whichever way they settled. */
+  const enqueue = async <T>(run: () => Promise<T>) => {
+    // oxlint-disable-next-line promise/prefer-await-to-then -- the queue chains on the previous link whichever way it settled
+    const next = tail.then(run, run);
+    tail = next;
+    return await next;
+  };
 
   const inConflict = () => state.state.status === "conflict";
   const changed = () => {
@@ -206,6 +215,18 @@ export function createNotePersistence(
       ports.onPathChanged(receipt.path);
     }
   };
+  const clearStaleStashes = async () => {
+    await Promise.all(
+      [...staleStashes].map(async (path) => {
+        try {
+          await ports.clearStash(path);
+          staleStashes.delete(path);
+        } catch {
+          // Kept for the next try; the port logged the reason.
+        }
+      })
+    );
+  };
   const stashOurs = async () => {
     const { path } = state.state;
     try {
@@ -215,6 +236,7 @@ export function createNotePersistence(
       });
       stashedAt = path;
       state.setState((previous) => ({ ...previous, reason: undefined }));
+      await clearStaleStashes();
       return true;
     } catch (error) {
       state.setState((previous) => ({
@@ -231,23 +253,33 @@ export function createNotePersistence(
     try {
       await ports.clearStash(stashedAt);
       stashedAt = undefined;
+      await clearStaleStashes();
     } catch {
       // Left set so the next save tries again; the port logged the reason.
     }
   };
   /** Take the path the tab now holds for the same file, after the notes folder moved under it. */
   const relocate = async (path: string) => {
-    if (path === state.state.path) {
-      return;
-    }
-    // A read in flight asked about the old path.
-    latest += 1;
-    state.setState((previous) => ({ ...previous, path }));
-    // The stored review is keyed by path, so it moves with the tab.
-    if (inConflict()) {
-      await clearStash();
+    // Queued behind writes: a receipt for the old path would put it back.
+    const run = async () => {
+      if (path === state.state.path) {
+        return;
+      }
+      // A read in flight asked about the old path.
+      latest += 1;
+      state.setState((previous) => ({ ...previous, path }));
+      if (!inConflict()) {
+        return;
+      }
+      // The stored review is keyed by path. The new copy lands before the old
+      // one goes, so there is one on disk throughout.
+      if (stashedAt !== undefined) {
+        staleStashes.add(stashedAt);
+      }
+      staleStashes.delete(path);
       await stashOurs();
-    }
+    };
+    await enqueue(run);
   };
   const write = async () => {
     if (state.state.missing || inConflict()) {
@@ -324,12 +356,7 @@ export function createNotePersistence(
       return false;
     }
   };
-  const save = async () => {
-    // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
-    const next = tail.then(tryWrite, tryWrite);
-    tail = next;
-    return await next;
-  };
+  const save = async () => await enqueue(tryWrite);
   const debouncer = new Debouncer(
     () => {
       void save();
@@ -354,13 +381,7 @@ export function createNotePersistence(
       changed();
       documentListener?.(document.content(), undefined, state.state.sourceMode);
       debouncer.cancel();
-      const run = async () => {
-        await write();
-      };
-      // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
-      const next = tail.then(run, run);
-      tail = next;
-      await next;
+      await enqueue(write);
       return;
     }
     state.setState((previous) => ({
@@ -395,10 +416,7 @@ export function createNotePersistence(
         reconcileFile();
       }
     };
-    // oxlint-disable-next-line promise/prefer-await-to-then -- the write queue chains on the previous link whichever way it settled
-    const next = tail.then(run, run);
-    tail = next;
-    await next;
+    await enqueue(run);
   };
   const flush = async () => {
     debouncer.cancel();

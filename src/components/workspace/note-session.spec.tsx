@@ -593,9 +593,78 @@ describe(NoteSession, () => {
     await expect(editor()).resolves.toBe(liveEditor);
   });
 
+  it("should let a write in flight finish before the tab's new path takes over", async () => {
+    const writes: string[] = [];
+    const firstWrite = Promise.withResolvers<null>();
+    mockIPC(
+      withDisk(async (command, args) => {
+        if (command === "list_notes") {
+          return [];
+        }
+        if (command === "save_note" && readsPath(args)) {
+          writes.push(args.path);
+          if (writes.length === 1) {
+            await firstWrite.promise;
+          }
+          return {
+            kind: "committed",
+            receipt: {
+              path: args.path,
+              revision: `r${writes.length + 1}`,
+              updatedAt: writes.length + 1,
+              warnings: [],
+            },
+          };
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+    for (const open of getTabState().tabs) {
+      closeTab(open.id);
+    }
+    const client = mountSession("# Available\n\nOriginal text");
+    onTestFinished(() => {
+      client.clear();
+    });
+    const liveEditor = await editor();
+    disk.set("sub/a.md", {
+      content: "# Available\n\nOriginal text",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    act(() => {
+      typeAtEnd(liveEditor, "Typed ");
+    });
+    const flushing = flushPendingWrites();
+    await waitFor(() => {
+      expect(writes).toStrictEqual(["a.md"]);
+    });
+
+    await act(async () => {
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "sub/a.md" }],
+        "/notes"
+      );
+    });
+    firstWrite.resolve(null);
+    await act(async () => {
+      await flushing;
+    });
+    act(() => {
+      typeAtEnd(liveEditor, "again ");
+    });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+
+    expect(getTabState().tabs.map((open) => open.path)).toStrictEqual([
+      "sub/a.md",
+    ]);
+    expect(writes).toStrictEqual(["a.md", "sub/a.md"]);
+  });
+
   it("should move a stored review to the tab's new path when the notes folder moves under it", async () => {
-    const stashed: string[] = [];
-    const cleared: string[] = [];
+    const stashes: string[] = [];
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
@@ -603,12 +672,11 @@ describe(NoteSession, () => {
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
       (command, args) => {
-        if (command === "stash_conflict" && readsPath(args)) {
-          stashed.push(args.path);
-          return null;
-        }
-        if (command === "clear_conflict" && readsPath(args)) {
-          cleared.push(args.path);
+        if (
+          (command === "stash_conflict" || command === "clear_conflict") &&
+          readsPath(args)
+        ) {
+          stashes.push(`${command}:${args.path}`);
           return null;
         }
         if (command === "list_notes") {
@@ -633,11 +701,79 @@ describe(NoteSession, () => {
       );
     });
 
+    // The new copy lands before the old one goes.
     await waitFor(() => {
-      expect(stashed).toContain("sub/a.md");
+      expect(stashes).toStrictEqual([
+        "stash_conflict:a.md",
+        "stash_conflict:sub/a.md",
+        "clear_conflict:a.md",
+      ]);
     });
-    expect(cleared).toStrictEqual(["a.md"]);
     expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
+  });
+
+  it("should keep the old review copy until a later stash lands at the new path", async () => {
+    const stashes: string[] = [];
+    let refuseNewPath = true;
+    for (const open of getTabState().tabs) {
+      closeTab(open.id);
+    }
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk",
+      (command, args) => {
+        if (
+          (command === "stash_conflict" || command === "clear_conflict") &&
+          readsPath(args)
+        ) {
+          stashes.push(`${command}:${args.path}`);
+          if (
+            command === "stash_conflict" &&
+            args.path === "sub/a.md" &&
+            refuseNewPath
+          ) {
+            refuseNewPath = false;
+            throw new Error("Disk is full");
+          }
+          return null;
+        }
+        if (command === "list_notes") {
+          return [];
+        }
+        throw new Error(`unexpected command: ${command}`);
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    disk.set("sub/a.md", {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: 2,
+    });
+
+    await act(async () => {
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "sub/a.md" }],
+        "/notes"
+      );
+    });
+    await waitFor(() => {
+      expect(stashes).toStrictEqual([
+        "stash_conflict:a.md",
+        "stash_conflict:sub/a.md",
+      ]);
+    });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+
+    expect(stashes).toStrictEqual([
+      "stash_conflict:a.md",
+      "stash_conflict:sub/a.md",
+      "stash_conflict:sub/a.md",
+      "clear_conflict:a.md",
+    ]);
   });
 
   it("should open a file link through the note that holds it", async () => {
