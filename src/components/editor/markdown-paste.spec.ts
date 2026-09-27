@@ -157,6 +157,182 @@ describe("markdown paste", () => {
       expect(editor.state.doc.textContent).toBe("");
     });
 
+    it("should paste one line from a code editor inline in place of the selection", () => {
+      editor = new Editor({
+        content: "before replace after",
+        extensions: createEditorExtensions({}),
+      });
+      const before = editor.getJSON();
+      const clipboardData = new DataTransfer();
+
+      editor.commands.setTextSelection({ from: 8, to: 15 });
+      clipboardData.setData("text/plain", "value");
+      clipboardData.setData(
+        "text/html",
+        '<div style="white-space: pre;"><div><span>value</span></div></div>'
+      );
+      clipboardData.setData("vscode-editor-data", '{"mode":"ts"}');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+
+      expect(editor.getJSON().content).toEqual([
+        {
+          content: [
+            { text: "before ", type: "text" },
+            { marks: [{ type: "code" }], text: "value", type: "text" },
+            { text: " after", type: "text" },
+          ],
+          type: "paragraph",
+        },
+      ]);
+      expect(editor.commands.undo()).toBeTruthy();
+      expect(editor.getJSON()).toEqual(before);
+    });
+
+    it("should paste one line from Zed inline", async () => {
+      editor = new Editor({
+        content: "before after",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => ({ kind: "code", language: null }),
+        }),
+      });
+      editor.commands.setTextSelection(8);
+      pasteText(editor, "print(1)");
+      await sleep(0);
+
+      expect(editor.getJSON().content).toEqual([
+        {
+          content: [
+            { text: "before ", type: "text" },
+            { marks: [{ type: "code" }], text: "print(1)", type: "text" },
+            { text: "after", type: "text" },
+          ],
+          type: "paragraph",
+        },
+      ]);
+    });
+
+    it("should keep a whole-line copy ending in a newline as a code block", () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", "print(1)\n");
+      clipboardData.setData("vscode-editor-data", '{"mode":"python"}');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+
+      expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
+      expect(editor.state.doc.firstChild?.attrs.language).toBe("python");
+      expect(editor.state.doc.firstChild?.textContent).toBe("print(1)\n");
+    });
+
+    it("should parse a copy from a markdown file as markdown", () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", "# heading\n\n**bold**");
+      clipboardData.setData(
+        "text/html",
+        '<div style="white-space: pre;"><div><span># heading</span></div><br><div><span>**bold**</span></div></div>'
+      );
+      clipboardData.setData("vscode-editor-data", '{"mode":"markdown"}');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+
+      expect(editor.getJSON().content).toEqual([
+        {
+          attrs: { level: 1 },
+          content: [{ text: "heading", type: "text" }],
+          type: "heading",
+        },
+        {
+          content: [{ marks: [{ type: "bold" }], text: "bold", type: "text" }],
+          type: "paragraph",
+        },
+      ]);
+    });
+
+    it("should read the event's editor metadata before the native clipboard", async () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: () => {
+            throw new Error("the clipboard command is unavailable");
+          },
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", "# comment\nprint(1)");
+      clipboardData.setData("vscode-editor-data", '{"mode":"python"}');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+
+      expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
+      expect(editor.state.doc.firstChild?.attrs.language).toBe("python");
+    });
+
+    it("should preserve the original paste when the editor metadata is malformed", async () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => null,
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", "print(1)");
+      clipboardData.setData("vscode-editor-data", '{"mode":12}');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+
+      expect(editor.getJSON().content).toEqual([
+        { content: [{ text: "print(1)", type: "text" }], type: "paragraph" },
+      ]);
+    });
+
+    it("should preserve the original paste when the event metadata is malformed without the native reader", () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", "print(1)");
+      clipboardData.setData("vscode-editor-data", '{"mode":12}');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+
+      expect(editor.getJSON().content).toEqual([
+        { content: [{ text: "print(1)", type: "text" }], type: "paragraph" },
+      ]);
+    });
+
+    it("should parse a plain ordered list written with parentheses", () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      pasteText(editor, "1) one\n2) two");
+
+      expect(editor.state.doc.firstChild?.type.name).toBe("orderedList");
+      expect(editor.state.doc.firstChild?.childCount).toBe(2);
+    });
+
     it("should paste Zed code as a block without a language", async () => {
       editor = new Editor({
         content: "",
@@ -265,12 +441,14 @@ describe("markdown paste", () => {
         }),
       });
       editor.commands.setTextSelection(8);
-      pasteText(editor, "print(1)");
+      pasteText(editor, "print(1)\nprint(2)");
       editor.commands.insertContentAt(1, "new ");
       clipboard.resolve({ kind: "code", language: "python" });
       await sleep(0);
 
-      expect(editor.state.doc.textContent).toBe("new before print(1)after");
+      expect(editor.state.doc.textContent).toBe(
+        "new before print(1)\nprint(2)after"
+      );
       expect(editor.getJSON().content?.[1]?.type).toBe("codeBlock");
     });
 

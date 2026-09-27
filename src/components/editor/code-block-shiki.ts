@@ -529,12 +529,9 @@ function syntaxPlugin() {
 /** Highlight code without marks and serialize it inside a noncolliding fence. */
 export const CodeBlockShiki = CodeBlock.extend({
   addProseMirrorPlugins() {
-    const inherited = this.parent?.() ?? [];
-    // `extend` copies this method into the child, so an extended node runs it
-    // once per level of the chain and would install the plugin twice.
-    return inherited.some((plugin) => plugin.spec.key === key)
-      ? inherited
-      : [...inherited, syntaxPlugin()];
+    // CodeBlock's only plugin pastes editor metadata as a block, and
+    // MarkdownPaste owns that metadata.
+    return [syntaxPlugin()];
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";

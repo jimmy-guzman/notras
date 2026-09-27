@@ -667,9 +667,6 @@ export function createEditorExtensions(
     NoteMarkdown.configure({
       marked: createNoteMarked(),
     }),
-    MarkdownPaste.configure({
-      readClipboardSource: options.readClipboardSource ?? null,
-    }),
     CodeBlockShiki.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
@@ -677,6 +674,11 @@ export function createEditorExtensions(
     }),
     TableKit.configure({ table: false }),
     BoundedTable.configure({ resizable: false }),
+    // After the table, whose paste fills a cell selection, and before the
+    // lists, whose plain-text heuristic would outrun editor metadata.
+    MarkdownPaste.configure({
+      readClipboardSource: options.readClipboardSource ?? null,
+    }),
     NoteBulletList,
     NoteOrderedList,
     NoteTaskList,
