@@ -69,9 +69,10 @@ export const noteQueries = {
 
 /**
  * What a tab needs before its editor mounts: the file, then any stored review,
- * read once for the tab's life. Keyed by the tab rather than the path, so a
- * move or rename cannot hand the tab another path's read, and outside the
- * notes prefix, so no invalidation re-reads it; the session does that itself.
+ * read once for the tab's life. Keyed by the tab and its kind rather than the
+ * path: a move or rename cannot hand the tab another path's read, and a tab
+ * that changes kind reads afresh. Outside the notes prefix, so no invalidation
+ * re-reads it; the session does that itself.
  */
 export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
   queryOptions({
@@ -82,7 +83,7 @@ export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
       const file = await readSessionFile(kind, path);
       return { file, stash: await readConflictStash(kind, path) };
     },
-    queryKey: ["tab-opening", id] as const,
+    queryKey: ["tab-opening", id, kind] as const,
     staleTime: "static",
   });
 

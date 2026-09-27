@@ -8,10 +8,20 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import { Layout } from "@/layout";
 import { closeTab, getTabState } from "@/lib/tabs/store";
+
+const fileAt = (path: string) =>
+  path === "left.md" || path === "/notes/left.md"
+    ? { content: "# Left\n\nLeft behind", revision: "r2", updatedAt: 1 }
+    : {
+        content: "# Chosen\n\nAvailable document",
+        revision: "r1",
+        updatedAt: 1,
+      };
 
 describe("layout", () => {
   it("should recover the workspace after a failed restore is retried", async () => {
@@ -174,5 +184,129 @@ describe("layout", () => {
     });
 
     expect(await screen.findByText("changed elsewhere")).toBeInTheDocument();
+  });
+
+  it("should make every open tab follow its file when the notes folder changes", async () => {
+    const path = "/new/chosen.md";
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "saved",
+        carets: {},
+        tabs: [
+          { id: "saved", kind: "external", path },
+          { id: "left", kind: "note", path: "left.md" },
+        ],
+      })
+    );
+    mockWindows("main");
+    let notesDir = "/notes";
+    const noteReads: string[] = [];
+    const externalReads: string[] = [];
+    const calls: string[] = [];
+    mockIPC((command, args) => {
+      calls.push(command);
+      if (command === "write_external") {
+        return {
+          kind: "committed",
+          receipt: { path, revision: "r3", updatedAt: 2, warnings: [] },
+        };
+      }
+      if (command === "classify_open_paths") {
+        return notesDir === "/new"
+          ? [
+              { kind: "note", path: "chosen.md" },
+              { kind: "external", path: "/notes/left.md" },
+            ]
+          : [
+              { kind: "external", path },
+              { kind: "note", path: "left.md" },
+            ];
+      }
+      if (command === "get_notes_dir") {
+        return notesDir;
+      }
+      if (command === "set_notes_dir") {
+        notesDir = "/new";
+        return null;
+      }
+      if (command === "plugin:dialog|open") {
+        return "/new";
+      }
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+      if (command === "read_conflict") {
+        return null;
+      }
+      if (command === "read_external" || command === "read_note") {
+        const { path: file } = parse(object({ path: string() }), args);
+        (command === "read_note" ? noteReads : externalReads).push(file);
+        return fileAt(file);
+      }
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Available document")).toBeInTheDocument();
+    // Only the showing tab mounts, so nothing has read the note yet.
+    expect(noteReads).toHaveLength(0);
+    await user.keyboard("typed ");
+    await user.keyboard("{Control>},{/Control}");
+    await user.click(await screen.findByRole("button", { name: "change..." }));
+
+    await waitFor(() => {
+      expect(getTabState().tabs).toStrictEqual([
+        { id: "saved", kind: "note", path: "chosen.md" },
+        { id: "left", kind: "external", path: "/notes/left.md" },
+      ]);
+    });
+    // The edit landed where the tab was, before the folder moved under it.
+    expect(calls.indexOf("write_external")).toBeGreaterThan(-1);
+    expect(calls.indexOf("write_external")).toBeLessThan(
+      calls.indexOf("set_notes_dir")
+    );
+    // The showing tab remounted as a note and read from the library.
+    await waitFor(() => {
+      expect(noteReads).toContain("chosen.md");
+    });
+    await user.keyboard("{Escape}");
+    // The tab left behind opens as an external file at its old path.
+    await user.click(await screen.findByRole("tab", { name: /left/iu }));
+    await waitFor(() => {
+      expect(externalReads).toContain("/notes/left.md");
+    });
+    expect(await screen.findByText("Left behind")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("tab", { name: "Chosen" })
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Available document")).toBeInTheDocument();
   });
 });

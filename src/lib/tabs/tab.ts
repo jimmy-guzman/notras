@@ -10,7 +10,7 @@ import {
   string,
 } from "valibot";
 
-import type { OpenKind } from "@/server/adapters/bindings";
+import type { OpenKind, PendingOpen } from "@/server/adapters/bindings";
 
 /**
  * A note in the library, a markdown file outside it opened through "Open
@@ -217,30 +217,31 @@ export function replaceNotePath(
   };
 }
 
-/**
- * Turn the external tab `id` into the note at `path`, collapsing onto that
- * note's tab when it is already open.
- */
-export function adoptNote(state: TabState, id: string, path: string): TabState {
+/** Turn tab `id` into `open`, collapsing onto the tab already holding that file. */
+export function reclassifyTab(
+  state: TabState,
+  id: string,
+  open: PendingOpen
+): TabState {
   const index = indexOfId(state.tabs, id);
-  const adopted = state.tabs[index];
+  const tab = state.tabs[index];
 
-  if (adopted === undefined) {
+  if (tab === undefined || (tab.kind === open.kind && tab.path === open.path)) {
     return state;
   }
 
-  const existing = state.tabs[indexOfFile(state.tabs, "note", path)];
+  const existing = state.tabs[indexOfFile(state.tabs, open.kind, open.path)];
 
   if (existing !== undefined) {
     return {
-      activeId: state.activeId === adopted.id ? existing.id : state.activeId,
+      activeId: state.activeId === tab.id ? existing.id : state.activeId,
       tabs: state.tabs.toSpliced(index, 1),
     };
   }
 
   return {
     activeId: state.activeId,
-    tabs: state.tabs.with(index, { ...adopted, kind: "note", path }),
+    tabs: state.tabs.with(index, { ...tab, kind: open.kind, path: open.path }),
   };
 }
 

@@ -115,7 +115,7 @@ What notras does, as claims checkable against a running build.
 - Quitting and relaunching restores the open tabs, which one was active, and each tab's caret. Scroll position, undo history, and source mode do not survive. A draft does not survive either, and when it was active the restored active tab is the one closing it would have landed on. A store that does not parse is discarded whole.
 - Restoring tabs mounts the active editor only. Another restored tab mounts when first selected and, once its document has loaded, keeps its session from then on. Its saved caret survives a quit before it was ever selected.
 - A note closed or relaunched while its review was open reopens with the unsaved text and the banner, and its review picks up against whatever the file holds now. If the stored edits combine with the current file without overlap, the rich editor shows the combined text. A stored review that cannot be read shows the reason in the pane and offers to try again.
-- An external tab restored for a file inside the notes dir comes back as that note, and drops out when the note is already open in another tab.
+- When the notes folder changes, every open tab follows its file. An external tab whose file is now inside the folder becomes that note. A note tab whose file is now outside becomes an external tab at its full path. A note tab whose file is still inside keeps its session and edits and follows its new relative path. Either drops out when the file is already open in another tab. At launch, an external tab restored for a file inside the notes dir comes back as that note the same way.
 - With nothing to restore, the last deliberately chosen note that still exists opens when the full note list loads, ignoring pins. With no surviving history, the last saved note opens, with file path breaking ties. The welcome screen and new-note action remain available during that read, which says "indexing notes..." while the first scan runs. A tab change cancels this automatic opening, so a late result cannot replace the user's choice. A failed read shows its reason and a retry action.
 
 ## Browse notes
@@ -293,7 +293,7 @@ What notras does, as claims checkable against a running build.
 - If the webview never answers, the quit goes through after 5 seconds.
 - Quitting stops a running scan at its next step. The next launch's startup scan indexes what the interrupted scan had not reached. A reindex interrupted by a quit does not resume as a reindex; run "reindex library" again to refresh the remaining notes.
 - "Open With" opens each markdown file in its own tab, however many are picked at once: inside the notes dir as its note, outside as an external tab. A path that reaches the notes dir through a symlink counts as inside it. macOS only.
-- Settings exposes the notes folder and launch at login. Changing the folder watches the new folder, builds its index under the cache folder, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A quit during that build leaves the choice unsaved.
+- Settings exposes the notes folder and launch at login. Changing the folder saves every open tab first, and a save that fails keeps the folder where it is. It then watches the new folder, builds its index under the cache folder, and stores the choice. Notes in the current folder stay readable and saveable while the new folder's index builds. A quit during that build leaves the choice unsaved.
 
 ## Updates
 
