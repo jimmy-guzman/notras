@@ -31,6 +31,7 @@ import {
   moveTab,
   openDraft,
   openNote,
+  reclassifyTabs,
   refreshTabs,
   reopenTab,
   useTabState,
@@ -537,6 +538,106 @@ describe(NoteSession, () => {
       liveEditor.commands.undo();
     });
     expect(liveEditor.getText()).not.toContain("Typed");
+  });
+
+  it("should keep the session and save to the tab's new path when the notes folder moves under it", async () => {
+    const writes: string[] = [];
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "list_notes") {
+          return [];
+        }
+        if (command === "save_note" && readsPath(args)) {
+          writes.push(args.path);
+          return {
+            kind: "committed",
+            receipt: {
+              path: args.path,
+              revision: "r2",
+              updatedAt: 2,
+              warnings: [],
+            },
+          };
+        }
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+    for (const open of getTabState().tabs) {
+      closeTab(open.id);
+    }
+    const client = mountSession("# Available\n\nOriginal text");
+    onTestFinished(() => {
+      client.clear();
+    });
+    const liveEditor = await editor();
+    disk.set("sub/a.md", {
+      content: "# Available\n\nOriginal text",
+      revision: "r0",
+      updatedAt: 1,
+    });
+
+    await act(async () => {
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "sub/a.md" }],
+        "/notes"
+      );
+    });
+    act(() => {
+      typeAtEnd(liveEditor, "Typed ");
+    });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+
+    expect(writes).toStrictEqual(["sub/a.md"]);
+    await expect(editor()).resolves.toBe(liveEditor);
+  });
+
+  it("should move a stored review to the tab's new path when the notes folder moves under it", async () => {
+    const stashed: string[] = [];
+    const cleared: string[] = [];
+    for (const open of getTabState().tabs) {
+      closeTab(open.id);
+    }
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk",
+      (command, args) => {
+        if (command === "stash_conflict" && readsPath(args)) {
+          stashed.push(args.path);
+          return null;
+        }
+        if (command === "clear_conflict" && readsPath(args)) {
+          cleared.push(args.path);
+          return null;
+        }
+        if (command === "list_notes") {
+          return [];
+        }
+        throw new Error(`unexpected command: ${command}`);
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    disk.set("sub/a.md", {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: 2,
+    });
+
+    await act(async () => {
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "sub/a.md" }],
+        "/notes"
+      );
+    });
+
+    await waitFor(() => {
+      expect(stashed).toContain("sub/a.md");
+    });
+    expect(cleared).toStrictEqual(["a.md"]);
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
   });
 
   it("should open a file link through the note that holds it", async () => {

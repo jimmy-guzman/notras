@@ -303,6 +303,9 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   );
   const autosave = useAutosave(persistence);
   useLayoutEffect(() => {
+    void persistence.relocate(tab.path);
+  }, [persistence, tab.path]);
+  useLayoutEffect(() => {
     const replaceDocument = (
       content: string,
       selection: { anchor: number; head: number } | undefined,

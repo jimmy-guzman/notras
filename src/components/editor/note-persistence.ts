@@ -235,6 +235,20 @@ export function createNotePersistence(
       // Left set so the next save tries again; the port logged the reason.
     }
   };
+  /** Take the path the tab now holds for the same file, after the notes folder moved under it. */
+  const relocate = async (path: string) => {
+    if (path === state.state.path) {
+      return;
+    }
+    // A read in flight asked about the old path.
+    latest += 1;
+    state.setState((previous) => ({ ...previous, path }));
+    // The stored review is keyed by path, so it moves with the tab.
+    if (inConflict()) {
+      await clearStash();
+      await stashOurs();
+    }
+  };
   const write = async () => {
     if (state.state.missing || inConflict()) {
       return;
@@ -591,6 +605,7 @@ export function createNotePersistence(
     },
     /** Re-read the committed path; a failed read never rejects, and only the newest read counts. */
     refresh,
+    relocate,
     resolve,
     retain: () => {
       owners += 1;

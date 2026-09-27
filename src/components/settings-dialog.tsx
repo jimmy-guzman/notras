@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { setNotesDir } from "@/data/notes-dir";
+import { notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { reclassifyTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
@@ -82,8 +83,9 @@ export function SettingsDialog({
         return;
       }
       await setNotesDir(selected);
-      // A different folder invalidates every read the old one answered.
-      await queryClient.invalidateQueries();
+      // Sessions read the folder from this query, so it refetches before the
+      // tabs follow their files.
+      await queryClient.invalidateQueries({ queryKey: notesDirQuery.queryKey });
       toast.add({ title: "notes folder updated", type: "success" });
     } catch (error) {
       toast.add({
@@ -105,6 +107,8 @@ export function SettingsDialog({
         type: "error",
       });
     }
+    // A different folder invalidates every read the old one answered.
+    await queryClient.invalidateQueries();
   };
 
   const { isPending: autostartPending, mutate: writeAutostart } = useMutation({
