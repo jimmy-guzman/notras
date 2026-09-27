@@ -444,7 +444,6 @@ export function moveRangeByStep(
   }
 
   // A row is the unit whatever the selection was, and a cross-cell selection
-  // paints ragged. No `pointer` meta either way, so the typewriter recenters as
-  // it does for any keyboard travel.
+  // paints ragged.
   return (isRowRange(range) ? collapseMove(moved) : moved).scrollIntoView();
 }

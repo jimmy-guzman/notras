@@ -293,9 +293,6 @@ describe("command palette keyboard", () => {
     await palette.user.type(palette.input, "unpin");
     expect(document.body.textContent).toContain("unpin note");
     await palette.user.clear(palette.input);
-    await palette.user.type(palette.input, "turn on focus");
-    expect(document.body.textContent).toContain("turn on focus mode");
-    await palette.user.clear(palette.input);
     await palette.user.type(palette.input, "rename");
     await act(async () => {
       await Promise.resolve();
@@ -445,7 +442,6 @@ describe("recent commands", () => {
       ).toStrictEqual([
         "browse notes",
         "new note",
-        "turn on focus mode",
         "reopen last closed tab",
         "quick capture",
         "settings",
@@ -789,31 +785,12 @@ describe("recent commands", () => {
     ).toBeInTheDocument();
   });
 
-  it("should keep a command in recent when its label changes", async () => {
-    const palette = mount("actions", []);
-    await palette.user.click(
-      screen.getByRole("option", { name: "turn on focus mode" })
-    );
-    palette.unmount();
-    const reopened = mount("actions", []);
-
-    expect(
-      within(screen.getByRole("group", { name: "recent" })).getByRole(
-        "option",
-        { name: "turn off focus mode" }
-      )
-    ).toBeInTheDocument();
-    await reopened.user.click(
-      screen.getByRole("option", { name: "turn off focus mode" })
-    );
-    expect(
-      within(screen.getByRole("group", { name: "recent" })).getAllByRole(
-        "option"
-      )
-    ).toHaveLength(1);
-  });
-
   it("should leave command history alone when a workspace shortcut runs", async () => {
+    closeNoteBrowser();
+    onTestFinished(() => {
+      act(closeNoteBrowser);
+      localStorage.removeItem("note-browser-open");
+    });
     const user = userEvent.setup();
     const client = new QueryClient();
     mockWindows("main");
@@ -836,18 +813,18 @@ describe("recent commands", () => {
         />
       </QueryClientProvider>
     );
-    await user.keyboard("{Control>}d{/Control}");
+    await user.keyboard("{Control>}\\{/Control}");
     workspace.unmount();
     const palette = mount("actions", []);
 
     expect(
-      screen.getByRole("option", { name: "turn off focus mode" })
+      screen.getByRole("option", { name: "close note browser" })
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("group", { name: "recent" })
     ).not.toBeInTheDocument();
     await palette.user.click(
-      screen.getByRole("option", { name: "turn off focus mode" })
+      screen.getByRole("option", { name: "close note browser" })
     );
   });
 });

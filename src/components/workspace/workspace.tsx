@@ -26,7 +26,6 @@ import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
-import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import { lastChosenNote } from "@/lib/recent-notes";
 import {
   activateTab,
@@ -169,7 +168,6 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
 interface ActiveStatusBarProps {
   graphEnabled: boolean;
   onFilterTag: (tag: string) => void;
-  onToggleFocusMode: () => void;
   onToggleGraph: () => void;
   onToggleSource: () => void;
   tab: Tab;
@@ -178,17 +176,14 @@ interface ActiveStatusBarProps {
 function ActiveStatusBar({
   graphEnabled,
   onFilterTag,
-  onToggleFocusMode,
   onToggleGraph,
   onToggleSource,
   tab,
 }: ActiveStatusBarProps) {
   const snapshot = useTabSnapshot(tab.id);
-  const focusModeEnabled = useFocusMode();
 
   return (
     <StatusBar
-      focusModeEnabled={focusModeEnabled}
       graphEnabled={graphEnabled}
       note={
         tab.kind === "note"
@@ -196,7 +191,6 @@ function ActiveStatusBar({
           : undefined
       }
       onFilterTag={onFilterTag}
-      onToggleFocusMode={onToggleFocusMode}
       onToggleGraph={onToggleGraph}
       onToggleSource={onToggleSource}
       sourceEnabled={snapshot?.sourceMode ?? false}
@@ -467,7 +461,6 @@ export function Workspace({
   });
   useHotkey("Mod+F", openNoteFind, { meta: { name: "find in note" } });
   useHotkey("Mod+\\", toggleNoteBrowser, { meta: { name: "browse notes" } });
-  useHotkey("Mod+D", toggleFocusMode, { meta: { name: "focus mode" } });
   useHotkey(
     "Mod+Shift+D",
     () => {
@@ -578,7 +571,6 @@ export function Workspace({
         <ActiveStatusBar
           graphEnabled={graphMode}
           onFilterTag={onFilterTag}
-          onToggleFocusMode={toggleFocusMode}
           onToggleGraph={toggleGraphView}
           onToggleSource={toggleSource}
           tab={activeTab}

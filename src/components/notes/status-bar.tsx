@@ -1,4 +1,4 @@
-import { Code2Icon, FocusIcon, WaypointsIcon } from "lucide-react";
+import { Code2Icon, WaypointsIcon } from "lucide-react";
 
 import { Chord } from "@/components/chord";
 import { MentionsOf } from "@/components/notes/note-mentions";
@@ -13,12 +13,10 @@ import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 
 interface StatusBarProps {
-  focusModeEnabled: boolean;
   graphEnabled: boolean;
   /** External files do not belong to the saved library. */
   note?: { path: string; tags: string[] };
   onFilterTag: (tag: string) => void;
-  onToggleFocusMode: () => void;
   onToggleGraph: () => void;
   onToggleSource: () => void;
   sourceEnabled: boolean;
@@ -26,11 +24,9 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
-  focusModeEnabled,
   graphEnabled,
   note,
   onFilterTag,
-  onToggleFocusMode,
   onToggleGraph,
   onToggleSource,
   sourceEnabled,
@@ -39,13 +35,6 @@ export function StatusBar({
   const hasNote = note !== undefined;
   const chordsByName = useChordsByName();
   const toggles = [
-    {
-      icon: FocusIcon,
-      label: "focus mode",
-      onToggle: onToggleFocusMode,
-      pressed: focusModeEnabled,
-      value: "focus",
-    },
     {
       icon: Code2Icon,
       label: "markdown source",

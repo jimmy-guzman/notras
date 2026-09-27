@@ -355,15 +355,6 @@ describe("shared surface colors", () => {
     expect(html).not.toContain("scrollbar-width:");
   });
 
-  it("should hide the shadcn scrollbar in focus mode", () => {
-    expect(
-      blockOf(
-        source,
-        '[data-focus-mode="true"] [data-slot="scroll-area-scrollbar"]'
-      )
-    ).toContain("display: none;");
-  });
-
   it("should use one readable selection treatment inside and outside the editor", () => {
     const selection = blockOf(source, "::selection");
 

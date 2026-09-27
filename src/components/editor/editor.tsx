@@ -50,11 +50,6 @@ import type { LinkHoverState } from "./link-hover";
 import { LinkHover } from "./link-hover";
 import type { DocumentEdit, SelectionReader } from "./note-document";
 import { findSentinel, SENTINEL } from "./sentinel";
-import {
-  createTypewriter,
-  engageTypewriterPadding,
-  TYPEWRITER_SCROLL,
-} from "./typewriter";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 /** Long enough to cross the gap between a link and its panel. */
@@ -315,19 +310,6 @@ function touchesTitle(transaction: Transaction) {
   });
 }
 
-function selectionSpansBlocks({ doc, selection }: EditorState) {
-  if (selection.empty) {
-    return false;
-  }
-
-  // `to` sits after the last block when a whole node is selected, so the last
-  // position inside the range is what names that block.
-  return (
-    doc.resolve(selection.from).index(0) !==
-    doc.resolve(selection.to - 1).index(0)
-  );
-}
-
 function sourceOffset(
   editor: TiptapEditor,
   position: number,
@@ -402,8 +384,6 @@ interface EditorProps {
    * path, null for a file that takes no attachments, absent for the notes root.
    */
   documentPath?: () => null | string;
-  findOpen?: boolean;
-  focusModeEnabled?: boolean;
   focusOnMount?: boolean;
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
@@ -439,30 +419,16 @@ interface EditorProps {
  * and owns history when `onHistory` is supplied. Frontmatter stays in the session.
  */
 // oxlint-disable-next-line react-doctor/no-giant-component -- the split is tracked in #203
-export function Editor({
-  findOpen = false,
-  focusModeEnabled = false,
-  ...mountProps
-}: EditorProps) {
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+export function Editor(mountProps: EditorProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
-  // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
-  const [typewriter] = useState(createTypewriter);
   const attachScrollArea = (root: HTMLDivElement | null) => {
-    scrollAreaRef.current = root;
     scrollerRef.current =
       root?.querySelector<HTMLDivElement>(
         '[data-slot="scroll-area-viewport"]'
       ) ?? null;
-    typewriter.setScroller(scrollerRef.current);
   };
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
-  const previousFocusModeRef = useRef(focusModeEnabled);
-
-  useEffect(() => {
-    typewriter.setEnabled(focusModeEnabled && !findOpen);
-  }, [findOpen, focusModeEnabled, typewriter]);
 
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
@@ -516,7 +482,6 @@ export function Editor({
     closeHover.cancel();
     setLinkHover(null);
   };
-  const [reading, setReading] = useState(false);
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [linkShortcut] = useState(() =>
     // ⌘K belongs to the palette, so the link keys sit under ⌘⇧: K makes one, O
@@ -863,7 +828,6 @@ export function Editor({
       }),
       Find,
       linkShortcut,
-      typewriter.extension,
     ],
     immediatelyRender: false,
     injectNonce: styleNonce,
@@ -957,9 +921,6 @@ export function Editor({
     onDestroy: () => {
       dismissHover();
       config.onSelect?.(undefined);
-    },
-    onSelectionUpdate: ({ editor: instance }) => {
-      setReading(selectionSpansBlocks(instance.state));
     },
     onTransaction: ({
       editor: instance,
@@ -1055,91 +1016,9 @@ export function Editor({
 
         return true;
       })
-      .setMeta(TYPEWRITER_SCROLL, "skip")
       .scrollIntoView()
       .run();
   }, [config, editor]);
-
-  // The recenter rides the plugin's own meta so one animator owns every
-  // scroll, and it is gated on a real off-to-on flip so a mount with the
-  // pref already on pads without gliding.
-  useEffect(() => {
-    const wasEnabled = previousFocusModeRef.current;
-
-    previousFocusModeRef.current = focusModeEnabled;
-
-    const scroller = scrollerRef.current;
-    const content = editor?.view.dom.parentElement;
-
-    const engage = (
-      instance: TiptapEditor,
-      area: HTMLElement,
-      body: HTMLElement
-    ) => {
-      const recenter = () => {
-        if (instance.isDestroyed) {
-          return;
-        }
-
-        instance
-          .chain()
-          .setMeta(TYPEWRITER_SCROLL, "center")
-          .scrollIntoView()
-          .run();
-      };
-      const disengage = engageTypewriterPadding(area, body, recenter);
-
-      if (!wasEnabled) {
-        recenter();
-      }
-
-      return disengage;
-    };
-
-    return !focusModeEnabled ||
-      editor === null ||
-      scroller === null ||
-      !(content instanceof HTMLElement)
-      ? undefined
-      : engage(editor, scroller, content);
-  }, [editor, focusModeEnabled]);
-
-  // Wheel and touchmove, never scroll: scroll also fires for the typewriter
-  // glide and ProseMirror's own scrollIntoView, which move the scroller on
-  // every keystroke (`D64`).
-  useEffect(() => {
-    const surface = scrollAreaRef.current;
-    const watched = focusModeEnabled && surface !== null;
-    const engage = () => {
-      setReading(true);
-    };
-
-    // The other half of `onSelectionUpdate`: ProseMirror drops a pointer
-    // selection equal to the current one before it ever becomes a transaction,
-    // so a click on the caret already there reaches no callback. It defers to
-    // the selection because a drag across blocks can end in a click too.
-    const restore = () => {
-      const instance = editorRef.current;
-
-      setReading(instance !== null && selectionSpansBlocks(instance.state));
-    };
-
-    if (watched) {
-      surface.addEventListener("wheel", engage, { passive: true });
-      surface.addEventListener("touchmove", engage, { passive: true });
-      surface.addEventListener("click", restore);
-    }
-
-    return () => {
-      if (!watched) {
-        return;
-      }
-      surface.removeEventListener("wheel", engage);
-      surface.removeEventListener("touchmove", engage);
-      surface.removeEventListener("click", restore);
-      setReading(false);
-    };
-  }, [focusModeEnabled]);
 
   const cancelLink = () => {
     setLinkEditor(null);
@@ -1238,13 +1117,7 @@ export function Editor({
   };
 
   return (
-    <ScrollArea
-      className="min-h-0 flex-1 select-text"
-      data-find-open={findOpen}
-      data-focus-mode={focusModeEnabled}
-      data-reading={reading}
-      ref={attachScrollArea}
-    >
+    <ScrollArea className="min-h-0 flex-1 select-text" ref={attachScrollArea}>
       <EditorContent className="min-h-full" editor={editor} />
       {linkHover === null || linkEditor !== null ? null : (
         <LinkHover

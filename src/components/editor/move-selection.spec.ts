@@ -391,18 +391,6 @@ describe("moveRange over a selection", () => {
     expect(empty).toBeTruthy();
     expect(text).toBe("one");
   });
-
-  it("should leave a keyboard move free to recenter the typewriter", () => {
-    const editor = load("one\n\ntwo");
-    const at = inside(editor.state.doc, "paragraph", 0);
-
-    editor.commands.setTextSelection({ from: at, to: at });
-
-    const tr = moveRangeByStep(editor.state, false);
-    editor.destroy();
-
-    expect(tr?.getMeta("pointer")).toBeUndefined();
-  });
 });
 
 describe(dragRange, () => {
