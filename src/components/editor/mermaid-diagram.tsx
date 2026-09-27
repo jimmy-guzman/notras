@@ -1,5 +1,7 @@
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Suspense, use } from "react";
+import type { FallbackProps } from "react-error-boundary";
+import { ErrorBoundary } from "react-error-boundary";
 
 import { styleNonce } from "@/lib/style-nonce";
 import { reasonOf } from "@/lib/ui/failure";
@@ -65,9 +67,18 @@ function Drawing({ code }: { code: string }) {
   );
 }
 
+function renderLoadFailure({ error }: FallbackProps) {
+  return (
+    <div className="code-block-reason" contentEditable={false}>
+      {reasonOf(error) ?? "The diagram renderer did not load"}
+    </div>
+  );
+}
+
 /**
  * A `mermaid` fence's drawing, or the reason it has none. Renders nothing for
- * an empty fence and while the renderer is still on its way.
+ * an empty fence and while the renderer is still on its way, and the reason
+ * when the renderer never arrives, so a note keeps editing around it.
  */
 export function MermaidDiagram({ code }: { code: string }) {
   // A large diagram laid out on every keystroke would land on the keystroke's frame.
@@ -78,8 +89,10 @@ export function MermaidDiagram({ code }: { code: string }) {
   }
 
   return (
-    <Suspense fallback={null}>
-      <Drawing code={settled} />
-    </Suspense>
+    <ErrorBoundary fallbackRender={renderLoadFailure}>
+      <Suspense fallback={null}>
+        <Drawing code={settled} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
