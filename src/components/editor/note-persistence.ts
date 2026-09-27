@@ -234,7 +234,12 @@ export function createNotePersistence(
         base: state.state.base,
         ours: document.content(),
       });
-      stashedAt = path;
+      // A copy that landed after the tab moved is stale on arrival.
+      if (state.state.path === path) {
+        stashedAt = path;
+      } else {
+        staleStashes.add(path);
+      }
       state.setState((previous) => ({ ...previous, reason: undefined }));
       await clearStaleStashes();
       return true;
@@ -247,16 +252,15 @@ export function createNotePersistence(
     }
   };
   const clearStash = async () => {
-    if (stashedAt === undefined) {
-      return;
+    if (stashedAt !== undefined) {
+      try {
+        await ports.clearStash(stashedAt);
+        stashedAt = undefined;
+      } catch {
+        // Left set so the next save tries again; the port logged the reason.
+      }
     }
-    try {
-      await ports.clearStash(stashedAt);
-      stashedAt = undefined;
-      await clearStaleStashes();
-    } catch {
-      // Left set so the next save tries again; the port logged the reason.
-    }
+    await clearStaleStashes();
   };
   /** Take the path the tab now holds for the same file, after the notes folder moved under it. Answers whether the path changed. */
   const relocate = async (path: string) => {

@@ -780,6 +780,171 @@ describe(NoteSession, () => {
     ]);
   });
 
+  it("should file a review copy that lands after the tab moved as stale", async () => {
+    const user = userEvent.setup();
+    const stashes: string[] = [];
+    const writes: string[] = [];
+    const held = Promise.withResolvers<null>();
+    let oldPathStashes = 0;
+    for (const open of getTabState().tabs) {
+      closeTab(open.id);
+    }
+    const { client } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk",
+      async (command, args) => {
+        if (
+          (command === "stash_conflict" || command === "clear_conflict") &&
+          readsPath(args)
+        ) {
+          stashes.push(`${command}:${args.path}`);
+          if (command === "stash_conflict" && args.path === "a.md") {
+            oldPathStashes += 1;
+            // The second one is a blur flush caught by the folder change.
+            if (oldPathStashes === 2) {
+              await held.promise;
+            }
+          }
+          return null;
+        }
+        if (command === "save_note" && readsPath(args)) {
+          writes.push(args.path);
+          return {
+            kind: "committed",
+            receipt: {
+              path: args.path,
+              revision: "r2",
+              updatedAt: 3,
+              warnings: [],
+            },
+          };
+        }
+        if (command === "list_notes") {
+          return [];
+        }
+        throw new Error(`unexpected command: ${command}`);
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    disk.set("sub/a.md", {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: 2,
+    });
+    const flushing = flushPendingWrites();
+    await waitFor(() => {
+      expect(oldPathStashes).toBe(2);
+    });
+
+    await act(async () => {
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "sub/a.md" }],
+        "/notes"
+      );
+    });
+    await waitFor(() => {
+      expect(stashes).toContain("stash_conflict:sub/a.md");
+    });
+    held.resolve(null);
+    await act(async () => {
+      await flushing;
+    });
+    await user.click(screen.getByRole("button", { name: "review" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "result for place 1" }),
+      "body, both"
+    );
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await act(async () => {
+      await flushPendingWrites();
+    });
+
+    expect(writes).toStrictEqual(["sub/a.md"]);
+    expect(stashes).toContain("clear_conflict:sub/a.md");
+    expect(stashes.at(-1)).toBe("clear_conflict:sub/a.md");
+  });
+
+  it("should retry clearing an old review copy on a later clean save", async () => {
+    const user = userEvent.setup();
+    const stashes: string[] = [];
+    let oldPathClears = 0;
+    for (const open of getTabState().tabs) {
+      closeTab(open.id);
+    }
+    const { client, liveEditor } = await mountConflict(
+      "# Errands\n\nbody",
+      "# Errands\n\nbody, on disk",
+      (command, args) => {
+        if (
+          (command === "stash_conflict" || command === "clear_conflict") &&
+          readsPath(args)
+        ) {
+          stashes.push(`${command}:${args.path}`);
+          if (command === "clear_conflict" && args.path === "a.md") {
+            oldPathClears += 1;
+            if (oldPathClears < 3) {
+              throw new Error("Disk is busy");
+            }
+          }
+          return null;
+        }
+        if (command === "save_note" && readsPath(args)) {
+          return {
+            kind: "committed",
+            receipt: {
+              path: args.path,
+              revision: `r${stashes.length}`,
+              updatedAt: stashes.length,
+              warnings: [],
+            },
+          };
+        }
+        if (command === "list_notes") {
+          return [];
+        }
+        throw new Error(`unexpected command: ${command}`);
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    disk.set("sub/a.md", {
+      content: "# Errands\n\nbody, on disk",
+      revision: "r1",
+      updatedAt: 2,
+    });
+
+    await act(async () => {
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "sub/a.md" }],
+        "/notes"
+      );
+    });
+    await waitFor(() => {
+      expect(oldPathClears).toBe(1);
+    });
+    await user.click(screen.getByRole("button", { name: "review" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "result for place 1" }),
+      "body, both"
+    );
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await act(async () => {
+      await flushPendingWrites();
+    });
+    act(() => {
+      typeAtEnd(liveEditor, "Typed ");
+    });
+    await act(async () => {
+      await flushPendingWrites();
+    });
+
+    expect(oldPathClears).toBe(3);
+    expect(stashes.at(-1)).toBe("clear_conflict:a.md");
+  });
+
   it("should open a file link through the note that holds it", async () => {
     const opened: unknown[] = [];
     mockIPC(
