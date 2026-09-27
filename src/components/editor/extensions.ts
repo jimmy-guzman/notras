@@ -15,11 +15,9 @@ import { Code } from "@tiptap/extension-code";
 import { Image } from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
-import { ListItem, OrderedList } from "@tiptap/extension-list";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
-import { TaskItem } from "@tiptap/extension-task-item";
 import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import type { MarkdownExtensionOptions } from "@tiptap/markdown";
@@ -32,13 +30,16 @@ import type { Marked } from "marked";
 import { encode } from "mdurl";
 
 import { contentOf, hasString } from "@/components/editor/attrs";
-import {
-  BoundedOrderedList,
-  BoundedTable,
-  BoundedTaskList,
-} from "@/components/editor/bounded-tokenizers";
+import { BoundedTable } from "@/components/editor/bounded-tokenizers";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
+import {
+  NoteBulletList,
+  NoteListItem,
+  NoteOrderedList,
+  NoteTaskItem,
+  NoteTaskList,
+} from "@/components/editor/lists";
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
@@ -111,60 +112,6 @@ const NoteParagraph = Paragraph.extend({
     }
 
     return Paragraph.config.parseMarkdown?.(token, helpers) ?? [];
-  },
-});
-
-/** marked reads a marker line that ends in a space as a paragraph. */
-const MARKER_LINE_SPACES = /(?<=^\S+) +(?=\n)/u;
-
-/**
- * TODO: drop the parsers here and on `NoteOrderedList` once
- * `@tiptap/extension-list` leads an item with a paragraph. Through 3.31.3 an
- * item can open with a table, fence, quote or list, which the schema rejects.
- */
-const NoteListItem = ListItem.extend({
-  parseMarkdown(token, helpers) {
-    const item = ListItem.config.parseMarkdown?.(token, helpers) ?? [];
-
-    if (Array.isArray(item) || item.content?.[0]?.type === "paragraph") {
-      return item;
-    }
-
-    return {
-      ...item,
-      content: [{ type: "paragraph" }, ...(item.content ?? [])],
-    };
-  },
-  renderMarkdown(node, helpers, context) {
-    return (
-      ListItem.config.renderMarkdown?.(node, helpers, context) ?? ""
-    ).replace(MARKER_LINE_SPACES, "");
-  },
-});
-
-/**
- * An ordered list builds its items without the item's parser, so it leads
- * them with the paragraph `NoteListItem` does.
- */
-const NoteOrderedList = BoundedOrderedList.extend({
-  parseMarkdown(token, helpers) {
-    const list = OrderedList.config.parseMarkdown?.(token, helpers) ?? [];
-
-    if (Array.isArray(list)) {
-      return list;
-    }
-
-    return {
-      ...list,
-      content: list.content?.map((item) =>
-        item.content?.[0]?.type === "paragraph"
-          ? item
-          : {
-              ...item,
-              content: [{ type: "paragraph" }, ...(item.content ?? [])],
-            }
-      ),
-    };
   },
 });
 
@@ -664,6 +611,7 @@ export function createEditorExtensions(
 ): Extensions {
   return [
     StarterKit.configure({
+      bulletList: false,
       code: false,
       codeBlock: false,
       // Draws during a DOM `dragover`, which the window's file drop handling
@@ -729,9 +677,10 @@ export function createEditorExtensions(
     }),
     TableKit.configure({ table: false }),
     BoundedTable.configure({ resizable: false }),
+    NoteBulletList,
     NoteOrderedList,
-    BoundedTaskList,
-    TaskItem.configure({ nested: true }),
+    NoteTaskList,
+    NoteTaskItem.configure({ nested: true }),
     NoteImage.configure({
       // Markdown images are inline; the block default breaks a paragraph (`D58`).
       inline: true,
