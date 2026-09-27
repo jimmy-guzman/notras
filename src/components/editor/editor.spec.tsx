@@ -12,6 +12,7 @@ import { Editor as TiptapEditor } from "@tiptap/core";
 import { Plugin, Selection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
+import { is, string } from "valibot";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
@@ -839,6 +840,33 @@ describe("mermaid diagrams", () => {
     expect(diagram.outerHTML).not.toMatch(/url\((?!#)/iu);
     expect(diagram.querySelector('[stroke="#f00"]')).not.toBeNull();
     expect(diagram.querySelector('[fill="rgb(255 0 0)"]')).not.toBeNull();
+  });
+
+  it("should lay out only the newest code of a fence still waiting", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    await screen.findByRole("img", { name: "diagram" });
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
+    const pos = editor.state.doc.child(0).nodeSize + 1;
+
+    for (const line of ["%% 1\n", "%% 2\n", "%% 3\n"]) {
+      act(() => {
+        editor.commands.insertContentAt(pos, line);
+      });
+    }
+
+    const codes = () =>
+      // The highlighter's worker shares the prototype and posts objects.
+      posted.mock.calls
+        .map(([code]: [unknown, ...unknown[]]) => code)
+        .filter((code) => is(string(), code));
+
+    await waitFor(() => {
+      expect(codes().at(-1)).toMatch(/^%% 3/u);
+    });
+    expect(codes().some((code) => code.startsWith("%% 2"))).toBeFalsy();
   });
 
   it("should try again after the renderer fails once the fence changes", async () => {

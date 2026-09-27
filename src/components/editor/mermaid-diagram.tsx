@@ -1,22 +1,36 @@
-import { Suspense, use, useDeferredValue, useMemo } from "react";
+import { Suspense, use, useDeferredValue, useId, useMemo } from "react";
 import type { FallbackProps } from "react-error-boundary";
 import { ErrorBoundary } from "react-error-boundary";
 
 import { styleNonce } from "@/lib/style-nonce";
 import { reasonOf } from "@/lib/ui/failure";
 
-export interface DiagramRequest {
+export type DiagramResponse = { reason: string } | { svg: string };
+
+interface Waiting {
   code: string;
-  id: number;
+  resolvers: PromiseWithResolvers<DiagramResponse>;
 }
 
-type Drawn = { reason: string } | { svg: string };
-
-export type DiagramResponse = { id: number } & Drawn;
-
-let nextId = 0;
-const pending = new Map<number, PromiseWithResolvers<Drawn>>();
+/** The newest code of each fence, until the worker is free for it. */
+const waiting = new Map<string, Waiting>();
+let inFlight: PromiseWithResolvers<DiagramResponse> | undefined;
 let instance: undefined | Worker;
+
+function post(worker: Worker) {
+  if (inFlight !== undefined) {
+    return;
+  }
+  const [next] = waiting;
+  if (next === undefined) {
+    return;
+  }
+  const [fence, { code, resolvers }] = next;
+  waiting.delete(fence);
+  inFlight = resolvers;
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin
+  worker.postMessage(code);
+}
 
 function start() {
   const worker = new Worker(new URL("diagram-worker.ts", import.meta.url), {
@@ -24,9 +38,10 @@ function start() {
   });
   worker.addEventListener(
     "message",
-    ({ data: { id, ...drawn } }: MessageEvent<DiagramResponse>) => {
-      pending.get(id)?.resolve(drawn);
-      pending.delete(id);
+    ({ data }: MessageEvent<DiagramResponse>) => {
+      inFlight?.resolve(data);
+      inFlight = undefined;
+      post(worker);
     }
   );
   // A worker that cannot start answers nothing, so its requests fail here
@@ -34,10 +49,12 @@ function start() {
   worker.addEventListener("error", (event) => {
     worker.terminate();
     instance = undefined;
-    for (const waiting of pending.values()) {
-      waiting.reject(new Error(event.message));
+    inFlight?.reject(new Error(event.message));
+    inFlight = undefined;
+    for (const { resolvers } of waiting.values()) {
+      resolvers.reject(new Error(event.message));
     }
-    pending.clear();
+    waiting.clear();
   });
   return worker;
 }
@@ -47,14 +64,12 @@ function start() {
 // flowchart takes 293ms.
 instance = start();
 
-async function request(code: string) {
-  instance ??= start();
-  nextId += 1;
-  const resolvers = Promise.withResolvers<Drawn>();
-  pending.set(nextId, resolvers);
-  const message: DiagramRequest = { code, id: nextId };
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin
-  instance.postMessage(message);
+async function request(fence: string, code: string) {
+  const resolvers = Promise.withResolvers<DiagramResponse>();
+  // Newer code for a fence takes the place of code still waiting. The render
+  // that asked for the older code is superseded, and its promise goes with it.
+  waiting.set(fence, { code, resolvers });
+  post((instance ??= start()));
   return await resolvers.promise;
 }
 
@@ -78,7 +93,7 @@ function toElement(markup: string) {
 
   // The stylesheet imports Inter from Google Fonts. The policy blocks the
   // fetch and the app names its own face, so only the import goes.
-  style.textContent = style.textContent.replace(/@import[^;]*;/u, "");
+  style.textContent = style.textContent.replaceAll(/@import[^;]*;/gu, "");
   if (styleNonce !== undefined) {
     style.setAttribute("nonce", styleNonce);
   }
@@ -98,7 +113,7 @@ function toElement(markup: string) {
   return svg;
 }
 
-function Drawing({ drawing }: { drawing: Promise<Drawn> }) {
+function Drawing({ drawing }: { drawing: Promise<DiagramResponse> }) {
   const drawn = use(drawing);
 
   if ("reason" in drawn) {
@@ -138,13 +153,14 @@ function renderLoadFailure({ error }: FallbackProps) {
 export function MermaidDiagram({ code }: { code: string }) {
   // The last drawing stays on screen while the next one is laid out.
   const settled = useDeferredValue(code);
+  const fence = useId();
   // `use` needs one promise per code across the renders a suspended first
   // draw retries, and this component stays committed while the drawing
   // suspends below it, so the promise lives here rather than in a cache.
   const drawing = useMemo(
-    (): Promise<Drawn> | undefined =>
-      settled.trim() === "" ? undefined : request(settled),
-    [settled]
+    (): Promise<DiagramResponse> | undefined =>
+      settled.trim() === "" ? undefined : request(fence, settled),
+    [fence, settled]
   );
 
   if (drawing === undefined) {
