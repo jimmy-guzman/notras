@@ -163,7 +163,7 @@ The global shortcut opens a small always-on-top window running a bare editor. Es
 
 ### D21 No end-to-end tests this pass
 
-Playwright cannot drive a Tauri window, so its smoke tests were deleted rather than ported and wdio plus tauri-driver is deferred. Window behaviour now has no coverage of either kind: `AGENTS.md` says to exercise it under `pnpm dev`, and `D61` records why the written walkthrough that used to carry it is gone.
+Playwright cannot drive a Tauri window, so its smoke tests were deleted rather than ported and wdio plus tauri-driver is deferred. Window behaviour now has no coverage of either kind: `AGENTS.md` says to exercise it under `pnpm dev`, and `D61` records why the written walkthrough that used to carry it is gone. A macOS smoke flow on wdio's embedded driver later covered one edit, save and relaunch path, which `ARCHITECTURE.md` describes under the test seam.
 
 ### D22 Base UI under the shadcn base-maia style
 
