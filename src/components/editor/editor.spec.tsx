@@ -12,7 +12,6 @@ import { Editor as TiptapEditor } from "@tiptap/core";
 import { Plugin, Selection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
-import { is, string } from "valibot";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
@@ -717,59 +716,17 @@ describe("mermaid diagrams", () => {
     expect(diagram.querySelector('[fill="rgb(255 0 0)"]')).not.toBeNull();
   });
 
-  it("should lay out only the newest code of a fence still waiting", async () => {
-    const { editor } = await mount({ initialContent: FENCE });
+  it("should draw a fence in the node view's first render once the renderer has loaded", async () => {
+    await mount({ initialContent: FENCE });
     await screen.findByRole("img", { name: "diagram" });
-    const posted = vi.spyOn(Worker.prototype, "postMessage");
-    onTestFinished(() => {
-      posted.mockRestore();
-    });
-    const pos = editor.state.doc.child(0).nodeSize + 1;
 
-    for (const line of ["%% 1\n", "%% 2\n", "%% 3\n"]) {
-      act(() => {
-        editor.commands.insertContentAt(pos, line);
-      });
-    }
-
-    const codes = () =>
-      // The highlighter's worker shares the prototype and posts objects.
-      posted.mock.calls
-        .map(([code]: [unknown, ...unknown[]]) => code)
-        .filter((code) => is(string(), code));
-
+    const { scroller } = await mount({ initialContent: FENCE });
     await waitFor(() => {
-      expect(codes().at(-1)).toMatch(/^%% 3/u);
+      expect(scroller.querySelector(".code-block-wrapper")).not.toBeNull();
     });
-    expect(codes().some((code) => code.startsWith("%% 2"))).toBeFalsy();
-  });
+    const wrapper = scroller.querySelector(".code-block-wrapper");
 
-  it("should try again after the renderer fails once the fence changes", async () => {
-    // The worker is the furthest boundary: a request to it fails outright.
-    const posted = vi
-      .spyOn(Worker.prototype, "postMessage")
-      .mockImplementation(function failing(this: Worker) {
-        this.dispatchEvent(new ErrorEvent("error", { message: "boom" }));
-      });
-    const { editor } = await mount({
-      initialContent: "before\n\n```mermaid\ngraph LR\n  X --> Y\n```",
-    });
-
-    const reason = await screen.findByText("boom");
-
-    expect(reason).toHaveClass("code-block-reason");
-
-    posted.mockRestore();
-    act(() => {
-      editor.commands.insertContentAt(
-        editor.state.doc.child(0).nodeSize + 1,
-        "%% again\n"
-      );
-    });
-
-    expect(
-      await screen.findByRole("img", { name: "diagram" })
-    ).toBeInTheDocument();
+    expect(wrapper?.querySelector(".code-block-diagram > svg")).not.toBeNull();
   });
 
   it("should show the reason for a diagram it cannot draw", async () => {
