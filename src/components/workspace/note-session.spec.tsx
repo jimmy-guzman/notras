@@ -570,10 +570,11 @@ describe(NoteSession, () => {
       client.clear();
     });
     const liveEditor = await editor();
+    // Written while the watcher changed folders, so no event named it.
     disk.set("sub/a.md", {
-      content: "# Available\n\nOriginal text",
-      revision: "r0",
-      updatedAt: 1,
+      content: "# Available\n\nChanged in the gap",
+      revision: "r1",
+      updatedAt: 2,
     });
 
     await act(async () => {
@@ -581,6 +582,9 @@ describe(NoteSession, () => {
         async () => [{ kind: "note", path: "sub/a.md" }],
         "/notes"
       );
+    });
+    await waitFor(() => {
+      expect(liveEditor.getText()).toContain("Changed in the gap");
     });
     act(() => {
       typeAtEnd(liveEditor, "Typed ");

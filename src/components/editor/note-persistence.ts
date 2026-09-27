@@ -258,18 +258,18 @@ export function createNotePersistence(
       // Left set so the next save tries again; the port logged the reason.
     }
   };
-  /** Take the path the tab now holds for the same file, after the notes folder moved under it. */
+  /** Take the path the tab now holds for the same file, after the notes folder moved under it. Answers whether the path changed. */
   const relocate = async (path: string) => {
     // Queued behind writes: a receipt for the old path would put it back.
     const run = async () => {
       if (path === state.state.path) {
-        return;
+        return false;
       }
       // A read in flight asked about the old path.
       latest += 1;
       state.setState((previous) => ({ ...previous, path }));
       if (!inConflict()) {
-        return;
+        return true;
       }
       // The stored review is keyed by path. The new copy lands before the old
       // one goes, so there is one on disk throughout.
@@ -278,8 +278,9 @@ export function createNotePersistence(
       }
       staleStashes.delete(path);
       await stashOurs();
+      return true;
     };
-    await enqueue(run);
+    return await enqueue(run);
   };
   const write = async () => {
     if (state.state.missing || inConflict()) {

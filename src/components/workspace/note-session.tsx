@@ -302,9 +302,19 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     )
   );
   const autosave = useAutosave(persistence);
+  // A write landing while the watcher changed folders is reported by neither,
+  // so a moved tab re-reads its file once the editor can take it. A rename
+  // reports no move: its receipt already carried the file, and a read here
+  // would race its undo.
+  const ready = findHandle !== null;
   useLayoutEffect(() => {
-    void persistence.relocate(tab.path);
-  }, [persistence, tab.path]);
+    const follow = async () => {
+      if ((await persistence.relocate(tab.path)) && ready) {
+        await persistence.refresh();
+      }
+    };
+    void follow();
+  }, [persistence, ready, tab.path]);
   useLayoutEffect(() => {
     const replaceDocument = (
       content: string,
@@ -331,7 +341,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   // A read replaces the document through the editor, so none may land before
   // one is attached. The first read on attach catches anything that changed
   // between the opening read and now.
-  const ready = findHandle !== null;
   useLayoutEffect(() => {
     if (ready) {
       void persistence.refresh();
