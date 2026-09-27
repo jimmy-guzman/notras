@@ -44,7 +44,7 @@ import {
   useTabState,
 } from "@/lib/tabs/store";
 import type { Tab, TabState } from "@/lib/tabs/tab";
-import { stepTab } from "@/lib/tabs/tab";
+import { fileKind, stepTab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
@@ -558,7 +558,8 @@ export function Workspace({
                   tab.id === activeId || hasTabSnapshot(tab.id) ? (
                     <NoteSession
                       active={tab.id === activeId}
-                      key={tab.id}
+                      // The buffer fixes its file kind at mount, so a kind change remounts.
+                      key={`${fileKind(tab.kind)}:${tab.id}`}
                       tab={tab}
                     />
                   ) : null

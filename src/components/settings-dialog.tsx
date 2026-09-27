@@ -21,7 +21,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { setNotesDir } from "@/data/notes-dir";
+import { flushPendingWrites } from "@/lib/pending-flush";
+import { reclassifyTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
+import { commands } from "@/server/adapters/bindings";
 
 interface SettingsDialogProps {
   notesDir: string;
@@ -68,6 +71,16 @@ export function SettingsDialog({
         return;
       }
 
+      // A note's save joins onto the current folder, so every buffer lands
+      // before the folder moves.
+      if (!(await flushPendingWrites())) {
+        toast.add({
+          description: "An open note could not be saved",
+          title: "could not update notes folder",
+          type: "error",
+        });
+        return;
+      }
       await setNotesDir(selected);
       // A different folder invalidates every read the old one answered.
       await queryClient.invalidateQueries();
@@ -76,6 +89,19 @@ export function SettingsDialog({
       toast.add({
         description: reasonOf(error),
         title: "could not update notes folder",
+        type: "error",
+      });
+      return;
+    }
+    try {
+      await reclassifyTabs(
+        async (paths) => await commands.classifyOpenPaths(paths),
+        notesDir
+      );
+    } catch (error) {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not update open tabs",
         type: "error",
       });
     }

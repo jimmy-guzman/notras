@@ -11,7 +11,6 @@ import type { PendingOpen } from "@/server/adapters/bindings";
 
 import type { ClosedTab, Tab, TabState } from "./tab";
 import {
-  adoptNote,
   closeDrafts,
   closeTab as closeInList,
   moveTabTo,
@@ -19,8 +18,10 @@ import {
   openTabAt,
   PersistedTabsSchema,
   pushClosed,
+  reclassifyTab,
   replaceNotePath,
   serializeTabs,
+  tabFullPath,
 } from "./tab";
 
 const STORAGE_KEY = "tabs";
@@ -192,26 +193,34 @@ export function restoreTabs() {
 }
 
 /**
- * Adopt restored external tabs that are notes today, so one file never carries
- * two sessions. A notes folder change can put an external file inside the
- * library.
+ * Make every open tab what its file is today. `notesDir` is the folder the
+ * note tabs' paths are relative to, which at a folder change is the one left.
  */
-export async function adoptVaultNotes(
-  classify: (paths: string[]) => Promise<PendingOpen[]>
+export async function reclassifyTabs(
+  classify: (paths: string[]) => Promise<PendingOpen[]>,
+  notesDir: string
 ) {
-  const external = getTabState().tabs.filter((tab) => tab.kind === "external");
+  const open = getTabState().tabs.filter((tab) => tab.kind !== "draft");
 
-  if (external.length === 0) {
+  if (open.length === 0) {
     return;
   }
 
-  const classified = await classify(external.map((tab) => tab.path));
+  const classified = await classify(
+    open.map((tab) => tabFullPath(tab, notesDir))
+  );
 
   let state = getTabState();
-  for (const [index, tab] of external.entries()) {
-    const open = classified[index];
-    if (open?.kind === "note") {
-      state = adoptNote(state, tab.id, open.path);
+  for (const [index, tab] of open.entries()) {
+    const target = classified[index];
+    const current = state.tabs.find((entry) => entry.id === tab.id);
+    // A tab that moved while the classifier answered keeps where it went.
+    if (
+      target !== undefined &&
+      current?.kind === tab.kind &&
+      current.path === tab.path
+    ) {
+      state = reclassifyTab(state, tab.id, target);
     }
   }
   setState(state);

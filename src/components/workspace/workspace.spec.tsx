@@ -169,6 +169,12 @@ describe("workspace", () => {
     );
     mockWindows("main");
     mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [
+          { kind: "note", path: "first.md" },
+          { kind: "note", path: "second.md" },
+        ];
+      }
       if (command === "get_notes_dir") {
         return "/notes";
       }

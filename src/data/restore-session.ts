@@ -1,7 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { adoptVaultNotes, getTabState, restoreTabs } from "@/lib/tabs/store";
+import { getTabState, reclassifyTabs, restoreTabs } from "@/lib/tabs/store";
 import { commands } from "@/server/adapters/bindings";
+
+import { getNotesDir } from "./notes-dir";
 
 /**
  * Reopen last session's tabs. A restored path that no longer reads closes its
@@ -13,8 +15,9 @@ async function restoreSession() {
   const restored = restoreTabs();
 
   if (restored) {
-    await adoptVaultNotes(
-      async (paths) => await commands.classifyOpenPaths(paths)
+    await reclassifyTabs(
+      async (paths) => await commands.classifyOpenPaths(paths),
+      await getNotesDir()
     );
   }
 

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import type { TabState } from "./tab";
 import {
-  adoptNote,
   closeDrafts,
   closeTab,
   moveTabTo,
@@ -11,6 +10,7 @@ import {
   openTabAt,
   PersistedTabsSchema,
   pushClosed,
+  reclassifyTab,
   replaceNotePath,
   serializeTabs,
   stepTab,
@@ -355,14 +355,17 @@ describe(replaceNotePath, () => {
   });
 });
 
-describe(adoptNote, () => {
+describe(reclassifyTab, () => {
   it("should turn the external tab into the note, keeping its id", () => {
     const state: TabState = {
       activeId: "id-external-/vault/b.md",
       tabs: [note("a.md"), external("/vault/b.md")],
     };
 
-    const next = adoptNote(state, "id-external-/vault/b.md", "b.md");
+    const next = reclassifyTab(state, "id-external-/vault/b.md", {
+      kind: "note",
+      path: "b.md",
+    });
 
     expect(next.tabs).toStrictEqual([
       note("a.md"),
@@ -371,20 +374,64 @@ describe(adoptNote, () => {
     expect(next.activeId).toBe("id-external-/vault/b.md");
   });
 
+  it("should turn the note tab into an external file at its full path, keeping its id", () => {
+    const state: TabState = {
+      activeId: "id-b.md",
+      tabs: [note("a.md"), note("b.md")],
+    };
+
+    const next = reclassifyTab(state, "id-b.md", {
+      kind: "external",
+      path: "/old/b.md",
+    });
+
+    expect(next.tabs).toStrictEqual([
+      note("a.md"),
+      { id: "id-b.md", kind: "external", path: "/old/b.md" },
+    ]);
+    expect(next.activeId).toBe("id-b.md");
+  });
+
   it("should collapse onto the note when it is already open", () => {
     const state: TabState = {
       activeId: "id-external-/vault/a.md",
       tabs: [note("a.md"), external("/vault/a.md")],
     };
 
-    const next = adoptNote(state, "id-external-/vault/a.md", "a.md");
+    const next = reclassifyTab(state, "id-external-/vault/a.md", {
+      kind: "note",
+      path: "a.md",
+    });
 
     expect(next.tabs).toStrictEqual([note("a.md")]);
     expect(next.activeId).toBe("id-a.md");
   });
 
+  it("should collapse onto the external tab already holding the file", () => {
+    const state: TabState = {
+      activeId: "id-a.md",
+      tabs: [note("a.md"), external("/old/a.md")],
+    };
+
+    const next = reclassifyTab(state, "id-a.md", {
+      kind: "external",
+      path: "/old/a.md",
+    });
+
+    expect(next.tabs).toStrictEqual([external("/old/a.md")]);
+    expect(next.activeId).toBe("id-external-/old/a.md");
+  });
+
+  it("should leave a tab alone when its kind and path already match", () => {
+    expect(
+      reclassifyTab(three, "id-b.md", { kind: "note", path: "b.md" })
+    ).toStrictEqual(three);
+  });
+
   it("should ignore an id that is not open", () => {
-    expect(adoptNote(three, "id-missing", "z.md")).toStrictEqual(three);
+    expect(
+      reclassifyTab(three, "id-missing", { kind: "note", path: "z.md" })
+    ).toStrictEqual(three);
   });
 });
 

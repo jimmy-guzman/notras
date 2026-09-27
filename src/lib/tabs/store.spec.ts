@@ -19,7 +19,6 @@ import { readRecentNotes } from "@/lib/recent-notes";
 
 import {
   activateTab,
-  adoptVaultNotes,
   changeNoteMetadata,
   closeOtherTabs,
   closeTab,
@@ -33,6 +32,7 @@ import {
   openNote,
   openTab,
   persistTabs,
+  reclassifyTabs,
   refreshTabs,
   registerLoadedNote,
   registerTabHandles,
@@ -242,7 +242,7 @@ describe("store", () => {
     expect(screen.getByText("Storage is full")).toBeInTheDocument();
   });
 
-  describe(adoptVaultNotes, () => {
+  describe(reclassifyTabs, () => {
     beforeEach(() => {
       localStorage.clear();
     });
@@ -258,7 +258,10 @@ describe("store", () => {
       );
       restoreTabs();
 
-      await adoptVaultNotes(async () => [{ kind: "note", path: "a.md" }]);
+      await reclassifyTabs(
+        async () => [{ kind: "note", path: "a.md" }],
+        "/vault"
+      );
 
       expect(getTabState().tabs).toStrictEqual([
         { id: "kept-x", kind: "note", path: "a.md" },
@@ -282,12 +285,57 @@ describe("store", () => {
       );
       restoreTabs();
 
-      await adoptVaultNotes(async (paths) =>
-        paths.map((path) => ({ kind: "external", path }))
+      await reclassifyTabs(
+        async (paths) => paths.map((path) => ({ kind: "external", path })),
+        "/vault"
       );
 
       expect(getTabState().tabs).toStrictEqual([
         { id: "kept-x", kind: "external", path: "/elsewhere/a.md" },
+      ]);
+    });
+
+    it("should ask about a note tab by its full path and move it out as an external tab", async () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeTabs({
+          activeId: "kept-a",
+          carets: {},
+          tabs: [{ id: "kept-a", kind: "note", path: "work/a.md" }],
+        })
+      );
+      restoreTabs();
+      const asked: string[][] = [];
+
+      await reclassifyTabs(async (paths) => {
+        asked.push(paths);
+        return paths.map((path) => ({ kind: "external", path }));
+      }, "/old");
+
+      expect(asked).toStrictEqual([["/old/work/a.md"]]);
+      expect(getTabState().tabs).toStrictEqual([
+        { id: "kept-a", kind: "external", path: "/old/work/a.md" },
+      ]);
+    });
+
+    it("should leave a tab alone when it moved while the classifier answered", async () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeTabs({
+          activeId: "kept-a",
+          carets: {},
+          tabs: [{ id: "kept-a", kind: "note", path: "a.md" }],
+        })
+      );
+      restoreTabs();
+
+      await reclassifyTabs(async (paths) => {
+        renameTab("kept-a", "b.md", "/old");
+        return paths.map((path) => ({ kind: "external", path }));
+      }, "/old");
+
+      expect(getTabState().tabs).toStrictEqual([
+        { id: "kept-a", kind: "note", path: "b.md" },
       ]);
     });
 
@@ -303,16 +351,16 @@ describe("store", () => {
       restoreTabs();
 
       await expect(
-        adoptVaultNotes(() => {
+        reclassifyTabs(() => {
           throw new Error("no answer");
-        })
+        }, "/vault")
       ).rejects.toThrow("no answer");
       expect(getTabState().tabs).toStrictEqual([
         { id: "kept-x", kind: "external", path: "/vault/a.md" },
       ]);
     });
 
-    it("should not ask when no external tab was restored", async () => {
+    it("should skip a draft, which has no file to ask about", async () => {
       localStorage.setItem(
         STORAGE_KEY,
         serializeTabs({
@@ -322,12 +370,20 @@ describe("store", () => {
         })
       );
       restoreTabs();
+      openDraft();
+      const asked: string[][] = [];
 
-      await adoptVaultNotes(() => {
-        throw new Error("asked");
-      });
+      await reclassifyTabs(async (paths) => {
+        asked.push(paths);
+        return [{ kind: "note", path: "a.md" }];
+      }, "/vault");
 
-      expect(getTabState().tabs.map((tab) => tab.id)).toStrictEqual(["kept-a"]);
+      expect(asked).toStrictEqual([["/vault/a.md"]]);
+      expect(getTabState().tabs.map((tab) => tab.kind)).toStrictEqual([
+        "note",
+        "draft",
+      ]);
+      closeTab(getTabState().activeId);
     });
   });
 
