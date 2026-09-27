@@ -82,6 +82,8 @@ describe("export pdf", () => {
 
   it("should copy the surface once it is painted after the dialog closes", async () => {
     const surface = surfaceOf("<pre>const</pre>");
+    const painting = Promise.withResolvers<undefined>();
+    const released = Promise.withResolvers<undefined>();
     const order: string[] = [];
     let printed: string | null | undefined;
     mockIPC((command) => {
@@ -95,15 +97,18 @@ describe("export pdf", () => {
       return null;
     });
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {
-        order.push("painted");
-        surface.innerHTML =
-          '<pre><span class="syntax-token">const</span></pre>';
-      })
-    ).resolves.toBe("/exports/hello.pdf");
-
+    const exported = exportPdf(surface, "hello", "hello", async () => {
+      order.push("painted");
+      painting.resolve(undefined);
+      await released.promise;
+      surface.innerHTML = '<pre><span class="syntax-token">const</span></pre>';
+    });
+    await painting.promise;
     expect(order).toStrictEqual(["dialog", "painted"]);
+    expect(document.querySelector(".print-sheet")).toBeNull();
+    released.resolve(undefined);
+
+    await expect(exported).resolves.toBe("/exports/hello.pdf");
     expect(printed).toBe("const");
   });
 
