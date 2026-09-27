@@ -21,6 +21,7 @@ import {
   revealSyntax,
   syntaxSettled,
 } from "@/components/editor/code-block-shiki";
+import { dragRange, isRowRange } from "@/components/editor/move-selection";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
@@ -781,18 +782,26 @@ export function Editor(mountProps: EditorProps) {
       },
       // Words selected inside one block copy without the blocks around them,
       // so words from a list item paste as words rather than as a new item.
+      // Reaching both ends of the block copies the block, the way a drag moves
+      // it, except in a cell, where a drag takes the row and the words are
+      // what the highlight promised.
       transformCopied: (slice, view) => {
-        const { $from, $to } = view.state.selection;
+        const { doc, selection } = view.state;
+        const { $from, $to } = selection;
         const from =
           config.documentPath === undefined ? "" : config.documentPath();
-        const copied =
-          $from.sameParent($to) && $from.parent.isTextblock
-            ? new Slice(
-                $from.parent.content.cut($from.parentOffset, $to.parentOffset),
-                0,
-                0
-              )
-            : slice;
+        const range = dragRange(doc, selection);
+        const words =
+          $from.sameParent($to) &&
+          $from.parent.isTextblock &&
+          (range === null || isRowRange(range));
+        const copied = words
+          ? new Slice(
+              $from.parent.content.cut($from.parentOffset, $to.parentOffset),
+              0,
+              0
+            )
+          : slice;
 
         return from === null
           ? copied

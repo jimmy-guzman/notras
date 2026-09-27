@@ -854,8 +854,8 @@ describe("copy", () => {
       "the site",
       "the site",
     ],
-    ["bold text", "**bold** text", "bold", "text", "bold text"],
-    ["a heading", "## heading text", "heading", "text", "heading text"],
+    ["bold text", "**bold** text more", "bold", "text", "bold text"],
+    ["a heading", "## heading text more", "heading", "text", "heading text"],
     [
       "a table cell",
       "| a | b |\n| --- | --- |\n| cell | x |",
@@ -872,12 +872,12 @@ describe("copy", () => {
     ],
     [
       "a wikilink",
-      "see [[Other note]] here",
+      "see [[Other note]] here now",
       "see",
       "here",
       "see Other note here",
     ],
-    ["an image", "a ![pic](attachments/x.png) b", "a", "b", "a pic b"],
+    ["an image", "a ![pic](attachments/x.png) b c", "a", "b", "a pic b"],
   ])(
     "should copy %s as the text it shows",
     async (_name, initialContent, first, last, text) => {
@@ -889,6 +889,36 @@ describe("copy", () => {
       );
 
       expect(copied.getData("text/plain")).toBe(text);
+    }
+  );
+
+  it.each([
+    [
+      "a code block",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+      "const a",
+      "2;",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+    ],
+    [
+      "a list item",
+      "- first words\n- second",
+      "first",
+      "words",
+      "- first words",
+    ],
+    ["a heading", "## heading text", "heading", "text", "## heading text"],
+  ])(
+    "should copy %s selected end to end as markdown",
+    async (_name, initialContent, first, last, markdown) => {
+      const { editor } = await mount({ initialContent });
+      const copied = copyBetween(
+        editor,
+        rangeOf(editor, first).from,
+        rangeOf(editor, last).to
+      );
+
+      expect(copied.getData("text/plain")).toBe(markdown);
     }
   );
 
@@ -1018,6 +1048,30 @@ describe("copy", () => {
       pasted.destroy();
     }
   );
+
+  it("should paste a code block copied end to end as a code block", async () => {
+    const { editor } = await mount({
+      initialContent: "```ts\nconst a = 1;\nconst b = 2;\n```",
+    });
+    const copied = copyBetween(
+      editor,
+      rangeOf(editor, "const a").from,
+      rangeOf(editor, "2;").to
+    );
+    const pasted = new TiptapEditor({
+      content: "",
+      extensions: createEditorExtensions({}),
+    });
+
+    pasted.view.dom.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: copied })
+    );
+
+    expect(serializeMarkdown(pasted).trimEnd()).toBe(
+      "```ts\nconst a = 1;\nconst b = 2;\n```"
+    );
+    pasted.destroy();
+  });
 });
 
 function pasteImage(editor: TiptapEditor, clipboardData = new DataTransfer()) {
