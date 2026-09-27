@@ -111,11 +111,16 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
 
-      - name: Setup Node for bindings
+      - name: Setup Node for Tauri and bindings
         if: runner.os == 'Linux'
         uses: $/.github/actions/setup-node
         with:
           save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
+
+      # Cargo alone does not check compatibility between Tauri's npm and crate versions.
+      - name: Build desktop
+        if: runner.os == 'Linux'
+        run: pnpm tauri build --debug --no-bundle --ci -- --locked
 
       - name: Check native binding drift
         if: runner.os == 'Linux'

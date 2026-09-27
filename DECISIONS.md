@@ -785,7 +785,7 @@ Tauri ships each package as an npm and crate pair, and `tauri build` errors when
 
 **Constraint:** Renovate's `lib/data/monorepo.json` carries `tauri` but no `plugins-workspace`, so `group:tauriMonorepo` covers the core pairs and the plugin rule here is a local stand-in for an entry that belongs upstream. It goes stale if Renovate adds one.
 
-**Constraint:** nothing in CI runs the Tauri CLI, so a pair that drifts anyway is caught by `tauri build` on the release tag. `tauri build --ignore-version-mismatches` exists and does not belong in `release.yml`.
+**Follow-up:** grouping updates did not make CI reject a mismatched pair. The Linux Rust job now runs Tauri's build command with bundling disabled, which retains its npm/crate compatibility check. `README.md` records the command. `--ignore-version-mismatches` belongs in neither CI nor the release workflow.
 
 ### D66 TanStack Query caches the reads, and the change event names what to invalidate
 

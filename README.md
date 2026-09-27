@@ -185,6 +185,8 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo test --workspace --locked` | engine and shell tests, including doctests |
 | `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
+PR CI runs `pnpm tauri build --debug --no-bundle --ci -- --locked` in the Linux Rust job to reject incompatible Tauri npm and crate versions before release (D65). Linux already installs both dependency sets for binding checks. The command builds the web assets and a debug executable without requiring signing credentials or publishing artifacts. Packaging and signing remain release checks.
+
 `AGENTS.md` maps the project docs and the rules for changing them.
 
 ## License
