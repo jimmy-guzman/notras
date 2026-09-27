@@ -1026,6 +1026,13 @@ describe("copy", () => {
       "here",
       "see [[Other note]] here",
     ],
+    [
+      "a code block end to end",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+      "const a",
+      "2;",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+    ],
   ])(
     "should paste %s copied from a note as they read",
     async (_name, initialContent, first, last, markdown) => {
@@ -1044,34 +1051,10 @@ describe("copy", () => {
         new ClipboardEvent("paste", { clipboardData: copied })
       );
 
-      expect(serializeMarkdown(pasted)).toBe(markdown);
+      expect(serializeMarkdown(pasted).trimEnd()).toBe(markdown);
       pasted.destroy();
     }
   );
-
-  it("should paste a code block copied end to end as a code block", async () => {
-    const { editor } = await mount({
-      initialContent: "```ts\nconst a = 1;\nconst b = 2;\n```",
-    });
-    const copied = copyBetween(
-      editor,
-      rangeOf(editor, "const a").from,
-      rangeOf(editor, "2;").to
-    );
-    const pasted = new TiptapEditor({
-      content: "",
-      extensions: createEditorExtensions({}),
-    });
-
-    pasted.view.dom.dispatchEvent(
-      new ClipboardEvent("paste", { clipboardData: copied })
-    );
-
-    expect(serializeMarkdown(pasted).trimEnd()).toBe(
-      "```ts\nconst a = 1;\nconst b = 2;\n```"
-    );
-    pasted.destroy();
-  });
 });
 
 function pasteImage(editor: TiptapEditor, clipboardData = new DataTransfer()) {
