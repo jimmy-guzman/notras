@@ -17,7 +17,7 @@ import { Link } from "@tiptap/extension-link";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
-import { Focus, Placeholder, UndoRedo } from "@tiptap/extensions";
+import { Placeholder, UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import type { MarkdownExtensionOptions } from "@tiptap/markdown";
 import { DOMSerializer } from "@tiptap/pm/model";
@@ -687,7 +687,6 @@ export function createEditorExtensions(
     Placeholder.configure({
       placeholder: options.placeholderText ?? "write another note...",
     }),
-    Focus.configure({ className: "has-focus", mode: "shallowest" }),
     CaretAfterBreak,
     DragSelection,
     MarkdownLinkInputRule,

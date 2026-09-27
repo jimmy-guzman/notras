@@ -106,7 +106,6 @@ export function CaptureWindow() {
       <Titlebar />
       <div className="bg-background relative mx-1 flex min-h-0 flex-1 flex-col overflow-clip rounded-lg">
         <Editor
-          findOpen={findState.open}
           focusOnMount
           initialContent=""
           key={session}

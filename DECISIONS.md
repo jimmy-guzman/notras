@@ -1204,3 +1204,11 @@ A `mermaid` fence draws in rich mode through `beautiful-mermaid`, Craft's render
 **Rejected: an edit and preview toggle per block,** scratch's model. Rejected because it adds a control and a per-block view state where the caret already says which one the writer wants, which is Obsidian's live preview model.
 
 **Constraint:** the library estimates label widths for Inter, and the drawing sets labels in the app's sans, so a long label can sit tight in its node.
+
+### D92 Focus mode is gone
+
+Focus mode, the dim and the typewriter recentre under ⌘D (`D63`, `D64`, `D75`), is removed. The owner went a week without turning it on, and the one contact in that week was an accidental ⌘D that dimmed the note mid-edit. A mode nobody reaches for costs a chord, a status strip toggle, a palette row and the editor's largest scroll path, and the accidental toggle showed that cost landing on the person. The pref, the chord, the toggles, the typewriter plugin, the reading lift and the tiptap `Focus` extension go with it. ⌘D is unbound.
+
+**Rejected: moving it off ⌘D and keeping it in the palette.** An accidental toggle stops, but the unused mode and its scroll machinery stay.
+
+**Constraint:** `localStorage["focus-mode"]` stays behind on a machine that set it. Nothing reads it and nothing removes it.

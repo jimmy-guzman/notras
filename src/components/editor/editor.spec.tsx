@@ -27,9 +27,7 @@ import { Editor } from "./editor";
 
 /**
  * Mount the editor and hand back its scroller div, its handle and the TipTap
- * instance TipTap attaches to the surface. happy-dom computes no CSS, so the
- * observable seam is the class the stylesheet keys off, the same seam TipTap's
- * own `has-focus` is.
+ * instance TipTap attaches to the surface.
  */
 const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   const handles: EditorHandle[] = [];
@@ -540,7 +538,7 @@ describe("link hover", () => {
   });
 });
 
-describe("focus mode reading state", () => {
+describe("document observation", () => {
   it("should apply a document observation without losing selection or existing undo", async () => {
     const { editor, handle, scroller } = await mount({
       initialContent: "# old\n\nbody",
@@ -562,125 +560,6 @@ describe("focus mode reading state", () => {
     });
     expect(handle.getContent()).toContain("# a longer title");
     expect(handle.getContent()).not.toContain("plus typing");
-  });
-
-  it("should lift the dim while scrolling", async () => {
-    const { scroller } = await mount({ focusModeEnabled: true });
-
-    fireEvent.wheel(scroller);
-
-    expect(scroller).toHaveAttribute("data-focus-mode", "true");
-    expect(scroller).toHaveAttribute("data-reading", "true");
-  });
-
-  it("should restore the dim when the caret engages", async () => {
-    const { handle, scroller } = await mount({ focusModeEnabled: true });
-
-    fireEvent.wheel(scroller);
-    act(() => {
-      handle.insertText("x");
-    });
-
-    expect(scroller).toHaveAttribute("data-reading", "false");
-  });
-
-  it("should restore the dim when a click leaves the selection alone", async () => {
-    const { scroller } = await mount({ focusModeEnabled: true });
-    const surface = scroller.querySelector(".ProseMirror");
-
-    if (surface === null) {
-      throw new Error("the editor surface did not render");
-    }
-
-    fireEvent.wheel(scroller);
-    fireEvent.click(surface);
-
-    expect(scroller).toHaveAttribute("data-reading", "false");
-  });
-
-  it("should lift the dim while touch scrolling", async () => {
-    const { scroller } = await mount({ focusModeEnabled: true });
-
-    fireEvent.touchMove(scroller);
-
-    expect(scroller).toHaveAttribute("data-reading", "true");
-  });
-
-  it("should lift the dim while the selection reaches another block", async () => {
-    const { editor, scroller } = await mount({ focusModeEnabled: true });
-
-    act(() => {
-      editor.commands.setTextSelection({
-        from: 2,
-        to: editor.state.doc.content.size - 2,
-      });
-    });
-
-    expect(scroller).toHaveAttribute("data-reading", "true");
-  });
-
-  it("should hold the dim for a selection inside one block", async () => {
-    const { editor, scroller } = await mount({ focusModeEnabled: true });
-
-    act(() => {
-      editor.commands.setTextSelection({ from: 1, to: 4 });
-    });
-
-    expect(scroller).toHaveAttribute("data-reading", "false");
-  });
-
-  it("should restore the dim when the selection collapses", async () => {
-    const { editor, handle, scroller } = await mount({
-      focusModeEnabled: true,
-    });
-
-    act(() => {
-      editor.commands.setTextSelection({
-        from: 2,
-        to: editor.state.doc.content.size - 2,
-      });
-    });
-    act(() => {
-      handle.insertText("x");
-    });
-
-    expect(scroller).toHaveAttribute("data-reading", "false");
-  });
-
-  it("should keep the dim lifted when a click ends a selection across blocks", async () => {
-    const { editor, scroller } = await mount({ focusModeEnabled: true });
-
-    act(() => {
-      editor.commands.setTextSelection({
-        from: 2,
-        to: editor.state.doc.content.size - 2,
-      });
-    });
-    fireEvent.click(editor.view.dom);
-
-    expect(scroller).toHaveAttribute("data-reading", "true");
-  });
-
-  it("should not track reading while focus mode is off", async () => {
-    const { scroller } = await mount({ focusModeEnabled: false });
-
-    fireEvent.wheel(scroller);
-
-    expect(scroller).toHaveAttribute("data-reading", "false");
-  });
-});
-
-describe("focus mode scroller", () => {
-  it("should mark the scroller while focus mode is on", async () => {
-    const { scroller } = await mount({ focusModeEnabled: true });
-
-    expect(scroller).toHaveAttribute("data-focus-mode", "true");
-  });
-
-  it("should not mark the scroller while focus mode is off", async () => {
-    const { scroller } = await mount({ focusModeEnabled: false });
-
-    expect(scroller).toHaveAttribute("data-focus-mode", "false");
   });
 });
 

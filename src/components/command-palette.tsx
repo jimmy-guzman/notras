@@ -6,7 +6,6 @@ import {
   CopyIcon,
   DownloadIcon,
   FileOutputIcon,
-  FocusIcon,
   FolderInputIcon,
   FolderOpenIcon,
   FolderOutputIcon,
@@ -52,7 +51,6 @@ import { noteFolder } from "@/core/notes";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { reindexAll } from "@/data/reindex";
-import { toggleFocusMode, useFocusMode } from "@/lib/prefs";
 import { forgetNote } from "@/lib/recent-notes";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
@@ -322,7 +320,6 @@ export function CommandPalette({
     });
   };
 
-  const focusModeEnabled = useFocusMode();
   const noteBrowserOpen = useNoteBrowser();
 
   // pdf.rs prints through AppKit, so the row exists where AppKit does.
@@ -474,17 +471,6 @@ export function CommandPalette({
       },
       text: "reveal in finder",
       value: "reveal-in-finder",
-    },
-    {
-      Icon: FocusIcon,
-      label: "focus mode",
-      needs: "none",
-      onSelect: () => {
-        close();
-        toggleFocusMode();
-      },
-      text: toggleActionText(focusModeEnabled, "focus mode"),
-      value: "toggle-focus-mode",
     },
     {
       Icon: Code2Icon,

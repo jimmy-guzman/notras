@@ -479,9 +479,9 @@ class DragSelectionView {
       // The press was a click after all, and `preventDefault` means the browser
       // did not move the caret, so place it where the pointer went down.
       view.dispatch(
-        view.state.tr
-          .setSelection(TextSelection.near(view.state.doc.resolve(pressedAt)))
-          .setMeta("pointer", true)
+        view.state.tr.setSelection(
+          TextSelection.near(view.state.doc.resolve(pressedAt))
+        )
       );
 
       return;
@@ -491,12 +491,10 @@ class DragSelectionView {
       return;
     }
 
-    // `pointer` meta keeps the typewriter on its default scroll, so the note
-    // does not lurch under a drop.
     const tr = dropped(view.state, held, dropAt);
 
     if (tr !== null) {
-      view.dispatch(tr.setMeta("pointer", true));
+      view.dispatch(tr);
     }
   };
 

@@ -278,20 +278,6 @@ body.dragging .ProseMirror::selection {
   border-left: 2px solid var(--primary);
 }
 
-/* Focus mode: dim every top-level block except the active one. */
-[data-focus-mode="true"] .ProseMirror > :not(.has-focus) {
-  opacity: 0.28;
-  transition: opacity 0.3s ease;
-}
-
-/* Scrolling is reading, and so is a selection reaching past the caret's block:
-   either lifts the dim until the caret engages again. Overriding opacity while
-   the rule above still matches keeps its transition on the element, so both
-   directions animate (`D64`). */
-[data-focus-mode="true"][data-reading="true"] .ProseMirror > :not(.has-focus) {
-  opacity: 1;
-}
-
 /* Base UI skips these registrations in WebKit to support inherited overflow
    effects. The editors use none; inheritance makes each scroll restyle the note. */
 @property --scroll-area-overflow-x-start {
@@ -329,13 +315,6 @@ body.dragging .ProseMirror::selection {
   pointer-events: auto;
   opacity: 1;
   transition-duration: 0.15s;
-}
-
-/* Focus mode holds the line still, and a scrollbar flashing on every
-   recentre is noise against that stillness. Wheel and trackpad scrolling
-   are untouched; only the bar goes. */
-[data-focus-mode="true"] [data-slot="scroll-area-scrollbar"] {
-  display: none;
 }
 
 /* Regular lists get the same paragraph-margin taming. */
@@ -942,12 +921,6 @@ body.dragging .ProseMirror::selection {
 .note-find-active {
   outline: 1px solid var(--primary);
   outline-offset: 1px;
-}
-
-[data-focus-mode="true"][data-find-open="true"]
-  .ProseMirror
-  > :not(.has-focus) {
-  opacity: 1;
 }
 
 @media (forced-colors: active) {

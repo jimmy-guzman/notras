@@ -62,7 +62,6 @@ import type { SessionFile } from "@/data/read-session-file";
 import { resolveExternalLink } from "@/data/resolve-external-link";
 import { saveNote } from "@/data/save-note";
 import { exportPdf } from "@/lib/export-pdf";
-import { useFocusMode } from "@/lib/prefs";
 import { renameRecentNote } from "@/lib/recent-notes";
 import {
   activateTab,
@@ -436,8 +435,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     clearRestoredCaret(id);
   }, [id]);
 
-  const focusModeEnabled = useFocusMode();
-
   // Stable across renders, unlike `autosave` itself (a fresh object every
   // render, since `status` changes on every keystroke).
   const { onChange, onHistory } = autosave;
@@ -771,8 +768,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           />
         ) : (
           <Editor
-            findOpen={findState.open}
-            focusModeEnabled={focusModeEnabled}
             focusOnMount={focusOnMount}
             initialContent={sentineledBody ?? body}
             onChange={handleBodyChange}
