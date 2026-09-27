@@ -29,7 +29,9 @@ describe("export pdf", () => {
     mockIPC(invoke);
     const surface = surfaceOf("<p>hello</p>");
 
-    await expect(exportPdf(surface, "hello", "hello")).resolves.toBeNull();
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).resolves.toBeNull();
 
     expect(invoke).toHaveBeenCalledOnce();
     expect(invoke.mock.calls[0]?.[1]).toMatchObject({
@@ -69,13 +71,45 @@ describe("export pdf", () => {
     );
     surface.classList.add("note-find-open");
 
-    await expect(exportPdf(surface, "hello", "Hello")).resolves.toBe(
-      "/exports/hello.pdf"
-    );
+    await expect(
+      exportPdf(surface, "hello", "Hello", async () => {})
+    ).resolves.toBe("/exports/hello.pdf");
 
     expect(printed).toStrictEqual({ state: null, text: "hello" });
     expect(document.querySelector(".print-sheet")).toBeNull();
     expect(surface.isConnected).toBeTruthy();
+  });
+
+  it("should copy the surface once it is painted after the dialog closes", async () => {
+    const surface = surfaceOf("<pre>const</pre>");
+    const painting = Promise.withResolvers<undefined>();
+    const released = Promise.withResolvers<undefined>();
+    const order: string[] = [];
+    let printed: string | null | undefined;
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        order.push("dialog");
+        return "/exports/hello.pdf";
+      }
+      printed = document.querySelector(
+        ".print-sheet .syntax-token"
+      )?.textContent;
+      return null;
+    });
+
+    const exported = exportPdf(surface, "hello", "hello", async () => {
+      order.push("painted");
+      painting.resolve(undefined);
+      await released.promise;
+      surface.innerHTML = '<pre><span class="syntax-token">const</span></pre>';
+    });
+    await painting.promise;
+    expect(order).toStrictEqual(["dialog", "painted"]);
+    expect(document.querySelector(".print-sheet")).toBeNull();
+    released.resolve(undefined);
+
+    await expect(exported).resolves.toBe("/exports/hello.pdf");
+    expect(printed).toBe("const");
   });
 
   it("should remove the sheet and carry the reason when the write fails", async () => {
@@ -91,7 +125,9 @@ describe("export pdf", () => {
     });
     const surface = surfaceOf("<p>hello</p>");
 
-    await expect(exportPdf(surface, "hello", "hello")).rejects.toMatchObject({
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).rejects.toMatchObject({
       message: "the pdf could not be written",
     });
     expect(document.querySelector(".print-sheet")).toBeNull();

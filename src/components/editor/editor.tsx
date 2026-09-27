@@ -17,7 +17,10 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 
 import { hasString } from "@/components/editor/attrs";
-import { revealSyntax } from "@/components/editor/code-block-shiki";
+import {
+  revealSyntax,
+  syntaxSettled,
+} from "@/components/editor/code-block-shiki";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
@@ -388,6 +391,8 @@ export interface EditorHandle {
   revealSyntax: () => () => void;
   /** The rendered note, read for a copy and never written. */
   surface: () => HTMLElement;
+  /** Resolves once the highlighter owes no answer, for a print. */
+  syntaxSettled: () => Promise<void>;
 }
 
 interface EditorProps {
@@ -922,6 +927,9 @@ export function Editor({
         },
         revealSyntax: () => revealSyntax(instance.view),
         surface: () => instance.view.dom,
+        syntaxSettled: async () => {
+          await syntaxSettled(instance.view);
+        },
       });
     },
     onDestroy: () => {

@@ -67,12 +67,14 @@ function keepHeadings(surface: HTMLElement, sheet: HTMLElement) {
  * where it went, or null when the dialog was cancelled and nothing was
  * written. A copy of the surface goes into a `.print-sheet`, the one element
  * print media shows, so the PDF is the note as the editor drew it and none of
- * the bars around it.
+ * the bars around it. `painted` runs after the dialog closes, so highlighting
+ * a refresh started during the dialog lands before the copy.
  */
 export async function exportPdf(
   surface: HTMLElement,
   name: string,
-  title: string
+  title: string,
+  painted: () => Promise<void>
 ): Promise<string | null> {
   const path = await save({
     defaultPath: `${name}.pdf`,
@@ -83,6 +85,7 @@ export async function exportPdf(
     return null;
   }
 
+  await painted();
   const sheet = document.createElement("div");
 
   sheet.className = "print-sheet";
