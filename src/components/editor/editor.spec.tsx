@@ -774,25 +774,8 @@ describe("code block clipboard", () => {
   });
 });
 
-/** The one code block's position, for placing the caret beside its code. */
-function codeBlockPos(editor: TiptapEditor) {
-  const positions: number[] = [];
-
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === "codeBlock") {
-      positions.push(pos);
-    }
-  });
-  const [pos] = positions;
-
-  if (pos === undefined) {
-    throw new Error("the document has no code block");
-  }
-
-  return pos;
-}
-
 describe("mermaid diagrams", () => {
+  /** One paragraph, then the fence: its position is the paragraph's size. */
   const FENCE = "before\n\n```mermaid\ngraph TD\n  A --> B\n```";
 
   it("should draw a mermaid fence above its folded code", async () => {
@@ -813,7 +796,7 @@ describe("mermaid diagrams", () => {
     const wrapper = diagram.closest(".code-block-wrapper");
 
     act(() => {
-      editor.commands.setTextSelection(codeBlockPos(editor) + 1);
+      editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 1);
     });
 
     await waitFor(() => {
@@ -832,12 +815,12 @@ describe("mermaid diagrams", () => {
   it("should put the caret at the end of the code on clicking the drawing", async () => {
     const { editor } = await mount({ initialContent: FENCE });
     const diagram = await screen.findByRole("img", { name: "diagram" });
-    const pos = codeBlockPos(editor);
-    const size = editor.state.doc.nodeAt(pos)?.nodeSize ?? 0;
+    const pos = editor.state.doc.child(0).nodeSize;
+    const end = pos + editor.state.doc.child(1).nodeSize - 1;
 
     expect(clickAt(editor, diagram, pos + 1, pos)).toBeTruthy();
 
-    expect(editor.state.selection.from).toBe(pos + size - 1);
+    expect(editor.state.selection.from).toBe(end);
     await waitFor(() => {
       expect(diagram.closest(".code-block-wrapper")).toHaveClass(
         "code-block-editing"

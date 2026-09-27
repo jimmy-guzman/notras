@@ -569,8 +569,8 @@ body.dragging .ProseMirror::selection {
   font-style: normal;
   font-weight: 400;
   line-height: 1.5;
-  background: var(--card);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border-radius: 0;
 }
 
 /* Source mode: the whole file as one bare, highlighted code block. */
@@ -580,8 +580,6 @@ body.dragging .ProseMirror::selection {
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  background: transparent;
-  border-radius: 0;
 }
 
 /* A fence's node view stacks two divs over it, TipTap's own `.react-renderer`
@@ -606,8 +604,14 @@ body.dragging .ProseMirror::selection {
   margin-block-start: calc(0.5em / 0.875);
 }
 
+/* The fence's card. The drawing, its reason line and the code share it, and
+   `--bg` is the base the drawing derives its inks from, so paper changes both
+   at once. */
 .code-block-wrapper {
+  --bg: var(--card);
   position: relative;
+  background: var(--bg);
+  border-radius: var(--radius-md);
 }
 .code-block-toolbar {
   position: absolute;
@@ -678,17 +682,15 @@ body.dragging .ProseMirror::selection {
 
 /* A drawing folds the code under it, keyed on the drawing's class, so a
    fence that draws nothing keeps its code open under its reason line. The
-   svg derives its inks from `--bg` and `--fg`; `--bg` sits on the container
-   and `--muted` on the svg, since the print rule reads the app's `--muted`
-   before the svg gives that name to an ink. The library colors extra chart
-   series from a hex accent and falls back to blue for a variable, hence the
-   blends. */
+   svg derives its inks from `--bg` and `--fg`; `--fg` and `--accent` sit on
+   the container, since the toolbar reads the app's `--accent`, and `--muted`
+   on the svg, since the paper rule reads the app's `--muted` before the svg
+   gives that name to an ink. The library colors extra chart series from a
+   hex accent and falls back to blue for a variable, hence the blends. */
 .code-block-diagram,
 .code-block-reason {
   padding: 0.75em 1em;
   margin-block-start: var(--typeset-flow);
-  background: var(--card);
-  border-radius: var(--radius-md);
 }
 .ProseMirror
   li
@@ -697,7 +699,6 @@ body.dragging .ProseMirror::selection {
   margin-block-start: 0.5em;
 }
 .code-block-diagram {
-  --bg: var(--card);
   --fg: var(--foreground);
   --accent: var(--foreground);
   cursor: text;
@@ -726,16 +727,9 @@ body.dragging .ProseMirror::selection {
   margin: 0;
   overflow: hidden;
 }
-.code-block-editing > .code-block-diagram,
-.code-block-reason {
-  border-end-start-radius: 0;
-  border-end-end-radius: 0;
-}
 .code-block-editing > .code-block-diagram + pre,
 .code-block-reason + pre {
   margin-block-start: 0;
-  border-start-start-radius: 0;
-  border-start-end-radius: 0;
 }
 
 /* Link editor popover (⌘⇧K). */
@@ -925,11 +919,9 @@ body.dragging .ProseMirror::selection {
   .print-sheet .ProseMirror pre {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
-    background: var(--muted);
   }
-  .print-sheet .ProseMirror :is(.code-block-diagram, .code-block-reason) {
+  .print-sheet .code-block-wrapper {
     --bg: var(--muted);
-    background: var(--muted);
   }
   .print-sheet .ProseMirror .tableWrapper {
     overflow: visible;
