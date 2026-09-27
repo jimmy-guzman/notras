@@ -219,18 +219,111 @@ describe("markdown round-trip", () => {
     reopened.destroy();
   });
 
-  it("should keep a code block under an empty numbered item inside it", () => {
-    const markdown = "1.\n   ```\n   code\n   ```";
+  it.each([
+    ["codeBlock", "1.\n   ```\n   code\n   ```", "1.\n   ```\n   code\n   ```"],
+    ["codeBlock", "1. ```\n   code\n   ```", "1.\n   ```\n   code\n   ```"],
+    ["blockquote", "1. > quote", "1.\n   > quote"],
+  ])(
+    "should keep a %s that opens a numbered item inside it: %j",
+    (type, markdown, saved) => {
+      const editor = load(markdown);
+      const item = editor.state.doc.child(0).child(0);
+
+      expect(item.child(1).type.name).toBe(type);
+      expect(serializeMarkdown(editor)).toBe(saved);
+      expect(roundtrip(saved)).toBe(saved);
+      editor.destroy();
+    }
+  );
+
+  it.each([
+    ["a numbered item", "1. one\n   two"],
+    ["a two-digit numbered item", "10. one\n    two"],
+    ["a bullet", "- one\n  two"],
+    ["a task", "- [ ] one\n  two"],
+    ["a hard break in a task", "- [ ] one  \n  two"],
+    ["a task nested under a numbered item", "1. a\n   - [ ] b\n     wrapped"],
+    ["a loose task list", "- [ ] one\n\n  two\n- [x] three"],
+  ])("should keep a wrapped line in %s as typed", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should keep a list that mixes tasks and bullets in three lists", () => {
+    const editor = load("- [ ] a\n- plain\n- [x] c");
+    const types = editor.state.doc.content.content.map(
+      (node) => node.type.name
+    );
+    const saved = serializeMarkdown(editor);
+
+    expect(types).toStrictEqual(["taskList", "bulletList", "taskList"]);
+    expect(saved).toBe("- [ ] a\n\n- plain\n\n- [x] c");
+    expect(roundtrip(saved)).toBe(saved);
+    editor.destroy();
+  });
+
+  it.each([
+    ["nothing after the box", "- [ ]", false],
+    ["a checked box alone", "- [x]", true],
+    ["a space after the box", "- [ ] ", false],
+  ])("should read %s as an empty task", (_name, markdown, checked) => {
     const editor = load(markdown);
     const item = editor.state.doc.child(0).child(0);
 
-    expect(item.child(1).type.name).toBe("codeBlock");
+    expect(item.type.name).toBe("taskItem");
+    expect(item.attrs.checked).toBe(checked);
+    expect(item.textContent).toBe("");
+    editor.destroy();
+  });
+
+  it("should keep a checkbox after a number as text", () => {
+    const editor = load("1. [ ] x");
+    const item = editor.state.doc.child(0).child(0);
+
+    expect(item.type.name).toBe("listItem");
+    expect(item.textContent).toBe("[ ] x");
+    expect(serializeMarkdown(editor)).toBe("1. [ ] x");
+    editor.destroy();
+  });
+
+  it("should keep a table after a checkbox as text", () => {
+    const markdown = "- [ ] | a |\n  |---|\n  | 1 |";
+    const editor = load(markdown);
+    const saved = serializeMarkdown(editor);
+
+    expect(editor.state.doc.child(0).child(0).child(0).type.name).toBe(
+      "paragraph"
+    );
+    expect(editor.state.doc.child(0).child(0).childCount).toBe(1);
+    expect(saved).toBe(markdown);
+    editor.destroy();
+  });
+
+  it.each([
+    ["an abbreviation", "Mr. Smith went home"],
+    ["a lettered list", "a. x\nb. y"],
+    ["a roman list", "iv. x\nv. y"],
+    ["a word before a period", "vs. the rest"],
+  ])("should read %s as prose", (_name, markdown) => {
+    const editor = load(markdown);
+
+    expect(editor.state.doc.child(0).type.name).toBe("paragraph");
     expect(serializeMarkdown(editor)).toBe(markdown);
     editor.destroy();
   });
 
-  it("should keep a quote that opens an ordered item as typed", () => {
-    expect(roundtrip("1. > quote")).toBe("1. > quote");
+  it("should number items up from the first marker", () => {
+    expect(roundtrip("1. a\n1. b\n1. c")).toBe("1. a\n2. b\n3. c");
+    expect(roundtrip("3. a\n4. b")).toBe("3. a\n4. b");
+  });
+
+  it.each([
+    ["a parenthesis list", "1) one\n2) two"],
+    ["a wrapped line under a parenthesis", "1) one\n   two"],
+    ["a bare parenthesis marker", "1)\n   ```\n   code\n   ```"],
+    ["a parenthesis list nested under a period list", "1. a\n   1) b\n2. c"],
+    ["a delimiter change that starts a new list", "1. a\n\n1) b"],
+  ])("should keep the delimiter of %s", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
   });
 
   it("should write a table cell's underscore as typed", () => {

@@ -9,6 +9,19 @@ export function hasString<K extends string>(
   return typeof attrs?.[key] === "string";
 }
 
+/** Whether an attribute holds a number; the schema types attributes as `any`. */
+export function hasNumber<K extends string>(
+  attrs: Attrs | undefined,
+  key: K
+): attrs is Attrs & Record<K, number> {
+  return typeof attrs?.[key] === "number";
+}
+
+/** Whether a value is an attribute record; a render context types them as `any`. */
+export function isAttrs(value: unknown): value is Attrs {
+  return typeof value === "object" && value !== null;
+}
+
 function isContent(value: unknown): value is JSONContent {
   return typeof value === "object" && value !== null && "type" in value;
 }
