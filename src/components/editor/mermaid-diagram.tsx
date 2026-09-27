@@ -60,7 +60,8 @@ function toElement(markup: string) {
 }
 
 function Drawing({ code }: { code: string }) {
-  const drawn = draw(use(engine).renderMermaidSVG, code);
+  const { renderMermaidSVG } = use(engine);
+  const drawn = draw(renderMermaidSVG, code);
 
   if ("reason" in drawn) {
     return (
