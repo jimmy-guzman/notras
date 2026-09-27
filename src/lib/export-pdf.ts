@@ -67,9 +67,8 @@ function keepHeadings(surface: HTMLElement, sheet: HTMLElement) {
  * where it went, or null when the dialog was cancelled and nothing was
  * written. A copy of the surface goes into a `.print-sheet`, the one element
  * print media shows, so the PDF is the note as the editor drew it and none of
- * the bars around it. `painted` resolves once the surface shows everything
- * the print carries, and is asked after the dialog closes so it covers work
- * the note started while the dialog was open.
+ * the bars around it. `painted` runs after the dialog closes, so highlighting
+ * a refresh started during the dialog lands before the copy.
  */
 export async function exportPdf(
   surface: HTMLElement,

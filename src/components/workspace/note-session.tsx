@@ -153,7 +153,7 @@ function SessionAlerts({
   );
 }
 
-/** A fence longer than the highlighter's window is colored only near the viewport, so the print reveals it first, and it copies the note once the colors still on their way have landed. */
+/** A fence longer than the highlighter's window is colored only near the viewport, so the print reveals it first. */
 async function exportRevealed(
   editor: EditorHandle,
   name: string,

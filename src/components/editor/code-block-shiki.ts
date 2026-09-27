@@ -317,7 +317,7 @@ function setViewport(view: EditorView, viewport: Range) {
   );
 }
 
-/** Resolve once every highlighting answer in flight has landed, or at once when none is. A failed worker owes nothing, so a print after it carries plain code. */
+/** Resolves once the worker owes no answer. A failed worker owes none, so a print after a failure carries plain code. */
 export async function syntaxSettled(view: EditorView): Promise<void> {
   const settled = settling.get(view);
   if (settled === undefined) {

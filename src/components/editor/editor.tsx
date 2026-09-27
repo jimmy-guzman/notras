@@ -391,7 +391,7 @@ export interface EditorHandle {
   revealSyntax: () => () => void;
   /** The rendered note, read for a copy and never written. */
   surface: () => HTMLElement;
-  /** Resolves once every code block shows the colors the worker owes it. */
+  /** Resolves once the highlighter owes no answer, for a print. */
   syntaxSettled: () => Promise<void>;
 }
 
