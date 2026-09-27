@@ -1220,3 +1220,11 @@ Focus mode, the dim and the typewriter recentre under ⌘D (`D63`, `D64`, `D75`)
 `D27` recorded Tauri's note that the option was "not implemented for the webview layer" on macOS, and left the meta tag and inline CSS in `index.html` to cover the webview. wry 0.55 implements it behind that feature. The meta tag takes effect once the document is parsed, and a cold WebContent process shows its default white canvas before then, which is the frame a dark-mode launch flashed. The private API costs App Store eligibility, which notras does not use: it ships through GitHub releases and a Homebrew cask.
 
 `D27`'s four copies stay. Each still paints a layer, and `src/styles.spec.ts` keeps them on the token.
+
+### D94 Diagrams lay out on the UI thread
+
+`D91` put `beautiful-mermaid` in a Web Worker for the reason `D86` gives the highlighter. The worker made the first drawing asynchronous, so a note with a fence painted its code open and then jumped when the drawing landed and the code folded. Holding the note until its drawings landed removed the jump and made the note read as slow, unbounded on a cold worker and tens of milliseconds on a warm one. The library also builds ELK through a shim that turns a real worker scope into an ELK worker (lukilabs/beautiful-mermaid#149), which is the `new _Worker(url)` failure 0.10.0 shipped.
+
+The worker is gone. The engine loads as its own chunk after launch and the node view renders synchronously, so a note opened after that has its drawings in its first paint. `D86`'s cost was a measured two-second gap; a diagram's is 27ms for 100 nodes and 293ms for 400, per `D91`, paid once per open and once per settled edit.
+
+**Reference:** scratch renders in the node view's `useMemo` from a static import; Obsidian's beautiful-mermaid plugin replaces Obsidian's asynchronous renderer and names "no flicker or loading states" as the reason; Craft designed the library synchronous and quotes 100 diagrams under 500ms. None uses a worker.
