@@ -29,6 +29,7 @@ specta.workspace = true
 specta-typescript = "=0.0.9"
 tauri = { version = "2.11", features = [
   "image-png",
+  "macos-private-api",
   "protocol-asset",
   "tray-icon",
 ] }

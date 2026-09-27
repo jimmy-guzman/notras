@@ -1212,3 +1212,11 @@ Focus mode, the dim and the typewriter recentre under ⌘D (`D63`, `D64`, `D75`)
 **Rejected: moving it off ⌘D and keeping it in the palette.** An accidental toggle stops, but the unused mode and its scroll machinery stay.
 
 **Constraint:** `localStorage["focus-mode"]` stays behind on a machine that set it. Nothing reads it and nothing removes it.
+
+### D93 The webview stops painting its own canvas
+
+`macOSPrivateApi` is on, which enables Tauri's `macos-private-api` feature. With it, the `background_color` the window already carries reaches WKWebView too: wry disables `drawsBackground` and sets `underPageBackgroundColor`, so the window layer shows through until the page paints.
+
+`D27` recorded Tauri's note that the option was "not implemented for the webview layer" on macOS, and left the meta tag and inline CSS in `index.html` to cover the webview. wry 0.55 implements it behind that feature. The meta tag takes effect once the document is parsed, and a cold WebContent process shows its default white canvas before then, which is the frame a dark-mode launch flashed. The private API costs App Store eligibility, which notras does not use: it ships through GitHub releases and a Homebrew cask.
+
+`D27`'s four copies stay. Each still paints a layer, and `src/styles.spec.ts` keeps them on the token.
