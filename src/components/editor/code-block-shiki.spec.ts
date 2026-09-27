@@ -42,6 +42,11 @@ function fakeViewport(
 ) {
   let scrolled = 0;
   const characters = 2000;
+  // A scroll reaches the editor only through a scroller it is in.
+  const host = editor.view.dom.parentElement;
+  if (host !== null) {
+    document.body.append(host);
+  }
   const caretAt = (_x: number, y: number) => {
     const { node, offset } = editor.view.domAtPos(
       1 + scrolled + Math.round((y / 800) * characters)
@@ -70,6 +75,7 @@ function fakeViewport(
   onTestFinished(() => {
     Reflect.deleteProperty(document, "elementFromPoint");
     Reflect.deleteProperty(document, "caretPositionFromPoint");
+    host?.remove();
   });
   return {
     scrollTo(character: number) {
@@ -456,11 +462,12 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toContain("const");
   });
 
-  it("should color a remounted long block once its viewport can be measured", async ({
+  it("should color a remounted long block's top from the cache and the rest once its viewport can be measured", async ({
     onTestFinished,
   }) => {
+    const lines = 3000;
     const text = Array.from(
-      { length: 3000 },
+      { length: lines },
       (_, i) => `const again${i} = ${i};`
     ).join("\n");
     const first = createEditor("ts", text);
@@ -483,14 +490,62 @@ describe("code block highlighting", () => {
       second.destroy();
     });
     vi.advanceTimersToNextFrame();
-    expect(second.view.dom.querySelector(".syntax-token")).toBeNull();
-    fakeViewport(second, onTestFinished);
+    expect(coloredText(second, "syntax-number")).toContain("0");
+    expect(coloredText(second, "syntax-number")).not.toContain(
+      String(lines - 1)
+    );
+    const viewport = fakeViewport(second, onTestFinished);
+    viewport.scrollTo(second.state.doc.content.size - 4000);
     vi.advanceTimersToNextFrame();
 
-    expect(coloredText(second, "syntax-keyword")).toContain("const");
+    expect(coloredText(second, "syntax-number")).toContain(String(lines - 1));
     expect(
       coloredText(second, "syntax-keyword").length / "const".length
-    ).toBeLessThan(3000);
+    ).toBeLessThan(lines);
+  });
+
+  it("should color short blocks only near the viewport and follow a scroll", async ({
+    onTestFinished,
+  }) => {
+    const blocks = 1000;
+    const editor = new Editor({
+      content: {
+        content: Array.from({ length: blocks }, (_, index) => ({
+          attrs: { language: "ts" },
+          content: [{ text: `const short${index} = 1;`, type: "text" }],
+          type: "codeBlock",
+        })),
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki,
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    const viewport = fakeViewport(editor, onTestFinished);
+    const lastFence = () =>
+      [...editor.view.dom.querySelectorAll("pre")]
+        .at(-1)
+        ?.querySelector(".syntax-token") ?? null;
+
+    await syntaxSettled(editor.view);
+    const near = coloredText(editor, "syntax-keyword").length / "const".length;
+    expect(near).toBeGreaterThan(100);
+    expect(near).toBeLessThan(blocks);
+    expect(lastFence()).toBeNull();
+
+    viewport.scrollTo(editor.state.doc.content.size - 2000);
+    await vi.waitFor(() => {
+      expect(lastFence()).not.toBeNull();
+    });
   });
 
   it("should tokenize a block once when the node is extended again", async ({
