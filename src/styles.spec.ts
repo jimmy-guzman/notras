@@ -456,6 +456,27 @@ describe.each([
   );
 });
 
+describe("paper palette", () => {
+  it("should print a fence on the dark card with the dark syntax inks", () => {
+    expect(source).toContain(":root,\n.print-sheet .code-block-wrapper {");
+    expect(source).toContain(
+      ".print-sheet .code-block-wrapper {\n    color: var(--foreground);"
+    );
+  });
+
+  it("should print inline code on the paper's muted surface", () => {
+    expect(
+      blockOf(source, ".print-sheet .ProseMirror :not(pre) > code")
+    ).toContain("background: var(--muted);");
+  });
+
+  it("should print a note link without its underline", () => {
+    expect(
+      blockOf(source, ".print-sheet :is(a[data-note], .wikilink)")
+    ).toContain("text-decoration-line: none;");
+  });
+});
+
 describe("reading typography", () => {
   it("should use 16px prose with the existing reading line-height", () => {
     expect(notePreset).toContain("--typeset-size: 1rem;");

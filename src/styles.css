@@ -62,8 +62,10 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Violet marks the active row; pink remains reserved for actions. */
-:root {
+/* Violet marks the active row; pink remains reserved for actions. The fence
+   on paper takes this palette too: paper forces light prose, not a light card. */
+:root,
+.print-sheet .code-block-wrapper {
   --background: #191819;
   --shell: #282729;
   --foreground: #e6dfd6;
@@ -893,14 +895,22 @@ body.dragging .ProseMirror::selection {
     margin-block-end: calc(-1 * var(--keep-with-next, 0px));
     content: "";
   }
-  /* Paper has no scroll: long code wraps and a wide table runs to the edge.
-     The card is a shade off white paper, so a fence takes the chip's surface. */
+  /* Paper has no scroll: long code wraps and a wide table runs to the edge. */
   .print-sheet .ProseMirror pre {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
+  /* The fence keeps the dark card, so `.typeset`'s ink is restated on it. The
+     chip stays with the prose, on `--muted` since `--card` is a shade off
+     white paper. A note link's underline promises what paper cannot open. */
   .print-sheet .code-block-wrapper {
-    --bg: var(--muted);
+    color: var(--foreground);
+  }
+  .print-sheet .ProseMirror :not(pre) > code {
+    background: var(--muted);
+  }
+  .print-sheet :is(a[data-note], .wikilink) {
+    text-decoration-line: none;
   }
   .print-sheet .ProseMirror .tableWrapper {
     overflow: visible;
