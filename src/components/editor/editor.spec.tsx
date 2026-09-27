@@ -607,25 +607,21 @@ describe("code block clipboard", () => {
   });
 
   it.each([
-    ["named", "```ts\nconst value = 1;\n```", "const value = 1;"],
-    ["plain", "```\nplain code\n```", "plain code"],
-    ["unknown language", "```mermaid\ngraph TD\n```", "graph TD"],
-    ["empty", "```ts\n\n```", ""],
-    [
-      "nested fences",
-      "````markdown\n```ts\nconst value = 1;\n```\n````",
-      "```ts\nconst value = 1;\n```",
-    ],
+    ["named", "```ts\nconst value = 1;\n```"],
+    ["plain", "```\nplain code\n```"],
+    ["unknown language", "```mermaid\ngraph TD\n```"],
+    ["empty", "```ts\n\n```"],
+    ["nested fences", "````markdown\n```ts\nconst value = 1;\n```\n````"],
   ])(
-    "should copy a %s code block as its code",
-    async (_name, markdown, code) => {
+    "should copy a %s code block as fenced markdown",
+    async (_name, markdown) => {
       await mount({ initialContent: markdown });
       const user = userEvent.setup();
       const copy = screen.getByRole("button", { name: "copy code" });
 
       await user.click(copy);
 
-      await expect(navigator.clipboard.readText()).resolves.toBe(code);
+      await expect(navigator.clipboard.readText()).resolves.toBe(markdown);
       expect(copy.textContent).toBe("copied");
     }
   );
