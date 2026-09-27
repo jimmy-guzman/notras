@@ -11,10 +11,17 @@ export default defineConfig({
       exclude: [
         ...(configDefaults.coverage.exclude ?? []),
         "{vite,vitest,knip}.config.*",
+        "smoke/**",
+        "smoke.config.ts",
       ],
     },
     environment: "happy-dom",
-    exclude: [...configDefaults.exclude, ".worktrees/**", "src-tauri/**"],
+    exclude: [
+      ...configDefaults.exclude,
+      ".worktrees/**",
+      "src-tauri/**",
+      "smoke/**",
+    ],
     setupFiles: ["./vitest.setup.ts"],
   },
 });

@@ -69,7 +69,7 @@ jobs:
       matrix:
         platform: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
 
@@ -111,8 +111,8 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
 
-      - name: Setup Node for Tauri and bindings
-        if: runner.os == 'Linux'
+      - name: Setup Node for Tauri, bindings and smoke
+        if: runner.os != 'Windows'
         uses: $/.github/actions/setup-node
         with:
           save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
@@ -134,6 +134,20 @@ jobs:
 
       - name: 🧪 Rust Tests
         run: cargo test --workspace --locked
+
+      - name: Native smoke
+        id: smoke
+        if: runner.os == 'macOS'
+        run: pnpm smoke
+
+      - name: Upload native smoke failure
+        if: ${{ !cancelled() && runner.os == 'macOS' && steps.smoke.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-smoke-failure
+          path: target/smoke/run-*/artifacts/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Rust coverage report
         id: coverage

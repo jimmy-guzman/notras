@@ -144,23 +144,24 @@ pnpm dev
 
 On first launch notras creates `~/notras` and builds the index. Change the folder in settings (`⌘,`).
 
-| Script                | Description                                       |
-| --------------------- | ------------------------------------------------- |
-| `pnpm dev`            | run the desktop app (`tauri dev`)                 |
-| `pnpm build`          | build the desktop bundle                          |
-| `pnpm dev:web`        | run only the web shell (Vite)                     |
-| `pnpm build:web`      | build only the web shell                          |
-| `pnpm bindings`       | regenerate the Rust command and event client      |
+| Script | Description |
+| --- | --- |
+| `pnpm dev` | run the desktop app (`tauri dev`) |
+| `pnpm build` | build the desktop bundle |
+| `pnpm dev:web` | run only the web shell (Vite) |
+| `pnpm build:web` | build only the web shell |
+| `pnpm bindings` | regenerate the Rust command and event client |
 | `pnpm bindings:check` | fail if a temporary native binding export differs |
-| `pnpm check`          | type-aware lint, type check and format check      |
-| `pnpm fix`            | lint and format, auto-fixing                      |
-| `pnpm test`           | run tests (Vitest, watches)                       |
-| `pnpm coverage`       | tests with coverage                               |
-| `pnpm knip`           | unused code/deps, test-only exports               |
-| `pnpm icons`          | generate the icon family and README hero          |
-| `pnpm clean`          | remove build output                               |
-| `pnpm prepare`        | install the git hooks (lefthook)                  |
-| `pnpm tauri`          | run the tauri cli directly                        |
+| `pnpm check` | type-aware lint, type check and format check |
+| `pnpm fix` | lint and format, auto-fixing |
+| `pnpm test` | run tests (Vitest, watches) |
+| `pnpm coverage` | tests with coverage |
+| `pnpm smoke` | native launch, edit and restart smoke test (macOS 26+) |
+| `pnpm knip` | unused code/deps, test-only exports |
+| `pnpm icons` | generate the icon family and README hero |
+| `pnpm clean` | remove build output |
+| `pnpm prepare` | install the git hooks (lefthook) |
+| `pnpm tauri` | run the tauri cli directly |
 
 To regenerate the icon family and README hero, edit `assets/icon.svg` for the shared vector artwork or `assets/icon-desktop.png` for the large desktop artwork, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
 
@@ -186,6 +187,10 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
 PR CI runs `pnpm tauri build --debug --no-bundle --ci -- --locked` in the Linux Rust job to reject incompatible Tauri npm and crate versions before release. Linux already installs both dependency sets for binding checks. The command builds the web assets and a debug executable without requiring signing credentials or publishing artifacts. Packaging and signing remain release checks.
+
+`pnpm smoke` builds and launches an isolated native application on macOS 26 or later. One test edits a seeded note, reads the saved Markdown file, restarts the process, and checks the text in the editor. Run it from a desktop session with the normal development prerequisites installed. Its build output and diagnostics live under `target/smoke/`. The required macOS Rust CI job runs the same command and retains failure artifacts for seven days.
+
+The smoke test covers the combined webview, IPC and file persistence path. It does not establish keyboard fidelity, IME behavior, tab navigation, caret or undo restoration, quit flushing, tray interactions, global shortcuts, or OS dialogs. Those native interactions still need the manual checks in `AGENTS.md`. Test instrumentation requires the explicit `smoke` Cargo feature and frontend build mode; normal builds exclude it.
 
 `AGENTS.md` maps the project docs and the rules for changing them.
 
