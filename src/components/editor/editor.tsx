@@ -580,7 +580,23 @@ export function Editor({
       },
       clipboardTextSerializer: (slice, view) =>
         clipboardText(slice, view.state.schema, editorRef.current?.markdown),
-      handleClickOn: (view, _pos, node, _nodePos, event) => {
+      handleClickOn: (view, _pos, node, nodePos, event) => {
+        // A drawn diagram folds its code away, so a click on it is a click
+        // at the end of that code.
+        if (
+          event.target instanceof Element &&
+          event.target.closest(".code-block-diagram") !== null
+        ) {
+          view.dispatch(
+            view.state.tr.setSelection(
+              TextSelection.create(view.state.doc, nodePos + node.nodeSize - 1)
+            )
+          );
+          view.focus();
+
+          return true;
+        }
+
         const target =
           event.target instanceof Element
             ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")

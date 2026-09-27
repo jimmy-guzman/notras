@@ -60,14 +60,14 @@ describe("export pdf", () => {
       printed = {
         state:
           sheet?.querySelector(
-            ".note-find-open, .note-find-match, .note-find-active, .ProseMirror-selectednode"
+            ".note-find-open, .note-find-match, .note-find-active, .ProseMirror-selectednode, .code-block-editing"
           ) ?? null,
         text: sheet?.textContent,
       };
       return null;
     });
     const surface = surfaceOf(
-      '<p><span class="note-find-match note-find-active">hello</span></p><img class="ProseMirror-selectednode" alt="">'
+      '<p><span class="note-find-match note-find-active">hello</span></p><img class="ProseMirror-selectednode" alt=""><div class="code-block-wrapper code-block-editing"></div>'
     );
     surface.classList.add("note-find-open");
 

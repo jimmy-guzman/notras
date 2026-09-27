@@ -87,6 +87,17 @@ const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
+    label: "diagram",
+    run: (editor, range) => {
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .toggleCodeBlock({ language: "mermaid" })
+        .run();
+    },
+  },
+  {
     label: "table",
     run: (editor, range) => {
       editor

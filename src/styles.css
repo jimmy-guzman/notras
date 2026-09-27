@@ -676,6 +676,68 @@ body.dragging .ProseMirror::selection {
   background: var(--accent);
 }
 
+/* A drawing folds the code under it, keyed on the drawing's class, so a
+   fence that draws nothing keeps its code open under its reason line. The
+   svg derives its inks from `--bg` and `--fg`; `--bg` sits on the container
+   and `--muted` on the svg, since the print rule reads the app's `--muted`
+   before the svg gives that name to an ink. The library colors extra chart
+   series from a hex accent and falls back to blue for a variable, hence the
+   blends. */
+.code-block-diagram,
+.code-block-reason {
+  padding: 0.75em 1em;
+  margin-block-start: var(--typeset-flow);
+  background: var(--card);
+  border-radius: var(--radius-md);
+}
+.ProseMirror
+  li
+  .code-block-wrapper
+  > :is(.code-block-diagram, .code-block-reason) {
+  margin-block-start: 0.5em;
+}
+.code-block-diagram {
+  --bg: var(--card);
+  --fg: var(--foreground);
+  --accent: var(--foreground);
+  cursor: text;
+}
+.code-block-diagram > svg {
+  --muted: var(--muted-foreground);
+  --xychart-color-1: color-mix(in srgb, var(--fg) 60%, var(--bg));
+  --xychart-color-2: color-mix(in srgb, var(--fg) 40%, var(--bg));
+  --xychart-color-3: color-mix(in srgb, var(--fg) 80%, var(--bg));
+  --xychart-color-4: color-mix(in srgb, var(--fg) 25%, var(--bg));
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.code-block-diagram svg text {
+  font-family: var(--font-sans);
+}
+.code-block-reason {
+  padding-block-end: 0;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.code-block-wrapper:not(.code-block-editing) > .code-block-diagram + pre {
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.code-block-editing > .code-block-diagram,
+.code-block-reason {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+.code-block-editing > .code-block-diagram + pre,
+.code-block-reason + pre {
+  margin-block-start: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+
 /* Link editor popover (⌘⇧K). */
 .link-editor {
   position: fixed;
@@ -846,7 +908,7 @@ body.dragging .ProseMirror::selection {
      how far that block reaches, the pseudo makes the heading's unsplittable box
      that much taller, and the negative margin collapses through so nothing on
      the page moves. */
-  .print-sheet :is(p, img, tr) {
+  .print-sheet :is(p, img, tr, .code-block-wrapper) {
     break-inside: avoid;
   }
   .print-sheet .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
@@ -863,6 +925,10 @@ body.dragging .ProseMirror::selection {
   .print-sheet .ProseMirror pre {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+    background: var(--muted);
+  }
+  .print-sheet .ProseMirror :is(.code-block-diagram, .code-block-reason) {
+    --bg: var(--muted);
     background: var(--muted);
   }
   .print-sheet .ProseMirror .tableWrapper {
