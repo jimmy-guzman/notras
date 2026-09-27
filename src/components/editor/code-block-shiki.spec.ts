@@ -5,6 +5,7 @@ import { Text } from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import { describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 
 import {
   CodeBlockShiki,
@@ -13,6 +14,19 @@ import {
 } from "@/components/editor/code-block-shiki";
 import { highlightCode } from "@/components/editor/syntax-highlighter";
 import type { SyntaxRequest } from "@/components/editor/syntax-highlighter";
+
+/** Resolves once the worker has answered every job queued ahead of this one, which ranks last. */
+async function drained() {
+  return await highlightCode({
+    code: "x",
+    distance: Number.POSITIVE_INFINITY,
+    document: 0,
+    edited: false,
+    language: "typescript",
+    showing: false,
+    signal: new AbortController().signal,
+  });
+}
 
 function createEditor(language: string, text: string) {
   return new Editor({
@@ -94,6 +108,17 @@ function coloredText(editor: Editor, role: string) {
     .join("");
 }
 
+/** The codes that crossed to the worker, once each: the shim posts again what it queued before it started. */
+function postedCodes(posted: MockInstance<Worker["postMessage"]>) {
+  return [
+    ...new Set(
+      posted.mock.calls.map(
+        ([request]: [SyntaxRequest, ...unknown[]]) => request.code
+      )
+    ),
+  ];
+}
+
 describe("code block highlighting", () => {
   it("should tokenize only changed code blocks and no code for prose or selection edits", async ({
     onTestFinished,
@@ -125,6 +150,7 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
 
     editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
+    await Promise.resolve();
     expect(posted).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ code: "let a = 1;", language: "typescript" })
     );
@@ -317,8 +343,7 @@ describe("code block highlighting", () => {
     // which replaces the node.
     editor.view.dispatch(editor.state.tr.setNodeAttribute(0, "language", ""));
     expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
-    // The worker answers in request order, so the edit's answer is in by now.
-    await highlightCode("x", "typescript", 0);
+    await drained();
     vi.advanceTimersToNextFrame();
 
     expect(editor.view.dom.querySelector(".syntax-token")).toBeNull();
@@ -622,9 +647,7 @@ describe("code block highlighting", () => {
       transactions += 1;
     });
     vi.advanceTimersToNextFrame();
-    // The worker answers in request order, so its answer to this one arrives
-    // after the three the frame asked for.
-    await highlightCode("x", "typescript", 0);
+    await drained();
 
     expect(coloredText(editor, "syntax-keyword")).toBe("");
     vi.advanceTimersToNextFrame();
@@ -708,6 +731,7 @@ describe("code block highlighting", () => {
     expect(posted).not.toHaveBeenCalled();
 
     second.commands.insertContentAt({ from: 1, to: 6 }, "let");
+    await Promise.resolve();
     expect(posted).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ code: "let kept = 1;" })
     );
@@ -766,5 +790,127 @@ describe("code block highlighting", () => {
       expect(coloredText(second, "syntax-keyword")).toBe("let");
     });
     expect(posted).toHaveBeenCalledOnce();
+  });
+
+  it("should ask for an edited block right after the request in flight", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+      vi.useRealTimers();
+    });
+    const editor = new Editor({
+      content: {
+        content: Array.from({ length: 400 }, (_, index) => ({
+          attrs: { language: "ts" },
+          content: [{ text: `const queued${index} = 1;`, type: "text" }],
+          type: "codeBlock",
+        })),
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki,
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    vi.advanceTimersToNextFrame();
+    await Promise.resolve();
+    expect(posted).toHaveBeenCalledOnce();
+
+    const last = editor.state.doc.lastChild;
+    if (last === null) {
+      throw new Error("The document is empty");
+    }
+    const start = editor.state.doc.content.size - last.nodeSize + 1;
+    editor.commands.insertContentAt({ from: start, to: start + 5 }, "let");
+
+    await vi.waitFor(() => {
+      expect(posted.mock.calls.length).toBeGreaterThan(1);
+    });
+    expect(postedCodes(posted)[1]).toBe("let queued399 = 1;");
+  });
+
+  it("should ask for a showing editor's block before a hidden editor's backlog", async ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+      vi.useRealTimers();
+    });
+    const hidden = new Editor({
+      content: {
+        content: Array.from({ length: 400 }, (_, index) => ({
+          attrs: { language: "ts" },
+          content: [{ text: `const unseen${index} = 1;`, type: "text" }],
+          type: "codeBlock",
+        })),
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki,
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      hidden.destroy();
+    });
+    vi.advanceTimersToNextFrame();
+    await Promise.resolve();
+    expect(posted).toHaveBeenCalledOnce();
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const shown = new Editor({
+      content: {
+        content: [
+          {
+            attrs: { language: "ts" },
+            content: [{ text: "const seen = 1;", type: "text" }],
+            type: "codeBlock",
+          },
+        ],
+        type: "doc",
+      },
+      element: host,
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        CodeBlockShiki,
+        UndoRedo,
+        Markdown,
+      ],
+    });
+    onTestFinished(() => {
+      shown.destroy();
+      host.remove();
+    });
+    vi.advanceTimersToNextFrame();
+
+    await vi.waitFor(() => {
+      expect(posted.mock.calls.length).toBeGreaterThan(1);
+    });
+    expect(postedCodes(posted)[1]).toBe("const seen = 1;");
   });
 });

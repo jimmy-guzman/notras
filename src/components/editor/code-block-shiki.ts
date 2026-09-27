@@ -13,6 +13,7 @@ import {
   syntaxLanguage,
 } from "@/components/editor/syntax-highlighter";
 import type {
+  SyntaxJob,
   SyntaxSplice,
   SyntaxToken,
 } from "@/components/editor/syntax-highlighter";
@@ -303,6 +304,11 @@ function measureViewport(view: EditorView): Range | undefined {
   };
 }
 
+/** A hidden tab keeps its layout and scroll offset at opacity 0, so opacity is the signal. */
+function isShowing(view: EditorView) {
+  return view.dom.checkVisibility({ opacityProperty: true });
+}
+
 function setViewport(view: EditorView, viewport: Range) {
   view.dispatch(
     view.state.tr
@@ -367,16 +373,24 @@ function syntaxPlugin() {
       let last = view.state;
       const answers: Answer[] = [];
       let settled: PromiseWithResolvers<undefined> | undefined;
+      /** The jobs waiting or in flight, by block id, so the frame can keep them current. */
+      const jobs = new Map<number, SyntaxJob>();
+      const aborter = new AbortController();
 
-      async function highlight(block: number, language: string, text: string) {
+      async function highlight(job: SyntaxJob) {
         if (failed) {
           return;
         }
         outstanding += 1;
+        jobs.set(job.document, job);
         try {
-          const splice = await highlightCode(text, language, block);
-          if (live) {
-            answers.push({ block, input: `${language}\n${text}`, ...splice });
+          const splice = await highlightCode(job);
+          if (live && splice !== undefined) {
+            answers.push({
+              block: job.document,
+              input: `${job.language}\n${job.code}`,
+              ...splice,
+            });
           }
         } catch (error) {
           // Every request in flight rejects with the same failure; report it once.
@@ -390,32 +404,57 @@ function syntaxPlugin() {
           failed = true;
         } finally {
           outstanding -= 1;
+          if (jobs.get(job.document) === job) {
+            jobs.delete(job.document);
+          }
         }
       }
 
-      /** Ask for the wanted blocks, nearest to `near` first when it is known. */
+      /** Ask for the wanted blocks; the client ranks them by these jobs. */
       function request(
         wanted: (node: Node, block: Block) => boolean,
-        near?: Range
+        near: Range,
+        edited: boolean
       ) {
         const { blocks } = syntaxState(view.state);
-        const fences = codeBlocks(view.state.doc).flatMap(
-          ({ node, pos }, index) => {
-            const block = blocks[index];
-            const language = blockLanguage(node);
-            return block !== undefined &&
-              language !== undefined &&
-              wanted(node, block)
-              ? [{ block, language, node, pos }]
-              : [];
+        const showing = isShowing(view);
+        for (const [index, found] of codeBlocks(view.state.doc).entries()) {
+          const block = blocks[index];
+          const language = blockLanguage(found.node);
+          if (
+            block !== undefined &&
+            language !== undefined &&
+            wanted(found.node, block)
+          ) {
+            void highlight({
+              code: found.node.textContent,
+              distance: distance(found, near),
+              document: block.id,
+              edited,
+              language,
+              showing,
+              signal: aborter.signal,
+            });
           }
-        );
-        const ordered =
-          near === undefined
-            ? fences
-            : fences.toSorted((a, b) => distance(a, near) - distance(b, near));
-        for (const { block, language, node } of ordered) {
-          void highlight(block.id, language, node.textContent);
+        }
+      }
+
+      /** A scrolled-to block moves up the queue; one on a tab switched away from moves down. */
+      function refreshJobs(seen: Range | undefined, moved: boolean) {
+        const showing = isShowing(view);
+        for (const job of jobs.values()) {
+          job.showing = showing;
+        }
+        if (!moved || seen === undefined) {
+          return;
+        }
+        const { blocks } = syntaxState(view.state);
+        for (const [index, found] of codeBlocks(view.state.doc).entries()) {
+          const id = blocks[index]?.id;
+          const job = id === undefined ? undefined : jobs.get(id);
+          if (job !== undefined) {
+            job.distance = distance(found, seen);
+          }
         }
       }
 
@@ -426,11 +465,15 @@ function syntaxPlugin() {
         // Off the DOM, as a React editor is during its first render, nothing
         // measures, and the next frame tries again.
         follow &&= seen === undefined;
+        const { blocks, viewport } = syntaxState(view.state);
         if (!started) {
           started = true;
-          request((node, block) => block.input !== blockInput(node), seen);
+          request(
+            (node, block) => block.input !== blockInput(node),
+            seen ?? viewport,
+            false
+          );
         }
-        const { blocks, viewport } = syntaxState(view.state);
         const padded =
           seen === undefined
             ? undefined
@@ -442,6 +485,7 @@ function syntaxPlugin() {
           padded !== undefined &&
           (Math.abs(padded.from - viewport.from) > WINDOW / 4 ||
             Math.abs(padded.to - viewport.to) > WINDOW / 4);
+        refreshJobs(seen, moved);
         const landed = answers.splice(0);
         if (landed.length > 0 || moved) {
           view.dispatch(
@@ -494,6 +538,7 @@ function syntaxPlugin() {
       return {
         destroy() {
           live = false;
+          aborter.abort();
           cancelAnimationFrame(frame);
           settling.delete(view);
           settled?.resolve(undefined);
@@ -518,7 +563,11 @@ function syntaxPlugin() {
           const unchanged = new Set(
             codeBlocks(previous.doc).map(({ node }) => node)
           );
-          request((node) => !unchanged.has(node));
+          request(
+            (node) => !unchanged.has(node),
+            syntaxState(current.state).viewport,
+            true
+          );
           schedule();
         },
       };
