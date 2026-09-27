@@ -23,8 +23,7 @@ const BACKTICK_RUN = /`+/gu;
 const TILDE_RUN = /~+/gu;
 
 /**
- * Characters decorated around what is on screen. A block no longer than this
- * is decorated whole; a longer one only where the viewport is, since one
+ * Characters decorated around what is on screen, half each side. One
  * decoration per token in a 450 KB block took 22 seconds to render.
  */
 const WINDOW = 20_000;
@@ -171,19 +170,19 @@ function lineDecorations(
   return decorations;
 }
 
+/** How far a block sits from a range, zero when it reaches into it. */
+function distance({ node, pos }: NodeWithPos, near: Range) {
+  return Math.max(near.from - (pos + node.nodeSize), pos - near.to, 0);
+}
+
 function buildDecorations(doc: Node, blocks: Block[], viewport: Range) {
   return DecorationSet.create(
     doc,
-    codeBlocks(doc).flatMap(({ node, pos }, index) => {
+    codeBlocks(doc).flatMap((found, index) => {
       const block = blocks[index];
-      return block === undefined
+      return block === undefined || distance(found, viewport) > 0
         ? []
-        : lineDecorations(
-            pos,
-            node,
-            block.tokens,
-            node.nodeSize > WINDOW ? viewport : undefined
-          );
+        : lineDecorations(found.pos, found.node, block.tokens, viewport);
     })
   );
 }
@@ -304,11 +303,6 @@ function measureViewport(view: EditorView): Range | undefined {
   };
 }
 
-/** How far a block sits from a range, zero when it reaches into it. */
-function distance({ node, pos }: NodeWithPos, near: Range) {
-  return Math.max(near.from - (pos + node.nodeSize), pos - near.to, 0);
-}
-
 function setViewport(view: EditorView, viewport: Range) {
   view.dispatch(
     view.state.tr
@@ -353,7 +347,8 @@ function syntaxPlugin() {
             ? freshBlock()
             : { ...freshBlock(), input, tokens };
         });
-        const viewport = { from: 0, to: 0 };
+        // A fresh editor opens at the top.
+        const viewport = { from: 0, to: WINDOW };
         return {
           blocks,
           decorations: buildDecorations(state.doc, blocks, viewport),
@@ -424,13 +419,6 @@ function syntaxPlugin() {
         }
       }
 
-      /** Whether any block is colored only around the viewport. */
-      function windowed() {
-        return codeBlocks(view.state.doc).some(
-          ({ node }) => node.nodeSize > WINDOW
-        );
-      }
-
       /** The frame keeps running while the worker owes an answer or a window waits to be measured. */
       function tick() {
         frame = 0;
@@ -442,7 +430,7 @@ function syntaxPlugin() {
           started = true;
           request((node, block) => block.input !== blockInput(node), seen);
         }
-        const { viewport } = syntaxState(view.state);
+        const { blocks, viewport } = syntaxState(view.state);
         const padded =
           seen === undefined
             ? undefined
@@ -469,7 +457,7 @@ function syntaxPlugin() {
           settled?.resolve(undefined);
           settled = undefined;
         }
-        if (outstanding > 0 || (follow && windowed())) {
+        if (outstanding > 0 || (follow && blocks.length > 0)) {
           frame = requestAnimationFrame(tick);
         }
       }
@@ -480,8 +468,13 @@ function syntaxPlugin() {
         }
       }
 
-      function onScroll() {
-        if (windowed()) {
+      /** Another tab's scroller moves nothing on this screen. */
+      function onScroll({ target }: Event) {
+        if (
+          target instanceof globalThis.Node &&
+          target.contains(view.dom) &&
+          syntaxState(view.state).blocks.length > 0
+        ) {
           follow = true;
           schedule();
         }
