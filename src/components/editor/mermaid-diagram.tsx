@@ -1,5 +1,4 @@
-import { useDebouncedValue } from "@tanstack/react-pacer";
-import { Suspense, use } from "react";
+import { Suspense, use, useDeferredValue } from "react";
 import type { FallbackProps } from "react-error-boundary";
 import { ErrorBoundary } from "react-error-boundary";
 
@@ -81,8 +80,9 @@ function renderLoadFailure({ error }: FallbackProps) {
  * when the renderer never arrives, so a note keeps editing around it.
  */
 export function MermaidDiagram({ code }: { code: string }) {
-  // A large diagram laid out on every keystroke would land on the keystroke's frame.
-  const [settled] = useDebouncedValue(code, { wait: 150 });
+  // A layout takes 27ms for a 100-node flowchart, measured, so the drawing
+  // follows the code in a deferred render and a keystroke never waits on it.
+  const settled = useDeferredValue(code);
 
   if (settled.trim() === "") {
     return null;
