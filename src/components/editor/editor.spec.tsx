@@ -977,9 +977,7 @@ describe("copy", () => {
   );
 });
 
-function pasteImage(editor: TiptapEditor) {
-  const clipboardData = new DataTransfer();
-
+function pasteImage(editor: TiptapEditor, clipboardData = new DataTransfer()) {
   clipboardData.items.add(
     new File([new Uint8Array([137, 80, 78, 71])], "shot.png", {
       type: "image/png",
@@ -1074,6 +1072,26 @@ describe("image paste", () => {
       screen.findByText("An image cannot go inside code")
     ).resolves.toBeDefined();
     expect(handle.getContent().trimEnd()).toBe("```\ncode\n```");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("should paste the text when the clipboard also holds an image", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+    const { editor, handle } = await mount({ initialContent: "" });
+    const clipboardData = new DataTransfer();
+
+    clipboardData.setData(
+      "text/html",
+      "<table><tr><th>a</th></tr><tr><td>b</td></tr></table>"
+    );
+    clipboardData.setData("text/plain", "a\nb");
+    pasteImage(editor, clipboardData);
+
+    await waitFor(() => {
+      expect(handle.getContent().trimEnd()).toBe("| a   |\n| --- |\n| b   |");
+    });
     expect(invoke).not.toHaveBeenCalled();
   });
 });

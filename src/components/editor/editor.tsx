@@ -678,11 +678,14 @@ export function Editor({
           return false;
         }
 
-        // Images: save into attachments/, keep the RELATIVE src in the doc
-        // so the file stays portable.
-        const imageItem = [...clipboard.items].find((item) =>
-          item.type.startsWith("image/")
-        );
+        // Word and Numbers copy a picture beside the text; a browser copies an
+        // image with none. Text on the clipboard is what was copied.
+        const imageItem =
+          clipboard.getData("text/plain") === ""
+            ? [...clipboard.items].find((item) =>
+                item.type.startsWith("image/")
+              )
+            : undefined;
 
         if (imageItem) {
           const from =
