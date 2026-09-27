@@ -65,12 +65,9 @@ const drawings = new Map<string, Promise<Drawn>>();
 // oxlint-disable-next-line typescript/promise-function-async -- `use` needs the same promise across renders, and an async wrapper would mint a new one per call
 function drawingOf(code: string) {
   const drawing = drawings.get(code) ?? request(code);
-  drawings.delete(code);
   drawings.set(code, drawing);
-  for (const oldest of drawings.keys()) {
-    if (drawings.size <= DRAWING_LIMIT) {
-      break;
-    }
+  const [oldest] = drawings.keys();
+  if (oldest !== undefined && drawings.size > DRAWING_LIMIT) {
     drawings.delete(oldest);
   }
   return drawing;
@@ -95,6 +92,15 @@ function toElement(markup: string) {
   }
   // The root carries the library's default inks; the stylesheet sets the app's.
   svg.removeAttribute("style");
+  // A `style` or `linkStyle` value reaches a fill or stroke as written, so a
+  // reference to anything but a fragment of the drawing goes.
+  for (const element of svg.querySelectorAll("*")) {
+    for (const name of element.getAttributeNames()) {
+      if (/url\((?!["']?#)/u.test(element.getAttribute(name) ?? "")) {
+        element.removeAttribute(name);
+      }
+    }
+  }
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "diagram");
 

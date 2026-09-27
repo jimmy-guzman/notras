@@ -845,6 +845,18 @@ describe("mermaid diagrams", () => {
     });
   });
 
+  it("should drop a reference to anything outside the drawing", async () => {
+    await mount({
+      initialContent:
+        "before\n\n```mermaid\ngraph TD\n  A --> B\n  linkStyle 0 stroke:url(http://evil/x)\n  style A fill:url(http://evil/x),stroke:#f00\n```",
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(diagram.outerHTML).not.toMatch(/url\((?!#)/u);
+    expect(diagram.querySelector('[stroke="#f00"]')).not.toBeNull();
+  });
+
   it("should show the reason for a diagram it cannot draw", async () => {
     await mount({
       initialContent: "before\n\n```mermaid\npie title Pets\n```",
