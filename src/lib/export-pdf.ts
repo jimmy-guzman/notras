@@ -21,8 +21,9 @@ function fitTables(surface: HTMLElement, sheet: HTMLElement) {
   }
 }
 
-/** What the editor paints for the moment: the selection, a find, an empty note. */
+/** What the editor paints for the moment: the selection, a find, an empty note, a diagram's code. */
 const STATE_CLASSES = [
+  "code-block-editing",
   "is-editor-empty",
   "note-find-active",
   "note-find-match",

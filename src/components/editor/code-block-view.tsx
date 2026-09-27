@@ -1,18 +1,26 @@
 import { useDebouncedCallback } from "@tanstack/react-pacer";
 import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
+import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState } from "react";
 
 import { hasString } from "@/components/editor/attrs";
+import { MermaidDiagram } from "@/components/editor/mermaid-diagram";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
 /**
- * Copy a block's code and edit its fence language from a hover toolbar.
+ * Copy a block's code and edit its fence language from a hover toolbar. A
+ * `mermaid` fence draws above its code and folds the code while the caret is
+ * elsewhere.
  */
-export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
+export function CodeBlockView({
+  node,
+  selectionInside,
+  updateAttributes,
+}: ReactNodeViewProps) {
   const language = hasString(node.attrs, "language") ? node.attrs.language : "";
   const languageLabel = language === "" ? "plain" : language;
   const [copied, setCopied] = useState(false);
@@ -56,7 +64,13 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper as="div" className="code-block-wrapper">
+    <NodeViewWrapper
+      as="div"
+      className={cn(
+        "code-block-wrapper",
+        selectionInside === true && "code-block-editing"
+      )}
+    >
       <div className="code-block-toolbar" contentEditable={false}>
         <button
           aria-label="copy code"
@@ -96,6 +110,7 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
           </select>
         </span>
       </div>
+      {language === "mermaid" && <MermaidDiagram code={node.textContent} />}
       <pre>
         <NodeViewContent<"code"> as="code" />
       </pre>

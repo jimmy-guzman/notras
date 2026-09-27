@@ -1194,3 +1194,13 @@ Before this every entry point wrote `untitled.md` on the keystroke that asked fo
 D65 coordinates dependency updates but does not validate the resolved npm/crate pairs. PR CI invokes Tauri's build command so Tauri applies its own compatibility rules before a change reaches release. Linux runs the check because its Rust job already installs both dependency sets for binding checks. The debug build reuses the job's build profile, and disabling bundling retains the compatibility check without requiring signing credentials.
 
 **Rejected: `--ignore-version-mismatches` in CI or release workflows.** It lets a build proceed with incompatible dependency pairs. In CI it defeats the check; in a release it allows those pairs to ship.
+
+### D91 Diagrams draw through beautiful-mermaid
+
+A `mermaid` fence draws in rich mode through `beautiful-mermaid`, Craft's renderer, which scratch also ships. It renders synchronously to an SVG string with no DOM, carries two dependencies, and takes its inks as CSS custom properties, so the app's tokens color it in both appearances and in print without a re-render. It builds to a 1.5 MB worker bundle, most of it the layout engine, loaded off the launch path; the main chunk grows 8.7 kB. It draws flowcharts, sequence, state, class and ER diagrams and xy charts, and reports a reason for the rest. It lays out in a Web Worker for the reason `D86` gives the highlighter: a flowchart of 100 nodes takes 27ms, 200 take 83ms and 400 take 293ms, measured in Node against 1.1.3.
+
+**Rejected: `mermaid`.** It draws every diagram type. Rejected because it unpacks to 124 MB across 23 dependencies including d3, cytoscape, katex and dompurify, renders asynchronously against a live DOM, needs its own theme re-rendered on an appearance change, and its default look needs theming to sit beside the note's code. The owner's notes hold no mermaid fences, so no diagram type argued for it. The renderer is one file's import, so the swap stays contained if the missing types come to matter.
+
+**Rejected: an edit and preview toggle per block,** scratch's model. Rejected because it adds a control and a per-block view state where the caret already says which one the writer wants, which is Obsidian's live preview model.
+
+**Constraint:** the library estimates label widths for Inter, and the drawing sets labels in the app's sans, so a long label can sit tight in its node.

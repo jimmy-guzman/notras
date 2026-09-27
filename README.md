@@ -20,8 +20,8 @@ Search runs on a SQLite index built from the files. Delete it and the next launc
 
 - WYSIWYG markdown, saved back as clean GFM
 - autosave when you stop typing
-- `/` menu for headings, lists, task lists, quotes, code blocks, tables, dividers, and today's date
-- images, and code blocks with a copy button and a language picker
+- `/` menu for headings, lists, task lists, quotes, code blocks, diagrams, tables, dividers, and today's date
+- images, mermaid diagrams, and code blocks with a copy button and a language picker
 - `⌘E` raw markdown source
 - `⌘D` focus mode: dims every block but the one you are in and keeps your line centred
 - `⌘F` finds text in the note

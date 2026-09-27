@@ -12,6 +12,7 @@ import { Editor as TiptapEditor } from "@tiptap/core";
 import { Plugin, Selection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
+import { is, string } from "valibot";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
@@ -771,6 +772,152 @@ describe("code block clipboard", () => {
     await user.selectOptions(language, "");
 
     expect(handle.getContent().trimEnd()).toBe("```\ngraph TD\n```");
+  });
+});
+
+describe("mermaid diagrams", () => {
+  /** One paragraph, then the fence: its position is the paragraph's size. */
+  const FENCE = "before\n\n```mermaid\ngraph TD\n  A --> B\n```";
+
+  it("should draw a mermaid fence above its folded code", async () => {
+    await mount({ initialContent: FENCE });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+    const wrapper = diagram.closest(".code-block-wrapper");
+
+    expect(diagram.tagName).toBe("svg");
+    expect(diagram).not.toHaveAttribute("style");
+    expect(wrapper).not.toHaveClass("code-block-editing");
+    expect(wrapper?.querySelector(".code-block-diagram + pre")).not.toBeNull();
+  });
+
+  it("should open the code while the caret is inside the block", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+    const wrapper = diagram.closest(".code-block-wrapper");
+
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 1);
+    });
+
+    await waitFor(() => {
+      expect(wrapper).toHaveClass("code-block-editing");
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(1);
+    });
+
+    await waitFor(() => {
+      expect(wrapper).not.toHaveClass("code-block-editing");
+    });
+  });
+
+  it("should put the caret at the end of the code on clicking the drawing", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+    const pos = editor.state.doc.child(0).nodeSize;
+    const end = pos + editor.state.doc.child(1).nodeSize - 1;
+
+    expect(clickAt(editor, diagram, pos + 1, pos)).toBeTruthy();
+
+    expect(editor.state.selection.from).toBe(end);
+    await waitFor(() => {
+      expect(diagram.closest(".code-block-wrapper")).toHaveClass(
+        "code-block-editing"
+      );
+    });
+  });
+
+  it("should drop a reference to anything outside the drawing", async () => {
+    await mount({
+      initialContent:
+        "before\n\n```mermaid\ngraph TD\n  A --> B\n  linkStyle 0 stroke:URL(http://evil/x)\n  style A fill:rgb(255 0 0),stroke:#f00\n  style B fill:url(http://evil/x)\n```",
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(diagram.outerHTML).not.toMatch(/url\((?!#)/iu);
+    expect(diagram.querySelector('[stroke="#f00"]')).not.toBeNull();
+    expect(diagram.querySelector('[fill="rgb(255 0 0)"]')).not.toBeNull();
+  });
+
+  it("should lay out only the newest code of a fence still waiting", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    await screen.findByRole("img", { name: "diagram" });
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
+    const pos = editor.state.doc.child(0).nodeSize + 1;
+
+    for (const line of ["%% 1\n", "%% 2\n", "%% 3\n"]) {
+      act(() => {
+        editor.commands.insertContentAt(pos, line);
+      });
+    }
+
+    const codes = () =>
+      // The highlighter's worker shares the prototype and posts objects.
+      posted.mock.calls
+        .map(([code]: [unknown, ...unknown[]]) => code)
+        .filter((code) => is(string(), code));
+
+    await waitFor(() => {
+      expect(codes().at(-1)).toMatch(/^%% 3/u);
+    });
+    expect(codes().some((code) => code.startsWith("%% 2"))).toBeFalsy();
+  });
+
+  it("should try again after the renderer fails once the fence changes", async () => {
+    // The worker is the furthest boundary: a request to it fails outright.
+    const posted = vi
+      .spyOn(Worker.prototype, "postMessage")
+      .mockImplementation(function failing(this: Worker) {
+        this.dispatchEvent(new ErrorEvent("error", { message: "boom" }));
+      });
+    const { editor } = await mount({
+      initialContent: "before\n\n```mermaid\ngraph LR\n  X --> Y\n```",
+    });
+
+    const reason = await screen.findByText("boom");
+
+    expect(reason).toHaveClass("code-block-reason");
+
+    posted.mockRestore();
+    act(() => {
+      editor.commands.insertContentAt(
+        editor.state.doc.child(0).nodeSize + 1,
+        "%% again\n"
+      );
+    });
+
+    expect(
+      await screen.findByRole("img", { name: "diagram" })
+    ).toBeInTheDocument();
+  });
+
+  it("should show the reason for a diagram it cannot draw", async () => {
+    await mount({
+      initialContent: "before\n\n```mermaid\npie title Pets\n```",
+    });
+
+    const reason = await screen.findByText(/Invalid mermaid header/u);
+
+    expect(reason).toHaveClass("code-block-reason");
+    expect(screen.queryByRole("img", { name: "diagram" })).toBeNull();
+  });
+
+  it("should insert a mermaid fence from the slash menu", async () => {
+    const { editor, handle } = await mount({ initialContent: "" });
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("/dia{Enter}");
+
+    expect(handle.getContent().trimEnd()).toBe("```mermaid\n\n```");
   });
 });
 
