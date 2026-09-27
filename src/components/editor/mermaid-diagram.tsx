@@ -16,6 +16,9 @@ export type DiagramResponse = { id: number } & Drawn;
 
 let nextId = 0;
 const pending = new Map<number, PromiseWithResolvers<Drawn>>();
+const DRAWING_LIMIT = 32;
+/** `use` needs the same promise for the same code across renders. */
+const drawings = new Map<string, Promise<Drawn>>();
 let instance: undefined | Worker;
 
 function start() {
@@ -55,12 +58,14 @@ async function request(code: string) {
   const message: DiagramRequest = { code, id: nextId };
   // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin
   instance.postMessage(message);
-  return await resolvers.promise;
+  try {
+    return await resolvers.promise;
+  } catch (error) {
+    // A failed drawing is not kept, so the next render asks again.
+    drawings.delete(code);
+    throw error;
+  }
 }
-
-const DRAWING_LIMIT = 32;
-/** `use` needs the same promise for the same code across renders. */
-const drawings = new Map<string, Promise<Drawn>>();
 
 // oxlint-disable-next-line typescript/promise-function-async -- `use` needs the same promise across renders, and an async wrapper would mint a new one per call
 function drawingOf(code: string) {
@@ -153,7 +158,7 @@ export function MermaidDiagram({ code }: { code: string }) {
   }
 
   return (
-    <ErrorBoundary fallbackRender={renderLoadFailure}>
+    <ErrorBoundary fallbackRender={renderLoadFailure} resetKeys={[settled]}>
       <Suspense fallback={null}>
         <Drawing code={settled} />
       </Suspense>

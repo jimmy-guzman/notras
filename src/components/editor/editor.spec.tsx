@@ -840,6 +840,34 @@ describe("mermaid diagrams", () => {
     expect(diagram.querySelector('[stroke="#f00"]')).not.toBeNull();
   });
 
+  it("should try again after the renderer fails once the fence changes", async () => {
+    // The worker is the furthest boundary: a request to it fails outright.
+    const posted = vi
+      .spyOn(Worker.prototype, "postMessage")
+      .mockImplementation(function failing(this: Worker) {
+        this.dispatchEvent(new ErrorEvent("error", { message: "boom" }));
+      });
+    const { editor } = await mount({
+      initialContent: "before\n\n```mermaid\ngraph LR\n  X --> Y\n```",
+    });
+
+    const reason = await screen.findByText("boom");
+
+    expect(reason).toHaveClass("code-block-reason");
+
+    posted.mockRestore();
+    act(() => {
+      editor.commands.insertContentAt(
+        editor.state.doc.child(0).nodeSize + 1,
+        "%% again\n"
+      );
+    });
+
+    expect(
+      await screen.findByRole("img", { name: "diagram" })
+    ).toBeInTheDocument();
+  });
+
   it("should show the reason for a diagram it cannot draw", async () => {
     await mount({
       initialContent: "before\n\n```mermaid\npie title Pets\n```",
