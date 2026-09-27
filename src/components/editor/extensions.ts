@@ -8,7 +8,6 @@ import {
   Extension,
   InputRule,
   markInputRule,
-  markPasteRule,
   mergeAttributes,
 } from "@tiptap/core";
 import { Code } from "@tiptap/extension-code";
@@ -43,7 +42,10 @@ import {
 import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
-import type { ReadClipboardSource } from "@/lib/ui/clipboard-source";
+import type {
+  ReadClipboardSource,
+  ReadClipboardText,
+} from "@/lib/ui/clipboard-source";
 import {
   escapeMarkdownLabel,
   escapeMarkdownTitle,
@@ -62,6 +64,7 @@ export interface EditorExtensionOptions {
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   placeholderText?: string;
   readClipboardSource?: ReadClipboardSource;
+  readClipboardText?: ReadClipboardText;
   resolveImageSrc?: (src: string) => string;
 }
 
@@ -74,19 +77,11 @@ const NoteCode = Code.extend({ excludes: "" });
 /** marked's GFM `del` takes one tilde or two; TipTap's rules take only two. */
 const SINGLE_TILDE = /(?<mark>~(?=[^\s~])(?<text>[^~]*[^\s~])~(?!~))$/u;
 
-const SINGLE_TILDE_PASTE = /(?<mark>~(?=[^\s~])(?<text>[^~]*[^\s~])~(?!~))/gu;
-
 const NoteStrike = Strike.extend({
   addInputRules() {
     return [
       ...(this.parent?.() ?? []),
       markInputRule({ find: SINGLE_TILDE, type: this.type }),
-    ];
-  },
-  addPasteRules() {
-    return [
-      ...(this.parent?.() ?? []),
-      markPasteRule({ find: SINGLE_TILDE_PASTE, type: this.type }),
     ];
   },
 });
@@ -678,6 +673,7 @@ export function createEditorExtensions(
     // lists, whose plain-text heuristic would outrun editor metadata.
     MarkdownPaste.configure({
       readClipboardSource: options.readClipboardSource ?? null,
+      readClipboardText: options.readClipboardText ?? null,
     }),
     NoteBulletList,
     NoteOrderedList,

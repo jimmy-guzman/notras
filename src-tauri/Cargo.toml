@@ -18,6 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+arboard = { version = "3.6", default-features = false }
 log.workspace = true
 notify = "8"
 notify-debouncer-full = "0.5"

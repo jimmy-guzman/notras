@@ -8,6 +8,8 @@ export type ReadClipboardSource = (
   text: string
 ) => Promise<ClipboardSource | null>;
 
+export type ReadClipboardText = () => Promise<string | null>;
+
 /** Read where the text belonging to this paste event was copied from. */
 export async function readClipboardSource(
   text: string

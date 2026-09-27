@@ -11,6 +11,12 @@ export const commands = {
 async readClipboardSource(text: string) : Promise<ClipboardSource | null> {
     return await TAURI_INVOKE("read_clipboard_source", { text });
 },
+/**
+ * The clipboard's plain text, if it holds any.
+ */
+async readClipboardText() : Promise<string | null> {
+    return await TAURI_INVOKE("read_clipboard_text");
+},
 async attachFile(source: string) : Promise<string> {
     return await TAURI_INVOKE("attach_file", { source });
 },

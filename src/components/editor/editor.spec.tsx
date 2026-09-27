@@ -683,6 +683,27 @@ describe("focus mode scroller", () => {
   });
 });
 
+describe("paste formatting", () => {
+  it("should keep literal markdown in copied HTML as text", async () => {
+    const { handle, scroller } = await mount({ initialContent: "" });
+    const surface = scroller.querySelector(".ProseMirror");
+
+    if (surface === null) {
+      throw new Error("the editor surface did not render");
+    }
+
+    const clipboardData = new DataTransfer();
+
+    clipboardData.setData("text/plain", "run **x** now");
+    clipboardData.setData("text/html", "<p>run **x** now</p>");
+    act(() => {
+      surface.dispatchEvent(new ClipboardEvent("paste", { clipboardData }));
+    });
+
+    expect(handle.getContent().trimEnd()).toBe(String.raw`run \*\*x\*\* now`);
+  });
+});
+
 describe("code block clipboard", () => {
   it("should preserve code editor metadata through the mounted editor", async () => {
     const { handle, scroller } = await mount({ initialContent: "" });
