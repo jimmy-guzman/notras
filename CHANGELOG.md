@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.10.0](https://github.com/jimmy-guzman/notras/compare/v0.9.1...v0.10.0) (2026-09-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **editor:** 💥 focus mode and ⌘D are gone
+
+### Features
+
+* **editor:** ✨ draw mermaid fences as diagrams ([#285](https://github.com/jimmy-guzman/notras/issues/285)) ([ce37155](https://github.com/jimmy-guzman/notras/commit/ce37155d1e32e62b8ac1a99311eaee70269e8747))
+* **editor:** ✨ drop focus mode ([#286](https://github.com/jimmy-guzman/notras/issues/286)) ([c0a977a](https://github.com/jimmy-guzman/notras/commit/c0a977a1c44786a3d67ff6fc2db6169609dbbd7d))
+* **editor:** ✨ paste one line from a code editor inline ([#280](https://github.com/jimmy-guzman/notras/issues/280)) ([15715ed](https://github.com/jimmy-guzman/notras/commit/15715ed445ed1a0e175fe6827be04b222804e30c)), closes [#267](https://github.com/jimmy-guzman/notras/issues/267)
+* **editor:** ✨ paste plain text with ⌘⌥⇧V ([#284](https://github.com/jimmy-guzman/notras/issues/284)) ([30eb94d](https://github.com/jimmy-guzman/notras/commit/30eb94dfec047fef13a872cbaf0f5bf965833fb2)), closes [#265](https://github.com/jimmy-guzman/notras/issues/265)
+* **export:** ✨ print code and diagrams on the dark card ([#289](https://github.com/jimmy-guzman/notras/issues/289)) ([98851e0](https://github.com/jimmy-guzman/notras/commit/98851e037753500eda6bce4c9dec631112e1a003))
+
+
+### Bug Fixes
+
+* 🐛 open in dark mode without a white frame ([#288](https://github.com/jimmy-guzman/notras/issues/288)) ([990ae04](https://github.com/jimmy-guzman/notras/commit/990ae0402fdc64299fb37f17d76249751a4e5330))
+* **editor:** 🐛 color an edited fence before the mount backlog ([#281](https://github.com/jimmy-guzman/notras/issues/281)) ([b3070f5](https://github.com/jimmy-guzman/notras/commit/b3070f5d443a28a84083e03b038ac42d696bd3b4)), closes [#247](https://github.com/jimmy-guzman/notras/issues/247)
+* **editor:** 🐛 paste text or a table copied beside an image ([#278](https://github.com/jimmy-guzman/notras/issues/278)) ([e02cb98](https://github.com/jimmy-guzman/notras/commit/e02cb989a2e9ee4003a62834dd1c95a413cede55)), closes [#266](https://github.com/jimmy-guzman/notras/issues/266)
+* **editor:** 🐛 read numbered and task lists as github does ([#277](https://github.com/jimmy-guzman/notras/issues/277)) ([9238a9b](https://github.com/jimmy-guzman/notras/commit/9238a9b2e0fb9f98a04f932697dbfbf525a10e65)), closes [#272](https://github.com/jimmy-guzman/notras/issues/272)
+* **editor:** 🐛 save &lt; &gt; & and list blocks as you typed them ([#273](https://github.com/jimmy-guzman/notras/issues/273)) ([c731cae](https://github.com/jimmy-guzman/notras/commit/c731cae087405e1b2212567223cfa6c60a0f0749))
+* **editor:** 🐛 switch tabs beside a long note without a pause ([#279](https://github.com/jimmy-guzman/notras/issues/279)) ([f26c3bb](https://github.com/jimmy-guzman/notras/commit/f26c3bb305b26203983136fd77741bb56ee421c8)), closes [#254](https://github.com/jimmy-guzman/notras/issues/254) [#246](https://github.com/jimmy-guzman/notras/issues/246)
+* **export:** 🐛 color code in a pdf exported right after opening ([#275](https://github.com/jimmy-guzman/notras/issues/275)) ([8b73b5b](https://github.com/jimmy-guzman/notras/commit/8b73b5b5f4f782494029f1917957783b2c91313e)), closes [#244](https://github.com/jimmy-guzman/notras/issues/244)
+* **tabs:** 🐛 follow open files when the notes folder changes ([#276](https://github.com/jimmy-guzman/notras/issues/276)) ([3525300](https://github.com/jimmy-guzman/notras/commit/3525300773d827444fe19dce15ee88a426c4fcad)), closes [#263](https://github.com/jimmy-guzman/notras/issues/263)
+
+
+### Refactoring
+
+* **tabs:** 🔄 flush every tab on blur from one listener ([#282](https://github.com/jimmy-guzman/notras/issues/282)) ([ec8ebee](https://github.com/jimmy-guzman/notras/commit/ec8ebee49dd5af19e6c1c4b5d61d7a94bb54488b)), closes [#261](https://github.com/jimmy-guzman/notras/issues/261)
+
 ## [0.9.1](https://github.com/jimmy-guzman/notras/compare/v0.9.0...v0.9.1) (2026-09-25)
 
 
