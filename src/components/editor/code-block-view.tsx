@@ -5,18 +5,30 @@ import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState } from "react";
 
-import { hasString } from "@/components/editor/attrs";
+import { contentOf, hasString } from "@/components/editor/attrs";
 import { MermaidDiagram } from "@/components/editor/mermaid-diagram";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
+function fencedMarkdown({
+  editor,
+  node,
+}: Pick<ReactNodeViewProps, "editor" | "node">) {
+  if (editor.markdown === undefined) {
+    throw new Error("The editor has no Markdown converter");
+  }
+
+  return editor.markdown.serialize(contentOf(node));
+}
+
 /**
- * Copy a block's code and edit its fence language from a hover toolbar. A
- * `mermaid` fence draws above its code and folds the code while the caret is
- * elsewhere.
+ * Copy a block as fenced markdown and edit its fence language from a hover
+ * toolbar. A `mermaid` fence draws above its code and folds the code while
+ * the caret is elsewhere.
  */
 export function CodeBlockView({
+  editor,
   node,
   selectionInside,
   updateAttributes,
@@ -47,7 +59,7 @@ export function CodeBlockView({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(node.textContent);
+      await navigator.clipboard.writeText(fencedMarkdown({ editor, node }));
       setCopied(true);
       clearCopied();
     } catch (error) {

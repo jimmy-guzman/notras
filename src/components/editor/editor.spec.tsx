@@ -607,25 +607,21 @@ describe("code block clipboard", () => {
   });
 
   it.each([
-    ["named", "```ts\nconst value = 1;\n```", "const value = 1;"],
-    ["plain", "```\nplain code\n```", "plain code"],
-    ["unknown language", "```mermaid\ngraph TD\n```", "graph TD"],
-    ["empty", "```ts\n\n```", ""],
-    [
-      "nested fences",
-      "````markdown\n```ts\nconst value = 1;\n```\n````",
-      "```ts\nconst value = 1;\n```",
-    ],
+    ["named", "```ts\nconst value = 1;\n```"],
+    ["plain", "```\nplain code\n```"],
+    ["unknown language", "```mermaid\ngraph TD\n```"],
+    ["empty", "```ts\n\n```"],
+    ["nested fences", "````markdown\n```ts\nconst value = 1;\n```\n````"],
   ])(
-    "should copy a %s code block as its code",
-    async (_name, markdown, code) => {
+    "should copy a %s code block as fenced markdown",
+    async (_name, markdown) => {
       await mount({ initialContent: markdown });
       const user = userEvent.setup();
       const copy = screen.getByRole("button", { name: "copy code" });
 
       await user.click(copy);
 
-      await expect(navigator.clipboard.readText()).resolves.toBe(code);
+      await expect(navigator.clipboard.readText()).resolves.toBe(markdown);
       expect(copy.textContent).toBe("copied");
     }
   );
@@ -858,8 +854,8 @@ describe("copy", () => {
       "the site",
       "the site",
     ],
-    ["bold text", "**bold** text", "bold", "text", "bold text"],
-    ["a heading", "## heading text", "heading", "text", "heading text"],
+    ["bold text", "**bold** text more", "bold", "text", "bold text"],
+    ["a heading", "## heading text more", "heading", "text", "heading text"],
     [
       "a table cell",
       "| a | b |\n| --- | --- |\n| cell | x |",
@@ -876,12 +872,12 @@ describe("copy", () => {
     ],
     [
       "a wikilink",
-      "see [[Other note]] here",
+      "see [[Other note]] here now",
       "see",
       "here",
       "see Other note here",
     ],
-    ["an image", "a ![pic](attachments/x.png) b", "a", "b", "a pic b"],
+    ["an image", "a ![pic](attachments/x.png) b c", "a", "b", "a pic b"],
   ])(
     "should copy %s as the text it shows",
     async (_name, initialContent, first, last, text) => {
@@ -893,6 +889,36 @@ describe("copy", () => {
       );
 
       expect(copied.getData("text/plain")).toBe(text);
+    }
+  );
+
+  it.each([
+    [
+      "a code block",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+      "const a",
+      "2;",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+    ],
+    [
+      "a list item",
+      "- first words\n- second",
+      "first",
+      "words",
+      "- first words",
+    ],
+    ["a heading", "## heading text", "heading", "text", "## heading text"],
+  ])(
+    "should copy %s selected end to end as markdown",
+    async (_name, initialContent, first, last, markdown) => {
+      const { editor } = await mount({ initialContent });
+      const copied = copyBetween(
+        editor,
+        rangeOf(editor, first).from,
+        rangeOf(editor, last).to
+      );
+
+      expect(copied.getData("text/plain")).toBe(markdown);
     }
   );
 
@@ -1000,6 +1026,13 @@ describe("copy", () => {
       "here",
       "see [[Other note]] here",
     ],
+    [
+      "a code block end to end",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+      "const a",
+      "2;",
+      "```ts\nconst a = 1;\nconst b = 2;\n```",
+    ],
   ])(
     "should paste %s copied from a note as they read",
     async (_name, initialContent, first, last, markdown) => {
@@ -1018,7 +1051,7 @@ describe("copy", () => {
         new ClipboardEvent("paste", { clipboardData: copied })
       );
 
-      expect(serializeMarkdown(pasted)).toBe(markdown);
+      expect(serializeMarkdown(pasted).trimEnd()).toBe(markdown);
       pasted.destroy();
     }
   );

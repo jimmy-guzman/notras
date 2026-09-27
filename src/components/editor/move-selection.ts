@@ -35,7 +35,7 @@ function isHeaderRow(row: Node) {
   return false;
 }
 
-function isRowRange(range: NodeRange) {
+export function isRowRange(range: NodeRange) {
   return range.parent.type.name === "table";
 }
 
