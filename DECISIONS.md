@@ -785,7 +785,7 @@ Tauri ships each package as an npm and crate pair, and `tauri build` errors when
 
 **Constraint:** Renovate's `lib/data/monorepo.json` carries `tauri` but no `plugins-workspace`, so `group:tauriMonorepo` covers the core pairs and the plugin rule here is a local stand-in for an entry that belongs upstream. It goes stale if Renovate adds one.
 
-**Constraint:** nothing in CI runs the Tauri CLI, so a pair that drifts anyway is caught by `tauri build` on the release tag. `tauri build --ignore-version-mismatches` exists and does not belong in `release.yml`.
+D90 records the CI compatibility check.
 
 ### D66 TanStack Query caches the reads, and the change event names what to invalidate
 
@@ -1188,3 +1188,9 @@ Before this every entry point wrote `untitled.md` on the keystroke that asked fo
 **Rejected: ⌘T opening the palette with ⏎ set to open beside,** Arc's ⌘T. Rejected because ⏎ in the palette would mean two things depending on how it was opened, and the strip's `+` would become a second find button.
 
 **Constraint:** the palette's create row still creates the file at once, since the user named it.
+
+### D90 CI checks Tauri dependency compatibility before release
+
+D65 coordinates dependency updates but does not validate the resolved npm/crate pairs. PR CI invokes Tauri's build command so Tauri applies its own compatibility rules before a change reaches release. Linux runs the check because its Rust job already installs both dependency sets for binding checks. The debug build reuses the job's build profile, and disabling bundling retains the compatibility check without requiring signing credentials.
+
+**Rejected: `--ignore-version-mismatches` in CI or release workflows.** It lets a build proceed with incompatible dependency pairs. In CI it defeats the check; in a release it allows those pairs to ship.

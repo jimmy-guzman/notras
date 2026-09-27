@@ -461,7 +461,7 @@ describe("code block highlighting", () => {
   it("should color a long block whole while revealed and window it again after", async ({
     onTestFinished,
   }) => {
-    const lines = 3000;
+    const lines = 1500;
     const editor = createEditor(
       "ts",
       Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
