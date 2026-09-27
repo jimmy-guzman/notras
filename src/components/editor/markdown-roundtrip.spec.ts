@@ -275,6 +275,21 @@ describe("markdown round-trip", () => {
     editor.destroy();
   });
 
+  it.each([
+    ["a nested list", "- [ ] \n  - nested", "bulletList"],
+    ["a paragraph after a blank line", "- [x]\n\n  para", "paragraph"],
+  ])("should read an empty task over %s as a task", (_name, markdown, type) => {
+    const editor = load(markdown);
+    const item = editor.state.doc.child(0).child(0);
+    const saved = serializeMarkdown(editor);
+
+    expect(item.type.name).toBe("taskItem");
+    expect(item.child(0).textContent).toBe("");
+    expect(item.child(1).type.name).toBe(type);
+    expect(roundtrip(saved)).toBe(saved);
+    editor.destroy();
+  });
+
   it("should keep a checkbox after a number as text", () => {
     const editor = load("1. [ ] x");
     const item = editor.state.doc.child(0).child(0);

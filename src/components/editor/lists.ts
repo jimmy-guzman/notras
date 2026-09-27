@@ -78,9 +78,10 @@ function taskOf(item: MarkdownToken): null | Task {
     };
   }
 
-  const mark = BARE_CHECKBOX.exec(item.text ?? "")?.groups?.mark;
+  const [first, ...rest] = item.tokens ?? [];
+  const mark = BARE_CHECKBOX.exec(first?.text ?? "")?.groups?.mark;
 
-  return mark === undefined ? null : { checked: mark !== " ", tokens: [] };
+  return mark === undefined ? null : { checked: mark !== " ", tokens: rest };
 }
 
 function taskItemOf(
