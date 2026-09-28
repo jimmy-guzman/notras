@@ -1365,11 +1365,9 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     await editor("t5");
-    const sources = [
-      ...(document
-        .querySelector(`[id="${tabPanelId("t5")}"]`)
-        ?.querySelectorAll("img") ?? []),
-    ].map((image) => image.getAttribute("src"));
+    const sources = screen
+      .getAllByRole("img")
+      .map((image) => image.getAttribute("src"));
     expect(sources).toStrictEqual([
       "asset://localhost/%2Fnotes%2Fprojects%2Fmy%20shot.png",
       "",
@@ -1415,10 +1413,7 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     const liveEditor = await editor("t6");
-    const image = document
-      .querySelector(`[id="${tabPanelId("t6")}"]`)
-      ?.querySelector("img");
-    expect(image?.getAttribute("src")).toBe(
+    expect(screen.getByRole("img").getAttribute("src")).toBe(
       "external-image://localhost/?doc=%2FUsers%2Fme%2Fdocs%2Fnote.md&src=..%2Fmy+shot.png"
     );
     const sources: string[] = [];
