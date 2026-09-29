@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/jimmy-guzman/notras/compare/v0.10.1...v0.10.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 copy a code block's code w/o its fence ([#295](https://github.com/jimmy-guzman/notras/issues/295)) ([3cdcafa](https://github.com/jimmy-guzman/notras/commit/3cdcafac7b0c6dc9b8824cfa771de8506f7333df))
+
 ## [0.10.1](https://github.com/jimmy-guzman/notras/compare/v0.10.0...v0.10.1) (2026-09-27)
 
 
