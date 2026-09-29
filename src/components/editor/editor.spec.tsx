@@ -606,24 +606,59 @@ describe("code block clipboard", () => {
   });
 
   it.each([
-    ["named", "```ts\nconst value = 1;\n```"],
-    ["plain", "```\nplain code\n```"],
-    ["unknown language", "```mermaid\ngraph TD\n```"],
-    ["empty", "```ts\n\n```"],
-    ["nested fences", "````markdown\n```ts\nconst value = 1;\n```\n````"],
+    ["named", "```ts\nconst value = 1;\n```", "const value = 1;"],
+    ["plain", "```\nplain code\n```", "plain code"],
+    ["unknown language", "```mermaid\ngraph TD\n```", "graph TD"],
+    ["empty", "```ts\n\n```", ""],
+    [
+      "nested fences",
+      "````markdown\n```ts\nconst value = 1;\n```\n````",
+      "```ts\nconst value = 1;\n```",
+    ],
   ])(
-    "should copy a %s code block as fenced markdown",
-    async (_name, markdown) => {
+    "should copy a %s code block as its code",
+    async (_name, markdown, code) => {
       await mount({ initialContent: markdown });
       const user = userEvent.setup();
       const copy = screen.getByRole("button", { name: "copy code" });
 
       await user.click(copy);
 
-      await expect(navigator.clipboard.readText()).resolves.toBe(markdown);
+      await expect(navigator.clipboard.readText()).resolves.toBe(code);
       expect(copy.textContent).toBe("copied");
     }
   );
+
+  it("should paste a copied code block back with its language", async () => {
+    const markdown = "````markdown\n```ts\nconst value = 1;\n```\n````";
+    await mount({ initialContent: markdown });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "copy code" }));
+    const [item] = await navigator.clipboard.read();
+
+    if (item === undefined) {
+      throw new Error("the copy wrote no clipboard item");
+    }
+
+    const html = await item.getType("text/html");
+    const clipboardData = new DataTransfer();
+
+    clipboardData.setData("text/html", await html.text());
+    cleanup();
+    const { handle, scroller } = await mount({ initialContent: "" });
+    const surface = scroller.querySelector(".ProseMirror");
+
+    if (surface === null) {
+      throw new Error("the editor surface did not render");
+    }
+
+    act(() => {
+      surface.dispatchEvent(new ClipboardEvent("paste", { clipboardData }));
+    });
+
+    expect(handle.getContent().trimEnd()).toBe(markdown);
+  });
 
   it("should save the newly selected language in markdown", async () => {
     const { handle } = await mount({

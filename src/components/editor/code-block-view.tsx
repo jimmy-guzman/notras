@@ -1,31 +1,22 @@
 import { useDebouncedCallback } from "@tanstack/react-pacer";
+import { getHTMLFromFragment } from "@tiptap/core";
+import { Fragment } from "@tiptap/pm/model";
 import type { ReactNodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState } from "react";
 
-import { contentOf, hasString } from "@/components/editor/attrs";
+import { hasString } from "@/components/editor/attrs";
 import { MermaidDiagram } from "@/components/editor/mermaid-diagram";
 import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-function fencedMarkdown({
-  editor,
-  node,
-}: Pick<ReactNodeViewProps, "editor" | "node">) {
-  if (editor.markdown === undefined) {
-    throw new Error("The editor has no Markdown converter");
-  }
-
-  return editor.markdown.serialize(contentOf(node));
-}
-
 /**
- * Copy a block as fenced markdown and edit its fence language from a hover
- * toolbar. A `mermaid` fence draws above its code and folds the code while
- * the caret is elsewhere.
+ * Copy a block's code and edit its fence language from a hover toolbar. A
+ * `mermaid` fence draws above its code and folds the code while the caret is
+ * elsewhere.
  */
 export function CodeBlockView({
   editor,
@@ -59,7 +50,15 @@ export function CodeBlockView({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(fencedMarkdown({ editor, node }));
+      // A terminal takes the plain code, and an app that pastes rich text
+      // takes the HTML as a code block with its language. The code is a Blob
+      // because happy-dom reads an empty string as a missing type.
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": getHTMLFromFragment(Fragment.from(node), editor.schema),
+          "text/plain": new Blob([node.textContent], { type: "text/plain" }),
+        }),
+      ]);
       setCopied(true);
       clearCopied();
     } catch (error) {
