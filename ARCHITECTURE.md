@@ -272,6 +272,10 @@ Window state lives in `localStorage`: the note browser's visibility and width in
 
 A PDF context has no destination-in compositing, so `mask-image` on the note surface paints the mask as an image in the export. The checked task box is a `clip-path` polygon for that reason, and anything else the surface draws has to be geometry, backgrounds or text.
 
+### AppKit's Writing Tools check is answered locally
+
+AppKit's check for the Writing Tools button reads the whole selection as attributed text on every event, and WebKit converts each styled run to answer. `src-tauri/src/writing_tools.rs` replaces that private check with one that answers "suppress" when its completion is `void (BOOL)`, and logs and leaves AppKit alone when the method has changed.
+
 ### Snippet rendering
 
 FTS snippets and result titles carry U+0001 and U+0002 around each hit from native SQL, characters no markdown file carries, so note text cannot forge a mark. `src/core/fts-markers.ts` defines the matching renderer markers; native query tests and frontend snippet tests verify the wire format. `getSnippetParts` parses them into segments and `Highlighted` in `note-label.tsx` renders them. Nothing renders a snippet through `dangerouslySetInnerHTML`.
