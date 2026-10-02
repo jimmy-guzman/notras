@@ -71,7 +71,7 @@ The icon pairs a calm writing surface with an expressive backdrop. An ivory fron
 - The tray derives a monochrome template from the same notes, rendered at 36 pixels for an 18-point slot. Its seam and writing strokes are transparent so the system can tint the silhouette for either menu-bar appearance.
 - The welcome lockup uses a 112px mark beside a left-aligned content column, separated by 28px. The column starts with a 48px semibold system-sans wordmark with -0.0375em tracking, then the tagline "write another note" after 8px in 20px system type with 1.3 line-height. Its actions sit 16px below the tagline with 8px between them: a default "new note" button and a secondary "search" button, each carrying its chord. The README hero uses a regular system-sans wordmark and the same single-line tagline.
 
-`pnpm icons` owns the generated family. `README.md` lists the source files and regeneration requirements; `ARCHITECTURE.md` describes output ownership.
+`pnpm icons` owns the generated family. `CONTRIBUTING.md` lists the source files and regeneration requirements; `ARCHITECTURE.md` describes output ownership.
 
 ## Space and radius
 
