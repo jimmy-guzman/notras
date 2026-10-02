@@ -4,7 +4,7 @@ Apply these when writing or changing code, and when writing prose in this repo. 
 
 ## Project docs
 
-The context for this repo lives in the five documents below. Read the ones your change touches before changing anything.
+The context for this repo lives in the six documents below. Read the ones your change touches before changing anything.
 
 | Doc | What it holds |
 | --- | --- |
@@ -12,7 +12,8 @@ The context for this repo lives in the five documents below. Read the ones your 
 | `DESIGN.md` | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
 | `DECISIONS.md` | A log of decisions made, each with its rationale and what it rejected. A record, not a rulebook. |
 | `SPEC.md` | What the app does, as claims a reader can check against a running build. |
-| `README.md` | The front door. What notras is, how to run it, and the scripts and shortcuts tables it owns. |
+| `README.md` | The front door. What notras is, how to install it, and the shortcuts table it owns. |
+| `CONTRIBUTING.md` | How to build and check notras: requirements, the scripts table, Rust commands, icon regeneration. |
 
 `AGENTS.md` holds rules and this map. Project fact belongs in one of the files above, so a stack detail, a pattern, or a color token added here is in the wrong place.
 
@@ -124,7 +125,7 @@ The context for this repo lives in the five documents below. Read the ones your 
 
 ## Verification
 
-`README.md` lists the scripts. This is the gate: a subset, in the order that fails cheapest first. After every set of changes, run all of it before considering the task done:
+`CONTRIBUTING.md` lists the scripts. This is the gate: a subset, in the order that fails cheapest first. After every set of changes, run all of it before considering the task done:
 
 ```txt
 pnpm knip             # 0. unused code/deps (fix before proceeding)
@@ -143,7 +144,7 @@ cargo clippy --workspace --locked --all-targets -- -D warnings
 cargo test --workspace --locked
 ```
 
-CI checks native binding drift on Linux before starting the TypeScript job. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `README.md` lists tool installation and coverage commands.
+CI checks native binding drift on Linux before starting the TypeScript job. Clippy and tests run on macOS, Linux, and Windows; dependency and formatting checks run on Linux. Linux also publishes Rust coverage reports. Use uncovered code to investigate missing behavioral tests, without targeting a percentage. `CONTRIBUTING.md` lists tool installation and coverage commands.
 
 Regenerate `src/server/adapters/bindings.ts` with `pnpm bindings`; do not edit its generated command signatures or runtime by hand. Change the native registry or export configuration in Rust. `ARCHITECTURE.md` describes the contract and test boundary.
 
@@ -269,4 +270,4 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
 - **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
 
-- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, or `README.md` should be updated, then apply the changes.** Catching the update at the point of change is when it reliably happens at all.
+- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, `README.md`, or `CONTRIBUTING.md` should be updated, then apply the changes.** Catching the update at the point of change is when it reliably happens at all.
