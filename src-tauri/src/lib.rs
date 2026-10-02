@@ -7,6 +7,8 @@ mod pdf;
 mod state;
 mod watcher;
 mod windows;
+#[cfg(target_os = "macos")]
+mod writing_tools;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -169,6 +171,9 @@ fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
 /// Everything a launch needs. A failure here reaches the user as a dialog,
 /// since no window exists yet to say it in.
 fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "macos")]
+    writing_tools::suppress_affordance_check();
+
     // The config paints the window dark at creation, which is earlier than this
     // runs. Correcting it here is what keeps a light-mode launch from flashing
     // dark instead of white.
