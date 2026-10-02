@@ -91,7 +91,7 @@ const NoteStrike = Strike.extend({
  * paragraph to upstream (`D58`).
  *
  * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
- * 3.30.2 its `parseMarkdown` returns the bare image for a paragraph holding
+ * 3.31.4 its `parseMarkdown` returns the bare image for a paragraph holding
  * only one, which suits the block image TipTap ships.
  */
 const NoteParagraph = Paragraph.extend({
@@ -106,7 +106,7 @@ const NoteParagraph = Paragraph.extend({
       );
     }
 
-    return Paragraph.config.parseMarkdown?.(token, helpers) ?? [];
+    return this.parent?.(token, helpers) ?? [];
   },
 });
 
@@ -594,7 +594,7 @@ export function serializeMarkdown(editor: Editor) {
  * calls methods a `Marked` instance has too.
  *
  * TODO: drop the widened type once `@tiptap/markdown` accepts a `Marked`
- * instance (through 3.31.3 it does not).
+ * instance (through 3.31.4 it does not).
  */
 const NoteMarkdown = Markdown.extend<
   Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }

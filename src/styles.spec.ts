@@ -565,6 +565,12 @@ const TASK_NESTED_LIST =
 const NESTED_TASK_LIST =
   /taskList"\] ul\[data-type="taskList"\] \{\s*margin-block:\s*(?<value>[\d.]+em)/u;
 
+const TYPESET_ITEM_STEP =
+  /:where\(li\) \{[^}]*?margin-block-start:\s*(?<value>[\d.]+em)/u;
+
+const LIST_AFTER_LIST =
+  /\+ :is\(ul, ol\) \{\s*margin-block-start:\s*(?<value>[\d.]+em)/u;
+
 const TYPESET_NESTED_FENCE =
   /li > pre\) \{[^}]*?margin-block-start:\s*(?<value>calc\([^)]*\))/u;
 
@@ -579,6 +585,12 @@ describe("nested block rhythm", () => {
     expect(
       firstMatch(TASK_NESTED_LIST, source, "the task row's nested list step")
     ).toBe(firstMatch(NESTED_TASK_LIST, source, "the nested task list step"));
+  });
+
+  it("should step a list after a list like an item in it", () => {
+    expect(
+      firstMatch(LIST_AFTER_LIST, source, "the list after a list step")
+    ).toBe(firstMatch(TYPESET_ITEM_STEP, typeset, "typeset's item step"));
   });
 
   it("should restate typeset's nested step for a fence in a list item", () => {

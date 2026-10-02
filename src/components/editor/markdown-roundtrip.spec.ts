@@ -153,6 +153,10 @@ describe("markdown round-trip", () => {
     expect(roundtrip(markdown)).toBe(markdown);
   });
 
+  it("should keep an empty numbered item", () => {
+    expect(roundtrip("1. foo\n2. ")).toBe("1. foo\n2. ");
+  });
+
   it.each([
     [
       "a reference definition another block would resolve",

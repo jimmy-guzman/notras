@@ -1312,12 +1312,12 @@ describe(NoteSession, () => {
         return null;
       })
     );
-    mountSession("# Code\n\n```ts\nconst a = 1;\n```");
+    mountSession("# Code\n\n```ts\nlet b = 2;\n```");
     await editor();
 
     await expect(sessionHandles().exportPdf()).resolves.toBe("/exports/a.pdf");
 
-    expect(printed).toBe("const a = 1;");
+    expect(printed).toBe("let b = 2;");
     expect(document.querySelector(".syntax-token")).toBeNull();
   });
 
