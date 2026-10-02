@@ -29,6 +29,7 @@ const STATE_CLASSES = [
   "note-find-match",
   "note-find-open",
   "ProseMirror-selectednode",
+  "selected-text",
   "selectedCell",
 ];
 
