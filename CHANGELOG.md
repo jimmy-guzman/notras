@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.3](https://github.com/jimmy-guzman/notras/compare/v0.10.2...v0.10.3) (2026-10-02)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 highlight ⌘A selections evenly in every block ([#301](https://github.com/jimmy-guzman/notras/issues/301)) ([a08ef97](https://github.com/jimmy-guzman/notras/commit/a08ef9737fd5dba1c76ab5d66f65df1b642f5a65))
+* **editor:** 🐛 keep a selected note responsive ([#297](https://github.com/jimmy-guzman/notras/issues/297)) ([1076897](https://github.com/jimmy-guzman/notras/commit/10768978eeaa95daf5c77c4c74df27fcba7012a1))
+* **editor:** 🐛 space a list after a list like its items ([#300](https://github.com/jimmy-guzman/notras/issues/300)) ([50ab222](https://github.com/jimmy-guzman/notras/commit/50ab222e1fd6e46a6a402760459d6b16965388d4))
+
 ## [0.10.2](https://github.com/jimmy-guzman/notras/compare/v0.10.1...v0.10.2) (2026-09-29)
 
 
