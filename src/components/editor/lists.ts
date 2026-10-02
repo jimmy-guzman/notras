@@ -150,7 +150,7 @@ function withWrappedLines(
 
 /**
  * TODO: drop the parser once `@tiptap/extension-list` leads an item with a
- * paragraph. Through 3.31.3 an item can open with a table, fence, quote or
+ * paragraph. Through 3.31.4 an item can open with a table, fence, quote or
  * list, which the schema rejects.
  */
 export const NoteListItem = ListItem.extend({
@@ -160,8 +160,7 @@ export const NoteListItem = ListItem.extend({
     const tokens = replaceCheckbox(token.tokens ?? [], (checkbox) => [
       { raw: checkbox.raw, text: checkbox.raw, type: "text" },
     ]);
-    const item =
-      ListItem.config.parseMarkdown?.({ ...token, tokens }, helpers) ?? [];
+    const item = this.parent?.({ ...token, tokens }, helpers) ?? [];
 
     if (Array.isArray(item) || item.content?.[0]?.type === "paragraph") {
       return item;
@@ -174,7 +173,7 @@ export const NoteListItem = ListItem.extend({
   },
   renderMarkdown(node, helpers, context) {
     const rendered = withWrappedLines(
-      (item) => ListItem.config.renderMarkdown?.(item, helpers, context) ?? "",
+      (item) => this.parent?.(item, helpers, context) ?? "",
       node,
       helpers,
       context.parentType === "orderedList"
@@ -194,7 +193,7 @@ export const NoteListItem = ListItem.extend({
 export const NoteTaskItem = TaskItem.extend({
   renderMarkdown(node, helpers, context) {
     return withWrappedLines(
-      (item) => TaskItem.config.renderMarkdown?.(item, helpers, context) ?? "",
+      (item) => this.parent?.(item, helpers, context) ?? "",
       node,
       helpers,
       false

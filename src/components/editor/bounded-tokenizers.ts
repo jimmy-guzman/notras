@@ -31,7 +31,7 @@ const table = upstream(Table);
 const TABLE_PADDING = /^\n|\n$/gu;
 
 /**
- * Through 3.31.3 upstream splits the whole remaining input at every block.
+ * Through 3.31.4 upstream splits the whole remaining input at every block.
  *
  * TODO: drop the wrapper once `@tiptap/extension-table` bounds its own scan.
  */

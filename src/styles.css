@@ -324,6 +324,13 @@ body.dragging .ProseMirror::selection {
   margin-block: 0;
 }
 
+/* Markdown splits a run of bullets, numbers and tasks into separate lists, and
+   Typeset would part each one by the gap between top-level blocks. Step it like
+   an item instead, the gap a task list already takes. */
+.ProseMirror :is(ul, ol) + :is(ul, ol) {
+  margin-block-start: 0.5em;
+}
+
 /* Task lists: flex rows with hand-drawn checkboxes locked to the first text
    line. Every selector reaches a row as a child of its own list, because a task
    item holds `paragraph block*`, so a list nested inside one is an ordinary
