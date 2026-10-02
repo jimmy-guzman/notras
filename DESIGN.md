@@ -127,7 +127,7 @@ Motion carries a state change and nothing else. There is no decorative animation
 
 ## The editor surface
 
-- The caret takes `--foreground`, and selection takes `--selection`.
+- The caret takes `--foreground`, and selection takes `--selection`. In the editors the selection paints on the selected text alone, line by line, as a code editor paints it, and never fills a line's end or the space between blocks (`D95`).
 - The empty-document placeholder renders through `p.is-editor-empty:first-child::before` on `--faint`, and never as a real node.
 - **The reading surface takes no colour of its own** (`D40`). Typeset reads the `--color-*` tokens the `@theme inline` block already emits, so the note is on the palette with nothing repointed. `src/styles.spec.ts` asserts the two roles it derives resolve to a token, and that every `::marker` paints from the muted one.
 - **Bullet and ordered lists come from Typeset.** Markers, indentation, and the space between items are its at every depth, and a marker steps disc, circle, then square with depth. `src/styles.css` adds three things. `li > p` loses its block margins so a one-line item stays on one line. A list directly after another list steps by the item gap rather than the block gap, so bullets, numbers and tasks in a run keep one rhythm. And where a node view puts a wrapper between a list item and its content, Typeset's nested step is restated at the shape that wrapper leaves behind, since the block would otherwise take the gap that separates top-level blocks: a task item's content div for a list or a blockquote, and `.code-block-wrapper` for a fence. `src/styles.spec.ts` reads every restated step out of the vendored file, so a re-fetch cannot leave them apart.

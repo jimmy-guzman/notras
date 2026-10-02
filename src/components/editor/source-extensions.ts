@@ -7,6 +7,7 @@ import type { Plugin, Transaction } from "@tiptap/pm/state";
 
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { Find } from "@/components/editor/find";
+import { SelectionHighlight } from "@/components/editor/selection-highlight";
 import { titleSource } from "@/core/notes";
 
 const INDENT = "  ";
@@ -87,6 +88,7 @@ export function createSourceExtensions(historyPlugin: Plugin): Extensions {
       exitOnTripleEnter: false,
     }),
     UndoRedo.extend({ addProseMirrorPlugins: () => [historyPlugin] }),
+    SelectionHighlight,
     SourceKeys,
   ];
 }

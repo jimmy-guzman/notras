@@ -55,6 +55,7 @@ import { CaretAfterBreak } from "./caret-after-break";
 import { CodeBlockView } from "./code-block-view";
 import { DragSelection } from "./drag-selection";
 import { MoveSelectionKeys } from "./move-selection-keys";
+import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
 import { isSafeUrl } from "./urls";
 import { Wikilink } from "./wikilink";
@@ -691,6 +692,7 @@ export function createEditorExtensions(
     DragSelection,
     MarkdownLinkInputRule,
     MoveSelectionKeys,
+    SelectionHighlight,
     SlashMenu,
     Wikilink.configure({
       getTitles: options.getTitles ?? (() => []),
