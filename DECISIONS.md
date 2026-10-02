@@ -1228,3 +1228,11 @@ Focus mode, the dim and the typewriter recentre under ⌘D (`D63`, `D64`, `D75`)
 The worker is gone. The engine loads as its own chunk after launch and the node view renders synchronously, so a note opened after that has its drawings in its first paint. `D86`'s cost was a measured two-second gap; a diagram's is 27ms for 100 nodes and 293ms for 400, per `D91`, paid once per open and once per settled edit.
 
 **Reference:** scratch renders in the node view's `useMemo` from a static import; Obsidian's beautiful-mermaid plugin replaces Obsidian's asynchronous renderer and names "no flicker or loading states" as the reason; Craft designed the library synchronous and quotes 100 diagrams under 500ms. None uses a worker.
+
+### D95 The editor paints its own selection
+
+A text selection in either editor paints as an inline decoration on the selected text, and the webview's own selection paint is transparent inside the editor. WebKit fills a selection's line ends and the space between blocks, stops that fill at every flex item, positioned box and scroller, and cuts a hole wherever an absolute or floated box sits. Under ⌘A a task row, a flex row, highlighted its text alone between full-width blocks, and a fence, a scrolling `pre`, showed its padding dark on both sides. Reshaping the layout to suit the fill moved the defect each time: a positioned row striped its padding, an absolute checkbox and the fence's hidden toolbar cut holes, and an in-flow unselectable checkbox left the fill painted over the rest of the note.
+
+**Rejected: native fill with layout kept to its rules.** Every flex row, positioned box and scroller in the note surface becomes a selection bug, and nothing tests for one.
+
+**Rejected: an overlay layer, as VS Code's `SelectionsOverlay` draws.** It measures each line's rectangle, redraws on scroll and resize, and sits under the code cards' backgrounds. A decoration gets its line boxes from layout and paints under the glyphs inside a card as well.

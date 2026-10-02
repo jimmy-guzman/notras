@@ -159,7 +159,8 @@
     color-scheme: dark light;
     scrollbar-color: auto;
   }
-  ::selection {
+  ::selection,
+  .ProseMirror .selected-text {
     color: var(--foreground);
     background: var(--selection);
   }
@@ -167,7 +168,8 @@
     html {
       scrollbar-color: auto;
     }
-    ::selection {
+    ::selection,
+    .ProseMirror .selected-text {
       color: HighlightText;
       background: Highlight;
     }
@@ -222,6 +224,19 @@
   content: attr(data-placeholder);
 }
 
+/* A selection paints as `.selected-text` on the selected text alone, so the
+   native paint, which also fills each line's end and the gaps between blocks,
+   stays off in the editor. The padding stretches each line's box from the
+   font's content area, about 1.2em in the system faces, to the line height, so
+   the lines of a run meet. */
+.ProseMirror ::selection,
+.ProseMirror::selection {
+  background: transparent;
+}
+.ProseMirror .selected-text {
+  padding-block: calc((1lh - 1.2em) / 2);
+}
+
 /* Moving the selection: what is in flight dims where it sits. */
 .ProseMirror [data-dragging] {
   opacity: 0.4;
@@ -244,13 +259,14 @@
   margin-block-start: 0;
 }
 /* For the drag's length the cursor says what is happening, and the selection
-   stops painting so the source shows its dim alone. */
+   stops painting so the source shows its dim alone. The ghost clones the
+   selected blocks, highlight spans included. */
 body.dragging,
 body.dragging .ProseMirror {
   cursor: grabbing;
 }
-body.dragging .ProseMirror ::selection,
-body.dragging .ProseMirror::selection {
+body.dragging .ProseMirror .selected-text,
+.drag-ghost .selected-text {
   background: transparent;
 }
 /* Where the drop lands, the mark CodeMirror draws: a bar 2px wide and 1em tall

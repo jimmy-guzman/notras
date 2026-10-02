@@ -356,13 +356,13 @@ describe("shared surface colors", () => {
   });
 
   it("should use one readable selection treatment inside and outside the editor", () => {
-    const selection = blockOf(source, "::selection");
+    const selection = blockOf(
+      source,
+      "::selection,\n  .ProseMirror .selected-text"
+    );
 
     expect(selection).toContain("color: var(--foreground);");
     expect(selection).toContain("background: var(--selection);");
-    expect(preludesOf(source)).not.toContain(
-      ".ProseMirror ::selection, .ProseMirror::selection"
-    );
   });
 
   it("should let forced colors supply the scrollbar and selection colors", () => {
@@ -371,8 +371,13 @@ describe("shared surface colors", () => {
     );
 
     expect(blockOf(forced, "html")).toContain("scrollbar-color: auto;");
-    expect(blockOf(forced, "::selection")).toContain("color: HighlightText;");
-    expect(blockOf(forced, "::selection")).toContain("background: Highlight;");
+    const selection = blockOf(
+      forced,
+      "::selection,\n    .ProseMirror .selected-text"
+    );
+
+    expect(selection).toContain("color: HighlightText;");
+    expect(selection).toContain("background: Highlight;");
   });
 
   it("should keep completed task content at the secondary ink contrast", () => {
