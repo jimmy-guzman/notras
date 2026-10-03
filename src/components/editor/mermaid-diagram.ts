@@ -1,15 +1,24 @@
 import type { renderMermaidSVG } from "beautiful-mermaid";
-import { Suspense, use, useDeferredValue } from "react";
-import type { FallbackProps } from "react-error-boundary";
-import { ErrorBoundary } from "react-error-boundary";
 
 import { styleNonce } from "@/lib/style-nonce";
 import { reasonOf } from "@/lib/ui/failure";
 
-// Loaded as the module evaluates, so the engine's chunk lands after launch
-// and ahead of any note that draws. `use` reads a settled promise without
-// suspending, so from then on a fence draws in its node view's first render.
-const engine = import("beautiful-mermaid");
+type Engine = { reason: string } | { render: typeof renderMermaidSVG };
+
+let engine: Engine | undefined;
+
+// Loaded as the module evaluates, so the chunk lands ahead of any note that
+// draws. Resolves once it has loaded or failed.
+export const mermaidSettled = (async () => {
+  try {
+    const { renderMermaidSVG } = await import("beautiful-mermaid");
+    engine = { render: renderMermaidSVG };
+  } catch (error) {
+    engine = {
+      reason: reasonOf(error) ?? "The diagram renderer did not load",
+    };
+  }
+})();
 
 function draw(render: typeof renderMermaidSVG, code: string) {
   try {
@@ -63,58 +72,38 @@ function toElement(markup: string) {
   return svg;
 }
 
-function Drawing({ code }: { code: string }) {
-  const { renderMermaidSVG } = use(engine);
-  const drawn = draw(renderMermaidSVG, code);
+function reasonLine(reason: string) {
+  const line = document.createElement("div");
+  line.className = "code-block-reason";
+  line.contentEditable = "false";
+  line.textContent = reason;
 
-  if ("reason" in drawn) {
-    return (
-      <div className="code-block-reason" contentEditable={false}>
-        {drawn.reason}
-      </div>
-    );
-  }
-
-  const svg = toElement(drawn.svg);
-
-  return (
-    <div
-      className="code-block-diagram"
-      contentEditable={false}
-      ref={(host) => {
-        host?.replaceChildren(svg);
-      }}
-    />
-  );
-}
-
-function renderLoadFailure({ error }: FallbackProps) {
-  return (
-    <div className="code-block-reason" contentEditable={false}>
-      {reasonOf(error) ?? "The diagram renderer did not load"}
-    </div>
-  );
+  return line;
 }
 
 /**
- * A `mermaid` fence's drawing, or the reason it has none. Renders nothing for
- * an empty fence and until the renderer has loaded, and the reason when it
- * fails to, so a note keeps editing around it.
+ * A `mermaid` fence's drawing, or the reason it has none. Nothing for an
+ * empty fence and until the renderer has settled, so a note keeps editing
+ * around it.
  */
-export function MermaidDiagram({ code }: { code: string }) {
-  // A keystroke commits before the drawing for it is laid out, and the last
-  // drawing stays on screen until then.
-  const settled = useDeferredValue(code);
-
-  if (settled.trim() === "") {
-    return null;
+export function drawMermaid(code: string): HTMLElement | undefined {
+  if (engine === undefined || code.trim() === "") {
+    return undefined;
+  }
+  if ("reason" in engine) {
+    return reasonLine(engine.reason);
   }
 
-  return (
-    <ErrorBoundary fallbackRender={renderLoadFailure} resetKeys={[settled]}>
-      <Suspense fallback={null}>
-        <Drawing code={settled} />
-      </Suspense>
-    </ErrorBoundary>
-  );
+  const drawn = draw(engine.render, code);
+
+  if (drawn.reason !== undefined) {
+    return reasonLine(drawn.reason);
+  }
+
+  const host = document.createElement("div");
+  host.className = "code-block-diagram";
+  host.contentEditable = "false";
+  host.append(toElement(drawn.svg));
+
+  return host;
 }

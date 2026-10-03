@@ -23,7 +23,6 @@ import type { MarkdownExtensionOptions } from "@tiptap/markdown";
 import { DOMSerializer } from "@tiptap/pm/model";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
 import { encode } from "mdurl";
@@ -52,7 +51,7 @@ import {
 } from "@/lib/utils/attachments";
 
 import { CaretAfterBreak } from "./caret-after-break";
-import { CodeBlockView } from "./code-block-view";
+import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
 import { DragSelection } from "./drag-selection";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
@@ -665,7 +664,10 @@ export function createEditorExtensions(
     }),
     CodeBlockShiki.extend({
       addNodeView() {
-        return ReactNodeViewRenderer(CodeBlockView);
+        return codeBlockNodeView;
+      },
+      addProseMirrorPlugins() {
+        return [...(this.parent?.() ?? []), editingCodeBlock];
       },
     }),
     TableKit.configure({ table: false }),
