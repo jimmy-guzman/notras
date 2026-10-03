@@ -1332,6 +1332,27 @@ describe("editor open", () => {
   });
 });
 
+describe("code block shape", () => {
+  it("should hold a code block in its final shape when the editor first measures the note", async () => {
+    const codeWhenMeasured: (string | undefined)[] = [];
+    const rect = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => {
+        codeWhenMeasured.push(
+          document.querySelector(".ProseMirror pre code")?.textContent
+        );
+        return DOMRect.fromRect({ height: 800, width: 600 });
+      });
+    onTestFinished(() => {
+      rect.mockRestore();
+    });
+
+    await mount({ initialContent: "```\nconst answer = 42;\n```" });
+
+    expect(codeWhenMeasured[0]).toBe("const answer = 42;");
+  });
+});
+
 describe("editor teardown", () => {
   it("should retain code-block controls through StrictMode replay", async () => {
     const ready = vi.fn<(handle: EditorHandle) => void>();
