@@ -55,12 +55,10 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 | `cargo test --workspace --locked` | engine and shell tests, including doctests |
 | `scripts/check-rust-coverage.sh` | tests with Rust coverage reports in `target/coverage/`, without a threshold |
 
-## Dependency patches
+## Tiptap patch
 
-`pnpm-workspace.yaml` pins the `@tiptap/react` teardown patch to its exact package version. The patch removes the node-view reset from `EditorContent` unmount in the package source and both ESM and CommonJS distributions. `ARCHITECTURE.md` describes the lifecycle it preserves.
+When upgrading Tiptap, check whether upstream has fixed the teardown rebuild described in `ARCHITECTURE.md`. If it has, remove the patch and verify the teardown regression passes. Otherwise, regenerate it with `pnpm patch` and `pnpm patch-commit`, updating the source and both ESM and CommonJS distributions.
 
-When upgrading Tiptap, inspect the new unmount handler before carrying the patch forward. Use `pnpm patch` and `pnpm patch-commit` to regenerate it against the new version, updating the source and both distributions together. Keep patch application failures enabled. Remove the patch when upstream disposes the view without rebuilding it and the teardown regression passes without the patch.
-
-Run `pnpm exec vitest run src/components/editor/editor.spec.tsx src/components/workspace/note-session.spec.tsx` to check disposal, StrictMode replay, caret restoration, and session persistence. Repeat the large-note teardown measurements from [#305](https://github.com/jimmy-guzman/notras/issues/305) in `pnpm dev`, including replacement through the palette after focus has left the editor, then run the verification gate in `AGENTS.md`.
+Run `pnpm exec vitest run src/components/editor/editor.spec.tsx src/components/workspace/note-session.spec.tsx`. Repeat the large-note teardown measurements from [#305](https://github.com/jimmy-guzman/notras/issues/305) in `pnpm dev`, including replacement through the palette after focus has left the editor.
 
 `AGENTS.md` maps the project docs and the rules for changing them.
