@@ -31,17 +31,21 @@ function toElement(markup: string) {
     markup,
     "image/svg+xml"
   ).documentElement;
-  const style = svg.querySelector("style");
+  const styles = svg.querySelectorAll("style");
 
-  if (style === null || style.textContent === null) {
+  if (styles.length === 0) {
     throw new Error("The drawing carries no stylesheet");
   }
 
-  // The stylesheet imports Inter from Google Fonts. The policy blocks the
-  // fetch and the app names its own face, so only the import goes.
-  style.textContent = style.textContent.replaceAll(/@import[^;]*;/gu, "");
-  if (styleNonce !== undefined) {
-    style.setAttribute("nonce", styleNonce);
+  // An xy chart carries a second stylesheet for its series, and the policy
+  // drops any block without the nonce.
+  for (const style of styles) {
+    // The stylesheet imports Inter from Google Fonts. The policy blocks the
+    // fetch and the app names its own face, so only the import goes.
+    style.textContent = style.textContent.replaceAll(/@import[^;]*;/gu, "");
+    if (styleNonce !== undefined) {
+      style.setAttribute("nonce", styleNonce);
+    }
   }
   // The root carries the library's default inks; the stylesheet sets the app's.
   svg.removeAttribute("style");
