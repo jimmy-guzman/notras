@@ -13,4 +13,6 @@ minimumReleaseAgeExclude:
   - "@tauri-apps/plugin-dialog@2.7.3"
   - "@tauri-apps/plugin-opener@2.5.5"
   - "@tauri-apps/plugin-updater@2.11.0"
+patchedDependencies:
+  "@tiptap/react@3.31.4": patches/@tiptap__react@3.31.4.patch
 saveExact: true

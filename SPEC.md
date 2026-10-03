@@ -99,6 +99,7 @@ What notras does, as claims checkable against a running build.
 - Opening a path that is already open activates the tab holding it rather than duplicating it.
 - A tab follows its note through renames and moves, including back to a path it held earlier, and keeps its editor, history and unsaved text.
 - ⏎ in the palette replaces the tab that is showing. ⌘⏎ and ⌘-click open beside it. A link click replaces.
+- Closing or replacing a note removes its rich view without rebuilding the note's rendered contents. Its pending edits finish saving after the pane closes.
 - ⌘W closes the showing tab. The tab that opened it takes over while it is still open, otherwise the tab on its right, or the one on its left when it was last. A tab opened beside another records it as its opener; a tab opened by ⏎ in the palette or a link click keeps the opener of the tab it replaced; a restored tab has none. Closing a background tab leaves the active one alone.
 - Closing the last tab leaves the empty state, where ⌘E, ⌘⌥G, ⌘⌥⇧W, ⌘⇧D and ⌘⇧Y do nothing, the status strip is hidden, and the title bar holds the strip's new-note button and the find button. Pressing and moving the bar beside it moves the window, and a double-click zooms.
 - ⌘⇧T reopens the last closed tab in the slot it left. The stack holds ten, closing the same file twice moves its one entry to the top, and a closed draft is not on it.
