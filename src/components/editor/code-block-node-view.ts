@@ -151,6 +151,13 @@ export function codeBlockNodeView({
     }
   };
 
+  const showDiagramNowOrOnceLoaded = () => {
+    showDiagram();
+    if (diagram === undefined && languageOf(node) === "mermaid") {
+      void showDiagramOnceLoaded();
+    }
+  };
+
   const list = () => {
     if (!listed) {
       listed = true;
@@ -201,10 +208,7 @@ export function codeBlockNodeView({
   });
 
   showLanguage();
-  showDiagram();
-  if (diagram === undefined && languageOf(node) === "mermaid") {
-    void showDiagramOnceLoaded();
-  }
+  showDiagramNowOrOnceLoaded();
 
   return {
     contentDOM: code,
@@ -228,7 +232,7 @@ export function codeBlockNodeView({
       node = next;
       if (languageOf(previous) !== languageOf(next)) {
         showLanguage();
-        showDiagram();
+        showDiagramNowOrOnceLoaded();
       } else if (
         languageOf(next) === "mermaid" &&
         previous.textContent !== next.textContent
