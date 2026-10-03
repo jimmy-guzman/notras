@@ -433,6 +433,7 @@ export function Editor(mountProps: EditorProps) {
   };
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
+  const placedRef = useRef<null | TiptapEditor>(null);
 
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
@@ -841,12 +842,17 @@ export function Editor(mountProps: EditorProps) {
       Find,
       linkShortcut,
     ],
-    immediatelyRender: false,
+    immediatelyRender: true,
     injectNonce: styleNonce,
     onBlur: () => {
       config.onBlur?.();
     },
     onCreate: ({ editor: instance }) => {
+      // A render React discards still builds an editor, and its create event
+      // fires before Tiptap destroys it. Only the attached one is the note.
+      if (!instance.view.dom.isConnected) {
+        return;
+      }
       editorRef.current = instance;
       config.onReady?.({
         find: createFindHandle(instance),
@@ -962,9 +968,12 @@ export function Editor(mountProps: EditorProps) {
   // would race us, so this effect owns all mount-time caret behavior. A
   // passive effect would paint the note once at the top first.
   useLayoutEffect(() => {
-    if (editor === null || editor.isDestroyed) {
+    // Once per editor: a replay would find the sentinel gone and send the
+    // restored caret back to the start.
+    if (editor.isDestroyed || placedRef.current === editor) {
       return;
     }
+    placedRef.current = editor;
 
     const pos =
       config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
@@ -1041,18 +1050,18 @@ export function Editor(mountProps: EditorProps) {
 
   const cancelLink = () => {
     setLinkEditor(null);
-    editor?.commands.focus();
+    editor.commands.focus();
   };
 
   const removeLink = () => {
     setLinkEditor(null);
-    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
   };
 
   // The panel opens the editor where it already sits, so the two are one
   // surface rather than two places a link is changed from.
   const editHoveredLink = () => {
-    if (editor === null || linkHover === null) {
+    if (linkHover === null) {
       return;
     }
 
@@ -1078,10 +1087,6 @@ export function Editor(mountProps: EditorProps) {
   };
 
   const submitLink = (rawUrl: string, text?: string) => {
-    if (editor === null) {
-      return;
-    }
-
     // A wikilink has no url: its title is both what it says and where it
     // goes, so submitting one renames the target.
     if (linkEditor?.kind === "wikilink") {
@@ -1150,7 +1155,7 @@ export function Editor(mountProps: EditorProps) {
           state={linkHover}
         />
       )}
-      {linkEditor === null || editor === null ? null : (
+      {linkEditor === null ? null : (
         <LinkEditor
           key={linkEditor.id}
           onCancel={cancelLink}
