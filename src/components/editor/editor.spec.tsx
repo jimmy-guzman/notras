@@ -1319,6 +1319,62 @@ describe("document selection mapping", () => {
   });
 });
 
+describe("editor teardown", () => {
+  it("should retain code-block controls through StrictMode replay", async () => {
+    const ready = vi.fn<(handle: EditorHandle) => void>();
+    const change = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    render(
+      createElement(
+        StrictMode,
+        null,
+        createElement(Editor, {
+          initialContent: "# title\n\n```\nconst answer = 42;\n```\n\nafter",
+          onChange: change,
+          onReady: ready,
+        })
+      )
+    );
+    await waitFor(() => {
+      expect(ready).toHaveBeenCalledOnce();
+    });
+    expect(change).not.toHaveBeenCalled();
+    const user = userEvent.setup();
+    const language = screen.getByRole("combobox", { name: "code language" });
+
+    await user.hover(language);
+    await user.selectOptions(language, "typescript");
+
+    expect(language).toHaveValue("typescript");
+    expect(change).toHaveBeenLastCalledWith(
+      expect.stringContaining("```typescript\nconst answer = 42;\n```"),
+      { titleEdited: false }
+    );
+  });
+
+  it("should dispose the editor without building replacement document nodes", async () => {
+    const { editor } = await mount({
+      initialContent: "# title\n\n```\nfirst\n```\n\n```\nsecond\n```",
+    });
+    const surface = editor.view.dom;
+    const mutations: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => {
+      mutations.push(...records);
+    });
+    observer.observe(surface, { childList: true, subtree: true });
+
+    cleanup();
+    mutations.push(...observer.takeRecords());
+    observer.disconnect();
+
+    expect(mutations.flatMap((record) => [...record.addedNodes])).toHaveLength(
+      0
+    );
+    await waitFor(() => {
+      expect(editor.isDestroyed).toBeTruthy();
+    });
+  });
+});
+
 describe("caret on mount", () => {
   it("should open at the document start and take focus when no caret is restored", async () => {
     const { editor } = await mount({

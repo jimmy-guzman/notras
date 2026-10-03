@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Editor as TiptapEditor } from "@tiptap/core";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { Layout } from "@/layout";
@@ -237,6 +238,147 @@ describe("workspace", () => {
     expect(editors()).toBe(2);
     expect(readRecentNotes("/notes")).toStrictEqual(["first.md", "second.md"]);
   });
+
+  it.each([
+    { action: "closing", remainingTabs: [] },
+    { action: "replacing", remainingTabs: ["Second"] },
+  ])(
+    "should dispose the rich editor without rebuilding it when $action the active tab",
+    async ({ action, remainingTabs }) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "first",
+          carets: {},
+          tabs: [{ id: "first", kind: "note", path: "first.md" }],
+        })
+      );
+      mockWindows("main");
+      mockIPC((command, args) => {
+        if (command === "classify_open_paths") {
+          return [{ kind: "note", path: "first.md" }];
+        }
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+        if (command === "list_notes") {
+          return [
+            {
+              createdAt: 1,
+              folder: "",
+              path: "second.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Second",
+              updatedAt: 1,
+            },
+          ];
+        }
+        if (command === "read_conflict") {
+          return null;
+        }
+        if (command === "read_note") {
+          if (args === undefined || !("path" in args)) {
+            throw new Error("read_note requires a path");
+          }
+          if (args.path === "first.md") {
+            return {
+              content:
+                "# First\n\n```\nfirst\n```\n\n```\nsecond\n```\n\nEnd of first note.",
+              revision: "r1",
+              updatedAt: 1,
+            };
+          }
+          if (args.path === "second.md") {
+            return {
+              content: "# Second\n\nReplacement document.",
+              revision: "r2",
+              updatedAt: 1,
+            };
+          }
+          throw new Error(`unexpected path: ${String(args.path)}`);
+        }
+        if (
+          ["list_tags", "take_pending_open", "find_mentions"].includes(command)
+        ) {
+          return [];
+        }
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+      const user = userEvent.setup();
+      await screen.findByText("End of first note.");
+      const surface = screen
+        .getByRole("tabpanel")
+        .querySelector(".ProseMirror");
+      if (
+        surface === null ||
+        !("editor" in surface) ||
+        !(surface.editor instanceof TiptapEditor)
+      ) {
+        throw new Error("the rich editor did not mount");
+      }
+      const { editor } = surface;
+      const mutations: MutationRecord[] = [];
+      const observer = new MutationObserver((records) => {
+        mutations.push(...records);
+      });
+      observer.observe(surface, { childList: true, subtree: true });
+      onTestFinished(() => {
+        observer.disconnect();
+      });
+
+      if (action === "closing") {
+        await user.click(screen.getByRole("button", { name: "close First" }));
+      } else {
+        await user.click(screen.getByRole("button", { name: "find a note" }));
+        await user.click(await screen.findByRole("option", { name: "Second" }));
+        await screen.findByText("Replacement document.");
+      }
+
+      await waitFor(() => {
+        expect(editor.isDestroyed).toBeTruthy();
+      });
+      mutations.push(...observer.takeRecords());
+      observer.disconnect();
+      expect(
+        screen.queryAllByRole("tab").map((tab) => tab.textContent)
+      ).toStrictEqual(remainingTabs);
+      expect(
+        screen
+          .queryAllByRole("tab", { selected: true })
+          .map((tab) => tab.textContent)
+      ).toStrictEqual(remainingTabs);
+      expect(surface).not.toBeInTheDocument();
+      expect(
+        mutations.flatMap((record) => [...record.addedNodes])
+      ).toHaveLength(0);
+    }
+  );
 });
 
 describe("launch note", () => {
