@@ -79,9 +79,19 @@ export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
     // Discarded with the session, so reopening the same tab reads afresh.
     gcTime: 0,
     queryFn: async () => {
-      // File first, so a missing file is never mistaken for a missing review.
-      const file = await readSessionFile(kind, path);
-      return { file, stash: await readConflictStash(kind, path) };
+      const [file, stash] = await Promise.allSettled([
+        readSessionFile(kind, path),
+        readConflictStash(kind, path),
+      ]);
+      // The file's failure first, so a missing file is never mistaken for a
+      // missing review.
+      if (file.status === "rejected") {
+        throw file.reason;
+      }
+      if (stash.status === "rejected") {
+        throw stash.reason;
+      }
+      return { file: file.value, stash: stash.value };
     },
     queryKey: ["tab-opening", id, kind] as const,
     staleTime: "static",
