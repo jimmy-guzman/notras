@@ -733,6 +733,36 @@ mod tests {
     }
 
     #[test]
+    fn should_search_what_a_reader_sees_and_leave_destinations_to_link_filters() {
+        let (_directory, core) = library();
+        save(
+            &core,
+            "linked.md",
+            "# Linked\nSee the [roadmap](https://hidden.example/plan).",
+            1,
+        );
+        let view = core.read_view().unwrap();
+        let search = |query: &str, filters: Vec<SearchFilter>| {
+            view.search_notes(NoteSearch {
+                filters,
+                incomplete: false,
+                query: query.into(),
+            })
+            .unwrap()
+        };
+
+        assert!(search("hidden", vec![]).is_empty());
+        assert_eq!(
+            search("", vec![SearchFilter::Link("hidden.example".into())]).len(),
+            1
+        );
+        let labelled = search("roadmap", vec![]);
+        let snippet = labelled[0].snippet.as_deref().unwrap();
+        assert!(snippet.contains("\u{1}roadmap\u{2}"), "{snippet}");
+        assert!(!snippet.contains("hidden"), "{snippet}");
+    }
+
+    #[test]
     fn should_intersect_filters_before_the_cap_and_keep_fts_context() {
         let (_directory, core) = library();
         for i in 0..80 {
@@ -817,8 +847,7 @@ mod tests {
                     .collect::<Vec<_>>()
             );
             assert!(notes.iter().all(|note| note.tags == ["z", "review"]
-                && note.snippet.as_deref()
-                    == Some("# Note\n\u{1}needle\u{2} Atlas [site](https://example.test)")));
+                && note.snippet.as_deref() == Some("Note\n\u{1}needle\u{2} Atlas site")));
         }
     }
 
@@ -872,7 +901,7 @@ mod tests {
         assert_eq!(notes[0].tags, ["z", "a"]);
         assert_eq!(
             notes[0].snippet.as_deref(),
-            Some("# Kept\n\u{1}replacement\u{2}")
+            Some("Kept\n\u{1}replacement\u{2}")
         );
     }
 

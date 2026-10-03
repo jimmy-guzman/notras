@@ -474,6 +474,43 @@ fn wikilink_targets(body: &str, range: Range<usize>) -> Vec<(usize, &str)> {
 
 /// Kept in parity with the editor's tokenizer: `finds_the_wikilinks_the_editor_renders`
 /// below and `src/components/editor/wikilink.spec.ts` assert one table of cases.
+/// The body as rich mode shows it, which is what search indexes: link
+/// destinations, images and reference definitions show nowhere in the editor,
+/// so a hit on them could never be found in the note.
+pub(crate) fn readable_text(body: &str) -> String {
+    let options =
+        Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
+    let mut text = String::new();
+    let mut images = 0_usize;
+    for event in Parser::new_ext(body, options) {
+        match event {
+            Event::Start(Tag::Image { .. }) => images += 1,
+            // Find reads an image as a line break, so it splits words here too.
+            Event::End(TagEnd::Image) => {
+                images -= 1;
+                text.push('\n');
+            }
+            Event::Text(part) | Event::Code(part) | Event::Html(part) | Event::InlineHtml(part)
+                if images == 0 =>
+            {
+                text.push_str(&part);
+            }
+            Event::End(
+                TagEnd::Emphasis
+                | TagEnd::Strong
+                | TagEnd::Strikethrough
+                | TagEnd::Link
+                | TagEnd::Superscript
+                | TagEnd::Subscript,
+            ) => {}
+            Event::SoftBreak | Event::HardBreak | Event::End(_) => text.push('\n'),
+            _ => {}
+        }
+    }
+    text.truncate(text.trim_end_matches('\n').len());
+    text
+}
+
 pub(crate) fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
     prose_ranges(body)
         .into_iter()
@@ -622,6 +659,36 @@ mod tests {
                 case["name"]
             );
         }
+    }
+
+    #[test]
+    fn should_leave_out_of_readable_text_what_rich_mode_hides() {
+        let text = readable_text(
+            "See the [roadmap](https://hidden.example/plan) and ![diagram alt](hidden.png).\n\n\
+             word![inline](x.png)next\n\n\
+             [ref]: https://also.hidden/definition\n",
+        );
+
+        assert!(text.contains("roadmap"));
+        assert!(!text.contains("wordnext"), "{text:?}");
+        for hidden in ["hidden", "diagram", "definition"] {
+            assert!(!text.contains(hidden), "{hidden} in {text:?}");
+        }
+    }
+
+    #[test]
+    fn should_keep_in_readable_text_what_rich_mode_shows() {
+        let text = readable_text(
+            "Ada **Lovelace** wrote `notes` and [[Atlas]].\n\n\
+             | left | right |\n| --- | --- |\n| cell | other |\n\n\
+             <kbd>raw</kbd>\n\n```ts\nconst fenced = 1;\n```\n",
+        );
+
+        assert!(text.contains("Ada Lovelace"), "{text:?}");
+        for shown in ["notes", "[[Atlas]]", "<kbd>raw</kbd>", "const fenced = 1;"] {
+            assert!(text.contains(shown), "{shown} missing from {text:?}");
+        }
+        assert!(!text.contains("leftright") && !text.contains("cellother"));
     }
 
     /// The extension strips case-insensitively, the same way `noteTitle` does in
