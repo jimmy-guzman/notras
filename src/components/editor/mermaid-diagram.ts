@@ -7,10 +7,8 @@ type Engine = { reason: string } | { render: typeof renderMermaidSVG };
 
 let engine: Engine | undefined;
 
-// Loaded as the module evaluates, so the engine's chunk lands after launch
-// and ahead of any note that draws. From then on a fence draws as its node
-// view is built. Resolves once the renderer has loaded or failed to, after
-// which `drawMermaid` answers.
+// Loaded as the module evaluates, so the chunk lands ahead of any note that
+// draws. Resolves once it has loaded or failed.
 export const mermaidSettled = (async () => {
   try {
     const { renderMermaidSVG } = await import("beautiful-mermaid");

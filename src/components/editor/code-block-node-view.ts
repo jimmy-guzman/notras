@@ -18,9 +18,9 @@ import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-// A block is built inside ProseMirror's own DOM pass, where React cannot
-// render, so the two icons are drawn once here and cloned into each block.
-// This render is scheduled as the module evaluates, ahead of the app's own.
+// ProseMirror builds a block where React cannot render, so the two icons
+// render once as the module evaluates, ahead of the app's own render, and
+// are cloned into each block.
 const icons = document.createElement("div");
 createRoot(icons).render(
   createElement(
@@ -52,10 +52,7 @@ function option(value: string, label: string) {
   return element;
 }
 
-/**
- * Marks the block holding the selection, which opens a `mermaid` fence's
- * folded code while the caret is inside it.
- */
+/** Marks the block holding the selection, which keeps a `mermaid` fence's code open. */
 export const editingCodeBlock = new Plugin({
   props: {
     decorations: ({ doc, selection: { $from, $to } }) =>
@@ -70,9 +67,8 @@ export const editingCodeBlock = new Plugin({
 });
 
 /**
- * Copy a block's code and edit its fence language from a hover toolbar. A
- * `mermaid` fence draws above its code. The block is plain DOM, so it is
- * whole when the document is first laid out.
+ * A code block's toolbar, code and `mermaid` drawing as plain DOM, so the
+ * block is whole when the note is first laid out.
  */
 export function codeBlockNodeView({
   getPos,
@@ -237,8 +233,7 @@ export function codeBlockNodeView({
         languageOf(next) === "mermaid" &&
         previous.textContent !== next.textContent
       ) {
-        // A keystroke lands before the drawing for it is laid out, and the
-        // last drawing stays on screen until then.
+        // The last drawing stays until the next frame, so a keystroke does not wait on it.
         if (frame !== undefined) {
           cancelAnimationFrame(frame);
         }
