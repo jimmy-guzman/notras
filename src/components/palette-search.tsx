@@ -44,13 +44,13 @@ function tagLabel(tags: string[]) {
 interface NoteItemProps {
   disabled: boolean;
   note: NoteMeta;
-  onSelect: (path: string) => void;
+  onSelect: (note: NoteMeta) => void;
 }
 
 function NoteItem({ disabled, note, onSelect }: NoteItemProps) {
   const select = () => {
     if (!disabled) {
-      onSelect(note.path);
+      onSelect(note);
     }
   };
 
@@ -314,7 +314,7 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
 interface NoteResultsProps {
   candidate: ReturnType<typeof searchSuggestion>;
   onCreate: () => void;
-  onSelectNote: (path: string) => void;
+  onSelectNote: (note: NoteMeta) => void;
   query: string;
   results: ReturnType<typeof useSearchResults>;
 }
@@ -415,7 +415,7 @@ interface PaletteSearchProps {
   onLoadingChange?: (loading: boolean) => void;
   onQueryChange: (query: string) => void;
   onResultQueryChange?: (query: string) => void;
-  onSelectNote: (path: string) => void;
+  onSelectNote: (note: NoteMeta) => void;
   query: string;
 }
 

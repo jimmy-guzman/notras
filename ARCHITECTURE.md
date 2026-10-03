@@ -80,7 +80,7 @@ Index reconciliation propagates SQLite read and decoding failures. Only a missin
 
 `Workspace` keeps the browser and editor mounted. Sidebar primitives own the browser controls; `react-resizable-panels` owns the split. `lib/ui/note-browser.ts` persists visibility and the user-selected pixel width separately from the width constrained by the window. The collection picker snapshots visit history when opened or a collection is chosen, preventing note visits from reordering visible rows.
 
-The browser filters collections over the uncapped indexed list. `includePreview` fills the snippet only when search context is absent. Previews read `note_fts.content` in the same SQLite snapshot as metadata, without reopening files. Callers that omit the flag retain their existing snippet behavior.
+The browser filters collections over the uncapped indexed list. `includePreview` fills the snippet only when search context is absent. Search matches `note_fts.text`, the body as rich mode shows it, and snippets come from it. Previews read `note_fts.content`, the raw body, in the same SQLite snapshot as metadata, without reopening files. Callers that omit the flag retain their existing snippet behavior.
 
 ## Index schema
 
@@ -92,7 +92,7 @@ note_tag(path TEXT, tag TEXT, PRIMARY KEY(path, tag))
 folder(path TEXT PK)  -- every directory a note could be filed in, empty ones included; never attachments/
 note_prose_fallback(path TEXT PK)  -- bodies requiring literal phrase scanning
 note_link(path TEXT, line INT, kind TEXT, target TEXT, context TEXT)  -- one row per link destination, kind distinguishing wikilink, link, and destination, indexed by path
-note_fts(path UNINDEXED, title, content)  -- fts5, unicode61; bm25 + snippet() + highlight()
+note_fts(path UNINDEXED, title, text, content UNINDEXED)  -- fts5, unicode61; bm25 + snippet() + highlight()
 ```
 
 A scan records every directory it walks, except hidden, symlinked and `attachments/` ones, and a complete scan removes folders it no longer finds. Added and removed folders join the scan's changed paths, so a folder created or deleted with no note in it still emits `notes-changed`. `move_note` records the folders it creates before it returns.

@@ -6,10 +6,12 @@ import { nullable, object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
+import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
 import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
+import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
 import type { NoteMeta } from "@/server/adapters/bindings";
 
@@ -240,6 +242,103 @@ describe("note browser", () => {
       screen.getByRole("textbox", { name: "search all notes" })
     ).toHaveValue("preview");
     expect(localStorage.getItem("note-browser-open")).toBe("true");
+  });
+
+  it("should open a body hit at its match while focus stays on the row", async () => {
+    const user = mount((query) => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet:
+          query === null
+            ? "Document body"
+            : `${SNIPPET_START}Document${SNIPPET_END} body`,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+    onTestFinished(() => {
+      noteFind.close();
+    });
+    await screen.findByRole("heading", { name: "Opened" });
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+    await user.type(browser.getByRole("textbox"), "doc");
+    await waitFor(() =>
+      expect(
+        browser.getByRole("list", { name: "notes in all notes" })
+      ).toHaveAttribute("aria-busy", "false")
+    );
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(
+      await screen.findByRole("textbox", { name: "find text" })
+    ).toHaveValue("Document");
+    expect(await screen.findByText("1 / 1")).toBeInTheDocument();
+    expect(
+      browser.getByRole("button", { name: /^One Document body/u })
+    ).toHaveFocus();
+  });
+
+  it("should open a title-only hit without the previous result's find", async () => {
+    const user = mount((query) => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet:
+          query === null
+            ? "Document body"
+            : `${SNIPPET_START}Document${SNIPPET_END} body`,
+        tags: [],
+        title: "One",
+        updatedAt: 2,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "two.md",
+        pinned: false,
+        snippet: "Second preview",
+        tags: [],
+        title: query === null ? "Two" : `${SNIPPET_START}Two${SNIPPET_END}`,
+        updatedAt: 1,
+      },
+    ]);
+    onTestFinished(() => {
+      noteFind.close();
+    });
+    await screen.findByRole("heading", { name: "Opened" });
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+    await user.type(browser.getByRole("textbox"), "doc");
+    await waitFor(() =>
+      expect(
+        browser.getByRole("list", { name: "notes in all notes" })
+      ).toHaveAttribute("aria-busy", "false")
+    );
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(
+      await screen.findByRole("textbox", { name: "find text" })
+    ).toHaveValue("Document");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => {
+      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
+        "two.md",
+      ]);
+    });
+    await screen.findByRole("heading", { name: "Opened" });
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+    expect(document.querySelector(".note-find-match")).toBeNull();
   });
 
   it("should browse descendants, pinned notes and tags while preserving the query when changing collection", async () => {

@@ -23,6 +23,8 @@ export interface FindSnapshot {
 }
 export interface FindHandle {
   alive: () => boolean;
+  /** Focuses the editor with a collapsed caret at the active match's start. */
+  caretToMatch: () => void;
   navigate: (direction: -1 | 1) => void;
   restoreFocus: () => void;
   selectionText: () => string;
@@ -146,10 +148,8 @@ function revealMatch(editor: Editor) {
   const bounds = viewport.getBoundingClientRect();
   const top = bounds.top + FIND_CLEARANCE;
   const bottom = bounds.bottom - 16;
-  if (rect.top < top) {
-    viewport.scrollTop += rect.top - top;
-  } else if (rect.bottom > bottom) {
-    viewport.scrollTop += rect.bottom - bottom;
+  if (rect.top < top || rect.bottom > bottom) {
+    viewport.scrollTop += (rect.top + rect.bottom - top - bottom) / 2;
   }
 }
 
@@ -158,6 +158,21 @@ export function createFindHandle(editor: Editor): FindHandle {
   let destroyed = view.isDestroyed;
   return {
     alive: () => !(destroyed || view.isDestroyed),
+    caretToMatch: () => {
+      if (view.isDestroyed) {
+        return;
+      }
+      const state = findKey.getState(editor.state);
+      const match = state?.matches[state.active];
+      if (match !== undefined) {
+        editor.view.dispatch(
+          editor.state.tr
+            .setSelection(TextSelection.create(editor.state.doc, match.from))
+            .setMeta("addToHistory", false)
+        );
+      }
+      editor.view.focus();
+    },
     navigate: (direction) => {
       if (view.isDestroyed) {
         return;

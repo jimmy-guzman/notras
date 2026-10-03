@@ -114,6 +114,36 @@ describe("find", () => {
       expect(find.snapshot()).toStrictEqual({ current: 0, total: 0 });
     });
 
+    it("should center an off-screen match below the find bar and leave a visible one in place", () => {
+      const viewport = document.createElement("div");
+      viewport.dataset.slot = "scroll-area-viewport";
+      const editor = new Editor({
+        content: "Atlas",
+        contentType: "markdown",
+        element: viewport,
+        extensions: [...createEditorExtensions({}), Find],
+      });
+      editors.push(editor);
+      Object.defineProperty(viewport, "getBoundingClientRect", {
+        value: () => ({ bottom: 616, top: 0 }),
+      });
+      let matchTop = 1000;
+      Object.defineProperty(editor.view, "coordsAtPos", {
+        value: () => ({ bottom: matchTop + 20, top: matchTop }),
+      });
+      const find = createFindHandle(editor);
+
+      find.setQuery("atlas");
+      // Opening find adds 52px of room above the text and scrolls past it.
+      expect(viewport.scrollTop).toBe(52 + 684);
+
+      find.setQuery(null);
+      viewport.scrollTop = 0;
+      matchTop = 300;
+      find.setQuery("atlas");
+      expect(viewport.scrollTop).toBe(52);
+    });
+
     it("should stop receiving navigation after destruction", () => {
       const { editor, find } = mount("Atlas Atlas");
       find.setQuery("atlas");

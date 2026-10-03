@@ -29,6 +29,7 @@ interface FindBarProps {
 export function FindBar({ controller }: FindBarProps) {
   const state = useSelector(controller.store);
   const input = useRef<HTMLInputElement>(null);
+  const focused = useRef(0);
   const change = (event: ChangeEvent<HTMLInputElement>) => {
     controller.setQuery(event.target.value);
   };
@@ -39,7 +40,12 @@ export function FindBar({ controller }: FindBarProps) {
     controller.navigate(1);
   };
   useEffect(() => {
-    if (state.open && state.available && state.focusRequest > 0) {
+    if (
+      state.open &&
+      state.available &&
+      state.focusRequest !== focused.current
+    ) {
+      focused.current = state.focusRequest;
       input.current?.focus({ preventScroll: true });
       input.current?.select();
     }
@@ -77,7 +83,7 @@ export function FindBar({ controller }: FindBarProps) {
       document.removeEventListener("keydown", keydown, true);
     };
   }, [controller, state.available, state.open]);
-  if (!(state.open && state.available)) {
+  if (!(state.open && (state.available || state.searchPending))) {
     return null;
   }
   return (

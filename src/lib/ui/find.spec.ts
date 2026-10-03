@@ -63,6 +63,64 @@ describe("find", () => {
       expect(capture.store.state.query).toBe("");
     });
 
+    it("should search a given word and put a collapsed caret on its next match", () => {
+      const { editor, handle } = mount("Plan Atlas then Atlas");
+      const controller = createFindController();
+      controller.bind(handle, "tab");
+      editor.commands.setTextSelection({ from: 1, to: 5 });
+      controller.search("Atlas", "tab");
+      expect(controller.store.state.open).toBeTruthy();
+      expect(controller.store.state.query).toBe("Atlas");
+      expect(controller.store.state.current).toBe(1);
+      expect(controller.store.state.total).toBe(2);
+      expect(editor.state.selection.empty).toBeTruthy();
+      expect(editor.state.selection.from).toBe(6);
+      expect(controller.store.state.focusRequest).toBe(0);
+    });
+
+    it("should leave the bound editor alone and give the caret to the next one", () => {
+      const showing = mount("Atlas here");
+      const next = mount("First, then Atlas");
+      const controller = createFindController();
+      const detach = controller.bind(showing.handle, "showing");
+      controller.search("Atlas", "next");
+      expect(showing.handle.snapshot().total).toBe(0);
+      expect(showing.editor.state.selection.from).toBe(1);
+      detach();
+      controller.bind(next.handle, "next");
+      expect(controller.store.state.total).toBe(1);
+      expect(next.editor.state.selection.from).toBe(13);
+      expect(controller.store.state.focusRequest).toBe(0);
+    });
+
+    it("should end a search's find when another tab's editor binds", () => {
+      const found = mount("An Atlas entry");
+      const other = mount("Atlas elsewhere");
+      const controller = createFindController();
+      const detach = controller.bind(found.handle, "found");
+      controller.search("Atlas", "found");
+      detach();
+      const detachOther = controller.bind(other.handle, "other");
+      expect(controller.store.state.open).toBeFalsy();
+      expect(other.handle.snapshot().total).toBe(0);
+      detachOther();
+      controller.bind(found.handle, "found");
+      expect(controller.store.state.open).toBeFalsy();
+    });
+
+    it("should keep a search's find across tabs once it is stepped through", () => {
+      const found = mount("An Atlas entry");
+      const other = mount("Atlas elsewhere");
+      const controller = createFindController();
+      const detach = controller.bind(found.handle, "found");
+      controller.search("Atlas", "found");
+      controller.navigate(1);
+      detach();
+      controller.bind(other.handle, "other");
+      expect(controller.store.state.open).toBeTruthy();
+      expect(other.handle.snapshot().total).toBe(1);
+    });
+
     it("should stop exposing a destroyed editor", () => {
       const { editor, handle } = mount("Atlas");
       const controller = createFindController();

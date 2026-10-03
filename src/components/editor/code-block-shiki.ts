@@ -317,6 +317,21 @@ function setViewport(view: EditorView, viewport: Range) {
   );
 }
 
+function padded(seen: Range, size: number): Range {
+  return {
+    from: Math.max(0, seen.from - WINDOW / 2),
+    to: Math.min(size, seen.to + WINDOW / 2),
+  };
+}
+
+/** Colors what is on screen now, for a view scrolled before its first paint. */
+export function windowSyntaxToScreen(view: EditorView): void {
+  const seen = measureViewport(view);
+  if (seen !== undefined && syntaxState(view.state).blocks.length > 0) {
+    setViewport(view, padded(seen, view.state.doc.content.size));
+  }
+}
+
 /** Resolves once the worker owes no answer. A failed worker owes none, so a print after a failure carries plain code. */
 export async function syntaxSettled(view: EditorView): Promise<void> {
   const settled = settling.get(view);
@@ -474,17 +489,14 @@ function syntaxPlugin() {
             false
           );
         }
-        const padded =
+        const around =
           seen === undefined
             ? undefined
-            : {
-                from: Math.max(0, seen.from - WINDOW / 2),
-                to: Math.min(view.state.doc.content.size, seen.to + WINDOW / 2),
-              };
+            : padded(seen, view.state.doc.content.size);
         const moved =
-          padded !== undefined &&
-          (Math.abs(padded.from - viewport.from) > WINDOW / 4 ||
-            Math.abs(padded.to - viewport.to) > WINDOW / 4);
+          around !== undefined &&
+          (Math.abs(around.from - viewport.from) > WINDOW / 4 ||
+            Math.abs(around.to - viewport.to) > WINDOW / 4);
         refreshJobs(seen, moved);
         const landed = answers.splice(0);
         if (landed.length > 0 || moved) {
@@ -492,7 +504,7 @@ function syntaxPlugin() {
             view.state.tr
               .setMeta(key, {
                 answers: landed,
-                viewport: moved ? padded : undefined,
+                viewport: moved ? around : undefined,
               })
               .setMeta("addToHistory", false)
           );

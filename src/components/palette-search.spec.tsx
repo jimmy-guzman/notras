@@ -423,7 +423,7 @@ describe("palette search", () => {
       clearMocks();
       client.clear();
     });
-    const select = vi.fn<(path: string) => void>();
+    const select = vi.fn<(note: NoteMeta) => void>();
     render(
       <QueryClientProvider client={client}>
         <Command shouldFilter={false}>
@@ -452,7 +452,9 @@ describe("palette search", () => {
       screen.queryByRole("option", { name: /create/u })
     ).not.toBeInTheDocument();
     await user.click(row);
-    expect(select).toHaveBeenCalledExactlyOnceWith("budget.md");
+    expect(select).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ path: "budget.md" })
+    );
     await user.click(screen.getByRole("button", { name: "retry" }));
     await waitFor(() => {
       expect(
