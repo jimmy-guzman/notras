@@ -163,7 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@tiptap/react@3.31.4': e515de77d5b2c532f7485266b36535de9a9f164e9996b3a3f6119831cbc22828
+  '@tiptap/react@3.31.4': 83c6308a66ec8b73a19744d45e5d853ebcb4b495d71d2ca9fe549f003c9f200c
 
 importers:
 
@@ -258,7 +258,7 @@ importers:
         version: 3.31.4
       '@tiptap/react':
         specifier: 3.31.4
-        version: 3.31.4(patch_hash=e515de77d5b2c532f7485266b36535de9a9f164e9996b3a3f6119831cbc22828)(@floating-ui/dom@1.8.0)(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 3.31.4(patch_hash=83c6308a66ec8b73a19744d45e5d853ebcb4b495d71d2ca9fe549f003c9f200c)(@floating-ui/dom@1.8.0)(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tiptap/starter-kit':
         specifier: 3.31.4
         version: 3.31.4
@@ -5904,7 +5904,7 @@ snapshots:
       prosemirror-transform: 1.12.2
       prosemirror-view: 1.42.6
 
-  '@tiptap/react@3.31.4(patch_hash=e515de77d5b2c532f7485266b36535de9a9f164e9996b3a3f6119831cbc22828)(@floating-ui/dom@1.8.0)(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@tiptap/react@3.31.4(patch_hash=83c6308a66ec8b73a19744d45e5d853ebcb4b495d71d2ca9fe549f003c9f200c)(@floating-ui/dom@1.8.0)(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@tiptap/core': 3.31.4(@tiptap/pm@3.31.4)
       '@tiptap/pm': 3.31.4
