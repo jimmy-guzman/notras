@@ -826,6 +826,9 @@ export function Editor(mountProps: EditorProps) {
             );
       },
     },
+    // EditorContent mounts the view in place. A view built during render
+    // sits in a detached element and is rebuilt whole on attach.
+    element: null,
     // MarkdownPaste alone decides whether pasted text is markdown.
     enablePasteRules: ["link"],
     extensions: [
@@ -848,11 +851,6 @@ export function Editor(mountProps: EditorProps) {
       config.onBlur?.();
     },
     onCreate: ({ editor: instance }) => {
-      // A render React discards still builds an editor, and its create event
-      // fires before Tiptap destroys it. Only the attached one is the note.
-      if (!instance.view.dom.isConnected) {
-        return;
-      }
       editorRef.current = instance;
       config.onReady?.({
         find: createFindHandle(instance),
@@ -974,7 +972,6 @@ export function Editor(mountProps: EditorProps) {
       return;
     }
     placedRef.current = editor;
-
     const pos =
       config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
 

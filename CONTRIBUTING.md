@@ -57,8 +57,8 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 
 ## Tiptap patch
 
-When upgrading Tiptap, check whether upstream has fixed the teardown rebuild described in `ARCHITECTURE.md`. If it has, remove the patch and verify the teardown regression passes. Otherwise, regenerate it with `pnpm patch` and `pnpm patch-commit`, updating the source and both ESM and CommonJS distributions.
+When upgrading Tiptap, check whether upstream has fixed the attach and teardown rebuilds described in `ARCHITECTURE.md`. If it has, remove the patch and verify the open and teardown regressions pass. Otherwise, regenerate it with `pnpm patch` and `pnpm patch-commit`, updating the source and both ESM and CommonJS distributions.
 
-Run `pnpm exec vitest run src/components/editor/editor.spec.tsx src/components/workspace/note-session.spec.tsx`. Repeat the large-note teardown measurements from [#305](https://github.com/jimmy-guzman/notras/issues/305) in `pnpm dev`, including replacement through the palette after focus has left the editor.
+Run `pnpm exec vitest run src/components/editor/editor.spec.tsx src/components/workspace/note-session.spec.tsx`. Repeat the large-note open and teardown measurements from [#305](https://github.com/jimmy-guzman/notras/issues/305) in `pnpm dev`, including replacement through the palette after focus has left the editor.
 
 `AGENTS.md` maps the project docs and the rules for changing them.

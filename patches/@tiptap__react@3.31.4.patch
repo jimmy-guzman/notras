@@ -1,8 +1,31 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..b3c3348f3effd53b6b18534a681dc289da5d56cd 100644
+index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..86ec48d0b65112967957c9868bd8b809253b7a4f 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
-@@ -163,7 +163,6 @@ var PureEditorContent = class extends react.default.Component {
+@@ -142,13 +142,18 @@ var PureEditorContent = class extends react.default.Component {
+ 	init() {
+ 		var _editor$view$dom;
+ 		const editor = this.props.editor;
+-		if (editor && !editor.isDestroyed && ((_editor$view$dom = editor.view.dom) === null || _editor$view$dom === void 0 ? void 0 : _editor$view$dom.parentNode)) {
++		if (editor && (editor.editorView ? !editor.isDestroyed && ((_editor$view$dom = editor.view.dom) === null || _editor$view$dom === void 0 ? void 0 : _editor$view$dom.parentNode) : !editor.destroyed)) {
+ 			if (editor.contentComponent) return;
+ 			const element = this.editorContentRef.current;
+-			element.append(...editor.view.dom.parentNode.childNodes);
+-			editor.setOptions({ element });
+ 			editor.contentComponent = createContentComponent();
+-			editor.createNodeViews();
++			if (editor.editorView) {
++				element.append(...editor.view.dom.parentNode.childNodes);
++				editor.setOptions({ element });
++				editor.createNodeViews();
++			} else {
++				editor.setOptions({ element });
++				editor.mount(element);
++			}
+ 			editor.registerPlugin(new _tiptap_pm_state.Plugin({
+ 				key: mobileEnterPluginKey,
+ 				props: { handleDOMEvents: { beforeinput: (_view, event) => handleMobileEnter(editor, event) } }
+@@ -163,7 +168,6 @@ var PureEditorContent = class extends react.default.Component {
  		editor.isEditorContentInitialized = false;
  		if (!editor.isDestroyed) {
  			editor.unregisterPlugin(mobileEnterPluginKey);
@@ -11,10 +34,33 @@ index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..b3c3348f3effd53b6b18534a681dc289
  		editor.contentComponent = null;
  		try {
 diff --git a/dist/index.js b/dist/index.js
-index 54376b761251f4618b2a8c17585824c8d2c1d64c..6dffb88c1fced6472bf33a2b58e7807303dab9d8 100644
+index 54376b761251f4618b2a8c17585824c8d2c1d64c..f3cb2b8a25a40ba1b1244fda1933ee8ba14d1ea0 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -139,7 +139,6 @@ var PureEditorContent = class extends React.Component {
+@@ -118,13 +118,18 @@ var PureEditorContent = class extends React.Component {
+ 	init() {
+ 		var _editor$view$dom;
+ 		const editor = this.props.editor;
+-		if (editor && !editor.isDestroyed && ((_editor$view$dom = editor.view.dom) === null || _editor$view$dom === void 0 ? void 0 : _editor$view$dom.parentNode)) {
++		if (editor && (editor.editorView ? !editor.isDestroyed && ((_editor$view$dom = editor.view.dom) === null || _editor$view$dom === void 0 ? void 0 : _editor$view$dom.parentNode) : !editor.destroyed)) {
+ 			if (editor.contentComponent) return;
+ 			const element = this.editorContentRef.current;
+-			element.append(...editor.view.dom.parentNode.childNodes);
+-			editor.setOptions({ element });
+ 			editor.contentComponent = createContentComponent();
+-			editor.createNodeViews();
++			if (editor.editorView) {
++				element.append(...editor.view.dom.parentNode.childNodes);
++				editor.setOptions({ element });
++				editor.createNodeViews();
++			} else {
++				editor.setOptions({ element });
++				editor.mount(element);
++			}
+ 			editor.registerPlugin(new Plugin({
+ 				key: mobileEnterPluginKey,
+ 				props: { handleDOMEvents: { beforeinput: (_view, event) => handleMobileEnter(editor, event) } }
+@@ -139,7 +144,6 @@ var PureEditorContent = class extends React.Component {
  		editor.isEditorContentInitialized = false;
  		if (!editor.isDestroyed) {
  			editor.unregisterPlugin(mobileEnterPluginKey);
@@ -23,10 +69,48 @@ index 54376b761251f4618b2a8c17585824c8d2c1d64c..6dffb88c1fced6472bf33a2b58e78073
  		editor.contentComponent = null;
  		try {
 diff --git a/src/EditorContent.tsx b/src/EditorContent.tsx
-index cedf56dba1088d0370a03cbe27b4457612a7634d..2693963a27333cd66af1a40269f5454e5db013cb 100644
+index cedf56dba1088d0370a03cbe27b4457612a7634d..83cb39a4018e69329c5abf362ca4c119ff769dcd 100644
 --- a/src/EditorContent.tsx
 +++ b/src/EditorContent.tsx
-@@ -170,9 +170,6 @@ export class PureEditorContent extends React.Component<
+@@ -125,22 +125,30 @@ export class PureEditorContent extends React.Component<
+   init() {
+     const editor = this.props.editor as EditorWithContentComponent | null
+ 
+-    if (editor && !editor.isDestroyed && editor.view.dom?.parentNode) {
++    if (editor && (editor['editorView'] ? !editor.isDestroyed && editor.view.dom?.parentNode : !editor['destroyed'])) {
+       if (editor.contentComponent) {
+         return
+       }
+ 
+       const element = this.editorContentRef.current
+ 
+-      element.append(...editor.view.dom.parentNode.childNodes)
++      editor.contentComponent = createContentComponent()
+ 
+-      editor.setOptions({
+-        element,
+-      })
++      if (editor['editorView']) {
++        element.append(...editor.view.dom.parentNode.childNodes)
+ 
+-      editor.contentComponent = createContentComponent()
++        editor.setOptions({
++          element,
++        })
+ 
+-      editor.createNodeViews()
++        editor.createNodeViews()
++      } else {
++        editor.setOptions({
++          element,
++        })
++
++        editor.mount(element)
++      }
+ 
+       editor.registerPlugin(
+         new Plugin({
+@@ -170,9 +178,6 @@ export class PureEditorContent extends React.Component<
  
      if (!editor.isDestroyed) {
        editor.unregisterPlugin(mobileEnterPluginKey)

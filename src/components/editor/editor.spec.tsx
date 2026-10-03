@@ -1319,6 +1319,17 @@ describe("document selection mapping", () => {
   });
 });
 
+describe("editor open", () => {
+  it("should build the note's contents once when it opens", async () => {
+    const create = vi.spyOn(document, "createElement");
+
+    await mount({ initialContent: "# title\n\nbody" });
+
+    expect(create.mock.calls.filter(([tag]) => tag === "h1")).toHaveLength(1);
+    create.mockRestore();
+  });
+});
+
 describe("editor teardown", () => {
   it("should retain code-block controls through StrictMode replay", async () => {
     const ready = vi.fn<(handle: EditorHandle) => void>();
