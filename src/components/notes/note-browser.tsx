@@ -50,8 +50,9 @@ import { searchFolders } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { readRecentNotes } from "@/lib/recent-notes";
-import { openNote, useTabState } from "@/lib/tabs/store";
+import { useTabState } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
+import { openSearchResult } from "@/lib/ui/find";
 import { closeNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
 
 type Collection =
@@ -584,7 +585,7 @@ function Browser({ notesDir }: { notesDir: string }) {
                         return;
                       }
                       event.currentTarget.focus();
-                      openNote(note.path, event.metaKey || event.ctrlKey);
+                      openSearchResult(note, event.metaKey || event.ctrlKey);
                     }}
                     onKeyDown={moveFocus}
                     size="note"

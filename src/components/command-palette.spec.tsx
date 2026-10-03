@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { CommandPalette } from "@/components/command-palette";
 import { Toaster } from "@/components/ui/toast";
 import { Workspace } from "@/components/workspace/workspace";
+import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { noteQueries } from "@/data/queries";
@@ -28,6 +29,7 @@ import {
   registerTabHandles,
   registerTabSnapshot,
 } from "@/lib/tabs/store";
+import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
 
 const FOUND_NOTE = /Found/u;
@@ -122,6 +124,34 @@ describe("command palette keyboard", () => {
     expect(
       getTabState().tabs.some((tab) => tab.path === note.path)
     ).toBeTruthy();
+  });
+
+  it("should open a title hit without find", async () => {
+    const palette = mount("find", []);
+    palette.client.setQueryData(
+      noteQueries.search(parseSearch("road")).queryKey,
+      [
+        {
+          createdAt: new Date(0),
+          folder: "",
+          path: "roadmap.md",
+          pinned: false,
+          snippet: "the planning doc",
+          tags: [],
+          title: `${SNIPPET_START}Roadmap${SNIPPET_END}`,
+          updatedAt: new Date(0),
+        },
+      ]
+    );
+    await palette.user.clear(palette.input);
+    await palette.user.type(palette.input, "road");
+    await palette.user.click(
+      await screen.findByRole("option", { name: /Roadmap/u })
+    );
+    expect(
+      getTabState().tabs.some((tab) => tab.path === "roadmap.md")
+    ).toBeTruthy();
+    expect(noteFind.store.state.open).toBeFalsy();
   });
 
   it("should keep filter discovery outside result selection and preserve the query through the picker", async () => {

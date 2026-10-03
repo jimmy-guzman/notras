@@ -1324,6 +1324,27 @@ describe("caret on mount", () => {
     expect(document.activeElement).toBe(editor.view.dom);
   });
 
+  it("should show the find match at mount, before the editor reports ready", () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const ready = vi.fn<(handle: EditorHandle) => void>();
+    render(
+      createElement(Editor, {
+        initialContent: "first\n\nsecond",
+        initialFind: "second",
+        onChange: () => {},
+        onReady: ready,
+      })
+    );
+
+    expect(ready).not.toHaveBeenCalled();
+    expect(document.querySelector(".note-find-active")?.textContent).toBe(
+      "second"
+    );
+  });
+
   it("should leave a background tab unfocused at the document start", async () => {
     const { editor } = await mount({
       focusOnMount: false,

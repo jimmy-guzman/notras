@@ -14,12 +14,13 @@ import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { hasString } from "@/components/editor/attrs";
 import {
   revealSyntax,
   syntaxSettled,
+  windowSyntaxToScreen,
 } from "@/components/editor/code-block-shiki";
 import { dragRange, isRowRange } from "@/components/editor/move-selection";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -388,6 +389,8 @@ interface EditorProps {
   focusOnMount?: boolean;
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
+  /** Opens find on this word at mount. */
+  initialFind?: string;
   onBlur?: () => void;
   onChange: (content: string, edit: DocumentEdit) => void;
   /** Open a file the note links to, relative to the note. */
@@ -956,8 +959,9 @@ export function Editor(mountProps: EditorProps) {
 
   // Caret placement must run AFTER EditorContent attaches the view to the
   // DOM -- focus/scroll are no-ops before that, and TipTap's own autofocus
-  // would race us, so this effect owns all mount-time caret behavior.
-  useEffect(() => {
+  // would race us, so this effect owns all mount-time caret behavior. A
+  // passive effect would paint the note once at the top first.
+  useLayoutEffect(() => {
     if (editor === null || editor.isDestroyed) {
       return;
     }
@@ -1027,6 +1031,12 @@ export function Editor(mountProps: EditorProps) {
       })
       .scrollIntoView()
       .run();
+
+    // Find binds after Tiptap's deferred create event, a paint too late.
+    if (config.initialFind !== undefined) {
+      createFindHandle(editor).setQuery(config.initialFind);
+    }
+    windowSyntaxToScreen(editor.view);
   }, [config, editor]);
 
   const cancelLink = () => {

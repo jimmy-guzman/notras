@@ -11,6 +11,7 @@ import {
   CodeBlockShiki,
   revealSyntax,
   syntaxSettled,
+  windowSyntaxToScreen,
 } from "@/components/editor/code-block-shiki";
 import { highlightCode } from "@/components/editor/syntax-highlighter";
 import type { SyntaxRequest } from "@/components/editor/syntax-highlighter";
@@ -527,6 +528,41 @@ describe("code block highlighting", () => {
     expect(
       coloredText(second, "syntax-keyword").length / "const".length
     ).toBeLessThan(lines);
+  });
+
+  it("should color a remounted block where it was scrolled to before any frame runs", async ({
+    onTestFinished,
+  }) => {
+    const lines = 3000;
+    const text = Array.from(
+      { length: lines },
+      (_, i) => `const landing${i} = ${i};`
+    ).join("\n");
+    const first = createEditor("ts", text);
+    fakeViewport(first, onTestFinished);
+    await vi.waitFor(() => {
+      expect(coloredText(first, "syntax-keyword")).toContain("const");
+    });
+    first.destroy();
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    const second = createEditor("ts", text);
+    onTestFinished(() => {
+      second.destroy();
+    });
+    const viewport = fakeViewport(second, onTestFinished);
+    viewport.scrollTo(second.state.doc.content.size - 4000);
+    expect(coloredText(second, "syntax-number")).not.toContain(
+      String(lines - 1)
+    );
+    windowSyntaxToScreen(second.view);
+
+    expect(coloredText(second, "syntax-number")).toContain(String(lines - 1));
   });
 
   it("should color short blocks only near the viewport and follow a scroll", async ({

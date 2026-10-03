@@ -82,6 +82,71 @@ describe("find controls", () => {
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
   });
 
+  it("should leave focus in the editor when a search opens the bar after an earlier find", ({
+    onTestFinished,
+  }) => {
+    const surface = document.createElement("div");
+    document.body.append(surface);
+    const editor = new Editor({
+      content: "Plan Atlas",
+      contentType: "markdown",
+      element: surface,
+      extensions: [...createEditorExtensions({}), Find],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+      surface.remove();
+    });
+    const controller = createFindController();
+    controller.bind(createFindHandle(editor), "tab");
+    render(createElement(FindBar, { controller }));
+    act(() => {
+      controller.open();
+    });
+    act(() => {
+      controller.close();
+    });
+    act(() => {
+      controller.search("atlas", "tab");
+    });
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "find text" })
+    ).not.toHaveFocus();
+    expect(document.activeElement).toHaveClass("ProseMirror");
+  });
+
+  it("should keep the bar and its count while a search waits for its note's editor", ({
+    onTestFinished,
+  }) => {
+    const editor = new Editor({
+      content: "Atlas Atlas",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: [...createEditorExtensions({}), Find],
+    });
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    const controller = createFindController();
+    const detach = controller.bind(createFindHandle(editor), "first");
+    render(createElement(FindBar, { controller }));
+    act(() => {
+      controller.search("atlas", "first");
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    act(() => {
+      controller.search("atlas", "next");
+      detach();
+    });
+
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "next match" })
+    ).not.toBeDisabled();
+  });
+
   it("should search raw source including frontmatter and update without changing it", ({
     onTestFinished,
   }) => {

@@ -11,8 +11,10 @@ import userEvent from "@testing-library/user-event";
 import { object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
+import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { Layout } from "@/layout";
 import { closeTab, getTabState } from "@/lib/tabs/store";
+import { noteFind } from "@/lib/ui/find";
 
 const fileAt = (path: string) =>
   path === "left.md" || path === "/notes/left.md"
@@ -406,5 +408,119 @@ describe("layout", () => {
       },
       { timeout: 400 }
     );
+  });
+
+  it("should open a palette body hit with the caret on its match and the find bar unfocused", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command, args) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "first.md" }];
+      }
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+      if (command === "search_notes") {
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "found.md",
+            pinned: false,
+            snippet: `An ${SNIPPET_START}atlas${SNIPPET_END} entry`,
+            tags: [],
+            title: "Found",
+            updatedAt: 1,
+          },
+        ];
+      }
+      if (command === "read_conflict") {
+        return null;
+      }
+      if (command === "read_note") {
+        const { path } = parse(object({ path: string() }), args);
+        return {
+          content:
+            path === "found.md"
+              ? "# Found\n\nAn atlas entry"
+              : "# First\n\nNothing here",
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    onTestFinished(() => {
+      act(() => {
+        noteFind.close();
+      });
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Nothing here")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "find a note" }));
+    await user.type(screen.getByRole("combobox"), "atl");
+    await user.click(await screen.findByRole("option", { name: /Found/u }));
+
+    expect(
+      await screen.findByRole("textbox", { name: "find text" })
+    ).toHaveValue("atlas");
+    expect(await screen.findByText("1 / 1")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.activeElement).toHaveClass("ProseMirror")
+    );
+    const caret = window.getSelection();
+    const anchor = caret?.anchorNode;
+    const paragraph = anchor?.parentElement?.closest("p");
+    if (
+      caret === null ||
+      anchor === null ||
+      anchor === undefined ||
+      paragraph === null ||
+      paragraph === undefined
+    ) {
+      throw new Error("the caret is not in a paragraph");
+    }
+    expect(caret.isCollapsed).toBeTruthy();
+    expect(paragraph.textContent).toBe("An atlas entry");
+    const before = document.createRange();
+    before.setStart(paragraph, 0);
+    before.setEnd(anchor, caret.anchorOffset);
+    expect(before.toString()).toBe("An ");
   });
 });

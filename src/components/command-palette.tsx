@@ -48,6 +48,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { noteFolder } from "@/core/notes";
+import type { NoteMeta } from "@/core/notes";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { reindexAll } from "@/data/reindex";
@@ -68,7 +69,7 @@ import {
 } from "@/lib/tabs/store";
 import { tabFullPath } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
-import { openNoteFind } from "@/lib/ui/find";
+import { openNoteFind, openSearchResult } from "@/lib/ui/find";
 import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
@@ -242,12 +243,12 @@ export function CommandPalette({
     onOpenChange(next);
   };
 
-  const openNote = (path: string) => {
+  const openNote = (note: NoteMeta) => {
     const newTab = newTabRef.current;
 
     newTabRef.current = false;
     close();
-    openInTab(path, newTab);
+    openSearchResult(note, newTab);
   };
 
   const runAction = async (what: string, action: () => Promise<void>) => {

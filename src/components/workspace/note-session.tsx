@@ -246,9 +246,9 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   useEffect(
     () =>
       active && !graphMode && findHandle?.alive() === true
-        ? noteFind.bind(findHandle)
+        ? noteFind.bind(findHandle, id)
         : undefined,
-    [active, findHandle, graphMode]
+    [active, findHandle, graphMode, id]
   );
 
   const editorRef = useRef<EditorHandle | null>(null);
@@ -770,6 +770,9 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           <Editor
             focusOnMount={focusOnMount}
             initialContent={sentineledBody ?? body}
+            initialFind={
+              active && findState.searchPending ? findState.query : undefined
+            }
             onChange={handleBodyChange}
             onHistory={onHistory}
             onReady={attachEditor}
