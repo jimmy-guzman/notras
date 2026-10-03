@@ -62,6 +62,27 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
   return { editor: surface.editor, handle, scroller };
 };
 
+/** The text of the syntax tokens drawn in `role`'s color. */
+function coloredText(editor: TiptapEditor, role: string) {
+  return [...editor.view.dom.querySelectorAll(".syntax-token")]
+    .filter((span) => span.getAttribute("style")?.includes(role) === true)
+    .map((span) => span.textContent)
+    .join("");
+}
+
+/** The view of the editor on the page, found before any handle reports it. */
+function mountedView() {
+  const surface = document.querySelector(".ProseMirror");
+  if (
+    surface === null ||
+    !("editor" in surface) ||
+    !(surface.editor instanceof TiptapEditor)
+  ) {
+    throw new Error("the editor did not mount");
+  }
+  return surface.editor.view;
+}
+
 /** Deliver the pointer target and resolved position that ProseMirror supplies without relying on happy-dom layout. */
 function clickAt(
   editor: TiptapEditor,
@@ -1322,6 +1343,56 @@ describe("caret on mount", () => {
     expect(editor.state.selection.$from.parent.textContent).toBe("body");
     expect(editor.state.selection.$from.parentOffset).toBe(2);
     expect(document.activeElement).toBe(editor.view.dom);
+  });
+
+  it("should color the code on screen at mount, before any frame runs", async () => {
+    const lines = 3000;
+    const code = Array.from(
+      { length: lines },
+      (_, i) => `const landing${i} = ${i};`
+    ).join("\n");
+    const initialContent = `\`\`\`ts\n${code}\n\`\`\``;
+    // A first mount leaves the block's tokens cached for the second.
+    const first = await mount({ initialContent });
+    await waitFor(() => {
+      expect(coloredText(first.editor, "syntax-keyword")).toContain("const");
+    });
+    cleanup();
+    vi.useFakeTimers({
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    // The screen shows the block's end. happy-dom lays nothing out, so the
+    // view's geometry is stubbed at the DOM boundary.
+    const rect = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(DOMRect.fromRect({ height: 800, width: 600 }));
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => document.querySelector(".ProseMirror code"),
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: (_x: number, y: number) => {
+        const view = mountedView();
+        const { node, offset } = view.domAtPos(
+          view.state.doc.content.size - 4000 + Math.round((y / 800) * 2000)
+        );
+        return { offset, offsetNode: node };
+      },
+    });
+    onTestFinished(() => {
+      vi.useRealTimers();
+      rect.mockRestore();
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    const { editor } = await mount({ initialContent });
+
+    expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
+    expect(
+      coloredText(editor, "syntax-keyword").length / "const".length
+    ).toBeLessThan(lines);
   });
 
   it("should show the find match at mount, before the editor reports ready", () => {
