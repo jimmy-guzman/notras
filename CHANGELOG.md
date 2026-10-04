@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.4](https://github.com/jimmy-guzman/notras/compare/v0.10.3...v0.10.4) (2026-10-04)
+
+
+### Features
+
+* **search:** ✨ open search results at their match ([#303](https://github.com/jimmy-guzman/notras/issues/303)) ([13b7b73](https://github.com/jimmy-guzman/notras/commit/13b7b734ba4d718c286d29a2e057b2f082af6483))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 avoid rebuilding the view on teardown ([#307](https://github.com/jimmy-guzman/notras/issues/307)) ([7d7df4c](https://github.com/jimmy-guzman/notras/commit/7d7df4cf18f72e6db52d56f6836737baba4ff2dd))
+* **editor:** 🐛 build code blocks in their final shape ([#310](https://github.com/jimmy-guzman/notras/issues/310)) ([fefec77](https://github.com/jimmy-guzman/notras/commit/fefec7779f35a583fad7bb98bdfce5af30bdaefd))
+* **editor:** 🐛 draw xy charts in the app's inks ([#308](https://github.com/jimmy-guzman/notras/issues/308)) ([7ed8681](https://github.com/jimmy-guzman/notras/commit/7ed8681b0dbb5389bae70a3b80b431431e76437d))
+* **editor:** 🐛 keep find fast in long notes ([#311](https://github.com/jimmy-guzman/notras/issues/311)) ([87d2d48](https://github.com/jimmy-guzman/notras/commit/87d2d48add5105dc1be19be924159ee087b1901b))
+* **editor:** 🐛 open a large note with one build ([#309](https://github.com/jimmy-guzman/notras/issues/309)) ([cf51fe9](https://github.com/jimmy-guzman/notras/commit/cf51fe9962e00421affa73dd926cf3ce2519f4a6))
+* **editor:** 🐛 open a note without a blank flash ([#306](https://github.com/jimmy-guzman/notras/issues/306)) ([348d648](https://github.com/jimmy-guzman/notras/commit/348d648e4713ee49eae198cf9e18f87fe881ef68))
+
 ## [0.10.3](https://github.com/jimmy-guzman/notras/compare/v0.10.2...v0.10.3) (2026-10-02)
 
 
