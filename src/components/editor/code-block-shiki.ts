@@ -285,7 +285,7 @@ function applyTransaction(
  * it sends `posAtCoords` down a fallback that measures the text one character
  * at a time.
  */
-function measureViewport(view: EditorView): Range | undefined {
+export function measureViewport(view: EditorView): Range | undefined {
   const editor = view.dom.getBoundingClientRect();
   const clip = view.dom
     .closest('[data-slot="scroll-area-viewport"]')

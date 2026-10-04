@@ -3,9 +3,11 @@ import type { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { hasString } from "@/components/editor/attrs";
+import { measureViewport } from "@/components/editor/code-block-shiki";
 
 interface Match {
   from: number;
@@ -16,6 +18,8 @@ interface FindState {
   matches: Match[];
   prior: SelectionBookmark;
   query: string | null;
+  /** The positions on screen, or nothing while the editor cannot be measured. */
+  screen: Match | undefined;
 }
 export interface FindSnapshot {
   current: number;
@@ -45,6 +49,9 @@ function isFindState(value: unknown): value is FindState {
 }
 const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
+// The screen is sampled at mid-width, so its first and last lines reach past
+// the sample by up to half a line. A line holds far fewer characters than this.
+const SCREEN_MARGIN = 500;
 
 function isFindOpen(state: EditorState) {
   const query = findKey.getState(state)?.query;
@@ -109,13 +116,22 @@ function matchesIn(doc: Node, query: string | null) {
   return matches;
 }
 
-function decorations(doc: Node, state: FindState) {
+// A short query matches tens of thousands of times in a long note, and drawing
+// every one stalls each keystroke. The count and stepping use the whole list.
+function decorations(doc: Node, { active, matches, screen }: FindState) {
   return DecorationSet.create(
     doc,
-    state.matches.flatMap((match, index) => {
+    matches.flatMap((match, index) => {
+      if (
+        index !== active &&
+        screen !== undefined &&
+        (match.to < screen.from || match.from > screen.to)
+      ) {
+        return [];
+      }
       const attributes = {
         class:
-          index === state.active
+          index === active
             ? "note-find-match note-find-active"
             : "note-find-match",
       };
@@ -130,6 +146,30 @@ function decorations(doc: Node, state: FindState) {
       return found;
     })
   );
+}
+
+function screenOf(view: EditorView) {
+  const seen = measureViewport(view);
+
+  return (
+    seen && { from: seen.from - SCREEN_MARGIN, to: seen.to + SCREEN_MARGIN }
+  );
+}
+
+/** Highlights the matches now on screen, after a scroll, a resize or an edit moved it. */
+function highlightScreen(view: EditorView) {
+  const state = findKey.getState(view.state);
+  if (state === undefined || state.query === null) {
+    return;
+  }
+  const screen = screenOf(view);
+  if (screen?.from !== state.screen?.from || screen?.to !== state.screen?.to) {
+    view.dispatch(
+      view.state.tr
+        .setMeta(findKey, { ...state, screen } satisfies FindState)
+        .setMeta("addToHistory", false)
+    );
+  }
 }
 
 function revealMatch(editor: Editor) {
@@ -243,6 +283,7 @@ export function createFindHandle(editor: Editor): FindHandle {
                 ? editor.state.selection.getBookmark()
                 : state.prior,
             query,
+            screen: screenOf(view),
           } satisfies FindState)
           .setMeta("addToHistory", false)
       );
@@ -315,6 +356,10 @@ export const Find = Extension.create({
               matches,
               prior: previous.prior.map(transaction.mapping),
               query: previous.query,
+              screen: previous.screen && {
+                from: transaction.mapping.map(previous.screen.from),
+                to: transaction.mapping.map(previous.screen.to),
+              },
             };
           },
           init: (_, state) => ({
@@ -322,22 +367,58 @@ export const Find = Extension.create({
             matches: [],
             prior: state.selection.getBookmark(),
             query: null,
+            screen: undefined,
           }),
         },
-        view: () => ({
-          update: (view, previous) => {
-            const wasOpen = isFindOpen(previous);
-            const open = isFindOpen(view.state);
-            const viewport = view.dom.closest(
-              '[data-slot="scroll-area-viewport"]'
-            );
-            if (wasOpen !== open && viewport instanceof HTMLElement) {
-              // The extra scroll space lets the first line clear the floating bar.
-              // Compensating here keeps opening find from shifting the document.
-              viewport.scrollTop += open ? FIND_CLEARANCE : -FIND_CLEARANCE;
+        view: (mounted) => {
+          let frame = 0;
+          const schedule = () => {
+            if (frame === 0) {
+              frame = requestAnimationFrame(() => {
+                frame = 0;
+                highlightScreen(mounted);
+              });
             }
-          },
-        }),
+          };
+          const follow = ({ target }: Event) => {
+            if (
+              target === window ||
+              (target instanceof globalThis.Node &&
+                target.contains(mounted.dom))
+            ) {
+              schedule();
+            }
+          };
+          document.addEventListener("scroll", follow, {
+            capture: true,
+            passive: true,
+          });
+          window.addEventListener("resize", follow);
+
+          return {
+            destroy: () => {
+              cancelAnimationFrame(frame);
+              document.removeEventListener("scroll", follow, { capture: true });
+              window.removeEventListener("resize", follow);
+            },
+            update: (view, previous) => {
+              const wasOpen = isFindOpen(previous);
+              const open = isFindOpen(view.state);
+              const viewport = view.dom.closest(
+                '[data-slot="scroll-area-viewport"]'
+              );
+              if (wasOpen !== open && viewport instanceof HTMLElement) {
+                // The extra scroll space lets the first line clear the floating bar.
+                // Compensating here keeps opening find from shifting the document.
+                viewport.scrollTop += open ? FIND_CLEARANCE : -FIND_CLEARANCE;
+              }
+              // An edit can pull text on screen without a scroll.
+              if (open && previous.doc !== view.state.doc) {
+                schedule();
+              }
+            },
+          };
+        },
       }),
     ];
   },

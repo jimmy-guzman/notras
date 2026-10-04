@@ -1,6 +1,6 @@
 import { Editor } from "@tiptap/core";
 import { undoDepth } from "@tiptap/pm/history";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { createEditorExtensions } from "@/components/editor/extensions";
 
@@ -142,6 +142,89 @@ describe("find", () => {
       matchTop = 300;
       find.setQuery("atlas");
       expect(viewport.scrollTop).toBe(52);
+    });
+
+    it("should highlight the matches on screen and the active one while counting every match", () => {
+      const viewport = document.createElement("div");
+      viewport.dataset.slot = "scroll-area-viewport";
+      const editor = new Editor({
+        content: `atlas\n\natlas\n\n${"x".repeat(600)}\n\natlas`,
+        contentType: "markdown",
+        element: viewport,
+        extensions: [...createEditorExtensions({}), Find],
+      });
+      editors.push(editor);
+      Object.defineProperty(viewport, "getBoundingClientRect", {
+        value: () => ({ bottom: 600, top: 0 }),
+      });
+      Object.defineProperty(editor.view.dom, "getBoundingClientRect", {
+        value: () => ({ bottom: 2000, left: 0, top: 0, width: 600 }),
+      });
+      // The screen ends inside the second paragraph, and the last one sits
+      // past the margin kept around it.
+      Object.defineProperty(editor.view, "posAtCoords", {
+        value: ({ top }: { top: number }) => ({ pos: top < 300 ? 0 : 9 }),
+      });
+      Object.defineProperty(editor.view, "coordsAtPos", {
+        value: () => ({ bottom: 120, top: 100 }),
+      });
+      const find = createFindHandle(editor);
+
+      find.setQuery("atlas");
+
+      expect(find.snapshot()).toStrictEqual({ current: 1, total: 3 });
+      expect(editor.view.dom.querySelectorAll(".note-find-match")).toHaveLength(
+        2
+      );
+
+      find.navigate(-1);
+
+      expect(find.snapshot()).toStrictEqual({ current: 3, total: 3 });
+      expect(
+        editor.view.dom.querySelector("p:last-child .note-find-active")
+      ).not.toBeNull();
+    });
+
+    it("should highlight the matches a scroll brings on screen", () => {
+      vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const viewport = document.createElement("div");
+      viewport.dataset.slot = "scroll-area-viewport";
+      document.body.append(viewport);
+      const editor = new Editor({
+        content: `atlas\n\natlas\n\n${"x".repeat(600)}\n\natlas`,
+        contentType: "markdown",
+        element: viewport,
+        extensions: [...createEditorExtensions({}), Find],
+      });
+      editors.push(editor);
+      Object.defineProperty(viewport, "getBoundingClientRect", {
+        value: () => ({ bottom: 600, top: 0 }),
+      });
+      Object.defineProperty(editor.view.dom, "getBoundingClientRect", {
+        value: () => ({ bottom: 2000, left: 0, top: 0, width: 600 }),
+      });
+      let screenEnd = 9;
+      Object.defineProperty(editor.view, "posAtCoords", {
+        value: ({ top }: { top: number }) => ({
+          pos: top < 300 ? 0 : screenEnd,
+        }),
+      });
+      Object.defineProperty(editor.view, "coordsAtPos", {
+        value: () => ({ bottom: 120, top: 100 }),
+      });
+      createFindHandle(editor).setQuery("atlas");
+
+      screenEnd = 620;
+      viewport.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersToNextFrame();
+
+      expect(editor.view.dom.querySelectorAll(".note-find-match")).toHaveLength(
+        3
+      );
+      viewport.remove();
     });
 
     it("should stop receiving navigation after destruction", () => {
