@@ -42,6 +42,7 @@ import {
   copiedMarkdown,
   createEditorExtensions,
   fileMarkdown,
+  rememberSources,
   serializeMarkdown,
 } from "./extensions";
 import { createFindHandle, Find } from "./find";
@@ -320,7 +321,7 @@ function sourceOffset(
   try {
     return fileMarkdown(
       converterOf(editor),
-      state.tr.insertText(SENTINEL, position).doc
+      state.apply(state.tr.insertText(SENTINEL, position)).doc
     ).indexOf(SENTINEL);
   } catch {
     return -1;
@@ -926,6 +927,7 @@ export function Editor(mountProps: EditorProps) {
             throw error;
           }
           suppressChangeRef.current = false;
+          rememberSources(instance.markdown, instance.state.doc, content);
         },
         revealSyntax: () => revealSyntax(instance.view),
         surface: () => instance.view.dom,
@@ -975,6 +977,11 @@ export function Editor(mountProps: EditorProps) {
     const pos =
       config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
 
+    const cleanBody =
+      pos === null
+        ? config.initialContent
+        : config.initialContent.replaceAll(SENTINEL, "");
+
     if (pos !== null) {
       // Remove the sentinel outside history and without notifying autosave;
       // the buffer must end up byte-identical to the file.
@@ -987,7 +994,6 @@ export function Editor(mountProps: EditorProps) {
       // diverged and stripping the char does not restore it -- serializing
       // would then write escaped syntax into the file. Compare canonical
       // forms and reparse the clean body when they differ.
-      const cleanBody = config.initialContent.replaceAll(SENTINEL, "");
       const diverged = (() => {
         try {
           const manager = converterOf(editor);
@@ -1015,6 +1021,8 @@ export function Editor(mountProps: EditorProps) {
 
       suppressChangeRef.current = false;
     }
+
+    rememberSources(converterOf(editor), editor.state.doc, cleanBody);
 
     const { doc } = editor.state;
     const selection =

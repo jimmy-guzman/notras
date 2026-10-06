@@ -1553,3 +1553,128 @@ describe("caret on mount", () => {
     expect(editor.state.selection.$from.parentOffset).toBe(2);
   });
 });
+
+describe("markdown written elsewhere", () => {
+  it("should hand the session an edit that leaves the other blocks as written", async () => {
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const { editor } = await mount({
+      initialContent: "first\n\n* one\n* two\n",
+      onChange,
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(onChange.mock.lastCall?.[0]).toBe("xfirst\n\n* one\n* two\n");
+  });
+
+  it("should keep a replacement as written through a later edit", async () => {
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const { editor, handle } = await mount({ onChange });
+
+    act(() => {
+      handle.replaceContent("first\n\n__bold__ text\n");
+    });
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(onChange.mock.lastCall?.[0]).toBe("xfirst\n\n__bold__ text\n");
+  });
+
+  it("should save a block a replacement left equal the way the replacement wrote it", async () => {
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const { editor, handle } = await mount({
+      initialContent: "first\n\n* one\n",
+      onChange,
+    });
+
+    act(() => {
+      handle.replaceContent("first\n\n[a][r]\n\n+ one\n\n[r]: https://a.b\n");
+    });
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(onChange.mock.lastCall?.[0]).toBe(
+      "xfirst\n\n[a](https://a.b)\n\n+ one\n\n"
+    );
+  });
+
+  it("should read a note as written after placing the caret from source mode", async () => {
+    const { handle } = await mount({
+      initialContent: `fi${SENTINEL}rst\n\n~gone~\n`,
+      stripSentinel: true,
+    });
+
+    expect(handle.getContent()).toBe("first\n\n~gone~\n");
+  });
+
+  it("should find the caret in a block written in another style", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "first\n\n~gone~ and ~more~\n",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(18);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe("first\n\n~gone~ and ~m".length);
+  });
+
+  it("should land an edit when the serializer throws while carrying it", async () => {
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const { editor } = await mount({
+      initialContent: "first\n\n* one\n",
+      onChange,
+    });
+    const manager = editor.markdown;
+    if (manager === undefined) {
+      throw new Error("the editor has no markdown converter");
+    }
+    const renderNode = vi
+      .spyOn(manager, "renderNodeToMarkdown")
+      .mockImplementationOnce(() => {
+        throw new Error("no renderer");
+      });
+    onTestFinished(() => {
+      renderNode.mockRestore();
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(editor.state.doc.textContent).toBe("xfirstone");
+    expect(onChange.mock.lastCall?.[0]).toBe("xfirst\n\n* one\n");
+  });
+
+  it("should keep the other blocks as written when one fails to parse on its own", async () => {
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const { editor, handle } = await mount({ onChange });
+    const manager = editor.markdown;
+    if (manager === undefined) {
+      throw new Error("the editor has no markdown converter");
+    }
+    const original = manager.parse.bind(manager);
+    const parse = vi.spyOn(manager, "parse").mockImplementation((markdown) => {
+      if (markdown === "* one") {
+        throw new Error("unreadable");
+      }
+      return original(markdown);
+    });
+    onTestFinished(() => {
+      parse.mockRestore();
+    });
+
+    act(() => {
+      handle.replaceContent("first\n\n* one\n\n__last__\n");
+    });
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(onChange.mock.lastCall?.[0]).toBe("xfirst\n\n- one\n\n__last__\n");
+  });
+});

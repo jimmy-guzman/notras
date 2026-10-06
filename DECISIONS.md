@@ -124,6 +124,8 @@ What lands on disk is whatever `@tiptap/markdown` serializes. The repo's formatt
 
 An earlier design ran a remark-based format pass on blur, which carried a question about whether remark-stringify and the repo formatter would agree. Making the editor's own serializer canonical removes both the question and the pass, and the remark and preview stacks with them.
 
+**Superseded in part by `D96`,** which keeps the serializer for blocks it has to write and stops it rewriting the rest. The rejection below carries over, and is the argument `D96` rests on.
+
 **Rejected: formatting note content on blur.** Produces uniform markdown across externally authored files. Rejected because it rewrites files the user did not change in that session, and because moving the caret after a blur is a visible defect.
 
 ### D16 A debounced notify watcher reconciles external writes
@@ -1236,3 +1238,21 @@ A text selection in either editor paints as an inline decoration on the selected
 **Rejected: native fill with layout kept to its rules.** Every flex row, positioned box and scroller in the note surface becomes a selection bug, and nothing tests for one.
 
 **Rejected: an overlay layer, as VS Code's `SelectionsOverlay` draws.** It measures each line's rectangle, redraws on scroll and resize, and sits under the code cards' backgrounds. A decoration gets its line boxes from layout and paints under the glyphs inside a card as well.
+
+### D96 A save keeps the text nobody edited
+
+Each top-level block is written from the text the file had for it. An edit inside a block is carried into that text, and the serializer writes a block only when the text cannot take the edit. `ARCHITECTURE.md` describes the mechanism.
+
+Under `D15` the first keystroke in a note serialized the whole body, so a note written elsewhere came back with `*` bullets as `-`, `__bold__` as `**bold**`, tables padded and `1. 1. 1.` renumbered, in blocks the user never touched. `D15` rejected formatting on blur because it rewrites files the user did not change, and the serializer did the same one keystroke later.
+
+The check that makes it safe is the one `fileMarkdown` already used for escapes: a text is kept only when it parses back to the block it stands for. A wrong mapping falls back to the serializer for that block.
+
+**Constraint:** the unit is the top-level block. A list that gains or loses an item is written whole in the serializer's form, since a `-` item among `*` items parses as three lists.
+
+**Rejected: storing the authored style on nodes.** MarkText, Vditor, Milkdown and Toast UI do this for bullet characters, emphasis delimiters or heading style. Rejected because it takes one attribute and one serializer branch per construct, and none of it reaches whitespace, so the file still changes.
+
+**Rejected: reusing original text for untouched blocks only.** Half the code. Rejected because the common edit in a note is inside a list or a table, and ticking one task would rewrite every item.
+
+**Rejected: making the markdown text the document, as Obsidian and ZenNotes do.** Byte-exact by construction. Rejected because it replaces the rich editor with decorations over a source editor, which is a different app.
+
+**Reference:** recast and `toml_edit` print original text for nodes nobody modified and fall back to their printers when reuse fails. scratch, on the same TipTap serializer, rewrites the whole note on every save.

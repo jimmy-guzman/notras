@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { attachmentLink } from "@/lib/utils/attachments";
 
-import { createEditorExtensions, serializeMarkdown } from "./extensions";
+import {
+  converterOf,
+  createEditorExtensions,
+  rememberSources,
+  serializeMarkdown,
+} from "./extensions";
 
 /**
  * The markdown round-trip contract: what goes into a file must come back
@@ -147,10 +152,16 @@ describe("markdown round-trip", () => {
     expect(compact).toContain("| one<br>two |");
   });
 
-  it("should keep a note escaped when one construct needs its backslash", () => {
-    const markdown = "the snake\\_case name\n\n![notes \\].png](notes.png)";
+  it("should write a block bare beside one that needs its backslash", () => {
+    expect(
+      roundtrip("the snake\\_case name\n\n![notes \\].png](notes.png)")
+    ).toBe("the snake_case name\n\n![notes \\].png](notes.png)");
+  });
 
-    expect(roundtrip(markdown)).toBe(markdown);
+  it("should keep the backslash that stops a reference definition and drop it from the block beside it", () => {
+    expect(roundtrip("see \\[label\\]\n\n\\[label\\]: /url")).toBe(
+      "see [label]\n\n\\[label\\]: /url"
+    );
   });
 
   it("should keep an empty numbered item", () => {
@@ -158,10 +169,6 @@ describe("markdown round-trip", () => {
   });
 
   it.each([
-    [
-      "a reference definition another block would resolve",
-      "see \\[label\\]\n\n\\[label\\]: /url",
-    ],
     ["a bullet marker", "\\* not a bullet"],
     ["a thematic break", "\\_\\_\\_"],
   ])("should keep the backslash that stops %s", (_name, markdown) => {
@@ -533,5 +540,235 @@ describe("markdown round-trip", () => {
     expect(roundtrip("```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```")).toBe(
       "```html\n<p>a&nbsp;b</p>\n<p>c&#160;d</p>\n```"
     );
+  });
+});
+
+/** A note opened from a file, the way the editor component opens one. */
+function open(markdown: string) {
+  const editor = load(markdown);
+
+  rememberSources(converterOf(editor), editor.state.doc, markdown);
+
+  return editor;
+}
+
+const WRITTEN_ELSEWHERE = [
+  ["star bullets", "* one\n* two"],
+  ["plus bullets", "+ one\n+ two"],
+  ["a loose list", "- one\n\n- two"],
+  ["underscore bold", "__bold__ text"],
+  ["underscore emphasis", "_em_ text"],
+  ["a single-tilde strike", "~gone~"],
+  ["a backslash break", "one\\\ntwo"],
+  ["a setext heading", "Title\n====="],
+  ["a closed heading", "## Title ##"],
+  ["a star rule", "***"],
+  ["a tilde fence", "~~~js\nx\n~~~"],
+  ["a long fence", "````js\nx\n````"],
+  ["an unpadded table", "|a|b|\n|-|-|\n|1|2|"],
+  ["a table without outer pipes", "a | b\n--- | ---\n1 | 2"],
+  ["a four-space nested list", "- one\n    - child"],
+  ["a tab-indented nested list", "- one\n\t- child"],
+  ["repeated numbering", "1. a\n1. b\n1. c"],
+  ["an uppercase task", "- [X] done"],
+  ["an autolink", "<https://a.b>"],
+  ["a bare url", "see https://a.b now"],
+  ["a lazy quote", "> one\ntwo"],
+  ["a quote without a space", ">one"],
+  ["a heading directly over text", "# h\npara"],
+  ["an entity", "a &amp; b"],
+  ["an escaped star", "2 \\* 3"],
+] as const;
+
+describe("markdown the user did not touch", () => {
+  it.each(WRITTEN_ELSEWHERE)(
+    "should save %s as written when nothing was edited",
+    (_name, markdown) => {
+      const editor = open(markdown);
+
+      expect(serializeMarkdown(editor)).toBe(markdown);
+      editor.destroy();
+    }
+  );
+
+  it.each(WRITTEN_ELSEWHERE)(
+    "should save %s as written when another block was edited",
+    (_name, markdown) => {
+      const editor = open(`first\n\n${markdown}\n\nlast\n`);
+
+      editor.commands.insertContentAt(1, "x");
+
+      expect(serializeMarkdown(editor)).toBe(`xfirst\n\n${markdown}\n\nlast\n`);
+      editor.destroy();
+    }
+  );
+
+  it("should keep the blank line that opens a note and the newline that ends it", () => {
+    const editor = open("\n# title\n\ntext\n");
+
+    expect(serializeMarkdown(editor)).toBe("\n# title\n\ntext\n");
+    editor.destroy();
+  });
+
+  it("should keep the newline that ends a note closing on a code block", () => {
+    const editor = open("first\n\n```\ncode\n```\n");
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(serializeMarkdown(editor)).toBe("xfirst\n\n```\ncode\n```\n");
+    editor.destroy();
+  });
+
+  it("should separate a new block from the ones around it with a blank line", () => {
+    const editor = open("# h\npara\n");
+
+    editor.commands.insertContentAt(editor.state.doc.child(0).nodeSize, {
+      content: [{ text: "new", type: "text" }],
+      type: "paragraph",
+    });
+
+    expect(serializeMarkdown(editor)).toBe("# h\n\nnew\n\npara\n");
+    editor.destroy();
+  });
+
+  it("should write indented code as a fence", () => {
+    const editor = open("para\n\n    code\n");
+
+    expect(serializeMarkdown(editor)).toBe("para\n\n```\ncode\n```");
+    editor.destroy();
+  });
+
+  it("should keep the blocks after a reference link as written", () => {
+    const editor = open("[a][r]\n\n* one\n\n[r]: https://a.b\n");
+
+    expect(serializeMarkdown(editor)).toBe("[a](https://a.b)\n\n* one");
+    editor.destroy();
+  });
+
+  it("should write line feeds for a note that had carriage returns", () => {
+    const editor = open("a\r\n\r\n* b\r\n");
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(serializeMarkdown(editor)).toBe("xa\n\n* b\n");
+    editor.destroy();
+  });
+
+  it("should write a reference link inline", () => {
+    const editor = open("[a][r]\n\n[r]: https://a.b\n");
+
+    expect(serializeMarkdown(editor)).toBe("[a](https://a.b)");
+    editor.destroy();
+  });
+});
+
+describe("an edit in markdown written elsewhere", () => {
+  it.each([
+    ["star bullets", "* one\n* two\n", 3, "* xone\n* two\n"],
+    ["underscore bold", "__bold__ text\n", 2, "__bxold__ text\n"],
+    ["a single-tilde strike", "~gone~\n", 2, "~gxone~\n"],
+    ["repeated numbering", "1. a\n1. b\n", 3, "1. xa\n1. b\n"],
+    [
+      "a four-space nested list",
+      "- one\n    - child\n",
+      3,
+      "- xone\n    - child\n",
+    ],
+    ["a backslash break", "one\\\ntwo\n", 2, "oxne\\\ntwo\n"],
+    ["a bare url", "see https://a.b now\n", 2, "sxee https://a.b now\n"],
+    ["a heading directly over text", "# h\npara\n", 2, "# hx\npara\n"],
+    ["text directly under a heading", "# h\npara\n", 5, "# h\npxara\n"],
+    ["the last block of a note", "a\n\nb\n", 5, "a\n\nbx\n"],
+  ])(
+    "should keep %s as written around the typed text",
+    (_name, markdown, position, expected) => {
+      const editor = open(markdown);
+
+      editor.commands.insertContentAt(position, "x");
+
+      expect(serializeMarkdown(editor)).toBe(expected);
+      editor.destroy();
+    }
+  );
+
+  it("should keep the spacing in front of a replaced character", () => {
+    const editor = open("-   one\n- two\n");
+
+    editor.commands.insertContentAt({ from: 3, to: 4 }, "x");
+
+    expect(serializeMarkdown(editor)).toBe("-   xne\n- two\n");
+    editor.destroy();
+  });
+
+  it("should keep typing in one block as written across several edits", () => {
+    const editor = open("* one\n* two\n");
+
+    editor.commands.insertContentAt(3, "x");
+    editor.commands.insertContentAt(4, "y");
+
+    expect(serializeMarkdown(editor)).toBe("* xyone\n* two\n");
+    editor.destroy();
+  });
+
+  it("should change one character when a task is ticked", () => {
+    const editor = open("* [ ] a\n* [ ] b\n");
+
+    editor.commands.command(({ tr }) => {
+      tr.setNodeAttribute(1, "checked", true);
+
+      return true;
+    });
+
+    expect(serializeMarkdown(editor)).toBe("* [x] a\n* [ ] b\n");
+    editor.destroy();
+  });
+
+  it("should write the whole list in the serializer's form when an item is added", () => {
+    const editor = open("first\n\n* one\n* two\n\n__last__\n");
+
+    editor
+      .chain()
+      .setTextSelection(20)
+      .splitListItem("listItem")
+      .insertContent("three")
+      .run();
+
+    expect(serializeMarkdown(editor)).toBe(
+      "first\n\n- one\n- two\n- three\n\n__last__\n"
+    );
+    editor.destroy();
+  });
+
+  it("should write a table in the serializer's form when a cell changes", () => {
+    const editor = open("__first__\n\n|a|b|\n|-|-|\n|1|2|\n");
+
+    editor.commands.insertContentAt(editor.state.doc.content.size - 4, "x");
+
+    expect(serializeMarkdown(editor)).toBe(
+      "__first__\n\n| a   | b   |\n| --- | --- |\n| 1   | 2x  |\n\n"
+    );
+    editor.destroy();
+  });
+
+  it("should put a blank line under a heading that becomes text", () => {
+    const editor = open("# h\npara\n");
+
+    editor.chain().setTextSelection(2).setParagraph().run();
+
+    expect(serializeMarkdown(editor)).toBe("h\n\npara\n");
+    editor.destroy();
+  });
+
+  it("should keep a backslash the file had and write a typed character bare", () => {
+    const editor = open(
+      "the snake\\_case name\n\n![notes \\].png](notes.png)\n"
+    );
+
+    editor.commands.insertContentAt(2, "_");
+
+    expect(serializeMarkdown(editor)).toBe(
+      "t_he snake\\_case name\n\n![notes \\].png](notes.png)\n"
+    );
+    editor.destroy();
   });
 });
