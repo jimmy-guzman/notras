@@ -15,6 +15,7 @@ import { titleSource } from "@/core/notes";
 import { styleNonce } from "@/lib/style-nonce";
 
 import { renameDocument } from "./retitle-buffer";
+import { changedRange } from "./source-change";
 import {
   createSourceExtensions,
   touchesSourceTitle,
@@ -34,28 +35,6 @@ export type SelectionReader = () =>
   | undefined;
 
 type Naming = { kind: "content" } | { kind: "filename"; value: string };
-
-function changedText(before: string, after: string) {
-  let from = 0;
-  while (
-    from < before.length &&
-    from < after.length &&
-    before[from] === after[from]
-  ) {
-    from += 1;
-  }
-  let end = before.length;
-  let nextEnd = after.length;
-  while (
-    end > from &&
-    nextEnd > from &&
-    before[end - 1] === after[nextEnd - 1]
-  ) {
-    end -= 1;
-    nextEnd -= 1;
-  }
-  return { from: from + 1, text: after.slice(from, nextEnd), to: end + 1 };
-}
 
 /** The source editor's text state and history, retained across editor views. */
 export function createNoteDocument(
@@ -166,13 +145,13 @@ export function createNoteDocument(
       editor.state.reconfigure({ plugins: [historyPlugin] }).apply(tr)
     ) > undoDepth(editor.state);
   const edit = (next: string, details: DocumentEdit) => {
-    const patch = changedText(content(), next);
+    const patch = changedRange(content(), next);
     const tr =
       details.separate === true
         ? closeHistory(editor.state.tr)
         : editor.state.tr;
     if (patch.from !== patch.to || patch.text !== "") {
-      tr.insertText(patch.text, patch.from, patch.to);
+      tr.insertText(patch.text, patch.from + 1, patch.to + 1);
     }
     tr.setMeta("titleEdited", details.titleEdited);
     // A touch with unchanged text still introduces a naming action.
@@ -229,10 +208,10 @@ export function createNoteDocument(
     },
     replace: (next: string) => {
       pendingSelection = undefined;
-      const patch = changedText(content(), next);
+      const patch = changedRange(content(), next);
       dispatch(
         editor.state.tr
-          .insertText(patch.text, patch.from, patch.to)
+          .insertText(patch.text, patch.from + 1, patch.to + 1)
           .setMeta("addToHistory", false)
       );
       // Removing history's plugin state resets undo without replacing the view

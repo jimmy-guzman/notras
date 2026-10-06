@@ -56,6 +56,7 @@ import { DragSelection } from "./drag-selection";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
+import { carryChange } from "./source-change";
 import { isSafeUrl } from "./urls";
 import { Wikilink } from "./wikilink";
 
@@ -524,36 +525,273 @@ function renderBlock(
   return block;
 }
 
-function blockMarkdown(manager: MarkdownConverter, doc: Node) {
-  const blocks = doc.content.content.map((node, index, siblings) =>
-    renderBlock(manager, node, siblings[index - 1])
-  );
-  const form = FORMS.find((candidate) =>
-    blocks.every((block) => block.readsBack.has(candidate))
+function written(block: RenderedBlock) {
+  const form = FORMS.find((candidate) => block.readsBack.has(candidate));
+
+  return form === undefined ? block.escaped : block.forms[form];
+}
+
+/** What sat between two blocks in the file, shared by the pair it joined. */
+interface Gap {
+  end: boolean;
+  text: string;
+}
+
+interface Source {
+  /** The gap that led here, which only the block that owns it can write. */
+  follows: Gap | undefined;
+  gap: Gap;
+  /** What preceded the first block of the file. */
+  lead: string;
+  text: string;
+}
+
+/**
+ * The text each top-level block is written as. A block nobody touched keeps
+ * the text the file had, and an edit carries its change into that text.
+ */
+const sources = new WeakMap<Node, Source>();
+
+function isBlankParagraph(node: Node) {
+  return node.type.name === "paragraph" && node.childCount === 0;
+}
+
+function readsAs(manager: MarkdownConverter, text: string, nodes: Node[]) {
+  try {
+    const parsed = nodes[0]?.type.schema.nodeFromJSON(manager.parse(text));
+
+    return (
+      parsed?.childCount === nodes.length &&
+      nodes.every((node, index) => parsed.child(index).eq(node))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** What `text` parses to on its own, or null when it does not parse. */
+function parsedAlone(manager: MarkdownConverter, doc: Node, text: string) {
+  try {
+    return doc.type.schema.nodeFromJSON(manager.parse(text));
+  } catch {
+    return null;
+  }
+}
+
+/** Blank lines beyond the first separator are paragraphs of their own. */
+function pastBlankParagraphs(doc: Node, index: number, parsed: Node | null) {
+  let at = index;
+  while (
+    at < doc.childCount &&
+    isBlankParagraph(doc.child(at)) &&
+    parsed?.firstChild?.eq(doc.child(at)) !== true
+  ) {
+    at += 1;
+  }
+  return at;
+}
+
+/**
+ * Pair the file's top-level tokens with the document's blocks. A block keeps
+ * its text only when that text alone parses back to it, which leaves out a
+ * link that needs a definition elsewhere.
+ */
+export function rememberSources(
+  manager: MarkdownConverter,
+  doc: Node,
+  markdown: string
+) {
+  let index = 0;
+  let lead = "";
+  let last: { at: number; source: Source } | undefined;
+
+  // A replacement reuses the nodes it did not change, whose text may have.
+  // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
+  doc.forEach((node) => {
+    sources.delete(node);
+  });
+
+  for (const token of manager.instance.lexer(markdown)) {
+    if (token.type === "space") {
+      if (last === undefined) {
+        lead += token.raw;
+      } else {
+        last.source.gap.text += token.raw;
+      }
+      continue;
+    }
+
+    const text = token.raw.replace(/\n+$/u, "");
+    const parsed = parsedAlone(manager, doc, text);
+    const at = pastBlankParagraphs(doc, index, parsed);
+    const follows =
+      parsed !== null &&
+      parsed.content.content.every(
+        (node, offset) => doc.maybeChild(at + offset)?.eq(node) ?? false
+      );
+
+    // A token that fails alone most likely stood for one block.
+    index = at + (parsed?.childCount ?? 1);
+
+    // Indented code reads as a list item's continuation once it lands after
+    // a list, so it is always written as a fence.
+    if (
+      !follows ||
+      parsed?.childCount !== 1 ||
+      (token.type === "code" && token.codeBlockStyle === "indented")
+    ) {
+      last = undefined;
+      lead = "";
+      continue;
+    }
+
+    const source: Source = {
+      follows: last?.at === at - 1 ? last.source.gap : undefined,
+      gap: { end: false, text: token.raw.slice(text.length) },
+      lead: at === 0 ? lead : "",
+      text,
+    };
+
+    sources.set(doc.child(at), source);
+    last = { at, source };
+  }
+
+  if (last !== undefined && last.at === doc.childCount - 1) {
+    last.source.gap.end = true;
+  }
+}
+
+/** A gap with no blank line in it joins its two blocks once either changes. */
+function isLoose(gap: Gap) {
+  return gap.end || gap.text.includes("\n\n");
+}
+
+/** Where two block lists differ, when they differ in one block only. */
+function changedBlock(old: readonly Node[], now: readonly Node[]) {
+  const at = now.findIndex((node, index) => node !== old[index]);
+
+  return old.length === now.length &&
+    at === now.findLastIndex((node, index) => node !== old[index])
+    ? at
+    : -1;
+}
+
+/** Whether a gap still keeps its two blocks apart once one of them changed. */
+function staysApart(
+  manager: MarkdownConverter,
+  gap: Gap,
+  text: string,
+  nodes: Node[]
+) {
+  return isLoose(gap) || readsAs(manager, text, nodes);
+}
+
+/**
+ * Carry an edit of one block into the text that block is written as, so the
+ * rest of the block stays as the file had it. A change the text cannot take,
+ * or one that reads back as a different block, leaves the block to the
+ * serializer.
+ */
+function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
+  const old = before.content.content;
+  const now = after.content.content;
+  const at = changedBlock(old, now);
+  const was = old[at];
+  const node = now[at];
+  const source = was === undefined ? undefined : sources.get(was);
+
+  if (was === undefined || node === undefined || source === undefined) {
+    return;
+  }
+
+  const text = carryChange(
+    source.text,
+    written(renderBlock(manager, was, old[at - 1])),
+    written(renderBlock(manager, node, now[at - 1]))
   );
 
-  return blocks.map((block) =>
-    form === undefined ? block.escaped : block.forms[form]
-  );
+  if (text === null || !readsAs(manager, text, [node])) {
+    return;
+  }
+
+  const above = now[at - 1];
+  const below = now[at + 1];
+  const previous = above === undefined ? undefined : sources.get(above);
+  const next = below === undefined ? undefined : sources.get(below);
+
+  sources.set(node, {
+    follows:
+      source.follows !== undefined &&
+      above !== undefined &&
+      previous?.gap === source.follows &&
+      staysApart(
+        manager,
+        source.follows,
+        previous.text + source.follows.text + text,
+        [above, node]
+      )
+        ? source.follows
+        : undefined,
+    gap:
+      source.gap.end ||
+      (below !== undefined &&
+        next?.follows === source.gap &&
+        staysApart(manager, source.gap, text + source.gap.text + next.text, [
+          node,
+          below,
+        ]))
+        ? source.gap
+        : { end: false, text: "\n\n" },
+    lead: source.lead,
+    text,
+  });
 }
 
 /**
  * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` and
  * encodes `& < >` in every text node with no regard for context. Re-parsing
  * the stripped text leaves marked the authority on which escape was
- * load-bearing, per document: one construct that needs its backslash keeps
- * every other backslash in the file, and an entity likewise.
+ * load-bearing, per top-level block: a construct that needs its backslash
+ * keeps every other backslash in its block, and an entity likewise.
  *
- * Asking per top-level block gives the same answer: blocks parse apart once a
- * blank line separates them, and a link reference definition, the one
- * construct that reaches across, is a block that fails its own check.
+ * Blocks parse apart once a blank line separates them, and a link reference
+ * definition, the one construct that reaches across, is a block that fails
+ * its own check.
+ *
+ * A block nobody touched is written as the file had it instead.
  */
 export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
-  const markdown = blockMarkdown(manager, doc).join("\n\n");
+  const nodes = doc.content.content;
+  const pieces = nodes.map(
+    (node, index) =>
+      sources.get(node) ?? renderBlock(manager, node, nodes[index - 1])
+  );
+  // The editor keeps an empty paragraph after a closing list or code block,
+  // which the file never held.
+  const final = nodes.findLast((node) => !isBlankParagraph(node));
+  const closes = final !== undefined && sources.get(final)?.gap.end === true;
+  const markdown = pieces
+    .slice(0, closes ? nodes.lastIndexOf(final) + 1 : undefined)
+    .map((piece, index, kept) => {
+      const next = kept[index + 1];
+      const separator = next === undefined ? "" : "\n\n";
+
+      if (!("gap" in piece)) {
+        return written(piece) + separator;
+      }
+
+      const lead = index === 0 ? piece.lead : "";
+      const follows =
+        next === undefined
+          ? piece.gap.end
+          : "gap" in next && next.follows === piece.gap;
+
+      return lead + piece.text + (follows ? piece.gap.text : separator);
+    })
+    .join("");
 
   // Upstream writes nothing for a document holding only spaces and `&nbsp;`.
-  return markdown.replaceAll("&nbsp;", "").replaceAll("\u00A0", "").trim() ===
-    ""
+  return markdown.replaceAll("&nbsp;", "").replaceAll(" ", "").trim() === ""
     ? ""
     : markdown;
 }
@@ -564,12 +802,11 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
  * block here.
  */
 export function copiedMarkdown(manager: MarkdownConverter, doc: Node) {
-  return blockMarkdown(manager, doc)
-    .map((block, index) =>
-      doc.child(index).type.name === "paragraph" &&
-      doc.child(index).childCount === 0
+  return doc.content.content
+    .map((node, index, siblings) =>
+      isBlankParagraph(node)
         ? ""
-        : block
+        : written(renderBlock(manager, node, siblings[index - 1]))
     )
     .join("\n\n");
 }
@@ -598,7 +835,34 @@ export function serializeMarkdown(editor: Editor) {
  */
 const NoteMarkdown = Markdown.extend<
   Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }
->();
+>({
+  addProseMirrorPlugins() {
+    const { editor } = this;
+
+    return [
+      ...(this.parent?.() ?? []),
+      new Plugin({
+        state: {
+          apply: (transaction, _value, before, after) => {
+            // A carry that throws leaves the block to the serializer, which
+            // raises the same failure where the save can report it; a throw
+            // here would drop the keystroke instead.
+            if (transaction.docChanged) {
+              try {
+                carrySource(converterOf(editor), before.doc, after.doc);
+              } catch {
+                // See above.
+              }
+            }
+
+            return null;
+          },
+          init: () => null,
+        },
+      }),
+    ];
+  },
+});
 
 /** The full extension stack, shared by the component and headless tests. */
 export function createEditorExtensions(
