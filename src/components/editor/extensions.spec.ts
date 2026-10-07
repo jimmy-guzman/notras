@@ -127,6 +127,20 @@ describe("raw html", () => {
     );
   });
 
+  it("should draw an image tag the editor can write back as an image", () => {
+    const rendered = render(
+      '<img src="x.png" alt="shot" width="300">\n\ntext <img src="y.png">'
+    );
+
+    expect(rendered.querySelector("pre[data-html]")).toBeNull();
+    expect(rendered.querySelector("code[data-html]")).toBeNull();
+    expect(
+      [...rendered.querySelectorAll("img:not(.ProseMirror-separator)")].map(
+        (image) => image.getAttribute("alt")
+      )
+    ).toStrictEqual(["shot", ""]);
+  });
+
   it("should show raw html as code", () => {
     const rendered = render("<!-- note -->\n\ntext <kbd>k</kbd>");
 

@@ -1,7 +1,12 @@
 import { Extension } from "@tiptap/core";
 import type { Node, NodeRange } from "@tiptap/pm/model";
 import type { EditorState } from "@tiptap/pm/state";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  TextSelection,
+} from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
@@ -476,6 +481,11 @@ class DragSelectionView {
     this.stop();
 
     if (!moved) {
+      // A selected node has no caret to place, so the click leaves it selected.
+      if (view.state.selection instanceof NodeSelection) {
+        return;
+      }
+
       // The press was a click after all, and `preventDefault` means the browser
       // did not move the caret, so place it where the pointer went down.
       view.dispatch(

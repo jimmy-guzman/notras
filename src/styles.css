@@ -492,14 +492,68 @@ body.dragging .ProseMirror .selected-text,
   background: color-mix(in oklch, var(--primary) 12%, transparent);
 }
 
-/* Images. */
+/* Images. The wrapper is the selected node, so the ring and the handle hang
+   off it. A `width` is the one dimension stored, so the height stays auto and
+   a width past the column keeps the ratio. The handle is hidden, not
+   transparent, when the image is not selected or did not load, so nothing
+   invisible catches a press. */
 .ProseMirror img {
   max-width: 100%;
-  max-height: 320px;
+  height: auto;
   border-radius: var(--radius-md);
 }
-.ProseMirror img.ProseMirror-selectednode {
+.ProseMirror [data-image] {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+.ProseMirror .ProseMirror-selectednode img {
   outline: 2px solid var(--ring);
+}
+.ProseMirror .image-handle {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  bottom: 0;
+  width: 16px;
+  cursor: ew-resize;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease-out,
+    visibility 0.15s;
+}
+.ProseMirror .image-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 4px;
+  height: 32px;
+  translate: 0 -50%;
+  border-radius: 2px;
+  background: var(--ring);
+  outline: 1px solid var(--background);
+}
+.ProseMirror .ProseMirror-selectednode img[data-loaded] ~ .image-handle {
+  visibility: visible;
+  opacity: 1;
+}
+/* The one action an image has, shown on intent the way a code block shows
+   copy, above the handle's zone where the two overlap. */
+.ProseMirror [data-image]:hover img[data-loaded] ~ .image-toolbar,
+.ProseMirror [data-image]:focus-within img[data-loaded] ~ .image-toolbar {
+  opacity: 1;
+}
+.ProseMirror [data-image][data-resizing] .image-toolbar {
+  opacity: 0;
+}
+/* The pointer leaves the handle during a drag, and the cursor and the text
+   under it must not say so. */
+.ProseMirror:has([data-resizing]) {
+  cursor: ew-resize;
+  user-select: none;
 }
 
 /* One line for every link, at one height and one thickness, and its style is
@@ -615,7 +669,8 @@ body.dragging .ProseMirror .selected-text,
   background: var(--bg);
   border-radius: var(--radius-md);
 }
-.code-block-toolbar {
+.code-block-toolbar,
+.image-toolbar {
   position: absolute;
   top: 0.35rem;
   right: 0.5rem;

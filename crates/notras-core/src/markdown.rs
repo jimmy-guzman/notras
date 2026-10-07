@@ -157,6 +157,82 @@ fn html_tag(html: &str) -> Option<HtmlTag> {
     Some(HtmlTag::Open(name))
 }
 
+/// The value an attribute carries and what follows it, per CommonMark's
+/// attribute grammar: double-quoted, single-quoted, or a bare run.
+fn attribute_value(html: &str) -> Option<(&str, &str)> {
+    for quote in ['"', '\''] {
+        if let Some(rest) = html.strip_prefix(quote) {
+            let end = rest.find(quote)?;
+            return Some((&rest[..end], &rest[end + 1..]));
+        }
+    }
+    let end = html
+        .find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '=' | '<' | '>' | '`'))
+        .unwrap_or(html.len());
+    (end > 0).then(|| (&html[..end], &html[end..]))
+}
+
+/// Kept in parity with `imageTagAttrs` in `src/components/editor/image-tag.ts`,
+/// which `fixtures/image-tags.json` checks on both sides: one complete `<img>`
+/// tag carrying only `src`, `alt`, `title` and a whole positive `width`. Rich
+/// mode draws that tag as an image rather than code, so the search body leaves
+/// it out the way it leaves out a markdown image.
+pub(crate) fn is_image_tag(html: &str) -> bool {
+    let Some(rest) = html.strip_prefix('<') else {
+        return false;
+    };
+    let name_len = rest.chars().take_while(char::is_ascii_alphanumeric).count();
+    if !rest[..name_len].eq_ignore_ascii_case("img") {
+        return false;
+    }
+    let mut rest = &rest[name_len..];
+    let mut has_src = false;
+    loop {
+        let trimmed = rest.trim_start();
+        if let Some(after) = trimmed
+            .strip_prefix("/>")
+            .or_else(|| trimmed.strip_prefix('>'))
+        {
+            return has_src && after.is_empty();
+        }
+        if trimmed.len() == rest.len() {
+            return false;
+        }
+        let name_len = trimmed
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ':' | '.' | '-'))
+            .count();
+        if name_len == 0 {
+            return false;
+        }
+        let name = trimmed[..name_len].to_ascii_lowercase();
+        let after_name = &trimmed[name_len..];
+        let (value, after_value) = match after_name.trim_start().strip_prefix('=') {
+            Some(after_equals) => match attribute_value(after_equals.trim_start()) {
+                Some((value, after_value)) => (Some(value), after_value),
+                None => return false,
+            },
+            None => (None, after_name),
+        };
+        match name.as_str() {
+            "src" => has_src = true,
+            "alt" | "title" => {}
+            "width" => {
+                let whole = value.is_some_and(|value| {
+                    !value.starts_with('0')
+                        && !value.is_empty()
+                        && value.bytes().all(|b| b.is_ascii_digit())
+                });
+                if !whole {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+        rest = after_value;
+    }
+}
+
 /// Kept in parity with `isNotePath` in `src/core/links.ts`.
 pub(crate) fn is_note_path(destination: &str) -> bool {
     if destination.starts_with('#') || destination.starts_with('/') {
@@ -482,6 +558,9 @@ pub(crate) fn readable_text(body: &str) -> String {
         Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
     let mut text = String::new();
     let mut images = 0_usize;
+    // An HTML block arrives one line per event, and whether rich mode draws it
+    // as an image is a question about the whole block.
+    let mut html_block: Option<String> = None;
     for event in Parser::new_ext(body, options) {
         match event {
             Event::Start(Tag::Image { .. }) => images += 1,
@@ -490,9 +569,27 @@ pub(crate) fn readable_text(body: &str) -> String {
                 images -= 1;
                 text.push('\n');
             }
-            Event::Text(part) | Event::Code(part) | Event::Html(part) | Event::InlineHtml(part)
-                if images == 0 =>
-            {
+            Event::Start(Tag::HtmlBlock) => html_block = Some(String::new()),
+            Event::End(TagEnd::HtmlBlock) => {
+                let block = html_block.take().unwrap_or_default();
+                if !is_image_tag(block.trim_end()) {
+                    text.push_str(&block);
+                }
+                text.push('\n');
+            }
+            Event::Html(part) => {
+                if let Some(block) = html_block.as_mut() {
+                    block.push_str(&part);
+                }
+            }
+            Event::InlineHtml(part) if images == 0 => {
+                if is_image_tag(&part) {
+                    text.push('\n');
+                } else {
+                    text.push_str(&part);
+                }
+            }
+            Event::Text(part) | Event::Code(part) if images == 0 => {
                 text.push_str(&part);
             }
             Event::End(
@@ -674,6 +771,35 @@ mod tests {
         for hidden in ["hidden", "diagram", "definition"] {
             assert!(!text.contains(hidden), "{hidden} in {text:?}");
         }
+    }
+
+    #[test]
+    fn should_recognize_the_image_tags_the_editor_draws() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("../../../fixtures/image-tags.json")).unwrap();
+        for case in cases.as_array().unwrap() {
+            assert_eq!(
+                is_image_tag(case["html"].as_str().unwrap()),
+                case["image"].as_bool().unwrap(),
+                "{}",
+                case["name"]
+            );
+        }
+    }
+
+    #[test]
+    fn should_leave_out_of_readable_text_the_image_tags_rich_mode_draws() {
+        let text = readable_text(
+            "<img src=\"attachments/shot.png\" alt=\"shot\" width=\"400\">\n\n\
+             word<img src=\"x.png\">next\n\n\
+             <img src=\"y.png\">\ncaption\n\n\
+             <img src=\"z.png\" style=\"width: 1px\">\n",
+        );
+
+        assert!(!text.contains("shot") && !text.contains("400"), "{text:?}");
+        assert!(!text.contains("wordnext"), "{text:?}");
+        assert!(text.contains("<img src=\"y.png\">\ncaption"), "{text:?}");
+        assert!(text.contains("<img src=\"z.png\" style"), "{text:?}");
     }
 
     #[test]
