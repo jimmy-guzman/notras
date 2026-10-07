@@ -11,7 +11,7 @@ import {
 import { Fragment, Slice } from "@tiptap/pm/model";
 import type { Node as ProseMirrorNode, Schema } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
-import { Selection, TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -23,6 +23,7 @@ import {
   windowSyntaxToScreen,
 } from "@/components/editor/code-block-shiki";
 import { dragRange, isRowRange } from "@/components/editor/move-selection";
+import { ImageDialog } from "@/components/ui/image-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
@@ -241,6 +242,38 @@ function followLink(
   });
 }
 
+/**
+ * The rendered image behind a double-click or a node selection, when it has
+ * something bigger to show. A selection's DOM is the resize wrapper around
+ * the image. One that did not load answers null: the broken glyph in the
+ * note already says why.
+ */
+function viewableImage(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+
+  const image =
+    target instanceof HTMLImageElement ? target : target.querySelector("img");
+
+  return image !== null && image.naturalWidth > 0 ? image : null;
+}
+
+interface ImageViewerState {
+  alt: string;
+  src: string;
+  /** The image's size on this screen, so a 2x screenshot shows at the size it was taken. */
+  width: number;
+}
+
+function viewerStateFor(image: HTMLImageElement): ImageViewerState {
+  return {
+    alt: image.alt,
+    src: image.src,
+    width: image.naturalWidth / window.devicePixelRatio,
+  };
+}
+
 function firstTitle(doc: ProseMirrorNode) {
   let result: { from: number; to: number } | undefined;
   doc.descendants((node, position) => {
@@ -440,6 +473,7 @@ export function Editor(mountProps: EditorProps) {
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
+  const [viewer, setViewer] = useState<ImageViewerState | null>(null);
   const closeHover = useDebouncer(
     () => {
       setLinkHover(null);
@@ -514,7 +548,24 @@ export function Editor(mountProps: EditorProps) {
         },
         "Mod-Shift-o": ({ editor: instance }) => {
           dismissHover();
-          const { head } = instance.state.selection;
+          const { selection } = instance.state;
+
+          if (
+            selection instanceof NodeSelection &&
+            selection.node.type.name === "image"
+          ) {
+            const image = viewableImage(instance.view.nodeDOM(selection.from));
+
+            if (image === null) {
+              return false;
+            }
+
+            setViewer(viewerStateFor(image));
+
+            return true;
+          }
+
+          const { head } = selection;
           const attrs = instance.getAttributes("link");
           const href = hasString(attrs, "href") ? attrs.href : "";
 
@@ -615,6 +666,26 @@ export function Editor(mountProps: EditorProps) {
           }
 
           return false;
+        },
+        // The DOM event rather than ProseMirror's double-click: the drag of a
+        // selection prevents the second press's default, which drops the
+        // `mousedown` ProseMirror counts clicks with. The image is selected
+        // again so closing the viewer lands back on it.
+        dblclick: (view, event) => {
+          const image = viewableImage(event.target);
+
+          if (image === null) {
+            return false;
+          }
+
+          view.dispatch(
+            view.state.tr.setSelection(
+              NodeSelection.create(view.state.doc, view.posAtDOM(image, 0))
+            )
+          );
+          setViewer(viewerStateFor(image));
+
+          return true;
         },
         mousedown: () => {
           dismissHover();
@@ -836,6 +907,9 @@ export function Editor(mountProps: EditorProps) {
       ...createEditorExtensions({
         getTitles: config.titles,
         onHistory: config.onHistory,
+        openImage: (image) => {
+          setViewer(viewerStateFor(image));
+        },
         placeholderText: config.placeholderText,
         readClipboardSource: isTauri() ? readClipboardSource : undefined,
         readClipboardText: isTauri()
@@ -1167,6 +1241,17 @@ export function Editor(mountProps: EditorProps) {
           onRemove={removeLink}
           onSubmit={submitLink}
           state={linkEditor}
+        />
+      )}
+      {viewer === null ? null : (
+        <ImageDialog
+          alt={viewer.alt}
+          onClosed={() => {
+            setViewer(null);
+            editorRef.current?.view.focus();
+          }}
+          src={viewer.src}
+          width={viewer.width}
         />
       )}
     </ScrollArea>

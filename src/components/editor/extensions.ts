@@ -11,6 +11,7 @@ import {
   mergeAttributes,
 } from "@tiptap/core";
 import { Code } from "@tiptap/extension-code";
+import { HardBreak } from "@tiptap/extension-hard-break";
 import { Image } from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
@@ -27,10 +28,12 @@ import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
 import { encode } from "mdurl";
 
-import { contentOf, hasString } from "@/components/editor/attrs";
+import { contentOf, hasNumber, hasString } from "@/components/editor/attrs";
 import { BoundedTable } from "@/components/editor/bounded-tokenizers";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
+import { imageNodeView } from "@/components/editor/image-resize";
+import { imageTag, imageTagAt } from "@/components/editor/image-tag";
 import {
   NoteBulletList,
   NoteListItem,
@@ -63,6 +66,7 @@ import { Wikilink } from "./wikilink";
 export interface EditorExtensionOptions {
   getTitles?: () => string[];
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
+  openImage?: (image: HTMLImageElement) => void;
   placeholderText?: string;
   readClipboardSource?: ReadClipboardSource;
   readClipboardText?: ReadClipboardText;
@@ -121,14 +125,26 @@ function bareDestination(url: string) {
 
 interface NoteImageOptions extends Partial<ImageOptions> {
   HTMLAttributes: ImageOptions["HTMLAttributes"];
+  /** Shows the image bigger; null leaves the image without its open button. */
+  openImage: ((image: HTMLImageElement) => void) | null;
   resolveSrc: (src: string) => string;
 }
 
 const NoteImage = Image.extend<NoteImageOptions>({
+  // A width alone keeps the ratio in every renderer, so nothing writes a height.
+  addAttributes() {
+    const { height: _height, ...attributes } = this.parent?.() ?? {};
+
+    return attributes;
+  },
+  addNodeView() {
+    return imageNodeView(this.options.resolveSrc, this.options.openImage);
+  },
   addOptions() {
     return {
       HTMLAttributes: {},
       ...this.parent?.(),
+      openImage: null,
       resolveSrc: (src: string) => src,
     };
   },
@@ -149,6 +165,34 @@ const NoteImage = Image.extend<NoteImageOptions>({
       }),
     ];
   },
+  // An `<img>` tag the editor can draw is an image token too, so a width
+  // written as HTML reads back the way GitHub and Obsidian read it.
+  markdownTokenizer: {
+    level: "inline",
+    name: "imageTag",
+    start: (src: string) => src.search(/<img/iu),
+    tokenize: (src: string) => {
+      const found = imageTagAt(src);
+
+      return found === null
+        ? undefined
+        : {
+            href: found.image.src,
+            raw: found.raw,
+            text: found.image.alt,
+            title: found.image.title,
+            type: "image",
+            width: found.image.width,
+          };
+    },
+  },
+  parseMarkdown: (token, helpers) =>
+    helpers.createNode("image", {
+      alt: token.text ?? "",
+      src: hasString(token, "href") ? token.href : "",
+      title: hasString(token, "title") ? token.title : null,
+      width: hasNumber(token, "width") ? token.width : null,
+    }),
   renderHTML({ HTMLAttributes }) {
     const src = hasString(HTMLAttributes, "src") ? HTMLAttributes.src : "";
 
@@ -161,12 +205,23 @@ const NoteImage = Image.extend<NoteImageOptions>({
       }),
     ];
   },
-  // Upstream's shape with the destination escaped; `this.parent` is untyped here.
+  // Markdown has no size syntax, so a width makes the image an `<img>` tag,
+  // the form every renderer honours. The destination is escaped either way.
   renderMarkdown(node) {
     const src = hasString(node.attrs, "src") ? node.attrs.src : "";
     const alt = hasString(node.attrs, "alt") ? node.attrs.alt : "";
     const title = hasString(node.attrs, "title") ? node.attrs.title : "";
     const destination = bareDestination(src);
+
+    if (hasNumber(node.attrs, "width")) {
+      return imageTag({
+        alt,
+        src: destination,
+        title: title === "" ? null : title,
+        width: node.attrs.width,
+      });
+    }
+
     const label = escapeMarkdownLabel(alt);
 
     return title
@@ -175,6 +230,17 @@ const NoteImage = Image.extend<NoteImageOptions>({
   },
   renderText: ({ node }) =>
     hasString(node.attrs, "alt") ? node.attrs.alt : "",
+});
+
+// A line that is an `<img>` tag followed only by spaces opens an HTML block
+// that swallows the next line, so the break after a sized image is the
+// backslash form, which is text after the tag.
+const NoteHardBreak = HardBreak.extend({
+  renderMarkdown: (_node, _helpers, context) =>
+    context.previousNode?.type === "image" &&
+    hasNumber(context.previousNode.attrs, "width")
+      ? "\\\n"
+      : "  \n",
 });
 
 const NoteLink = Link.extend({
@@ -876,6 +942,7 @@ export function createEditorExtensions(
       // Draws during a DOM `dragover`, which the window's file drop handling
       // never lets reach the page. `DragSelection` marks its own drops.
       dropcursor: false,
+      hardBreak: false,
       link: false,
       listItem: false,
       orderedList: false,
@@ -912,6 +979,7 @@ export function createEditorExtensions(
     // tildes inside the backticks and edits the file on open (`D59`).
     NoteStrike,
     NoteCode,
+    NoteHardBreak,
     HtmlBlock,
     HtmlInline,
     // The extension defaults `target` to `_blank` and renders it as a mark
@@ -949,6 +1017,7 @@ export function createEditorExtensions(
     NoteImage.configure({
       // Markdown images are inline; the block default breaks a paragraph (`D58`).
       inline: true,
+      openImage: options.openImage ?? null,
       resolveSrc: options.resolveImageSrc ?? ((src: string) => src),
     }),
     Placeholder.configure({

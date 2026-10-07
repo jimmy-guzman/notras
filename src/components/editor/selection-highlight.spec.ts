@@ -60,7 +60,7 @@ describe("selection highlight", () => {
 
     expect(highlighted(editor)).toStrictEqual([]);
     expect(
-      editor.view.dom.querySelector("img.ProseMirror-selectednode")
+      editor.view.dom.querySelector(".ProseMirror-selectednode img")
     ).not.toBeNull();
   });
 });

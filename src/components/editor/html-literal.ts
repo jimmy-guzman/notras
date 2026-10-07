@@ -2,6 +2,8 @@ import { Node } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { Lexer } from "marked";
 
+import { imageTagAttrs } from "@/components/editor/image-tag";
+
 function textOf(node: JSONContent) {
   return (node.content ?? []).map((child) => child.text ?? "").join("");
 }
@@ -116,7 +118,9 @@ function inlineHtmlAt(src: string) {
  * Raw HTML in a note is the author's text, so both nodes keep it byte for
  * byte and show it as code. Tiptap would otherwise parse it through the
  * schema, which drops a comment and strips the tags it does not render.
- * `code: true` is what keeps the serializer from escaping the text.
+ * `code: true` is what keeps the serializer from escaping the text. The one
+ * tag that is not code is an `<img>` the image node can draw and write back
+ * whole, which both nodes hand over.
  *
  * The block node takes marked's own `html` token. The inline node cannot:
  * the manager parses inline `html` tokens itself before it looks for a
@@ -132,11 +136,20 @@ export const HtmlBlock = Node.create({
   parseHTML() {
     return [{ preserveWhitespace: "full", tag: "pre[data-html]" }];
   },
-  parseMarkdown: (token, helpers) =>
-    helpers.createNode("htmlBlock", undefined, [
-      // The trailing newlines are marked's block separator, not the author's.
-      helpers.createTextNode((token.raw ?? "").replace(TRAILING_NEWLINES, "")),
-    ]),
+  parseMarkdown: (token, helpers) => {
+    // The trailing newlines are marked's block separator, not the author's.
+    const text = (token.raw ?? "").replace(TRAILING_NEWLINES, "");
+    const image = imageTagAttrs(text);
+
+    // A lone image is a paragraph in the doc (`D58`).
+    return image === null
+      ? helpers.createNode("htmlBlock", undefined, [
+          helpers.createTextNode(text),
+        ])
+      : helpers.createNode("paragraph", undefined, [
+          helpers.createNode("image", image),
+        ]);
+  },
   renderHTML: () => ["pre", { "data-html": "" }, 0],
   renderMarkdown: textOf,
   whitespace: "pre",
@@ -154,7 +167,9 @@ export const HtmlInline = Node.create({
     tokenize: (src: string) => {
       const raw = inlineHtmlAt(src);
 
-      return raw === undefined ? undefined : { raw, type: "htmlInline" };
+      return raw === undefined || imageTagAttrs(raw) !== null
+        ? undefined
+        : { raw, type: "htmlInline" };
     },
   },
   marks: "",

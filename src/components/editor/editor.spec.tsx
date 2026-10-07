@@ -6,10 +6,11 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
-import { Plugin, Selection } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, Selection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -104,6 +105,245 @@ function clickAt(
     )
   );
 }
+
+/** Mount a note with one image drawn at `naturalWidth` pixels, as happy-dom never loads one. */
+const mountImage = async (naturalWidth: number) => {
+  const mounted = await mount({
+    initialContent: "![shot](attachments/shot.png)",
+    resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
+  });
+  const image = mounted.editor.view.dom.querySelector('img[alt="shot"]');
+  if (!(image instanceof HTMLImageElement)) {
+    throw new Error("the image did not render");
+  }
+  Object.defineProperty(image, "naturalWidth", { value: naturalWidth });
+
+  return { ...mounted, image };
+};
+
+/** A selected image with layout the handle can read, since happy-dom lays nothing out. */
+const mountSelectedImage = async (lineWidth: number) => {
+  const mounted = await mountImage(1000);
+  const { editor, image } = mounted;
+  const paragraph = image.closest("p");
+  const handle = editor.view.dom.querySelector(".image-handle");
+  if (paragraph === null || handle === null) {
+    throw new Error("the image did not render in a paragraph with a handle");
+  }
+  Object.defineProperty(paragraph, "clientWidth", { value: lineWidth });
+  image.getBoundingClientRect = () =>
+    DOMRect.fromRect({
+      width: Number(image.style.width.replace("px", "")) || 400,
+    });
+  act(() => {
+    editor.commands.setNodeSelection(1);
+  });
+
+  return { ...mounted, handle };
+};
+
+const pointer = (pointerId: number, clientX: number) => ({
+  button: 0,
+  clientX,
+  clientY: 0,
+  isPrimary: true,
+  pointerId,
+});
+
+describe("image resize", () => {
+  it("should store the width the handle was dragged to and keep the image selected", async () => {
+    const { editor, handle, image } = await mountSelectedImage(600);
+
+    fireEvent.pointerDown(handle, pointer(1, 400));
+    fireEvent.pointerMove(handle, pointer(1, 500));
+
+    expect(image.style.width).toBe("500px");
+    expect(image.style.height).toBe("");
+
+    fireEvent.pointerUp(handle, pointer(1, 500));
+
+    expect(editor.state.doc.firstChild?.firstChild?.attrs.width).toBe(500);
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+    expect(serializeMarkdown(editor)).toBe(
+      '<img src="attachments/shot.png" alt="shot" width="500">'
+    );
+  });
+
+  it("should stop at the width of the line and at 64px", async () => {
+    const { editor, handle } = await mountSelectedImage(600);
+
+    fireEvent.pointerDown(handle, pointer(1, 400));
+    fireEvent.pointerMove(handle, pointer(1, 900));
+    fireEvent.pointerUp(handle, pointer(1, 900));
+
+    expect(editor.state.doc.firstChild?.firstChild?.attrs.width).toBe(600);
+
+    fireEvent.pointerDown(handle, pointer(2, 600));
+    fireEvent.pointerMove(handle, pointer(2, 0));
+    fireEvent.pointerUp(handle, pointer(2, 0));
+
+    expect(editor.state.doc.firstChild?.firstChild?.attrs.width).toBe(64);
+  });
+
+  it("should write nothing for a press that never moved or a pointer taken back", async () => {
+    const { editor, handle, image } = await mountSelectedImage(600);
+
+    fireEvent.pointerDown(handle, pointer(1, 400));
+    fireEvent.pointerUp(handle, pointer(1, 400));
+
+    expect(editor.state.doc.firstChild?.firstChild?.attrs.width).toBeNull();
+
+    fireEvent.pointerDown(handle, pointer(2, 400));
+    fireEvent.pointerMove(handle, pointer(2, 500));
+    fireEvent.pointerCancel(handle, pointer(2, 500));
+
+    expect(editor.state.doc.firstChild?.firstChild?.attrs.width).toBeNull();
+    expect(image.style.width).toBe("");
+    expect(serializeMarkdown(editor)).toBe("![shot](attachments/shot.png)");
+  });
+
+  it("should not hand the press to the drag of the selection", async () => {
+    const { editor, handle } = await mountSelectedImage(600);
+    const dragged = vi.fn<(event: Event) => void>();
+    editor.view.dom.addEventListener("pointerdown", dragged);
+
+    fireEvent.pointerDown(handle, pointer(1, 400));
+
+    expect(dragged).not.toHaveBeenCalled();
+  });
+
+  it("should draw a sized image at its width", async () => {
+    const { editor } = await mount({
+      initialContent: '<img src="attachments/shot.png" alt="shot" width="240">',
+      resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
+    });
+    const image = editor.view.dom.querySelector('img[alt="shot"]');
+
+    expect(image).toHaveAttribute("width", "240");
+    expect(image).toHaveAttribute(
+      "src",
+      "asset://localhost/notes/attachments/shot.png"
+    );
+  });
+});
+
+describe("image viewer", () => {
+  it("should show a double-clicked image in a dialog at its resolved source and select it", async () => {
+    const { editor, image } = await mountImage(1);
+
+    fireEvent.dblClick(image);
+
+    const shown = within(await screen.findByRole("dialog")).getByRole("img", {
+      name: "shot",
+    });
+
+    expect(shown).toHaveAttribute(
+      "src",
+      "asset://localhost/notes/attachments/shot.png"
+    );
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+    expect(editor.state.selection.from).toBe(1);
+  });
+
+  it("should show a selected image from its open button", async () => {
+    const { editor } = await mountImage(1);
+    const dragged = vi.fn<(event: Event) => void>();
+    const open = within(editor.view.dom).getByRole("button", {
+      name: "open image",
+    });
+
+    act(() => {
+      editor.commands.setNodeSelection(1);
+    });
+    editor.view.dom.addEventListener("pointerdown", dragged);
+    fireEvent.pointerDown(open, pointer(1, 10));
+    fireEvent.click(open);
+
+    expect(dragged).not.toHaveBeenCalled();
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "shot",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("should keep a selected image selected through a click that does not move", async () => {
+    const { editor, image } = await mountImage(1);
+
+    act(() => {
+      editor.commands.setNodeSelection(1);
+    });
+    fireEvent.pointerDown(image, pointer(1, 10));
+    fireEvent.pointerUp(image, pointer(1, 10));
+
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+  });
+
+  it("should show a selected image with ⌘⇧O", async () => {
+    const { editor } = await mountImage(1);
+
+    act(() => {
+      editor.commands.setNodeSelection(1);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "shot",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("should keep the image selected and focused after the dialog closes", async () => {
+    const user = userEvent.setup();
+    const { editor } = await mountImage(1);
+
+    act(() => {
+      editor.commands.setNodeSelection(1);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+    expect(editor.view.hasFocus()).toBeTruthy();
+  });
+
+  it("should draw the image at its size on the screen", async () => {
+    const ratio = window.devicePixelRatio;
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 2,
+    });
+    onTestFinished(() => {
+      Object.defineProperty(window, "devicePixelRatio", {
+        configurable: true,
+        value: ratio,
+      });
+    });
+    const { image } = await mountImage(1000);
+
+    fireEvent.dblClick(image);
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "shot",
+      })
+    ).toHaveAttribute("style", "--image-width: 500px;");
+  });
+
+  it("should not open an image that did not load", async () => {
+    const { image } = await mountImage(0);
+
+    fireEvent.dblClick(image);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
 
 describe("link clicks", () => {
   it.each(["[note](other.md)", "[note](other.md) following text"])(

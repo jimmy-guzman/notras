@@ -1256,3 +1256,15 @@ The check that makes it safe is the one `fileMarkdown` already used for escapes:
 **Rejected: making the markdown text the document, as Obsidian and ZenNotes do.** Byte-exact by construction. Rejected because it replaces the rich editor with decorations over a source editor, which is a different app.
 
 **Reference:** recast and `toml_edit` print original text for nodes nobody modified and fall back to their printers when reuse fails. scratch, on the same TipTap serializer, rewrites the whole note on every save.
+
+### D97 An image's width is written as an `<img>` tag
+
+A resized image is saved as `<img src="attachments/x.png" alt="shot" width="400">`, and one with no width stays `![shot](attachments/x.png)`. CommonMark has no size syntax, and `width` on an `<img>` is the one form GitHub, Obsidian, VS Code's preview and pandoc all draw at that width. The editor reads the tag back as an image when it carries nothing but `src`, `alt`, `title` and a whole positive `width`, so the file keeps working in notras after it was resized, and the search body leaves such a tag out the way it leaves out a markdown image (`SPEC.md`).
+
+**Rejected: Obsidian's `![shot|400](attachments/x.png)`.** One syntax, no HTML in the file. Rejected because GitHub and every other renderer show `shot|400` as the alt text, so the size travels nowhere and the alt is broken everywhere else.
+
+**Rejected: a size in the title string.** The same portability failure with a tooltip reading `400` on hover.
+
+**Rejected: storing and writing `height` too.** TipTap's resizable image commits both. Rejected because a width alone keeps the ratio in every renderer, while a stored height distorts the image where the column is narrower than the width and the browser clamps one axis.
+
+**Constraint:** a tag carrying any other attribute, a `height` or a `style` included, is the author's HTML and stays code, since the image node could not write it back whole.

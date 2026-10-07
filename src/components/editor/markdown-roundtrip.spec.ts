@@ -123,6 +123,19 @@ describe("markdown round-trip", () => {
     ["attachment link", "[my notes.pdf](attachments/my%20notes.pdf)"],
     ["image beside the note", "![shot](./shot.png)"],
     ["image up a folder", "![shot](../attachments/x.png)"],
+    ["sized image", '<img src="attachments/x.png" alt="shot" width="300">'],
+    [
+      "sized image with a title",
+      '<img src="attachments/x.png" alt="shot" title="t" width="300">',
+    ],
+    [
+      "sized image inside prose",
+      'before <img src="attachments/x.png" alt="shot" width="300"> after',
+    ],
+    [
+      "sized image then a hard break",
+      '<img src="attachments/x.png" alt="shot" width="300">\\\ntwo',
+    ],
     ["file link beside the note", "[spec](docs/my%20spec.pdf)"],
     ["horizontal rule", "---"],
     ["hard break", "one  \ntwo"],
@@ -552,6 +565,86 @@ function open(markdown: string) {
   return editor;
 }
 
+describe("image tags", () => {
+  it("should parse a sized image tag alone on its line as an image with its width", () => {
+    const editor = load('<img src="attachments/x.png" alt="shot" width="300">');
+    const image = editor.state.doc.firstChild?.firstChild;
+
+    expect(editor.state.doc.firstChild?.type.name).toBe("paragraph");
+    expect(image?.type.name).toBe("image");
+    expect(image?.attrs).toMatchObject({
+      alt: "shot",
+      src: "attachments/x.png",
+      title: null,
+      width: 300,
+    });
+    editor.destroy();
+  });
+
+  it("should parse an image tag inside prose with its alt decoded", () => {
+    const editor = load(
+      'before <img src="attachments/x.png" alt="a &quot;b&quot;" width="300"> after'
+    );
+    const image = editor.state.doc.firstChild?.child(1);
+
+    expect(image?.type.name).toBe("image");
+    expect(image?.attrs).toMatchObject({ alt: 'a "b"', width: 300 });
+    editor.destroy();
+  });
+
+  it.each([
+    ["a style attribute", '<img src="x.png" style="width: 1px">'],
+    ["a height", '<img src="x.png" height="200">'],
+    ["a text line after the tag", '<img src="x.png">\ncaption'],
+  ])("should keep an image tag with %s as code", (_name, markdown) => {
+    const editor = load(markdown);
+
+    expect(editor.state.doc.firstChild?.type.name).toBe("htmlBlock");
+    expect(roundtrip(markdown)).toBe(markdown);
+    editor.destroy();
+  });
+
+  it("should write an image as a tag once it has a width and as markdown once it has none", () => {
+    const editor = load("![shot](attachments/x.png)");
+
+    editor.commands.setNodeSelection(1);
+    editor.commands.updateAttributes("image", { width: 240 });
+
+    expect(serializeMarkdown(editor)).toBe(
+      '<img src="attachments/x.png" alt="shot" width="240">'
+    );
+
+    editor.commands.setNodeSelection(1);
+    editor.commands.updateAttributes("image", { width: null });
+
+    expect(serializeMarkdown(editor)).toBe("![shot](attachments/x.png)");
+    editor.destroy();
+  });
+
+  it("should write the alt with its quotes escaped", () => {
+    const editor = load('![a "b"](attachments/x.png)');
+
+    editor.commands.setNodeSelection(1);
+    editor.commands.updateAttributes("image", { width: 240 });
+
+    expect(serializeMarkdown(editor)).toBe(
+      '<img src="attachments/x.png" alt="a &quot;b&quot;" width="240">'
+    );
+    editor.destroy();
+  });
+
+  it("should keep an unsized image tag as written when text is typed beside it", () => {
+    const editor = open('<img src="attachments/x.png" alt="shot">');
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(serializeMarkdown(editor)).toBe(
+      'x<img src="attachments/x.png" alt="shot">'
+    );
+    editor.destroy();
+  });
+});
+
 const WRITTEN_ELSEWHERE = [
   ["star bullets", "* one\n* two"],
   ["plus bullets", "+ one\n+ two"],
@@ -578,6 +671,8 @@ const WRITTEN_ELSEWHERE = [
   ["a heading directly over text", "# h\npara"],
   ["an entity", "a &amp; b"],
   ["an escaped star", "2 \\* 3"],
+  ["an unsized image tag", '<img src="attachments/x.png" alt="shot">'],
+  ["an image tag with a height", '<img src="x.png" height="200">'],
 ] as const;
 
 describe("markdown the user did not touch", () => {

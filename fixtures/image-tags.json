@@ -1,0 +1,82 @@
+[
+  { "name": "source alone", "html": "<img src=\"a.png\">", "image": true },
+  {
+    "name": "source, alt and width",
+    "html": "<img src=\"a.png\" alt=\"shot\" width=\"300\">",
+    "image": true
+  },
+  {
+    "name": "title and entities in values",
+    "html": "<img src=\"a.png\" alt=\"a &quot;b&quot; &amp; c\" title=\"t\" width=\"2\">",
+    "image": true
+  },
+  {
+    "name": "single quotes and an unquoted value",
+    "html": "<img src='a.png' width=300>",
+    "image": true
+  },
+  { "name": "self-closing", "html": "<img src=\"a.png\" />", "image": true },
+  {
+    "name": "upper case",
+    "html": "<IMG SRC=\"a.png\" WIDTH=\"3\">",
+    "image": true
+  },
+  { "name": "no source", "html": "<img alt=\"no source\">", "image": false },
+  {
+    "name": "height",
+    "html": "<img src=\"a.png\" height=\"200\">",
+    "image": false
+  },
+  {
+    "name": "style",
+    "html": "<img src=\"a.png\" style=\"width: 1px\">",
+    "image": false
+  },
+  {
+    "name": "data attribute",
+    "html": "<img src=\"a.png\" data-x=\"1\">",
+    "image": false
+  },
+  {
+    "name": "zero width",
+    "html": "<img src=\"a.png\" width=\"0\">",
+    "image": false
+  },
+  {
+    "name": "width with a unit",
+    "html": "<img src=\"a.png\" width=\"12px\">",
+    "image": false
+  },
+  {
+    "name": "negative width",
+    "html": "<img src=\"a.png\" width=\"-3\">",
+    "image": false
+  },
+  {
+    "name": "leading zero",
+    "html": "<img src=\"a.png\" width=\"07\">",
+    "image": false
+  },
+  {
+    "name": "text after the tag",
+    "html": "<img src=\"a.png\"> caption",
+    "image": false
+  },
+  {
+    "name": "two tags",
+    "html": "<img src=\"a.png\">\n<img src=\"b.png\">",
+    "image": false
+  },
+  { "name": "unclosed", "html": "<img src=\"a.png\"", "image": false },
+  {
+    "name": "another element",
+    "html": "<image src=\"a.png\">",
+    "image": false
+  },
+  {
+    "name": "inside a comment",
+    "html": "<!-- <img src=\"a.png\"> -->",
+    "image": false
+  },
+  { "name": "closing tag", "html": "</img>", "image": false }
+]

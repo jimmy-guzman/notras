@@ -72,7 +72,7 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | `⇧⏎`         | line break inside the block      |
 | `⌘⌥⇧V`       | paste as plain text              |
 | `⌘⇧K`        | add / edit link                  |
-| `⌘⇧O`        | open the link at the caret       |
+| `⌘⇧O`        | open the link or selected image  |
 | `⌘⇧L`        | show mentions                    |
 | `⌘⇧Y`        | edit tags                        |
 | `⌘⇧D`        | pin or unpin the note            |
