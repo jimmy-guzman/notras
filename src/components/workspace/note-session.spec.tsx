@@ -2621,7 +2621,13 @@ describe(NoteSession, () => {
   });
 
   it("should reopen a note with its stored review and the banner", async () => {
-    mockIPC(withDisk(() => null));
+    mockIPC(
+      withDisk((command) =>
+        command === "save_note"
+          ? { file: disk.get(tab.path), kind: "conflict" }
+          : null
+      )
+    );
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
