@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.5](https://github.com/jimmy-guzman/notras/compare/v0.10.4...v0.10.5) (2026-10-08)
+
+
+### Features
+
+* **editor:** ✨ keep markdown you did not edit as written ([#322](https://github.com/jimmy-guzman/notras/issues/322)) ([5bbd0c5](https://github.com/jimmy-guzman/notras/commit/5bbd0c58c953dc19da8d5256bbe4d3a2b643122a))
+* **editor:** ✨ see, open and resize images in a note ([#324](https://github.com/jimmy-guzman/notras/issues/324)) ([fac462c](https://github.com/jimmy-guzman/notras/commit/fac462cf7b1b8de5d7c4cac31e409c46af41d836))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 stop a reopened review from saving twice ([#327](https://github.com/jimmy-guzman/notras/issues/327)) ([cb08132](https://github.com/jimmy-guzman/notras/commit/cb081326b46f7f8b8c996b5a46d859a898490029))
+
 ## [0.10.4](https://github.com/jimmy-guzman/notras/compare/v0.10.3...v0.10.4) (2026-10-04)
 
 
