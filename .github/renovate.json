@@ -15,6 +15,17 @@
         "https://github.com/tauri-apps/tauri"
       ],
       "separateMajorMinor": false
+    },
+    {
+      "groupName": "non-breaking dependencies",
+      "matchManagers": ["!cargo"],
+      "matchUpdateTypes": ["minor", "patch"]
+    },
+    {
+      "description": "Cargo counts a 0.x minor bump as breaking, while `updateType` calls it minor",
+      "groupName": "non-breaking dependencies",
+      "matchIsBreaking": false,
+      "matchManagers": ["cargo"]
     }
   ],
   "reviewers": ["@jimmy-guzman"],
