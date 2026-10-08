@@ -368,9 +368,6 @@ export function createNotePersistence(
     },
     { wait: 800 }
   );
-  if (resumed !== undefined) {
-    debouncer.maybeExecute();
-  }
   const edit = (content: EditorContent, details: DocumentEdit = BODY_EDIT) => {
     const full =
       content.mode === "document"
@@ -632,6 +629,11 @@ export function createNotePersistence(
     resolve,
     retain: () => {
       owners += 1;
+      // Armed here, not at construction: React can build an instance it never
+      // retains, and nothing would release it to cancel the save.
+      if (edits > savedEdits) {
+        debouncer.maybeExecute();
+      }
       return async () => {
         owners -= 1;
         try {

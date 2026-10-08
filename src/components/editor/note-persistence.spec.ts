@@ -1342,6 +1342,51 @@ describe("note persistence", () => {
     expect(writes).toStrictEqual([]);
   });
 
+  it("should save a stored review only once retained", async () => {
+    vi.useFakeTimers();
+    const writes: string[] = [];
+    const note = createNotePersistence(
+      {
+        ...initial,
+        stash: {
+          base: initial,
+          ours: "# Errands\n\nbody, mine",
+        },
+      },
+      {
+        changePath: () => {
+          throw new Error("no move requested");
+        },
+        clearStash: async () => {},
+        onPathChanged: () => {},
+        read: () => {
+          throw new Error("no read requested");
+        },
+        stash: async () => {},
+        write: async (path, content) => {
+          writes.push(content);
+          return {
+            kind: "committed",
+            receipt: { path, revision: "r1", updatedAt: new Date(1) },
+          };
+        },
+      }
+    );
+    try {
+      await vi.advanceTimersByTimeAsync(800);
+      expect(writes).toStrictEqual([]);
+      const release = note.retain();
+      try {
+        await vi.advanceTimersByTimeAsync(800);
+        expect(writes).toStrictEqual(["# Errands\n\nbody, mine"]);
+      } finally {
+        await release();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("should resume a stored review and save once the file no longer overlaps", async () => {
     const cleared: string[] = [];
     const writes: { content: string; expected: string }[] = [];
