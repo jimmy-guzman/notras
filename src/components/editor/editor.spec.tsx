@@ -472,6 +472,134 @@ describe("link clicks", () => {
   });
 });
 
+describe("heading links", () => {
+  it("should focus a heading when the click starts outside the editor", async () => {
+    render(<input aria-label="outside" />);
+    const { editor } = await mount({
+      focusOnMount: false,
+      initialContent: "[go](#target)\n\n## Target",
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("textbox", { name: "outside" }));
+    expect(editor.isFocused).toBeFalsy();
+    await user.click(screen.getByRole("link"));
+    expect(editor.isFocused).toBeTruthy();
+    expect(editor.state.selection.$from.parent.textContent).toBe("Target");
+    expect(editor.state.selection.$from.parentOffset).toBe(0);
+  });
+
+  it.each(["#missing", "#%FF"])(
+    "should prevent browser caret movement when clicking %s",
+    async (fragment) => {
+      render(<Toaster />);
+      const { editor, scroller } = await mount({
+        initialContent: `[go](${fragment})\n\n## Present\n\nlast paragraph`,
+      });
+      const user = userEvent.setup();
+      act(() => {
+        editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+        editor.view.focus();
+      });
+      scroller.scrollTop = 80;
+      const before = editor.state.selection.from;
+      const link = screen.getByRole("link");
+      expect(fireEvent.mouseDown(link, { button: 0 })).toBeFalsy();
+      await user.click(link);
+      expect(await screen.findByText("could not open link")).toBeVisible();
+      expect(editor.state.selection.from).toBe(before);
+      expect(scroller.scrollTop).toBe(80);
+    }
+  );
+
+  it("should resolve an encoded fragment against the edited heading", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "[go](#d%C3%A9j%C3%A0-vu)\n\n## Old",
+    });
+    act(() => {
+      editor.commands.setTextSelection({ from: 5, to: 8 });
+      editor.commands.insertContent("Déjà Vu");
+    });
+    const before = handle.getContent();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link"));
+    expect(editor.state.selection.$from.parent.textContent).toBe("Déjà Vu");
+    expect(editor.state.selection.$from.parentOffset).toBe(0);
+    expect(handle.getContent()).toBe(before);
+    act(() => {
+      editor.commands.undo();
+    });
+    expect(handle.getContent().trimEnd()).toBe(
+      "[go](#d%C3%A9j%C3%A0-vu)\n\n## Old"
+    );
+  });
+
+  it("should report an invalid fragment without changing the selection", async () => {
+    render(<Toaster />);
+    const { editor } = await mount({
+      initialContent: "[go](#%FF)\n\n## Heading",
+    });
+    act(() => {
+      editor.commands.setTextSelection(2);
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link"));
+    expect(
+      await screen.findByText(
+        "The heading fragment has invalid percent encoding."
+      )
+    ).toBeVisible();
+    expect(editor.state.selection.from).toBe(2);
+  });
+
+  it.each(["click", "keyboard"])(
+    "should focus the duplicate heading through a %s",
+    async (activation) => {
+      const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+      mockIPC(invoke);
+      onTestFinished(clearMocks);
+      const { editor, handle } = await mount({
+        initialContent: "[go](#repeat-1)\n\n## Repeat\n\n## Repeat\n\nafter",
+      });
+      const before = handle.getContent();
+      const user = userEvent.setup();
+      act(() => {
+        editor.commands.setTextSelection(2);
+        editor.view.focus();
+      });
+      await (activation === "click"
+        ? user.click(screen.getByRole("link"))
+        : user.keyboard("{Control>}{Shift>}o{/Shift}{/Control}"));
+      expect(editor.state.selection.$from.parent.textContent).toBe("Repeat");
+      expect(editor.state.selection.from).toBe(13);
+      expect(editor.state.selection.empty).toBeTruthy();
+      expect(editor.isFocused).toBeTruthy();
+      expect(handle.getContent()).toBe(before);
+      expect(invoke).not.toHaveBeenCalled();
+    }
+  );
+
+  it("should report a missing heading without moving the caret", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+    render(<Toaster />);
+    const { editor } = await mount({
+      initialContent: "[go](#missing)\n\n## Present",
+    });
+    const user = userEvent.setup();
+    act(() => {
+      editor.commands.setTextSelection(2);
+      editor.view.focus();
+    });
+    await user.keyboard("{Control>}{Shift>}o{/Shift}{/Control}");
+    expect(
+      await screen.findByText('No heading matches "#missing".')
+    ).toBeVisible();
+    expect(editor.state.selection.from).toBe(2);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
 describe("focus through the handle", () => {
   it("should keep the viewport where it was when focus reveals the caret", async () => {
     const { editor, handle, scroller } = await mount({ focusOnMount: false });

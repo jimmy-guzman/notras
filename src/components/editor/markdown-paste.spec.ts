@@ -1,7 +1,7 @@
 /* oxlint-disable vitest/prefer-strict-equal -- ProseMirror attrs have a null prototype, so a literal never strictly equals getJSON() output */
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
 import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -27,6 +27,187 @@ describe("markdown paste", () => {
     editor?.destroy();
     editor = undefined;
   });
+
+  it("should recognize HTML-only tasks whose marker crosses formatting", () => {
+    editor = new Editor({
+      content: "",
+      extensions: createEditorExtensions({}),
+    });
+    const clipboardData = new DataTransfer();
+    clipboardData.setData(
+      "text/html",
+      "<ul><li><p>[<strong>x</strong>] <em>done</em></p></li><li>[ ]<ul><li>child</li></ul></li></ul>"
+    );
+    editor.view.dom.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData })
+    );
+    expect(serializeMarkdown(editor)).toContain("- [x] *done*");
+    expect(serializeMarkdown(editor)).toContain("\n  - child");
+    expect(editor.state.doc.firstChild?.childCount).toBe(2);
+  });
+
+  it.each([
+    ["<ul><li>[<code>x</code>] literal</li></ul>", "- [`x`] literal"],
+    ["<ul><li>[ ] <code>task body</code></li></ul>", "- [ ] `task body`"],
+    ["<ul><li><code>[x]</code> literal</li></ul>", "- `[x]` literal"],
+    ["<ul><li>words [x] literal</li></ul>", "- words [x] literal"],
+    ["<ol><li>[x] numbered</li></ol>", "1. [x] numbered"],
+    [
+      '<ul data-pm-slice="0 0 []"><li><p>[x] copied literal</p></li></ul>',
+      String.raw`- \[x\] copied literal`,
+    ],
+    ["<pre><code>- [x] literal</code></pre>", "```\n- [x] literal\n```"],
+  ])(
+    "should preserve literal markers outside external task items: %s",
+    (html, expected) => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "copied text");
+      clipboardData.setData("text/html", html);
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      expect(serializeMarkdown(editor).trimEnd()).toBe(expected);
+    }
+  );
+
+  it.each([
+    [
+      '<a href="https://a.test/page#one">one</a><a href="https://b.test/page#two">two</a><h2>One</h2><h2>Two</h2>',
+      ["https://a.test/page#one", "https://b.test/page#two"],
+    ],
+    [
+      '<a href="https://a.test/page?a=1#one">one</a><a href="https://a.test/page?a=2#two">two</a><h2>One</h2><h2>Two</h2>',
+      ["https://a.test/page?a=1#one", "https://a.test/page?a=2#two"],
+    ],
+    [
+      '<a href="https://a.test/page#one">one</a><a href="https://b.test/page#missing">missing</a><h2>One</h2>',
+      ["#one", "https://b.test/page#missing"],
+    ],
+    [
+      '<a href="https://a.test/page#d%C3%A9j%C3%A0-vu">go</a><h2>Déjà <em>Vu</em></h2>',
+      ["#d%C3%A9j%C3%A0-vu"],
+    ],
+    [
+      '<a href="https://a.test/page#%FF">go</a><h2>One</h2>',
+      ["https://a.test/page#%FF"],
+    ],
+    ['<a href="https://a.test/page#one">go</a>', ["https://a.test/page#one"]],
+    [
+      '<a href="https://a.test/page#one">go</a><h2>One</h2><pre><code>const value = 1;</code></pre>',
+      ["#one"],
+    ],
+    ['<a href="#one">go</a><h2>One</h2>', ["#one"]],
+  ])(
+    "should localize only matching fragments with one source URL: %s",
+    (html, expected) => {
+      editor = new Editor({
+        content: "## One",
+        contentType: "markdown",
+        extensions: createEditorExtensions({}),
+      });
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "copied text");
+      clipboardData.setData("text/html", html);
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      expect(
+        [...editor.view.dom.querySelectorAll("a")].map((anchor) =>
+          anchor.getAttribute("href")
+        )
+      ).toStrictEqual(expected);
+    }
+  );
+
+  it("should keep localized links in tables when native clipboard reading fails", async () => {
+    editor = new Editor({
+      content: "",
+      extensions: createEditorExtensions({
+        readClipboardSource: async () => {
+          throw new Error("The clipboard is unavailable.");
+        },
+      }),
+    });
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "copied text");
+    clipboardData.setData(
+      "text/html",
+      '<table><thead><tr><th>Contents</th></tr></thead><tbody><tr><td><a href="https://source.test/page#one">One</a></td></tr></tbody></table><h2>One</h2><ul><li><input type="checkbox" checked> Done</li></ul>'
+    );
+    await act(async () => {
+      editor?.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+    });
+    expect(serializeMarkdown(editor)).toContain("| [One](#one) |");
+    expect(serializeMarkdown(editor).trimEnd()).toMatch(
+      /## One\n\n- \[x\] Done$/u
+    );
+  });
+
+  it.each([
+    [
+      '<ul><li><input type="checkbox" disabled> Map points</li><li><input type="checkbox" checked disabled> Done</li></ul>',
+      "- [ ] Map points\n- [x] Done",
+    ],
+    [
+      "<ul><li>[ ] Map points</li><li>[x] Done</li><li>[X] Also done</li></ul>",
+      "- [ ] Map points\n- [x] Done\n- [x] Also done",
+    ],
+    [
+      "<ul><li>bullet</li><li><p>[ ] <strong>task</strong></p><ul><li>[x] child</li></ul></li><li>last</li></ul>",
+      "- bullet\n\n- [ ] **task**\n  - [x] child\n\n- last",
+    ],
+  ])(
+    "should preserve pasted HTML tasks and their content: %s",
+    (html, markdown) => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const before = editor.getJSON();
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "copied text");
+      clipboardData.setData("text/html", html);
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      expect(serializeMarkdown(editor).trimEnd()).toBe(markdown);
+      expect(editor.commands.undo()).toBeTruthy();
+      expect(editor.getJSON()).toEqual(before);
+    }
+  );
+
+  it.each([false, true])(
+    "should recover local fragments from rendered HTML with native reading %s",
+    async (native) => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: native ? async () => null : undefined,
+        }),
+      });
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "copied text");
+      clipboardData.setData(
+        "text/html",
+        '<p><a href="https://source.test/page#first">one</a> <a href="https://source.test/page#first-1">two</a> <a href="https://source.test/page#missing">elsewhere</a></p><h2>First</h2><h2>First</h2>'
+      );
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "[one](#first) [two](#first-1) [elsewhere](https://source.test/page#missing)\n\n## First\n\n## First"
+      );
+    }
+  );
 
   describe("code paste", () => {
     it.each([
