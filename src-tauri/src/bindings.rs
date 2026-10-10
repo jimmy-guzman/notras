@@ -26,6 +26,14 @@ pub enum IndexStatus {
 pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
     tauri_specta::Builder::new()
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        // Exported integers are line numbers, counts and millisecond
+        // timestamps, all far below 2^53.
+        // TODO: map timestamps to `Date` through `semantic_types` and drop the
+        // `new Date(...)` conversions in `src/data`, once specta-typescript's
+        // runtime transforms reach values inside enums. As of 0.0.12 they skip
+        // enums while still typing their fields as `Date`, so `SaveOutcome`
+        // and `Picture` would carry numbers typed as dates.
+        .dangerously_cast_bigints_to_number()
         // Specta collects metadata in a nested function, which needs a concrete
         // runtime. Tauri infers the actual handler runtime independently.
         .commands(tauri_specta::collect_commands![
