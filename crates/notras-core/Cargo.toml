@@ -10,7 +10,7 @@ description = "The file-backed note engine for notras"
 bindings = ["dep:specta"]
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 cap-fs-ext = "4"
 cap-std = "4"
 log.workspace = true
