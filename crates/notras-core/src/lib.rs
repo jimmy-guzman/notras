@@ -37,10 +37,10 @@ pub use scan::Scan;
 pub(crate) fn index_key(notes_dir: &Path) -> String {
     use sha2::{Digest, Sha256};
 
-    format!(
-        "{:x}",
-        Sha256::digest(notes_dir.as_os_str().as_encoded_bytes())
-    )
+    Sha256::digest(notes_dir.as_os_str().as_encoded_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 /// A library directory and its disposable index, accessed under one host-owned lock.

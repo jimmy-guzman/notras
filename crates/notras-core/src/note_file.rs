@@ -268,7 +268,10 @@ impl Drop for TempSibling {
 pub(crate) fn content_revision(content: &str) -> String {
     use sha2::{Digest, Sha256};
 
-    format!("{:x}", Sha256::digest(content.as_bytes()))
+    Sha256::digest(content.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> {
@@ -306,6 +309,14 @@ mod tests {
         temp.file_mut().write_all(content.as_bytes()).unwrap();
         let name = temp.name.clone();
         (temp, name)
+    }
+
+    #[test]
+    fn should_derive_the_revision_as_lowercase_sha256_hex() {
+        assert_eq!(
+            content_revision("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]
