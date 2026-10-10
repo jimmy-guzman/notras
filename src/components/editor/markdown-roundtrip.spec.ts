@@ -1,4 +1,4 @@
-import { Editor } from "@tiptap/core";
+import { Editor, findChildren } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
 import { attachmentLink } from "@/lib/utils/attachments";
@@ -745,6 +745,15 @@ describe("markdown the user did not touch", () => {
     editor.destroy();
   });
 
+  it("should keep the blank lines that end a note after a list", () => {
+    const editor = open("first\n\n* one\n\n\n\n");
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(serializeMarkdown(editor)).toBe("xfirst\n\n* one\n\n\n\n");
+    editor.destroy();
+  });
+
   it("should separate a new block from the ones around it with a blank line", () => {
     const editor = open("# h\npara\n");
 
@@ -764,10 +773,293 @@ describe("markdown the user did not touch", () => {
     editor.destroy();
   });
 
-  it("should keep the blocks after a reference link as written", () => {
+  it("should keep a reference link and its definition when another block is edited", () => {
     const editor = open("[a][r]\n\n* one\n\n[r]: https://a.b\n");
 
-    expect(serializeMarkdown(editor)).toBe("[a](https://a.b)\n\n* one");
+    editor.commands.insertContentAt(
+      editor.state.doc.child(0).nodeSize + 3,
+      "x"
+    );
+
+    expect(serializeMarkdown(editor)).toBe(
+      "[a][r]\n\n* xone\n\n[r]: https://a.b\n"
+    );
+    editor.destroy();
+  });
+
+  it("should keep the reference form when the link text is edited", () => {
+    const editor = open("[a][r]\n\n[r]: https://a.b\n");
+
+    editor.commands.insertContentAt(2, "b");
+
+    expect(serializeMarkdown(editor)).toBe("[ab][r]\n\n[r]: https://a.b\n");
+    editor.destroy();
+  });
+
+  it("should keep a definition nothing references", () => {
+    const editor = open('text\n\n[r]: https://a.b "title"\n');
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(serializeMarkdown(editor)).toBe(
+      'xtext\n\n[r]: https://a.b "title"\n'
+    );
+    editor.destroy();
+  });
+
+  it("should keep a repeated definition and resolve the label to the first", () => {
+    const editor = open(
+      "[a][r]\n\n[r]: https://first.b\n\n[r]: https://second.b\n"
+    );
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(editor.getHTML()).toContain('href="https://first.b"');
+    expect(serializeMarkdown(editor)).toBe(
+      "[xa][r]\n\n[r]: https://first.b\n\n[r]: https://second.b\n"
+    );
+    editor.destroy();
+  });
+
+  it("should keep collapsed and shortcut reference links when another block is edited", () => {
+    const editor = open("first\n\n[r][] and [r]\n\n[r]: https://a.b\n");
+
+    editor.commands.insertContentAt(1, "x");
+
+    expect(editor.getHTML()).toContain('<a href="https://a.b">r</a> and');
+    expect(serializeMarkdown(editor)).toBe(
+      "xfirst\n\n[r][] and [r]\n\n[r]: https://a.b\n"
+    );
+    editor.destroy();
+  });
+
+  it("should write the link inline and keep the definition when its paragraph is split", () => {
+    const editor = open("one [a][r]\n\n[r]: https://a.b\n");
+
+    editor.commands.setTextSelection(5);
+    editor.commands.splitBlock();
+
+    expect(serializeMarkdown(editor)).toBe(
+      "one \n\n[a](https://a.b)\n\n[r]: https://a.b\n"
+    );
+    editor.destroy();
+  });
+
+  it("should keep a definition inside a list item the serializer writes", () => {
+    const editor = open("- one\n\n  [r]: https://a.b\n- two\n\n[a][r]\n");
+
+    editor.commands.setTextSelection(3);
+    editor.commands.toggleOrderedList();
+    const reopened = load(serializeMarkdown(editor));
+
+    expect(reopened.getHTML()).toBe(
+      '<ol><li><p>one</p><pre data-definition="">[r]: https://a.b</pre></li><li><p>two</p></li></ol><p><a href="https://a.b">a</a></p>'
+    );
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("should turn a reference link into the file's text when its definition is deleted", () => {
+    const editor = open("[a][r]\n\n[r]: https://a.b\n");
+    const from = editor.state.doc.child(0).nodeSize;
+
+    editor.commands.deleteRange({
+      from,
+      to: from + editor.state.doc.child(1).nodeSize,
+    });
+
+    expect(editor.getHTML()).toBe("<p>[a][r]</p>");
+    expect(serializeMarkdown(editor)).toBe("[a][r]");
+    editor.destroy();
+  });
+
+  it("should point a reference link at its definition's new destination", () => {
+    const editor = open("[a][r]\n\n[r]: https://a.b\n");
+
+    editor.commands.insertContentAt(
+      editor.state.doc.child(0).nodeSize + "[r]: https://a.b".length + 1,
+      "x"
+    );
+    editor.commands.insertContentAt(2, "b");
+
+    expect(editor.getHTML()).toContain('href="https://a.bx"');
+    expect(serializeMarkdown(editor)).toBe("[ab][r]\n\n[r]: https://a.bx\n");
+    editor.destroy();
+  });
+
+  it("should escape typed brackets that would resolve against a definition", () => {
+    const editor = open("text\n\n[r]: https://a.b\n");
+
+    editor.commands.insertContentAt(5, "[r]");
+    const reopened = load(serializeMarkdown(editor));
+
+    expect(reopened.getHTML()).toContain("<p>text[r]</p>");
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("should write the end of a note whose closing blank lines were deleted", () => {
+    const editor = open("first\n\n\n\n\n\n");
+
+    editor.commands.deleteRange({
+      from: editor.state.doc.child(0).nodeSize,
+      to: editor.state.doc.content.size,
+    });
+
+    expect(serializeMarkdown(editor)).toBe("first");
+    editor.destroy();
+  });
+
+  it("should point a reference link at a definition edited in the same quote", () => {
+    const editor = open("> [a][r]\n>\n> [r]: https://a.b\n\nend\n");
+    const [definition] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "linkDefinition"
+    );
+
+    editor.commands.insertContentAt(
+      (definition?.pos ?? 0) + (definition?.node.nodeSize ?? 0) - 1,
+      "x"
+    );
+
+    expect(editor.getHTML()).toContain('href="https://a.bx"');
+    expect(serializeMarkdown(editor)).toBe(
+      "> [a][r]\n>\n> [r]: https://a.bx\n\nend\n"
+    );
+    editor.destroy();
+  });
+
+  it("should keep the caret in a definition typed into beside its link", () => {
+    const editor = open("> [a][r]\n>\n> [r]: https://a.b\n\nend\n");
+    const [definition] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "linkDefinition"
+    );
+    const end = (definition?.pos ?? 0) + (definition?.node.nodeSize ?? 0) - 1;
+
+    editor.commands.setTextSelection(end);
+    editor.commands.insertContent("x");
+    editor.commands.insertContent("y");
+
+    expect(editor.state.selection.from).toBe(end + 2);
+    expect(serializeMarkdown(editor)).toBe(
+      "> [a][r]\n>\n> [r]: https://a.bxy\n\nend\n"
+    );
+    editor.destroy();
+  });
+
+  it("should keep the line between a definition and the block it resolves when the definition is edited", () => {
+    const editor = open("[r]: https://a.b\npara [a][r]\n");
+
+    editor.commands.insertContentAt(
+      editor.state.doc.child(0).nodeSize - 1,
+      "x"
+    );
+
+    expect(serializeMarkdown(editor)).toBe("[r]: https://a.bx\npara [a][r]\n");
+    editor.destroy();
+  });
+
+  it("should keep a definition that opens a list item inside it when the serializer writes the list", () => {
+    const editor = open("- [r]: https://a.b\n- two\n\n[a][r]\n");
+    const [definition] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "linkDefinition"
+    );
+
+    editor.commands.setTextSelection((definition?.pos ?? 0) + 1);
+    editor.commands.toggleOrderedList();
+    const reopened = load(serializeMarkdown(editor));
+
+    expect(reopened.getHTML()).toBe(
+      '<ol><li><p></p><pre data-definition="">[r]: https://a.b</pre></li><li><p>two</p></li></ol><p><a href="https://a.b">a</a></p>'
+    );
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("should keep a list that repeats an earlier definition as written", () => {
+    const markdown =
+      "[r]: https://first.b\n\n- [a][r]\n\n  [r]: https://second.b\n\npara\n";
+    const editor = open(markdown);
+
+    editor.commands.insertContentAt(editor.state.doc.content.size - 5, "x");
+
+    expect(serializeMarkdown(editor)).toBe(markdown.replace("para", "xpara"));
+    editor.destroy();
+  });
+
+  it("should restore the file when a definition edit is undone", () => {
+    const markdown = "# [a][r]\n\n[r]: https://a.b\ntext\n";
+    const editor = open(markdown);
+
+    editor.commands.insertContentAt(
+      editor.state.doc.child(0).nodeSize +
+        editor.state.doc.child(1).nodeSize -
+        1,
+      "x"
+    );
+    editor.commands.undo();
+
+    expect(serializeMarkdown(editor)).toBe(markdown);
+    editor.destroy();
+  });
+
+  it("should keep the other blocks as written when a definition is edited into text", () => {
+    const editor = open("[a][r]\n\n* one\n\n[r]: https://a.b\n");
+    const [definition] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "linkDefinition"
+    );
+    const colon = (definition?.pos ?? 0) + 1 + "[r]".length;
+
+    editor.commands.deleteRange({ from: colon, to: colon + 1 });
+
+    expect(editor.getHTML()).toContain("<p>[a][r]</p>");
+    expect(serializeMarkdown(editor)).toMatch(
+      /^\[a\]\[r\]\n\n\* one\n\n\[r\] https:\/\/a\.b/u
+    );
+    editor.destroy();
+  });
+
+  it("should point reference links at a definition typed under another in the same block", () => {
+    const editor = open("[a][r] and [b][s]\n\n[r]: https://a.b\n");
+    const [definition] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "linkDefinition"
+    );
+
+    editor.commands.insertContentAt(
+      (definition?.pos ?? 0) + (definition?.node.nodeSize ?? 0) - 1,
+      "\n[s]: https://c.d"
+    );
+
+    expect(editor.getHTML()).toContain('href="https://a.b"');
+    expect(editor.getHTML()).toContain('href="https://c.d"');
+    const reopened = load(serializeMarkdown(editor));
+
+    expect(reopened.getHTML()).toContain(
+      '<p><a href="https://a.b">a</a> and <a href="https://c.d">b</a></p>'
+    );
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("should write a new paragraph's text as typed beside a definition edited into text", () => {
+    const editor = open("text\n\n[r]: https://a.b\n");
+    const [definition] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "linkDefinition"
+    );
+    const colon = (definition?.pos ?? 0) + 1 + "[r]".length;
+
+    editor.commands.deleteRange({ from: colon, to: colon + 1 });
+    editor.commands.insertContentAt(editor.state.doc.content.size, {
+      content: [{ text: "a & b [x]", type: "text" }],
+      type: "paragraph",
+    });
+
+    expect(serializeMarkdown(editor)).toMatch(/\n\na & b \[x\]$/u);
     editor.destroy();
   });
 
@@ -777,13 +1069,6 @@ describe("markdown the user did not touch", () => {
     editor.commands.insertContentAt(1, "x");
 
     expect(serializeMarkdown(editor)).toBe("xa\n\n* b\n");
-    editor.destroy();
-  });
-
-  it("should write a reference link inline", () => {
-    const editor = open("[a][r]\n\n[r]: https://a.b\n");
-
-    expect(serializeMarkdown(editor)).toBe("[a](https://a.b)");
     editor.destroy();
   });
 });

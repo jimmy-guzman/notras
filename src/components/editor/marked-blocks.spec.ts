@@ -32,6 +32,19 @@ describe(createNoteMarked, () => {
     );
   });
 
+  it("should keep a repeated definition and resolve the label to the first", () => {
+    const markdown = "[a][r]\n\n[r]: https://first.b\n\n[r]: https://second.b";
+    const marked = createNoteMarked();
+
+    expect(
+      marked
+        .lexer(markdown)
+        .filter((token) => token.type === "def")
+        .map((token) => token.raw.trim())
+    ).toStrictEqual(["[r]: https://first.b", "[r]: https://second.b"]);
+    expect(marked.parse(markdown)).toContain('href="https://first.b"');
+  });
+
   it("should give each editor a parser that other editors do not grow", () => {
     const first = new Editor({ extensions: createEditorExtensions({}) });
     const registered = startCallbacks(first);

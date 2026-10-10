@@ -1966,8 +1966,25 @@ describe("markdown written elsewhere", () => {
     });
 
     expect(onChange.mock.lastCall?.[0]).toBe(
-      "xfirst\n\n[a](https://a.b)\n\n+ one\n\n"
+      "xfirst\n\n[a][r]\n\n+ one\n\n[r]: https://a.b\n"
     );
+  });
+
+  it("should keep the newline that ends a note on a list after a replacement", async () => {
+    const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+    const { editor, handle } = await mount({
+      initialContent: "first\n\nsecond\n",
+      onChange,
+    });
+
+    act(() => {
+      handle.replaceContent("first\n\n* one\n");
+    });
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(onChange.mock.lastCall?.[0]).toBe("xfirst\n\n* one\n");
   });
 
   it("should read a note as written after placing the caret from source mode", async () => {
