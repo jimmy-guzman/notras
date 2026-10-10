@@ -693,6 +693,7 @@ const WRITTEN_ELSEWHERE = [
   ["a four-space nested list", "- one\n    - child"],
   ["a tab-indented nested list", "- one\n\t- child"],
   ["repeated numbering", "1. a\n1. b\n1. c"],
+  ["a two-space child under a numbered item", "1. first\n  1. nested"],
   ["an uppercase task", "- [X] done"],
   ["an autolink", "<https://a.b>"],
   ["a bare url", "see https://a.b now"],
