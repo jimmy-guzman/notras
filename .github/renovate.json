@@ -26,6 +26,11 @@
       "groupName": "non-breaking dependencies",
       "matchIsBreaking": false,
       "matchManagers": ["cargo"]
+    },
+    {
+      "description": "each specta crate pins one exact `specta` prerelease, so a bump to one alone cannot resolve",
+      "groupName": "specta",
+      "matchPackageNames": ["specta", "specta-typescript", "tauri-specta"]
     }
   ],
   "reviewers": ["@jimmy-guzman"],
