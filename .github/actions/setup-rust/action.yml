@@ -42,7 +42,7 @@ runs:
     # the comment's ref against the pin, and master moves with every patch
     # release while `v1` stays on the pin between Renovate bumps.
     - name: 🏗️ Setup Rust
-      uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+      uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
       with:
         components: ${{ steps.toolchain.outputs.components }}
         targets: ${{ inputs.targets }}
