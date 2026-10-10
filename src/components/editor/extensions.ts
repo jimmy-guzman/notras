@@ -654,11 +654,7 @@ function isDefinition(node: Node) {
   return node.type.name === "linkDefinition";
 }
 
-/**
- * The definitions a definition block's text parses to. An edit can leave it
- * holding several, or text that defines nothing.
- */
-function definitionsIn(manager: MarkdownConverter, node: Node) {
+function parseDefinitions(manager: MarkdownConverter, node: Node) {
   try {
     const parsed = node.type.schema.nodeFromJSON(
       manager.parse(node.textContent)
@@ -670,6 +666,30 @@ function definitionsIn(manager: MarkdownConverter, node: Node) {
   } catch {
     return [];
   }
+}
+
+/**
+ * A definition block is an immutable node, so its text parses once however
+ * many edits elsewhere ask for the note's definitions.
+ */
+const parsedDefinitions = new WeakMap<Node, readonly string[]>();
+
+/**
+ * The definitions a definition block's text parses to. An edit can leave it
+ * holding several, or text that defines nothing.
+ */
+function definitionsIn(manager: MarkdownConverter, node: Node) {
+  const hit = parsedDefinitions.get(node);
+
+  if (hit !== undefined) {
+    return hit;
+  }
+
+  const texts = parseDefinitions(manager, node);
+
+  parsedDefinitions.set(node, texts);
+
+  return texts;
 }
 
 /** The text of every link definition in the note, in document order. */
