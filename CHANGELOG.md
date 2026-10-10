@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.6](https://github.com/jimmy-guzman/notras/compare/v0.10.5...v0.10.6) (2026-10-10)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 preserve tasks and heading links ([#332](https://github.com/jimmy-guzman/notras/issues/332)) ([cc63271](https://github.com/jimmy-guzman/notras/commit/cc63271cc923d17168d0662a2da6a42fe4d4b340))
+
 ## [0.10.5](https://github.com/jimmy-guzman/notras/compare/v0.10.4...v0.10.5) (2026-10-08)
 
 
