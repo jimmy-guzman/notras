@@ -42,7 +42,7 @@ export function isSafeUrl(url: string) {
   return scheme === null || SAFE_SCHEMES.has(scheme);
 }
 
-/** Prepend https:// to schemeless URLs; empty or unsafe input yields null. */
+/** Keep fragments and explicit schemes; prepend https:// to a host. Empty or unsafe input yields null. */
 export function normalizeUrl(raw: string) {
   const url = raw.trim();
 
@@ -50,5 +50,7 @@ export function normalizeUrl(raw: string) {
     return null;
   }
 
-  return schemeOf(url) === null ? `https://${url}` : url;
+  return schemeOf(url) === null && !url.startsWith("#")
+    ? `https://${url}`
+    : url;
 }

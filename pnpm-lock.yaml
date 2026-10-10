@@ -283,6 +283,9 @@ importers:
       entities:
         specifier: 8.1.0
         version: 8.1.0
+      github-slugger:
+        specifier: 2.0.0
+        version: 2.0.0
       lucide-react:
         specifier: 1.49.0
         version: 1.49.0(@types/react@19.3.0)(react@19.3.0)
@@ -3044,6 +3047,9 @@ packages:
 
   get-tsconfig@4.14.3:
     resolution: {integrity: sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA==}
+
+  github-slugger@2.0.0:
+    resolution: {integrity: sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw==}
 
   gitzy@7.2.2:
     resolution: {integrity: sha512-n4ZaTKsFhGFEy4FYX3/wkT8RwHpHdBjckSr1e7rVQEqT3aCB1bLbfODY58T8sKqEC/2zOY8JcIgqe4xd3lPwJA==}
@@ -6695,6 +6701,8 @@ snapshots:
   get-tsconfig@4.14.3:
     dependencies:
       resolve-pkg-maps: 1.0.0
+
+  github-slugger@2.0.0: {}
 
   gitzy@7.2.2: {}
 

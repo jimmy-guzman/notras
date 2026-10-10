@@ -263,7 +263,9 @@ const NoteLink = Link.extend({
         this.options.HTMLAttributes,
         HTMLAttributes,
         allowed ? {} : { href: "" },
-        isRelativeDestination(href) ? { "data-note": "" } : {}
+        isRelativeDestination(href) || href.startsWith("#")
+          ? { "data-note": "" }
+          : {}
       ),
       0,
     ];

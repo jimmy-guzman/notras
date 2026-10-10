@@ -28,6 +28,10 @@ describe(isSafeUrl, () => {
 });
 
 describe(normalizeUrl, () => {
+  it("should keep an in-note fragment as its destination", () => {
+    expect(normalizeUrl("  #heading-1  ")).toBe("#heading-1");
+  });
+
   it("should keep urls that already carry a scheme", () => {
     expect(normalizeUrl("https://example.com")).toBe("https://example.com");
     expect(normalizeUrl("mailto:hi@jimmy.codes")).toBe("mailto:hi@jimmy.codes");

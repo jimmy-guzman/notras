@@ -48,6 +48,7 @@ import {
 } from "./extensions";
 import { createFindHandle, Find } from "./find";
 import type { FindHandle } from "./find";
+import { headingAnchors } from "./heading-anchors";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
@@ -206,10 +207,41 @@ function hrefAt(state: EditorState, pos: number) {
  * from the link editor, so the scheme is gated here too.
  */
 function followLink(
+  view: TiptapEditor["view"],
   href: string,
   onNoteLinkClick?: (href: string) => void,
   onFileLinkClick?: (href: string) => void
 ) {
+  if (href.startsWith("#")) {
+    try {
+      const position = headingAnchors(view.state.doc.content).get(
+        decodeURIComponent(href.slice(1))
+      );
+
+      if (position === undefined) {
+        throw new Error(`No heading matches "${href}".`);
+      }
+
+      view.focus();
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.create(view.state.doc, position))
+          .scrollIntoView()
+      );
+    } catch (error) {
+      toast.add({
+        description:
+          error instanceof URIError
+            ? "The heading fragment has invalid percent encoding."
+            : reasonOf(error),
+        title: "could not open link",
+        type: "error",
+      });
+    }
+
+    return;
+  }
+
   if (isNotePath(href) && onNoteLinkClick) {
     onNoteLinkClick(href);
 
@@ -570,7 +602,12 @@ export function Editor(mountProps: EditorProps) {
           const href = hasString(attrs, "href") ? attrs.href : "";
 
           if (href !== "") {
-            followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
+            followLink(
+              instance.view,
+              href,
+              config.onNoteLinkClick,
+              config.onFileLinkClick
+            );
 
             return true;
           }
@@ -636,8 +673,13 @@ export function Editor(mountProps: EditorProps) {
           ? hrefAt(view.state, view.posAtDOM(target, 0) + 1)
           : "";
 
-        if (href !== "") {
-          followLink(href, config.onNoteLinkClick, config.onFileLinkClick);
+        if (href !== "" && !href.startsWith("#")) {
+          followLink(
+            view,
+            href,
+            config.onNoteLinkClick,
+            config.onFileLinkClick
+          );
 
           return true;
         }
@@ -655,14 +697,23 @@ export function Editor(mountProps: EditorProps) {
         return false;
       },
       handleDOMEvents: {
-        // ProseMirror handles mouseup; cancel the later click to keep navigation
-        // behind the scheme gate.
-        click: (_view, event) => {
-          if (
-            event.target instanceof Element &&
-            event.target.closest("a[href]") !== null
-          ) {
-            event.preventDefault();
+        click: (view, event) => {
+          const target =
+            event.target instanceof Element
+              ? event.target.closest("a[href]")
+              : null;
+          if (target === null) {
+            return false;
+          }
+
+          // Other links open on ProseMirror's mouseup; prevent the browser
+          // from opening them again outside the scheme gate.
+          event.preventDefault();
+          const href = hrefAt(view.state, view.posAtDOM(target, 0) + 1);
+          if (event.button === 0 && href.startsWith("#")) {
+            followLink(view, href);
+
+            return true;
           }
 
           return false;
@@ -687,8 +738,23 @@ export function Editor(mountProps: EditorProps) {
 
           return true;
         },
-        mousedown: () => {
+        mousedown: (_view, event) => {
           dismissHover();
+
+          const target =
+            event.target instanceof Element
+              ? event.target.closest("a[href]")
+              : null;
+          if (
+            event.button === 0 &&
+            target?.getAttribute("href")?.startsWith("#") === true
+          ) {
+            // WebKit moves its native caret before ProseMirror's mouseup.
+            // Fragment clicks must retain the selection when lookup fails.
+            event.preventDefault();
+
+            return true;
+          }
 
           return false;
         },
