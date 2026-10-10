@@ -286,6 +286,36 @@ describe("markdown round-trip", () => {
   });
 
   it.each([
+    [
+      "a numbered child as a sibling",
+      "1. first\n  1. nested",
+      ["orderedList"],
+      2,
+      "1. first\n2. nested",
+    ],
+    [
+      "a bullet child as a new list",
+      "1. one\n  - child",
+      ["orderedList", "bulletList"],
+      1,
+      "1. one\n\n- child",
+    ],
+  ])(
+    "should read and save %s at two spaces under a numbered item",
+    (_name, markdown, types, items, saved) => {
+      const editor = load(markdown);
+      const { doc } = editor.state;
+
+      expect(doc.content.content.map((node) => node.type.name)).toStrictEqual(
+        types
+      );
+      expect(doc.child(0).childCount).toBe(items);
+      expect(serializeMarkdown(editor)).toBe(saved);
+      editor.destroy();
+    }
+  );
+
+  it.each([
     ["nothing after the box", "- [ ]", false],
     ["a checked box alone", "- [x]", true],
     ["a space after the box", "- [ ] ", false],
@@ -763,6 +793,12 @@ describe("an edit in markdown written elsewhere", () => {
     ["underscore bold", "__bold__ text\n", 2, "__bxold__ text\n"],
     ["a single-tilde strike", "~gone~\n", 2, "~gxone~\n"],
     ["repeated numbering", "1. a\n1. b\n", 3, "1. xa\n1. b\n"],
+    [
+      "a two-space child under a numbered item",
+      "1. first\n  1. nested\n",
+      3,
+      "1. xfirst\n  1. nested\n",
+    ],
     [
       "a four-space nested list",
       "- one\n    - child\n",
