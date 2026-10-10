@@ -26,7 +26,7 @@ notras-core = { path = "../crates/notras-core", features = ["bindings"] }
 serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
-specta-typescript = "=0.0.9"
+specta-typescript = "=0.0.12"
 tauri = { version = "2.12", features = [
   "image-png",
   "macos-private-api",
