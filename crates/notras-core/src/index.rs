@@ -178,7 +178,6 @@ fn folder_of(rel_path: &str) -> String {
 #[derive(Debug, Serialize)]
 pub struct BareMention {
     pub context: String,
-    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub line: usize,
     pub path: String,
 }

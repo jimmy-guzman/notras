@@ -17,7 +17,6 @@ pub struct NoteLink {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MentionLine {
     pub context: String,
-    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub line: usize,
     pub r#match: String,
 }
@@ -40,7 +39,6 @@ pub enum Hub {
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Debug, Serialize)]
 pub struct HubPill {
-    #[cfg_attr(feature = "bindings", specta(type = f64))]
     pub count: usize,
     pub hub: Hub,
 }
