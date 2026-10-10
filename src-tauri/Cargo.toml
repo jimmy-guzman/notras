@@ -21,7 +21,7 @@ tauri-build = { version = "2", features = [] }
 arboard = { version = "3.6", default-features = false }
 log.workspace = true
 notify = "8"
-notify-debouncer-full = "0.5"
+notify-debouncer-full = "0.7"
 notras-core = { path = "../crates/notras-core", features = ["bindings"] }
 serde.workspace = true
 serde_json.workspace = true
