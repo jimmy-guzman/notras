@@ -1,7 +1,7 @@
 import { useDebouncer } from "@tanstack/react-pacer";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { EditorEvents, Editor as TiptapEditor } from "@tiptap/core";
+import type { Editor as TiptapEditor } from "@tiptap/core";
 import {
   Extension,
   getMarkRange,
@@ -153,6 +153,25 @@ function clipboardText(
 /** `readAsDataURL` settles with a string; the type also covers the other readers. */
 function isDataUrl(result: FileReader["result"]): result is string {
   return typeof result === "string";
+}
+
+async function readDataUrl(file: File) {
+  const reader = new FileReader();
+  const read = Promise.withResolvers<FileReader["result"]>();
+
+  reader.addEventListener("load", () => {
+    read.resolve(reader.result);
+  });
+  reader.addEventListener("error", () => {
+    read.reject(reader.error);
+  });
+  reader.readAsDataURL(file);
+  const result = await read.promise;
+
+  if (!isDataUrl(result)) {
+    throw new Error("The pasted image could not be read");
+  }
+  return result;
 }
 
 /**
@@ -801,127 +820,6 @@ export function Editor(mountProps: EditorProps) {
           return false;
         },
       },
-      handlePaste: (view, event) => {
-        const clipboard = event.clipboardData;
-
-        if (!clipboard) {
-          return false;
-        }
-
-        // Word and Numbers copy a picture beside the text; a browser copies an
-        // image with none. Text on the clipboard is what was copied.
-        const imageItem =
-          clipboard.getData("text/plain") === ""
-            ? [...clipboard.items].find((item) =>
-                item.type.startsWith("image/")
-              )
-            : undefined;
-
-        if (imageItem) {
-          const from =
-            config.documentPath === undefined ? "" : config.documentPath();
-
-          if (from === null) {
-            toast.add({
-              description: "Attachments live in the notes folder",
-              title: "could not paste image",
-              type: "error",
-            });
-
-            return true;
-          }
-
-          // An image inserted into code splits the block and turns the code
-          // after it into prose.
-          if (view.state.selection.$from.parent.type.spec.code === true) {
-            toast.add({
-              description: "An image cannot go inside code",
-              title: "could not paste image",
-              type: "error",
-            });
-
-            return true;
-          }
-
-          const blob = imageItem.getAsFile();
-          const instance = editorRef.current;
-
-          if (blob && instance) {
-            const reader = new FileReader();
-            // The file is saved before the image goes in, and the note can
-            // change meanwhile, so the paste point moves with each edit.
-            let point = view.state.selection.getBookmark();
-            const follow = ({
-              appendedTransactions,
-              transaction,
-            }: EditorEvents["transaction"]) => {
-              for (const applied of [transaction, ...appendedTransactions]) {
-                point = point.map(applied.mapping);
-              }
-            };
-
-            instance.on("transaction", follow);
-            reader.addEventListener("error", () => {
-              instance.off("transaction", follow);
-              toast.add({
-                description: reasonOf(reader.error),
-                title: "could not read the pasted image",
-                type: "error",
-              });
-            });
-            const attachRead = async () => {
-              const result = isDataUrl(reader.result) ? reader.result : "";
-              const base64 = result.split(",")[1] ?? "";
-
-              if (base64 === "") {
-                instance.off("transaction", follow);
-                toast.add({
-                  description: "The pasted image was empty",
-                  title: "could not read the pasted image",
-                  type: "error",
-                });
-
-                return;
-              }
-
-              try {
-                const relativePath = await attachImage(base64);
-
-                if (!instance.isDestroyed) {
-                  instance
-                    .chain()
-                    .focus()
-                    .command(({ tr }) => {
-                      tr.setSelection(point.resolve(tr.doc));
-                      return true;
-                    })
-                    .setImage({
-                      src: attachmentDestination(relativePath, from),
-                    })
-                    .run();
-                }
-              } catch (error) {
-                toast.add({
-                  description: reasonOf(error),
-                  title: "could not paste image",
-                  type: "error",
-                });
-              }
-
-              instance.off("transaction", follow);
-            };
-
-            reader.addEventListener("load", () => {
-              void attachRead();
-            });
-            reader.readAsDataURL(blob);
-
-            return true;
-          }
-        }
-
-        return false;
-      },
       // Words selected inside one block copy without the blocks around them,
       // so words from a list item paste as words rather than as a new item.
       // Reaching both ends of the block copies the block, the way a drag moves
@@ -982,6 +880,23 @@ export function Editor(mountProps: EditorProps) {
           ? async () => await commands.readClipboardText()
           : undefined,
         resolveImageSrc: config.resolveImageSrc,
+        saveImage: async (image) => {
+          const from =
+            config.documentPath === undefined ? "" : config.documentPath();
+
+          if (from === null) {
+            throw new Error("Attachments live in the notes folder");
+          }
+
+          const dataUrl = await readDataUrl(image);
+          const base64 = dataUrl.split(",")[1] ?? "";
+
+          if (base64 === "") {
+            throw new Error("The pasted image was empty");
+          }
+
+          return attachmentDestination(await attachImage(base64), from);
+        },
       }),
       Find,
       linkShortcut,

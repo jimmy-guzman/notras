@@ -310,6 +310,426 @@ describe("markdown paste", () => {
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
 
+    it("should keep an HTML-only paste after a pending native paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const firstData = new DataTransfer();
+      const secondData = new DataTransfer();
+
+      firstData.setData("text/plain", "first");
+      firstData.setData("text/html", "<p>first</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: firstData })
+      );
+      secondData.setData("text/html", "<ul><li>[x] second</li></ul>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: secondData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe("firstsecond");
+    });
+
+    it("should keep a pasted code block after a pending native paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const firstData = new DataTransfer();
+      const secondData = new DataTransfer();
+
+      firstData.setData("text/plain", "first");
+      firstData.setData("text/html", "<p>first</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: firstData })
+      );
+      secondData.setData("text/plain", "second");
+      secondData.setData("text/html", "<pre><code>second</code></pre>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: secondData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe("firstsecond");
+    });
+
+    it("should paste literal text into code after a pending native paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "<p></p><pre><code>ab</code></pre>",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const firstData = new DataTransfer();
+      const secondData = new DataTransfer();
+
+      editor.commands.setTextSelection(1);
+      firstData.setData("text/plain", "first");
+      firstData.setData("text/html", "<p>first</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: firstData })
+      );
+      // Between `a` and `b` in the code block.
+      editor.commands.setTextSelection(4);
+      secondData.setData("text/plain", "# second");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: secondData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "first\n\n```\na# secondb\n```"
+      );
+    });
+
+    it("should keep a paste made while a queued paste replays in order", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+      const second = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : await second.promise,
+        }),
+      });
+      const thirdData = new DataTransfer();
+
+      pasteText(editor, "first");
+      pasteText(editor, "second");
+      first.resolve(null);
+      await sleep(0);
+      thirdData.setData("text/html", "<p>third</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: thirdData })
+      );
+      second.resolve(null);
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("firstsecondthird");
+    });
+
+    it("should read a queued paste's source while the clipboard still holds it", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+      let clipboard = "second";
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) => {
+            if (text === "first") {
+              return await first.promise;
+            }
+            return clipboard === text
+              ? { kind: "code", language: "python" }
+              : null;
+          },
+        }),
+      });
+
+      pasteText(editor, "first");
+      pasteText(editor, "second");
+      clipboard = "something else";
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe("first`second`");
+    });
+
+    it("should wait for a composition to end before pasting a queued paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : null,
+        }),
+      });
+
+      pasteText(editor, "first");
+      pasteText(editor, "second");
+      editor.view.dom.dispatchEvent(new CompositionEvent("compositionstart"));
+      first.resolve(null);
+      await sleep(0);
+      editor.view.dom.dispatchEvent(new CompositionEvent("compositionend"));
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("firstsecond");
+    });
+
+    it("should keep a queued rich paste rich while Shift is held", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : null,
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      pasteText(editor, "first");
+      clipboardData.setData("text/plain", "bold");
+      clipboardData.setData("text/html", "<p><strong>bold</strong></p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      editor.view.dom.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Shift", shiftKey: true })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe("first**bold**");
+    });
+
+    it("should land a second paste over the same selection after the first", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "keep",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : null,
+        }),
+      });
+      const secondData = new DataTransfer();
+
+      editor.commands.setTextSelection({ from: 1, to: 5 });
+      pasteText(editor, "first");
+      secondData.setData("text/html", "<p>second</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: secondData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("firstsecond");
+    });
+
+    it("should land a second paste over a selected rule after the first", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "<p>a</p><hr><p>b</p>",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : null,
+        }),
+      });
+
+      editor.commands.setNodeSelection(3);
+      pasteText(editor, "first");
+      pasteText(editor, "second");
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe("a\n\nfirstsecond\n\nb");
+    });
+
+    it("should keep a link-only paste after a pending native paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      pasteText(editor, "first");
+      clipboardData.setData("text/uri-list", "https://example.com/");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("firsthttps://example.com/");
+    });
+
+    it("should keep a queued paste plain when Shift was held as it was made", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : null,
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      pasteText(editor, "first");
+      editor.view.dom.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Shift", shiftKey: true })
+      );
+      clipboardData.setData("text/plain", "bold");
+      clipboardData.setData("text/html", "<p><strong>bold</strong></p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      editor.view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe("firstbold");
+    });
+
+    it("should replace the selection when an earlier paste over it fails", async () => {
+      const saved = Promise.withResolvers<string>();
+
+      editor = new Editor({
+        content: "keep",
+        extensions: createEditorExtensions({
+          saveImage: async () => await saved.promise,
+        }),
+      });
+      const imageData = new DataTransfer();
+
+      imageData.items.add(
+        new File([new Uint8Array([137, 80, 78, 71])], "shot.png", {
+          type: "image/png",
+        })
+      );
+      editor.commands.setTextSelection({ from: 1, to: 5 });
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: imageData })
+      );
+      pasteText(editor, "text");
+      saved.reject(new Error("The disk is full"));
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("text");
+    });
+
+    it("should queue a paste made during a composition behind a pending paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async (text) =>
+            text === "first" ? await first.promise : null,
+        }),
+      });
+
+      pasteText(editor, "first");
+      editor.view.dom.dispatchEvent(new CompositionEvent("compositionstart"));
+      pasteText(editor, "second");
+      first.resolve(null);
+      await sleep(0);
+      editor.view.dom.dispatchEvent(new CompositionEvent("compositionend"));
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("firstsecond");
+    });
+
+    it("should keep a table paste into a cell after a pending native paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "| a | b |\n| --- | --- |\n| c | d |",
+        contentType: "markdown",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const firstData = new DataTransfer();
+      const secondData = new DataTransfer();
+
+      // The end of `c`, in the second row's first cell.
+      editor.commands.setTextSelection(17);
+      firstData.setData("text/plain", "first");
+      firstData.setData("text/html", "<p>first</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: firstData })
+      );
+      secondData.setData("text/plain", "x\ty");
+      secondData.setData(
+        "text/html",
+        "<table><tr><td>x</td><td>y</td></tr></table>"
+      );
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: secondData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "| a   | b   |\n| --- | --- |\n| x   | y   |"
+      );
+    });
+
+    it("should keep an image after a pending native paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+          saveImage: async () => "attachments/pasted-1.png",
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.items.add(
+        new File([new Uint8Array([137, 80, 78, 71])], "shot.png", {
+          type: "image/png",
+        })
+      );
+      pasteText(editor, "first");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe(
+        "first![](attachments/pasted-1.png)"
+      );
+    });
+
+    it("should leave the selection alone when an empty paste waits on a pending paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "keep",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      editor.commands.setTextSelection(1);
+      pasteText(editor, "first");
+      editor.commands.setTextSelection({ from: 1, to: 5 });
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: new DataTransfer() })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("firstkeep");
+    });
+
     it("should preserve VS Code and Cursor code when WebKit omits their metadata", async () => {
       editor = new Editor({
         content: "",
@@ -515,6 +935,48 @@ describe("markdown paste", () => {
 
       expect(editor.state.doc.firstChild?.type.name).toBe("orderedList");
       expect(editor.state.doc.firstChild?.childCount).toBe(2);
+    });
+
+    it("should paste Zed code of numbered lines as a block", async () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => ({ kind: "code", language: null }),
+        }),
+      });
+      pasteText(editor, "1. one\n2. two");
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "```\n1. one\n2. two\n```"
+      );
+    });
+
+    it("should fill table cells from a table pasted into a cell", async () => {
+      editor = new Editor({
+        content: "| a | b |\n| --- | --- |\n| c | d |",
+        contentType: "markdown",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => null,
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      // The end of `c`, in the second row's first cell.
+      editor.commands.setTextSelection(17);
+      clipboardData.setData("text/plain", "x\ty");
+      clipboardData.setData(
+        "text/html",
+        "<table><tr><td>x</td><td>y</td></tr></table>"
+      );
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "| a   | b   |\n| --- | --- |\n| x   | y   |"
+      );
     });
 
     it("should paste Zed code as a block without a language", async () => {
@@ -887,6 +1349,27 @@ describe("markdown paste", () => {
         screen.findByText("The clipboard holds no text")
       ).resolves.toBeDefined();
       expect(editor.state.doc.textContent).toBe("note");
+    });
+
+    it("should keep a plain paste ahead of a later paste", async () => {
+      const plain = Promise.withResolvers<string>();
+      const rich = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await rich.promise,
+          readClipboardText: async () => await plain.promise,
+        }),
+      });
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+      pasteText(editor, "rich");
+      plain.resolve("plain");
+      await sleep(0);
+      rich.resolve(null);
+      await sleep(0);
+
+      expect(editor.state.doc.textContent).toBe("plainrich");
     });
 
     it("should still link a pasted URL", async () => {
