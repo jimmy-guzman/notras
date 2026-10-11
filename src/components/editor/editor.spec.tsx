@@ -1515,6 +1515,35 @@ describe("image paste", () => {
     });
   });
 
+  it("should keep text pasted while an image saves after the image", async () => {
+    const saved = Promise.withResolvers<string>();
+    mockIPC(async (command) =>
+      command === "attach_image" ? await saved.promise : null
+    );
+    onTestFinished(clearMocks);
+    const { editor, handle } = await mount({ initialContent: "" });
+    const clipboardData = new DataTransfer();
+
+    clipboardData.setData("text/plain", "after");
+    pasteImage(editor);
+    act(() => {
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData,
+        })
+      );
+    });
+    saved.resolve("attachments/pasted-1.png");
+
+    await waitFor(() => {
+      expect(handle.getContent().trimEnd()).toBe(
+        "![](attachments/pasted-1.png)after"
+      );
+    });
+  });
+
   it("should refuse an image pasted inside code", async () => {
     const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
     mockIPC(invoke);

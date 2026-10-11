@@ -44,7 +44,6 @@ import {
   NoteTaskItem,
   NoteTaskList,
 } from "@/components/editor/lists";
-import { MarkdownPaste } from "@/components/editor/markdown-paste";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
 import type {
@@ -60,6 +59,8 @@ import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
 import { DragSelection } from "./drag-selection";
 import { LinkDefinition } from "./link-definition";
+import { MarkdownPaste } from "./markdown-paste";
+import type { SaveImage } from "./markdown-paste";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
@@ -75,6 +76,7 @@ export interface EditorExtensionOptions {
   readClipboardSource?: ReadClipboardSource;
   readClipboardText?: ReadClipboardText;
   resolveImageSrc?: (src: string) => string;
+  saveImage?: SaveImage;
 }
 
 /**
@@ -1285,14 +1287,16 @@ export function createEditorExtensions(
         return [...(this.parent?.() ?? []), editingCodeBlock];
       },
     }),
-    TableKit.configure({ table: false }),
-    BoundedTable.configure({ resizable: false }),
-    // After the table, whose paste fills a cell selection, and before the
-    // lists, whose plain-text heuristic would outrun editor metadata.
+    // Tiptap runs plugins from the end of this list, so the table, below,
+    // fills a pasted cell or cell selection before MarkdownPaste's
+    // `handlePaste` reads the paste.
     MarkdownPaste.configure({
       readClipboardSource: options.readClipboardSource ?? null,
       readClipboardText: options.readClipboardText ?? null,
+      saveImage: options.saveImage ?? null,
     }),
+    TableKit.configure({ table: false }),
+    BoundedTable.configure({ resizable: false }),
     NoteBulletList,
     NoteOrderedList,
     NoteTaskList,

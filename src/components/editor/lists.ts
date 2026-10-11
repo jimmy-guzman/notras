@@ -230,6 +230,12 @@ export const NoteOrderedList = OrderedList.extend({
       },
     };
   },
+  // Upstream's only plugin turns numbered plain text into a list before
+  // MarkdownPaste reads whether the copy came from a code editor, and
+  // MarkdownPaste parses numbered text as a list itself.
+  addProseMirrorPlugins() {
+    return [];
+  },
   markdownTokenizer: NO_TOKENIZER,
   parseMarkdown(token, helpers) {
     if (token.type !== "list" || token.ordered !== true) {
