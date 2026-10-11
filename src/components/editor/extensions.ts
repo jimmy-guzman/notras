@@ -6,6 +6,7 @@ import type {
 } from "@tiptap/core";
 import {
   Extension,
+  findChildren,
   InputRule,
   markInputRule,
   mergeAttributes,
@@ -24,6 +25,8 @@ import type { MarkdownExtensionOptions } from "@tiptap/markdown";
 import { DOMSerializer } from "@tiptap/pm/model";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { EditorState } from "@tiptap/pm/state";
+import { Mapping, StepMap } from "@tiptap/pm/transform";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
 import { encode } from "mdurl";
@@ -56,6 +59,7 @@ import {
 import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
 import { DragSelection } from "./drag-selection";
+import { LinkDefinition } from "./link-definition";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
@@ -513,6 +517,7 @@ const FORMS = ["typed", "bare", "unencoded"] as const;
 type Form = (typeof FORMS)[number];
 
 interface RenderedBlock {
+  definitions: string;
   escaped: string;
   forms: Record<Form, string>;
   previous: Node | undefined;
@@ -527,9 +532,22 @@ interface RenderedBlock {
  */
 const rendered = new WeakMap<Node, RenderedBlock>();
 
-function reparses(manager: MarkdownConverter, bare: string, escaped: string) {
+/**
+ * A form reads back when it writes the same as the escaped one. Both are
+ * followed by the note's definitions, which a bracket left bare could
+ * resolve against as a reference link.
+ */
+function reparses(
+  manager: MarkdownConverter,
+  definitions: string,
+  form: string,
+  escaped: string
+) {
+  const inNote = (text: string) =>
+    definitions === "" ? text : `${text}\n\n${definitions}`;
+
   try {
-    return manager.serialize(manager.parse(bare)) === escaped;
+    return manager.serialize(manager.parse(inNote(form))) === inNote(escaped);
   } catch {
     return false;
   }
@@ -553,11 +571,16 @@ function renderInDoc(
 function renderBlock(
   manager: MarkdownConverter,
   node: Node,
-  previous: Node | undefined
+  previous: Node | undefined,
+  definitions: string
 ) {
   const hit = rendered.get(node);
 
-  if (hit !== undefined && hit.previous === previous) {
+  if (
+    hit !== undefined &&
+    hit.previous === previous &&
+    hit.definitions === definitions
+  ) {
     return hit;
   }
 
@@ -577,13 +600,15 @@ function renderBlock(
     unencoded: withoutStandIns(unencoded, standIns),
   };
   const block: RenderedBlock = {
+    definitions,
     escaped,
     forms,
     previous,
     readsBack: new Set(
       FORMS.filter(
         (form) =>
-          forms[form] === escaped || reparses(manager, forms[form], escaped)
+          forms[form] === escaped ||
+          reparses(manager, definitions, forms[form], escaped)
       )
     ),
   };
@@ -601,7 +626,8 @@ function written(block: RenderedBlock) {
 
 /** What sat between two blocks in the file, shared by the pair it joined. */
 interface Gap {
-  end: boolean;
+  /** The blank paragraphs after the note's last block, when the gap ends it. */
+  end: number | undefined;
   text: string;
 }
 
@@ -624,35 +650,162 @@ function isBlankParagraph(node: Node) {
   return node.type.name === "paragraph" && node.childCount === 0;
 }
 
-function readsAs(manager: MarkdownConverter, text: string, nodes: Node[]) {
-  try {
-    const parsed = nodes[0]?.type.schema.nodeFromJSON(manager.parse(text));
+function isDefinition(node: Node) {
+  return node.type.name === "linkDefinition";
+}
 
-    return (
-      parsed?.childCount === nodes.length &&
-      nodes.every((node, index) => parsed.child(index).eq(node))
+function parseDefinitions(manager: MarkdownConverter, node: Node) {
+  try {
+    const parsed = node.type.schema.nodeFromJSON(
+      manager.parse(node.textContent)
+    );
+
+    return findChildren(parsed, isDefinition).map(
+      (definition) => definition.node.textContent
     );
   } catch {
-    return false;
+    return [];
   }
 }
 
-/** What `text` parses to on its own, or null when it does not parse. */
-function parsedAlone(manager: MarkdownConverter, doc: Node, text: string) {
-  try {
-    return doc.type.schema.nodeFromJSON(manager.parse(text));
-  } catch {
-    return null;
+/**
+ * A definition block is an immutable node, so its text parses once however
+ * many edits elsewhere ask for the note's definitions.
+ */
+const parsedDefinitions = new WeakMap<Node, readonly string[]>();
+
+/**
+ * The definitions a definition block's text parses to. An edit can leave it
+ * holding several, or text that defines nothing.
+ */
+function definitionsIn(manager: MarkdownConverter, node: Node) {
+  const hit = parsedDefinitions.get(node);
+
+  if (hit !== undefined) {
+    return hit;
   }
+
+  const texts = parseDefinitions(manager, node);
+
+  parsedDefinitions.set(node, texts);
+
+  return texts;
+}
+
+/** The text of every link definition in the note, in document order. */
+function definitionsOf(manager: MarkdownConverter, doc: Node) {
+  return findChildren(doc, isDefinition)
+    .flatMap(({ node }) => definitionsIn(manager, node))
+    .join("\n\n");
+}
+
+/**
+ * The blocks the text of the blocks from top-level index `at` on parses to in
+ * this note, or null when it does not.
+ */
+type BlockParser = (text: string, at: number) => readonly Node[] | null;
+
+/**
+ * A reference link resolves against the first definition of its label
+ * anywhere in the note, so a block's text is parsed between the definitions
+ * that come before it and the ones after, in the file's order. A definition
+ * edited into other text defines nothing and is left out. Text that reaches
+ * into the definitions, as an unclosed fence does, does not parse.
+ */
+function blockParser(manager: MarkdownConverter, doc: Node): BlockParser {
+  const definitions = findChildren(doc, isDefinition).flatMap(({ node, pos }) =>
+    definitionsIn(manager, node).map((text) => ({
+      block: doc.resolve(pos).index(0),
+      text,
+    }))
+  );
+
+  return function parse(text, at) {
+    // The blocks' own definitions sit in their text, and a repeat after it
+    // resolves nothing.
+    const before = definitions.flatMap(({ block, text: definition }) =>
+      block < at ? [definition] : []
+    );
+    const after = definitions.flatMap(({ block, text: definition }) =>
+      block < at ? [] : [definition]
+    );
+
+    try {
+      const parsed = doc.type.schema.nodeFromJSON(
+        manager.parse([...before, text, ...after].join("\n\n"))
+      ).content.content;
+      const blocks = parsed.slice(before.length, parsed.length - after.length);
+      const around = [
+        ...parsed.slice(0, before.length),
+        ...parsed.slice(before.length + blocks.length),
+      ];
+
+      return around.length === before.length + after.length &&
+        around.every(isDefinition)
+        ? blocks
+        : null;
+    } catch {
+      return null;
+    }
+  };
+}
+
+type SameBlock = (parsed: Node, node: Node) => boolean;
+
+function withoutDestinations(json: JSONContent): JSONContent {
+  return {
+    ...json,
+    content: json.content?.map(withoutDestinations),
+    marks: json.marks?.map((mark) =>
+      mark.type === "link"
+        ? { ...mark, attrs: { ...mark.attrs, href: null } }
+        : mark
+    ),
+  };
+}
+
+/**
+ * The same block apart from its links' destinations. While an edit changes
+ * the note's definitions, a reference link still holds the old destination
+ * until `rereadReferenceLinks` reads its block again.
+ */
+function isSameBlockButDestinations(parsed: Node, node: Node) {
+  return (
+    JSON.stringify(withoutDestinations(contentOf(parsed))) ===
+    JSON.stringify(withoutDestinations(contentOf(node)))
+  );
+}
+
+function readsAs(
+  parse: BlockParser,
+  same: SameBlock,
+  text: string,
+  at: number,
+  nodes: Node[]
+) {
+  const parsed = parse(text, at);
+
+  return (
+    parsed?.length === nodes.length &&
+    nodes.every((node, index) => {
+      const block = parsed[index];
+
+      return block !== undefined && same(block, node);
+    })
+  );
 }
 
 /** Blank lines beyond the first separator are paragraphs of their own. */
-function pastBlankParagraphs(doc: Node, index: number, parsed: Node | null) {
+function pastBlankParagraphs(
+  doc: Node,
+  index: number,
+  parsed: readonly Node[] | null
+) {
   let at = index;
   while (
     at < doc.childCount &&
     isBlankParagraph(doc.child(at)) &&
-    parsed?.firstChild?.eq(doc.child(at)) !== true
+    parsed?.[0]?.eq(doc.child(at)) !== true
   ) {
     at += 1;
   }
@@ -661,8 +814,8 @@ function pastBlankParagraphs(doc: Node, index: number, parsed: Node | null) {
 
 /**
  * Pair the file's top-level tokens with the document's blocks. A block keeps
- * its text only when that text alone parses back to it, which leaves out a
- * link that needs a definition elsewhere.
+ * its text only when that text, with the note's link definitions, parses back
+ * to it.
  */
 export function rememberSources(
   manager: MarkdownConverter,
@@ -672,6 +825,7 @@ export function rememberSources(
   let index = 0;
   let lead = "";
   let last: { at: number; source: Source } | undefined;
+  const parse = blockParser(manager, doc);
 
   // A replacement reuses the nodes it did not change, whose text may have.
   // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
@@ -690,22 +844,24 @@ export function rememberSources(
     }
 
     const text = token.raw.replace(/\n+$/u, "");
-    const parsed = parsedAlone(manager, doc, text);
+    // Blank paragraphs hold no definitions, so the index before them places
+    // the token's text among the note's definitions as well as its block does.
+    const parsed = parse(text, index);
     const at = pastBlankParagraphs(doc, index, parsed);
     const follows =
       parsed !== null &&
-      parsed.content.content.every(
+      parsed.every(
         (node, offset) => doc.maybeChild(at + offset)?.eq(node) ?? false
       );
 
-    // A token that fails alone most likely stood for one block.
-    index = at + (parsed?.childCount ?? 1);
+    // A token that does not parse most likely stood for one block.
+    index = at + (parsed?.length ?? 1);
 
     // Indented code reads as a list item's continuation once it lands after
     // a list, so it is always written as a fence.
     if (
       !follows ||
-      parsed?.childCount !== 1 ||
+      parsed?.length !== 1 ||
       (token.type === "code" && token.codeBlockStyle === "indented")
     ) {
       last = undefined;
@@ -715,7 +871,7 @@ export function rememberSources(
 
     const source: Source = {
       follows: last?.at === at - 1 ? last.source.gap : undefined,
-      gap: { end: false, text: token.raw.slice(text.length) },
+      gap: { end: undefined, text: token.raw.slice(text.length) },
       lead: at === 0 ? lead : "",
       text,
     };
@@ -724,34 +880,47 @@ export function rememberSources(
     last = { at, source };
   }
 
-  if (last !== undefined && last.at === doc.childCount - 1) {
-    last.source.gap.end = true;
+  // Blank lines past the last block, and the empty paragraph the editor
+  // appends after a closing list or code block, are paragraphs no token
+  // claims. The last block's gap already holds the file's text for them.
+  if (
+    last !== undefined &&
+    doc.content.content.slice(last.at + 1).every(isBlankParagraph)
+  ) {
+    last.source.gap.end = doc.childCount - 1 - last.at;
   }
 }
 
 /** A gap with no blank line in it joins its two blocks once either changes. */
 function isLoose(gap: Gap) {
-  return gap.end || gap.text.includes("\n\n");
+  return gap.end !== undefined || gap.text.includes("\n\n");
 }
 
-/** Where two block lists differ, when they differ in one block only. */
-function changedBlock(old: readonly Node[], now: readonly Node[]) {
-  const at = now.findIndex((node, index) => node !== old[index]);
+/**
+ * Where two block lists differ, when they differ in one edited block only. A
+ * new block that already has a source was restored by undo or read again for
+ * a changed definition, so it is not an edit.
+ */
+function editedBlock(old: readonly Node[], now: readonly Node[]) {
+  const changed = now.flatMap((node, index) =>
+    node !== old[index] && !sources.has(node) ? [index] : []
+  );
 
-  return old.length === now.length &&
-    at === now.findLastIndex((node, index) => node !== old[index])
-    ? at
+  return old.length === now.length && changed.length === 1
+    ? (changed[0] ?? -1)
     : -1;
 }
 
 /** Whether a gap still keeps its two blocks apart once one of them changed. */
 function staysApart(
-  manager: MarkdownConverter,
+  parse: BlockParser,
+  same: SameBlock,
   gap: Gap,
   text: string,
+  at: number,
   nodes: Node[]
 ) {
-  return isLoose(gap) || readsAs(manager, text, nodes);
+  return isLoose(gap) || readsAs(parse, same, text, at, nodes);
 }
 
 /**
@@ -763,7 +932,7 @@ function staysApart(
 function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
   const old = before.content.content;
   const now = after.content.content;
-  const at = changedBlock(old, now);
+  const at = editedBlock(old, now);
   const was = old[at];
   const node = now[at];
   const source = was === undefined ? undefined : sources.get(was);
@@ -772,13 +941,21 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
     return;
   }
 
+  const definedBefore = definitionsOf(manager, before);
+  const definedAfter = definitionsOf(manager, after);
   const text = carryChange(
     source.text,
-    written(renderBlock(manager, was, old[at - 1])),
-    written(renderBlock(manager, node, now[at - 1]))
+    written(renderBlock(manager, was, old[at - 1], definedBefore)),
+    written(renderBlock(manager, node, now[at - 1], definedAfter))
   );
 
-  if (text === null || !readsAs(manager, text, [node])) {
+  const parse = blockParser(manager, after);
+  const same: SameBlock =
+    definedBefore === definedAfter
+      ? (parsed, block) => parsed.eq(block)
+      : isSameBlockButDestinations;
+
+  if (text === null || !readsAs(parse, same, text, at, [node])) {
     return;
   }
 
@@ -793,26 +970,110 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
       above !== undefined &&
       previous?.gap === source.follows &&
       staysApart(
-        manager,
+        parse,
+        same,
         source.follows,
         previous.text + source.follows.text + text,
+        at - 1,
         [above, node]
       )
         ? source.follows
         : undefined,
     gap:
-      source.gap.end ||
+      source.gap.end !== undefined ||
       (below !== undefined &&
         next?.follows === source.gap &&
-        staysApart(manager, source.gap, text + source.gap.text + next.text, [
-          node,
-          below,
-        ]))
+        staysApart(
+          parse,
+          same,
+          source.gap,
+          text + source.gap.text + next.text,
+          at,
+          [node, below]
+        ))
         ? source.gap
-        : { end: false, text: "\n\n" },
+        : { end: undefined, text: "\n\n" },
     lead: source.lead,
     text,
   });
+}
+
+const rereadKey = new PluginKey("rereadReferenceLinks");
+
+/**
+ * A reference link takes its destination from a definition, so once an edit
+ * changes the note's definitions, a block whose text no longer parses back to
+ * it is read again from that text: a link follows its definition's new
+ * destination, and one whose definition is gone reads as the text the file
+ * holds. Null when no block needs it.
+ */
+function rereadReferenceLinks(
+  manager: MarkdownConverter,
+  before: Node,
+  state: EditorState
+) {
+  if (definitionsOf(manager, before) === definitionsOf(manager, state.doc)) {
+    return null;
+  }
+
+  const parse = blockParser(manager, state.doc);
+  const { tr } = state;
+  const spans: StepMap[] = [];
+
+  // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
+  state.doc.forEach((node, offset, index) => {
+    const source = sources.get(node);
+    const parsed = source === undefined ? null : parse(source.text, index);
+    const [reread] = parsed ?? [];
+
+    if (parsed?.length !== 1 || reread === undefined) {
+      return;
+    }
+
+    const start = node.content.findDiffStart(reread.content);
+    const end = node.content.findDiffEnd(reread.content);
+
+    if (start !== null && end !== null) {
+      // A repeat around the change can put the two ends before the start, by
+      // the same amount on each side.
+      const overlap = Math.max(0, start - Math.min(end.a, end.b));
+
+      spans.push(
+        new StepMap([
+          tr.mapping.map(offset + 1 + start),
+          end.a + overlap - start,
+          end.b + overlap - start,
+        ])
+      );
+      // The whole block is replaced so undo puts back the node that holds the
+      // block's text. The caret maps through the span alone, since the whole
+      // replace would throw it out of the block.
+      tr.replaceWith(
+        tr.mapping.map(offset),
+        tr.mapping.map(offset + node.nodeSize),
+        reread
+      );
+    }
+  });
+
+  return tr.docChanged
+    ? tr
+        .setSelection(
+          state.selection.getBookmark().map(new Mapping(spans)).resolve(tr.doc)
+        )
+        .setMeta(rereadKey, true)
+    : null;
+}
+
+/** A block read again from its text keeps the text it was read from. */
+function keepRereadSources(before: Node, after: Node) {
+  for (const [index, node] of after.content.content.entries()) {
+    const source = sources.get(before.child(index));
+
+    if (source !== undefined && node !== before.child(index)) {
+      sources.set(node, source);
+    }
+  }
 }
 
 /**
@@ -822,24 +1083,31 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
  * load-bearing, per top-level block: a construct that needs its backslash
  * keeps every other backslash in its block, and an entity likewise.
  *
- * Blocks parse apart once a blank line separates them, and a link reference
- * definition, the one construct that reaches across, is a block that fails
- * its own check.
+ * Blocks parse apart once a blank line separates them. A bracket left bare
+ * could still resolve against a link definition elsewhere in the note, so the
+ * check parses each form with the note's definitions after it.
  *
  * A block nobody touched is written as the file had it instead.
  */
 export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
   const nodes = doc.content.content;
+  const definitions = definitionsOf(manager, doc);
   const pieces = nodes.map(
     (node, index) =>
-      sources.get(node) ?? renderBlock(manager, node, nodes[index - 1])
+      sources.get(node) ??
+      renderBlock(manager, node, nodes[index - 1], definitions)
   );
-  // The editor keeps an empty paragraph after a closing list or code block,
-  // which the file never held.
   const final = nodes.findLast((node) => !isBlankParagraph(node));
-  const closes = final !== undefined && sources.get(final)?.gap.end === true;
+  const end = final === undefined ? undefined : sources.get(final)?.gap.end;
+  const blanks =
+    final === undefined ? 0 : nodes.length - 1 - nodes.lastIndexOf(final);
+  // The file's closing text stands for the blank paragraphs it had, and for
+  // the empty one the editor keeps after a closing list or code block. Blank
+  // paragraphs added at the end are not written, while removing one the file
+  // had leaves the end to the serializer.
+  const closes = end !== undefined && blanks >= end;
   const markdown = pieces
-    .slice(0, closes ? nodes.lastIndexOf(final) + 1 : undefined)
+    .slice(0, closes ? nodes.length - blanks : undefined)
     .map((piece, index, kept) => {
       const next = kept[index + 1];
       const separator = next === undefined ? "" : "\n\n";
@@ -851,7 +1119,7 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
       const lead = index === 0 ? piece.lead : "";
       const follows =
         next === undefined
-          ? piece.gap.end
+          ? closes
           : "gap" in next && next.follows === piece.gap;
 
       return lead + piece.text + (follows ? piece.gap.text : separator);
@@ -870,11 +1138,13 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
  * block here.
  */
 export function copiedMarkdown(manager: MarkdownConverter, doc: Node) {
+  const definitions = definitionsOf(manager, doc);
+
   return doc.content.content
     .map((node, index, siblings) =>
       isBlankParagraph(node)
         ? ""
-        : written(renderBlock(manager, node, siblings[index - 1]))
+        : written(renderBlock(manager, node, siblings[index - 1], definitions))
     )
     .join("\n\n");
 }
@@ -910,6 +1180,12 @@ const NoteMarkdown = Markdown.extend<
     return [
       ...(this.parent?.() ?? []),
       new Plugin({
+        appendTransaction: (transactions, before, after) =>
+          transactions.some(
+            (tr) => tr.docChanged && tr.getMeta("addToHistory") !== false
+          )
+            ? rereadReferenceLinks(converterOf(editor), before.doc, after)
+            : null,
         state: {
           apply: (transaction, _value, before, after) => {
             // A carry that throws leaves the block to the serializer, which
@@ -917,7 +1193,11 @@ const NoteMarkdown = Markdown.extend<
             // here would drop the keystroke instead.
             if (transaction.docChanged) {
               try {
-                carrySource(converterOf(editor), before.doc, after.doc);
+                if (transaction.getMeta(rereadKey) === true) {
+                  keepRereadSources(before.doc, after.doc);
+                } else {
+                  carrySource(converterOf(editor), before.doc, after.doc);
+                }
               } catch {
                 // See above.
               }
@@ -984,6 +1264,7 @@ export function createEditorExtensions(
     NoteHardBreak,
     HtmlBlock,
     HtmlInline,
+    LinkDefinition,
     // The extension defaults `target` to `_blank` and renders it as a mark
     // attribute, which tells the webview to open a link itself. Every link here
     // goes through `followLink` and its scheme gate instead.

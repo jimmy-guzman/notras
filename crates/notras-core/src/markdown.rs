@@ -550,9 +550,11 @@ fn wikilink_targets(body: &str, range: Range<usize>) -> Vec<(usize, &str)> {
 
 /// Kept in parity with the editor's tokenizer: `finds_the_wikilinks_the_editor_renders`
 /// below and `src/components/editor/wikilink.spec.ts` assert one table of cases.
-/// The body as rich mode shows it, which is what search indexes: link
-/// destinations, images and reference definitions show nowhere in the editor,
-/// so a hit on them could never be found in the note.
+/// The body text rich mode shows, less reference definitions, which is what
+/// search indexes. Link destinations and images show as no text in the editor,
+/// so a hit on them could never be found in the note. A definition shows as
+/// code, but it holds a link's destination, so it is left out the way an inline
+/// link's destination is. `link:` finds the destinations links use.
 pub(crate) fn readable_text(body: &str) -> String {
     let options =
         Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
@@ -759,7 +761,7 @@ mod tests {
     }
 
     #[test]
-    fn should_leave_out_of_readable_text_what_rich_mode_hides() {
+    fn should_leave_destinations_images_and_definitions_out_of_readable_text() {
         let text = readable_text(
             "See the [roadmap](https://hidden.example/plan) and ![diagram alt](hidden.png).\n\n\
              word![inline](x.png)next\n\n\

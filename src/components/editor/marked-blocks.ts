@@ -1,4 +1,4 @@
-import type { TokenizerObject } from "marked";
+import type { TokenizerExtension, TokenizerObject } from "marked";
 import { Lexer, Marked } from "marked";
 
 // Every block rule is anchored with `^` and none is multiline, so a sticky
@@ -29,6 +29,43 @@ const blockGates: TokenizerObject = {
   table: gate(block.table),
 };
 
+/**
+ * Keeps every link definition as a token, a repeat of a label included,
+ * which marked records and then drops. The first one still resolves the
+ * label. A definition cannot interrupt a paragraph, which the built-in
+ * tokenizer handles by folding it into the paragraph's text.
+ */
+const definitions: TokenizerExtension = {
+  level: "block",
+  name: "def",
+  tokenizer(src, tokens) {
+    // The lexer keeps its tokenizer private and hands it out on its options.
+    const { tokenizer } = this.lexer.options;
+
+    if (!tokenizer) {
+      throw new Error("The lexer has no tokenizer");
+    }
+
+    const last = tokens.at(-1);
+    const token =
+      last?.type === "paragraph" || last?.type === "text"
+        ? undefined
+        : tokenizer.def(src);
+
+    if (token !== undefined) {
+      this.lexer.tokens.links[token.tag] ??= {
+        href: token.href,
+        title: token.title,
+      };
+    }
+
+    return token;
+  },
+};
+
 export function createNoteMarked() {
-  return new Marked({ gfm: true }).use({ tokenizer: blockGates });
+  return new Marked({ gfm: true }).use({
+    extensions: [definitions],
+    tokenizer: blockGates,
+  });
 }
