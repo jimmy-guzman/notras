@@ -255,16 +255,16 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 - **PR description uses two sections and nothing else:**
 
   ```markdown
-  ## What
-
-  <what changed, in plain terms>
-
   ## Why
 
   <the problem or need it addresses>
+
+  ## What
+
+  <what changed, in plain terms>
   ```
 
-  Two sections force the description to answer the two questions a reviewer opens with, and a third section pads. The no-wrap rule matters more here than anywhere else: GitHub renders every single newline in a PR body as a line break, so a wrapped body arrives as a ragged column.
+  Two sections force the description to answer the two questions a reviewer opens with, and a third section pads. Why comes first because it frames how a reviewer reads the change. The no-wrap rule matters more here than anywhere else: GitHub renders every single newline in a PR body as a line break, so a wrapped body arrives as a ragged column.
 
 - **`## Why` also says what happens when the change is wrong and how someone finds out.** The section carries the problem the change addresses. Two more sentences make it answerable: the risk someone accepted, and the signal that fires when the risk lands.
 
