@@ -754,6 +754,78 @@ describe("markdown the user did not touch", () => {
     editor.destroy();
   });
 
+  it("should keep the newline that ends a note when its closing list gains an item", () => {
+    const editor = open("a\n\n* one\n");
+
+    editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 6);
+    editor.commands.splitListItem("listItem");
+    editor.commands.insertContent("two");
+
+    expect(serializeMarkdown(editor)).toBe("a\n\n- one\n- two\n");
+    editor.destroy();
+  });
+
+  it("should end a note on the newline it had after a new closing code block", () => {
+    const editor = open("a\n");
+
+    editor.commands.insertContentAt(editor.state.doc.content.size, {
+      content: [{ text: "x", type: "text" }],
+      type: "codeBlock",
+    });
+
+    expect(serializeMarkdown(editor)).toBe("a\n\n```\nx\n```\n");
+    editor.destroy();
+  });
+
+  it("should end a note with no newline on a new closing code block", () => {
+    const editor = open("a");
+
+    editor.commands.insertContentAt(editor.state.doc.content.size, {
+      content: [{ text: "x", type: "text" }],
+      type: "codeBlock",
+    });
+
+    expect(serializeMarkdown(editor)).toBe("a\n\n```\nx\n```");
+    editor.destroy();
+  });
+
+  it("should keep the blank lines that end a note when its last paragraph becomes a heading", () => {
+    const editor = open("a\n\n\n\n");
+
+    editor.chain().setTextSelection(1).setNode("heading", { level: 1 }).run();
+
+    expect(serializeMarkdown(editor)).toBe("# a\n\n\n\n");
+    editor.destroy();
+  });
+
+  it("should keep the newline that ends a note when a closing blank line after a list is deleted", () => {
+    const editor = open("- one\n\n\n\n");
+    const { doc } = editor.state;
+
+    editor.commands.deleteRange({
+      from: doc.content.size - (doc.lastChild?.nodeSize ?? 0),
+      to: doc.content.size,
+    });
+
+    expect(serializeMarkdown(editor)).toBe("- one\n");
+    editor.destroy();
+  });
+
+  it("should keep every blank line left after a list when one of them is deleted", () => {
+    const editor = open("- one\n\n\n\n\n\n");
+    const { doc } = editor.state;
+
+    editor.commands.deleteRange({
+      from: doc.content.size - (doc.lastChild?.nodeSize ?? 0),
+      to: doc.content.size,
+    });
+    const reopened = load(serializeMarkdown(editor));
+
+    expect(reopened.state.doc.childCount).toBe(editor.state.doc.childCount);
+    editor.destroy();
+    reopened.destroy();
+  });
+
   it("should separate a new block from the ones around it with a blank line", () => {
     const editor = open("# h\npara\n");
 
@@ -769,7 +841,7 @@ describe("markdown the user did not touch", () => {
   it("should write indented code as a fence", () => {
     const editor = open("para\n\n    code\n");
 
-    expect(serializeMarkdown(editor)).toBe("para\n\n```\ncode\n```");
+    expect(serializeMarkdown(editor)).toBe("para\n\n```\ncode\n```\n");
     editor.destroy();
   });
 
@@ -869,7 +941,7 @@ describe("markdown the user did not touch", () => {
     });
 
     expect(editor.getHTML()).toBe("<p>[a][r]</p>");
-    expect(serializeMarkdown(editor)).toBe("[a][r]");
+    expect(serializeMarkdown(editor)).toBe("[a][r]\n");
     editor.destroy();
   });
 
@@ -898,7 +970,7 @@ describe("markdown the user did not touch", () => {
     reopened.destroy();
   });
 
-  it("should write the end of a note whose closing blank lines were deleted", () => {
+  it("should keep the newline that ends a note whose closing blank lines were deleted", () => {
     const editor = open("first\n\n\n\n\n\n");
 
     editor.commands.deleteRange({
@@ -906,7 +978,7 @@ describe("markdown the user did not touch", () => {
       to: editor.state.doc.content.size,
     });
 
-    expect(serializeMarkdown(editor)).toBe("first");
+    expect(serializeMarkdown(editor)).toBe("first\n");
     editor.destroy();
   });
 
@@ -1059,7 +1131,7 @@ describe("markdown the user did not touch", () => {
       type: "paragraph",
     });
 
-    expect(serializeMarkdown(editor)).toMatch(/\n\na & b \[x\]$/u);
+    expect(serializeMarkdown(editor)).toMatch(/\n\na & b \[x\]\n$/u);
     editor.destroy();
   });
 
@@ -1162,7 +1234,7 @@ describe("an edit in markdown written elsewhere", () => {
     editor.commands.insertContentAt(editor.state.doc.content.size - 4, "x");
 
     expect(serializeMarkdown(editor)).toBe(
-      "__first__\n\n| a   | b   |\n| --- | --- |\n| 1   | 2x  |\n\n"
+      "__first__\n\n| a   | b   |\n| --- | --- |\n| 1   | 2x  |\n"
     );
     editor.destroy();
   });
