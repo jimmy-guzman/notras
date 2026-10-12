@@ -180,6 +180,7 @@ What notras does, as claims checkable against a running build.
 
 - The editor is WYSIWYG over the file's markdown. A save changes only what was edited: a block nobody touched lands byte for byte as the file had it, with the blank lines around it, and typing inside a block changes the characters typed. Ticking a task in a list written with `*` changes one character.
 - An edit the block's own text cannot take writes that one block in the serializer's GFM: a new block, a list that gains or loses an item, a table whose padding a cell edit changes, a setext heading, or an edit whose result would read back as something else. The claims below about how a construct is written describe that form.
+- A note keeps the newline or blank lines it ended on, whichever block ends it. A closing block the serializer writes is followed by the file's ending and nothing more. Deleting the blank lines a note ended on keeps the newline that ended its last line.
 - Two things are rewritten on the first edit anywhere in the note: indented code becomes a fence, and CRLF line endings become LF.
 - ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
 - Undo in rich mode puts the caret where the undone step began, and redo puts it where it was before the undo.

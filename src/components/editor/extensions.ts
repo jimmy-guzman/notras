@@ -628,8 +628,6 @@ function written(block: RenderedBlock) {
 
 /** What sat between two blocks in the file, shared by the pair it joined. */
 interface Gap {
-  /** The blank paragraphs after the note's last block, when the gap ends it. */
-  end: number | undefined;
   text: string;
 }
 
@@ -650,6 +648,25 @@ const sources = new WeakMap<Node, Source>();
 
 function isBlankParagraph(node: Node) {
   return node.type.name === "paragraph" && node.childCount === 0;
+}
+
+/** The text after the note's last block, and the blank paragraphs it stands for. */
+interface Ending {
+  blanks: number;
+  text: string;
+}
+
+/**
+ * The file's ending belongs to the note rather than its last block, so it
+ * outlives that block being rewritten or another block following it.
+ */
+const endings = new WeakMap<Node, Ending | undefined>();
+
+/** The blank paragraphs past the note's last block. */
+function closingBlanks(nodes: readonly Node[]) {
+  const final = nodes.findLast((node) => !isBlankParagraph(node));
+
+  return final === undefined ? 0 : nodes.length - 1 - nodes.lastIndexOf(final);
 }
 
 function isDefinition(node: Node) {
@@ -828,6 +845,7 @@ export function rememberSources(
   let lead = "";
   let last: { at: number; source: Source } | undefined;
   const parse = blockParser(manager, doc);
+  const tokens = manager.instance.lexer(markdown);
 
   // A replacement reuses the nodes it did not change, whose text may have.
   // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
@@ -835,7 +853,7 @@ export function rememberSources(
     sources.delete(node);
   });
 
-  for (const token of manager.instance.lexer(markdown)) {
+  for (const token of tokens) {
     if (token.type === "space") {
       if (last === undefined) {
         lead += token.raw;
@@ -873,7 +891,7 @@ export function rememberSources(
 
     const source: Source = {
       follows: last?.at === at - 1 ? last.source.gap : undefined,
-      gap: { end: undefined, text: token.raw.slice(text.length) },
+      gap: { text: token.raw.slice(text.length) },
       lead: at === 0 ? lead : "",
       text,
     };
@@ -882,20 +900,27 @@ export function rememberSources(
     last = { at, source };
   }
 
-  // Blank lines past the last block, and the empty paragraph the editor
-  // appends after a closing list or code block, are paragraphs no token
-  // claims. The last block's gap already holds the file's text for them.
-  if (
-    last !== undefined &&
-    doc.content.content.slice(last.at + 1).every(isBlankParagraph)
-  ) {
-    last.source.gap.end = doc.childCount - 1 - last.at;
+  const final = tokens.findLastIndex((token) => token.type !== "space");
+  const closing = tokens[final];
+
+  // Blank lines past the last block are paragraphs no token claims, so the
+  // file's text after that block stands for them.
+  if (closing === undefined) {
+    endings.delete(doc);
+  } else {
+    endings.set(doc, {
+      blanks: closingBlanks(doc.content.content),
+      text: [
+        closing.raw.slice(closing.raw.replace(/\n+$/u, "").length),
+        ...tokens.slice(final + 1).map((token) => token.raw),
+      ].join(""),
+    });
   }
 }
 
 /** A gap with no blank line in it joins its two blocks once either changes. */
 function isLoose(gap: Gap) {
-  return gap.end !== undefined || gap.text.includes("\n\n");
+  return gap.text.includes("\n\n");
 }
 
 /**
@@ -982,19 +1007,18 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
         ? source.follows
         : undefined,
     gap:
-      source.gap.end !== undefined ||
-      (below !== undefined &&
-        next?.follows === source.gap &&
-        staysApart(
-          parse,
-          same,
-          source.gap,
-          text + source.gap.text + next.text,
-          at,
-          [node, below]
-        ))
+      below !== undefined &&
+      next?.follows === source.gap &&
+      staysApart(
+        parse,
+        same,
+        source.gap,
+        text + source.gap.text + next.text,
+        at,
+        [node, below]
+      )
         ? source.gap
-        : { end: undefined, text: "\n\n" },
+        : { text: "\n\n" },
     lead: source.lead,
     text,
   });
@@ -1100,31 +1124,35 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
       renderBlock(manager, node, nodes[index - 1], definitions)
   );
   const final = nodes.findLast((node) => !isBlankParagraph(node));
-  const end = final === undefined ? undefined : sources.get(final)?.gap.end;
-  const blanks =
-    final === undefined ? 0 : nodes.length - 1 - nodes.lastIndexOf(final);
-  // The file's closing text stands for the blank paragraphs it had, and for
-  // the empty one the editor keeps after a closing list or code block. Blank
+  const blocks = final === undefined ? 0 : nodes.lastIndexOf(final) + 1;
+  const blanks = closingBlanks(nodes);
+  const ending = endings.get(doc);
+  // The file's closing text stands for the blank paragraphs it had. Blank
   // paragraphs added at the end are not written, while removing one the file
-  // had leaves the end to the serializer.
-  const closes = end !== undefined && blanks >= end;
+  // had leaves the end to the serializer, short of the newline that ended the
+  // file's last line.
+  const closes = ending !== undefined && blanks >= ending.blanks;
+  const closing = closes ? ending.text : (ending?.text.slice(0, 1) ?? "");
+  // The editor adds an empty paragraph after a closing block other than a
+  // paragraph only when nothing follows it, so a lone blank there is the
+  // editor's and more than one are the file's.
+  const withBlanks =
+    blanks === 1 && final?.type.name !== "paragraph" ? blocks : blocks + blanks;
   const markdown = pieces
-    .slice(0, closes ? nodes.length - blanks : undefined)
+    .slice(0, closes ? blocks : withBlanks)
     .map((piece, index, kept) => {
       const next = kept[index + 1];
-      const separator = next === undefined ? "" : "\n\n";
+      const end = next === undefined ? closing : "\n\n";
 
       if (!("gap" in piece)) {
-        return written(piece) + separator;
+        return written(piece) + end;
       }
 
       const lead = index === 0 ? piece.lead : "";
       const follows =
-        next === undefined
-          ? closes
-          : "gap" in next && next.follows === piece.gap;
+        next !== undefined && "gap" in next && next.follows === piece.gap;
 
-      return lead + piece.text + (follows ? piece.gap.text : separator);
+      return lead + piece.text + (follows ? piece.gap.text : end);
     })
     .join("");
 
@@ -1194,6 +1222,8 @@ const NoteMarkdown = Markdown.extend<
             // raises the same failure where the save can report it; a throw
             // here would drop the keystroke instead.
             if (transaction.docChanged) {
+              endings.set(after.doc, endings.get(before.doc));
+
               try {
                 if (transaction.getMeta(rereadKey) === true) {
                   keepRereadSources(before.doc, after.doc);

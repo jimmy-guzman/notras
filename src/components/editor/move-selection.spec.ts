@@ -18,10 +18,6 @@ import {
  * The stack `markdown-roundtrip.spec.ts` builds, so a move is asserted in the
  * markdown a reader would find on disk. `doc.check()` runs on both sides, which
  * makes every case a schema test too.
- *
- * A doc ending in a list serializes with a blank line after it, since any edit
- * makes the trailing node append an empty paragraph. That belongs to the editor
- * rather than to a move.
  */
 function load(markdown: string) {
   const editor = new Editor({
@@ -117,31 +113,31 @@ describe(moveRangeByStep, () => {
   });
 
   it("should move the bullet a caret sits in, not its paragraph", () => {
-    expect(stepIn("- a\n- b", "listItem", 0, false)).toBe("- b\n- a\n\n");
+    expect(stepIn("- a\n- b", "listItem", 0, false)).toBe("- b\n- a");
   });
 
   it("should carry a nested sublist with its item", () => {
     expect(stepIn("- a\n  - a1\n- b", "listItem", 0, false)).toBe(
-      "- b\n- a\n  - a1\n\n"
+      "- b\n- a\n  - a1"
     );
   });
 
   it("should step the first item out to sit before its list", () => {
     expect(stepIn("intro\n\n- a\n- b", "listItem", 0, true)).toBe(
-      "intro\n\na\n\n- b\n\n"
+      "intro\n\na\n\n- b"
     );
   });
 
   it("should move a quoted paragraph within its blockquote", () => {
     expect(stepIn("> one\n>\n> two", "paragraph", 0, false)).toBe(
-      "> two\n>\n> one\n\n"
+      "> two\n>\n> one"
     );
   });
 
   it("should keep a code block's language when it moves", () => {
     expect(
       stepIn("```ts\nconst a = 1;\n```\n\npara", "codeBlock", 0, false)
-    ).toBe("para\n\n```ts\nconst a = 1;\n```\n\n");
+    ).toBe("para\n\n```ts\nconst a = 1;\n```");
   });
 });
 
@@ -244,7 +240,7 @@ describe("moveRange over a selection", () => {
 
     editor.destroy();
 
-    expect(output).toBe("split\n\n- [ ] bullet\n- [ ] task\n\n");
+    expect(output).toBe("split\n\n- [ ] bullet\n- [ ] task");
   });
 
   it("should drop the list when its last item steps out of it", () => {
@@ -292,7 +288,7 @@ describe("moveRange over a selection", () => {
 
     editor.destroy();
 
-    expect(output).toBe("- [ ] two\n- [ ] one\n\n");
+    expect(output).toBe("- [ ] two\n- [ ] one");
   });
 
   it("should treat a drop on an item's top half as landing before it", () => {
@@ -581,7 +577,7 @@ describe(moveText, () => {
 
     editor.destroy();
 
-    expect(output).toBe("ld\n\n```\ncodebo\n```\n\n");
+    expect(output).toBe("ld\n\n```\ncodebo\n```");
   });
 
   it("should return null when the drop changes nothing", () => {
@@ -633,10 +629,8 @@ describe("tables", () => {
 
     editor.destroy();
 
-    // The trailing blank line is the empty paragraph the editor keeps after a
-    // table, present on a plain load and after any edit at all.
     expect(output).toBe(
-      "| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n"
+      "| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |"
     );
   });
 
@@ -861,7 +855,7 @@ describe("tables", () => {
 
     expect(line).toBe(underHeader);
     expect(output).toBe(
-      "| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |\n\n"
+      "| a     | b    |\n| ----- | ---- |\n| three | four |\n| one   | two  |"
     );
   });
 
