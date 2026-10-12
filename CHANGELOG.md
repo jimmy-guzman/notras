@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.6](https://github.com/jimmy-guzman/notras/compare/v0.10.5...v0.10.6) (2026-10-12)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 keep link definitions when a note saves ([#353](https://github.com/jimmy-guzman/notras/issues/353)) ([9a5fa0f](https://github.com/jimmy-guzman/notras/commit/9a5fa0f30f328bf56425a00f81d0cebd0ebe1023))
+* **editor:** 🐛 keep pastes in their original order ([#357](https://github.com/jimmy-guzman/notras/issues/357)) ([8416ae8](https://github.com/jimmy-guzman/notras/commit/8416ae89116aff3fe0aec8d9796efc7b3c027738))
+* **editor:** 🐛 keep the newline a note ends on ([#358](https://github.com/jimmy-guzman/notras/issues/358)) ([567c7fb](https://github.com/jimmy-guzman/notras/commit/567c7fb9f5bf2cb88448043470a88bf4fa4a3fb2))
+* **editor:** 🐛 nest list children with tab in source ([#360](https://github.com/jimmy-guzman/notras/issues/360)) ([37f6212](https://github.com/jimmy-guzman/notras/commit/37f6212256bc1940dfc52ed59255e5e912f2dd58))
+* **editor:** 🐛 preserve tasks and heading links ([#332](https://github.com/jimmy-guzman/notras/issues/332)) ([cc63271](https://github.com/jimmy-guzman/notras/commit/cc63271cc923d17168d0662a2da6a42fe4d4b340))
+
 ## [0.10.5](https://github.com/jimmy-guzman/notras/compare/v0.10.4...v0.10.5) (2026-10-08)
 
 
