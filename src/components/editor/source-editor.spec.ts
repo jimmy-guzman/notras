@@ -1,4 +1,5 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -171,6 +172,297 @@ describe("source editor", () => {
     });
 
     expect(note.content()).toBe("one\n two");
+  });
+
+  it.for([
+    ["a numbered item", "1. one\n", "1. one\n   "],
+    ["a bullet", "- one\n", "- one\n  "],
+    ["a two-digit numbered item", "10. one\n", "10. one\n    "],
+    ["a nested item", "1. one\n   - a\n   ", "1. one\n   - a\n     "],
+    ["an item holding indented code", "-     code\n", "-     code\n  "],
+    ["an empty item", "1.\n", "1.\n   "],
+    ["a task", "- [ ] one\n", "- [ ] one\n  "],
+    ["an item and a blank line", "1. one\n\n", "1. one\n\n   "],
+    ["an item and an unindented line", "1. one\nmore\n", "1. one\nmore\n   "],
+    [
+      "an item after closed code",
+      "```\nx\n```\n1. one\n",
+      "```\nx\n```\n1. one\n   ",
+    ],
+    [
+      "an item after inline code",
+      "```js```\n\n1. one\n",
+      "```js```\n\n1. one\n   ",
+    ],
+    ["an item with a tab after its marker", "1.\tone\n", "1.\tone\n    "],
+  ] as const)(
+    "should indent a line under %s to where its children start on tab",
+    async ([, source, expected], { onTestFinished }) => {
+      const user = userEvent.setup();
+      const note = createNoteDocument(source, "a.md");
+      onTestFinished(() => {
+        note.destroy();
+      });
+      render(
+        createElement(SourceEditor, {
+          editor: note.editor,
+          focusOnMount: true,
+          initialCursor: source.length,
+        })
+      );
+
+      await user.keyboard("{Tab}");
+
+      expect(note.content()).toBe(expected);
+    }
+  );
+
+  it("should indent two spaces under a paragraph on tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("text\n", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "text\n".length,
+      })
+    );
+
+    await user.keyboard("{Tab}");
+
+    expect(note.content()).toBe("text\n  ");
+  });
+
+  it("should indent two spaces after text under a list item on tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("10. one\nx", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "10. one\nx".length,
+      })
+    );
+
+    await user.keyboard("{Tab}");
+
+    expect(note.content()).toBe("10. one\nx  ");
+  });
+
+  it.for([
+    ["fenced code", "```\n1. x\n"],
+    ["fenced code a shorter run leaves open", "````\nx\n```\n1. x\n"],
+    [
+      "fenced code in a nested item",
+      "1. one\n   - a\n     ```\n     1. x\n     ",
+    ],
+  ] as const)(
+    "should indent two spaces under a numbered line in %s on tab",
+    async ([, source], { onTestFinished }) => {
+      const user = userEvent.setup();
+      const note = createNoteDocument(source, "a.md");
+      onTestFinished(() => {
+        note.destroy();
+      });
+      render(
+        createElement(SourceEditor, {
+          editor: note.editor,
+          focusOnMount: true,
+          initialCursor: source.length,
+        })
+      );
+
+      await user.keyboard("{Tab}");
+
+      expect(note.content()).toBe(`${source}  `);
+    }
+  );
+
+  it("should indent two spaces at an item's children after code closed inside it on tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const source = "1. one\n   ```\n   1. x\n   ```\n   ";
+    const note = createNoteDocument(source, "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: source.length,
+      })
+    );
+
+    await user.keyboard("{Tab}");
+
+    expect(note.content()).toBe(`${source}  `);
+  });
+
+  it("should indent a line to where its item's children start with the caret before its spaces on tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("1. one\n  two", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "1. one\n".length,
+      })
+    );
+
+    await user.keyboard("{Tab}");
+
+    expect(note.content()).toBe("1. one\n   two");
+  });
+
+  it("should indent two spaces under a list in frontmatter on tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("---\ntags:\n  - a\n\n---\nbody", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "---\ntags:\n  - a\n".length,
+      })
+    );
+
+    await user.keyboard("{Tab}");
+
+    expect(note.content()).toBe("---\ntags:\n  - a\n  \n---\nbody");
+  });
+
+  it("should outdent two spaces in fenced code inside an item on shift+tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("1. one\n   ```\n   x", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "1. one\n   ```\n   x".length,
+      })
+    );
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(note.content()).toBe("1. one\n   ```\n x");
+  });
+
+  it.for([
+    ["a fence in frontmatter", "---\ndesc: x\n  ```\n---\n1. one\n", "   "],
+    [
+      "a list in frontmatter closed with dots",
+      "---\ntags:\n  - a\n...\n",
+      "  ",
+    ],
+  ] as const)(
+    "should read only the body below %s on tab",
+    async ([, source, added], { onTestFinished }) => {
+      const user = userEvent.setup();
+      const note = createNoteDocument(source, "a.md");
+      onTestFinished(() => {
+        note.destroy();
+      });
+      render(
+        createElement(SourceEditor, {
+          editor: note.editor,
+          focusOnMount: true,
+          initialCursor: source.length,
+        })
+      );
+
+      await user.keyboard("{Tab}");
+
+      expect(note.content()).toBe(`${source}${added}`);
+    }
+  );
+
+  it("should outdent two spaces outside a list on shift+tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("text\n    x", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "text\n    x".length,
+      })
+    );
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(note.content()).toBe("text\n  x");
+  });
+
+  it("should leave a line at the margin alone on shift+tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("x", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: 1,
+      })
+    );
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(note.content()).toBe("x");
+  });
+
+  it("should outdent a child of a numbered item back to its marker on shift+tab", async ({
+    onTestFinished,
+  }) => {
+    const user = userEvent.setup();
+    const note = createNoteDocument("1. one\n   1. two", "a.md");
+    onTestFinished(() => {
+      note.destroy();
+    });
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: true,
+        initialCursor: "1. one\n   1. two".length,
+      })
+    );
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(note.content()).toBe("1. one\n1. two");
   });
 
   it("should retain source text and caret while highlighting and inserting text", async ({

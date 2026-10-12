@@ -185,7 +185,7 @@ What notras does, as claims checkable against a running build.
 - ⌘E swaps to raw source and back, and the palette does too. The caret round-trips in both directions, and a serialization that diverges from a clean re-parse is discarded rather than written.
 - Undo in rich mode puts the caret where the undone step began, and redo puts it where it was before the undo.
 - In rich mode a keystroke serializes the note once, for the save, and a caret move does not serialize it.
-- In source mode, Tab inserts two spaces and Shift-Tab outdents two.
+- In source mode, Tab inserts two spaces and Shift-Tab outdents two. In a line's leading spaces under a list item, Tab indents to the column the item's children start at, so a child of `1. one` lands at three spaces and one of `- [ ] one` at two. An empty item, or one holding indented code, has its children one column past the marker. Shift-Tab takes a line at that column back to the item's marker. Inside fenced code and frontmatter both keys move two spaces.
 - Shift+Enter breaks the line inside the block, where Enter starts a new one. In source mode it inserts a newline, the same as Enter. The file holds the break as two trailing spaces, or `<br>` in a table cell, and a backslash break reads the same and stays a backslash.
 - `/` opens the slash menu: heading 1, heading 2, heading 3, bullet list, numbered list, task list, quote, code block, diagram, table, divider, and today's date. Diagram inserts a `mermaid` code block. The filter matches the label or the shorthand, so `/h1` finds heading 1.
 - `[[` completes note titles, at most eight at a time. A wikilink renders as a pill and serializes back to `[[title]]`.
