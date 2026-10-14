@@ -57,6 +57,7 @@ import {
 
 import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
+import { CodeBlockTab } from "./code-block-tab";
 import { DragSelection } from "./drag-selection";
 import { LinkDefinition } from "./link-definition";
 import { MarkdownPaste } from "./markdown-paste";
@@ -1317,6 +1318,7 @@ export function createEditorExtensions(
         return [...(this.parent?.() ?? []), editingCodeBlock];
       },
     }),
+    CodeBlockTab,
     // Tiptap runs plugins from the end of this list, so the table, below,
     // fills a pasted cell or cell selection before MarkdownPaste's
     // `handlePaste` reads the paste.
@@ -1339,6 +1341,16 @@ export function createEditorExtensions(
     }),
     Placeholder.configure({
       placeholder: options.placeholderText ?? "write another note...",
+    }),
+    // Lists, tables and code blocks take Tab first. Anywhere else the browser
+    // would move focus out of the note, so the key is kept.
+    Extension.create({
+      addKeyboardShortcuts: () => ({
+        "Shift-Tab": () => true,
+        Tab: () => true,
+      }),
+      name: "keepTab",
+      priority: 1,
     }),
     CaretAfterBreak,
     DragSelection,

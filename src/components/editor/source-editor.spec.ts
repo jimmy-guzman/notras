@@ -423,7 +423,7 @@ describe("source editor", () => {
     expect(note.content()).toBe("text\n  x");
   });
 
-  it("should leave a line at the margin alone on shift+tab", async ({
+  it("should leave a line at the margin alone and keep focus on shift+tab", async ({
     onTestFinished,
   }) => {
     const user = userEvent.setup();
@@ -442,6 +442,7 @@ describe("source editor", () => {
     await user.keyboard("{Shift>}{Tab}{/Shift}");
 
     expect(note.content()).toBe("x");
+    expect(note.editor.view.hasFocus()).toBeTruthy();
   });
 
   it("should outdent a child of a numbered item back to its marker on shift+tab", async ({

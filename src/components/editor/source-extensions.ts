@@ -152,9 +152,9 @@ const SourceKeys = Extension.create({
         const width =
           parent === undefined ? INDENT.length : indent - parent.indent;
 
-        // Nothing to outdent -- let the browser move focus instead.
+        // With nothing to outdent the key stays in the note, as in rich mode.
         if (indent < width) {
-          return false;
+          return true;
         }
 
         return this.editor
