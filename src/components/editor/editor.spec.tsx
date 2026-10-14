@@ -1620,6 +1620,186 @@ describe("line breaks", () => {
   });
 });
 
+describe("tab", () => {
+  it.each([
+    ["tab", "{Tab}"],
+    ["shift+tab", "{Shift>}{Tab}{/Shift}"],
+  ])(
+    "should keep focus in the note and change nothing on %s in a paragraph",
+    async (_name, keys) => {
+      const user = userEvent.setup();
+      const { editor, handle } = await mount({
+        focusOnMount: true,
+        initialContent: "one",
+      });
+
+      await user.keyboard(keys);
+
+      expect(editor.view.hasFocus()).toBeTruthy();
+      expect(handle.getContent()).toBe("one");
+    }
+  );
+
+  it("should indent a code block's line two spaces on tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "```\ncode\n```",
+    });
+    act(() => {
+      editor.commands.setTextSelection(1);
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(handle.getContent()).toBe("```\n  code\n```");
+  });
+
+  it("should indent every line a selection in a code block touches on tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "```\nfoo bar\nbaz\n```",
+    });
+    act(() => {
+      editor.commands.setTextSelection({ from: 5, to: 12 });
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(handle.getContent()).toBe("```\n  foo bar\n  baz\n```");
+  });
+
+  it("should outdent every line a selection in a code block touches on shift+tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "```\n  foo  bar\n  baz\n```",
+    });
+    act(() => {
+      editor.commands.setTextSelection({ from: 6, to: 16 });
+    });
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(handle.getContent()).toBe("```\nfoo  bar\nbaz\n```");
+  });
+
+  it("should outdent the caret's line in a code block on shift+tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "```\n  code\n```",
+    });
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "code").from);
+    });
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(handle.getContent()).toBe("```\ncode\n```");
+  });
+
+  it("should leave out a line a selection in a code block ends at the start of on tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "```\none\ntwo\n```",
+    });
+    act(() => {
+      editor.commands.setTextSelection({
+        from: rangeOf(editor, "one").from,
+        to: rangeOf(editor, "two").from,
+      });
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(handle.getContent()).toBe("```\n  one\ntwo\n```");
+  });
+
+  it("should leave the blocks under a code block alone when a selection runs into them on tab", async () => {
+    const user = userEvent.setup();
+    const markdown = "```\ncode\n```\n\n# Head\n\npara **bold**";
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: markdown,
+    });
+    act(() => {
+      editor.commands.setTextSelection({
+        from: 2,
+        to: editor.state.doc.content.size - 1,
+      });
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(handle.getContent()).toBe(markdown);
+  });
+
+  it("should indent a code block inside a task item rather than nest the item on tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "- [ ] one\n- [ ] two\n\n  ```\n  code\n  ```",
+    });
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "code").from);
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(handle.getContent()).toMatch(/^- \[ \] one\n- \[ \] two\n/u);
+    expect(handle.getContent()).toContain("    code");
+  });
+
+  it("should outdent a code block inside a task item rather than lift the item on shift+tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "- [ ] one\n- [ ] two\n\n  ```\n    code\n  ```",
+    });
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "code").from);
+    });
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(handle.getContent()).toMatch(/^- \[ \] one\n- \[ \] two\n/u);
+    expect(editor.state.selection.$from.parent.textContent).toBe("code");
+  });
+
+  it("should nest a list item on tab", async () => {
+    const user = userEvent.setup();
+    const { editor, handle } = await mount({
+      focusOnMount: true,
+      initialContent: "- one\n- two",
+    });
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "two").from);
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(handle.getContent()).toBe("- one\n  - two");
+  });
+
+  it("should move to the next table cell on tab", async () => {
+    const user = userEvent.setup();
+    const { editor } = await mount({
+      focusOnMount: true,
+      initialContent: "| a | b |\n| - | - |\n| 1 | 2 |",
+    });
+    act(() => {
+      editor.commands.setTextSelection(rangeOf(editor, "a").from);
+    });
+
+    await user.keyboard("{Tab}");
+
+    expect(editor.state.selection.$from.parent.textContent).toBe("b");
+  });
+});
+
 describe("document selection mapping", () => {
   it("should replace the document when restoring its source selection fails", async () => {
     const { editor, handle, scroller } = await mount({
