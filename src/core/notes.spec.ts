@@ -78,9 +78,9 @@ describe(retitleLeadingHeading, () => {
     );
   });
 
-  it("should preserve indentation and a crlf ending", () => {
-    expect(retitleLeadingHeading("  # old\r\nbody\r\n", "new")).toBe(
-      "  # new\r\nbody\r\n"
+  it("should preserve indentation", () => {
+    expect(retitleLeadingHeading("  # old\nbody\n", "new")).toBe(
+      "  # new\nbody\n"
     );
   });
 

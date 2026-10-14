@@ -140,6 +140,31 @@ pub struct NoteFile {
     pub updated_at: i64,
 }
 
+impl NoteFile {
+    /// A file as the frontend holds it, in line feeds alone. The revision is the
+    /// one the bytes on disk carry, since that is what a save is checked against.
+    fn from_disk(text: String, updated_at: i64) -> Self {
+        Self {
+            revision: content_revision(&text),
+            content: text.replace("\r\n", "\n"),
+            updated_at,
+        }
+    }
+}
+
+/// `content` in the line endings of the file it replaces, which the frontend
+/// never sees. The frontend holds a file in line feeds alone, so a file that
+/// mixes the two takes the ending most of its lines have, which changes the
+/// fewest of them.
+fn in_line_endings_of(disk: &str, content: &str) -> String {
+    let lines = content.replace("\r\n", "\n");
+    if disk.matches("\r\n").count() * 2 > disk.matches('\n').count() {
+        lines.replace('\n', "\r\n")
+    } else {
+        lines
+    }
+}
+
 fn is_markdown(path: &Path) -> bool {
     index::is_note_file(path)
 }
@@ -401,16 +426,18 @@ impl<T> Publication<T> {
     }
 }
 
-/// The bytes and timestamp behind an open handle, read from its start.
-fn current_file(original: &mut File) -> Result<NoteFile, CommandError> {
+/// The text behind an open handle, read from its start.
+fn current_text(original: &mut File) -> io::Result<String> {
     original.rewind()?;
-    let mut content = String::new();
-    original.read_to_string(&mut content)?;
-    Ok(NoteFile {
-        revision: content_revision(&content),
-        content,
-        updated_at: checked_mtime(original)?,
-    })
+    let mut text = String::new();
+    original.read_to_string(&mut text)?;
+    Ok(text)
+}
+
+/// The file and timestamp behind an open handle, read from its start.
+fn current_file(original: &mut File) -> Result<NoteFile, CommandError> {
+    let text = current_text(original)?;
+    Ok(NoteFile::from_disk(text, checked_mtime(original)?))
 }
 
 fn handle_identity(file: &File) -> io::Result<(u64, u64)> {
@@ -445,6 +472,8 @@ impl Withdrawn {
 /// A replacement beside its original, which stays open until publication decides.
 struct Staged {
     original: File,
+    /// The revision of the bytes written, which a save's receipt carries.
+    revision: String,
     temp: TempSibling,
     updated_at: i64,
 }
@@ -456,17 +485,20 @@ fn stage(
     expected: &str,
 ) -> Result<Publication<Staged>, CommandError> {
     let mut original = source.open_write()?;
-    let current = current_file(&mut original)?;
-    if current.revision != expected {
-        return Ok(Publication::Conflict(current));
+    let disk = current_text(&mut original)?;
+    if content_revision(&disk) != expected {
+        let updated_at = checked_mtime(&original)?;
+        return Ok(Publication::Conflict(NoteFile::from_disk(disk, updated_at)));
     }
+    let written = in_line_endings_of(&disk, content);
     let mut temp = TempSibling::create(&source.dir)?;
     temp.file()
         .set_permissions(original.metadata()?.permissions())?;
-    write_temp(temp.file_mut(), content)?;
+    write_temp(temp.file_mut(), &written)?;
     let updated_at = checked_mtime(temp.file())?;
     Ok(Publication::Committed(Staged {
         original,
+        revision: content_revision(&written),
         temp,
         updated_at,
     }))
@@ -638,11 +670,7 @@ fn publish_move(
     warnings.extend(record_folders(core, folder));
     Ok(PathMutationReceipt {
         path: to.as_str().to_owned(),
-        file: NoteFile {
-            revision: content_revision(&content),
-            content,
-            updated_at,
-        },
+        file: NoteFile::from_disk(content, updated_at),
         remaining_source,
         title: None,
         warnings,
@@ -651,6 +679,7 @@ fn publish_move(
 
 struct FileCommit {
     name: String,
+    revision: String,
     updated_at: i64,
     warnings: Vec<MutationWarning>,
 }
@@ -699,11 +728,13 @@ fn save_file(
         Publication::Committed(staged) => staged,
         Publication::Conflict(file) => return Ok(Publication::Conflict(file)),
     };
+    let revision = staged.revision.clone();
     let Some(filename) = filename else {
         return Ok(staged
             .exchange_over(source, &source.name, expected)?
             .map(|updated_at| FileCommit {
                 name: source.name.clone(),
+                revision,
                 updated_at,
                 warnings: vec![],
             }));
@@ -732,6 +763,7 @@ fn save_file(
                 .exchange_over(source, &candidate, expected)?
                 .map(|updated_at| FileCommit {
                     name: candidate,
+                    revision,
                     updated_at,
                     warnings: vec![],
                 }));
@@ -743,6 +775,7 @@ fn save_file(
                     .retire_original(source, &candidate, expected)?
                     .map(|warnings| FileCommit {
                         name: candidate,
+                        revision,
                         updated_at,
                         warnings,
                     }));
@@ -759,12 +792,7 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
     }
     let file = File::open(path)?;
     let updated_at = timestamp_millis(file.metadata()?.modified())?;
-    let content = io::read_to_string(file)?;
-    Ok(NoteFile {
-        revision: content_revision(&content),
-        content,
-        updated_at,
-    })
+    Ok(NoteFile::from_disk(io::read_to_string(file)?, updated_at))
 }
 
 /// The file a relative destination names from an external document.
@@ -889,7 +917,7 @@ pub fn write_external(
                 .to_str()
                 .ok_or("The path is not valid Unicode")?
                 .to_owned(),
-            revision: content_revision(content),
+            revision: result.revision,
             updated_at: result.updated_at,
             warnings,
         },
@@ -952,12 +980,10 @@ impl Library {
         let relative = RelativePath::parse(&path)?;
         let file = relative.resolve(&self.root)?.open_read()?;
         let metadata = file.metadata()?;
-        let content = io::read_to_string(file)?;
-        Ok(NoteFile {
-            revision: content_revision(&content),
-            content,
-            updated_at: timestamp_millis(metadata.modified())?,
-        })
+        Ok(NoteFile::from_disk(
+            io::read_to_string(file)?,
+            timestamp_millis(metadata.modified())?,
+        ))
     }
 
     pub fn create_note(&self, options: &CreateNote) -> Result<MutationReceipt, CommandError> {
@@ -1025,7 +1051,7 @@ impl Library {
             } else {
                 format!("{folder}/{}", result.name)
             },
-            revision: content_revision(content),
+            revision: result.revision,
             updated_at: result.updated_at,
             warnings: result.warnings,
         };
@@ -1067,11 +1093,7 @@ impl Library {
         if path == target {
             return Ok(PathMutationReceipt {
                 path,
-                file: NoteFile {
-                    revision: content_revision(&content),
-                    content,
-                    updated_at,
-                },
+                file: NoteFile::from_disk(content, updated_at),
                 remaining_source: None,
                 title: None,
                 warnings: vec![],
@@ -1306,6 +1328,91 @@ mod tests {
         assert_eq!(saved.revision, content_revision("# Read\n\nchanged"));
         assert_eq!(moved.file.revision, saved.revision);
         assert_ne!(saved.revision, note.revision);
+    }
+
+    #[test]
+    fn should_read_a_note_with_carriage_returns_in_line_feeds() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        fs::write(directory.path().join("note.md"), "# Read\r\n\r\nbody\r\n").unwrap();
+
+        let note = core.read_note("note.md".into()).unwrap();
+        let external = read_external(&directory.path().join("note.md")).unwrap();
+
+        assert_eq!(note.content, "# Read\n\nbody\n");
+        assert_eq!(note.revision, content_revision("# Read\r\n\r\nbody\r\n"));
+        assert_eq!(external.content, note.content);
+        assert_eq!(external.revision, note.revision);
+    }
+
+    #[test]
+    fn should_save_a_note_in_the_line_endings_it_has_on_disk() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "# Saved\r\n\r\nbody\r\n").unwrap();
+
+        let receipt = saved(&core, "note.md", "# Saved\n\nbody changed\n", None).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# Saved\r\n\r\nbody changed\r\n"
+        );
+        assert_eq!(
+            core.read_note("note.md".into()).unwrap().revision,
+            receipt.revision
+        );
+    }
+
+    #[test]
+    fn should_write_an_external_file_in_the_line_endings_it_has_on_disk() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("outside.md");
+        fs::write(&path, "one\r\ntwo\r\n").unwrap();
+
+        let receipt = written(&path, "one\ntwo changed\n", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "one\r\ntwo changed\r\n");
+        assert_eq!(read_external(&path).unwrap().revision, receipt.revision);
+    }
+
+    #[test]
+    fn should_save_a_note_that_mixes_line_endings_in_the_one_most_lines_have() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "a\nb\r\nc\n").unwrap();
+
+        saved(&core, "note.md", "a\nb\nc changed\n", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb\nc changed\n");
+    }
+
+    #[test]
+    fn should_save_carriage_returns_sent_for_a_note_with_line_feeds_as_line_feeds() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "a\nb\n").unwrap();
+
+        saved(&core, "note.md", "a\r\nb changed\r\n", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb changed\n");
+    }
+
+    #[test]
+    fn should_save_a_note_with_line_feeds_as_line_feeds() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "# Saved\n\nbody\n").unwrap();
+
+        saved(&core, "note.md", "# Saved\n\nbody changed\n", None).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# Saved\n\nbody changed\n"
+        );
     }
 
     #[test]

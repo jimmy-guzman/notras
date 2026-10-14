@@ -1,7 +1,5 @@
 import { diff3Merge } from "node-diff3";
 
-export type Newline = "\n" | "\r\n";
-
 export interface Hunk {
   base: string[];
   ours: string[];
@@ -14,7 +12,6 @@ export type ReviewRegion =
 
 export interface MergeConflict {
   kind: "conflict";
-  newline: Newline;
   regions: ReviewRegion[];
 }
 
@@ -22,14 +19,8 @@ export type MergeResult = { content: string; kind: "merged" } | MergeConflict;
 
 export type HunkChoice = "ours" | "theirs" | { edited: string };
 
-const LINE_BREAK = /\r?\n/u;
-
 function lines(text: string) {
-  return text.split(LINE_BREAK);
-}
-
-function newlineOf(text: string): Newline {
-  return text.includes("\r\n") ? "\r\n" : "\n";
+  return text.split("\n");
 }
 
 function chosenLines(hunk: Hunk, choice: HunkChoice) {
@@ -44,15 +35,14 @@ function chosenLines(hunk: Hunk, choice: HunkChoice) {
 }
 
 /**
- * Combine two edits of one base three ways. Lines are the unit, the disk's line
- * ending wins, and identical changes on both sides are not a conflict.
+ * Combine two edits of one base three ways. Lines are the unit, and identical
+ * changes on both sides are not a conflict.
  */
 export function mergeDocuments(
   ours: string,
   base: string,
   theirs: string
 ): MergeResult {
-  const newline = newlineOf(theirs);
   const regions: ReviewRegion[] = diff3Merge(
     lines(ours),
     lines(base),
@@ -77,12 +67,12 @@ export function mergeDocuments(
     return {
       content: regions
         .flatMap((region) => (region.kind === "ok" ? region.lines : []))
-        .join(newline),
+        .join("\n"),
       kind: "merged",
     };
   }
 
-  return { kind: "conflict", newline, regions };
+  return { kind: "conflict", regions };
 }
 
 /** The document a review produces once every hunk has a choice. */
@@ -108,5 +98,5 @@ export function composeResolution(
     }
     output.push(...chosenLines(region, choice));
   }
-  return output.join(conflict.newline);
+  return output.join("\n");
 }
