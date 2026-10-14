@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fs::{self, File};
 use std::io::{self, Read as _, Seek as _, Write as _};
 use std::path::{Component, Path, PathBuf};
@@ -157,11 +156,12 @@ impl NoteFile {
 /// never sees. The frontend holds a file in line feeds alone, so a file that
 /// mixes the two takes the ending most of its lines have, which changes the
 /// fewest of them.
-fn in_line_endings_of<'a>(disk: &str, content: &'a str) -> Cow<'a, str> {
+fn in_line_endings_of(disk: &str, content: &str) -> String {
+    let lines = content.replace("\r\n", "\n");
     if disk.matches("\r\n").count() * 2 > disk.matches('\n').count() {
-        Cow::Owned(content.replace("\r\n", "\n").replace('\n', "\r\n"))
+        lines.replace('\n', "\r\n")
     } else {
-        Cow::Borrowed(content)
+        lines
     }
 }
 
@@ -1386,6 +1386,18 @@ mod tests {
         saved(&core, "note.md", "a\nb\nc changed\n", None).unwrap();
 
         assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb\nc changed\n");
+    }
+
+    #[test]
+    fn should_save_carriage_returns_sent_for_a_note_with_line_feeds_as_line_feeds() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "a\nb\n").unwrap();
+
+        saved(&core, "note.md", "a\r\nb changed\r\n", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb changed\n");
     }
 
     #[test]
