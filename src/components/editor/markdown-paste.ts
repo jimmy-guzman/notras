@@ -2,9 +2,10 @@ import type { Editor, JSONContent } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { keydownHandler } from "@tiptap/pm/keymap";
 import { DOMParser } from "@tiptap/pm/model";
-import type { Fragment, Schema, Slice } from "@tiptap/pm/model";
+import type { Fragment, Schema } from "@tiptap/pm/model";
 import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey, Selection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { nullable, object, parse, parseJson, pipe, string } from "valibot";
 
 import { toast } from "@/components/ui/toast";
@@ -21,12 +22,18 @@ interface PendingPaste {
   selection: SelectionBookmark;
 }
 
-/** A queued paste dispatched again on its turn. */
-interface Replay {
-  event: ClipboardEvent;
-  plain: boolean;
-  source: () => ClipboardSource | null;
-}
+/**
+ * A queued paste dispatched again on its turn: a clipboard paste with the
+ * formats it was made with, or ⌘⌥⇧V's text, which carries no clipboard data.
+ */
+type Replay =
+  | {
+      event: ClipboardEvent;
+      kind: "clipboard";
+      plain: boolean;
+      source: () => ClipboardSource | null;
+    }
+  | { event: ClipboardEvent; kind: "text"; text: string };
 
 /** Save a pasted image, returning the destination the note embeds. */
 export type SaveImage = (image: File) => Promise<string>;
@@ -308,68 +315,69 @@ function contentBySource(
   return editor.markdown && prose ? editor.markdown.parse(text) : null;
 }
 
-async function pasteBySource(
-  editor: Editor,
-  readClipboardSource: ReadClipboardSource,
-  text: string,
-  markdown: boolean,
-  metadata: string,
-  slice: Slice,
-  paste: PendingPaste,
+/**
+ * Whether a paste with something to paste goes through the queue: behind a
+ * pending paste, or alone when it waits on the native clipboard read, so it
+ * lands through a paste event of its own. Tiptap's paste rules judge a paste
+ * by the latest paste event.
+ */
+function takesTurn(
+  clipboardData: DataTransfer,
+  state: EditorState,
   pending: Set<PendingPaste>,
-  previous: Promise<void>
+  readClipboardSource: ReadClipboardSource | null
 ) {
-  try {
-    const [source] = await Promise.all([
-      editorSource(metadata) ?? readClipboardSource(text),
-      previous,
-    ]);
+  const text = clipboardData.getData("text/plain");
+  const waitsOnSource =
+    readClipboardSource !== null &&
+    text !== "" &&
+    state.selection.$from.parent.type.spec.code !== true;
 
-    if (editor.isDestroyed) {
-      return;
-    }
+  return (
+    (text !== "" ||
+      clipboardData.getData("text/html") !== "" ||
+      clipboardData.getData("text/uri-list") !== "") &&
+    (pending.size > 0 || waitsOnSource)
+  );
+}
 
-    const content = contentBySource(editor, source, text, markdown);
-    const chain = editor.chain().command(({ tr }) => {
-      tr.setSelection(paste.selection.resolve(tr.doc));
-      tr.setMeta("paste", true).setMeta("uiEvent", "paste");
-      return true;
-    });
-
-    if (content === null) {
-      chain
-        .command(({ tr }) => {
-          tr.replaceSelection(slice).scrollIntoView();
-          return true;
-        })
-        .run();
-    } else {
-      chain.insertContent(content).run();
-    }
-  } catch (error) {
-    toast.add({
-      description: reasonOf(error),
-      title: "could not paste",
-      type: "error",
-    });
-    await previous;
-
-    if (!editor.isDestroyed) {
-      const { state, view } = editor;
-
-      view.dispatch(
-        state.tr
-          .setSelection(paste.selection.resolve(state.doc))
-          .replaceSelection(slice)
-          .setMeta("paste", true)
-          .setMeta("uiEvent", "paste")
-          .scrollIntoView()
-      );
-    }
-  } finally {
-    pending.delete(paste);
-    await previous;
+/**
+ * Land a queued paste on its turn. ProseMirror's own handler would read Shift
+ * as it is then, so a paste made with Shift held goes through `pasteText`, and
+ * HTML outside code through `pasteHTML`. False leaves it to ProseMirror.
+ */
+function landReplay(view: EditorView, event: ClipboardEvent, replay: Replay) {
+  if (replay.kind === "text") {
+    event.preventDefault();
+    view.pasteText(replay.text);
+    return true;
   }
+
+  const { clipboardData } = event;
+
+  if (clipboardData === null) {
+    throw new Error("A replayed paste has no clipboard data");
+  }
+
+  const text = clipboardData.getData("text/plain");
+  const html = clipboardData.getData("text/html");
+
+  // Code reads the plain text either way.
+  if (replay.plain && text !== "") {
+    event.preventDefault();
+    view.pasteText(text, event);
+    return true;
+  }
+  if (
+    html === "" ||
+    view.state.selection.$from.parent.type.spec.code === true
+  ) {
+    return false;
+  }
+
+  event.preventDefault();
+  view.pasteHTML(html, event);
+  return true;
 }
 
 /** The clipboard formats a paste reads, copied before the event ends. */
@@ -549,6 +557,7 @@ async function pasteImage(
 async function pastePlainText(
   editor: Editor,
   readClipboardText: ReadClipboardText,
+  replay: (text: string) => void,
   paste: PendingPaste,
   pending: Set<PendingPaste>,
   previous: Promise<void>
@@ -566,7 +575,7 @@ async function pastePlainText(
     const { state, view } = editor;
 
     view.dispatch(state.tr.setSelection(paste.selection.resolve(state.doc)));
-    view.pasteText(text);
+    replay(text);
   } catch (error) {
     toast.add({
       description: reasonOf(error),
@@ -626,6 +635,10 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             paste: (view, event) => {
               const { clipboardData } = event;
 
+              if (event === replay?.event) {
+                return landReplay(view, event, replay);
+              }
+
               // ProseMirror leaves a paste during a composition to the
               // browser, which would land it ahead of a pending paste.
               if (
@@ -633,28 +646,6 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 (view.composing && pending.size === 0)
               ) {
                 return false;
-              }
-              if (event === replay?.event) {
-                const text = clipboardData.getData("text/plain");
-                const html = clipboardData.getData("text/html");
-
-                // ProseMirror's own handler would read Shift as it is now.
-                // Code reads the plain text either way.
-                if (replay.plain && text !== "") {
-                  event.preventDefault();
-                  view.pasteText(text, event);
-                  return true;
-                }
-                if (
-                  html === "" ||
-                  view.state.selection.$from.parent.type.spec.code === true
-                ) {
-                  return false;
-                }
-
-                event.preventDefault();
-                view.pasteHTML(html, event);
-                return true;
               }
 
               const text = clipboardData.getData("text/plain");
@@ -696,10 +687,12 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 return true;
               }
               if (
-                pending.size === 0 ||
-                (text === "" &&
-                  clipboardData.getData("text/html") === "" &&
-                  clipboardData.getData("text/uri-list") === "")
+                !takesTurn(
+                  clipboardData,
+                  view.state,
+                  pending,
+                  this.options.readClipboardSource
+                )
               ) {
                 return false;
               }
@@ -721,7 +714,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                     clipboardData: data,
                   });
 
-                  replay = { event: again, plain, source };
+                  replay = { event: again, kind: "clipboard", plain, source };
                   try {
                     view.dom.dispatchEvent(again);
                   } finally {
@@ -750,6 +743,19 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
               previous = pastePlainText(
                 this.editor,
                 this.options.readClipboardText,
+                (text) => {
+                  const again = new ClipboardEvent("paste", {
+                    bubbles: true,
+                    cancelable: true,
+                  });
+
+                  replay = { event: again, kind: "text", text };
+                  try {
+                    this.editor.view.dom.dispatchEvent(again);
+                  } finally {
+                    replay = null;
+                  }
+                },
                 paste,
                 pending,
                 previous
@@ -782,28 +788,10 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             const markdown = html === "" && MARKDOWN_PASTE_PATTERN.test(text);
             const metadata = event.clipboardData.getData("vscode-editor-data");
 
-            const replayed = event === replay?.event ? replay : null;
-
-            if (
-              replayed === null &&
-              this.options.readClipboardSource !== null
-            ) {
-              const paste = { selection: view.state.selection.getBookmark() };
-
-              pending.add(paste);
-              previous = pasteBySource(
-                this.editor,
-                this.options.readClipboardSource,
-                text,
-                markdown,
-                metadata,
-                slice,
-                paste,
-                pending,
-                previous
-              );
-              return true;
-            }
+            const replayed =
+              event === replay?.event && replay.kind === "clipboard"
+                ? replay
+                : null;
 
             try {
               const content = contentBySource(
