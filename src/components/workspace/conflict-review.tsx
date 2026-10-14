@@ -19,7 +19,6 @@ import type {
   HunkChoice,
   MergeConflict,
   MergeResult,
-  Newline,
 } from "@/core/merge";
 import { useHotkeys } from "@/lib/ui/shortcuts";
 
@@ -106,26 +105,21 @@ function Side({ heading, label, lines, onUse, useLabel }: SideProps) {
 interface PlaceProps {
   choice: HunkChoice | undefined;
   hunk: Hunk;
-  newline: Newline;
   number: number;
   onChange: (key: string, choice: HunkChoice) => void;
   resultKey: string;
   total: number;
 }
 
-function chosenText(
-  hunk: Hunk,
-  choice: HunkChoice | undefined,
-  newline: Newline
-) {
+function chosenText(hunk: Hunk, choice: HunkChoice | undefined) {
   if (choice === undefined) {
     return "";
   }
   if (choice === "ours") {
-    return hunk.ours.join(newline);
+    return hunk.ours.join("\n");
   }
   if (choice === "theirs") {
-    return hunk.theirs.join(newline);
+    return hunk.theirs.join("\n");
   }
   return choice.edited;
 }
@@ -133,7 +127,6 @@ function chosenText(
 function Place({
   choice,
   hunk,
-  newline,
   number,
   onChange,
   resultKey,
@@ -178,7 +171,7 @@ function Place({
         onChange={edit}
         placeholder="use one side above, or write the result"
         ref={resultRef}
-        value={chosenText(hunk, choice, newline)}
+        value={chosenText(hunk, choice)}
       />
     </section>
   );
@@ -214,7 +207,6 @@ function reviewRows(
         choice={choice}
         hunk={region}
         key={key}
-        newline={merge.newline}
         number={built.choices.length}
         onChange={setResult}
         resultKey={key}

@@ -55,28 +55,25 @@ const LINE_BREAK = /[\n\r]/u;
  *
  * The rule is deliberately narrow: an existing heading is rewritten, one is
  * never invented by this helper. Prose, lists, quotes, and deeper headings
- * are left alone. Indentation and a CRLF ending are preserved.
+ * are left alone. Indentation is preserved.
  */
 export function retitleLeadingHeading(body: string, title: string) {
   const lines = body.split("\n");
   const index = lines.findIndex((candidate) => candidate.trim() !== "");
-  const raw = index === -1 ? undefined : lines[index];
+  const line = index === -1 ? undefined : lines[index];
 
   // A title carrying a line break would split the heading in two.
-  if (raw === undefined || title === "" || LINE_BREAK.test(title)) {
+  if (line === undefined || title === "" || LINE_BREAK.test(title)) {
     return body;
   }
-
-  const ending = raw.endsWith("\r") ? "\r" : "";
-  const line = raw.slice(0, raw.length - ending.length);
 
   if (!ATX_HEADING.test(line)) {
     return body;
   }
 
-  const next = `${line.slice(0, line.indexOf("#"))}# ${title}${ending}`;
+  const next = `${line.slice(0, line.indexOf("#"))}# ${title}`;
 
-  return next === raw ? body : lines.with(index, next).join("\n");
+  return next === line ? body : lines.with(index, next).join("\n");
 }
 
 /**

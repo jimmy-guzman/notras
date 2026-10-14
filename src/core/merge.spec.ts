@@ -23,7 +23,6 @@ describe("three-way merge", () => {
 
     expect(result).toStrictEqual({
       kind: "conflict",
-      newline: "\n",
       regions: [
         { kind: "ok", lines: ["# Plan", ""] },
         {
@@ -55,21 +54,6 @@ describe("three-way merge", () => {
     expect(result.kind).toBe("conflict");
     expect(mergeDocuments(ours, base, base)).toStrictEqual({
       content: ours,
-      kind: "merged",
-    });
-  });
-
-  it("should join with the line ending of the file on disk", () => {
-    const crlfBase = base.replaceAll("\n", "\r\n");
-    const ours = "# Plan\n\nfirst paragraph, mine\n\nsecond paragraph\n";
-    const theirs = crlfBase.replace(
-      "second paragraph",
-      "second paragraph, theirs"
-    );
-
-    expect(mergeDocuments(ours, crlfBase, theirs)).toStrictEqual({
-      content:
-        "# Plan\r\n\r\nfirst paragraph, mine\r\n\r\nsecond paragraph, theirs\r\n",
       kind: "merged",
     });
   });
