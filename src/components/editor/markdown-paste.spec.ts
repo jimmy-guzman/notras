@@ -310,6 +310,67 @@ describe("markdown paste", () => {
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
 
+    it("should autolink a pending paste that lands after a notras copy was pasted", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const firstData = new DataTransfer();
+      const secondData = new DataTransfer();
+
+      firstData.setData("text/plain", "see https://example.com");
+      firstData.setData("text/html", "<p>see https://example.com</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: firstData })
+      );
+      secondData.setData("text/plain", " copied");
+      secondData.setData("text/html", '<p data-pm-slice="1 1 []"> copied</p>');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: secondData })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe(
+        "see [https://example.com](https://example.com) copied"
+      );
+    });
+
+    it("should keep a URL plain in a pending notras copy that lands after an outside paste", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+        }),
+      });
+      const copy = new DataTransfer();
+      const outside = new DataTransfer();
+
+      copy.setData("text/plain", "see https://example.com");
+      copy.setData(
+        "text/html",
+        '<p data-pm-slice="1 1 []">see https://example.com</p>'
+      );
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: copy })
+      );
+      outside.setData("text/plain", "more");
+      outside.setData("text/html", "<p>more</p>");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: outside })
+      );
+      first.resolve(null);
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe("see https://example.commore");
+    });
+
     it("should keep an HTML-only paste after a pending native paste", async () => {
       const first = Promise.withResolvers<ClipboardSource | null>();
 
@@ -1386,6 +1447,29 @@ describe("markdown paste", () => {
 
       expect(serializeMarkdown(editor)).toBe(
         "see [https://example.com](https://example.com)"
+      );
+    });
+
+    it("should link a pasted URL after a copy out of notras was pasted", async () => {
+      editor = new Editor({
+        content: "",
+        enablePasteRules: ["link"],
+        extensions: createEditorExtensions({
+          readClipboardText: async () => " see https://example.com",
+        }),
+      });
+      const copy = new DataTransfer();
+
+      copy.setData("text/plain", "copied");
+      copy.setData("text/html", '<p data-pm-slice="1 1 []">copied</p>');
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: copy })
+      );
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+      await sleep(0);
+
+      expect(serializeMarkdown(editor)).toBe(
+        "copied see [https://example.com](https://example.com)"
       );
     });
   });
