@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.7](https://github.com/jimmy-guzman/notras/compare/v0.10.6...v0.10.7) (2026-10-15)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 autolink a paste that lands late ([#364](https://github.com/jimmy-guzman/notras/issues/364)) ([ae5aedb](https://github.com/jimmy-guzman/notras/commit/ae5aedb8782316d4efd0d9e4b4f31a792e7f9402))
+* **editor:** 🐛 keep crlf line endings on save ([#361](https://github.com/jimmy-guzman/notras/issues/361)) ([87a7870](https://github.com/jimmy-guzman/notras/commit/87a787063a6632c01a9c13e94997b67f331f8208))
+* **editor:** 🐛 keep tab inside the note ([#363](https://github.com/jimmy-guzman/notras/issues/363)) ([5150e17](https://github.com/jimmy-guzman/notras/commit/5150e178f3d43c768141a6fad24c7f173ed46bb1))
+
 ## [0.10.6](https://github.com/jimmy-guzman/notras/compare/v0.10.5...v0.10.6) (2026-10-12)
 
 
