@@ -451,17 +451,6 @@ function Browser({ notesDir }: { notesDir: string }) {
       }}
     >
       <SidebarHeader>
-        <div className="flex h-7 items-center justify-between px-1">
-          <span className="text-sm font-medium">library</span>
-          <Button
-            aria-label="close note browser"
-            onClick={closeNoteBrowser}
-            size="icon-xs"
-            variant="ghost"
-          >
-            <XIcon />
-          </Button>
-        </div>
         <div hidden={picking}>
           <InputGroup variant="sidebar">
             <InputGroupAddon>

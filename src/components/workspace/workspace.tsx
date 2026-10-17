@@ -11,7 +11,7 @@ import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
 import { NoteBrowser } from "@/components/notes/note-browser";
-import { StatusBar } from "@/components/notes/status-bar";
+import { NoteStatus } from "@/components/notes/note-status";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { Separator } from "@/components/ui/separator";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
 import { NoteSession } from "@/components/workspace/note-session";
@@ -165,7 +166,7 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
   );
 }
 
-interface ActiveStatusBarProps {
+interface ActiveNoteStatusProps {
   graphEnabled: boolean;
   onFilterTag: (tag: string) => void;
   onToggleGraph: () => void;
@@ -173,17 +174,17 @@ interface ActiveStatusBarProps {
   tab: Tab;
 }
 
-function ActiveStatusBar({
+function ActiveNoteStatus({
   graphEnabled,
   onFilterTag,
   onToggleGraph,
   onToggleSource,
   tab,
-}: ActiveStatusBarProps) {
+}: ActiveNoteStatusProps) {
   const snapshot = useTabSnapshot(tab.id);
 
   return (
-    <StatusBar
+    <NoteStatus
       graphEnabled={graphEnabled}
       note={
         tab.kind === "note"
@@ -520,11 +521,6 @@ export function Workspace({
   return (
     <div className="bg-shell flex min-h-0 flex-1 flex-col">
       <Titlebar>
-        <BarButton
-          Icon={PanelLeftIcon}
-          label="browse notes"
-          onClick={toggleNoteBrowser}
-        />
         <TabStrip activeId={activeId} onNew={openDraft} tabs={tabs} />
         <BarButton
           Icon={SearchIcon}
@@ -534,7 +530,7 @@ export function Workspace({
       </Titlebar>
       <SidebarProvider
         open={browserOpen}
-        className="relative mx-1 min-h-0 flex-1 overflow-clip last:mb-1"
+        className="relative mx-1 min-h-0 flex-1 overflow-clip"
       >
         <BrowserPanels>
           <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-clip">
@@ -567,15 +563,25 @@ export function Workspace({
           </div>
         </BrowserPanels>
       </SidebarProvider>
-      {activeTab === undefined ? null : (
-        <ActiveStatusBar
-          graphEnabled={graphMode}
-          onFilterTag={onFilterTag}
-          onToggleGraph={toggleGraphView}
-          onToggleSource={toggleSource}
-          tab={activeTab}
+      <footer className="bg-shell text-muted-foreground flex h-8 shrink-0 items-center gap-1 p-1 text-xs">
+        <BarButton
+          Icon={PanelLeftIcon}
+          label="browse notes"
+          onClick={toggleNoteBrowser}
         />
-      )}
+        {activeTab === undefined ? null : (
+          <>
+            <Separator orientation="vertical" />
+            <ActiveNoteStatus
+              graphEnabled={graphMode}
+              onFilterTag={onFilterTag}
+              onToggleGraph={toggleGraphView}
+              onToggleSource={toggleSource}
+              tab={activeTab}
+            />
+          </>
+        )}
+      </footer>
     </div>
   );
 }

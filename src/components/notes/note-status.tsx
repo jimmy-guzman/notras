@@ -12,7 +12,7 @@ import {
 import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 
-interface StatusBarProps {
+interface NoteStatusProps {
   graphEnabled: boolean;
   /** External files do not belong to the saved library. */
   note?: { path: string; tags: string[] };
@@ -23,7 +23,7 @@ interface StatusBarProps {
   words: number;
 }
 
-export function StatusBar({
+export function NoteStatus({
   graphEnabled,
   note,
   onFilterTag,
@@ -31,7 +31,7 @@ export function StatusBar({
   onToggleSource,
   sourceEnabled,
   words,
-}: StatusBarProps) {
+}: NoteStatusProps) {
   const hasNote = note !== undefined;
   const chordsByName = useChordsByName();
   const toggles = [
@@ -63,7 +63,7 @@ export function StatusBar({
   };
 
   return (
-    <footer className="bg-shell text-muted-foreground flex h-8 shrink-0 items-center gap-1 p-1 text-xs">
+    <>
       {note === undefined ? null : (
         <>
           <NoteTags onFilter={onFilterTag} path={note.path} tags={note.tags} />
@@ -99,6 +99,6 @@ export function StatusBar({
           </Tooltip>
         ))}
       </ToggleGroup>
-    </footer>
+    </>
   );
 }

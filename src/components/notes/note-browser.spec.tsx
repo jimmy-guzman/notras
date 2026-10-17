@@ -103,6 +103,22 @@ function mount(
 }
 
 describe("note browser", () => {
+  it("should toggle the browser from the status strip with no tab open", async () => {
+    const user = mount(() => []);
+    const toggle = within(await screen.findByRole("contentinfo")).getByRole(
+      "button",
+      { name: "browse notes" }
+    );
+    await user.click(toggle);
+    expect(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    ).toBeInTheDocument();
+    await user.click(toggle);
+    expect(
+      screen.queryByRole("complementary", { name: "browse notes" })
+    ).not.toBeInTheDocument();
+  });
+
   it("should list an empty folder without a count", async () => {
     const user = mount(
       () => [
