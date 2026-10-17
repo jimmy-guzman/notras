@@ -68,15 +68,23 @@ describe("native smoke", () => {
 
       try {
         await first.saveScreenshot(path.join(artifacts, "failure.png"));
+      } catch (screenshotError) {
+        await appendFile(
+          path.join(artifacts, "failure.txt"),
+          `\nScreenshot failed: ${String(screenshotError)}`
+        );
+      }
+
+      try {
         await first.tauri.execute(async ({ core }) => {
           await core.invoke("plugin:webview|clear_all_browsing_data", {
             label: "main",
           });
         });
-      } catch (diagnosticError) {
+      } catch (cleanupError) {
         await appendFile(
           path.join(artifacts, "failure.txt"),
-          `\nScreenshot or storage cleanup failed: ${String(diagnosticError)}`
+          `\nStorage cleanup failed: ${String(cleanupError)}`
         );
       }
 
@@ -114,15 +122,23 @@ describe("native smoke", () => {
 
       try {
         await second.saveScreenshot(path.join(artifacts, "failure.png"));
+      } catch (screenshotError) {
+        await appendFile(
+          path.join(artifacts, "failure.txt"),
+          `\nScreenshot failed: ${String(screenshotError)}`
+        );
+      }
+
+      try {
         await second.tauri.execute(async ({ core }) => {
           await core.invoke("plugin:webview|clear_all_browsing_data", {
             label: "main",
           });
         });
-      } catch (diagnosticError) {
+      } catch (cleanupError) {
         await appendFile(
           path.join(artifacts, "failure.txt"),
-          `\nScreenshot or storage cleanup failed: ${String(diagnosticError)}`
+          `\nStorage cleanup failed: ${String(cleanupError)}`
         );
       }
 
