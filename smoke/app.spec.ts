@@ -93,6 +93,11 @@ describe("native smoke", () => {
       await expect
         .poll(async () => await editor.getText(), { timeout: 15_000 })
         .toContain(`Original body. ${marker}`);
+      await second.tauri.execute(async ({ core }) => {
+        await core.invoke("plugin:webview|clear_all_browsing_data", {
+          label: "main",
+        });
+      });
     } catch (error) {
       await writeFile(
         path.join(artifacts, "failure.txt"),
@@ -100,23 +105,20 @@ describe("native smoke", () => {
       );
       try {
         await second.saveScreenshot(path.join(artifacts, "failure.png"));
-      } catch (diagnosticError) {
-        await appendFile(
-          path.join(artifacts, "failure.txt"),
-          `\nScreenshot failed: ${String(diagnosticError)}`
-        );
-      }
-      throw error;
-    } finally {
-      try {
         await second.tauri.execute(async ({ core }) => {
           await core.invoke("plugin:webview|clear_all_browsing_data", {
             label: "main",
           });
         });
-      } finally {
-        await cleanupWdioSession(second);
+      } catch (diagnosticError) {
+        await appendFile(
+          path.join(artifacts, "failure.txt"),
+          `\nScreenshot or storage cleanup failed: ${String(diagnosticError)}`
+        );
       }
+      throw error;
+    } finally {
+      await cleanupWdioSession(second);
     }
   });
 });
