@@ -396,8 +396,14 @@ class DragSelectionView {
   private readonly onPointerDown = (event: PointerEvent) => {
     const { view } = this;
 
-    // One drag, one pointer.
-    if (event.button !== 0 || !event.isPrimary) {
+    // One drag, one pointer. A control inside the selection, a toolbar
+    // button or the language picker, keeps its press, and with it its click.
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      (event.target instanceof Element &&
+        event.target.closest("button, select") !== null)
+    ) {
       return;
     }
 

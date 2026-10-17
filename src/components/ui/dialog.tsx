@@ -7,8 +7,13 @@ import type * as React from "react";
 
 import { Button } from "@/components/ui/button";
 
+// A macOS sheet leaves the title bar live, so the window still moves while
+// a dialog is open. `trap-focus` keeps the focus trap and the outside press
+// and drops Base UI's own full-window backdrop, which would take that press.
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+  return (
+    <DialogPrimitive.Root data-slot="dialog" modal="trap-focus" {...props} />
+  );
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
@@ -31,7 +36,8 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs",
+        // The overlay starts under the 32px title bar of `titlebar.tsx`.
+        "data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-x-0 top-8 bottom-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs",
         className
       )}
       {...props}

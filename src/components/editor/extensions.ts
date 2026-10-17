@@ -72,6 +72,7 @@ import { Wikilink } from "./wikilink";
 export interface EditorExtensionOptions {
   getTitles?: () => string[];
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
+  openDiagram?: (svg: SVGSVGElement) => void;
   openImage?: (image: HTMLImageElement) => void;
   placeholderText?: string;
   readClipboardSource?: ReadClipboardSource;
@@ -1332,7 +1333,7 @@ export function createEditorExtensions(
     }),
     CodeBlockShiki.extend({
       addNodeView() {
-        return codeBlockNodeView;
+        return (props) => codeBlockNodeView(props, options.openDiagram ?? null);
       },
       addProseMirrorPlugins() {
         return [...(this.parent?.() ?? []), editingCodeBlock];

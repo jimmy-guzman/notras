@@ -755,12 +755,15 @@ body.dragging .ProseMirror .selected-text,
   > :is(.code-block-diagram, .code-block-reason) {
   margin-block-start: 0.5em;
 }
-.code-block-diagram {
+.code-block-diagram,
+.viewer-diagram {
   --fg: var(--foreground);
   --accent: var(--foreground);
+}
+.code-block-wrapper > .code-block-diagram {
   cursor: text;
 }
-.code-block-diagram > svg {
+:is(.code-block-diagram, .viewer-diagram) > svg {
   --muted: var(--muted-foreground);
   --xychart-color-1: color-mix(in srgb, var(--fg) 60%, var(--bg));
   --xychart-color-2: color-mix(in srgb, var(--fg) 40%, var(--bg));
@@ -770,7 +773,13 @@ body.dragging .ProseMirror .selected-text,
   max-width: 100%;
   height: auto;
 }
-.code-block-diagram svg text {
+.viewer-diagram {
+  --bg: var(--card);
+}
+.viewer-diagram > svg {
+  width: 100%;
+}
+:is(.code-block-diagram, .viewer-diagram) svg text {
   font-family: var(--font-sans);
 }
 .code-block-reason {

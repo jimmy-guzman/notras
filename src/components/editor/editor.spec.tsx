@@ -19,6 +19,7 @@ import {
   createEditorExtensions,
   serializeMarkdown,
 } from "@/components/editor/extensions";
+import { mermaidSettled } from "@/components/editor/mermaid-diagram";
 import { SENTINEL } from "@/components/editor/sentinel";
 import { Toaster } from "@/components/ui/toast";
 
@@ -129,6 +130,11 @@ const mountImage = async (naturalWidth: number) => {
 
   return { ...mounted, image };
 };
+
+/** The width the viewer gives its content box, in CSS pixels. */
+function viewerWidth(box: HTMLElement) {
+  return Number(box.style.getPropertyValue("--viewer-width").replace("px", ""));
+}
 
 /** A selected image with layout the handle can read, since happy-dom lays nothing out. */
 const mountSelectedImage = async (lineWidth: number) => {
@@ -259,8 +265,6 @@ describe("image viewer", () => {
 
   it("should show a selected image from its open button", async () => {
     const { editor } = await mountImage(1);
-    const dragged = vi.fn<(event: Event) => void>();
-
     const open = within(editor.view.dom).getByRole("button", {
       name: "open image",
     });
@@ -268,12 +272,10 @@ describe("image viewer", () => {
     act(() => {
       editor.commands.setNodeSelection(1);
     });
-    editor.view.dom.addEventListener("pointerdown", dragged);
     fireEvent.pointerDown(open, pointer(1, 10));
     fireEvent.click(open);
 
-    expect(dragged).not.toHaveBeenCalled();
-
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
     expect(
       within(await screen.findByRole("dialog")).getByRole("img", {
         name: "shot",
@@ -343,10 +345,56 @@ describe("image viewer", () => {
     fireEvent.dblClick(image);
 
     expect(
-      within(await screen.findByRole("dialog")).getByRole("img", {
-        name: "shot",
-      })
-    ).toHaveAttribute("style", "--image-width: 500px;");
+      within(await screen.findByRole("dialog"))
+        .getByRole("img", { name: "shot" })
+        .closest("[data-slot='viewer-content']")
+    ).toHaveStyle({ "--viewer-width": "500px" });
+  });
+
+  it("should close the viewer on a click beside the image", async () => {
+    const user = userEvent.setup();
+    const { image } = await mountImage(1000);
+
+    fireEvent.dblClick(image);
+    const dialog = await screen.findByRole("dialog");
+    const beside = within(dialog)
+      .getByRole("img", { name: "shot" })
+      .closest("[data-slot='viewer-content']")?.parentElement;
+
+    if (!(beside instanceof HTMLElement)) {
+      throw new Error("the viewer has no frame");
+    }
+    await user.click(beside);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  it("should close the viewer from its close button", async () => {
+    const user = userEvent.setup();
+    const { image } = await mountImage(1000);
+
+    fireEvent.dblClick(image);
+    const dialog = await screen.findByRole("dialog");
+
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  it("should show zoom controls on an opened image", async () => {
+    const { image } = await mountImage(1000);
+
+    fireEvent.dblClick(image);
+
+    const dialog = within(await screen.findByRole("dialog"));
+
+    expect(dialog.getByRole("button", { name: "zoom in" })).toBeEnabled();
+    expect(dialog.getByRole("button", { name: "zoom out" })).toBeEnabled();
+    expect(dialog.getByRole("button", { name: "reset zoom" })).toBeDisabled();
   });
 
   it("should not open an image that did not load", async () => {
@@ -1206,6 +1254,254 @@ describe("mermaid diagrams", () => {
 
     expect(reason).toHaveClass("code-block-reason");
     expect(screen.queryByRole("img", { name: "diagram" })).toBeNull();
+  });
+
+  it("should show a double-clicked drawing in a dialog", async () => {
+    await mount({ initialContent: FENCE });
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    fireEvent.dblClick(diagram);
+
+    const shown = within(await screen.findByRole("dialog")).getByRole("img", {
+      name: "diagram",
+    });
+
+    expect(shown.tagName).toBe("svg");
+    expect(shown).not.toBe(diagram);
+  });
+
+  it("should show the drawing from its open button", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    await screen.findByRole("img", { name: "diagram" });
+    const open = within(editor.view.dom).getByRole("button", {
+      name: "open diagram",
+    });
+
+    fireEvent.click(open);
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "diagram",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("should show the drawing with ⌘⇧O while the caret is in the fence", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    await screen.findByRole("img", { name: "diagram" });
+
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 1);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "diagram",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("should focus the editor after the dialog closes", async () => {
+    const user = userEvent.setup();
+    const { editor } = await mount({ initialContent: FENCE });
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    fireEvent.dblClick(diagram);
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(editor.view.hasFocus()).toBeTruthy();
+  });
+
+  /** The box the viewer sizes, around the drawing it shows. */
+  const openDrawing = async () => {
+    await mount({ initialContent: FENCE });
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    fireEvent.dblClick(diagram);
+
+    const dialog = await screen.findByRole("dialog");
+    const box = within(dialog)
+      .getByRole("img", { name: "diagram" })
+      .closest("[data-slot='viewer-content']");
+
+    if (!(box instanceof HTMLElement)) {
+      throw new Error("the viewer has no content box");
+    }
+
+    return { box, dialog, drawnWidth: Number(diagram.getAttribute("width")) };
+  };
+
+  it("should open the drawing at its drawn size", async () => {
+    const { box, drawnWidth } = await openDrawing();
+
+    expect(viewerWidth(box)).toBe(drawnWidth);
+  });
+
+  it("should center a drawing smaller than the frame", async () => {
+    const { box } = await openDrawing();
+
+    expect(box.parentElement).toHaveClass(
+      "grid",
+      "place-items-center",
+      "min-h-full",
+      "min-w-full"
+    );
+  });
+
+  it("should zoom the drawing in and out from its buttons", async () => {
+    const user = userEvent.setup();
+    const { box, dialog, drawnWidth } = await openDrawing();
+
+    await user.click(within(dialog).getByRole("button", { name: "zoom in" }));
+
+    expect(viewerWidth(box)).toBeCloseTo(drawnWidth * 1.25);
+
+    await user.click(within(dialog).getByRole("button", { name: "zoom out" }));
+    await user.click(within(dialog).getByRole("button", { name: "zoom out" }));
+
+    expect(viewerWidth(box)).toBeCloseTo(drawnWidth / 1.25);
+  });
+
+  it("should reset the zoom to the drawn size", async () => {
+    const user = userEvent.setup();
+    const { box, dialog, drawnWidth } = await openDrawing();
+    const zoomIn = within(dialog).getByRole("button", { name: "zoom in" });
+
+    await user.click(zoomIn);
+    await user.click(zoomIn);
+    await user.click(
+      within(dialog).getByRole("button", { name: "reset zoom" })
+    );
+
+    expect(viewerWidth(box)).toBe(drawnWidth);
+  });
+
+  it("should focus the frame so the keys pan it", async () => {
+    const { box } = await openDrawing();
+    const frame = box.parentElement?.parentElement;
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(frame);
+    });
+  });
+
+  it("should zoom the drawing with ⌘= and ⌘-", async () => {
+    const user = userEvent.setup();
+    const { box, drawnWidth } = await openDrawing();
+
+    await user.keyboard("{Meta>}={/Meta}");
+
+    expect(viewerWidth(box)).toBeCloseTo(drawnWidth * 1.25);
+
+    await user.keyboard("{Meta>}-{/Meta}");
+
+    expect(viewerWidth(box)).toBe(drawnWidth);
+  });
+
+  it("should zoom with the keys after a zoom button was pressed", async () => {
+    const user = userEvent.setup();
+    const { box, dialog, drawnWidth } = await openDrawing();
+
+    await user.click(within(dialog).getByRole("button", { name: "zoom in" }));
+    await user.keyboard("{Meta>}={/Meta}");
+
+    expect(viewerWidth(box)).toBeCloseTo(drawnWidth * 1.25 * 1.25);
+  });
+
+  it("should land the caret in the fence after opening from the button", async () => {
+    const user = userEvent.setup();
+    const { editor } = await mount({ initialContent: FENCE });
+    await screen.findByRole("img", { name: "diagram" });
+    const end =
+      editor.state.doc.child(0).nodeSize +
+      editor.state.doc.child(1).nodeSize -
+      1;
+
+    await user.click(
+      within(editor.view.dom).getByRole("button", { name: "open diagram" })
+    );
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(editor.state.selection.from).toBe(end);
+  });
+
+  it.each(["graph TD", "xychart-beta"])(
+    "should draw nothing for a fence holding only %s",
+    async (header) => {
+      const { editor } = await mount({
+        initialContent: `before\n\n\`\`\`mermaid\n${header}\n\`\`\``,
+      });
+      await mermaidSettled;
+
+      expect(screen.queryByRole("img", { name: "diagram" })).toBeNull();
+      expect(
+        within(editor.view.dom).queryByRole("button", { name: "open diagram" })
+      ).toBeNull();
+      expect(
+        editor.view.dom.querySelector(".code-block-diagram + pre")
+      ).toBeNull();
+    }
+  );
+
+  it("should show no open button for a fence that does not draw", async () => {
+    const { editor } = await mount({
+      initialContent: "before\n\n```mermaid\npie title Pets\n```",
+    });
+    await screen.findByText(/Invalid mermaid header/u);
+
+    expect(
+      within(editor.view.dom).queryByRole("button", { name: "open diagram" })
+    ).toBeNull();
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 1);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("should keep a toolbar press inside a selection from the drag", async () => {
+    const { editor } = await mount({ initialContent: FENCE });
+    await screen.findByRole("img", { name: "diagram" });
+    // happy-dom lays nothing out, so the press is put inside the fence at the
+    // DOM boundary, where the drag reads the pointer's position.
+    const inside = editor.view.domAtPos(editor.state.doc.child(0).nodeSize + 1);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => editor.view.dom.querySelector(".code-block-wrapper code"),
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offset: inside.offset, offsetNode: inside.node }),
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    act(() => {
+      editor.commands.setTextSelection({
+        from: 1,
+        to: editor.state.doc.content.size - 1,
+      });
+    });
+
+    // The drag claims a press by preventing its default, which costs the
+    // button its click.
+    expect(
+      fireEvent.pointerDown(
+        within(editor.view.dom).getByRole("button", { name: "open diagram" }),
+        pointer(1, 10)
+      )
+    ).toBeTruthy();
   });
 
   it("should insert a mermaid fence from the slash menu", async () => {
