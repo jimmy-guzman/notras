@@ -26,19 +26,24 @@ async function verifyProductionBuild(root: string, artifacts: string) {
     ["tree", "--locked", "-p", "notras", "--edges", "normal"],
     { maxBuffer: 4 * 1024 * 1024 }
   );
+
   await writeFile(
     path.join(artifacts, "production-dependencies.txt"),
     native.stdout
   );
+
   if (native.stdout.includes("tauri-plugin-wdio")) {
     throw new Error(
       "The production dependency graph includes smoke instrumentation."
     );
   }
+
   const output = path.join(root, "production-web");
+
   const web = await exec("pnpm", ["build:web", "--outDir", output], {
     maxBuffer: 4 * 1024 * 1024,
   });
+
   await writeFile(
     path.join(artifacts, "production-build.log"),
     web.stdout + web.stderr
@@ -49,10 +54,12 @@ async function verifyProductionBuild(root: string, artifacts: string) {
       if (!entry.endsWith(".js")) {
         return;
       }
+
       const source = await readFile(
         path.join(output, "assets", entry),
         "utf-8"
       );
+
       if (source.includes("wdioTauri") || source.includes("WDIO Tauri")) {
         throw new Error(
           `The production asset ${entry} includes smoke instrumentation.`
@@ -81,7 +88,9 @@ export async function setup(
   if (process.platform !== "darwin") {
     throw new Error("The native smoke test requires macOS 26 or later.");
   }
+
   const { stdout: version } = await exec("sw_vers", ["-productVersion"]);
+
   if (Number(version.split(".")[0]) < 26) {
     throw new Error(
       `The native smoke test requires macOS 26, found ${version.trim()}.`
@@ -94,14 +103,17 @@ export async function setup(
   const identifier = `codes.jimmy.notras.smoke.r${randomUUID().replaceAll("-", "")}`;
   const library = path.join(run, "notes");
   const artifacts = path.join(run, "artifacts");
+
   const appData = path.join(
     homedir(),
     "Library/Application Support",
     identifier
   );
+
   const appCache = path.join(homedir(), "Library/Caches", identifier);
   const appLogs = path.join(homedir(), "Library/Logs", identifier);
   const note = path.join(library, "smoke-note.md");
+
   const cleanup = async () => {
     await rm(library, { force: true, recursive: true });
     await rm(appData, { force: true, recursive: true });
@@ -150,6 +162,7 @@ export async function setup(
         productName: "notras smoke",
       })
     );
+
     const result = await exec(
       "pnpm",
       [
@@ -171,6 +184,7 @@ export async function setup(
         timeout: 1_200_000,
       }
     );
+
     await writeFile(
       path.join(artifacts, "build.log"),
       result.stdout + result.stderr
@@ -181,6 +195,7 @@ export async function setup(
       dataStore: JSON.stringify([...randomBytes(16)]),
       note,
     });
+
     return async () => {
       try {
         await cp(library, path.join(artifacts, "notes"), { recursive: true });
