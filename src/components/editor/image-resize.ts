@@ -120,15 +120,6 @@ export function imageNodeView(
       },
       { signal }
     );
-    // The editor's drag listens one level up and would take the press of a
-    // selected image's button, and with it the click.
-    toolbar.addEventListener(
-      "pointerdown",
-      (event) => {
-        event.stopPropagation();
-      },
-      { signal }
-    );
     handle.addEventListener(
       "pointerdown",
       (event) => {

@@ -90,7 +90,8 @@ function reasonLine(reason: string) {
 
 /**
  * A `mermaid` fence's drawing, or the reason it has none. Nothing for an
- * empty fence and until the renderer has settled, so a note keeps editing
+ * empty fence, for one holding only its header, for an xy chart with no
+ * series, and until the renderer has settled, so a note keeps editing
  * around it.
  */
 export function drawMermaid(code: string): HTMLElement | undefined {
@@ -108,10 +109,23 @@ export function drawMermaid(code: string): HTMLElement | undefined {
     return reasonLine(drawn.reason);
   }
 
+  const svg = toElement(drawn.svg);
+
+  // A header with nothing under it draws at zero size, and an xy chart with
+  // no series draws a bare grid.
+  const bare =
+    svg.getAttribute("width") === "0" ||
+    (svg.querySelector(".xychart-grid") !== null &&
+      svg.querySelector(".xychart-bar, .xychart-line") === null);
+
+  if (bare) {
+    return undefined;
+  }
+
   const host = document.createElement("div");
   host.className = "code-block-diagram";
   host.contentEditable = "false";
-  host.append(toElement(drawn.svg));
+  host.append(svg);
 
   return host;
 }

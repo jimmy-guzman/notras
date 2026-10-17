@@ -2,10 +2,10 @@ import { getHTMLFromFragment } from "@tiptap/core";
 import type { NodeViewRendererProps } from "@tiptap/core";
 import { Fragment } from "@tiptap/pm/model";
 import type { Node } from "@tiptap/pm/model";
-import { Plugin } from "@tiptap/pm/state";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
 import type { NodeView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
 import { createElement, Fragment as ReactFragment } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -18,7 +18,7 @@ import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-// ProseMirror builds a block where React cannot render, so the two icons
+// ProseMirror builds a block where React cannot render, so the icons
 // render once as the module evaluates, ahead of the app's own render, and
 // are cloned into each block.
 const icons = document.createElement("div");
@@ -28,7 +28,8 @@ createRoot(icons).render(
     ReactFragment,
     null,
     createElement(CopyIcon, { size: 13 }),
-    createElement(CheckIcon, { size: 13 })
+    createElement(CheckIcon, { size: 13 }),
+    createElement(Maximize2Icon, { size: 13 })
   )
 );
 
@@ -70,15 +71,16 @@ export const editingCodeBlock = new Plugin({
 
 /**
  * A code block's toolbar, code and `mermaid` drawing as plain DOM, so the
- * block is whole when the note is first laid out.
+ * block is whole when the note is first laid out. `openDiagram` shows a
+ * drawing bigger; null leaves a drawn fence without its open button.
  */
-export function codeBlockNodeView({
-  getPos,
-  node: mounted,
-  view,
-}: NodeViewRendererProps): NodeView {
+export function codeBlockNodeView(
+  { getPos, node: mounted, view }: NodeViewRendererProps,
+  openDiagram: ((svg: SVGSVGElement) => void) | null
+): NodeView {
   const dom = document.createElement("div");
   const toolbar = document.createElement("div");
+  const openButton = document.createElement("button");
   const copyButton = document.createElement("button");
   const width = document.createElement("span");
   const label = document.createElement("span");
@@ -89,6 +91,10 @@ export function codeBlockNodeView({
   dom.className = "code-block-wrapper";
   toolbar.className = "code-block-toolbar";
   toolbar.contentEditable = "false";
+  openButton.type = "button";
+  openButton.className = "code-block-button";
+  openButton.setAttribute("aria-label", "open diagram");
+  openButton.append(icon(2), "open");
   copyButton.type = "button";
   copyButton.className = "code-block-button";
   copyButton.setAttribute("aria-label", "copy code");
@@ -108,6 +114,7 @@ export function codeBlockNodeView({
   // element under a hidden tab is restyled when it shows again.
   let listed = false;
   let diagram: HTMLElement | undefined;
+  let drawing: SVGSVGElement | null = null;
   let copiedTimer: number | undefined;
   let frame: number | undefined;
   let destroyed = false;
@@ -144,6 +151,15 @@ export function codeBlockNodeView({
 
     if (next !== undefined) {
       pre.before(next);
+    }
+
+    // A reason line stands where a drawing would, with nothing to open.
+    drawing = next?.querySelector("svg") ?? null;
+
+    if (openDiagram !== null && drawing !== null) {
+      toolbar.prepend(openButton);
+    } else {
+      openButton.remove();
     }
   };
 
@@ -198,6 +214,20 @@ export function codeBlockNodeView({
     }
   };
 
+  // The caret moves into the fence first, so closing the viewer lands there
+  // the way it does after a double-click.
+  openButton.addEventListener("click", () => {
+    const pos = getPos();
+
+    if (drawing !== null && pos !== undefined) {
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, pos + node.nodeSize - 1)
+        )
+      );
+      openDiagram?.(drawing);
+    }
+  });
   copyButton.addEventListener("click", () => {
     void copy();
   });

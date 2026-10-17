@@ -23,9 +23,9 @@ import {
   windowSyntaxToScreen,
 } from "@/components/editor/code-block-shiki";
 import { dragRange, isRowRange } from "@/components/editor/move-selection";
-import { ImageDialog } from "@/components/ui/image-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
+import { ViewerDialog } from "@/components/ui/viewer-dialog";
 import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
 import { attachImage } from "@/data/attach-file";
 import { styleNonce } from "@/lib/style-nonce";
@@ -312,19 +312,47 @@ function viewableImage(target: EventTarget | null) {
   return image !== null && image.naturalWidth > 0 ? image : null;
 }
 
-interface ImageViewerState {
-  alt: string;
-  src: string;
-  /** The image's size on this screen, so a 2x screenshot shows at the size it was taken. */
-  width: number;
+/** The drawing in a fence's node view or in a drawing's host, if there is one. */
+function drawingIn(element: Node | null | undefined) {
+  const drawing =
+    element instanceof Element
+      ? element.querySelector(".code-block-diagram > svg, :scope > svg")
+      : null;
+
+  return drawing instanceof SVGSVGElement ? drawing : null;
 }
 
-function viewerStateFor(image: HTMLImageElement): ImageViewerState {
+type ViewerState =
+  | { alt: string; kind: "image"; src: string; width: number }
+  | { kind: "diagram"; svg: SVGSVGElement; width: number };
+
+/** The image at its size on this screen, so a 2x screenshot shows at the size it was taken. */
+function viewerStateFor(image: HTMLImageElement): ViewerState {
   return {
     alt: image.alt,
+    kind: "image",
     src: image.src,
     width: image.naturalWidth / window.devicePixelRatio,
   };
+}
+
+function viewerTitle(viewer: ViewerState) {
+  if (viewer.kind === "diagram") {
+    return "diagram";
+  }
+
+  return viewer.alt === "" ? "image" : viewer.alt;
+}
+
+/** The drawing at the size it was drawn. */
+function viewerStateForDrawing(svg: SVGSVGElement): ViewerState {
+  const width = Number(svg.getAttribute("width"));
+
+  if (!(width > 0)) {
+    throw new Error("The drawing carries no size");
+  }
+
+  return { kind: "diagram", svg, width };
 }
 
 function firstTitle(doc: ProseMirrorNode) {
@@ -545,7 +573,7 @@ export function Editor(mountProps: EditorProps) {
   const [config] = useState(() => mountProps);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
-  const [viewer, setViewer] = useState<ImageViewerState | null>(null);
+  const [viewer, setViewer] = useState<ViewerState | null>(null);
 
   const closeHover = useDebouncer(
     () => {
@@ -638,6 +666,20 @@ export function Editor(mountProps: EditorProps) {
             }
 
             setViewer(viewerStateFor(image));
+
+            return true;
+          }
+
+          const { $from } = selection;
+
+          if ($from.parent.type.name === "codeBlock") {
+            const drawing = drawingIn(instance.view.nodeDOM($from.before()));
+
+            if (drawing === null) {
+              return false;
+            }
+
+            setViewer(viewerStateForDrawing(drawing));
 
             return true;
           }
@@ -771,6 +813,19 @@ export function Editor(mountProps: EditorProps) {
         // `mousedown` ProseMirror counts clicks with. The image is selected
         // again so closing the viewer lands back on it.
         dblclick: (view, event) => {
+          // The first click put the caret at the end of the drawing's code,
+          // so closing the viewer lands in the fence.
+          const drawing =
+            event.target instanceof Element
+              ? drawingIn(event.target.closest(".code-block-diagram"))
+              : null;
+
+          if (drawing !== null) {
+            setViewer(viewerStateForDrawing(drawing));
+
+            return true;
+          }
+
           const image = viewableImage(event.target);
 
           if (image === null) {
@@ -905,6 +960,9 @@ export function Editor(mountProps: EditorProps) {
       ...createEditorExtensions({
         getTitles: config.titles,
         onHistory: config.onHistory,
+        openDiagram: (svg) => {
+          setViewer(viewerStateForDrawing(svg));
+        },
         openImage: (image) => {
           setViewer(viewerStateFor(image));
         },
@@ -1278,15 +1336,40 @@ export function Editor(mountProps: EditorProps) {
         />
       )}
       {viewer === null ? null : (
-        <ImageDialog
-          alt={viewer.alt}
+        <ViewerDialog
           onClosed={() => {
             setViewer(null);
+            const scroller = scrollerRef.current;
+            const top = scroller?.scrollTop;
+
             editorRef.current?.view.focus();
+
+            // WebKit reveals the selection on focus whatever `preventScroll`
+            // says, as the ready handle's focus explains, so the offset goes
+            // back the same way.
+            if (scroller !== null && top !== undefined) {
+              scroller.scrollTop = top;
+            }
           }}
-          src={viewer.src}
+          surface={viewer.kind === "diagram" ? "card" : "none"}
+          title={viewerTitle(viewer)}
           width={viewer.width}
-        />
+        >
+          {viewer.kind === "image" ? (
+            <img
+              alt={viewer.alt}
+              className="h-auto w-full rounded-md"
+              src={viewer.src}
+            />
+          ) : (
+            <div
+              className="viewer-diagram"
+              ref={(host) => {
+                host?.replaceChildren(viewer.svg.cloneNode(true));
+              }}
+            />
+          )}
+        </ViewerDialog>
       )}
     </ScrollArea>
   );

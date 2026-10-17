@@ -252,21 +252,19 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
 - **Never commit directly to `main`.** Branch off `main`, open a PR with `gh pr create`, and squash merge. Squashing keeps one logical change per commit in history, and titles in the commit format double as release notes.
 
-- **PR description uses two sections and nothing else:**
+- **A PR description is prose under bold run-in labels, with no headings:**
 
   ```markdown
-  ## Why
+  Closes #123
 
-  <the problem or need it addresses>
+  **Why.** <The problem: what was wrong, how it showed up, why now.>
 
-  ## What
+  **Approach.** <The decisions the diff does not show.>
 
-  <what changed, in plain terms>
+  **Review.** <What the reviewer should do with this.>
   ```
 
-  Two sections force the description to answer the two questions a reviewer opens with, and a third section pads. Why comes first because it frames how a reviewer reads the change. The no-wrap rule matters more here than anywhere else: GitHub renders every single newline in a PR body as a line break, so a wrapped body arrives as a ragged column.
-
-- **`## Why` also says what happens when the change is wrong and how someone finds out.** The section carries the problem the change addresses. Two more sentences make it answerable: the risk someone accepted, and the signal that fires when the risk lands.
+  The issue reference stands alone on the first line when there is one. Why is required and comes first, since it frames how a reviewer reads the change, and it says what was wrong rather than what changed. Approach holds only what the diff cannot show: the alternative rejected, a departure from the usual pattern, what is out of scope, the one behavior change inside a refactor. Review names the feedback wanted, where to start, and a behavior that was never exercised that a reviewer would assume was covered. A label exists only when its sentence does, so a dependency bump is often a Why alone, and nothing follows Review. A real before and after, a number or a screenshot, sits after the sentence it supports. Keep each paragraph to three sentences or fewer, and the whole body under about 180 words. The no-wrap rule matters more here than anywhere else: GitHub renders every single newline in a PR body as a line break, so a wrapped body arrives as a ragged column.
 
 - **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
 
