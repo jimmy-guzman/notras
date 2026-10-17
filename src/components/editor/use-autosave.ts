@@ -22,13 +22,16 @@ export function useAutosave(persistence: NotePersistence) {
   const state = useSelector(persistence.store);
   useEffect(() => {
     const release = persistence.retain();
+
     const unregister = registerPendingFlush(
       async () => await persistence.flush()
     );
+
     return () => {
       void releaseThenUnregister(release, unregister);
     };
   }, [persistence]);
+
   return {
     ...state,
     changePath: persistence.changePath,

@@ -7,6 +7,7 @@ import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "./find";
 
 const editors: Editor[] = [];
+
 function mount(content: string) {
   const editor = new Editor({
     content,
@@ -14,7 +15,9 @@ function mount(content: string) {
     element: document.createElement("div"),
     extensions: [...createEditorExtensions({}), Find],
   });
+
   editors.push(editor);
+
   return { editor, find: createFindHandle(editor) };
 }
 
@@ -23,6 +26,7 @@ describe("find", () => {
     for (const editor of editors) {
       editor.destroy();
     }
+
     editors.length = 0;
   });
 
@@ -31,6 +35,7 @@ describe("find", () => {
       const { editor, find } = mount(
         "Ada **Love**lace and [Ada Lovelace](a.md).\n\nAda\n\nLovelace"
       );
+
       find.setQuery("ada lovelace");
       expect(find.snapshot()).toStrictEqual({ current: 1, total: 2 });
       expect(
@@ -67,6 +72,7 @@ describe("find", () => {
       const { find } = mount(
         "```ts\nconst atlas = 1;\n```\n\n| a | b |\n| - | - |\n| Atlas | atlas |"
       );
+
       find.setQuery("atlas");
       expect(find.snapshot().total).toBe(3);
       find.setQuery("Atlas atlas");
@@ -117,12 +123,14 @@ describe("find", () => {
     it("should center an off-screen match below the find bar and leave a visible one in place", () => {
       const viewport = document.createElement("div");
       viewport.dataset.slot = "scroll-area-viewport";
+
       const editor = new Editor({
         content: "Atlas",
         contentType: "markdown",
         element: viewport,
         extensions: [...createEditorExtensions({}), Find],
       });
+
       editors.push(editor);
       Object.defineProperty(viewport, "getBoundingClientRect", {
         value: () => ({ bottom: 616, top: 0 }),
@@ -147,12 +155,14 @@ describe("find", () => {
     it("should highlight the matches on screen and the active one while counting every match", () => {
       const viewport = document.createElement("div");
       viewport.dataset.slot = "scroll-area-viewport";
+
       const editor = new Editor({
         content: `atlas\n\natlas\n\n${"x".repeat(600)}\n\natlas`,
         contentType: "markdown",
         element: viewport,
         extensions: [...createEditorExtensions({}), Find],
       });
+
       editors.push(editor);
       Object.defineProperty(viewport, "getBoundingClientRect", {
         value: () => ({ bottom: 600, top: 0 }),
@@ -193,12 +203,14 @@ describe("find", () => {
       const viewport = document.createElement("div");
       viewport.dataset.slot = "scroll-area-viewport";
       document.body.append(viewport);
+
       const editor = new Editor({
         content: `atlas\n\natlas\n\n${"x".repeat(600)}\n\natlas`,
         contentType: "markdown",
         element: viewport,
         extensions: [...createEditorExtensions({}), Find],
       });
+
       editors.push(editor);
       Object.defineProperty(viewport, "getBoundingClientRect", {
         value: () => ({ bottom: 600, top: 0 }),

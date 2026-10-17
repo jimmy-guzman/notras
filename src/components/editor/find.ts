@@ -13,6 +13,7 @@ interface Match {
   from: number;
   to: number;
 }
+
 interface FindState {
   active: number;
   matches: Match[];
@@ -21,10 +22,12 @@ interface FindState {
   /** The positions on screen, or nothing while the editor cannot be measured. */
   screen: Match | undefined;
 }
+
 export interface FindSnapshot {
   current: number;
   total: number;
 }
+
 export interface FindHandle {
   alive: () => boolean;
   /** Focuses the editor with a collapsed caret at the active match's start. */
@@ -47,8 +50,10 @@ function isFindState(value: unknown): value is FindState {
     "query" in value
   );
 }
+
 const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
+
 // The screen is sampled at mid-width, so its first and last lines reach past
 // the sample by up to half a line. A line holds far fewer characters than this.
 const SCREEN_MARGIN = 500;
@@ -70,6 +75,7 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
   block.descendants((node, offset) => {
     if (node.isText) {
       const text = node.textContent;
+
       for (let i = 0; i < text.length; i += 1) {
         units.push({
           from: position + 1 + offset + i,
@@ -79,6 +85,7 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
       }
     } else if (node.isLeaf) {
       const text = node.type.name === "wikilink" ? textOf(node) : "\n";
+
       // Code units, not code points: `match.index` counts the former.
       for (let i = 0; i < text.length; i += 1) {
         units.push({
@@ -88,12 +95,15 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
         });
       }
     }
+
     return !node.isLeaf;
   });
   const text = units.map((unit) => unit.text).join("");
+
   return [...text.matchAll(pattern)].flatMap((match) => {
     const first = units[match.index];
     const last = units[match.index + match[0].length - 1];
+
     return first === undefined || last === undefined
       ? []
       : [{ from: first.from, to: last.to }];
@@ -104,15 +114,19 @@ function matchesIn(doc: Node, query: string | null) {
   if (query === null || query === "") {
     return [];
   }
+
   const pattern = new RegExp(query.replace(REGEXP_SPECIAL, "\\$&"), "giu");
   const matches: Match[] = [];
   doc.descendants((node, position) => {
     if (!node.isTextblock) {
       return true;
     }
+
     matches.push(...blockMatches(node, position, pattern));
+
     return false;
   });
+
   return matches;
 }
 
@@ -129,12 +143,14 @@ function decorations(doc: Node, { active, matches, screen }: FindState) {
       ) {
         return [];
       }
+
       const attributes = {
         class:
           index === active
             ? "note-find-match note-find-active"
             : "note-find-match",
       };
+
       const found = [Decoration.inline(match.from, match.to, attributes)];
       doc.nodesBetween(match.from, match.to, (node, position) => {
         if (node.isAtom && node.isInline) {
@@ -143,6 +159,7 @@ function decorations(doc: Node, { active, matches, screen }: FindState) {
           );
         }
       });
+
       return found;
     })
   );
@@ -159,10 +176,13 @@ function screenOf(view: EditorView) {
 /** Highlights the matches now on screen, after a scroll, a resize or an edit moved it. */
 function highlightScreen(view: EditorView) {
   const state = findKey.getState(view.state);
+
   if (state === undefined || state.query === null) {
     return;
   }
+
   const screen = screenOf(view);
+
   if (screen?.from !== state.screen?.from || screen?.to !== state.screen?.to) {
     view.dispatch(
       view.state.tr
@@ -176,18 +196,23 @@ function revealMatch(editor: Editor) {
   if (editor.isDestroyed) {
     return;
   }
+
   const state = findKey.getState(editor.state);
   const match = state?.matches[state.active];
+
   const viewport = editor.view.dom.closest(
     '[data-slot="scroll-area-viewport"]'
   );
+
   if (match === undefined || !(viewport instanceof HTMLElement)) {
     return;
   }
+
   const rect = editor.view.coordsAtPos(match.from);
   const bounds = viewport.getBoundingClientRect();
   const top = bounds.top + FIND_CLEARANCE;
   const bottom = bounds.bottom - 16;
+
   if (rect.top < top || rect.bottom > bottom) {
     viewport.scrollTop += (rect.top + rect.bottom - top - bottom) / 2;
   }
@@ -196,14 +221,17 @@ function revealMatch(editor: Editor) {
 export function createFindHandle(editor: Editor): FindHandle {
   const { view } = editor;
   let destroyed = view.isDestroyed;
+
   return {
     alive: () => !(destroyed || view.isDestroyed),
     caretToMatch: () => {
       if (view.isDestroyed) {
         return;
       }
+
       const state = findKey.getState(editor.state);
       const match = state?.matches[state.active];
+
       if (match !== undefined) {
         editor.view.dispatch(
           editor.state.tr
@@ -211,13 +239,16 @@ export function createFindHandle(editor: Editor): FindHandle {
             .setMeta("addToHistory", false)
         );
       }
+
       editor.view.focus();
     },
     navigate: (direction) => {
       if (view.isDestroyed) {
         return;
       }
+
       const state = findKey.getState(editor.state);
+
       if (
         state === undefined ||
         state.query === null ||
@@ -225,9 +256,11 @@ export function createFindHandle(editor: Editor): FindHandle {
       ) {
         return;
       }
+
       const active =
         (state.active + direction + state.matches.length) %
         state.matches.length;
+
       editor.view.dispatch(
         editor.state.tr
           .setMeta(findKey, { ...state, active })
@@ -239,15 +272,20 @@ export function createFindHandle(editor: Editor): FindHandle {
       if (view.isDestroyed) {
         return;
       }
+
       const state = findKey.getState(editor.state);
+
       if (state === undefined) {
         return;
       }
+
       const match = state.matches[state.active];
+
       const selection =
         match === undefined
           ? state.prior.resolve(editor.state.doc)
           : TextSelection.create(editor.state.doc, match.from, match.to);
+
       editor.view.dispatch(
         editor.state.tr.setSelection(selection).setMeta("addToHistory", false)
       );
@@ -258,21 +296,28 @@ export function createFindHandle(editor: Editor): FindHandle {
       if (view.isDestroyed) {
         return "";
       }
+
       const { from, to } = editor.state.selection;
+
       return editor.state.doc.textBetween(from, to, "\n", textOf);
     },
     setQuery: (query) => {
       if (view.isDestroyed) {
         return;
       }
+
       const state = findKey.getState(editor.state);
+
       if (state === undefined || state.query === query) {
         return;
       }
+
       const matches = matchesIn(editor.state.doc, query);
+
       const next = matches.findIndex(
         ({ from }) => from >= editor.state.selection.from
       );
+
       editor.view.dispatch(
         editor.state.tr
           .setMeta(findKey, {
@@ -293,6 +338,7 @@ export function createFindHandle(editor: Editor): FindHandle {
       const state = view.isDestroyed
         ? undefined
         : findKey.getState(editor.state);
+
       return {
         current:
           state === undefined || state.matches.length === 0
@@ -303,13 +349,16 @@ export function createFindHandle(editor: Editor): FindHandle {
     },
     subscribe: (listener) => {
       editor.on("transaction", listener);
+
       const onDestroy = () => {
         // Tiptap emits destroy before it destroys the view.
         destroyed = true;
         listener();
       };
+
       editor.on("destroy", onDestroy);
       editor.on("unmount", onDestroy);
+
       return () => {
         editor.off("transaction", listener);
         editor.off("destroy", onDestroy);
@@ -330,6 +379,7 @@ export const Find = Extension.create({
           }),
           decorations: (state) => {
             const find = findKey.getState(state);
+
             return find === undefined
               ? DecorationSet.empty
               : decorations(state.doc, find);
@@ -338,19 +388,25 @@ export const Find = Extension.create({
         state: {
           apply: (transaction, previous) => {
             const meta: unknown = transaction.getMeta(findKey);
+
             if (isFindState(meta)) {
               return meta;
             }
+
             if (!transaction.docChanged) {
               return previous;
             }
+
             const matches = matchesIn(transaction.doc, previous.query);
             const old = previous.matches[previous.active];
+
             const position =
               old === undefined
                 ? transaction.selection.from
                 : transaction.mapping.map(old.from);
+
             const active = matches.findIndex(({ from }) => from >= position);
+
             return {
               active: Math.max(0, active),
               matches,
@@ -372,6 +428,7 @@ export const Find = Extension.create({
         },
         view: (mounted) => {
           let frame = 0;
+
           const schedule = () => {
             if (frame === 0) {
               frame = requestAnimationFrame(() => {
@@ -380,6 +437,7 @@ export const Find = Extension.create({
               });
             }
           };
+
           const follow = ({ target }: Event) => {
             if (
               target === window ||
@@ -389,6 +447,7 @@ export const Find = Extension.create({
               schedule();
             }
           };
+
           document.addEventListener("scroll", follow, {
             capture: true,
             passive: true,
@@ -404,14 +463,17 @@ export const Find = Extension.create({
             update: (view, previous) => {
               const wasOpen = isFindOpen(previous);
               const open = isFindOpen(view.state);
+
               const viewport = view.dom.closest(
                 '[data-slot="scroll-area-viewport"]'
               );
+
               if (wasOpen !== open && viewport instanceof HTMLElement) {
                 // The extra scroll space lets the first line clear the floating bar.
                 // Compensating here keeps opening find from shifting the document.
                 viewport.scrollTop += open ? FIND_CLEARANCE : -FIND_CLEARANCE;
               }
+
               // An edit can pull text on screen without a scroll.
               if (open && previous.doc !== view.state.doc) {
                 schedule();

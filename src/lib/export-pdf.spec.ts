@@ -24,8 +24,10 @@ describe("export pdf", () => {
       if (command === "plugin:dialog|save") {
         return null;
       }
+
       throw new Error(`unexpected command ${command}`);
     });
+
     mockIPC(invoke);
     const surface = surfaceOf("<p>hello</p>");
 
@@ -47,10 +49,12 @@ describe("export pdf", () => {
     let printed:
       | { state: Element | null; text: string | undefined }
       | undefined;
+
     mockIPC((command, args) => {
       if (command === "plugin:dialog|save") {
         return "/exports/hello.pdf";
       }
+
       expect(command).toBe("export_pdf");
       expect(args).toStrictEqual({
         path: "/exports/hello.pdf",
@@ -64,11 +68,14 @@ describe("export pdf", () => {
           ) ?? null,
         text: sheet?.textContent,
       };
+
       return null;
     });
+
     const surface = surfaceOf(
       '<p><span class="note-find-match note-find-active"><span class="selected-text">hello</span></span></p><img class="ProseMirror-selectednode" alt=""><div class="code-block-wrapper code-block-editing"></div>'
     );
+
     surface.classList.add("note-find-open");
 
     await expect(
@@ -89,11 +96,14 @@ describe("export pdf", () => {
     mockIPC((command) => {
       if (command === "plugin:dialog|save") {
         order.push("dialog");
+
         return "/exports/hello.pdf";
       }
+
       printed = document.querySelector(
         ".print-sheet .syntax-token"
       )?.textContent;
+
       return null;
     });
 
@@ -103,6 +113,7 @@ describe("export pdf", () => {
       await released.promise;
       surface.innerHTML = '<pre><span class="syntax-token">const</span></pre>';
     });
+
     await painting.promise;
     expect(order).toStrictEqual(["dialog", "painted"]);
     expect(document.querySelector(".print-sheet")).toBeNull();
@@ -117,10 +128,12 @@ describe("export pdf", () => {
       kind: "failed",
       message: "the pdf could not be written",
     });
+
     mockIPC(async (command) => {
       if (command === "plugin:dialog|save") {
         return "/exports/hello.pdf";
       }
+
       return await refused();
     });
     const surface = surfaceOf("<p>hello</p>");

@@ -78,6 +78,7 @@ function isMeta(value: unknown): value is SyntaxMeta {
 
 function freshBlock(): Block {
   nextBlockId += 1;
+
   return { id: nextBlockId, tokens: [] };
 }
 
@@ -96,6 +97,7 @@ function blockLanguage(node: Node) {
 /** What a block's tokens would be for, or nothing for a plain fence. */
 function blockInput(node: Node) {
   const language = blockLanguage(node);
+
   return language === undefined
     ? undefined
     : `${language}\n${node.textContent}`;
@@ -105,12 +107,15 @@ function remember(input: string, tokens: SyntaxToken[][]) {
   if (remembered.delete(input)) {
     rememberedSize -= input.length;
   }
+
   remembered.set(input, tokens);
   rememberedSize += input.length;
+
   for (const [oldest] of remembered) {
     if (rememberedSize <= REMEMBERED_LIMIT) {
       break;
     }
+
     remembered.delete(oldest);
     rememberedSize -= oldest.length;
   }
@@ -118,9 +123,11 @@ function remember(input: string, tokens: SyntaxToken[][]) {
 
 function syntaxState(state: EditorState) {
   const value = key.getState(state);
+
   if (value === undefined) {
     throw new Error("The syntax plugin is not installed");
   }
+
   return value;
 }
 
@@ -133,24 +140,31 @@ function lineDecorations(
 ) {
   const text = node.textContent;
   const from = Math.max(pos + 1, range?.from ?? 0);
+
   const to = Math.min(
     pos + 1 + text.length,
     range?.to ?? Number.POSITIVE_INFINITY
   );
+
   const decorations: Decoration[] = [];
   let lineStart = pos + 1;
   let index = 0;
+
   for (const line of tokens) {
     if (lineStart > to) {
       break;
     }
+
     const newline = text.indexOf("\n", index);
+
     const lineEnd =
       lineStart + (newline === -1 ? text.length : newline) - index;
+
     if (lineEnd >= from) {
       for (const token of line) {
         const tokenFrom = lineStart + token.offset;
         const tokenTo = tokenFrom + token.length;
+
         // Tokens are for the text the worker saw; a line edited since may be shorter.
         if (tokenTo <= lineEnd) {
           decorations.push(
@@ -162,12 +176,15 @@ function lineDecorations(
         }
       }
     }
+
     if (newline === -1) {
       break;
     }
+
     index = newline + 1;
     lineStart = lineEnd + 1;
   }
+
   return decorations;
 }
 
@@ -181,6 +198,7 @@ function buildDecorations(doc: Node, blocks: Block[], viewport: Range) {
     doc,
     codeBlocks(doc).flatMap((found, index) => {
       const block = blocks[index];
+
       return block === undefined || distance(found, viewport) > 0
         ? []
         : lineDecorations(found.pos, found.node, block.tokens, viewport);
@@ -195,15 +213,19 @@ function carryBlocks(
   previous: Block[]
 ) {
   const carried = new Map<number, Block>();
+
   for (const [index, { pos }] of codeBlocks(previousDoc).entries()) {
     const mapped = transaction.mapping.mapResult(pos);
     const block = previous[index];
+
     if (!mapped.deleted && block !== undefined) {
       carried.set(mapped.pos, block);
     }
   }
+
   return codeBlocks(transaction.doc).map(({ node, pos }) => {
     const block = carried.get(pos);
+
     return block === undefined || blockLanguage(node) === undefined
       ? freshBlock()
       : block;
@@ -221,8 +243,10 @@ function mapDecorations(
   const kept = new Set(
     next.flatMap(({ id, tokens }) => (tokens.length > 0 ? [id] : []))
   );
+
   const obsolete = codeBlocks(previousDoc).flatMap(({ node, pos }, index) => {
     const id = previous[index]?.id;
+
     return id !== undefined && kept.has(id)
       ? []
       : decorations.find(pos, pos + node.nodeSize); // oxlint-disable-line unicorn/no-array-method-this-argument -- a ProseMirror decoration set, not an array
@@ -237,6 +261,7 @@ function applyTransaction(
   previousDoc: Node
 ): SyntaxState {
   let { blocks, decorations, viewport } = state;
+
   if (transaction.docChanged) {
     const next = carryBlocks(transaction, previousDoc, blocks);
     decorations = mapDecorations(
@@ -252,10 +277,13 @@ function applyTransaction(
     };
     blocks = next;
   }
+
   const meta: unknown = transaction.getMeta(key);
+
   if (!isMeta(meta)) {
     return { blocks, decorations, viewport };
   }
+
   for (const { block: id, input, lines, start, tail } of meta.answers) {
     blocks = blocks.map((block) =>
       block.id === id
@@ -271,7 +299,9 @@ function applyTransaction(
         : block
     );
   }
+
   viewport = meta.viewport ?? viewport;
+
   return {
     blocks,
     decorations: buildDecorations(transaction.doc, blocks, viewport),
@@ -287,15 +317,19 @@ function applyTransaction(
  */
 export function measureViewport(view: EditorView): Range | undefined {
   const editor = view.dom.getBoundingClientRect();
+
   const clip = view.dom
     .closest('[data-slot="scroll-area-viewport"]')
     ?.getBoundingClientRect() ?? { bottom: window.innerHeight, top: 0 };
+
   const left = editor.left + editor.width / 2;
   const top = Math.max(editor.top, clip.top) + 1;
   const bottom = Math.min(editor.bottom, clip.bottom) - 1;
+
   if (bottom <= top) {
     return undefined;
   }
+
   return {
     from: view.posAtCoords({ left, top })?.pos ?? 0,
     to:
@@ -327,6 +361,7 @@ function padded(seen: Range, size: number): Range {
 /** Colors what is on screen now, for a view scrolled before its first paint. */
 export function windowSyntaxToScreen(view: EditorView): void {
   const seen = measureViewport(view);
+
   if (seen !== undefined && syntaxState(view.state).blocks.length > 0) {
     setViewport(view, padded(seen, view.state.doc.content.size));
   }
@@ -335,9 +370,11 @@ export function windowSyntaxToScreen(view: EditorView): void {
 /** Resolves once the worker owes no answer. A failed worker owes none, so a print after a failure carries plain code. */
 export async function syntaxSettled(view: EditorView): Promise<void> {
   const settled = settling.get(view);
+
   if (settled === undefined) {
     throw new Error("The syntax plugin is not installed");
   }
+
   await settled();
 }
 
@@ -345,6 +382,7 @@ export async function syntaxSettled(view: EditorView): Promise<void> {
 export function revealSyntax(view: EditorView): () => void {
   const { viewport } = syntaxState(view.state);
   setViewport(view, { from: 0, to: view.state.doc.content.size });
+
   return () => {
     setViewport(view, viewport);
   };
@@ -362,14 +400,18 @@ function syntaxPlugin() {
       init: (_, state) => {
         const blocks = codeBlocks(state.doc).map(({ node }) => {
           const input = blockInput(node);
+
           const tokens =
             input === undefined ? undefined : remembered.get(input);
+
           return tokens === undefined
             ? freshBlock()
             : { ...freshBlock(), input, tokens };
         });
+
         // A fresh editor opens at the top.
         const viewport = { from: 0, to: WINDOW };
+
         return {
           blocks,
           decorations: buildDecorations(state.doc, blocks, viewport),
@@ -396,10 +438,13 @@ function syntaxPlugin() {
         if (failed) {
           return;
         }
+
         outstanding += 1;
         jobs.set(job.document, job);
+
         try {
           const splice = await highlightCode(job);
+
           if (live && splice !== undefined) {
             answers.push({
               block: job.document,
@@ -416,9 +461,11 @@ function syntaxPlugin() {
               type: "error",
             });
           }
+
           failed = true;
         } finally {
           outstanding -= 1;
+
           if (jobs.get(job.document) === job) {
             jobs.delete(job.document);
           }
@@ -433,9 +480,11 @@ function syntaxPlugin() {
       ) {
         const { blocks } = syntaxState(view.state);
         const showing = isShowing(view);
+
         for (const [index, found] of codeBlocks(view.state.doc).entries()) {
           const block = blocks[index];
           const language = blockLanguage(found.node);
+
           if (
             block !== undefined &&
             language !== undefined &&
@@ -457,16 +506,21 @@ function syntaxPlugin() {
       /** A scrolled-to block moves up the queue; one on a tab switched away from moves down. */
       function refreshJobs(seen: Range | undefined, moved: boolean) {
         const showing = isShowing(view);
+
         for (const job of jobs.values()) {
           job.showing = showing;
         }
+
         if (!moved || seen === undefined) {
           return;
         }
+
         const { blocks } = syntaxState(view.state);
+
         for (const [index, found] of codeBlocks(view.state.doc).entries()) {
           const id = blocks[index]?.id;
           const job = id === undefined ? undefined : jobs.get(id);
+
           if (job !== undefined) {
             job.distance = distance(found, seen);
           }
@@ -481,6 +535,7 @@ function syntaxPlugin() {
         // measures, and the next frame tries again.
         follow &&= seen === undefined;
         const { blocks, viewport } = syntaxState(view.state);
+
         if (!started) {
           started = true;
           request(
@@ -489,16 +544,20 @@ function syntaxPlugin() {
             false
           );
         }
+
         const around =
           seen === undefined
             ? undefined
             : padded(seen, view.state.doc.content.size);
+
         const moved =
           around !== undefined &&
           (Math.abs(around.from - viewport.from) > WINDOW / 4 ||
             Math.abs(around.to - viewport.to) > WINDOW / 4);
+
         refreshJobs(seen, moved);
         const landed = answers.splice(0);
+
         if (landed.length > 0 || moved) {
           view.dispatch(
             view.state.tr
@@ -509,10 +568,12 @@ function syntaxPlugin() {
               .setMeta("addToHistory", false)
           );
         }
+
         if (outstanding === 0) {
           settled?.resolve(undefined);
           settled = undefined;
         }
+
         if (outstanding > 0 || (follow && blocks.length > 0)) {
           frame = requestAnimationFrame(tick);
         }
@@ -556,8 +617,10 @@ function syntaxPlugin() {
           settled?.resolve(undefined);
           document.removeEventListener("scroll", onScroll, { capture: true });
           const { blocks } = syntaxState(last);
+
           for (const [index, { node }] of codeBlocks(last.doc).entries()) {
             const block = blocks[index];
+
             if (
               block?.input !== undefined &&
               block.input === blockInput(node)
@@ -568,13 +631,16 @@ function syntaxPlugin() {
         },
         update(current, previous) {
           last = current.state;
+
           if (!started || current.state.doc === previous.doc) {
             return;
           }
+
           // ProseMirror shares unchanged nodes, even when edits shift their position.
           const unchanged = new Set(
             codeBlocks(previous.doc).map(({ node }) => node)
           );
+
           request(
             (node) => !unchanged.has(node),
             syntaxState(current.state).viewport,
@@ -596,17 +662,21 @@ export const CodeBlockShiki = CodeBlock.extend({
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";
+
     const language = hasString(node.attrs, "language")
       ? node.attrs.language
       : "";
+
     // Backtick fences cannot carry a backtick in their info string.
     const marker = language.includes("`") ? "~" : "`";
     // A literal fence in an example must not close the block enclosing it.
     const runs = body.match(marker === "~" ? TILDE_RUN : BACKTICK_RUN) ?? [];
     let length = 3;
+
     for (const run of runs) {
       length = Math.max(length, run.length + 1);
     }
+
     const fence = marker.repeat(length);
 
     return [`${fence}${language}`, body, fence].join("\n");

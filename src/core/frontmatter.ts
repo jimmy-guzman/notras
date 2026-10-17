@@ -110,6 +110,7 @@ function readKeyLine(frontmatter: Frontmatter, line: string) {
   if (line.trimStart() !== line) {
     return false;
   }
+
   const separator = line.indexOf(":");
 
   if (separator === -1) {
@@ -125,6 +126,7 @@ function readKeyLine(frontmatter: Frontmatter, line: string) {
 
       return false;
     }
+
     case "tags": {
       if (value === "") {
         return true;
@@ -134,11 +136,13 @@ function readKeyLine(frontmatter: Frontmatter, line: string) {
 
       return false;
     }
+
     case "title": {
       frontmatter.title = cleanTitle(value);
 
       return false;
     }
+
     default: {
       return false;
     }
@@ -162,6 +166,7 @@ function withoutOwnKeys(rawLines: string[]) {
     if (trimmed.trimStart() !== trimmed) {
       return true;
     }
+
     const separator = trimmed.indexOf(":");
 
     if (separator === -1) {
@@ -196,6 +201,7 @@ export function parseNote(content: string): ParsedNote {
   }
 
   const lines = content.split("\n");
+
   const closeIndex = lines.findIndex(
     (line, index) => index > 0 && CLOSING_DELIMITERS.has(line.trimEnd())
   );
@@ -209,6 +215,7 @@ export function parseNote(content: string): ParsedNote {
   const rawLines = lines.slice(1, closeIndex).map(stripTrailingCR);
   const close = stripTrailingCR(lines[closeIndex] ?? "---");
   const body = lines.slice(closeIndex + 1).join("\n");
+
   const frontmatter: Frontmatter = {
     pinned: false,
     tags: [],
@@ -290,6 +297,7 @@ export function updateFrontmatter(
   }
 
   const blockLines = [...ownLines, ...foreignLines];
+
   const arrivedEmpty =
     parsed.raw !== undefined && parsed.raw.lines.length === 0;
 

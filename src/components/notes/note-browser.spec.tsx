@@ -26,22 +26,28 @@ function mount(
     if (command === "get_notes_dir") {
       return "/notes";
     }
+
     if (command === "index_status") {
       return { state: "ready" };
     }
+
     if (command === "list_notes") {
       const { filters } = parse(
         object({ filters: object({ query: nullable(string()) }) }),
         args
       );
+
       return await list(filters.query);
     }
+
     if (command === "list_folders") {
       if (folders !== undefined) {
         return folders();
       }
+
       // A disk holding these notes holds their folders and every ancestor.
       const notes = await list(null);
+
       return [
         ...new Set(
           notes.flatMap(({ folder }) =>
@@ -53,6 +59,7 @@ function mount(
         ),
       ];
     }
+
     if (command === "read_note") {
       return {
         content: "# Opened\n\nDocument body",
@@ -60,9 +67,11 @@ function mount(
         updatedAt: 1,
       };
     }
+
     if (command === "read_conflict") {
       return null;
     }
+
     if (
       [
         "list_tags",
@@ -73,42 +82,52 @@ function mount(
     ) {
       return [];
     }
+
     if (command.startsWith("plugin:")) {
       return 0;
     }
+
     throw new Error(`unexpected command: ${command}`);
   });
+
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+
   const view = render(
     <QueryClientProvider client={client}>
       <Layout />
       <Toaster />
     </QueryClientProvider>
   );
+
   onTestFinished(() => {
     view.unmount();
     closeNoteBrowser();
+
     for (const tab of getTabState().tabs) {
       closeTab(tab.id);
     }
+
     client.clear();
     clearMocks();
     localStorage.clear();
   });
+
   return Object.assign(userEvent.setup(), { client });
 }
 
 describe("note browser", () => {
   it("should toggle the browser from the status strip with no tab open", async () => {
     const user = mount(() => []);
+
     const toggle = within(await screen.findByRole("contentinfo")).getByRole(
       "button",
       { name: "browse notes" }
     );
+
     await user.click(toggle);
     expect(
       await screen.findByRole("complementary", { name: "browse notes" })
@@ -135,12 +154,15 @@ describe("note browser", () => {
       ],
       () => ["inbox", "work"]
     );
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.click(
       browser.getByRole("button", { name: "choose collection: all notes" })
     );
@@ -155,6 +177,7 @@ describe("note browser", () => {
 
   it("should show all notes and say so when the chosen folder is deleted", async () => {
     let folders = ["inbox", "work"];
+
     const user = mount(
       () => [
         {
@@ -170,12 +193,15 @@ describe("note browser", () => {
       ],
       () => folders
     );
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.click(
       browser.getByRole("button", { name: "choose collection: all notes" })
     );
@@ -222,14 +248,18 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     await screen.findByRole("heading", { name: "Opened" });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
+
     const browser = await screen.findByRole("complementary", {
       name: "browse notes",
     });
+
     const input = within(browser).getByRole("textbox", {
       name: "search all notes",
     });
+
     expect(input).toHaveFocus();
     await user.type(input, "preview");
     await waitFor(() =>
@@ -238,9 +268,11 @@ describe("note browser", () => {
       ).toHaveAttribute("aria-busy", "false")
     );
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+
     const row = within(browser).getByRole("button", {
       name: /^Two Second preview/u,
     });
+
     await waitFor(() => expect(row).toHaveAttribute("aria-current", "page"));
     await screen.findByRole("heading", { name: "Opened" });
     expect(row).toHaveFocus();
@@ -276,14 +308,17 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     onTestFinished(() => {
       noteFind.close();
     });
     await screen.findByRole("heading", { name: "Opened" });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.type(browser.getByRole("textbox"), "doc");
     await waitFor(() =>
       expect(
@@ -326,14 +361,17 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     onTestFinished(() => {
       noteFind.close();
     });
     await screen.findByRole("heading", { name: "Opened" });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.type(browser.getByRole("textbox"), "doc");
     await waitFor(() =>
       expect(
@@ -380,12 +418,15 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.type(browser.getByRole("textbox"), "Plan");
     await user.click(
       browser.getByRole("button", { name: "choose collection: all notes" })
@@ -447,12 +488,15 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.click(
       browser.getByRole("button", { name: "choose collection: all notes" })
     );
@@ -490,12 +534,15 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.click(
       browser.getByRole("button", { name: "choose collection: all notes" })
     );
@@ -536,13 +583,16 @@ describe("note browser", () => {
         updatedAt: 1,
       },
     ]);
+
     await screen.findByRole("heading", { name: "Opened" });
     rememberNote("/notes", "one.md");
     rememberNote("/notes", "two.md");
     await user.click(screen.getByRole("button", { name: "browse notes" }));
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.click(
       browser.getByRole("button", { name: "choose collection: all notes" })
     );
@@ -576,6 +626,7 @@ describe("note browser", () => {
   it("should retain an empty result while another search is pending and replace it with completed results", async () => {
     const pending = Promise.withResolvers<NoteMeta[]>();
     const requested: string[] = [];
+
     const note: NoteMeta = {
       createdAt: 0,
       folder: "",
@@ -586,19 +637,25 @@ describe("note browser", () => {
       title: "One",
       updatedAt: 1,
     };
+
     const user = mount(async (query) => {
       if (query === "missing more") {
         requested.push(query);
+
         return await pending.promise;
       }
+
       return query !== null && query !== "" ? [] : [note];
     });
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await user.type(browser.getByRole("textbox"), "missing");
     const empty = await browser.findByText("nothing found");
     expect(empty).toBeVisible();
@@ -626,6 +683,7 @@ describe("note browser", () => {
 
   it("should retain rows without a searching message until an empty search completes", async () => {
     const pending = Promise.withResolvers<NoteMeta[]>();
+
     const user = mount(async (query) =>
       query === "missing"
         ? await pending.promise
@@ -642,12 +700,15 @@ describe("note browser", () => {
             },
           ]
     );
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await browser.findByText("One");
     const count = browser.getByRole("status", { name: "note count" });
     expect(count).toHaveTextContent("1");
@@ -672,11 +733,14 @@ describe("note browser", () => {
   it("should keep pending rows inert and show a failed search with retry instead of creation", async () => {
     const pending = Promise.withResolvers<NoteMeta[]>();
     const requested: string[] = [];
+
     const user = mount(async (query) => {
       if (query === "missing" && requested.length === 0) {
         requested.push(query);
+
         return await pending.promise;
       }
+
       return [
         {
           createdAt: 0,
@@ -690,12 +754,15 @@ describe("note browser", () => {
         },
       ];
     });
+
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
     );
+
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
     );
+
     await browser.findByText("One");
     await user.type(browser.getByRole("textbox"), "missing");
     const row = browser.getByRole("button", { name: /^One Preview/u });

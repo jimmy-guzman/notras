@@ -57,6 +57,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
   addProseMirrorPlugins() {
     const { editor } = this;
+
     const suggestion: Omit<SuggestionOptions<string, string>, "editor"> = {
       allowSpaces: true,
       char: "[[",

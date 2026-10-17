@@ -119,27 +119,33 @@ function Welcome({
 
 function RecentNote({ initialTabs }: { initialTabs: TabState }) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
+
   const latest = useQuery({
     ...noteQueries.list(),
     staleTime: Number.POSITIVE_INFINITY,
   });
+
   const opened = useRef(false);
   useEffect(() => {
     if (latest.isSuccess && !opened.current) {
       opened.current = true;
       const note = lastChosenNote(notesDir, latest.data);
+
       if (note !== undefined && getTabState() === initialTabs) {
         openInitialNote(note.path);
       }
     }
   }, [initialTabs, latest.data, latest.isSuccess, notesDir]);
   const indexStatus = useQuery(indexStatusQuery);
+
   const retry = async () => {
     await latest.refetch();
   };
+
   if (latest.isSuccess) {
     return null;
   }
+
   if (latest.isError) {
     return (
       <output className="block p-3 text-center text-sm">
@@ -157,6 +163,7 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
       </output>
     );
   }
+
   return (
     <output className="text-muted-foreground block p-3 text-center text-xs">
       {indexStatus.data?.state === "scanning"
@@ -275,16 +282,20 @@ function BrowserPanels({ children }: { children: ReactNode }) {
     const resize = () => {
       panel.current?.resize(open ? width : 0);
     };
+
     resize();
     let frame = 0;
+
     const observer = new ResizeObserver(() => {
       // The panel group must update its pixel constraints before restoring the saved width.
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(resize);
     });
+
     if (group.current !== null) {
       observer.observe(group.current);
     }
+
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -304,20 +315,27 @@ function BrowserPanels({ children }: { children: ReactNode }) {
         ) {
           return;
         }
+
         const percentage = layout["note-browser"];
+
         if (percentage === undefined) {
           return;
         }
+
         if (percentage === 0) {
           closeNoteBrowser();
+
           return;
         }
+
         const available =
           group.current.clientWidth - separator.current.offsetWidth;
+
         const nextWidth = Math.max(
           200,
           Math.min(480, Math.round((available * percentage) / 100))
         );
+
         setWidth(nextWidth);
         rememberNoteBrowserWidth(nextWidth);
       }}
@@ -444,6 +462,7 @@ export function Workspace({
         }
       }
     };
+
     return () => {
       void dispose();
     };

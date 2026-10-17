@@ -102,6 +102,7 @@ function pairEnd(src: string, from: number, name: string) {
 function inlineHtmlAt(src: string) {
   const tag = TAG.exec(src)?.[0];
   const name = tag === undefined ? "" : (tagName(tag) ?? "");
+
   const opens =
     tag !== undefined &&
     !tag.startsWith("<!") &&

@@ -28,6 +28,7 @@ export function readStored<T>(
     return parsed.success ? parsed.output : undefined;
   } catch (error) {
     void logReadFailure(`${message}: ${reasonOf(error) ?? String(error)}`);
+
     return undefined;
   }
 }

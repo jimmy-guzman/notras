@@ -7,6 +7,7 @@ import { createFindHandle, Find } from "@/components/editor/find";
 import { createFindController } from "./find";
 
 const editors: Editor[] = [];
+
 function mount(content: string) {
   const editor = new Editor({
     content,
@@ -14,7 +15,9 @@ function mount(content: string) {
     element: document.createElement("div"),
     extensions: [...createEditorExtensions({}), Find],
   });
+
   editors.push(editor);
+
   return { editor, handle: createFindHandle(editor) };
 }
 
@@ -23,6 +26,7 @@ describe("find", () => {
     for (const editor of editors) {
       editor.destroy();
     }
+
     editors.length = 0;
   });
   describe("window find controller", () => {

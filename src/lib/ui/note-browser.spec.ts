@@ -41,6 +41,7 @@ describe("note browser startup", () => {
     if (saved !== null) {
       localStorage.setItem("note-browser-open", saved);
     }
+
     const { useNoteBrowser } = await import("@/lib/ui/note-browser");
     const { result } = renderHook(useNoteBrowser);
     expect(result.current).toBe(open);
@@ -51,9 +52,11 @@ describe("note browser startup", () => {
     mockIPC((command, args) => {
       logged.push({ args, command });
     });
+
     const read = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
       throw new DOMException("Storage access is denied", "SecurityError");
     });
+
     onTestFinished(() => {
       read.mockRestore();
       clearMocks();
@@ -78,12 +81,16 @@ describe("note browser startup", () => {
   it("should toggle and report when remembering visibility fails", async () => {
     const { Toaster: FreshToaster } = await import("@/components/ui/toast");
     render(createElement(FreshToaster));
+
     const { toggleNoteBrowser, useNoteBrowser } =
       await import("@/lib/ui/note-browser");
+
     const { result } = renderHook(useNoteBrowser);
+
     const write = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Storage is full", "QuotaExceededError");
     });
+
     onTestFinished(() => {
       write.mockRestore();
     });
@@ -117,9 +124,11 @@ describe("note browser width", () => {
 
   it("should report when remembering the width fails", async () => {
     render(createElement(Toaster));
+
     const write = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Storage is full", "QuotaExceededError");
     });
+
     onTestFinished(() => {
       write.mockRestore();
     });

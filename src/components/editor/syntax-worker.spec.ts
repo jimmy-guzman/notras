@@ -7,6 +7,7 @@ let nextDocument = 0;
 
 function freshDocument() {
   nextDocument += 1;
+
   return nextDocument;
 }
 

@@ -270,6 +270,7 @@ describe("moveRange over a selection", () => {
     const second = editor.state.doc.resolve(
       inside(editor.state.doc, "taskItem", 1)
     ).parent;
+
     const tr = moveRange(
       editor.state,
       range,
@@ -478,6 +479,7 @@ describe(dragRange, () => {
     const editor = load(
       "| a | b |\n| - | - |\n| one | two |\n| three | four |"
     );
+
     const cell = inside(editor.state.doc, "tableCell", 0) - 1;
 
     editor.commands.setCellSelection({ anchorCell: cell, headCell: cell });
@@ -537,6 +539,7 @@ describe(moveText, () => {
     // gap between two blocks resolves to.
     const gap = first + "one two".length + 1;
     const at = textDropTarget(doc, first + 3, first + 7, gap);
+
     const tr =
       at === null ? null : moveText(editor.state, first + 3, first + 7, at);
 
@@ -781,6 +784,7 @@ describe("tables", () => {
       range,
       editor.state.doc.content.size - 1
     );
+
     const moved = moveRange(
       editor.state,
       range,
@@ -836,8 +840,10 @@ describe("tables", () => {
     }
 
     const start = inside(editor.state.doc, "table");
+
     const underHeader =
       start + editor.state.doc.resolve(start).parent.child(0).nodeSize;
+
     const line = dropTarget(editor.state.doc, range, underHeader);
     const tr = moveRange(editor.state, range, underHeader);
 

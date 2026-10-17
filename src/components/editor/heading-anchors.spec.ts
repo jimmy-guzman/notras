@@ -35,18 +35,21 @@ describe(headingAnchors, () => {
         contentType: "markdown",
         extensions: createEditorExtensions({}),
       });
+
       onTestFinished(() => {
         editor.destroy();
       });
 
       const anchors = headingAnchors(editor.state.doc.content);
       expect([...anchors.keys()]).toStrictEqual(expected);
+
       for (const position of anchors.values()) {
         expect(editor.state.doc.resolve(position).parent.type.name).toBe(
           "heading"
         );
         expect(editor.state.doc.resolve(position).parentOffset).toBe(0);
       }
+
       expect([
         ...headingAnchors(editor.state.doc.content).keys(),
       ]).toStrictEqual(expected);

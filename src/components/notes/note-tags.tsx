@@ -73,6 +73,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   // the "create" row. Both are the same kind of string an existing tag is, so
   // selecting either one just adds it.
   const draft = query.trim().toLowerCase();
+
   const items = [
     ...new Set([...counts.keys(), ...tags, ...(draft === "" ? [] : [draft])]),
   ].toSorted();
@@ -81,6 +82,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
     setQuery("");
     // The combobox reports a replacement for its rendered value, so recover the toggled items here.
     const toggled = new Set(nextTags).symmetricDifference(new Set(tags));
+
     try {
       await changeNoteMetadata(path, (current) => ({
         tags: [...new Set(current.tags).symmetricDifference(toggled)],
@@ -97,6 +99,7 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
   const retry = async () => {
     await allTags.refetch();
   };
+
   const hasTags = tags.length > 0;
 
   return (

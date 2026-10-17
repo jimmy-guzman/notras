@@ -18,9 +18,11 @@ export async function nativeCommand<T>(
         { cause: error }
       );
     }
+
     if (isNativeMessage(error)) {
       throw new FileError({ kind: "failed", message: error }, { cause: error });
     }
+
     try {
       await logError(
         error instanceof Error ? (error.stack ?? error.message) : String(error)
@@ -28,6 +30,7 @@ export async function nativeCommand<T>(
     } catch {
       // The caller must still receive the failure if the log sink is unavailable.
     }
+
     throw new Error("An unexpected error", { cause: error });
   }
 }

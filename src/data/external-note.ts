@@ -7,6 +7,7 @@ export async function readExternalNote(path: string) {
   const file = await nativeCommand(
     async () => await commands.readExternal(path)
   );
+
   return {
     content: file.content,
     revision: file.revision,
@@ -24,6 +25,7 @@ export async function writeExternalNote(
   const outcome = await nativeCommand(
     async () => await commands.writeExternal(path, content, name, expected)
   );
+
   return outcome.kind === "committed"
     ? {
         kind: outcome.kind,

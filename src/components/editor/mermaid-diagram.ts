@@ -32,6 +32,7 @@ function draw(render: typeof renderMermaidSVG, code: string) {
 // there may be: a color, a width, or one of the drawing's own variables and
 // fragments, so nothing that could name a resource.
 const PAINTED = ["color", "fill", "stroke", "stroke-width"];
+
 const PAINT =
   /^(?:#[\da-f]{3,8}|[a-z]+|\d+(?:\.\d+)?(?:px|em|%)?|var\(--[\w-]+\)|url\(#[\w-]+\)|(?:rgb|hsl)a?\([\d.,%\s/]+\))$/iu;
 
@@ -40,6 +41,7 @@ function toElement(markup: string) {
     markup,
     "image/svg+xml"
   ).documentElement;
+
   const styles = svg.querySelectorAll("style");
 
   if (styles.length === 0) {
@@ -52,20 +54,25 @@ function toElement(markup: string) {
     // The stylesheet imports Inter from Google Fonts. The policy blocks the
     // fetch and the app names its own face, so only the import goes.
     style.textContent = style.textContent.replaceAll(/@import[^;]*;/gu, "");
+
     if (styleNonce !== undefined) {
       style.setAttribute("nonce", styleNonce);
     }
   }
+
   // The root carries the library's default inks; the stylesheet sets the app's.
   svg.removeAttribute("style");
+
   for (const element of svg.querySelectorAll("*")) {
     for (const name of PAINTED) {
       const value = element.getAttribute(name);
+
       if (value !== null && !PAINT.test(value)) {
         element.removeAttribute(name);
       }
     }
   }
+
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "diagram");
 
@@ -90,6 +97,7 @@ export function drawMermaid(code: string): HTMLElement | undefined {
   if (engine === undefined || code.trim() === "") {
     return undefined;
   }
+
   if ("reason" in engine) {
     return reasonLine(engine.reason);
   }

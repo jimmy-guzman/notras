@@ -100,10 +100,12 @@ function listsOf(items: MarkdownToken[], helpers: MarkdownParseHelpers) {
   for (const item of items) {
     const task = taskOf(item);
     const type = task === null ? "bulletList" : "taskList";
+
     const node =
       task === null
         ? helpers.parseChildren([item])
         : [taskItemOf(item, task, helpers)];
+
     const last = lists.at(-1);
 
     if (last?.type === type && last.content !== undefined) {
@@ -138,6 +140,7 @@ function withWrappedLines(
   const head = helpers.renderChildren([first]);
   const prefix = lead.slice(0, lead.length - head.length);
   const configured = helpers.indent("");
+
   const indent =
     alignToMarker && configured.length < prefix.length
       ? " ".repeat(prefix.length)
@@ -160,6 +163,7 @@ export const NoteListItem = ListItem.extend({
     const tokens = replaceCheckbox(token.tokens ?? [], (checkbox) => [
       { raw: checkbox.raw, text: checkbox.raw, type: "text" },
     ]);
+
     const item = this.parent?.({ ...token, tokens }, helpers) ?? [];
 
     if (Array.isArray(item) || item.content?.[0]?.type === "paragraph") {
@@ -178,6 +182,7 @@ export const NoteListItem = ListItem.extend({
       helpers,
       context.parentType === "orderedList"
     );
+
     const parentAttrs: unknown = context.meta?.parentAttrs;
 
     return (

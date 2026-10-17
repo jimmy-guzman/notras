@@ -14,18 +14,23 @@ describe(SettingsDialog, () => {
     const calls: string[] = [];
     mockIPC((command) => {
       calls.push(command);
+
       if (command === "plugin:dialog|open") {
         return "/new";
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     const unregister = registerPendingFlush(async () => false);
+
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+
     onTestFinished(() => {
       unregister();
       client.clear();

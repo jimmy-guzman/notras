@@ -29,6 +29,7 @@ export function readRecentNotes(notesDir: string): string[] {
 function orderByVisit(notesDir: string, notes: NoteMeta[]) {
   const history = readRecentNotes(notesDir);
   const positions = new Map(history.map((path, index) => [path, index]));
+
   return notes.toSorted(
     (a, b) =>
       (positions.get(a.path) ?? history.length) -
@@ -71,6 +72,7 @@ export function renameRecentNote(
   to: string
 ): void {
   const history = readRecentNotes(notesDir);
+
   if (from !== to && history.includes(from)) {
     writeHistory(
       notesDir,

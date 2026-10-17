@@ -68,6 +68,7 @@ const emptySnapshot = createStore<TabSnapshot | undefined>(undefined);
 let closed: ClosedTab[] = [];
 let chosenTab: string | undefined;
 const loadedNotes = new Map<string, string>();
+
 /** Carets read back at launch, each consumed once by the session that mounts. */
 const restored = new Map<string, number>();
 
@@ -118,6 +119,7 @@ function setState(next: TabState) {
   if (next.activeId !== chosenTab) {
     chosenTab = undefined;
   }
+
   // A tab that left takes both with it. Doing this here rather than at each
   // call site is what covers `openTab` replacing the active tab, where a
   // survivor would let the bars read a destroyed session.
@@ -211,9 +213,11 @@ export async function reclassifyTabs(
   );
 
   let state = getTabState();
+
   for (const [index, tab] of open.entries()) {
     const target = classified[index];
     const current = state.tabs.find((entry) => entry.id === tab.id);
+
     // A tab that moved while the classifier answered keeps where it went.
     if (
       target !== undefined &&
@@ -223,6 +227,7 @@ export async function reclassifyTabs(
       state = reclassifyTab(state, tab.id, target);
     }
   }
+
   setState(state);
 }
 
@@ -251,6 +256,7 @@ export function useTabState() {
 
 export function useTabSnapshot(id: string) {
   const source = useSelector(snapshots, (all) => all[id]);
+
   return useSelector<TabSnapshot | undefined>(source ?? emptySnapshot);
 }
 
@@ -270,6 +276,7 @@ export function registerTabHandles(id: string, next: TabHandles) {
  */
 export function registerTabRefresh(id: string, refresh: () => Promise<void>) {
   refreshers.set(id, refresh);
+
   return () => {
     if (refreshers.get(id) === refresh) {
       refreshers.delete(id);
@@ -291,10 +298,12 @@ export function registerTabSnapshot(
   snapshot: ReadonlyStore<TabSnapshot>
 ) {
   snapshots.setState((prev) => ({ ...prev, [id]: snapshot }));
+
   return () => {
     if (snapshots.state[id] !== snapshot) {
       return;
     }
+
     snapshots.setState((previous) =>
       Object.fromEntries(Object.entries(previous).filter(([key]) => key !== id))
     );
@@ -312,6 +321,7 @@ function newTab(kind: Tab["kind"], path: string): Tab {
 function rememberChosenTab() {
   const tab = getTabState().tabs.find((entry) => entry.id === chosenTab);
   const notesDir = tab === undefined ? undefined : loadedNotes.get(tab.id);
+
   if (tab?.kind === "note" && notesDir !== undefined) {
     chosenTab = undefined;
     rememberNote(notesDir, tab.path);
@@ -322,6 +332,7 @@ function rememberChosenTab() {
 export function registerLoadedNote(id: string, notesDir: string): () => void {
   loadedNotes.set(id, notesDir);
   rememberChosenTab();
+
   return () => {
     loadedNotes.delete(id);
   };
@@ -330,6 +341,7 @@ export function registerLoadedNote(id: string, notesDir: string): () => void {
 /** A failed read cannot turn a later automatic refresh into a visit. */
 export function cancelNoteVisit(id: string): void {
   loadedNotes.delete(id);
+
   if (chosenTab === id) {
     chosenTab = undefined;
   }
@@ -422,6 +434,7 @@ export function closeTabsAfter(id: string) {
   }
 
   const kept = getTabState().tabs.slice(0, index + 1);
+
   const active = kept.some((tab) => tab.id === getTabState().activeId)
     ? getTabState().activeId
     : id;
@@ -455,6 +468,7 @@ export function activateTab(id: string) {
 export function renameTab(id: string, to: string, notesDir: string) {
   const previous = getTabState().tabs.find((tab) => tab.id === id);
   setState(replaceNotePath(getTabState(), id, to));
+
   if (previous?.kind === "draft" && getTabState().activeId === id) {
     chosenTab = undefined;
     rememberNote(notesDir, to);
@@ -469,10 +483,13 @@ export async function changeNoteMetadata(
   const tab = tabs.state.tabs.find(
     (entry) => entry.path === path && entry.kind === "note"
   );
+
   const apply =
     tab === undefined ? undefined : handles.get(tab.id)?.editMetadata;
+
   if (apply === undefined) {
     throw new Error("The note is still opening");
   }
+
   await apply(edit);
 }

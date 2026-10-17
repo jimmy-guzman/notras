@@ -60,6 +60,7 @@ export function CaptureWindow() {
 
     const content = editorRef.current?.getContent() ?? "";
     savingRef.current = true;
+
     if (content.trim() !== "") {
       try {
         await createNote({ content });
@@ -75,6 +76,7 @@ export function CaptureWindow() {
         return;
       }
     }
+
     find.close();
     setSession((current) => current + 1);
     await hideCapture(savingRef);

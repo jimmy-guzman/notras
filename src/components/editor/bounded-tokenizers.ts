@@ -26,6 +26,7 @@ function tableAt(src: string) {
 }
 
 const table = upstream(Table);
+
 // Upstream's newline on each side reads back as an empty paragraph between
 // two tables, one more per save.
 const TABLE_PADDING = /^\n|\n$/gu;

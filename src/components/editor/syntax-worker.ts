@@ -49,24 +49,29 @@ const documents = new Map<number, Tokenized>();
 function remember(document: number, tokenized: Tokenized) {
   documents.delete(document);
   documents.set(document, tokenized);
+
   for (const oldest of documents.keys()) {
     if (documents.size <= DOCUMENT_LIMIT) {
       break;
     }
+
     documents.delete(oldest);
   }
 }
 
 function commonPrefix(a: string[], b: string[]) {
   let n = 0;
+
   while (n < a.length && n < b.length && a[n] === b[n]) {
     n += 1;
   }
+
   return n;
 }
 
 function commonSuffix(a: string[], b: string[], prefix: number) {
   let n = 0;
+
   while (
     n < a.length - prefix &&
     n < b.length - prefix &&
@@ -74,6 +79,7 @@ function commonSuffix(a: string[], b: string[], prefix: number) {
   ) {
     n += 1;
   }
+
   return n;
 }
 
@@ -87,24 +93,31 @@ function tokenizeLine(
 ) {
   // Shiki skips empty lines and strips the carriage return, so this does too.
   const text = line.endsWith("\r") ? line.slice(0, -1) : line;
+
   if (text === "") {
     return { state, tokens: [] };
   }
+
   const { ruleStack, tokens: raw } = grammar.tokenizeLine2(text, state);
   const tokens: SyntaxToken[] = [];
+
   // Pairs of start index and encoded metadata; the last run ends at the line end.
   for (let i = 0; i < raw.length; i += 2) {
     const offset = raw[i];
     const metadata = raw[i + 1];
+
     if (offset === undefined || metadata === undefined) {
       throw new RangeError("The grammar answered an odd token stream");
     }
+
     const end = raw[i + 2] ?? text.length;
     const color = colorOf(metadata);
+
     if (end > offset && color !== undefined) {
       tokens.push({ color, length: end - offset, offset });
     }
   }
+
   return { state: ruleStack, tokens };
 }
 
@@ -127,6 +140,7 @@ function retokenize(
   const states: StateStack[] = [];
   let state = before.states[start - 1] ?? INITIAL;
   let line = start;
+
   while (line < lines.length) {
     const result = tokenizeLine(grammar, colorOf, lines[line] ?? "", state);
     ({ state } = result);
@@ -134,6 +148,7 @@ function retokenize(
     states.push(state);
     line += 1;
     const kept = before.states[line - 1 + shift];
+
     if (
       line >= lines.length - suffix &&
       kept !== undefined &&
@@ -142,7 +157,9 @@ function retokenize(
       break;
     }
   }
+
   const tail = lines.length - line;
+
   return {
     splice: { lines: out, start, tail },
     tokenized: {
@@ -165,21 +182,25 @@ export async function tokenize(
   highlighter ??= loadHighlighter();
   const instance = await highlighter;
   const loaded = new Set(instance.getLoadedLanguages());
+
   // Markdown's YAML grammar is needed before a frontmatter block is closed.
   const missing = [
     language,
     ...(language === "markdown" ? ["yaml"] : []),
     ...guessEmbeddedLanguages(code, language),
   ].filter((name) => name in bundledLanguages && !loaded.has(name));
+
   if (missing.length > 0) {
     await instance.loadLanguage(...missing);
     // Loading a language Markdown embeds rebuilds the Markdown grammar, and
     // every remembered state points into the old one.
     documents.clear();
   }
+
   // The theme's colors are CSS variables, which the color map holds as placeholders.
   const { colorMap, theme } = instance.setTheme("notras");
   const replacements = resolveColorReplacements(theme);
+
   const { splice, tokenized } = retokenize(
     instance.getLanguage(language),
     (metadata) =>
@@ -190,6 +211,7 @@ export async function tokenize(
     documents.get(document),
     code.split("\n")
   );
+
   remember(document, tokenized);
 
   return splice;
@@ -197,11 +219,13 @@ export async function tokenize(
 
 async function respond({ code, document, id, language }: SyntaxRequest) {
   let response: SyntaxResponse;
+
   try {
     response = { id, ...(await tokenize(code, language, document)) };
   } catch (error) {
     response = { error: reasonOf(error) ?? "The grammar failed to load.", id };
   }
+
   // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a worker scope's second argument is a transfer list, not an origin
   self.postMessage(response);
 }

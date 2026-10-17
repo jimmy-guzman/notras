@@ -66,14 +66,18 @@ const mount = async (props: Partial<ComponentProps<typeof Editor>>) => {
 /** The text of the syntax tokens drawn in `role`'s color. */
 function coloredText(editor: TiptapEditor, role: string) {
   return [...editor.view.dom.querySelectorAll(".syntax-token")]
-    .filter((span) => span.getAttribute("style")?.includes(role) === true)
-    .map((span) => span.textContent)
+    .flatMap((span) =>
+      span.getAttribute("style")?.includes(role) === true
+        ? [span.textContent]
+        : []
+    )
     .join("");
 }
 
 /** The view of the editor on the page, found before any handle reports it. */
 function mountedView() {
   const surface = document.querySelector(".ProseMirror");
+
   if (
     surface === null ||
     !("editor" in surface) ||
@@ -81,6 +85,7 @@ function mountedView() {
   ) {
     throw new Error("the editor did not mount");
   }
+
   return surface.editor.view;
 }
 
@@ -92,6 +97,7 @@ function clickAt(
   nodePos: number
 ) {
   const node = editor.state.doc.nodeAt(nodePos);
+
   if (node === null) {
     throw new Error("the clicked node does not exist");
   }
@@ -112,10 +118,13 @@ const mountImage = async (naturalWidth: number) => {
     initialContent: "![shot](attachments/shot.png)",
     resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
   });
+
   const image = mounted.editor.view.dom.querySelector('img[alt="shot"]');
+
   if (!(image instanceof HTMLImageElement)) {
     throw new Error("the image did not render");
   }
+
   Object.defineProperty(image, "naturalWidth", { value: naturalWidth });
 
   return { ...mounted, image };
@@ -127,9 +136,11 @@ const mountSelectedImage = async (lineWidth: number) => {
   const { editor, image } = mounted;
   const paragraph = image.closest("p");
   const handle = editor.view.dom.querySelector(".image-handle");
+
   if (paragraph === null || handle === null) {
     throw new Error("the image did not render in a paragraph with a handle");
   }
+
   Object.defineProperty(paragraph, "clientWidth", { value: lineWidth });
   image.getBoundingClientRect = () =>
     DOMRect.fromRect({
@@ -217,6 +228,7 @@ describe("image resize", () => {
       initialContent: '<img src="attachments/shot.png" alt="shot" width="240">',
       resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
     });
+
     const image = editor.view.dom.querySelector('img[alt="shot"]');
 
     expect(image).toHaveAttribute("width", "240");
@@ -248,6 +260,7 @@ describe("image viewer", () => {
   it("should show a selected image from its open button", async () => {
     const { editor } = await mountImage(1);
     const dragged = vi.fn<(event: Event) => void>();
+
     const open = within(editor.view.dom).getByRole("button", {
       name: "open image",
     });
@@ -362,6 +375,7 @@ describe("link clicks", () => {
     "should open a directly clicked link at text position %s",
     async (pos) => {
       const onNoteLinkClick = vi.fn<(href: string) => void>();
+
       const { editor } = await mount({
         initialContent: "[note](other.md)",
         onNoteLinkClick,
@@ -374,6 +388,7 @@ describe("link clicks", () => {
 
   it("should open a link when clicking its formatted text", async () => {
     const onNoteLinkClick = vi.fn<(href: string) => void>();
+
     const { editor } = await mount({
       initialContent: "[**note**](other.md)",
       onNoteLinkClick,
@@ -385,6 +400,7 @@ describe("link clicks", () => {
 
   it("should open the clicked destination where two links meet", async () => {
     const onNoteLinkClick = vi.fn<(href: string) => void>();
+
     const { editor } = await mount({
       initialContent: "[first](first.md)[second](second.md)",
       onNoteLinkClick,
@@ -398,6 +414,7 @@ describe("link clicks", () => {
 
   it("should open a clicked wikilink pill", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
+
     const { editor } = await mount({
       initialContent: "[[other]]",
       onWikilinkClick,
@@ -409,6 +426,7 @@ describe("link clicks", () => {
 
   it("should leave caret placement to the editor beside a wikilink pill", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
+
     const { editor } = await mount({
       initialContent: "[[other]]",
       onWikilinkClick,
@@ -420,6 +438,7 @@ describe("link clicks", () => {
 
   it("should open a directly clicked relative file link", async () => {
     const onFileLinkClick = vi.fn<(href: string) => void>();
+
     const { editor } = await mount({
       initialContent: "[report](attachments/report.pdf)",
       onFileLinkClick,
@@ -435,9 +454,11 @@ describe("link clicks", () => {
     const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
     mockIPC(invoke);
     onTestFinished(clearMocks);
+
     const { editor } = await mount({
       initialContent: "[site](https://example.com)",
     });
+
     const anchor = screen.getByRole("link");
 
     expect(clickAt(editor, anchor, 3, 1)).toBeTruthy();
@@ -453,9 +474,11 @@ describe("link clicks", () => {
     mockIPC(invoke);
     onTestFinished(clearMocks);
     render(<Toaster />);
+
     const { editor } = await mount({
       initialContent: "[refused](vscode://file/tmp)",
     });
+
     const anchor = screen.getByText("refused");
 
     act(() => {
@@ -475,10 +498,12 @@ describe("link clicks", () => {
 describe("heading links", () => {
   it("should focus a heading when the click starts outside the editor", async () => {
     render(<input aria-label="outside" />);
+
     const { editor } = await mount({
       focusOnMount: false,
       initialContent: "[go](#target)\n\n## Target",
     });
+
     const user = userEvent.setup();
     await user.click(screen.getByRole("textbox", { name: "outside" }));
     expect(editor.isFocused).toBeFalsy();
@@ -492,9 +517,11 @@ describe("heading links", () => {
     "should prevent browser caret movement when clicking %s",
     async (fragment) => {
       render(<Toaster />);
+
       const { editor, scroller } = await mount({
         initialContent: `[go](${fragment})\n\n## Present\n\nlast paragraph`,
       });
+
       const user = userEvent.setup();
       act(() => {
         editor.commands.setTextSelection(editor.state.doc.content.size - 1);
@@ -515,6 +542,7 @@ describe("heading links", () => {
     const { editor, handle } = await mount({
       initialContent: "[go](#d%C3%A9j%C3%A0-vu)\n\n## Old",
     });
+
     act(() => {
       editor.commands.setTextSelection({ from: 5, to: 8 });
       editor.commands.insertContent("Déjà Vu");
@@ -535,9 +563,11 @@ describe("heading links", () => {
 
   it("should report an invalid fragment without changing the selection", async () => {
     render(<Toaster />);
+
     const { editor } = await mount({
       initialContent: "[go](#%FF)\n\n## Heading",
     });
+
     act(() => {
       editor.commands.setTextSelection(2);
     });
@@ -557,9 +587,11 @@ describe("heading links", () => {
       const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
       mockIPC(invoke);
       onTestFinished(clearMocks);
+
       const { editor, handle } = await mount({
         initialContent: "[go](#repeat-1)\n\n## Repeat\n\n## Repeat\n\nafter",
       });
+
       const before = handle.getContent();
       const user = userEvent.setup();
       act(() => {
@@ -583,9 +615,11 @@ describe("heading links", () => {
     mockIPC(invoke);
     onTestFinished(clearMocks);
     render(<Toaster />);
+
     const { editor } = await mount({
       initialContent: "[go](#missing)\n\n## Present",
     });
+
     const user = userEvent.setup();
     act(() => {
       editor.commands.setTextSelection(2);
@@ -603,12 +637,15 @@ describe("heading links", () => {
 describe("focus through the handle", () => {
   it("should keep the viewport where it was when focus reveals the caret", async () => {
     const { editor, handle, scroller } = await mount({ focusOnMount: false });
+
     const viewport = scroller.querySelector<HTMLElement>(
       '[data-slot="scroll-area-viewport"]'
     );
+
     if (viewport === null) {
       throw new Error("the viewport did not mount");
     }
+
     // Fakes WebKit at the DOM boundary: focus reads `preventScroll` the way a
     // supporting engine does and still scrolls the caret into view inside the
     // call. ProseMirror decides once per module, on its first focus, whether
@@ -680,10 +717,12 @@ describe("link hover", () => {
     "should dismiss the preview on a press after %s ms and still open the link",
     async (elapsed) => {
       const onNoteLinkClick = vi.fn<(href: string) => void>();
+
       const { editor } = await mount({
         initialContent: "[note](other.md)",
         onNoteLinkClick,
       });
+
       vi.useFakeTimers();
       onTestFinished(() => {
         vi.useRealTimers();
@@ -877,10 +916,12 @@ describe("link hover", () => {
 
   it("should cancel a pending preview when following a link by keyboard", async () => {
     const onNoteLinkClick = vi.fn<(href: string) => void>();
+
     const { editor } = await mount({
       initialContent: "[note](other.md)",
       onNoteLinkClick,
     });
+
     vi.useFakeTimers();
     onTestFinished(() => {
       vi.useRealTimers();
@@ -931,6 +972,7 @@ describe("document observation", () => {
     const { editor, handle, scroller } = await mount({
       initialContent: "# old\n\nbody",
     });
+
     act(() => {
       editor.commands.setTextSelection(editor.state.doc.content.size - 1);
       editor.commands.insertContent(" plus typing");
@@ -1053,7 +1095,9 @@ describe("code block clipboard", () => {
     const { handle } = await mount({
       initialContent: "```mermaid\ngraph TD\n```",
     });
+
     const user = userEvent.setup();
+
     const language = screen.getByRole<HTMLSelectElement>("combobox", {
       name: "code language",
     });
@@ -1263,6 +1307,7 @@ describe("copy", () => {
     "should copy %s as the text it shows",
     async (_name, initialContent, first, last, text) => {
       const { editor } = await mount({ initialContent });
+
       const copied = copyBetween(
         editor,
         rangeOf(editor, first).from,
@@ -1293,6 +1338,7 @@ describe("copy", () => {
     "should copy %s selected end to end as markdown",
     async (_name, initialContent, first, last, markdown) => {
       const { editor } = await mount({ initialContent });
+
       const copied = copyBetween(
         editor,
         rangeOf(editor, first).from,
@@ -1305,6 +1351,7 @@ describe("copy", () => {
 
   it("should copy a selection across list items as markdown", async () => {
     const { editor } = await mount({ initialContent: "- a\n- b" });
+
     const copied = copyBetween(
       editor,
       rangeOf(editor, "a").from,
@@ -1349,6 +1396,7 @@ describe("copy", () => {
       initialContent: "a ![pic](attachments/x.png) b",
       resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
     });
+
     const copied = copyBetween(
       editor,
       rangeOf(editor, "a").from,
@@ -1373,11 +1421,13 @@ describe("copy", () => {
         documentPath: () => "projects/a.md",
         initialContent: "a ![pic](../attachments/x.png) b",
       });
+
       const copied = copyBetween(
         editor,
         rangeOf(editor, "a").from,
         rangeOf(editor, "b").to
       );
+
       const { editor: pasted, handle } = await mount({
         documentPath: () => target,
         initialContent: "",
@@ -1418,11 +1468,13 @@ describe("copy", () => {
     "should paste %s copied from a note as they read",
     async (_name, initialContent, first, last, markdown) => {
       const { editor } = await mount({ initialContent });
+
       const copied = copyBetween(
         editor,
         rangeOf(editor, first).from,
         rangeOf(editor, last).to
       );
+
       const pasted = new TiptapEditor({
         content: "",
         extensions: createEditorExtensions({}),
@@ -1549,6 +1601,7 @@ describe("image paste", () => {
     mockIPC(invoke);
     onTestFinished(clearMocks);
     render(<Toaster />);
+
     const { editor, handle } = await mount({
       initialContent: "```\ncode\n```",
     });
@@ -1592,10 +1645,13 @@ describe("line breaks", () => {
       focusOnMount: true,
       initialContent: "onetwo",
     });
+
     const selection = document.getSelection();
+
     if (selection === null) {
       throw new Error("the document has no selection");
     }
+
     act(() => {
       editor.commands.setTextSelection(4);
     });
@@ -1628,6 +1684,7 @@ describe("tab", () => {
     "should keep focus in the note and change nothing on %s in a paragraph",
     async (_name, keys) => {
       const user = userEvent.setup();
+
       const { editor, handle } = await mount({
         focusOnMount: true,
         initialContent: "one",
@@ -1642,10 +1699,12 @@ describe("tab", () => {
 
   it("should indent a code block's line two spaces on tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "```\ncode\n```",
     });
+
     act(() => {
       editor.commands.setTextSelection(1);
     });
@@ -1657,10 +1716,12 @@ describe("tab", () => {
 
   it("should indent every line a selection in a code block touches on tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "```\nfoo bar\nbaz\n```",
     });
+
     act(() => {
       editor.commands.setTextSelection({ from: 5, to: 12 });
     });
@@ -1672,10 +1733,12 @@ describe("tab", () => {
 
   it("should outdent every line a selection in a code block touches on shift+tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "```\n  foo  bar\n  baz\n```",
     });
+
     act(() => {
       editor.commands.setTextSelection({ from: 6, to: 16 });
     });
@@ -1687,10 +1750,12 @@ describe("tab", () => {
 
   it("should outdent the caret's line in a code block on shift+tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "```\n  code\n```",
     });
+
     act(() => {
       editor.commands.setTextSelection(rangeOf(editor, "code").from);
     });
@@ -1702,10 +1767,12 @@ describe("tab", () => {
 
   it("should leave out a line a selection in a code block ends at the start of on tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "```\none\ntwo\n```",
     });
+
     act(() => {
       editor.commands.setTextSelection({
         from: rangeOf(editor, "one").from,
@@ -1721,10 +1788,12 @@ describe("tab", () => {
   it("should leave the blocks under a code block alone when a selection runs into them on tab", async () => {
     const user = userEvent.setup();
     const markdown = "```\ncode\n```\n\n# Head\n\npara **bold**";
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: markdown,
     });
+
     act(() => {
       editor.commands.setTextSelection({
         from: 2,
@@ -1739,10 +1808,12 @@ describe("tab", () => {
 
   it("should indent a code block inside a task item rather than nest the item on tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "- [ ] one\n- [ ] two\n\n  ```\n  code\n  ```",
     });
+
     act(() => {
       editor.commands.setTextSelection(rangeOf(editor, "code").from);
     });
@@ -1755,10 +1826,12 @@ describe("tab", () => {
 
   it("should outdent a code block inside a task item rather than lift the item on shift+tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "- [ ] one\n- [ ] two\n\n  ```\n    code\n  ```",
     });
+
     act(() => {
       editor.commands.setTextSelection(rangeOf(editor, "code").from);
     });
@@ -1771,10 +1844,12 @@ describe("tab", () => {
 
   it("should nest a list item on tab", async () => {
     const user = userEvent.setup();
+
     const { editor, handle } = await mount({
       focusOnMount: true,
       initialContent: "- one\n- two",
     });
+
     act(() => {
       editor.commands.setTextSelection(rangeOf(editor, "two").from);
     });
@@ -1786,10 +1861,12 @@ describe("tab", () => {
 
   it("should move to the next table cell on tab", async () => {
     const user = userEvent.setup();
+
     const { editor } = await mount({
       focusOnMount: true,
       initialContent: "| a | b |\n| - | - |\n| 1 | 2 |",
     });
+
     act(() => {
       editor.commands.setTextSelection(rangeOf(editor, "a").from);
     });
@@ -1805,17 +1882,23 @@ describe("document selection mapping", () => {
     const { editor, handle, scroller } = await mount({
       initialContent: "old body",
     });
+
     const manager = editor.markdown;
+
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
     }
+
     const parse = manager.parse.bind(manager);
+
     const failing = vi.spyOn(manager, "parse").mockImplementation((content) => {
       if (content.includes(SENTINEL)) {
         throw new Error("cannot map the selection");
       }
+
       return parse(content);
     });
+
     onTestFinished(() => {
       failing.mockRestore();
     });
@@ -1840,6 +1923,7 @@ describe("document selection mapping", () => {
     const invalid = vi.spyOn(manager, "parse").mockImplementation(() => {
       throw new Error("cannot parse the document");
     });
+
     onTestFinished(() => {
       invalid.mockRestore();
     });
@@ -1852,17 +1936,22 @@ describe("document selection mapping", () => {
 
   it("should hand the session a selection reader instead of converting on every caret move", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
     const onSelect =
       vi.fn<NonNullable<ComponentProps<typeof Editor>["onSelect"]>>();
+
     const { editor } = await mount({
       initialContent: "body",
       onChange,
       onSelect,
     });
+
     const manager = editor.markdown;
+
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
     }
+
     const serialize = vi.spyOn(manager, "serialize");
     onTestFinished(() => {
       serialize.mockRestore();
@@ -1912,14 +2001,17 @@ describe("editor open", () => {
 describe("code block shape", () => {
   it("should hold a code block in its final shape when the editor first measures the note", async () => {
     const codeWhenMeasured: (string | undefined)[] = [];
+
     const rect = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
       .mockImplementation(() => {
         codeWhenMeasured.push(
           document.querySelector(".ProseMirror pre code")?.textContent
         );
+
         return DOMRect.fromRect({ height: 800, width: 600 });
       });
+
     onTestFinished(() => {
       rect.mockRestore();
     });
@@ -1966,11 +2058,14 @@ describe("editor teardown", () => {
     const { editor } = await mount({
       initialContent: "# title\n\n```\nfirst\n```\n\n```\nsecond\n```",
     });
+
     const surface = editor.view.dom;
     const mutations: MutationRecord[] = [];
+
     const observer = new MutationObserver((records) => {
       mutations.push(...records);
     });
+
     observer.observe(surface, { childList: true, subtree: true });
 
     cleanup();
@@ -2014,10 +2109,12 @@ describe("caret on mount", () => {
 
   it("should color the code on screen at mount, before any frame runs", async () => {
     const lines = 3000;
+
     const code = Array.from(
       { length: lines },
       (_, i) => `const landing${i} = ${i};`
     ).join("\n");
+
     const initialContent = `\`\`\`ts\n${code}\n\`\`\``;
     // A first mount leaves the block's tokens cached for the second.
     const first = await mount({ initialContent });
@@ -2028,11 +2125,13 @@ describe("caret on mount", () => {
     vi.useFakeTimers({
       toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
     });
+
     // The screen shows the block's end. happy-dom lays nothing out, so the
     // view's geometry is stubbed at the DOM boundary.
     const rect = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
       .mockReturnValue(DOMRect.fromRect({ height: 800, width: 600 }));
+
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,
       value: () => document.querySelector(".ProseMirror code"),
@@ -2041,9 +2140,11 @@ describe("caret on mount", () => {
       configurable: true,
       value: (_x: number, y: number) => {
         const view = mountedView();
+
         const { node, offset } = view.domAtPos(
           view.state.doc.content.size - 4000 + Math.round((y / 800) * 2000)
         );
+
         return { offset, offsetNode: node };
       },
     });
@@ -2097,6 +2198,7 @@ describe("caret on mount", () => {
 
   it("should keep a restored caret when StrictMode replays the mount", async () => {
     const handles: EditorHandle[] = [];
+
     const { container } = render(
       createElement(
         StrictMode,
@@ -2112,10 +2214,12 @@ describe("caret on mount", () => {
         })
       )
     );
+
     await waitFor(() => {
       expect(handles).toHaveLength(1);
     });
     const surface = container.querySelector(".ProseMirror");
+
     if (
       surface === null ||
       !("editor" in surface) ||
@@ -2123,6 +2227,7 @@ describe("caret on mount", () => {
     ) {
       throw new Error("the editor did not mount");
     }
+
     const { editor } = surface;
 
     expect(editor.getText()).not.toContain(SENTINEL);
@@ -2134,6 +2239,7 @@ describe("caret on mount", () => {
 describe("markdown written elsewhere", () => {
   it("should hand the session an edit that leaves the other blocks as written", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
     const { editor } = await mount({
       initialContent: "first\n\n* one\n* two\n",
       onChange,
@@ -2162,6 +2268,7 @@ describe("markdown written elsewhere", () => {
 
   it("should save a block a replacement left equal the way the replacement wrote it", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
     const { editor, handle } = await mount({
       initialContent: "first\n\n* one\n",
       onChange,
@@ -2181,6 +2288,7 @@ describe("markdown written elsewhere", () => {
 
   it("should keep the newline that ends a note on a list after a replacement", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
     const { editor, handle } = await mount({
       initialContent: "first\n\nsecond\n",
       onChange,
@@ -2219,19 +2327,24 @@ describe("markdown written elsewhere", () => {
 
   it("should land an edit when the serializer throws while carrying it", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
     const { editor } = await mount({
       initialContent: "first\n\n* one\n",
       onChange,
     });
+
     const manager = editor.markdown;
+
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
     }
+
     const renderNode = vi
       .spyOn(manager, "renderNodeToMarkdown")
       .mockImplementationOnce(() => {
         throw new Error("no renderer");
       });
+
     onTestFinished(() => {
       renderNode.mockRestore();
     });
@@ -2248,16 +2361,21 @@ describe("markdown written elsewhere", () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
     const { editor, handle } = await mount({ onChange });
     const manager = editor.markdown;
+
     if (manager === undefined) {
       throw new Error("the editor has no markdown converter");
     }
+
     const original = manager.parse.bind(manager);
+
     const parse = vi.spyOn(manager, "parse").mockImplementation((markdown) => {
       if (markdown === "* one") {
         throw new Error("unreadable");
       }
+
       return original(markdown);
     });
+
     onTestFinished(() => {
       parse.mockRestore();
     });

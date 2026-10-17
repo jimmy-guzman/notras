@@ -274,9 +274,11 @@ describe("markdown round-trip", () => {
 
   it("should keep a list that mixes tasks and bullets in three lists", () => {
     const editor = load("- [ ] a\n- plain\n- [x] c");
+
     const types = editor.state.doc.content.content.map(
       (node) => node.type.name
     );
+
     const saved = serializeMarkdown(editor);
 
     expect(types).toStrictEqual(["taskList", "bulletList", "taskList"]);
@@ -541,6 +543,7 @@ describe("markdown round-trip", () => {
   it("should be stable: serializing twice yields the same text", () => {
     const markdown =
       "# doc\n\n- [x] task\n\n> quote\n\n```ts\nconst a = 1;\n```\n\n[[wiki]] and [link](https://a.b)";
+
     const once = roundtrip(markdown);
     const twice = roundtrip(once);
 
@@ -570,6 +573,7 @@ describe("markdown round-trip", () => {
   it("should never leak nbsp entities into files", () => {
     const markdown =
       "| a | b |\n| --- | --- |\n|  | 2 |\n\nparagraph\n\n- [ ] task";
+
     const output = roundtrip(markdown);
 
     expect(output).not.toContain("&nbsp;");
@@ -615,6 +619,7 @@ describe("image tags", () => {
     const editor = load(
       'before <img src="attachments/x.png" alt="a &quot;b&quot;" width="300"> after'
     );
+
     const image = editor.state.doc.firstChild?.child(1);
 
     expect(image?.type.name).toBe("image");
@@ -984,6 +989,7 @@ describe("markdown the user did not touch", () => {
 
   it("should point a reference link at a definition edited in the same quote", () => {
     const editor = open("> [a][r]\n>\n> [r]: https://a.b\n\nend\n");
+
     const [definition] = findChildren(
       editor.state.doc,
       (node) => node.type.name === "linkDefinition"
@@ -1003,10 +1009,12 @@ describe("markdown the user did not touch", () => {
 
   it("should keep the caret in a definition typed into beside its link", () => {
     const editor = open("> [a][r]\n>\n> [r]: https://a.b\n\nend\n");
+
     const [definition] = findChildren(
       editor.state.doc,
       (node) => node.type.name === "linkDefinition"
     );
+
     const end = (definition?.pos ?? 0) + (definition?.node.nodeSize ?? 0) - 1;
 
     editor.commands.setTextSelection(end);
@@ -1034,6 +1042,7 @@ describe("markdown the user did not touch", () => {
 
   it("should keep a definition that opens a list item inside it when the serializer writes the list", () => {
     const editor = open("- [r]: https://a.b\n- two\n\n[a][r]\n");
+
     const [definition] = findChildren(
       editor.state.doc,
       (node) => node.type.name === "linkDefinition"
@@ -1053,6 +1062,7 @@ describe("markdown the user did not touch", () => {
   it("should keep a list that repeats an earlier definition as written", () => {
     const markdown =
       "[r]: https://first.b\n\n- [a][r]\n\n  [r]: https://second.b\n\npara\n";
+
     const editor = open(markdown);
 
     editor.commands.insertContentAt(editor.state.doc.content.size - 5, "x");
@@ -1079,10 +1089,12 @@ describe("markdown the user did not touch", () => {
 
   it("should keep the other blocks as written when a definition is edited into text", () => {
     const editor = open("[a][r]\n\n* one\n\n[r]: https://a.b\n");
+
     const [definition] = findChildren(
       editor.state.doc,
       (node) => node.type.name === "linkDefinition"
     );
+
     const colon = (definition?.pos ?? 0) + 1 + "[r]".length;
 
     editor.commands.deleteRange({ from: colon, to: colon + 1 });
@@ -1096,6 +1108,7 @@ describe("markdown the user did not touch", () => {
 
   it("should point reference links at a definition typed under another in the same block", () => {
     const editor = open("[a][r] and [b][s]\n\n[r]: https://a.b\n");
+
     const [definition] = findChildren(
       editor.state.doc,
       (node) => node.type.name === "linkDefinition"
@@ -1119,10 +1132,12 @@ describe("markdown the user did not touch", () => {
 
   it("should write a new paragraph's text as typed beside a definition edited into text", () => {
     const editor = open("text\n\n[r]: https://a.b\n");
+
     const [definition] = findChildren(
       editor.state.doc,
       (node) => node.type.name === "linkDefinition"
     );
+
     const colon = (definition?.pos ?? 0) + 1 + "[r]".length;
 
     editor.commands.deleteRange({ from: colon, to: colon + 1 });

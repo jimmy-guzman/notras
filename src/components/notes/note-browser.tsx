@@ -63,9 +63,11 @@ function collectionLabel(collection: Collection) {
   if (collection.kind === "folder") {
     return collection.value;
   }
+
   if (collection.kind === "tag") {
     return `#${collection.value}`;
   }
+
   return collection.kind === "all" ? "all notes" : collection.kind;
 }
 
@@ -91,31 +93,38 @@ function collectionNotes(
   query: string
 ) {
   const visited = new Set(history);
+
   const filtered = notes.filter((note) => {
     switch (collection.kind) {
       case "pinned": {
         return note.pinned;
       }
+
       case "recent": {
         return visited.has(note.path);
       }
+
       case "tag": {
         return note.tags.includes(collection.value);
       }
+
       case "folder": {
         return (
           note.folder === collection.value ||
           note.folder.startsWith(`${collection.value}/`)
         );
       }
+
       case "all": {
         return true;
       }
+
       default: {
         return false;
       }
     }
   });
+
   return collection.kind === "recent" && query.trim() === ""
     ? filtered.toSorted(
         (a, b) => history.indexOf(a.path) - history.indexOf(b.path)
@@ -127,24 +136,32 @@ function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
     return;
   }
+
   const list = event.currentTarget.closest("[data-slot=sidebar-content]");
+
   if (list === null) {
     return;
   }
+
   const buttons = [...list.querySelectorAll("button")].filter(
     (button) => button.closest("details:not([open])") === null
   );
+
   const index = buttons.indexOf(event.currentTarget);
+
   const next = {
     ArrowDown: index + 1,
     ArrowUp: index - 1,
     End: buttons.length - 1,
     Home: 0,
   };
+
   const position = Object.entries(next).find(([key]) => key === event.key)?.[1];
+
   if (position === undefined) {
     return;
   }
+
   event.preventDefault();
   buttons[Math.max(0, Math.min(buttons.length - 1, position))]?.focus();
 }
@@ -156,14 +173,17 @@ const shortDate = new Intl.DateTimeFormat(undefined, {
 
 function editedDate(date: Date) {
   const today = new Date();
+
   if (date.toDateString() === today.toDateString()) {
     return "today";
   }
+
   const yesterday = new Date(
     today.getFullYear(),
     today.getMonth(),
     today.getDate() - 1
   );
+
   return date.toDateString() === yesterday.toDateString()
     ? "yesterday"
     : shortDate.format(date);
@@ -186,8 +206,10 @@ function FolderCollection({
       candidate.folder.slice(0, candidate.folder.lastIndexOf("/")) ===
         folder.folder
   );
+
   const selected =
     collection.kind === "folder" && collection.value === folder.folder;
+
   const row = (
     <SidebarMenuButton
       isActive={selected}
@@ -206,6 +228,7 @@ function FolderCollection({
       )}
     </SidebarMenuButton>
   );
+
   return (
     <SidebarMenuItem>
       {children.length === 0 ? (
@@ -257,11 +280,15 @@ function Collections({
     known.data === undefined || library.data === undefined
       ? []
       : searchFolders(known.data, library.data);
+
   const failure = library.error ?? known.error;
+
   const tags = [
     ...new Set(library.data?.flatMap((note) => note.tags)),
   ].toSorted();
+
   const visited = new Set(history);
+
   const shortcuts = [
     { Icon: LayersIcon, count: library.data?.length, kind: "all" },
     {
@@ -395,6 +422,7 @@ function Browser({ notesDir }: { notesDir: string }) {
   const scopeButton = useRef<HTMLButtonElement>(null);
   const library = useQuery({ ...noteQueries.list(), enabled: open });
   const known = useQuery({ ...noteQueries.folders(), enabled: open });
+
   const result = useQuery({
     ...noteQueries.list({
       includePreview: true,
@@ -404,9 +432,12 @@ function Browser({ notesDir }: { notesDir: string }) {
     enabled: open,
     placeholderData: keepPreviousData,
   });
+
   const status = useQuery({ ...indexStatusQuery, enabled: open });
+
   const pending =
     query !== debounced || result.isLoading || result.isPlaceholderData;
+
   const { deleted, shown } = shownCollection(collection, known.data);
   const label = collectionLabel(shown);
   const notes = collectionNotes(result.data ?? [], shown, history, debounced);
@@ -442,6 +473,7 @@ function Browser({ notesDir }: { notesDir: string }) {
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
+
           if (picking) {
             setPicking(false);
           } else {
@@ -499,6 +531,7 @@ function Browser({ notesDir }: { notesDir: string }) {
                 if (!picking) {
                   setHistory(readRecentNotes(notesDir));
                 }
+
                 setPicking(!picking);
               }}
               ref={scopeButton}
@@ -573,6 +606,7 @@ function Browser({ notesDir }: { notesDir: string }) {
                       if (pending) {
                         return;
                       }
+
                       event.currentTarget.focus();
                       openSearchResult(note, event.metaKey || event.ctrlKey);
                     }}
@@ -631,6 +665,7 @@ function Browser({ notesDir }: { notesDir: string }) {
 export function NoteBrowser() {
   const open = useNoteBrowser();
   const { data: notesDir } = useQuery({ ...notesDirQuery, enabled: open });
+
   return notesDir === undefined ? null : (
     <Browser key={notesDir} notesDir={notesDir} />
   );

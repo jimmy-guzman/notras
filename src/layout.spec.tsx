@@ -40,23 +40,30 @@ describe("layout", () => {
     mockIPC((command) => {
       if (command === "classify_open_paths") {
         classifications += 1;
+
         if (classifications < 3) {
           throw new Error("classify failed");
         }
+
         return [{ kind: "note", path: "chosen.md" }];
       }
+
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "read_conflict") {
         return null;
       }
+
       if (command === "read_note") {
         return {
           content: "# Chosen\n\nAvailable document",
@@ -66,23 +73,29 @@ describe("layout", () => {
           updatedAt: 1,
         };
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -119,48 +132,62 @@ describe("layout", () => {
     );
     mockWindows("main");
     let reads = 0;
+
     let onDisk = {
       content: "# Outside\n\nfirst",
       revision: "r1",
       updatedAt: 1,
     };
+
     mockIPC((command) => {
       if (command === "classify_open_paths") {
         return [{ kind: "external", path }];
       }
+
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "read_conflict") {
         return null;
       }
+
       if (command === "read_external") {
         reads += 1;
+
         return onDisk;
       }
+
       if (command === "take_pending_open") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -208,12 +235,14 @@ describe("layout", () => {
     const calls: string[] = [];
     mockIPC((command, args) => {
       calls.push(command);
+
       if (command === "write_external") {
         return {
           kind: "committed",
           receipt: { path, revision: "r3", updatedAt: 2, warnings: [] },
         };
       }
+
       if (command === "classify_open_paths") {
         return notesDir === "/new"
           ? [
@@ -225,47 +254,62 @@ describe("layout", () => {
               { kind: "note", path: "left.md" },
             ];
       }
+
       if (command === "get_notes_dir") {
         return notesDir;
       }
+
       if (command === "set_notes_dir") {
         notesDir = "/new";
+
         return null;
       }
+
       if (command === "plugin:dialog|open") {
         return "/new";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "read_conflict") {
         return null;
       }
+
       if (command === "read_external" || command === "read_note") {
         const { path: file } = parse(object({ path: string() }), args);
         (command === "read_note" ? noteReads : externalReads).push(file);
+
         return fileAt(file);
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -333,51 +377,65 @@ describe("layout", () => {
           { kind: "note", path: "second.md" },
         ];
       }
+
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "read_conflict") {
         return null;
       }
+
       if (command === "read_note") {
         const { path } = parse(object({ path: string() }), args);
+
         return {
           content: `# ${path}\n\nbody of ${path}`,
           revision: "r1",
           updatedAt: 1,
         };
       }
+
       if (command === "save_note") {
         const { path } = parse(object({ path: string() }), args);
         saved.push(path);
+
         return {
           kind: "committed",
           receipt: { path, revision: "r2", updatedAt: 2, warnings: [] },
         };
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -424,15 +482,19 @@ describe("layout", () => {
       if (command === "classify_open_paths") {
         return [{ kind: "note", path: "first.md" }];
       }
+
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "search_notes") {
         return [
           {
@@ -447,11 +509,14 @@ describe("layout", () => {
           },
         ];
       }
+
       if (command === "read_conflict") {
         return null;
       }
+
       if (command === "read_note") {
         const { path } = parse(object({ path: string() }), args);
+
         return {
           content:
             path === "found.md"
@@ -461,26 +526,33 @@ describe("layout", () => {
           updatedAt: 1,
         };
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       act(() => {
         noteFind.close();
       });
+
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -507,6 +579,7 @@ describe("layout", () => {
     const caret = window.getSelection();
     const anchor = caret?.anchorNode;
     const paragraph = anchor?.parentElement?.closest("p");
+
     if (
       caret === null ||
       anchor === null ||
@@ -516,6 +589,7 @@ describe("layout", () => {
     ) {
       throw new Error("the caret is not in a paragraph");
     }
+
     expect(caret.isCollapsed).toBeTruthy();
     expect(paragraph.textContent).toBe("An atlas entry");
     const before = document.createRange();

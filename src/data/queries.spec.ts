@@ -13,6 +13,7 @@ describe("queries", () => {
       const calls: unknown[] = [];
       mockIPC((command, args) => {
         calls.push({ args, command });
+
         return {
           content: "# file bytes",
           revision: "r1",
@@ -41,13 +42,16 @@ describe("queries", () => {
     it("should send structured search filters and convert the ranked metadata", async () => {
       const client = new QueryClient();
       const calls: unknown[] = [];
+
       const search = {
         filters: [{ kind: "tag", value: "work" }],
         incomplete: false,
         query: "needle",
       } satisfies Parameters<typeof noteQueries.search>[0];
+
       mockIPC((command, args) => {
         calls.push({ args, command });
+
         return [
           {
             createdAt: 0,
@@ -78,6 +82,7 @@ describe("queries", () => {
       const client = new QueryClient({
         defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
       });
+
       mockIPC((command) => {
         if (command === "read_note") {
           return {
@@ -86,6 +91,7 @@ describe("queries", () => {
             updatedAt: 1000,
           };
         }
+
         return command === "read_conflict" ? null : [];
       });
       await client.query(tabOpeningQuery("tab-1", "note", "atlas.md"));

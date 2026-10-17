@@ -37,11 +37,13 @@ const CREATE_NOTE = /create/u;
 
 function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   const user = userEvent.setup();
+
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+
   client.setQueryData(noteQueries.list().queryKey, notes);
   // A disk holding these notes holds their folders and every ancestor.
   client.setQueryData(noteQueries.folders().queryKey, [
@@ -59,6 +61,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   onTestFinished(() => {
     client.clear();
   });
+
   const { unmount } = render(
     createElement(
       QueryClientProvider,
@@ -74,6 +77,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
       })
     )
   );
+
   return {
     client,
     closed,
@@ -97,14 +101,17 @@ describe("command palette keyboard", () => {
       title: "Roadmap",
       updatedAt: new Date(0),
     };
+
     const palette = mount("find", []);
     const read = Promise.withResolvers<NoteMeta[]>();
+
     const pending = Promise.allSettled([
       palette.client.query({
         ...noteQueries.search(parseSearch("Roadmap")),
         queryFn: async () => await read.promise,
       }),
     ]);
+
     await palette.user.clear(palette.input);
     await palette.user.type(palette.input, "Roadmap");
     expect(document.body.textContent).not.toContain("searching notes");
@@ -167,6 +174,7 @@ describe("command palette keyboard", () => {
         updatedAt: new Date(0),
       },
     ]);
+
     await palette.user.clear(palette.input);
     await palette.user.type(palette.input, "budget #work ");
     const addFilter = screen.getByRole("button", { name: "add filter" });
@@ -214,6 +222,7 @@ describe("command palette keyboard", () => {
 
   it("should keep an arrow-key choice when the same query receives updated results", async () => {
     const palette = mount("find", []);
+
     const first: NoteMeta = {
       createdAt: new Date(0),
       folder: "work",
@@ -224,6 +233,7 @@ describe("command palette keyboard", () => {
       title: "Project first",
       updatedAt: new Date(0),
     };
+
     const second: NoteMeta = {
       createdAt: new Date(0),
       folder: "work",
@@ -234,6 +244,7 @@ describe("command palette keyboard", () => {
       title: "Project second",
       updatedAt: new Date(0),
     };
+
     const options = noteQueries.search(parseSearch("project"));
     palette.client.setQueryData(options.queryKey, [first, second]);
     await palette.user.clear(palette.input);
@@ -248,6 +259,7 @@ describe("command palette keyboard", () => {
       screen.getByRole("option", { selected: true }).textContent
     ).toContain("Project second");
     const read = Promise.withResolvers<NoteMeta[]>();
+
     const pending = Promise.allSettled([
       palette.client.query({
         ...options,
@@ -255,6 +267,7 @@ describe("command palette keyboard", () => {
         staleTime: 0,
       }),
     ]);
+
     await act(async () => {
       await Promise.resolve();
     });
@@ -307,6 +320,7 @@ describe("command palette keyboard", () => {
         words: 1,
       }))
     );
+
     const palette = mount("actions", [
       {
         createdAt: new Date(0),
@@ -319,6 +333,7 @@ describe("command palette keyboard", () => {
         updatedAt: new Date(0),
       },
     ]);
+
     await palette.user.clear(palette.input);
     await palette.user.type(palette.input, "unpin");
     expect(document.body.textContent).toContain("unpin note");
@@ -337,9 +352,11 @@ describe("command palette keyboard", () => {
     expect(palette.closed).toStrictEqual([]);
     expect(palette.input.value).toBe("");
     expect(document.body.textContent).toContain("rename note");
+
     const label = document.querySelector(
       `[id="${palette.input.getAttribute("aria-labelledby") ?? ""}"]`
     );
+
     expect(label?.textContent).toBe("run an action");
   });
 });
@@ -407,9 +424,11 @@ describe("command palette actions", () => {
       vi.restoreAllMocks();
     });
     openNote("projects/atlas.md");
+
     const exportPdf = vi
       .fn<() => Promise<string | null>>()
       .mockResolvedValue("/exports/atlas.pdf");
+
     registerTabHandles(getTabState().activeId, {
       exportPdf,
       getCaret: () => 0,
@@ -442,9 +461,11 @@ describe("command palette actions", () => {
 describe("recent commands", () => {
   beforeEach(() => {
     localStorage.removeItem("recent-actions");
+
     for (const tab of getTabState().tabs) {
       closeTab(tab.id);
     }
+
     onTestFinished(() => {
       localStorage.removeItem("recent-actions");
     });
@@ -462,6 +483,7 @@ describe("recent commands", () => {
       if (stored !== null) {
         localStorage.setItem("recent-actions", stored);
       }
+
       mount("actions", []);
 
       expect(
@@ -483,12 +505,15 @@ describe("recent commands", () => {
 
   it("should offer and run commands when recent history cannot be read", async () => {
     const getItem = localStorage.getItem.bind(localStorage);
+
     const read = vi.spyOn(localStorage, "getItem").mockImplementation((key) => {
       if (key === "recent-actions") {
         throw new DOMException("Storage access is denied", "SecurityError");
       }
+
       return getItem(key);
     });
+
     onTestFinished(() => {
       read.mockRestore();
     });
@@ -507,12 +532,15 @@ describe("recent commands", () => {
       logged.push({ args, command });
     });
     const getItem = localStorage.getItem.bind(localStorage);
+
     const read = vi.spyOn(localStorage, "getItem").mockImplementation((key) => {
       if (key === "recent-actions") {
         throw new DOMException("Storage access is denied", "SecurityError");
       }
+
       return getItem(key);
     });
+
     onTestFinished(() => {
       read.mockRestore();
       clearMocks();
@@ -589,7 +617,9 @@ describe("recent commands", () => {
       await palette.user.click(screen.getByRole("option", { name }));
       palette.unmount();
     }
+
     const palette = mount("actions", []);
+
     const recent = [
       "show mentions",
       "edit tags...",
@@ -597,6 +627,7 @@ describe("recent commands", () => {
       "move to folder...",
       "rename note...",
     ];
+
     expect(
       within(screen.getByRole("group", { name: "recent" }))
         .getAllByRole("option")
@@ -639,12 +670,14 @@ describe("recent commands", () => {
 
   it("should use the usual matching order while typing and restore recent commands when cleared", async () => {
     openNote("atlas.md");
+
     for (const name of ["close other tabs", "close tabs to the right"]) {
       const palette = mount("actions", []);
       // oxlint-disable-next-line no-await-in-loop -- choices must finish in order to establish recency
       await palette.user.click(screen.getByRole("option", { name }));
       palette.unmount();
     }
+
     const palette = mount("actions", []);
     await palette.user.type(palette.input, "close");
 
@@ -697,9 +730,11 @@ describe("recent commands", () => {
   it("should run the chosen command and report a history write failure", async () => {
     render(<Toaster />);
     const palette = mount("actions", []);
+
     const write = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Storage is full", "QuotaExceededError");
     });
+
     onTestFinished(() => {
       write.mockRestore();
     });
@@ -758,6 +793,7 @@ describe("recent commands", () => {
       if (command === "show_capture") {
         throw new Error("Capture is unavailable");
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     onTestFinished(clearMocks);
@@ -828,12 +864,14 @@ describe("recent commands", () => {
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     onTestFinished(() => {
       client.clear();
       clearMocks();
     });
+
     const workspace = render(
       <QueryClientProvider client={client}>
         <Workspace
@@ -843,6 +881,7 @@ describe("recent commands", () => {
         />
       </QueryClientProvider>
     );
+
     await user.keyboard("{Control>}\\{/Control}");
     workspace.unmount();
     const palette = mount("actions", []);
@@ -865,6 +904,7 @@ describe("steady palette searches", () => {
     onTestFinished(() => {
       vi.useRealTimers();
     });
+
     const recent: NoteMeta = {
       createdAt: new Date(0),
       folder: "",
@@ -875,6 +915,7 @@ describe("steady palette searches", () => {
       title: "Recent",
       updatedAt: new Date(0),
     };
+
     const found: NoteMeta = {
       createdAt: new Date(0),
       folder: "",
@@ -885,14 +926,17 @@ describe("steady palette searches", () => {
       title: "Found",
       updatedAt: new Date(0),
     };
+
     const palette = mount("find", [recent]);
     const read = Promise.withResolvers<NoteMeta[]>();
+
     const request = Promise.allSettled([
       palette.client.query({
         ...noteQueries.search(parseSearch("found")),
         queryFn: async () => await read.promise,
       }),
     ]);
+
     const row = screen.getByRole("option");
     fireEvent.change(palette.input, { target: { value: "found" } });
     expect(document.querySelector('[role="option"]')).toBe(row);
@@ -936,12 +980,14 @@ describe("steady palette searches", () => {
     });
     const palette = mount("find", []);
     const read = Promise.withResolvers<NoteMeta[]>();
+
     const request = Promise.allSettled([
       palette.client.query({
         ...noteQueries.search(parseSearch("slow")),
         queryFn: async () => await read.promise,
       }),
     ]);
+
     fireEvent.change(palette.input, { target: { value: "slow" } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(149);
@@ -996,6 +1042,7 @@ describe("steady palette searches", () => {
     onTestFinished(() => {
       vi.useRealTimers();
     });
+
     const recent: NoteMeta = {
       createdAt: new Date(0),
       folder: "",
@@ -1006,6 +1053,7 @@ describe("steady palette searches", () => {
       title: "Recent",
       updatedAt: new Date(0),
     };
+
     const intermediate: NoteMeta = {
       createdAt: new Date(0),
       folder: "",
@@ -1016,21 +1064,26 @@ describe("steady palette searches", () => {
       title: "Intermediate",
       updatedAt: new Date(0),
     };
+
     const palette = mount("find", [recent]);
     const firstRead = Promise.withResolvers<NoteMeta[]>();
+
     const firstRequest = Promise.allSettled([
       palette.client.query({
         ...noteQueries.search(parseSearch("first")),
         queryFn: async () => await firstRead.promise,
       }),
     ]);
+
     const lastRead = Promise.withResolvers<NoteMeta[]>();
+
     const lastRequest = Promise.allSettled([
       palette.client.query({
         ...noteQueries.search(parseSearch("last")),
         queryFn: async () => await lastRead.promise,
       }),
     ]);
+
     fireEvent.change(palette.input, { target: { value: "first" } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(150);
@@ -1074,6 +1127,7 @@ describe("steady palette searches", () => {
       title: "Note",
       updatedAt: new Date(0),
     };
+
     const palette = mount("find", [note]);
     const key = noteQueries.search(parseSearch("broken")).queryKey;
     palette.client.setQueryData(key, []);
@@ -1103,6 +1157,7 @@ describe("command palette", () => {
       if (command === "list_notes") {
         return await list.promise;
       }
+
       if (command === "search_notes") {
         return [
           {
@@ -1117,11 +1172,14 @@ describe("command palette", () => {
           },
         ];
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+
     onTestFinished(async () => {
       act(() => {
         list.resolve([]);
@@ -1156,15 +1214,20 @@ describe("command palette", () => {
       if (command !== "list_notes") {
         throw new Error(`unexpected command: ${command}`);
       }
+
       attempts += 1;
+
       if (attempts === 1) {
         throw Object.assign(new Error("index unavailable"), { kind: "failed" });
       }
+
       return [];
     });
+
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+
     onTestFinished(() => {
       client.clear();
       clearMocks();
@@ -1201,11 +1264,13 @@ describe("recent note results", () => {
     for (const tab of getTabState().tabs) {
       closeTab(tab.id);
     }
+
     localStorage.clear();
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       clearMocks();
     });
   });
@@ -1221,6 +1286,7 @@ describe("recent note results", () => {
       title: `Note ${index}`,
       updatedAt: new Date(100 - index),
     }));
+
     openNote("0.md");
     rememberNote("/notes", "22.md");
     const palette = mount("find", notes);
@@ -1280,6 +1346,7 @@ describe("recent note results", () => {
         updatedAt: new Date(1),
       },
     ];
+
     const palette = mount("find", notes);
     await waitFor(() =>
       expect(screen.getByRole("option", { selected: true })).toHaveTextContent(
@@ -1287,11 +1354,13 @@ describe("recent note results", () => {
       )
     );
     await palette.user.keyboard("{ArrowDown}");
+
     const updated = notes.map((note) => ({
       ...note,
       title: `${note.title} refreshed`,
       updatedAt: new Date(note.path === "c.md" ? 100 : 0),
     }));
+
     act(() => {
       palette.client.setQueryData(noteQueries.list().queryKey, updated);
     });
@@ -1327,12 +1396,14 @@ describe("recent note results", () => {
     expect(readRecentNotes("/notes")).toStrictEqual([]);
     rememberNote("/notes", "b.md");
     const held = Promise.withResolvers<NoteMeta[]>();
+
     const pending = Promise.allSettled([
       palette.client.query({
         ...noteQueries.search(parseSearch("waiting")),
         queryFn: async () => await held.promise,
       }),
     ]);
+
     onTestFinished(async () => {
       held.resolve([]);
       await pending;
@@ -1371,9 +1442,11 @@ describe("recent note results", () => {
       if (command === "delete_note") {
         return { path: "gone.md", warnings: [] };
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     openNote("gone.md");

@@ -147,6 +147,7 @@ function toItems(props: {
 export const SlashMenu = Extension.create({
   addProseMirrorPlugins() {
     const { editor } = this;
+
     const suggestion: Omit<
       SuggestionOptions<SlashCommand, SlashCommand>,
       "editor"

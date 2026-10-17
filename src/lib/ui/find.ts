@@ -21,11 +21,13 @@ export function createFindController() {
     searchPending: false,
     total: 0,
   });
+
   let target: FindHandle | null = null;
   let unsubscribe: (() => void) | undefined;
   let seedOnBind = false;
   let targetOwner: string | undefined;
   let searchOwner: string | undefined;
+
   const refresh = () => {
     const available = target?.alive() === true;
     // A search between notes keeps the count it showed until the next one binds.
@@ -33,6 +35,7 @@ export function createFindController() {
     const snapshot = available ? target?.snapshot() : undefined;
     const current = kept ? store.state.current : (snapshot?.current ?? 0);
     const total = kept ? store.state.total : (snapshot?.total ?? 0);
+
     if (
       store.state.available !== available ||
       store.state.current !== current ||
@@ -41,17 +44,21 @@ export function createFindController() {
       store.setState((state) => ({ ...state, available, current, total }));
     }
   };
+
   const seedSelection = () => {
     const selection = target?.selectionText() ?? "";
+
     if (selection !== "" && !SINGLE_LINE.test(selection)) {
       store.setState((state) => ({ ...state, query: selection }));
     }
   };
+
   const placeCaret = () => {
     if (!noteBrowserHasFocus()) {
       target?.caretToMatch();
     }
   };
+
   /** Closes find without moving focus or the caret. */
   const dismiss = () => {
     searchOwner = undefined;
@@ -64,6 +71,7 @@ export function createFindController() {
       total: 0,
     }));
   };
+
   const unbind = () => {
     unsubscribe?.();
     unsubscribe = undefined;
@@ -71,21 +79,26 @@ export function createFindController() {
     target = null;
     refresh();
   };
+
   return {
     /** `owner` is the editor's tab: a search's find ends when another tab binds. */
     bind: (handle: FindHandle, owner?: string) => {
       unbind();
       target = handle;
       targetOwner = owner;
+
       if (searchOwner !== undefined && owner !== searchOwner) {
         dismiss();
       }
+
       if (seedOnBind) {
         seedSelection();
         seedOnBind = false;
       }
+
       unsubscribe = handle.subscribe(refresh);
       handle.setQuery(store.state.open ? store.state.query : null);
+
       if (store.state.searchPending) {
         store.setState((state) => ({ ...state, searchPending: false }));
         placeCaret();
@@ -96,7 +109,9 @@ export function createFindController() {
             state.focusRequest + Number(state.open && !noteBrowserHasFocus()),
         }));
       }
+
       refresh();
+
       return () => {
         if (target === handle) {
           unbind();
@@ -107,6 +122,7 @@ export function createFindController() {
       if (!store.state.open) {
         return;
       }
+
       target?.restoreFocus();
       dismiss();
     },
@@ -115,7 +131,9 @@ export function createFindController() {
       if (target?.alive() !== true || store.state.query === "") {
         return;
       }
+
       searchOwner = undefined;
+
       if (!store.state.open) {
         store.setState((state) => ({
           ...state,
@@ -124,6 +142,7 @@ export function createFindController() {
         }));
         target.setQuery(store.state.query);
       }
+
       target.navigate(direction);
     },
     open: () => {
@@ -148,6 +167,7 @@ export function createFindController() {
         query,
         searchPending,
       }));
+
       if (!searchPending) {
         target?.setQuery(query);
         placeCaret();
@@ -156,6 +176,7 @@ export function createFindController() {
     setQuery: (query: string) => {
       searchOwner = undefined;
       store.setState((state) => ({ ...state, query }));
+
       if (store.state.open) {
         target?.setQuery(query);
       }
@@ -172,9 +193,11 @@ export function useNoteFind() {
 
 export function openNoteFind(): void {
   const { activeId } = getTabState();
+
   if (getTabHandles(activeId) === undefined) {
     return;
   }
+
   hideGraph(activeId);
   noteFind.open();
 }
@@ -185,11 +208,15 @@ export function openSearchResult(note: NoteMeta, inNewTab: boolean): void {
     note.snippet === null
       ? undefined
       : getSnippetParts(note.snippet).find((part) => part.match)?.text;
+
   openNote(note.path, inNewTab);
+
   if (hit === undefined) {
     noteFind.dismiss();
+
     return;
   }
+
   const { activeId } = getTabState();
   hideGraph(activeId);
   noteFind.search(hit, activeId);

@@ -16,5 +16,6 @@ export async function getNotes(filters: NoteFilters = {}) {
         tag: filters.tag ?? null,
       })
   );
+
   return notes.map(noteResult);
 }

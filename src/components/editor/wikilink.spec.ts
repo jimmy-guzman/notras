@@ -106,6 +106,7 @@ function wikilinkTargets(markdown: string) {
     element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
+
   const targets: string[] = [];
 
   editor.state.doc.descendants((node) => {

@@ -22,9 +22,11 @@ describe("recent notes", () => {
   it("should report a storage failure and preserve the last saved history", async () => {
     rememberNote("/notes", "kept.md");
     render(createElement(Toaster));
+
     const write = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Storage is full", "QuotaExceededError");
     });
+
     onTestFinished(() => {
       write.mockRestore();
     });
@@ -44,13 +46,16 @@ describe("recent notes", () => {
       const logged: unknown[] = [];
       mockIPC((command, args) => {
         logged.push({ args, command });
+
         if (loggingFails) {
           throw new Error("Log is unavailable");
         }
       });
+
       const read = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
         throw new DOMException("Storage access is denied", "SecurityError");
       });
+
       onTestFinished(() => {
         read.mockRestore();
         clearMocks();
@@ -151,6 +156,7 @@ describe("recent notes", () => {
         updatedAt: new Date(0),
       },
     ];
+
     rememberNote("/notes", "read-pin.md");
     rememberNote("/notes", "frequent.md");
     rememberNote("/notes", "frequent.md");

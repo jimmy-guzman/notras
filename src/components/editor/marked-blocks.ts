@@ -6,8 +6,10 @@ import { Lexer, Marked } from "marked";
 // "fall through to the built-in tokenizer".
 function gate(rule: RegExp) {
   const sticky = new RegExp(rule.source, `${rule.flags}y`);
+
   return (src: string) => {
     sticky.lastIndex = 0;
+
     return sticky.test(src) ? false : undefined;
   };
 }
@@ -47,6 +49,7 @@ const definitions: TokenizerExtension = {
     }
 
     const last = tokens.at(-1);
+
     const token =
       last?.type === "paragraph" || last?.type === "text"
         ? undefined

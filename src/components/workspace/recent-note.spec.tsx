@@ -16,35 +16,45 @@ describe("recent note", () => {
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "scanning" };
       }
+
       if (command === "list_notes") {
         return await recent.promise;
       }
+
       if (command === "list_tags") {
         return [];
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(async () => {
       act(() => {
         recent.resolve([]);
       });
+
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");

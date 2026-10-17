@@ -45,6 +45,7 @@ export class SuggestionMenu {
 
         return true;
       }
+
       case "ArrowUp": {
         this.selected =
           (this.selected - 1 + this.items.length) % this.items.length;
@@ -53,11 +54,13 @@ export class SuggestionMenu {
 
         return true;
       }
+
       case "Enter": {
         this.items[this.selected]?.run();
 
         return true;
       }
+
       default: {
         return false;
       }
@@ -69,6 +72,7 @@ export class SuggestionMenu {
     this.selected = Math.min(this.selected, Math.max(0, items.length - 1));
     // Render first so the menu's size is measurable for positioning.
     this.render();
+
     if (rect) {
       this.position(rect);
     }
@@ -78,11 +82,15 @@ export class SuggestionMenu {
   private position(rect: DOMRect) {
     const menu = this.element.getBoundingClientRect();
     const margin = 8;
+
     const fitsBelow =
       rect.bottom + 4 + menu.height + margin <= window.innerHeight;
+
     const fitsAbove = rect.top - 4 - menu.height >= margin;
+
     const top =
       fitsBelow || !fitsAbove ? rect.bottom + 4 : rect.top - 4 - menu.height;
+
     const left = Math.max(
       margin,
       Math.min(rect.left, window.innerWidth - menu.width - margin)
@@ -108,6 +116,7 @@ export class SuggestionMenu {
       button.id = `${this.id}-option-${index}`;
       button.ariaSelected = String(index === this.selected);
       button.textContent = item.label;
+
       if (item.hint !== undefined) {
         const hint = document.createElement("span");
 

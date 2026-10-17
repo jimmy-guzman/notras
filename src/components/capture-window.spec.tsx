@@ -14,6 +14,7 @@ async function mountCapture() {
     expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
   );
   const surface = container.querySelector(".ProseMirror");
+
   if (
     surface === null ||
     !("editor" in surface) ||
@@ -21,6 +22,7 @@ async function mountCapture() {
   ) {
     throw new Error("the capture editor did not mount");
   }
+
   return surface.editor;
 }
 
@@ -41,12 +43,16 @@ describe("capture window", () => {
         mockIPC(async (command, args) => {
           if (command === "create_note") {
             writes.push(args);
+
             return { path: "jot.md", updatedAt: 1, warnings: [] };
           }
+
           if (command === "plugin:window|hide") {
             hides.push(command);
+
             return hides.length === 1 ? await hidden.promise : null;
           }
+
           return null;
         });
         const editor = await mountCapture();
@@ -68,6 +74,7 @@ describe("capture window", () => {
           } else {
             hidden.resolve(null);
           }
+
           await Promise.resolve();
         });
         await waitFor(() => {
@@ -89,12 +96,14 @@ describe("capture window", () => {
       mockIPC((command, args) => {
         if (command === "create_note") {
           writes.push(args);
+
           return {
             path: "a-captured-thought.md",
             updatedAt: 1,
             warnings: [],
           };
         }
+
         return null;
       });
       const editor = await mountCapture();
@@ -116,6 +125,7 @@ describe("capture window", () => {
       mockIPC((command, args) => {
         if (command === "create_note") {
           writes.push(args);
+
           return {
             path: "jot.md",
             updatedAt: 1,
@@ -128,9 +138,11 @@ describe("capture window", () => {
             ],
           };
         }
+
         if (command === "plugin:window|hide") {
           hides.push(command);
         }
+
         return null;
       });
       const editor = await mountCapture();
@@ -153,17 +165,21 @@ describe("capture window", () => {
     it("should retain the jot and show the reason when no file committed", async () => {
       const user = userEvent.setup();
       const hides: string[] = [];
+
       const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
         kind: "failed",
         message: "The disk is full",
       });
+
       mockIPC(async (command) => {
         if (command === "create_note") {
           return await refused();
         }
+
         if (command === "plugin:window|hide") {
           hides.push(command);
         }
+
         return null;
       });
       const editor = await mountCapture();

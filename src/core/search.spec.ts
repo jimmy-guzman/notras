@@ -70,6 +70,7 @@ describe("palette search", () => {
     for (const query of ["folder:", 'folder:"work', "#", 'folder:""']) {
       expect(parseSearch(query).incomplete).toBeTruthy();
     }
+
     expect(parseSearch("budget")).toStrictEqual({
       filters: [],
       incomplete: false,

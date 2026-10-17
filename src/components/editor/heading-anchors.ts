@@ -17,16 +17,20 @@ export function headingAnchors(content: Fragment): Map<string, number> {
       if (leaf.type.name === "wikilink" && hasString(leaf.attrs, "title")) {
         return leaf.attrs.title;
       }
+
       if (leaf.type.name === "image" && hasString(leaf.attrs, "alt")) {
         return leaf.attrs.alt;
       }
+
       return leaf.type.name === "hardBreak" ? " " : "";
     });
+
     const slug = slugger.slug(text);
 
     if (slug !== "") {
       anchors.set(slug, position + 1);
     }
+
     return false;
   });
 

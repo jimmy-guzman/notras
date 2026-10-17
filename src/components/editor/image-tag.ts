@@ -67,9 +67,11 @@ export function imageTag({ alt, src, title, width }: ImageTag) {
 
   element.setAttribute("src", src);
   element.setAttribute("alt", alt);
+
   if (title !== null) {
     element.setAttribute("title", title);
   }
+
   if (width !== null) {
     element.setAttribute("width", String(width));
   }

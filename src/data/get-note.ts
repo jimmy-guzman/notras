@@ -3,5 +3,6 @@ import { commands } from "@/server/adapters/bindings";
 
 export async function getNote(path: string) {
   const note = await nativeCommand(async () => await commands.readNote(path));
+
   return { ...note, updatedAt: new Date(note.updatedAt) };
 }

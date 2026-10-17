@@ -22,21 +22,25 @@ describe("find controls", () => {
     const user = userEvent.setup();
     const surface = document.createElement("div");
     document.body.append(surface);
+
     const editor = new Editor({
       content: "Atlas Atlas",
       contentType: "markdown",
       element: surface,
       extensions: [...createEditorExtensions({}), Find],
     });
+
     const controller = createFindController();
     controller.bind(createFindHandle(editor));
     controller.setQuery("atlas");
     let escaped = 0;
+
     const captureSave = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         escaped += 1;
       }
     };
+
     document.addEventListener("keydown", captureSave);
     onTestFinished(() => {
       document.removeEventListener("keydown", captureSave);
@@ -87,12 +91,14 @@ describe("find controls", () => {
   }) => {
     const surface = document.createElement("div");
     document.body.append(surface);
+
     const editor = new Editor({
       content: "Plan Atlas",
       contentType: "markdown",
       element: surface,
       extensions: [...createEditorExtensions({}), Find],
     });
+
     onTestFinished(() => {
       editor.destroy();
       surface.remove();
@@ -125,6 +131,7 @@ describe("find controls", () => {
       element: document.createElement("div"),
       extensions: [...createEditorExtensions({}), Find],
     });
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -153,12 +160,15 @@ describe("find controls", () => {
     const handles: SourceEditorHandle[] = [];
     const changes: string[] = [];
     const source = "---\ntitle: Atlas\n---\n# Atlas\n\n`Atlas`";
+
     const note = createNoteDocument(source, "atlas.md", () => {
       changes.push(note.content());
     });
+
     onTestFinished(() => {
       note.destroy();
     });
+
     const { container } = render(
       createElement(SourceEditor, {
         editor: note.editor,
@@ -167,10 +177,13 @@ describe("find controls", () => {
         },
       })
     );
+
     const [handle] = handles;
+
     if (handle === undefined) {
       throw new Error("source editor missing");
     }
+
     act(() => {
       handle.find.setQuery("atlas");
     });
@@ -194,9 +207,11 @@ describe("find controls", () => {
       expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
     );
     const editor = container.querySelector(".ProseMirror");
+
     if (!(editor instanceof HTMLElement)) {
       throw new Error("capture editor missing");
     }
+
     act(() => {
       editor.focus();
     });

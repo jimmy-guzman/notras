@@ -35,12 +35,14 @@ function positionsOf(doc: Node, type: string) {
 
 function ghostFor(markdown: string, type: string, take = positionsOf) {
   const editor = load(markdown);
+
   const ghost = DragGhost.ofBlocks(
     editor.view,
     take(editor.state.doc, type),
     0,
     0
   );
+
   const element = document.querySelector(".drag-ghost");
 
   if (element === null) {
@@ -69,6 +71,7 @@ describe(DragGhost, () => {
       "- [ ] one\n- [ ] two",
       "taskItem"
     );
+
     const lists = element.querySelectorAll('ul[data-type="taskList"]');
     const rows = element.querySelectorAll('ul[data-type="taskList"] > li');
 
@@ -85,6 +88,7 @@ describe(DragGhost, () => {
       "listItem",
       (doc, type) => positionsOf(doc, type).slice(1)
     );
+
     const list = element.querySelector("ol");
 
     ghost.destroy();
@@ -99,6 +103,7 @@ describe(DragGhost, () => {
       "tableRow",
       (doc, type) => positionsOf(doc, type).slice(1)
     );
+
     const row = element.querySelector("table > tbody > tr");
 
     ghost.destroy();

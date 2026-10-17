@@ -36,6 +36,7 @@ function tagLabel(tags: string[]) {
     .slice(0, VISIBLE_TAGS)
     .map((tag) => `#${tag}`)
     .join(" ");
+
   const hidden = tags.length - VISIBLE_TAGS;
 
   return hidden > 0 ? `${shown} +${hidden}` : shown;
@@ -96,6 +97,7 @@ const PRESENTATION: Record<
   tag: { Icon: HashIcon, heading: "tags" },
   to: NOTES_TO_FILTER,
 };
+
 function pickerChoices(
   filter: SearchFilter,
   notes: NoteMeta[],
@@ -110,6 +112,7 @@ function pickerChoices(
         value: folder,
       }));
     }
+
     if (filter.kind === "tag") {
       return tags.map(({ count, tag }) => ({
         count,
@@ -117,6 +120,7 @@ function pickerChoices(
         value: tag,
       }));
     }
+
     if (filter.kind === "to" || filter.kind === "from") {
       return notes.map(({ path, title }) => ({
         detail: path,
@@ -124,13 +128,17 @@ function pickerChoices(
         value: path,
       }));
     }
+
     return [];
   })();
+
   const taken = choices.some(({ value }) => value === filter.value);
   const presentation = PRESENTATION[filter.kind];
+
   const offered = choices.filter(({ label, value }) =>
     `${label} ${value}`.toLowerCase().includes(filter.value.toLowerCase())
   );
+
   return taken || offered.length === 0
     ? undefined
     : { ...presentation, choices: offered };
@@ -140,9 +148,11 @@ function filterHelp(kind: SearchFilter["kind"] | undefined) {
   if (kind === "mention") {
     return 'Type a phrase, for example mention:"Ada Lovelace"';
   }
+
   if (kind === "link") {
     return "Type part of a destination, for example link:github.com";
   }
+
   return "Type a folder, tag, or note to filter by";
 }
 
@@ -163,6 +173,7 @@ function useDisplayedNotes(
   notesDir: string
 ) {
   const { activeId, tabs } = useTabState();
+
   const showing = tabs.find(
     (tab) => tab.id === activeId && tab.kind === "note"
   )?.path;
@@ -172,6 +183,7 @@ function useDisplayedNotes(
         .filter((note) => note.path !== showing)
         .slice(0, 20)
     : currentNotes;
+
   const [displayed, setDisplayed] = useState({
     from: currentNotes,
     idle,
@@ -180,9 +192,11 @@ function useDisplayedNotes(
     ready: !pending,
     showing,
   });
+
   if (pending && displayed.idle !== idle) {
     setDisplayed({ ...displayed, idle, ready: false });
   }
+
   if (
     !pending &&
     (displayed.from !== currentNotes ||
@@ -199,6 +213,7 @@ function useDisplayedNotes(
             )
           )
         : readyNotes;
+
     setDisplayed({
       from: currentNotes,
       idle,
@@ -208,6 +223,7 @@ function useDisplayedNotes(
       showing,
     });
   }
+
   return {
     resultQuery: displayed.query,
     visible: displayed.notes,
@@ -222,21 +238,26 @@ function useSearchResults(
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
   const idle = query.trim() === "";
+
   const recent = useQuery({
     ...noteQueries.list(),
     enabled: idle,
   });
+
   const searched = useQuery({
     ...noteQueries.search(parseSearch(debounced)),
     enabled: !(idle || search.incomplete || showPicker) && debounced === query,
   });
+
   const result = idle ? recent : searched;
   const showingResults = !(search.incomplete || showPicker);
   const waitingForDebounce = !idle && debounced !== query;
   const pending = showingResults && (waitingForDebounce || result.isPending);
   const failed = (idle || debounced === query) && result.isError;
+
   const currentNotes =
     search.incomplete || showPicker ? NO_NOTES : (result.data ?? NO_NOTES);
+
   const { resultQuery, visible } = useDisplayedNotes(
     currentNotes,
     idle,
@@ -244,10 +265,13 @@ function useSearchResults(
     query,
     notesDir
   );
+
   const reading = showingResults && !waitingForDebounce && result.isFetching;
   const indexStatus = useQuery(indexStatusQuery);
+
   const indexing =
     pending && visible.length === 0 && indexStatus.data?.state === "scanning";
+
   return {
     failed,
     indexing,
@@ -266,33 +290,41 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
       candidate !== undefined &&
       ["folder", "to", "from"].includes(candidate.kind),
   });
+
   const tags = useQuery({
     ...noteQueries.tags(),
     enabled: candidate?.kind === "tag",
   });
+
   const folders = useQuery({
     ...noteQueries.folders(),
     enabled: candidate?.kind === "folder",
   });
+
   // Folder choices need the notes too, for their counts.
   const choicesQueries = (() => {
     if (candidate?.kind === "tag") {
       return [tags];
     }
+
     return candidate?.kind === "folder"
       ? [folders, suggestions]
       : [suggestions];
   })();
+
   const needsChoices =
     candidate !== undefined &&
     ["folder", "to", "from", "tag"].includes(candidate.kind);
+
   const choicesPending =
     needsChoices &&
     choicesQueries.some((query) => query.data === undefined && query.isPending);
+
   const choicesError = needsChoices
     ? choicesQueries.find((query) => query.data === undefined && query.isError)
         ?.error
     : undefined;
+
   // Choices wait for all their data, so no count draws before its notes.
   const picker =
     candidate === undefined || choicesPending
@@ -303,11 +335,13 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
           folders.data ?? NO_FOLDERS,
           tags.data ?? []
         );
+
   const retryChoices = async () => {
     await Promise.all(
       choicesQueries.map(async (query) => await query.refetch())
     );
   };
+
   return { choicesError, choicesPending, picker, retryChoices };
 }
 
@@ -329,14 +363,17 @@ function NoteResults({
   const search = parseSearch(query);
   const idle = query.trim() === "";
   const { failed, pending, result, resultQuery, visible } = results;
+
   const retry = async () => {
     await result.refetch();
   };
+
   const offerCreate =
     !(idle || pending || search.incomplete) &&
     result.isSuccess &&
     search.filters.length === 0 &&
     visible.length === 0;
+
   const status = (() => {
     if (search.incomplete) {
       return {
@@ -344,12 +381,14 @@ function NoteResults({
         title: "incomplete filter",
       };
     }
+
     if (failed) {
       return {
         description: reasonOf(result.error),
         title: "could not search notes",
       };
     }
+
     return {
       description: idle
         ? "Create a note with the new note action"
@@ -430,8 +469,10 @@ export function PaletteSearch({
   query,
 }: PaletteSearchProps) {
   const candidate = searchSuggestion(query, cursor);
+
   const { choicesError, choicesPending, picker, retryChoices } =
     useFilterChoices(candidate);
+
   const showPicker = picker !== undefined;
   const choicesFailed = choicesError !== undefined;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
@@ -443,16 +484,19 @@ export function PaletteSearch({
   }, [onResultQueryChange, resultQuery]);
   useLayoutEffect(() => {
     onLoadingChange?.(false);
+
     const timer = setTimeout(() => {
       if (readingQuery !== undefined) {
         onLoadingChange?.(true);
       }
     }, 500);
+
     return () => {
       clearTimeout(timer);
       onLoadingChange?.(false);
     };
   }, [onLoadingChange, readingQuery]);
+
   const pickFilter = (value: string) => {
     if (candidate !== undefined) {
       onQueryChange(

@@ -33,6 +33,7 @@ export const LinkDefinition = Node.create({
 
     const inItem =
       context.parentType === "listItem" || context.parentType === "taskItem";
+
     // An item that opens with a definition leads with an empty paragraph,
     // which writes a bare marker, and an item cannot open with two blank lines.
     const opensItem =

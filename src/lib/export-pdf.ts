@@ -56,6 +56,7 @@ function keepHeadings(surface: HTMLElement, sheet: HTMLElement) {
     const carried = next.matches("ol, ul")
       ? (next.firstElementChild ?? next)
       : next;
+
     const reach =
       carried.getBoundingClientRect().bottom -
       heading.getBoundingClientRect().bottom;
@@ -92,9 +93,11 @@ export async function exportPdf(
 
   sheet.className = "print-sheet";
   sheet.append(surface.cloneNode(true));
+
   for (const element of sheet.querySelectorAll("*")) {
     element.classList.remove(...STATE_CLASSES);
   }
+
   fitTables(surface, sheet);
   keepHeadings(surface, sheet);
   document.body.append(sheet);
