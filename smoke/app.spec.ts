@@ -8,6 +8,7 @@ describe("native smoke", () => {
   it("should save an edit to disk and display it after restarting the app", async () => {
     const { artifacts, binary, dataStore, note } = inject("smoke");
     const marker = `saved-${Date.now()}`;
+
     const launch = async () =>
       await startWdioSession({
         browserName: "tauri",
@@ -21,11 +22,13 @@ describe("native smoke", () => {
           startTimeout: 30_000,
         },
       });
+
     await writeFile(
       path.join(artifacts, "stage.txt"),
       "Launching the first process"
     );
     const first = await launch();
+
     try {
       await writeFile(
         path.join(artifacts, "stage.txt"),
@@ -40,9 +43,11 @@ describe("native smoke", () => {
       await first.execute(() => {
         const surface = document.querySelector('[contenteditable="true"]');
         const selection = window.getSelection();
+
         if (!(surface instanceof HTMLElement) || !selection) {
           throw new Error("The note editor has no editable selection.");
         }
+
         surface.focus();
         const range = document.createRange();
         range.selectNodeContents(surface);
@@ -60,6 +65,7 @@ describe("native smoke", () => {
         path.join(artifacts, "failure.txt"),
         `First launch or persistence: ${String(error)}`
       );
+
       try {
         await first.saveScreenshot(path.join(artifacts, "failure.png"));
         await first.tauri.execute(async ({ core }) => {
@@ -73,6 +79,7 @@ describe("native smoke", () => {
           `\nScreenshot or storage cleanup failed: ${String(diagnosticError)}`
         );
       }
+
       throw error;
     } finally {
       await cleanupWdioSession(first);
@@ -83,6 +90,7 @@ describe("native smoke", () => {
       "Launching a new process after stopping the first"
     );
     const second = await launch();
+
     try {
       await writeFile(
         path.join(artifacts, "stage.txt"),
@@ -103,6 +111,7 @@ describe("native smoke", () => {
         path.join(artifacts, "failure.txt"),
         `After restart: ${String(error)}`
       );
+
       try {
         await second.saveScreenshot(path.join(artifacts, "failure.png"));
         await second.tauri.execute(async ({ core }) => {
@@ -116,6 +125,7 @@ describe("native smoke", () => {
           `\nScreenshot or storage cleanup failed: ${String(diagnosticError)}`
         );
       }
+
       throw error;
     } finally {
       await cleanupWdioSession(second);
