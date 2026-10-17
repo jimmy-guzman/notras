@@ -129,12 +129,14 @@ function ViewerDialog({
           if (!(event.metaKey || event.ctrlKey)) {
             return;
           }
+
           const zoom = {
             "+": scale * STEP,
             "-": scale / STEP,
             "0": 1,
             "=": scale * STEP,
           }[event.key];
+
           if (zoom !== undefined) {
             event.preventDefault();
             zoomTo(zoom);
@@ -154,9 +156,11 @@ function ViewerDialog({
           // page from zooming along with the content.
           ref={(box) => {
             boxRef.current = box;
+
             const onWheel = pinchHandler((factor) => {
               zoomTo(scale * factor);
             });
+
             box?.addEventListener("wheel", onWheel, { passive: false });
 
             return () => {

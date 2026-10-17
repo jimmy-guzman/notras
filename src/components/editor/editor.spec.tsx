@@ -265,6 +265,7 @@ describe("image viewer", () => {
 
   it("should show a selected image from its open button", async () => {
     const { editor } = await mountImage(1);
+
     const open = within(editor.view.dom).getByRole("button", {
       name: "open image",
     });
@@ -357,6 +358,7 @@ describe("image viewer", () => {
 
     fireEvent.dblClick(image);
     const dialog = await screen.findByRole("dialog");
+
     const beside = within(dialog)
       .getByRole("img", { name: "shot" })
       .closest("[data-slot='viewer-content']")?.parentElement;
@@ -364,6 +366,7 @@ describe("image viewer", () => {
     if (!(beside instanceof HTMLElement)) {
       throw new Error("the viewer has no frame");
     }
+
     await user.click(beside);
 
     await waitFor(() => {
@@ -1273,6 +1276,7 @@ describe("mermaid diagrams", () => {
   it("should show the drawing from its open button", async () => {
     const { editor } = await mount({ initialContent: FENCE });
     await screen.findByRole("img", { name: "diagram" });
+
     const open = within(editor.view.dom).getByRole("button", {
       name: "open diagram",
     });
@@ -1325,6 +1329,7 @@ describe("mermaid diagrams", () => {
     fireEvent.dblClick(diagram);
 
     const dialog = await screen.findByRole("dialog");
+
     const box = within(dialog)
       .getByRole("img", { name: "diagram" })
       .closest("[data-slot='viewer-content']");
@@ -1417,6 +1422,7 @@ describe("mermaid diagrams", () => {
     const user = userEvent.setup();
     const { editor } = await mount({ initialContent: FENCE });
     await screen.findByRole("img", { name: "diagram" });
+
     const end =
       editor.state.doc.child(0).nodeSize +
       editor.state.doc.child(1).nodeSize -
@@ -1440,6 +1446,7 @@ describe("mermaid diagrams", () => {
       const { editor } = await mount({
         initialContent: `before\n\n\`\`\`mermaid\n${header}\n\`\`\``,
       });
+
       await mermaidSettled;
 
       expect(screen.queryByRole("img", { name: "diagram" })).toBeNull();
@@ -1456,6 +1463,7 @@ describe("mermaid diagrams", () => {
     const { editor } = await mount({
       initialContent: "before\n\n```mermaid\npie title Pets\n```",
     });
+
     await screen.findByText(/Invalid mermaid header/u);
 
     expect(

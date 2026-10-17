@@ -574,6 +574,7 @@ export function Editor(mountProps: EditorProps) {
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
+
   const closeHover = useDebouncer(
     () => {
       setLinkHover(null);

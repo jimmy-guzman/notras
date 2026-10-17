@@ -152,8 +152,10 @@ export function codeBlockNodeView(
     if (next !== undefined) {
       pre.before(next);
     }
+
     // A reason line stands where a drawing would, with nothing to open.
     drawing = next?.querySelector("svg") ?? null;
+
     if (openDiagram !== null && drawing !== null) {
       toolbar.prepend(openButton);
     } else {
@@ -216,6 +218,7 @@ export function codeBlockNodeView(
   // the way it does after a double-click.
   openButton.addEventListener("click", () => {
     const pos = getPos();
+
     if (drawing !== null && pos !== undefined) {
       view.dispatch(
         view.state.tr.setSelection(
