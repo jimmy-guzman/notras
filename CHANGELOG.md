@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.8](https://github.com/jimmy-guzman/notras/compare/v0.10.7...v0.10.8) (2026-10-17)
+
+
+### Features
+
+* **editor:** ✨ open a diagram in a zoomable viewer ([#376](https://github.com/jimmy-guzman/notras/issues/376)) ([8517082](https://github.com/jimmy-guzman/notras/commit/851708254db32113d29ffc3a46c77b63a93313ad))
+
+
+### Refactoring
+
+* **ui:** 🔄 move browser toggle to status bar ([#372](https://github.com/jimmy-guzman/notras/issues/372)) ([c49ada0](https://github.com/jimmy-guzman/notras/commit/c49ada0425157ff164b074d1566c61cd13e12c01))
+
 ## [0.10.7](https://github.com/jimmy-guzman/notras/compare/v0.10.6...v0.10.7) (2026-10-15)
 
 
