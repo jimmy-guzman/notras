@@ -18,6 +18,7 @@
     "icons": "./scripts/icons.sh",
     "knip": "knip && knip --production",
     "prepare": "lefthook install",
+    "smoke": "vitest run --config smoke.config.ts",
     "tauri": "tauri",
     "test": "vitest"
   },
@@ -87,6 +88,8 @@
     "@vitejs/plugin-react": "6.1.2",
     "@vitest/coverage-v8": "5.0.3",
     "@vitest/web-worker": "5.0.3",
+    "@wdio/tauri-plugin": "1.5.0",
+    "@wdio/tauri-service": "1.5.0",
     "gitzy": "7.2.2",
     "happy-dom": "21.0.1",
     "jiti": "2.7.0",
@@ -103,7 +106,8 @@
     "typescript": "7.0.2",
     "ultracite": "8.0.1",
     "vite": "8.3.4",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "webdriverio": "9.31.9"
   },
   "packageManager": "pnpm@12.10.1"
 }

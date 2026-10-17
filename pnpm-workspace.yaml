@@ -1,5 +1,8 @@
 allowBuilds:
+  # The native smoke driver embeds WebDriver and never launches Edge or Firefox.
+  edgedriver: false
   esbuild: true
+  geckodriver: false
   lefthook: true
   msgpackr-extract: true
 autoInstallPeers: false

@@ -148,7 +148,7 @@ CI checks native binding drift on Linux before starting the TypeScript job. Clip
 
 Regenerate `src/server/adapters/bindings.ts` with `pnpm bindings`; do not edit its generated command signatures or runtime by hand. Change the native registry or export configuration in Rust. `ARCHITECTURE.md` describes the contract and test boundary.
 
-For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. Nothing automated covers it, which `D21` records. Say which claims you checked and which you took from the code alone.
+For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. `pnpm smoke` covers one edit, save and relaunch path on macOS, and nothing automated covers the rest (`D21`). Say which claims you checked and which you took from the code alone.
 
 ## When to stop and ask
 
