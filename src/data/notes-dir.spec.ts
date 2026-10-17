@@ -11,6 +11,7 @@ describe("notes dir", () => {
     it("should return the active library directory", async () => {
       mockIPC((command) => {
         expect(command).toBe("get_notes_dir");
+
         return "/notes";
       });
       await expect(getNotesDir()).resolves.toBe("/notes");
@@ -20,6 +21,7 @@ describe("notes dir", () => {
       mockIPC((command, args) => {
         expect(command).toBe("set_notes_dir");
         expect(args).toStrictEqual({ path: "/other notes" });
+
         return null;
       });
       await expect(setNotesDir("/other notes")).resolves.toBeUndefined();

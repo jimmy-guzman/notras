@@ -67,6 +67,7 @@ function nestColumn(item: Tokens.ListItem, offset: number) {
  */
 function openItems(tokens: readonly Token[], offset: number): OpenItem[] {
   const last = lastBlock(tokens);
+
   const item =
     last !== undefined && isList(last) ? last.items.at(-1) : undefined;
 
@@ -90,6 +91,7 @@ function openItems(tokens: readonly Token[], offset: number): OpenItem[] {
 
 function endsInCode(tokens: readonly Token[]): boolean {
   const last = lastBlock(tokens);
+
   const item =
     last !== undefined && isList(last) ? last.items.at(-1) : undefined;
 
@@ -146,9 +148,11 @@ const SourceKeys = Extension.create({
       "Shift-Enter": () => this.editor.commands.newlineInCode(),
       "Shift-Tab": () => {
         const { indent, line, start, text } = caretLine();
+
         const parent = nestingAt(text, line, indent).find(
           (item) => item.nest === indent
         );
+
         const width =
           parent === undefined ? INDENT.length : indent - parent.indent;
 
@@ -164,9 +168,11 @@ const SourceKeys = Extension.create({
       },
       Tab: () => {
         const { before, indent, line, text } = caretLine();
+
         const item = /^ *$/u.test(before)
           ? nestingAt(text, line, indent).find((open) => open.nest > indent)
           : undefined;
+
         const width = item === undefined ? INDENT.length : item.nest - indent;
 
         return this.editor.commands.insertContent(" ".repeat(width));
@@ -181,6 +187,7 @@ export function touchesSourceTitle(transaction: Transaction) {
   const after = transaction.doc.textContent;
   const old = titleSource(before);
   const next = titleSource(after);
+
   if (
     (old?.title !== next?.title ||
       before.slice(old?.from, old?.to) !== after.slice(next?.from, next?.to)) &&
@@ -188,17 +195,21 @@ export function touchesSourceTitle(transaction: Transaction) {
   ) {
     return true;
   }
+
   return transaction.steps.some((step, index) => {
     const doc = transaction.docs[index];
     const range = doc === undefined ? undefined : titleSource(doc.textContent);
+
     if (range === undefined) {
       return false;
     }
+
     let touched = false;
     // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror step map, not an array
     step.getMap().forEach((from, to) => {
       touched ||= from - 1 <= range.to && to - 1 >= range.from;
     });
+
     return touched;
   });
 }

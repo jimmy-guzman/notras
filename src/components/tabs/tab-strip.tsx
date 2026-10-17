@@ -107,6 +107,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   const snapshot = useTabSnapshot(id);
   const ref = useRef<HTMLSpanElement | null>(null);
   const label = snapshot?.title ?? noteTitle(tab.path);
+
   const {
     isDragging,
     listeners,
@@ -254,6 +255,7 @@ interface OverflowItemProps {
 function OverflowItem({ tab }: OverflowItemProps) {
   const snapshot = useTabSnapshot(tab.id);
   const label = snapshot?.title ?? noteTitle(tab.path);
+
   const select = () => {
     activateTab(tab.id);
   };
@@ -316,6 +318,7 @@ function TabList({ activeId, tabs }: TabListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
   const ids = tabs.map((tab) => tab.id);
+
   // No keyboard sensor: it wants the `attributes` spread, which would overwrite
   // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D60`).
   const sensors = useSensors(
@@ -326,20 +329,25 @@ function TabList({ activeId, tabs }: TabListProps) {
 
   useEffect(() => {
     const list = listRef.current;
+
     const measure = () => {
       if (list === null) {
         return;
       }
+
       const open = new Set(ids);
 
       const next: string[] = [];
+
       for (const item of list.querySelectorAll<HTMLElement>("[data-tab-id]")) {
         // Not a rect: a drag transforms a tab out of its slot, and a rect
         // would call it hidden for being mid-slide.
         const outOfView =
           item.offsetLeft + item.offsetWidth <= list.scrollLeft + 1 ||
           item.offsetLeft >= list.scrollLeft + list.clientWidth - 1;
+
         const id = item.dataset.tabId ?? "";
+
         // A tab closed between the measurement and this frame still has a
         // node until React commits.
         if (outOfView && open.has(id)) {

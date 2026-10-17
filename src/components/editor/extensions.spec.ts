@@ -12,12 +12,14 @@ import { createEditorExtensions, serializeMarkdown } from "./extensions";
  */
 const render = (markdown: string) => {
   const element = document.createElement("div");
+
   const editor = new Editor({
     content: markdown,
     contentType: "markdown",
     element,
     extensions: createEditorExtensions({}),
   });
+
   const rendered = document.createElement("div");
 
   rendered.innerHTML = element.innerHTML;
@@ -68,6 +70,7 @@ const typeInto = (text: string) => {
   for (const char of text) {
     const { from, to } = editor.state.selection;
     const insert = () => editor.state.tr.insertText(char, from, to);
+
     const handled = editor.view.someProp("handleTextInput", (input) =>
       input(editor.view, from, to, char, insert)
     );
@@ -91,6 +94,7 @@ const roundTrip = (markdown: string) => {
     element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
+
   const out = serializeMarkdown(editor);
 
   editor.destroy();

@@ -15,13 +15,16 @@ describe("index status", () => {
         if (command === "index_status") {
           return await read.promise;
         }
+
         throw new Error(`unexpected command: ${command}`);
       });
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       const reading = client.query(indexStatusQuery);
 
       await applyIndexStatus(client, { state: "ready" });

@@ -496,6 +496,7 @@ describe("markdown paste", () => {
             if (text === "first") {
               return await first.promise;
             }
+
             return clipboard === text
               ? { kind: "code", language: "python" }
               : null;

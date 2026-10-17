@@ -42,6 +42,7 @@ function SessionTags({
   query: string;
 }) {
   const snapshot = useTabSnapshot(id);
+
   return snapshot === undefined ? null : (
     <TagsView
       attached={snapshot.tags}
@@ -58,6 +59,7 @@ function mount(view: ReactNode, client: QueryClient) {
   onTestFinished(() => {
     client.clear();
   });
+
   return render(
     createElement(
       QueryClientProvider,
@@ -76,17 +78,20 @@ describe("palette note views", () => {
     for (const tab of getTabState().tabs) {
       closeTab(tab.id);
     }
+
     clearMocks();
   });
 
   it("should select the matching existing folder without offering root or a duplicate new folder", async () => {
     const user = userEvent.setup();
     const moved: string[] = [];
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(
       noteQueries.list().queryKey,
       ["root.md", "Client Work/a.md", "Client Work/2026/b.md"].map((path) => ({
@@ -104,6 +109,7 @@ describe("palette note views", () => {
       "Client Work",
       "Client Work/2026",
     ]);
+
     const { container: host } = mount(
       createElement(MoveView, {
         onCancel: () => {},
@@ -117,6 +123,7 @@ describe("palette note views", () => {
       }),
       client
     );
+
     expect(host.textContent).not.toContain("notes root");
     expect(host.textContent).not.toContain("new folder");
     const selected = screen.getByRole("option", { selected: true });
@@ -128,16 +135,19 @@ describe("palette note views", () => {
   it("should keep loading folders while an older notes failure sits beside cached notes", () => {
     mockIPC(async () => await Promise.withResolvers<never>().promise);
     onTestFinished(clearMocks);
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(noteQueries.list().queryKey, []);
     client
       .getQueryCache()
       .find({ queryKey: noteQueries.list().queryKey })
       ?.setState({ error: new Error("index unavailable"), status: "error" });
+
     const { container: host } = mount(
       createElement(MoveView, {
         onCancel: () => {},
@@ -155,11 +165,13 @@ describe("palette note views", () => {
   it("should offer an existing empty folder instead of creating it", async () => {
     const user = userEvent.setup();
     const moved: string[] = [];
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(noteQueries.list().queryKey, [
       {
         createdAt: new Date(1),
@@ -173,6 +185,7 @@ describe("palette note views", () => {
       },
     ]);
     client.setQueryData(noteQueries.folders().queryKey, ["inbox"]);
+
     const { container: host } = mount(
       createElement(MoveView, {
         onCancel: () => {},
@@ -186,6 +199,7 @@ describe("palette note views", () => {
       }),
       client
     );
+
     expect(host.textContent).not.toContain("new folder");
     const selected = screen.getByRole("option", { selected: true });
     expect(selected.textContent).toBe("inbox");
@@ -202,15 +216,19 @@ describe("palette note views", () => {
         if (command === "list_tags") {
           return await vocabulary.promise;
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         if (command === "get_notes_dir") {
           return "/notes";
         }
+
         if (command === "read_conflict") {
           return null;
         }
+
         if (command === "read_note") {
           return {
             content: "---\ntags:\n  - work\n---\n# Atlas\n",
@@ -220,8 +238,10 @@ describe("palette note views", () => {
             updatedAt: 1,
           };
         }
+
         if (command === "save_note" && savesContent(args)) {
           writes.push(args.content);
+
           return {
             kind: "committed",
             receipt: {
@@ -232,24 +252,30 @@ describe("palette note views", () => {
             },
           };
         }
+
         throw new Error(`unexpected command: ${command}`);
       });
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       if (state === "available") {
         client.setQueryData(noteQueries.tags().queryKey, [
           { count: 1, tag: "review" },
           { count: 2, tag: "work" },
         ]);
       }
+
       openNote("atlas.md");
       const [tab] = getTabState().tabs;
+
       if (tab === undefined) {
         throw new Error("the note did not open");
       }
+
       onTestFinished(async () => {
         act(() => {
           vocabulary.resolve([]);
@@ -257,6 +283,7 @@ describe("palette note views", () => {
         client.clear();
       });
       const changeQuery = vi.fn<(query: string) => void>();
+
       const view = (query: string) => (
         <QueryClientProvider client={client}>
           <NoteSession active tab={tab} />
@@ -271,8 +298,10 @@ describe("palette note views", () => {
           </Command>
         </QueryClientProvider>
       );
+
       const { rerender } = render(view(""));
       await screen.findByRole("heading", { name: "Atlas" });
+
       if (state === "failed") {
         act(() => {
           vocabulary.reject({
@@ -281,15 +310,18 @@ describe("palette note views", () => {
           });
         });
       }
+
       await waitFor(() => {
         expect(
           screen.queryByText("could not load tag suggestions") !== null
         ).toBe(state === "failed");
       });
       const user = userEvent.setup();
+
       const attached = screen.getByRole("option", {
         name: state === "available" ? "work 2" : "work",
       });
+
       expect(attached.textContent).toContain("work");
       expect(attached).toHaveAttribute(
         "aria-selected",

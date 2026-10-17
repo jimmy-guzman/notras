@@ -51,10 +51,12 @@ export function LinkEditor({
 
     const rect = element.getBoundingClientRect();
     const margin = 8;
+
     const left = Math.max(
       margin,
       Math.min(state.left, window.innerWidth - rect.width - margin)
     );
+
     const top =
       state.top + rect.height + margin > window.innerHeight
         ? Math.max(margin, state.top - rect.height - 28)
@@ -78,6 +80,7 @@ export function LinkEditor({
           event.preventDefault();
           submit();
         }
+
         if (event.key === "Escape") {
           event.preventDefault();
           onCancel();

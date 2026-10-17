@@ -34,6 +34,7 @@ export function NoteStatus({
 }: NoteStatusProps) {
   const hasNote = note !== undefined;
   const chordsByName = useChordsByName();
+
   const toggles = [
     {
       icon: Code2Icon,

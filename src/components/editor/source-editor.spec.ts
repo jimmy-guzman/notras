@@ -16,6 +16,7 @@ describe("focus through the handle", () => {
       note.destroy();
     });
     const handles: SourceEditorHandle[] = [];
+
     const { container } = render(
       createElement(SourceEditor, {
         editor: note.editor,
@@ -25,13 +26,17 @@ describe("focus through the handle", () => {
         },
       })
     );
+
     const [handle] = handles;
+
     const viewport = container.querySelector<HTMLElement>(
       '[data-slot="scroll-area-viewport"]'
     );
+
     if (handle === undefined || viewport === null) {
       throw new Error("source editor missing");
     }
+
     // Fakes WebKit at the DOM boundary: focus reads `preventScroll` the way a
     // supporting engine does and still scrolls the caret into view inside the
     // call. ProseMirror decides once per module, on its first focus, whether
@@ -64,6 +69,7 @@ describe("source editor focus", () => {
       note.destroy();
     });
     const handles: SourceEditorHandle[] = [];
+
     const { container } = render(
       createElement(SourceEditor, {
         editor: note.editor,
@@ -73,10 +79,13 @@ describe("source editor focus", () => {
         },
       })
     );
+
     const [handle] = handles;
+
     if (handle === undefined) {
       throw new Error("source editor missing");
     }
+
     const surface = container.querySelector(".ProseMirror");
     expect(surface).toBeInTheDocument();
     act(() => {
@@ -93,8 +102,10 @@ describe("source editor focus", () => {
           .setMeta("addToHistory", false)
       );
     });
+
     const expected =
       "---\ntitle: longer title\n---\n# longer title\nbody plus typing";
+
     expect(surface?.textContent).toBe(expected);
     expect(handle.getCursorOffset()).toBe(expected.length);
     expect(container.querySelector(".ProseMirror")).toBe(surface);
@@ -112,10 +123,12 @@ describe("source editor focus", () => {
     const button = document.createElement("button");
     document.body.append(button);
     button.focus();
+
     const note = createNoteDocument(
       "---\npinned: true\n---\n# a title",
       "a.md"
     );
+
     onTestFinished(() => {
       note.destroy();
       button.remove();
@@ -132,17 +145,21 @@ describe("source editor focus", () => {
     const button = document.createElement("button");
     document.body.append(button);
     button.focus();
+
     const note = createNoteDocument(
       "---\npinned: true\n---\n# a title",
       "a.md"
     );
+
     onTestFinished(() => {
       note.destroy();
       button.remove();
     });
+
     const { container } = render(
       createElement(SourceEditor, { editor: note.editor, focusOnMount: true })
     );
+
     await waitFor(() =>
       expect(container.querySelector(".ProseMirror")).toHaveFocus()
     );
@@ -471,14 +488,18 @@ describe("source editor", () => {
   }) => {
     const changes: string[] = [];
     const handles: SourceEditorHandle[] = [];
+
     const source =
       "---\npinned: true\n...\n# a title\n\n```ts\nconst value = 1;\n```";
+
     const note = createNoteDocument(source, "a.md", () => {
       changes.push(note.content());
     });
+
     onTestFinished(() => {
       note.destroy();
     });
+
     const { container } = render(
       createElement(SourceEditor, {
         editor: note.editor,
@@ -488,13 +509,16 @@ describe("source editor", () => {
         },
       })
     );
+
     await waitFor(() =>
       expect(container.querySelector(".syntax-token")).toBeInTheDocument()
     );
     const [handle] = handles;
+
     if (handle === undefined) {
       throw new Error("source editor missing");
     }
+
     expect(container.querySelector("pre")?.textContent).toBe(source);
     expect(handle.getCursorOffset()).toBe(4);
     expect(changes).toStrictEqual([]);
@@ -515,6 +539,7 @@ describe("source editor", () => {
       note.destroy();
     });
     const handles: SourceEditorHandle[] = [];
+
     const { rerender } = render(
       createElement(SourceEditor, {
         editor: note.editor,
@@ -523,10 +548,13 @@ describe("source editor", () => {
         },
       })
     );
+
     const [first] = handles;
+
     if (first === undefined) {
       throw new Error("source did not mount");
     }
+
     act(() => {
       first.find.setQuery("needle");
     });

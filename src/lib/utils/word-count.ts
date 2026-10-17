@@ -4,6 +4,7 @@ const WHITESPACE_RUN = /\s+/u;
 
 export function countWords(content: string) {
   const { body } = parseNote(content);
+
   const words = body
     .trim()
     .split(WHITESPACE_RUN)

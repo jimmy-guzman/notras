@@ -106,15 +106,18 @@ export function MoveView({
 }: MoveViewProps) {
   const notes = useQuery(noteQueries.list());
   const known = useQuery(noteQueries.folders());
+
   const retry = async () => {
     await Promise.all([notes.refetch(), known.refetch()]);
   };
+
   if (notes.data === undefined || known.data === undefined) {
     // Only a query with nothing to show can fail the view; a stale error
     // beside cached data waits for the other query instead.
     const failure =
       [notes, known].find((read) => read.data === undefined && read.isError)
         ?.error ?? null;
+
     return (
       <output className="block p-4 text-sm">
         {failure === null ? (
@@ -137,11 +140,14 @@ export function MoveView({
       </output>
     );
   }
+
   const folders = searchFolders(known.data, notes.data);
   const draftFolder = query.trim();
+
   const matches = folders.filter(({ folder }) =>
     folder.toLowerCase().includes(draftFolder.toLowerCase())
   );
+
   const exists = folders.some(
     ({ folder }) => folder.toLowerCase() === draftFolder.toLowerCase()
   );
@@ -220,13 +226,17 @@ export function TagsView({
   title,
 }: TagsViewProps) {
   const vocabulary = useQuery(noteQueries.tags());
+
   const counts = new Map(
     vocabulary.data?.map(({ count, tag }) => [tag, count])
   );
+
   const draftTag = query.trim().toLowerCase();
+
   const choices = [...new Set([...counts.keys(), ...attached])]
     .toSorted()
     .filter((name) => name.includes(draftTag));
+
   const toggle = async (name: string) => {
     try {
       await changeNoteMetadata(path, ({ tags }) => ({
@@ -242,8 +252,10 @@ export function TagsView({
       });
     }
   };
+
   const add = async () => {
     onQueryChange("");
+
     try {
       await changeNoteMetadata(path, ({ tags }) => ({
         tags: [...tags, draftTag],
@@ -256,9 +268,11 @@ export function TagsView({
       });
     }
   };
+
   const retry = async () => {
     await vocabulary.refetch();
   };
+
   const attachedNames = new Set(attached);
 
   return (

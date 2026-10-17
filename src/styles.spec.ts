@@ -22,6 +22,7 @@ const readTokens = (css: string) => {
   for (const { groups } of css.matchAll(TOKEN)) {
     const name = groups?.name;
     const value = groups?.value;
+
     if (name !== undefined && value !== undefined) {
       tokens.set(name, value);
     }
@@ -281,6 +282,7 @@ const typesetRole = (role: string) => {
     String.raw`--typeset-${role}:\s*var\(\s*--color-(?<token>[\w-]+)`,
     "u"
   ).exec(typeset);
+
   const token = found?.groups?.token;
 
   if (token === undefined) {
@@ -371,6 +373,7 @@ describe("shared surface colors", () => {
     );
 
     expect(blockOf(forced, "html")).toContain("scrollbar-color: auto;");
+
     const selection = blockOf(
       forced,
       "::selection,\n    .ProseMirror .selected-text"
@@ -610,6 +613,7 @@ const rustBackground = (rustSource: string, name: string) => {
     String.raw`${name}: Color = Color\(\s*0x(?<red>[\da-f]{2}),\s*0x(?<green>[\da-f]{2}),\s*0x(?<blue>[\da-f]{2})`,
     "u"
   );
+
   const found = pattern.exec(rustSource);
 
   if (found === null) {

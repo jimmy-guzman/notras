@@ -27,9 +27,11 @@ function chosenLines(hunk: Hunk, choice: HunkChoice) {
   if (choice === "ours") {
     return hunk.ours;
   }
+
   if (choice === "theirs") {
     return hunk.theirs;
   }
+
   // An empty result is the place deleted, not one blank line.
   return choice.edited === "" ? [] : lines(choice.edited);
 }
@@ -52,6 +54,7 @@ export function mergeDocuments(
     if (region.ok !== undefined) {
       return { kind: "ok", lines: region.ok };
     }
+
     if (region.conflict !== undefined) {
       return {
         base: region.conflict.o,
@@ -60,6 +63,7 @@ export function mergeDocuments(
         theirs: region.conflict.b,
       };
     }
+
     throw new Error("A merge region without a side");
   });
 
@@ -81,22 +85,29 @@ export function composeResolution(
   choices: HunkChoice[]
 ): string {
   const hunks = conflict.regions.filter((region) => region.kind === "hunk");
+
   if (choices.length !== hunks.length) {
     throw new Error("Every hunk needs a choice");
   }
+
   let next = 0;
   const output: string[] = [];
+
   for (const region of conflict.regions) {
     if (region.kind === "ok") {
       output.push(...region.lines);
       continue;
     }
+
     const choice = choices[next];
     next += 1;
+
     if (choice === undefined) {
       throw new Error("Every hunk needs a choice");
     }
+
     output.push(...chosenLines(region, choice));
   }
+
   return output.join("\n");
 }

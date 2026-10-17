@@ -62,6 +62,7 @@ describe("three-way merge", () => {
     const ours = "# Plan\n\nfirst, mine\n\nsecond, mine\n";
     const theirs = "# Plan\n\nfirst, theirs\n\nsecond, theirs\n";
     const result = mergeDocuments(ours, base, theirs);
+
     if (result.kind !== "conflict") {
       throw new Error("expected a conflict");
     }
@@ -78,6 +79,7 @@ describe("three-way merge", () => {
       "a\nbase\nz\n",
       "a\ntheirs\nz\n"
     );
+
     if (result.kind !== "conflict") {
       throw new Error("expected a conflict");
     }
@@ -87,6 +89,7 @@ describe("three-way merge", () => {
 
   it("should refuse a resolution that leaves a hunk unchosen", () => {
     const result = mergeDocuments("a\nmine\n", "a\nbase\n", "a\ntheirs\n");
+
     if (result.kind !== "conflict") {
       throw new Error("expected a conflict");
     }

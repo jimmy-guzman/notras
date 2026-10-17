@@ -26,6 +26,7 @@ describe("syntax highlighter", () => {
     expect(syntaxLanguage("ts")).toBe("typescript");
     expect(syntaxLanguage("TSX")).toBe("tsx");
     expect(syntaxLanguage("sh")).toBe("shellscript");
+
     for (const label of [
       null,
       "",
@@ -118,9 +119,11 @@ describe("syntax highlighter", () => {
     });
 
     const busy = highlightCode(job({ code: "const busy = 1;", document: 20 }));
+
     const stale = highlightCode(
       job({ code: "const stale = 1;", document: 21 })
     );
+
     const latest = highlightCode(job({ code: "let stale = 1;", document: 21 }));
 
     await expect(stale).resolves.toBeUndefined();
@@ -143,9 +146,11 @@ describe("syntax highlighter", () => {
     const aborter = new AbortController();
 
     const busy = highlightCode(job({ code: "const busy = 1;", document: 30 }));
+
     const withdrawn = highlightCode(
       job({ code: "const gone = 1;", document: 31, signal: aborter.signal })
     );
+
     const kept = highlightCode(job({ code: "const kept = 1;", document: 32 }));
     aborter.abort();
 

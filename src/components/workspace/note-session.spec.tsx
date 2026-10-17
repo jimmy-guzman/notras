@@ -58,6 +58,7 @@ const disk = new Map<
   string,
   { content: string; revision: string; updatedAt: number }
 >();
+
 /** Every path `disk` was asked for, in order. */
 const diskReads: string[] = [];
 
@@ -92,14 +93,18 @@ function withDisk(
     kind: "not-found",
     message: "No such file",
   });
+
   return async (command, args) => {
     if (command !== "read_note" && command !== "read_external") {
       return await respond(command, args);
     }
+
     if (!readsPath(args)) {
       throw new Error(`${command} carried no path`);
     }
+
     diskReads.push(args.path);
+
     return disk.get(args.path) ?? (await missing());
   };
 }
@@ -118,8 +123,10 @@ function mountSession(content?: string) {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+
   openNote(tab.path);
   const id = getTabState().activeId;
+
   if (content !== undefined) {
     disk.set(tab.path, { content, revision: "r0", updatedAt: 1 });
     client.setQueryData(tabOpeningQuery(id, "note", tab.path).queryKey, {
@@ -141,6 +148,7 @@ function mountSession(content?: string) {
       )
     )
   );
+
   return client;
 }
 
@@ -160,9 +168,11 @@ async function editor(id: string = getTabState().activeId) {
         ?.querySelector(".ProseMirror")
     ).toBeInTheDocument()
   );
+
   const surface = document
     .querySelector(`[id="${tabPanelId(id)}"]`)
     ?.querySelector(".ProseMirror");
+
   if (
     surface === undefined ||
     surface === null ||
@@ -171,6 +181,7 @@ async function editor(id: string = getTabState().activeId) {
   ) {
     throw new Error("the editor did not mount");
   }
+
   return surface.editor;
 }
 
@@ -191,9 +202,11 @@ function typeAtEnd(liveEditor: TiptapEditor, text: string) {
 
 function sessionHandles(id: string = getTabState().activeId) {
   const handles = getTabHandles(id);
+
   if (handles === undefined) {
     throw new Error("the session did not mount");
   }
+
   return handles;
 }
 
@@ -208,19 +221,24 @@ function mountDraft(respond: Parameters<typeof mockIPC>[0]) {
   const commands: string[] = [];
   mockIPC(async (command, args) => {
     commands.push(command);
+
     if (command === "list_notes") {
       return [];
     }
+
     if (command.startsWith("plugin:")) {
       return 0;
     }
+
     return await respond(command, args);
   });
+
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+
   client.setQueryData(notesDirQuery.queryKey, "/notes");
   onTestFinished(() => {
     client.clear();
@@ -231,6 +249,7 @@ function mountDraft(respond: Parameters<typeof mockIPC>[0]) {
       <Toaster />
     </QueryClientProvider>
   );
+
   return { commands, id };
 }
 
@@ -252,6 +271,7 @@ async function mountConflict(
       ) {
         return ipc(command, args) ?? null;
       }
+
       return ipc(command, args);
     })
   );
@@ -267,6 +287,7 @@ async function mountConflict(
   await waitFor(() =>
     expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
   );
+
   return { client, liveEditor };
 }
 
@@ -275,24 +296,30 @@ describe(NoteSession, () => {
   beforeEach(() => {
     reads = 0;
     localStorage.removeItem("recent-notes:/notes");
+
     const denied = vi.fn<() => Promise<never>>().mockRejectedValue({
       kind: "failed",
       message: "Permission denied",
     });
+
     mockIPC(async (command) => {
       if (command === "read_note") {
         reads += 1;
+
         return await denied();
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
   });
 
   afterEach(() => {
     cleanup();
+
     for (const entry of getTabState().tabs) {
       closeTab(entry.id);
     }
+
     disk.clear();
     diskReads.length = 0;
     clearMocks();
@@ -315,29 +342,38 @@ describe(NoteSession, () => {
             },
           };
         }
+
         if (command === "move_note" || command === "save_note") {
           started.resolve(null);
+
           return await held.promise;
         }
+
         if (command === "read_note") {
           return { content: "# Original", revision: "r0", updatedAt: 0 };
         }
+
         if (command === "read_conflict" || command === "clear_conflict") {
           return null;
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         if (command.startsWith("plugin:")) {
           return 0;
         }
+
         throw new Error(`unexpected command: ${command}`);
       });
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       client.setQueryData(notesDirQuery.queryKey, "/notes");
       onTestFinished(() => {
         client.clear();
@@ -353,15 +389,18 @@ describe(NoteSession, () => {
       expect(readRecentNotes("/notes")).toStrictEqual(["original.md"]);
       rememberNote("/notes", "other.md");
       const { changePath } = sessionHandles(id);
+
       if (changePath === undefined) {
         throw new Error("the loaded note has no path operation");
       }
+
       await act(async () => {
         const changed = changePath(
           kind === "move"
             ? { folder: "folder", kind }
             : { kind, title: "Renamed" }
         );
+
         await started.promise;
         closeTab(id);
         held.resolve(
@@ -400,33 +439,41 @@ describe(NoteSession, () => {
       mockIPC((command) => {
         if (command === "read_note") {
           attempts += 1;
+
           if (!readable) {
             throw Object.assign(new Error("Permission denied"), {
               kind: "failed",
             });
           }
+
           return {
             content: "# Read\n\nAvailable",
             revision: "r1",
             updatedAt: 1,
           };
         }
+
         if (command === "read_conflict") {
           return null;
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         if (command.startsWith("plugin:")) {
           return 0;
         }
+
         throw new Error(`unexpected command: ${command}`);
       });
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       client.setQueryData(notesDirQuery.queryKey, "/notes");
       onTestFinished(() => {
         client.clear();
@@ -476,8 +523,10 @@ describe(NoteSession, () => {
         if (command === "list_notes") {
           return await listed.promise;
         }
+
         if (command === "save_note") {
           writes.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -488,14 +537,17 @@ describe(NoteSession, () => {
             },
           };
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set("a.md", {
       content: "# Available\n\nOriginal text",
@@ -547,8 +599,10 @@ describe(NoteSession, () => {
         if (command === "list_notes") {
           return [];
         }
+
         if (command === "save_note" && readsPath(args)) {
           writes.push(args.path);
+
           return {
             kind: "committed",
             receipt: {
@@ -559,12 +613,15 @@ describe(NoteSession, () => {
             },
           };
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
+
     const client = mountSession("# Available\n\nOriginal text");
     onTestFinished(() => {
       client.clear();
@@ -605,11 +662,14 @@ describe(NoteSession, () => {
         if (command === "list_notes") {
           return [];
         }
+
         if (command === "save_note" && readsPath(args)) {
           writes.push(args.path);
+
           if (writes.length === 1) {
             await firstWrite.promise;
           }
+
           return {
             kind: "committed",
             receipt: {
@@ -620,12 +680,15 @@ describe(NoteSession, () => {
             },
           };
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
+
     const client = mountSession("# Available\n\nOriginal text");
     onTestFinished(() => {
       client.clear();
@@ -669,9 +732,11 @@ describe(NoteSession, () => {
 
   it("should move a stored review to the tab's new path when the notes folder moves under it", async () => {
     const stashes: string[] = [];
+
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
@@ -681,14 +746,18 @@ describe(NoteSession, () => {
           readsPath(args)
         ) {
           stashes.push(`${command}:${args.path}`);
+
           return null;
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         throw new Error(`unexpected command: ${command}`);
       }
     );
+
     onTestFinished(() => {
       client.clear();
     });
@@ -719,9 +788,11 @@ describe(NoteSession, () => {
   it("should keep the old review copy until a later stash lands at the new path", async () => {
     const stashes: string[] = [];
     let refuseNewPath = true;
+
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
@@ -731,6 +802,7 @@ describe(NoteSession, () => {
           readsPath(args)
         ) {
           stashes.push(`${command}:${args.path}`);
+
           if (
             command === "stash_conflict" &&
             args.path === "sub/a.md" &&
@@ -739,14 +811,18 @@ describe(NoteSession, () => {
             refuseNewPath = false;
             throw new Error("Disk is full");
           }
+
           return null;
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         throw new Error(`unexpected command: ${command}`);
       }
     );
+
     onTestFinished(() => {
       client.clear();
     });
@@ -786,9 +862,11 @@ describe(NoteSession, () => {
     const writes: string[] = [];
     const held = Promise.withResolvers<null>();
     let oldPathStashes = 0;
+
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
@@ -798,17 +876,22 @@ describe(NoteSession, () => {
           readsPath(args)
         ) {
           stashes.push(`${command}:${args.path}`);
+
           if (command === "stash_conflict" && args.path === "a.md") {
             oldPathStashes += 1;
+
             // The second one is a blur flush caught by the folder change.
             if (oldPathStashes === 2) {
               await held.promise;
             }
           }
+
           return null;
         }
+
         if (command === "save_note" && readsPath(args)) {
           writes.push(args.path);
+
           return {
             kind: "committed",
             receipt: {
@@ -819,12 +902,15 @@ describe(NoteSession, () => {
             },
           };
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         throw new Error(`unexpected command: ${command}`);
       }
     );
+
     onTestFinished(() => {
       client.clear();
     });
@@ -870,9 +956,11 @@ describe(NoteSession, () => {
     const user = userEvent.setup();
     const stashes: string[] = [];
     let oldPathClears = 0;
+
     for (const open of getTabState().tabs) {
       closeTab(open.id);
     }
+
     const { client, liveEditor } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
@@ -882,14 +970,18 @@ describe(NoteSession, () => {
           readsPath(args)
         ) {
           stashes.push(`${command}:${args.path}`);
+
           if (command === "clear_conflict" && args.path === "a.md") {
             oldPathClears += 1;
+
             if (oldPathClears < 3) {
               throw new Error("Disk is busy");
             }
           }
+
           return null;
         }
+
         if (command === "save_note" && readsPath(args)) {
           return {
             kind: "committed",
@@ -901,12 +993,15 @@ describe(NoteSession, () => {
             },
           };
         }
+
         if (command === "list_notes") {
           return [];
         }
+
         throw new Error(`unexpected command: ${command}`);
       }
     );
+
     onTestFinished(() => {
       client.clear();
     });
@@ -951,16 +1046,20 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "open_linked_file") {
           opened.push(args);
+
           return null;
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.list().queryKey, []);
     disk.set("projects/a.md", {
@@ -1011,19 +1110,23 @@ describe(NoteSession, () => {
       kind: "not-found",
       message: "No such file",
     });
+
     mockIPC(
       withDisk(async (command) => {
         if (command === "open_linked_file") {
           return await missing();
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.list().queryKey, []);
     disk.set("a.md", {
@@ -1065,16 +1168,20 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "open_external_file") {
           opened.push(args);
+
           return null;
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set(path, {
@@ -1120,16 +1227,20 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "resolve_external_link") {
           resolved.push(args);
+
           return { kind: "external", path: "/Users/me/other.md" };
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set(path, {
@@ -1177,14 +1288,17 @@ describe(NoteSession, () => {
     mockIPC(
       withDisk((command) => {
         commands.push(command);
+
         return null;
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set(path, { content: "# Ext\n\ntext", revision: "r0", updatedAt: 1 });
@@ -1233,10 +1347,13 @@ describe(NoteSession, () => {
     mockIPC(
       withDisk((command, args) => {
         commands.push([command, args]);
+
         if (command === "plugin:dialog|save") {
           return "/exports/a.pdf";
         }
+
         printed = document.querySelector(".print-sheet")?.textContent ?? "";
+
         return null;
       })
     );
@@ -1278,9 +1395,11 @@ describe(NoteSession, () => {
         if (command === "plugin:dialog|save") {
           return "/exports/a.pdf";
         }
+
         printed = document.querySelector(
           ".print-sheet .syntax-token"
         )?.textContent;
+
         return null;
       })
     );
@@ -1299,6 +1418,7 @@ describe(NoteSession, () => {
       .mockImplementation(function posted(this: Worker) {
         this.dispatchEvent(new ErrorEvent("error", { message: "no grammar" }));
       });
+
     onTestFinished(() => {
       posted.mockRestore();
     });
@@ -1308,7 +1428,9 @@ describe(NoteSession, () => {
         if (command === "plugin:dialog|save") {
           return "/exports/a.pdf";
         }
+
         printed = document.querySelector(".print-sheet pre")?.textContent;
+
         return null;
       })
     );
@@ -1328,11 +1450,13 @@ describe(NoteSession, () => {
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     client.setQueryData(noteQueries.list().queryKey, []);
     disk.set("projects/a.md", {
@@ -1365,9 +1489,11 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
     await editor("t5");
+
     const sources = screen
       .getAllByRole("img")
       .map((image) => image.getAttribute("src"));
+
     expect(sources).toStrictEqual([
       "asset://localhost/%2Fnotes%2Fprojects%2Fmy%20shot.png",
       "",
@@ -1384,11 +1510,13 @@ describe(NoteSession, () => {
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const path = "/Users/me/docs/note.md";
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set(path, {
@@ -1421,6 +1549,7 @@ describe(NoteSession, () => {
       if (node.type.name === "image") {
         sources.push(String(node.attrs.src));
       }
+
       return true;
     });
     expect(sources).toStrictEqual(["../my%20shot.png"]);
@@ -1433,14 +1562,17 @@ describe(NoteSession, () => {
         if (command === "list_notes") {
           return await listed.promise;
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set("a.md", {
       content: "# Available\n\n[Target](target.md)",
@@ -1505,14 +1637,17 @@ describe(NoteSession, () => {
           if (command === "list_notes") {
             return await listed.promise;
           }
+
           throw new Error(`unexpected command: ${command}`);
         })
       );
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       client.setQueryData(notesDirQuery.queryKey, "/notes");
       disk.set("a.md", {
         content: "# Available\n\n[Target](target.md)",
@@ -1534,11 +1669,13 @@ describe(NoteSession, () => {
         client.clear();
       });
       render(<Toaster />);
+
       const session = render(
         <QueryClientProvider client={client}>
           <NoteSession active tab={tab} />
         </QueryClientProvider>
       );
+
       const liveEditor = await editor(tab.id);
       act(() => {
         liveEditor.commands.setTextSelection(
@@ -1546,6 +1683,7 @@ describe(NoteSession, () => {
         );
         liveEditor.commands.keyboardShortcut("Mod-Shift-o");
       });
+
       if (change === "switching tabs") {
         act(() => {
           openNote("chosen.md");
@@ -1570,6 +1708,7 @@ describe(NoteSession, () => {
       } else {
         session.unmount();
       }
+
       act(() => {
         if (completion === "reject") {
           listed.reject({ kind: "failed", message: "lookup unavailable" });
@@ -1614,26 +1753,32 @@ describe(NoteSession, () => {
       openNote("background.md", true);
       const background = getTabState().activeId;
       openNote("a.md", true);
+
       const origin = getTabState().tabs.find(
         (entry) => entry.id === getTabState().activeId
       );
+
       if (origin === undefined) {
         throw new Error("the originating tab did not open");
       }
+
       const listed = Promise.withResolvers<unknown[]>();
       mockIPC(
         withDisk(async (command) => {
           if (command === "list_notes") {
             return await listed.promise;
           }
+
           throw new Error(`unexpected command: ${command}`);
         })
       );
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       client.setQueryData(notesDirQuery.queryKey, "/notes");
       disk.set("a.md", {
         content: "# Available\n\n[Target](target.md)",
@@ -1717,14 +1862,17 @@ describe(NoteSession, () => {
         if (command === "list_notes") {
           return await listed.promise;
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set("a.md", {
       content: "# Available\n\n[First](first.md) [Second](second.md)",
@@ -1794,6 +1942,7 @@ describe(NoteSession, () => {
     "should undo a rename across saving and editor mode changes from source mode %s",
     async (sourceMode) => {
       const writes: unknown[] = [];
+
       const held = Promise.withResolvers<{
         kind: "committed";
         receipt: {
@@ -1803,12 +1952,15 @@ describe(NoteSession, () => {
           warnings: never[];
         };
       }>();
+
       mockIPC(
         withDisk(async (command, args) => {
           if (command !== "save_note") {
             return null;
           }
+
           writes.push(args);
+
           return writes.length === 1
             ? await held.promise
             : {
@@ -1824,16 +1976,20 @@ describe(NoteSession, () => {
       );
       mountSession("# Errands\n\nbody");
       await editor();
+
       if (sourceMode) {
         act(() => {
           sessionHandles().toggleSource();
         });
       }
+
       const surface = await editor();
       const { changePath } = sessionHandles();
+
       if (changePath === undefined) {
         throw new Error("the session has no rename action");
       }
+
       let renaming: Promise<void> | undefined;
       act(() => {
         renaming = changePath({ kind: "retitle", title: "Weekend errands" });
@@ -1903,6 +2059,7 @@ describe(NoteSession, () => {
         withDisk((command, args) => {
           if (command === "save_note") {
             writes.push(args);
+
             return {
               kind: "committed",
               receipt: {
@@ -1913,16 +2070,19 @@ describe(NoteSession, () => {
               },
             };
           }
+
           return null;
         })
       );
       mountSession("# Errands\n\nbody");
       await editor();
+
       if (sourceMode) {
         act(() => {
           sessionHandles().toggleSource();
         });
       }
+
       const surface = await editor();
       act(() => {
         const position = sourceMode ? 10 : 8;
@@ -1950,6 +2110,7 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "save_note") {
           writes.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -1960,6 +2121,7 @@ describe(NoteSession, () => {
             },
           };
         }
+
         return null;
       })
     );
@@ -1982,6 +2144,7 @@ describe(NoteSession, () => {
         withDisk((command, args) => {
           if (command === "save_note") {
             writes.push(args);
+
             return {
               kind: "committed",
               receipt: {
@@ -1992,16 +2155,19 @@ describe(NoteSession, () => {
               },
             };
           }
+
           return null;
         })
       );
       mountSession("buy milk\n\nbody");
       await editor();
+
       if (sourceMode) {
         act(() => {
           sessionHandles().toggleSource();
         });
       }
+
       const surface = await editor();
       act(() => {
         typeAtEnd(surface, " more");
@@ -2028,6 +2194,7 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "write_external") {
           writes.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -2038,17 +2205,21 @@ describe(NoteSession, () => {
             },
           };
         }
+
         if (command.startsWith("plugin:")) {
           return 0;
         }
+
         throw new Error(`unexpected command: ${command}`);
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       client.clear();
     });
@@ -2093,6 +2264,7 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "save_note") {
           writes.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -2103,6 +2275,7 @@ describe(NoteSession, () => {
             },
           };
         }
+
         return null;
       })
     );
@@ -2159,11 +2332,13 @@ describe(NoteSession, () => {
         warnings: [];
       };
     }>();
+
     const writes: unknown[] = [];
     mockIPC(
       withDisk(async (command, args) => {
         if (command === "save_note") {
           writes.push(args);
+
           return writes.length === 1
             ? await first.promise
             : {
@@ -2176,6 +2351,7 @@ describe(NoteSession, () => {
                 },
               };
         }
+
         return null;
       })
     );
@@ -2260,7 +2436,9 @@ describe(NoteSession, () => {
           if (!savesContent(args)) {
             throw new Error("save content missing");
           }
+
           writes.push(args.content);
+
           return {
             kind: "committed",
             receipt: {
@@ -2271,6 +2449,7 @@ describe(NoteSession, () => {
             },
           };
         }
+
         return null;
       })
     );
@@ -2309,6 +2488,7 @@ describe(NoteSession, () => {
   it("should land undo where the step began and redo where the caret was before the undo", async () => {
     mountSession("one\n\ntwo");
     const liveEditor = await editor();
+
     const endOfTwo = () => {
       let end = 0;
       liveEditor.state.doc.descendants((node, pos) => {
@@ -2316,8 +2496,10 @@ describe(NoteSession, () => {
           end = pos + node.nodeSize - 1;
         }
       });
+
       return end;
     };
+
     act(() => {
       liveEditor.commands.setTextSelection(4);
     });
@@ -2401,18 +2583,22 @@ describe(NoteSession, () => {
 
   it("should show why the note could not be saved until the next write lands", async () => {
     let denied = true;
+
     const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
       kind: "failed",
       message: "Permission denied",
     });
+
     mockIPC(
       withDisk(async (command) => {
         if (command !== "save_note") {
           return null;
         }
+
         if (denied) {
           return await refused();
         }
+
         return {
           kind: "committed",
           receipt: { path: "a.md", revision: "r2", updatedAt: 2, warnings: [] },
@@ -2448,10 +2634,12 @@ describe(NoteSession, () => {
 
   it("should open the review from the banner, hide the note, and come back on escape", async () => {
     const user = userEvent.setup();
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk"
     );
+
     expect(review()).toHaveAttribute("inert");
     await user.click(screen.getByRole("button", { name: "review" }));
     expect(review()).not.toHaveAttribute("inert");
@@ -2477,10 +2665,12 @@ describe(NoteSession, () => {
 
   it("should keep a typed result across back and reopening", async () => {
     const user = userEvent.setup();
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk"
     );
+
     await user.click(screen.getByRole("button", { name: "review" }));
     await user.type(
       screen.getByRole("textbox", { name: "result for place 1" }),
@@ -2516,10 +2706,12 @@ describe(NoteSession, () => {
 
   it("should close the review when a later change combines, and open the next one on the banner", async () => {
     const user = userEvent.setup();
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk"
     );
+
     await user.click(screen.getByRole("button", { name: "review" }));
     expect(review()).not.toHaveAttribute("inert");
     disk.set(tab.path, {
@@ -2548,10 +2740,12 @@ describe(NoteSession, () => {
 
   it("should show a heading place at heading size and fold long unchanged runs", async () => {
     const user = userEvent.setup();
+
     const { client } = await mountConflict(
       "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody",
       "# Errands\n\none\n\ntwo\n\nthree\n\nfour\n\nbody, on disk"
     );
+
     await user.click(screen.getByRole("button", { name: "review" }));
     await user.click(
       screen.getByRole("button", { name: "10 unchanged lines" })
@@ -2577,13 +2771,16 @@ describe(NoteSession, () => {
     const user = userEvent.setup();
     const calls: string[] = [];
     const writes: unknown[] = [];
+
     const { client, liveEditor } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
       (command, args) => {
         calls.push(command);
+
         if (command === "save_note") {
           writes.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -2594,9 +2791,11 @@ describe(NoteSession, () => {
             },
           };
         }
+
         return null;
       }
     );
+
     await user.click(screen.getByRole("button", { name: "review" }));
     await user.type(
       screen.getByRole("textbox", { name: "result for place 1" }),
@@ -2628,16 +2827,19 @@ describe(NoteSession, () => {
           : null
       )
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     disk.set(tab.path, {
       content: "# Errands\n\nbody, on disk",
       revision: "r1",
       updatedAt: 2,
     });
+
     const stored: ConflictStash = {
       base: {
         content: "# Errands\n\nbody",
@@ -2646,6 +2848,7 @@ describe(NoteSession, () => {
       },
       ours: "# Errands\n\nbody, mine",
     };
+
     client.setQueryData(tabOpeningQuery(tab.id, "note", tab.path).queryKey, {
       file: {
         content: "# Errands\n\nbody, on disk",
@@ -2680,11 +2883,13 @@ describe(NoteSession, () => {
     mockIPC(
       withDisk((command) => (command === "read_conflict" ? stored : null))
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       client.clear();
     });
@@ -2735,6 +2940,7 @@ describe(NoteSession, () => {
       withDisk((command, args) => {
         if (command === "save_note") {
           writes.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -2745,19 +2951,23 @@ describe(NoteSession, () => {
             },
           };
         }
+
         return null;
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     disk.set(tab.path, {
       content: "# Updated title\n\nbody",
       revision: "r1",
       updatedAt: 2,
     });
+
     const stored: ConflictStash = {
       base: {
         content: "# Errands\n\nbody",
@@ -2766,6 +2976,7 @@ describe(NoteSession, () => {
       },
       ours: "# Errands\n\nmy body",
     };
+
     client.setQueryData(tabOpeningQuery(tab.id, "note", tab.path).queryKey, {
       file: {
         content: "# Updated title\n\nbody",
@@ -2799,16 +3010,20 @@ describe(NoteSession, () => {
       withDisk(async (command) => {
         if (command === "read_conflict") {
           asked.resolve(null);
+
           return await Promise.withResolvers().promise;
         }
+
         return null;
       })
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     disk.set(tab.path, {
       content: "# Errands\n\nbody",
       revision: "r0",
@@ -2837,6 +3052,7 @@ describe(NoteSession, () => {
   it("should reopen a note without the review it resolved", async () => {
     const user = userEvent.setup();
     let stashedOurs: string | undefined;
+
     const { client } = await mountConflict(
       "# Errands\n\nbody",
       "# Errands\n\nbody, on disk",
@@ -2845,13 +3061,18 @@ describe(NoteSession, () => {
           if (!stashesOurs(args)) {
             throw new Error("the stored review carried no text");
           }
+
           stashedOurs = args.stash.ours;
+
           return null;
         }
+
         if (command === "clear_conflict") {
           stashedOurs = undefined;
+
           return null;
         }
+
         if (command === "read_conflict") {
           return stashedOurs === undefined
             ? null
@@ -2864,15 +3085,18 @@ describe(NoteSession, () => {
                 ours: stashedOurs,
               };
         }
+
         if (command === "save_note") {
           if (!savesContent(args)) {
             throw new Error("save content missing");
           }
+
           disk.set(tab.path, {
             content: args.content,
             revision: "r2",
             updatedAt: 3,
           });
+
           return {
             kind: "committed",
             receipt: {
@@ -2883,9 +3107,11 @@ describe(NoteSession, () => {
             },
           };
         }
+
         return null;
       }
     );
+
     await waitFor(() => {
       expect(stashedOurs).toBe("# Errands\n\nbodyTyped ");
     });
@@ -2924,11 +3150,13 @@ describe(NoteSession, () => {
           : null
       )
     );
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     for (const path of [tab.path, "errands.md"]) {
       disk.set(path, {
         content: "# Errands\n\nbody",
@@ -2936,6 +3164,7 @@ describe(NoteSession, () => {
         updatedAt: 1,
       });
     }
+
     client.setQueryData(tabOpeningQuery(tab.id, "note", tab.path).queryKey, {
       file: {
         content: "# Errands\n\nbody",
@@ -2946,6 +3175,7 @@ describe(NoteSession, () => {
     });
     client.setQueryData(noteQueries.list().queryKey, []);
     client.setQueryData(notesDirQuery.queryKey, "/notes");
+
     const session = (path: string) =>
       createElement(
         StrictMode,
@@ -2956,6 +3186,7 @@ describe(NoteSession, () => {
           createElement(NoteSession, { active: true, tab: { ...tab, path } })
         )
       );
+
     const view = render(session(tab.path));
     const liveEditor = await editor(tab.id);
     view.rerender(session("errands.md"));
@@ -2974,22 +3205,28 @@ describe(NoteSession, () => {
           if (!movesNote(args)) {
             throw new Error("the move carried no path or folder");
           }
+
           const { folder, path: from } = args;
           const file = disk.get(from);
+
           if (file === undefined) {
             throw new Error(`nothing at ${from}`);
           }
+
           const name = from.split("/").at(-1) ?? from;
           const to = folder === "" ? name : `${folder}/${name}`;
           disk.delete(from);
           disk.set(to, file);
           moving.resolve(null);
           await moved.promise;
+
           return { file, path: to, remainingSource: null, warnings: [] };
         }
+
         if (command.startsWith("plugin:")) {
           return 0;
         }
+
         return refuse(command);
       })
     );
@@ -2997,9 +3234,11 @@ describe(NoteSession, () => {
     const id = getTabState().activeId;
     const liveEditor = await editor(id);
     const { changePath } = sessionHandles(id);
+
     if (changePath === undefined) {
       throw new Error("the loaded note has no path operation");
     }
+
     const watched = new Set([tab.path, "folder/a.md"]);
 
     const intoFolder = changePath({ folder: "folder", kind: "move" });
@@ -3083,9 +3322,11 @@ describe(NoteSession, () => {
     it("should create the file on the first save and become that note in the same editor", async () => {
       const creates: unknown[] = [];
       const saves: unknown[] = [];
+
       const { id } = mountDraft((command, args) => {
         if (command === "create_note") {
           creates.push(args);
+
           return {
             path: "hello.md",
             revision: "r1",
@@ -3093,8 +3334,10 @@ describe(NoteSession, () => {
             warnings: [],
           };
         }
+
         if (command === "save_note") {
           saves.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -3105,6 +3348,7 @@ describe(NoteSession, () => {
             },
           };
         }
+
         if (command === "read_note") {
           return {
             content: "# Hello",
@@ -3115,11 +3359,14 @@ describe(NoteSession, () => {
             updatedAt: 1,
           };
         }
+
         if (command === "read_conflict") {
           return null;
         }
+
         return refuse(command);
       });
+
       const surface = await editor(id);
       expect(readRecentNotes("/notes")).toStrictEqual([]);
 
@@ -3161,12 +3408,15 @@ describe(NoteSession, () => {
     it("should land typing during the create in the created file on the next save", async () => {
       const held = Promise.withResolvers<unknown>();
       const saves: (InvokeArgs | undefined)[] = [];
+
       const { id } = mountDraft(async (command, args) => {
         if (command === "create_note") {
           return await held.promise;
         }
+
         if (command === "save_note") {
           saves.push(args);
+
           return {
             kind: "committed",
             receipt: {
@@ -3177,6 +3427,7 @@ describe(NoteSession, () => {
             },
           };
         }
+
         if (command === "read_note") {
           return {
             content: "# Hello",
@@ -3187,11 +3438,14 @@ describe(NoteSession, () => {
             updatedAt: 1,
           };
         }
+
         if (command === "read_conflict") {
           return null;
         }
+
         return refuse(command);
       });
+
       const surface = await editor(id);
 
       act(() => {
@@ -3219,9 +3473,11 @@ describe(NoteSession, () => {
 
       expect(saves).toHaveLength(1);
       const [save] = saves;
+
       if (!savesContent(save)) {
         throw new Error("the save carried no content");
       }
+
       expect(save).toMatchObject({ path: "hello.md" });
       expect(save.content).toContain("Hello there");
       await expect(editor(id)).resolves.toBe(surface);

@@ -38,6 +38,7 @@ function mention(
 
 function mount(mentions: Mention[]) {
   const { container } = render(createElement(NoteMentions, { mentions }));
+
   return container;
 }
 
@@ -141,9 +142,11 @@ describe("note mentions", () => {
 
       await showList();
       const [first] = screen.getAllByRole("menuitem");
+
       if (first === undefined) {
         throw new Error("first mention missing");
       }
+
       await user.click(first);
 
       expect(getTabState().tabs).toHaveLength(before + 1);
@@ -154,9 +157,11 @@ describe("note mentions", () => {
 
       await showList();
       const [, second] = screen.getAllByRole("menuitem");
+
       if (second === undefined) {
         throw new Error("second mention missing");
       }
+
       await user.keyboard("{Meta>}");
       await user.click(second);
       await user.keyboard("{/Meta}");
@@ -174,12 +179,15 @@ describe("note mentions", () => {
       const client = new QueryClient({
         defaultOptions: { queries: { retry: false } },
       });
+
       const response = Promise.withResolvers<unknown>();
       const calls: unknown[] = [];
       mockIPC(async (command, args) => {
         calls.push({ args, command });
+
         return await response.promise;
       });
+
       const { container: host } = render(
         createElement(
           QueryClientProvider,
@@ -187,6 +195,7 @@ describe("note mentions", () => {
           createElement(MentionsOf, { path: "atlas.md" })
         )
       );
+
       onTestFinished(() => {
         client.clear();
       });

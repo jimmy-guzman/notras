@@ -37,9 +37,11 @@ interface ContextRunProps {
 
 function ContextRun({ lines }: ContextRunProps) {
   const [expanded, setExpanded] = useState(false);
+
   const expand = () => {
     setExpanded(true);
   };
+
   if (lines.length > FOLD_AFTER_LINES && !expanded) {
     return (
       <Button className="self-start" onClick={expand} size="xs" variant="link">
@@ -47,6 +49,7 @@ function ContextRun({ lines }: ContextRunProps) {
       </Button>
     );
   }
+
   return (
     <div className="text-muted-foreground whitespace-pre-wrap">
       {lines.join("\n")}
@@ -57,6 +60,7 @@ function ContextRun({ lines }: ContextRunProps) {
 function isHeadingHunk(hunk: Hunk) {
   return [hunk.ours, hunk.theirs].every((side) => {
     const written = side.filter((line) => line !== "");
+
     return (
       written.length === 0 ||
       (written.length === 1 && HEADING_LINE.test(written[0] ?? ""))
@@ -115,12 +119,15 @@ function chosenText(hunk: Hunk, choice: HunkChoice | undefined) {
   if (choice === undefined) {
     return "";
   }
+
   if (choice === "ours") {
     return hunk.ours.join("\n");
   }
+
   if (choice === "theirs") {
     return hunk.theirs.join("\n");
   }
+
   return choice.edited;
 }
 
@@ -135,17 +142,21 @@ function Place({
   const heading = isHeadingHunk(hunk);
   const resultId = useId();
   const resultRef = useRef<HTMLTextAreaElement>(null);
+
   const useTheirs = () => {
     onChange(resultKey, "theirs");
     resultRef.current?.focus();
   };
+
   const useOurs = () => {
     onChange(resultKey, "ours");
     resultRef.current?.focus();
   };
+
   const edit = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(resultKey, { edited: event.target.value });
   };
+
   return (
     <section aria-label={`place ${number} of ${total}`} className="grid gap-2">
       <Side
@@ -183,24 +194,31 @@ function reviewRows(
   setResult: (key: string, choice: HunkChoice) => void
 ) {
   const built: ReviewRows = { choices: [], remaining: 0, rows: [] };
+
   if (merge.kind !== "conflict") {
     return built;
   }
+
   const total = hunkCount(merge);
   let position = 0;
+
   for (const region of merge.regions) {
     position += 1;
+
     if (region.kind === "ok") {
       built.rows.push(
         <ContextRun key={`${position}:ok`} lines={region.lines} />
       );
       continue;
     }
+
     const key = hunkKey(position, region);
     const choice = results[key];
+
     if (choice === undefined) {
       built.remaining += 1;
     }
+
     built.choices.push(choice ?? { edited: "" });
     built.rows.push(
       <Place
@@ -214,6 +232,7 @@ function reviewRows(
       />
     );
   }
+
   return built;
 }
 
@@ -240,31 +259,37 @@ export function ConflictReview({
 }: ConflictReviewProps) {
   const merge = mergeDocuments(ours, base, theirs);
   const [results, setResults] = useState<Record<string, HunkChoice>>({});
+
   const setResult = (key: string, choice: HunkChoice) => {
     setResults((previous) => ({ ...previous, [key]: choice }));
   };
+
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open) {
       const first =
         container.current?.querySelector<HTMLElement>("textarea") ??
         container.current?.querySelector<HTMLElement>("[data-slot=button]");
+
       first?.focus({ preventScroll: true });
     }
   }, [open]);
 
   const { choices, remaining, rows } = reviewRows(merge, results, setResult);
   const places = choices.length;
+
   const resolve = () => {
     if (remaining > 0) {
       return;
     }
+
     onResolve(
       merge.kind === "merged"
         ? merge.content
         : composeResolution(merge, choices)
     );
   };
+
   useHotkeys([
     { callback: onBack, hotkey: "Escape", options: { enabled: open } },
     { callback: resolve, hotkey: "Mod+Enter", options: { enabled: open } },

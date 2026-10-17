@@ -6,9 +6,11 @@ const SidebarContext = createContext<boolean | null>(null);
 
 function useSidebar() {
   const context = useContext(SidebarContext);
+
   if (context === null) {
     throw new Error("useSidebar must be used within a SidebarProvider.");
   }
+
   return context;
 }
 
@@ -38,6 +40,7 @@ function SidebarProvider({
 
 function Sidebar({ children, className, ...props }: ComponentProps<"aside">) {
   const open = useSidebar();
+
   return (
     <aside
       data-slot="sidebar"

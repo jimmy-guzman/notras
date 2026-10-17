@@ -96,11 +96,13 @@ function mount(picture: Picture, handlers: Handlers = {}) {
       picture,
     })
   );
+
   return container;
 }
 
 const pillX = (pill: HTMLElement) =>
   Number(pill.style.getPropertyValue("--pill-x").replace("%", ""));
+
 const pillY = (pill: HTMLElement) =>
   Number(pill.style.getPropertyValue("--pill-y").replace("%", ""));
 
@@ -227,6 +229,7 @@ describe(NoteGraph, () => {
     const user = userEvent.setup();
     const onHop = vi.fn<(path: string, beside: boolean) => void>();
     const onHub = vi.fn<(hub: Hub) => void>();
+
     const host = mount(
       hubPicture(folder("work", 3), [
         { kind: "hub", pill: folder("work/sub", 1) },
@@ -251,6 +254,7 @@ describe(NoteGraph, () => {
 
   it("should draw a link that names no note as a placeholder nothing opens", async () => {
     const user = userEvent.setup();
+
     const host = mount(
       notePicture({ dangling: ["nowhere"], outgoing: [mention("d.md")] })
     );
@@ -376,6 +380,7 @@ describe("TabGraph native queries", () => {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const query = noteQueries.graph({ kind: "note", path: "c.md" });
     client.setQueryData(query.queryKey, {
       mentionsError: null,
@@ -420,10 +425,12 @@ describe("TabGraph native queries", () => {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const response = Promise.withResolvers<unknown>();
     const calls: unknown[] = [];
     mockIPC(async (command, args) => {
       calls.push({ args, command });
+
       return await response.promise;
     });
     const reported = vi.spyOn(toast, "add");
@@ -437,6 +444,7 @@ describe("TabGraph native queries", () => {
       reported.mockRestore();
       clearMocks();
     });
+
     const { container: host, rerender } = render(
       createElement(
         QueryClientProvider,
@@ -446,6 +454,7 @@ describe("TabGraph native queries", () => {
         })
       )
     );
+
     expect(host.textContent).toContain("first");
     await act(async () => {
       rerender(

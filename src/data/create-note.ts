@@ -17,5 +17,6 @@ export async function createNote(options?: CreateNoteOptions) {
             : { kind: "title", value: options.title },
       })
   );
+
   return { ...receipt, updatedAt: new Date(receipt.updatedAt) };
 }

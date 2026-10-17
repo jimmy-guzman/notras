@@ -102,6 +102,7 @@ function resolveNotePath(destination: string, from: string) {
 function comparePaths(left: string, right: string) {
   const leftPoints = Array.from(left, (char) => char.codePointAt(0));
   const rightPoints = Array.from(right, (char) => char.codePointAt(0));
+
   for (
     let at = 0;
     at < Math.max(leftPoints.length, rightPoints.length);
@@ -109,16 +110,20 @@ function comparePaths(left: string, right: string) {
   ) {
     const a = leftPoints[at];
     const b = rightPoints[at];
+
     if (a === undefined) {
       return b === undefined ? 0 : -1;
     }
+
     if (b === undefined) {
       return 1;
     }
+
     if (a !== b) {
       return a - b;
     }
   }
+
   return 0;
 }
 
@@ -140,7 +145,9 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
     notes.flatMap((meta) => [...namesOf(meta)].map((name) => ({ meta, name }))),
     ({ name }) => name
   );
+
   const byPath = new Map(notes.map((meta) => [meta.path, meta]));
+
   const byLowerPath = new Map(
     notes.map((meta) => [meta.path.toLowerCase(), meta])
   );
@@ -155,6 +162,7 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
         const byTitle =
           Number(right.title.toLowerCase() === wanted) -
           Number(left.title.toLowerCase() === wanted);
+
         const byFolder =
           Number(noteFolder(right.path) === fromFolder) -
           Number(noteFolder(left.path) === fromFolder);

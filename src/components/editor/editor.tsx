@@ -133,6 +133,7 @@ function clipboardText(
   manager: TiptapEditor["markdown"]
 ) {
   const doc = schema.topNodeType.create(null, slice.content);
+
   const text = getTextBetween(
     doc,
     { from: 0, to: doc.content.size },
@@ -171,6 +172,7 @@ async function readDataUrl(file: File) {
   if (!isDataUrl(result)) {
     throw new Error("The pasted image could not be read");
   }
+
   return result;
 }
 
@@ -335,9 +337,11 @@ function firstTitle(doc: ProseMirrorNode) {
     ) {
       return false;
     }
+
     if (node.type.name !== "paragraph" && node.type.name !== "heading") {
       return true;
     }
+
     let from = position + 1;
     let text = "";
     // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
@@ -345,10 +349,12 @@ function firstTitle(doc: ProseMirrorNode) {
       if (result !== undefined) {
         return;
       }
+
       if (child.type.name === "hardBreak") {
         if (text.trim() !== "") {
           result = { from, to: position + 1 + offset };
         }
+
         from = position + 1 + offset + child.nodeSize;
         text = "";
       } else if (child.type.name === "wikilink") {
@@ -357,17 +363,21 @@ function firstTitle(doc: ProseMirrorNode) {
         text += child.textContent;
       }
     });
+
     if (result === undefined && text.trim() !== "") {
       result = { from, to: position + 1 + node.content.size };
     }
+
     return false;
   });
+
   return result;
 }
 
 function touchesTitle(transaction: Transaction) {
   const old = firstTitle(transaction.before);
   const next = firstTitle(transaction.doc);
+
   if (
     (old === undefined) !== (next === undefined) ||
     (old !== undefined &&
@@ -378,21 +388,26 @@ function touchesTitle(transaction: Transaction) {
   ) {
     return true;
   }
+
   return transaction.steps.some((step, index) => {
     const before = transaction.docs[index];
     const range = before === undefined ? undefined : firstTitle(before);
+
     if (range === undefined) {
       return false;
     }
+
     // Formatting steps have empty maps but still touch the title.
     if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
       return step.from < range.to && step.to > range.from;
     }
+
     let touched = false;
     // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror step map, not an array
     step.getMap().forEach((from, to) => {
       touched ||= from < range.to && to > range.from;
     });
+
     return touched;
   });
 }
@@ -419,6 +434,7 @@ function sourceSelectionReader(
   return () => {
     const { selection } = state;
     const anchor = sourceOffset(editor, selection.anchor, state);
+
     const head = selection.empty
       ? anchor
       : sourceOffset(editor, selection.head, state);
@@ -434,10 +450,13 @@ function positionInDocument(
 ) {
   const manager = converterOf(editor);
   const at = Math.max(0, Math.min(offset, content.length));
+
   const marked = editor.schema.nodeFromJSON(
     manager.parse(content.slice(0, at) + SENTINEL + content.slice(at))
   );
+
   const clean = editor.schema.nodeFromJSON(manager.parse(content));
+
   return Math.min(findSentinel(marked) ?? 1, clean.content.size);
 }
 
@@ -510,12 +529,14 @@ interface EditorProps {
 // oxlint-disable-next-line react-doctor/no-giant-component -- the split is tracked in #203
 export function Editor(mountProps: EditorProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+
   const attachScrollArea = (root: HTMLDivElement | null) => {
     scrollerRef.current =
       root?.querySelector<HTMLDivElement>(
         '[data-slot="scroll-area-viewport"]'
       ) ?? null;
   };
+
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
   const placedRef = useRef<null | TiptapEditor>(null);
@@ -525,12 +546,14 @@ export function Editor(mountProps: EditorProps) {
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const [viewer, setViewer] = useState<ImageViewerState | null>(null);
+
   const closeHover = useDebouncer(
     () => {
       setLinkHover(null);
     },
     { wait: HOVER_CLOSE_MS }
   );
+
   const openHover = useDebouncer(
     (target: HTMLElement) => {
       const instance = editorRef.current;
@@ -547,6 +570,7 @@ export function Editor(mountProps: EditorProps) {
       }
 
       const pos = instance.view.posAtDOM(target, 0);
+
       const state = hoverStateFor(
         target,
         hrefAt(instance.state, pos + 1),
@@ -568,11 +592,13 @@ export function Editor(mountProps: EditorProps) {
     },
     { wait: HOVER_OPEN_MS }
   );
+
   const dismissHover = () => {
     openHover.cancel();
     closeHover.cancel();
     setLinkHover(null);
   };
+
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [linkShortcut] = useState(() =>
     // ⌘K belongs to the palette, so the link keys sit under ⌘⇧: K makes one, O
@@ -645,6 +671,7 @@ export function Editor(mountProps: EditorProps) {
       name: "linkShortcut",
     })
   );
+
   const editor = useEditor({
     content: config.initialContent,
     contentType: "markdown",
@@ -721,6 +748,7 @@ export function Editor(mountProps: EditorProps) {
             event.target instanceof Element
               ? event.target.closest("a[href]")
               : null;
+
           if (target === null) {
             return false;
           }
@@ -729,6 +757,7 @@ export function Editor(mountProps: EditorProps) {
           // from opening them again outside the scheme gate.
           event.preventDefault();
           const href = hrefAt(view.state, view.posAtDOM(target, 0) + 1);
+
           if (event.button === 0 && href.startsWith("#")) {
             followLink(view, href);
 
@@ -764,6 +793,7 @@ export function Editor(mountProps: EditorProps) {
             event.target instanceof Element
               ? event.target.closest("a[href]")
               : null;
+
           if (
             event.button === 0 &&
             target?.getAttribute("href")?.startsWith("#") === true
@@ -828,13 +858,17 @@ export function Editor(mountProps: EditorProps) {
       transformCopied: (slice, view) => {
         const { doc, selection } = view.state;
         const { $from, $to } = selection;
+
         const from =
           config.documentPath === undefined ? "" : config.documentPath();
+
         const range = dragRange(doc, selection);
+
         const words =
           $from.sameParent($to) &&
           $from.parent.isTextblock &&
           (range === null || isRowRange(range));
+
         const copied = words
           ? new Slice(
               $from.parent.content.cut($from.parentOffset, $to.parentOffset),
@@ -942,14 +976,19 @@ export function Editor(mountProps: EditorProps) {
           if (instance.isDestroyed || instance.markdown === undefined) {
             return;
           }
+
           const replacement = instance.schema.nodeFromJSON(
             instance.markdown.parse(content)
           );
+
           const transaction = instance.state.tr;
+
           const start = transaction.doc.content.findDiffStart(
             replacement.content
           );
+
           const end = transaction.doc.content.findDiffEnd(replacement.content);
+
           if (start !== null && end !== null) {
             const overlap = Math.max(0, start - Math.min(end.a, end.b));
             transaction.replace(
@@ -958,6 +997,7 @@ export function Editor(mountProps: EditorProps) {
               replacement.slice(start, end.b + overlap)
             );
           }
+
           if (selection !== undefined) {
             try {
               transaction.setSelection(
@@ -974,13 +1014,16 @@ export function Editor(mountProps: EditorProps) {
               // Selection mapping is optional; the replacement must still reach the view.
             }
           }
+
           suppressChangeRef.current = true;
+
           try {
             instance.view.dispatch(transaction.setMeta("addToHistory", false));
           } catch (error) {
             suppressChangeRef.current = false;
             throw error;
           }
+
           suppressChangeRef.current = false;
           rememberSources(instance.markdown, instance.state.doc, content);
         },
@@ -1003,7 +1046,9 @@ export function Editor(mountProps: EditorProps) {
       if (suppressChangeRef.current) {
         return;
       }
+
       const transactions = [transaction, ...appendedTransactions];
+
       if (
         transaction.getMeta("preventUpdate") !== true &&
         transactions.some((entry) => entry.docChanged)
@@ -1012,6 +1057,7 @@ export function Editor(mountProps: EditorProps) {
           titleEdited: transactions.some(touchesTitle),
         });
       }
+
       // After the edit reaches the document, which reads the previous reader
       // as the caret before it.
       config.onSelect?.(sourceSelectionReader(instance, instance.state));
@@ -1028,7 +1074,9 @@ export function Editor(mountProps: EditorProps) {
     if (editor.isDestroyed || placedRef.current === editor) {
       return;
     }
+
     placedRef.current = editor;
+
     const pos =
       config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
 
@@ -1052,6 +1100,7 @@ export function Editor(mountProps: EditorProps) {
       const diverged = (() => {
         try {
           const manager = converterOf(editor);
+
           const canonical = fileMarkdown(
             manager,
             editor.schema.nodeFromJSON(manager.parse(cleanBody))
@@ -1080,10 +1129,12 @@ export function Editor(mountProps: EditorProps) {
     rememberSources(converterOf(editor), editor.state.doc, cleanBody);
 
     const { doc } = editor.state;
+
     const selection =
       pos === null
         ? Selection.atStart(doc)
         : TextSelection.create(doc, Math.min(pos, doc.content.size));
+
     const chain = editor.chain();
 
     // A tab mounted in the background places its caret without taking
@@ -1105,6 +1156,7 @@ export function Editor(mountProps: EditorProps) {
     if (config.initialFind !== undefined) {
       createFindHandle(editor).setQuery(config.initialFind);
     }
+
     windowSyntaxToScreen(editor.view);
   }, [config, editor]);
 
@@ -1168,6 +1220,7 @@ export function Editor(mountProps: EditorProps) {
     const href = normalizeUrl(rawUrl);
 
     setLinkEditor(null);
+
     if (href === null) {
       if (rawUrl.trim() !== "") {
         toast.add({

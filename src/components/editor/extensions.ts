@@ -258,6 +258,7 @@ const NoteLink = Link.extend({
    */
   renderHTML({ HTMLAttributes }) {
     const href = hasString(HTMLAttributes, "href") ? HTMLAttributes.href : "";
+
     const allowed = this.options.isAllowedUri(href, {
       defaultProtocol: this.options.defaultProtocol,
       defaultValidate: (url: string) => isSafeUrl(url),
@@ -591,17 +592,20 @@ function renderBlock(
   const before = previous === undefined ? undefined : contentOf(previous);
   const escaped = renderInDoc(manager, json, before);
   const standIns = freeStandIns(before === undefined ? [json] : [before, json]);
+
   // Code and raw HTML text is written verbatim, so only prose loses entities.
   const unencoded = renderInDoc(
     manager,
     withStandIns(json, standIns),
     before === undefined ? undefined : withStandIns(before, standIns)
   );
+
   const forms = {
     bare: mapProse(escaped, dropEscapes),
     typed: withoutStandIns(mapProse(unencoded, dropEscapes), standIns),
     unencoded: withoutStandIns(unencoded, standIns),
   };
+
   const block: RenderedBlock = {
     definitions,
     escaped,
@@ -746,6 +750,7 @@ function blockParser(manager: MarkdownConverter, doc: Node): BlockParser {
     const before = definitions.flatMap(({ block, text: definition }) =>
       block < at ? [definition] : []
     );
+
     const after = definitions.flatMap(({ block, text: definition }) =>
       block < at ? [] : [definition]
     );
@@ -754,7 +759,9 @@ function blockParser(manager: MarkdownConverter, doc: Node): BlockParser {
       const parsed = doc.type.schema.nodeFromJSON(
         manager.parse([...before, text, ...after].join("\n\n"))
       ).content.content;
+
       const blocks = parsed.slice(before.length, parsed.length - after.length);
+
       const around = [
         ...parsed.slice(0, before.length),
         ...parsed.slice(before.length + blocks.length),
@@ -822,6 +829,7 @@ function pastBlankParagraphs(
   parsed: readonly Node[] | null
 ) {
   let at = index;
+
   while (
     at < doc.childCount &&
     isBlankParagraph(doc.child(at)) &&
@@ -829,6 +837,7 @@ function pastBlankParagraphs(
   ) {
     at += 1;
   }
+
   return at;
 }
 
@@ -861,6 +870,7 @@ export function rememberSources(
       } else {
         last.source.gap.text += token.raw;
       }
+
       continue;
     }
 
@@ -869,6 +879,7 @@ export function rememberSources(
     // the token's text among the note's definitions as well as its block does.
     const parsed = parse(text, index);
     const at = pastBlankParagraphs(doc, index, parsed);
+
     const follows =
       parsed !== null &&
       parsed.every(
@@ -971,6 +982,7 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
 
   const definedBefore = definitionsOf(manager, before);
   const definedAfter = definitionsOf(manager, after);
+
   const text = carryChange(
     source.text,
     written(renderBlock(manager, was, old[at - 1], definedBefore)),
@@ -978,6 +990,7 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
   );
 
   const parse = blockParser(manager, after);
+
   const same: SameBlock =
     definedBefore === definedAfter
       ? (parsed, block) => parsed.eq(block)
@@ -1119,11 +1132,13 @@ function keepRereadSources(before: Node, after: Node) {
 export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
   const nodes = doc.content.content;
   const definitions = definitionsOf(manager, doc);
+
   const pieces = nodes.map(
     (node, index) =>
       sources.get(node) ??
       renderBlock(manager, node, nodes[index - 1], definitions)
   );
+
   const final = nodes.findLast((node) => !isBlankParagraph(node));
   const blocks = final === undefined ? 0 : nodes.lastIndexOf(final) + 1;
   const blanks = closingBlanks(nodes);
@@ -1134,11 +1149,13 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
   // file's last line.
   const closes = ending !== undefined && blanks >= ending.blanks;
   const closing = closes ? ending.text : (ending?.text.slice(0, 1) ?? "");
+
   // The editor adds an empty paragraph after a closing block other than a
   // paragraph only when nothing follows it, so a lone blank there is the
   // editor's and more than one are the file's.
   const withBlanks =
     blanks === 1 && final?.type.name !== "paragraph" ? blocks : blocks + blanks;
+
   const markdown = pieces
     .slice(0, closes ? blocks : withBlanks)
     .map((piece, index, kept) => {
@@ -1150,6 +1167,7 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
       }
 
       const lead = index === 0 ? piece.lead : "";
+
       const follows =
         next !== undefined && "gap" in next && next.follows === piece.gap;
 
@@ -1274,6 +1292,7 @@ export function createEditorExtensions(
                 () =>
                 ({ dispatch, tr }: CommandProps) => {
                   tr.setMeta("preventDispatch", true);
+
                   return (
                     options.onHistory?.("redo", dispatch !== undefined) ?? false
                   );
@@ -1282,6 +1301,7 @@ export function createEditorExtensions(
                 () =>
                 ({ dispatch, tr }: CommandProps) => {
                   tr.setMeta("preventDispatch", true);
+
                   return (
                     options.onHistory?.("undo", dispatch !== undefined) ?? false
                   );

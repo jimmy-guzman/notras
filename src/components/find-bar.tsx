@@ -16,7 +16,9 @@ function isFindNavigation(event: KeyboardEvent, inInput: boolean) {
   if (event.altKey) {
     return false;
   }
+
   const command = event.metaKey || event.ctrlKey;
+
   return command
     ? event.key.toLowerCase() === "g"
     : inInput && event.key === "Enter";
@@ -30,15 +32,19 @@ export function FindBar({ controller }: FindBarProps) {
   const state = useSelector(controller.store);
   const input = useRef<HTMLInputElement>(null);
   const focused = useRef(0);
+
   const change = (event: ChangeEvent<HTMLInputElement>) => {
     controller.setQuery(event.target.value);
   };
+
   const previous = () => {
     controller.navigate(-1);
   };
+
   const next = () => {
     controller.navigate(1);
   };
+
   useEffect(() => {
     if (
       state.open &&
@@ -55,37 +61,48 @@ export function FindBar({ controller }: FindBarProps) {
       if (event.isComposing) {
         return;
       }
+
       const inInput = event.target === input.current;
+
       const inSurface =
         event.target instanceof Element &&
         event.target.closest(".ProseMirror, [data-find-bar]") !== null;
+
       if (!inSurface) {
         return;
       }
+
       const navigation = isFindNavigation(event, inInput);
       const close = state.open && event.key === "Escape";
+
       if (!(close || navigation)) {
         return;
       }
+
       event.preventDefault();
       // Capture Escape must end here before quick capture's save binding.
       event.stopImmediatePropagation();
+
       if (event.key === "Escape") {
         controller.close();
       } else {
         controller.navigate(event.shiftKey ? -1 : 1);
       }
     };
+
     if (state.available) {
       document.addEventListener("keydown", keydown, true);
     }
+
     return () => {
       document.removeEventListener("keydown", keydown, true);
     };
   }, [controller, state.available, state.open]);
+
   if (!(state.open && (state.available || state.searchPending))) {
     return null;
   }
+
   return (
     <div
       className="bg-popover absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-lg shadow-md"

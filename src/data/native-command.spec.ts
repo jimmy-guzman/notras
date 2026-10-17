@@ -20,6 +20,7 @@ describe("native command", () => {
             name: { kind: "title", value: "Q3: planning" },
           },
         });
+
         return { path: "q3-planning-2.md", updatedAt: 1234, warnings: [] };
       });
       await expect(
@@ -40,6 +41,7 @@ describe("native command", () => {
           name: null,
           path: "a.md",
         });
+
         return {
           kind: "committed",
           receipt: {
@@ -76,6 +78,7 @@ describe("native command", () => {
           name: { kind: "content" },
           path: "shopping.md",
         });
+
         return {
           kind: "committed",
           receipt: {
@@ -97,6 +100,7 @@ describe("native command", () => {
       mockIPC((command, args) => {
         expect(command).toBe("save_note");
         expect(args).toMatchObject({ expected: "stale" });
+
         return {
           file: { content: "# on disk", revision: "r9", updatedAt: 1234 },
           kind: "conflict",
@@ -123,6 +127,7 @@ describe("native command", () => {
           name: null,
           path: "/outside/a.md",
         });
+
         return {
           kind: "committed",
           receipt: {
@@ -151,6 +156,7 @@ describe("native command", () => {
             .fn<() => Promise<never>>()
             .mockRejectedValue({ kind, message: "the reason" })
         );
+
         await expect(operation).rejects.toBeInstanceOf(FileError);
         await expect(operation).rejects.toMatchObject({
           kind,

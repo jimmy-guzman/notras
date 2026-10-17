@@ -64,6 +64,7 @@ function destinations(markdown: string) {
     element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
+
   const hrefs: string[] = [];
 
   editor.state.doc.descendants((node) => {

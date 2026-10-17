@@ -83,14 +83,17 @@ export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
         readSessionFile(kind, path),
         readConflictStash(kind, path),
       ]);
+
       // The file's failure first, so a missing file is never mistaken for a
       // missing review.
       if (file.status === "rejected") {
         throw file.reason;
       }
+
       if (stash.status === "rejected") {
         throw stash.reason;
       }
+
       return { file: file.value, stash: stash.value };
     },
     queryKey: ["tab-opening", id, kind] as const,

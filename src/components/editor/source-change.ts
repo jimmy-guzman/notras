@@ -4,6 +4,7 @@ function spans(before: string[], source: string[]) {
   return diffIndices(before, source).map((hunk) => {
     const [from, length]: number[] = hunk.buffer1;
     const [sourceFrom, sourceLength]: number[] = hunk.buffer2;
+
     if (
       from === undefined ||
       length === undefined ||
@@ -12,6 +13,7 @@ function spans(before: string[], source: string[]) {
     ) {
       throw new Error("The diff returned a hunk without a range");
     }
+
     return { from, length, sourceFrom, sourceLength };
   });
 }
@@ -19,17 +21,21 @@ function spans(before: string[], source: string[]) {
 /** The source line standing where `row` stands, when the two line up. */
 function sourceRow(before: string[], source: string[], row: number) {
   let shift = 0;
+
   for (const span of spans(before, source)) {
     if (row < span.from) {
       break;
     }
+
     if (row < span.from + span.length) {
       return span.length === span.sourceLength
         ? span.sourceFrom + row - span.from
         : null;
     }
+
     shift = span.sourceFrom + span.sourceLength - span.from - span.length;
   }
+
   return row + shift;
 }
 
@@ -45,6 +51,7 @@ function sourceColumn(
   past: boolean
 ) {
   let shift = 0;
+
   for (const span of spans(before.split(""), source.split(""))) {
     if (
       column < span.from ||
@@ -52,11 +59,14 @@ function sourceColumn(
     ) {
       break;
     }
+
     if (column < span.from + span.length) {
       return null;
     }
+
     shift = span.sourceFrom + span.sourceLength - span.from - span.length;
   }
+
   return column + shift;
 }
 
@@ -73,10 +83,13 @@ function sourceOffset(
   const at = sourceRow(lines, sourceLines, row);
   const line = lines[row];
   const sourceLine = at === null ? undefined : sourceLines[at];
+
   if (at === null || line === undefined || sourceLine === undefined) {
     return null;
   }
+
   const column = sourceColumn(line, sourceLine, above[row]?.length ?? 0, past);
+
   return column === null
     ? null
     : sourceLines
@@ -87,6 +100,7 @@ function sourceOffset(
 /** The one span of `before` that differs from `after`, and what replaces it. */
 export function changedRange(before: string, after: string) {
   let from = 0;
+
   while (
     from < before.length &&
     from < after.length &&
@@ -94,12 +108,15 @@ export function changedRange(before: string, after: string) {
   ) {
     from += 1;
   }
+
   let to = before.length;
   let end = after.length;
+
   while (to > from && end > from && before[to - 1] === after[end - 1]) {
     to -= 1;
     end -= 1;
   }
+
   return { from, text: after.slice(from, end), to };
 }
 
@@ -114,6 +131,7 @@ export function carryChange(
   after: string
 ): string | null {
   const change = changedRange(before, after);
+
   // A replacement leaves alone what only the source has in front of it.
   const from = sourceOffset(
     before,
@@ -121,7 +139,9 @@ export function carryChange(
     change.from,
     change.to > change.from
   );
+
   const to = sourceOffset(before, source, change.to, false);
+
   return from === null || to === null
     ? null
     : source.slice(0, from) + change.text + source.slice(to);

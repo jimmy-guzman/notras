@@ -33,17 +33,17 @@ export function PaletteFilters({
     <>
       <CommandEmpty>no matching filters</CommandEmpty>
       <CommandGroup heading="search by">
-        {filters
-          .filter(({ label, prefix }) =>
-            `${label} ${prefix}`.includes(query.trim().toLowerCase())
-          )
-          .map(({ Icon, label, prefix }) => (
+        {filters.flatMap(({ Icon, label, prefix }) =>
+          `${label} ${prefix}`.includes(query.trim().toLowerCase()) ? (
             <CommandItem key={prefix} onSelect={onSelect} value={prefix}>
               <Icon />
               <span className="flex-1">{label}</span>
               <span className="text-muted-foreground text-xs">{prefix}</span>
             </CommandItem>
-          ))}
+          ) : (
+            []
+          )
+        )}
       </CommandGroup>
     </>
   );

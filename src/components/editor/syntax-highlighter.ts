@@ -55,6 +55,7 @@ interface Waiting {
 let worker: Worker | undefined;
 let nextId = 0;
 let arrivals = 0;
+
 /** One job per block, keyed by the block's id. */
 const waiting = new Map<number, Waiting>();
 let inFlight: Waiting | undefined;
@@ -73,6 +74,7 @@ function fail(reason: string) {
   const failed = [inFlight, ...waiting.values()];
   inFlight = undefined;
   waiting.clear();
+
   for (const each of failed) {
     each?.resolvers.reject(new Error(reason));
   }
@@ -82,8 +84,10 @@ function settle(response: SyntaxResponse) {
   if (inFlight === undefined || response.id !== nextId) {
     throw new Error("The worker answered a request nobody made");
   }
+
   const { resolvers } = inFlight;
   inFlight = undefined;
+
   if ("error" in response) {
     resolvers.reject(new Error(response.error));
   } else {
@@ -94,6 +98,7 @@ function settle(response: SyntaxResponse) {
 /** Take the best waiting job off the queue; aborted jobs leave it on the way. */
 function takeNext() {
   let next: Waiting | undefined;
+
   for (const [document, candidate] of waiting) {
     if (candidate.job.signal.aborted) {
       waiting.delete(document);
@@ -102,9 +107,11 @@ function takeNext() {
       next = candidate;
     }
   }
+
   if (next !== undefined) {
     waiting.delete(next.job.document);
   }
+
   return next;
 }
 
@@ -113,16 +120,21 @@ function post() {
   if (inFlight !== undefined) {
     return;
   }
+
   const next = takeNext();
+
   if (next === undefined) {
     return;
   }
+
   nextId += 1;
   inFlight = next;
+
   if (worker === undefined) {
     const instance = new Worker(new URL("syntax-worker.ts", import.meta.url), {
       type: "module",
     });
+
     instance.addEventListener(
       "message",
       (event: MessageEvent<SyntaxResponse>) => {
@@ -139,6 +151,7 @@ function post() {
     });
     worker = instance;
   }
+
   const { code, document, language } = next.job;
   const request: SyntaxRequest = { code, document, id: nextId, language };
   // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin

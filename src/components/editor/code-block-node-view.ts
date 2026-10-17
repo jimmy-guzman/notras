@@ -22,6 +22,7 @@ import { reasonOf } from "@/lib/ui/failure";
 // render once as the module evaluates, ahead of the app's own render, and
 // are cloned into each block.
 const icons = document.createElement("div");
+
 createRoot(icons).render(
   createElement(
     ReactFragment,
@@ -33,6 +34,7 @@ createRoot(icons).render(
 
 function icon(index: number) {
   const drawn = icons.children[index];
+
   if (drawn === undefined) {
     throw new Error("The code block icons did not render");
   }
@@ -139,6 +141,7 @@ export function codeBlockNodeView({
 
     diagram?.remove();
     diagram = next;
+
     if (next !== undefined) {
       pre.before(next);
     }
@@ -146,6 +149,7 @@ export function codeBlockNodeView({
 
   const showDiagramOnceLoaded = async () => {
     await mermaidSettled;
+
     if (!destroyed) {
       showDiagram();
     }
@@ -153,6 +157,7 @@ export function codeBlockNodeView({
 
   const showDiagramNowOrOnceLoaded = () => {
     showDiagram();
+
     if (diagram === undefined && languageOf(node) === "mermaid") {
       void showDiagramOnceLoaded();
     }
@@ -200,6 +205,7 @@ export function codeBlockNodeView({
   select.addEventListener("pointerenter", list);
   select.addEventListener("change", () => {
     const pos = getPos();
+
     if (pos !== undefined) {
       view.dispatch(
         view.state.tr.setNodeAttribute(pos, "language", select.value)
@@ -215,6 +221,7 @@ export function codeBlockNodeView({
     destroy: () => {
       destroyed = true;
       window.clearTimeout(copiedTimer);
+
       if (frame !== undefined) {
         cancelAnimationFrame(frame);
       }
@@ -230,6 +237,7 @@ export function codeBlockNodeView({
 
       const previous = node;
       node = next;
+
       if (languageOf(previous) !== languageOf(next)) {
         showLanguage();
         showDiagramNowOrOnceLoaded();
@@ -241,6 +249,7 @@ export function codeBlockNodeView({
         if (frame !== undefined) {
           cancelAnimationFrame(frame);
         }
+
         frame = requestAnimationFrame(showDiagram);
       }
 

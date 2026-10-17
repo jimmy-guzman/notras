@@ -417,6 +417,7 @@ class DragSelectionView {
     // Stops the browser collapsing the selection before we know whether this is
     // a drag, which means a press that never moves has to place the caret.
     event.preventDefault();
+
     // Capture keeps the drag alive past the editor's own box. A pointer the
     // browser no longer tracks refuses it, and the drag is still workable.
     try {
@@ -424,6 +425,7 @@ class DragSelectionView {
     } catch {
       // no capture, so the pointer has to stay over the editor
     }
+
     // Only for the length of the drag, since one pointer means one drag and a
     // session may not hold a window listener.
     window.addEventListener("keydown", this.onKeyDown);
@@ -586,6 +588,7 @@ export const DragSelection = Extension.create({
         state: {
           apply: (tr, value) => {
             const meta: unknown = tr.getMeta(dragSelectionKey);
+
             return isDragState(meta) ? meta : value;
           },
           init: () => NOTHING,

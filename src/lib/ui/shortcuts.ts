@@ -42,10 +42,12 @@ export function useHotkeys(
         ...commonOptions,
         ...definition.options,
       };
+
       const hotkey = normalizeRegisterableHotkey(
         definition.hotkey,
         detectPlatform()
       );
+
       return {
         callback: definition.callback,
         enabled,
@@ -54,7 +56,9 @@ export function useHotkeys(
         name: meta?.name,
       };
     });
+
     const nextKeys = new Set(rows.map(({ key }) => key));
+
     for (const [key, registration] of registrations.current) {
       if (!nextKeys.has(key)) {
         registration.handle.unregister();
@@ -65,11 +69,13 @@ export function useHotkeys(
     for (const { callback, enabled, hotkey, key, name } of rows) {
       const previous = registrations.current.get(key);
       const options = { enabled, meta: { name } };
+
       if (previous === undefined) {
         const handle = getHotkeyManager().register(hotkey, callback, options);
         registrations.current.set(key, { enabled, handle, name });
       } else {
         previous.handle.callback = callback;
+
         // setOptions publishes even equal values; publishing them here would
         // make a component reading its own bindings keep committing.
         if (previous.enabled !== enabled || previous.name !== name) {
@@ -89,6 +95,7 @@ export function useHotkeys(
       for (const { handle } of registrations.current.values()) {
         handle.unregister();
       }
+
       registrations.current.clear();
     },
     []

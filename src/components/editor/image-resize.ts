@@ -12,10 +12,12 @@ const MIN_WIDTH = 64;
 // ProseMirror builds the node where React cannot render, so the icon renders
 // once as the module evaluates and is cloned into each image.
 const icons = document.createElement("div");
+
 createRoot(icons).render(createElement(Maximize2Icon, { size: 13 }));
 
 function openIcon() {
   const drawn = icons.firstElementChild;
+
   if (drawn === null) {
     throw new Error("The image icon did not render");
   }
@@ -105,10 +107,12 @@ export function imageNodeView(
     };
 
     image.addEventListener("load", markLoaded, { signal });
+
     // A cached image is complete before the listener attached.
     if (image.complete && image.naturalWidth > 0) {
       markLoaded();
     }
+
     open.addEventListener(
       "click",
       () => {
@@ -136,11 +140,13 @@ export function imageNodeView(
         // the editor's own drag listens one level up.
         event.preventDefault();
         event.stopPropagation();
+
         try {
           handle.setPointerCapture(event.pointerId);
         } catch {
           // no capture, so the pointer has to stay over the handle
         }
+
         resize = {
           available: dom.parentElement?.clientWidth ?? Number.POSITIVE_INFINITY,
           moved: false,
@@ -162,6 +168,7 @@ export function imageNodeView(
       },
       { signal }
     );
+
     // A press that never moved, or a pointer the system took back, writes
     // nothing and the image goes back to what the doc says.
     const end = (event: PointerEvent) => {
@@ -175,6 +182,7 @@ export function imageNodeView(
 
       resize = null;
       delete dom.dataset.resizing;
+
       if (handle.hasPointerCapture(event.pointerId)) {
         handle.releasePointerCapture(event.pointerId);
       }
@@ -192,6 +200,7 @@ export function imageNodeView(
 
       view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, pos)));
     };
+
     handle.addEventListener("pointerup", end, { signal });
     handle.addEventListener("pointercancel", end, { signal });
 

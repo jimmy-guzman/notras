@@ -61,6 +61,7 @@ describe("store", () => {
     });
     const { result } = renderHook(() => useTabSnapshot(id));
     expect(result.current).toBeUndefined();
+
     const snapshot = createStore<TabSnapshot>({
       pinned: false,
       reason: undefined,
@@ -70,6 +71,7 @@ describe("store", () => {
       title: "Loaded",
       words: 1,
     });
+
     act(() => {
       onTestFinished(
         registerTabSnapshot(
@@ -107,9 +109,11 @@ describe("store", () => {
       mockIPC((command, args) => {
         logged.push({ args, command });
       });
+
       const read = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
         throw new DOMException("Storage access is denied", "SecurityError");
       });
+
       onTestFinished(() => {
         read.mockRestore();
         clearMocks();
@@ -225,9 +229,11 @@ describe("store", () => {
     );
     restoreTabs();
     render(createElement(Toaster));
+
     const write = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Storage is full", "QuotaExceededError");
     });
+
     onTestFinished(() => {
       write.mockRestore();
     });
@@ -309,6 +315,7 @@ describe("store", () => {
 
       await reclassifyTabs(async (paths) => {
         asked.push(paths);
+
         return paths.map((path) => ({ kind: "external", path }));
       }, "/old");
 
@@ -331,6 +338,7 @@ describe("store", () => {
 
       await reclassifyTabs(async (paths) => {
         renameTab("kept-a", "b.md", "/old");
+
         return paths.map((path) => ({ kind: "external", path }));
       }, "/old");
 
@@ -375,6 +383,7 @@ describe("store", () => {
 
       await reclassifyTabs(async (paths) => {
         asked.push(paths);
+
         return [{ kind: "note", path: "a.md" }];
       }, "/vault");
 
@@ -395,6 +404,7 @@ describe("store", () => {
     it("should hand back the handles a live tab registered", () => {
       openNote("a.md");
       const [tab] = getTabState().tabs;
+
       const handles = {
         exportPdf: async () => null,
         getCaret: () => 7,
@@ -429,6 +439,7 @@ describe("store", () => {
       openNote("refresh/a.md", true);
       openNote("refresh/b.md", true);
       const refreshed: string[] = [];
+
       for (const tab of getTabState().tabs) {
         registerTabRefresh(tab.id, async () => {
           refreshed.push(tab.path);
@@ -444,9 +455,11 @@ describe("store", () => {
       openNote("refresh/c.md", true);
       const id = getTabState().activeId;
       const refreshed: string[] = [];
+
       const releaseOlder = registerTabRefresh(id, async () => {
         refreshed.push("older");
       });
+
       registerTabRefresh(id, async () => {
         refreshed.push("newer");
       });
@@ -580,6 +593,7 @@ describe("store", () => {
         PersistedTabsSchema,
         JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "")
       );
+
       expect(persisted.tabs.map((tab) => tab.id)).toStrictEqual([
         "kept-a",
         "kept-b",
@@ -665,6 +679,7 @@ describe(changeNoteMetadata, () => {
   }) => {
     const held = Promise.withResolvers<SaveOutcome>();
     const writes: string[] = [];
+
     const note = createNotePersistence(
       {
         content:
@@ -685,10 +700,12 @@ describe(changeNoteMetadata, () => {
         stash: async () => {},
         write: async (_path, content) => {
           writes.push(content);
+
           return await held.promise;
         },
       }
     );
+
     openNote("errands.md");
     const id = getTabState().activeId;
     registerTabHandles(id, {
@@ -698,11 +715,13 @@ describe(changeNoteMetadata, () => {
       insertText: () => {},
       toggleSource: () => {},
     });
+
     const changeTags = async (update: (current: string[]) => string[]) => {
       await changeNoteMetadata(note.store.state.path, ({ tags }) => ({
         tags: update(tags),
       }));
     };
+
     onTestFinished(() => {
       closeTab(id);
     });
@@ -742,6 +761,7 @@ describe(changeNoteMetadata, () => {
     onTestFinished,
   }) => {
     const held = Promise.withResolvers<SaveOutcome>();
+
     const note = createNotePersistence(
       {
         content: "---\ntags: [kept]\n---\n# Errands\n\nbody",
@@ -762,6 +782,7 @@ describe(changeNoteMetadata, () => {
         write: async () => await held.promise,
       }
     );
+
     openNote("errands.md");
     const id = getTabState().activeId;
     registerTabHandles(id, {
@@ -771,11 +792,13 @@ describe(changeNoteMetadata, () => {
       insertText: () => {},
       toggleSource: () => {},
     });
+
     const changeTags = async (update: (current: string[]) => string[]) => {
       await changeNoteMetadata(note.store.state.path, ({ tags }) => ({
         tags: update(tags),
       }));
     };
+
     onTestFinished(() => {
       closeTab(id);
     });
@@ -799,6 +822,7 @@ describe("note choices", () => {
     for (const tab of getTabState().tabs) {
       closeTab(tab.id);
     }
+
     localStorage.clear();
   });
 

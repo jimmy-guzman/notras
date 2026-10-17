@@ -20,6 +20,7 @@ export async function readClipboardSource(
     if (hasMessage(error)) {
       throw new Error(error.message, { cause: error });
     }
+
     throw error;
   }
 }

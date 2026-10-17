@@ -45,6 +45,7 @@ export function SettingsDialog({
   open,
 }: SettingsDialogProps) {
   const queryClient = useQueryClient();
+
   // Read when the dialog opens, never on launch: nothing else shows it.
   const { data: autostart, error: autostartError } = useQuery({
     ...autostartQuery,
@@ -80,8 +81,10 @@ export function SettingsDialog({
           title: "could not update notes folder",
           type: "error",
         });
+
         return;
       }
+
       await setNotesDir(selected);
       // Sessions read the folder from this query, so it refetches before the
       // tabs follow their files.
@@ -93,8 +96,10 @@ export function SettingsDialog({
         title: "could not update notes folder",
         type: "error",
       });
+
       return;
     }
+
     try {
       await reclassifyTabs(
         async (paths) => await commands.classifyOpenPaths(paths),
@@ -107,6 +112,7 @@ export function SettingsDialog({
         type: "error",
       });
     }
+
     // A different folder invalidates every read the old one answered.
     await queryClient.invalidateQueries();
   };

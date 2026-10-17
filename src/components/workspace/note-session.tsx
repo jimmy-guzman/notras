@@ -109,9 +109,11 @@ function SessionAlerts({
 }: SessionAlertsProps) {
   const failed = status === "failed";
   const conflict = status === "conflict";
+
   if (!(missing || failed || conflict)) {
     return null;
   }
+
   return (
     <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-4 px-6 pt-6">
       {missing ? (
@@ -159,6 +161,7 @@ async function exportRevealed(
   title: string
 ) {
   const windowSyntax = editor.revealSyntax();
+
   try {
     return await exportPdf(editor.surface(), name, title, editor.syntaxSettled);
   } finally {
@@ -216,6 +219,7 @@ async function createDraftFile(content: string): Promise<SaveOutcome> {
       receipt: { path: "", revision: "", updatedAt: new Date(0) },
     };
   }
+
   return { kind: "committed", receipt: await createNote({ content }) };
 }
 
@@ -229,10 +233,12 @@ async function createDraftFile(content: string): Promise<SaveOutcome> {
 function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   // Fixed for the tab's life: a draft becomes a note in place.
   const openKind = fileKind(tab.kind);
+
   const { data: notes } = useQuery({
     ...noteQueries.list(),
     enabled: openKind === "note",
   });
+
   const queryClient = useQueryClient();
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const resolveLinks = notes === undefined ? undefined : linkResolver(notes);
@@ -253,6 +259,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
 
   const editorRef = useRef<EditorHandle | null>(null);
   const sourceRef = useRef<null | SourceEditorHandle>(null);
+
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [persistence] = useState(() =>
     createNotePersistence(
@@ -261,6 +268,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         changePath: async (path, change) => {
           const receipt = await moveNote(path, change.folder);
           renameRecentNote(notesDir, path, receipt.path);
+
           return receipt;
         },
         clearStash: async (path) => {
@@ -287,19 +295,24 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           if (openKind === "external") {
             return await writeExternalNote(path, content, name, expected);
           }
+
           // A draft has no path until this write creates its file.
           if (path === "") {
             return await createDraftFile(content);
           }
+
           const outcome = await saveNote(path, content, name, expected);
+
           if (outcome.kind === "committed") {
             renameRecentNote(notesDir, path, outcome.receipt.path);
           }
+
           return outcome;
         },
       }
     )
   );
+
   const autosave = useAutosave(persistence);
   // A write landing while the watcher changed folders is reported by neither,
   // so a moved tab re-reads its file once the editor can take it. A rename
@@ -312,6 +325,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         await persistence.refresh();
       }
     };
+
     void follow();
   }, [persistence, ready, tab.path]);
   useLayoutEffect(() => {
@@ -323,6 +337,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       if (sourceMode) {
         return;
       }
+
       const currentBody = parseNote(content).body;
       const prefix = bodyPrefix(content);
       editorRef.current?.replaceContent(
@@ -335,6 +350,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
             }
       );
     };
+
     return persistence.onDocumentChanged(replaceDocument);
   }, [persistence]);
   // A read replaces the document through the editor, so none may land before
@@ -354,6 +370,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     [id, persistence]
   );
   const { body } = parseNote(autosave.content);
+
   const {
     changedAgain,
     missing,
@@ -363,6 +380,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     theirs,
     unreadable,
   } = autosave;
+
   const readable = !missing && unreadable === undefined;
   useLayoutEffect(
     () =>
@@ -393,31 +411,38 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   useLayoutEffect(() => {
     reviewingRef.current = showReview;
   }, [showReview]);
+
   if (reviewing && status !== "conflict") {
     setReviewing(false);
   }
+
   const openReview = () => {
     setReviewing(true);
   };
+
   const backFromReview = () => {
     flushSync(() => {
       setReviewing(false);
     });
     reviewButton.current?.focus();
   };
+
   const resolveReview = (content: string) => {
     flushSync(() => {
       setReviewing(false);
     });
     void persistence.resolve(content);
+
     if (persistence.store.state.sourceMode) {
       sourceRef.current?.focus();
     } else {
       editorRef.current?.focus();
     }
   };
+
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
+
   // Body carrying a sentinel char at the caret (set when leaving source mode,
   // and at mount for a tab restored from the last session); the rich editor
   // strips it after mount and places the caret.
@@ -461,6 +486,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
 
   const resolveImageSrc = (src: string) =>
     imageSrc(src, openKind, live.current.path, notesDir);
+
   const documentPath = () => live.current.path;
 
   const navigation = useRef<AbortController | undefined>(undefined);
@@ -476,16 +502,21 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     const request = new AbortController();
     navigation.current = request;
     const origin = getTabState().activeId;
+
     const isCurrent = () =>
       !request.signal.aborted && getTabState().activeId === origin;
+
     try {
       const resolver =
         live.current.resolveLinks ??
         linkResolver(await queryClient.query(noteQueries.list()));
+
       if (!isCurrent()) {
         return;
       }
+
       const target = resolver[kind](value, live.current.path);
+
       if (target === undefined) {
         toast.add({
           description:
@@ -495,8 +526,10 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           title: "could not follow link",
           type: "error",
         });
+
         return;
       }
+
       openNote(target.path);
     } catch (error) {
       if (isCurrent()) {
@@ -508,14 +541,18 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       }
     }
   };
+
   const openWikilink = async (title: string) => {
     await followNote("title", title);
   };
+
   const openNoteLink = async (href: string) => {
     await followNote("path", href);
   };
+
   const resolveWikilink = (title: string) =>
     live.current.resolveLinks?.title(title, live.current.path)?.path;
+
   const openFileLink = async (href: string) => {
     try {
       await openLinkedFile(live.current.path, href);
@@ -527,6 +564,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       });
     }
   };
+
   const openExternalFileLink = async (href: string) => {
     try {
       await openExternalFile(live.current.path, href);
@@ -538,15 +576,19 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       });
     }
   };
+
   const openExternalNoteLink = async (href: string) => {
     navigation.current?.abort();
     const request = new AbortController();
     navigation.current = request;
     const origin = getTabState().activeId;
+
     const isCurrent = () =>
       !request.signal.aborted && getTabState().activeId === origin;
+
     try {
       const target = await resolveExternalLink(live.current.path, href);
+
       if (isCurrent()) {
         openTab(target.kind, target.path);
       }
@@ -591,6 +633,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         : () => {
             const selection = read();
             const prefix = bodyPrefix(persistence.store.state.content);
+
             return selection === undefined
               ? undefined
               : {
@@ -667,6 +710,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
 
       if (wasSource) {
         const offset = sourceRef.current?.getCursorOffset() ?? 0;
+
         const bodyOffset = Math.max(
           0,
           Math.min(offset - prefixLength, currentBody.length)
@@ -855,6 +899,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
     initialData:
       tab.kind === "draft" ? { file: EMPTY_DRAFT, stash: null } : undefined,
   });
+
   const opening = opened === undefined;
   const failed = error !== null;
   // Only a missing file is a deletion. A permission or IO failure leaves the

@@ -21,7 +21,9 @@ function mount(query: string, error?: Error) {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   });
+
   client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+
   if (query.trim() !== "") {
     client.setQueryData(noteQueries.list().queryKey, []);
     client.setQueryData(noteQueries.folders().queryKey, []);
@@ -30,15 +32,18 @@ function mount(query: string, error?: Error) {
   client.setQueryData(noteQueries.tags().queryKey, []);
   const options = noteQueries.search(parseSearch(query));
   client.setQueryData(options.queryKey, []);
+
   if (error) {
     client
       .getQueryCache()
       .find({ queryKey: options.queryKey })
       ?.setState({ error, status: "error" });
   }
+
   onTestFinished(() => {
     client.clear();
   });
+
   const search = (value: string) =>
     createElement(
       QueryClientProvider,
@@ -59,7 +64,9 @@ function mount(query: string, error?: Error) {
         )
       )
     );
+
   const { container, rerender } = render(search(query));
+
   return {
     host: container,
     rerender: (value: string) => {
@@ -76,9 +83,11 @@ describe("palette search states", () => {
       if (command === "list_notes") {
         return await notes.promise;
       }
+
       if (command === "list_folders") {
         return await folders.promise;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     onTestFinished(clearMocks);
@@ -127,11 +136,13 @@ describe("palette search states", () => {
         updatedAt: 1,
       },
     ];
+
     const list = vi.fn<(payload?: InvokeArgs) => typeof recent>(() => recent);
     mockIPC((command, payload) => {
       if (command === "list_notes") {
         return list(payload);
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     onTestFinished(clearMocks);
@@ -159,13 +170,16 @@ describe("palette search states", () => {
       if (command === "list_notes") {
         return await held.promise;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
     client.setQueryData(noteQueries.search(parseSearch("old")).queryKey, [
       {
@@ -184,6 +198,7 @@ describe("palette search states", () => {
       client.clear();
       clearMocks();
     });
+
     const search = (query: string) => (
       <QueryClientProvider client={client}>
         <Command shouldFilter={false}>
@@ -199,6 +214,7 @@ describe("palette search states", () => {
         </Command>
       </QueryClientProvider>
     );
+
     const view = render(search("old"));
     expect(screen.getByRole("option", { name: "Old" })).toBeInTheDocument();
     view.rerender(search(""));
@@ -233,11 +249,13 @@ describe("palette search states", () => {
     mockIPC((command) => {
       if (command === "list_notes") {
         attempts += 1;
+
         if (attempts === 1) {
           throw Object.assign(new Error("Index unavailable"), {
             kind: "failed",
           });
         }
+
         return [
           {
             createdAt: 0,
@@ -251,6 +269,7 @@ describe("palette search states", () => {
           },
         ];
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     onTestFinished(clearMocks);
@@ -269,6 +288,7 @@ describe("palette search states", () => {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
     client.setQueryData(noteQueries.search(parseSearch("needle")).queryKey, [
       {
@@ -320,18 +340,21 @@ describe("palette search states", () => {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     client.setQueryData(indexStatusQuery.queryKey, { state: "scanning" });
     client.setQueryData(noteQueries.tags().queryKey, []);
     mockIPC(async (command) => {
       if (command === "search_notes") {
         return await Promise.withResolvers().promise;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
     onTestFinished(() => {
       clearMocks();
       client.clear();
     });
+
     const { container } = render(
       createElement(
         QueryClientProvider,
@@ -389,11 +412,13 @@ describe("palette search states", () => {
 describe("palette search", () => {
   it("should keep cached notes usable beside a failed refresh and retry the search", async () => {
     const user = userEvent.setup();
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     const options = noteQueries.search(parseSearch("budget"));
     client.setQueryData(options.queryKey, [
       {
@@ -413,10 +438,13 @@ describe("palette search", () => {
       if (command !== "search_notes") {
         throw new Error(`unexpected command: ${command}`);
       }
+
       attempts += 1;
+
       if (attempts === 1) {
         throw Object.assign(new Error("index unavailable"), { kind: "failed" });
       }
+
       return [];
     });
     onTestFinished(() => {
@@ -474,6 +502,7 @@ describe("palette search", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+
     client.setQueryData(noteQueries.tags().queryKey, [
       { count: 1, tag: "work" },
     ]);
@@ -490,12 +519,14 @@ describe("palette search", () => {
       },
     ]);
     const read = Promise.withResolvers<NoteMeta[]>();
+
     const request = Promise.allSettled([
       client.query({
         ...noteQueries.search(parseSearch("#missing")),
         queryFn: async () => await read.promise,
       }),
     ]);
+
     onTestFinished(async () => {
       await act(async () => {
         read.resolve([]);
@@ -503,6 +534,7 @@ describe("palette search", () => {
       });
       client.clear();
     });
+
     const { container: host } = render(
       createElement(
         QueryClientProvider,
@@ -524,6 +556,7 @@ describe("palette search", () => {
         )
       )
     );
+
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
     expect(host.textContent).not.toContain("Recent");
     expect(host.textContent).not.toContain("nothing found");

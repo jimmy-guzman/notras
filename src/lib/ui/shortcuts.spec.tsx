@@ -22,6 +22,7 @@ function RegisteredBindings({ children }: PropsWithChildren) {
     { meta: { name: "new note" } }
   );
   useHotkey("Mod+W", NOOP);
+
   return createElement(Fragment, null, children);
 }
 
@@ -48,11 +49,13 @@ function LiveBindings({ enabled, name, onRun }: BindingProps) {
       options: { enabled, meta: { name } },
     },
   ]);
+
   return null;
 }
 
 function ChordReader() {
   const chords = useChordsByName();
+
   return createElement(
     "output",
     null,
@@ -81,6 +84,7 @@ describe("chords by name", () => {
     const { result } = renderHook(() => useChordsByName(), {
       wrapper: RegisteredBindings,
     });
+
     expect(
       result.current.get("new note")?.map(({ hotkey }) => hotkey)
     ).toStrictEqual(["Mod+N", "Mod+T"]);
@@ -90,6 +94,7 @@ describe("chords by name", () => {
     const { result } = renderHook(() => useChordsByName(), {
       wrapper: RegisteredBindings,
     });
+
     expect(result.current.get("close tab")).toBeUndefined();
   });
 });
@@ -104,6 +109,7 @@ describe("shortcut registration lifecycle", () => {
       warnings.mockRestore();
     });
     const calls: string[] = [];
+
     const bindings = (name: string, enabled: boolean) =>
       createElement(
         Fragment,
@@ -117,9 +123,11 @@ describe("shortcut registration lifecycle", () => {
         }),
         createElement(ChordReader)
       );
+
     const { rerender } = render(bindings("first", true), {
       reactStrictMode: true,
     });
+
     expect(screen.getByRole("status")).toHaveTextContent("first: Mod+S, Mod+O");
     await user.keyboard("{Control>}so{/Control}");
     rerender(bindings("second", false));
@@ -143,6 +151,7 @@ describe("shortcut registration lifecycle", () => {
     const user = userEvent.setup();
     const pending = Promise.withResolvers<undefined>();
     const calls: string[] = [];
+
     function SuspendingBindings({ suspend }: { suspend: boolean }) {
       const name = suspend ? "pending" : "committed";
       useHotkey(
@@ -161,12 +170,15 @@ describe("shortcut registration lifecycle", () => {
           options: { enabled: !suspend },
         },
       ]);
+
       if (suspend) {
         // oxlint-disable-next-line typescript/only-throw-error -- throwing the promise is how a component suspends
         throw pending.promise;
       }
+
       return createElement("span", null, name);
     }
+
     const { container, rerender } = render(
       createElement(
         Suspense,
@@ -174,6 +186,7 @@ describe("shortcut registration lifecycle", () => {
         createElement(SuspendingBindings, { suspend: false })
       )
     );
+
     act(() => {
       startTransition(() => {
         rerender(
@@ -195,6 +208,7 @@ describe("shortcut ownership", () => {
   it("should let a component register shortcuts and read its own live labels", async () => {
     const user = userEvent.setup();
     const calls: string[] = [];
+
     function Owner({ name }: { name: string }) {
       useHotkey(
         "Mod+S",
@@ -204,8 +218,10 @@ describe("shortcut ownership", () => {
         { meta: { name } }
       );
       const chords = useChordsByName();
+
       return createElement("output", null, [...chords.keys()].join(", "));
     }
+
     const { rerender } = render(createElement(Owner, { name: "save" }));
     expect(screen.getByRole("status").textContent).toBe("save");
     rerender(createElement(Owner, { name: "save capture" }));
@@ -217,6 +233,7 @@ describe("shortcut ownership", () => {
   it("should remove replaced list bindings and dispatch each current binding once", async () => {
     const user = userEvent.setup();
     const calls: string[] = [];
+
     function Owner({ changed }: { changed: boolean }) {
       useHotkeys(
         changed
@@ -250,11 +267,14 @@ describe("shortcut ownership", () => {
             ],
         { meta: { name: "switch tab" } }
       );
+
       return createElement(ChordReader);
     }
+
     const { rerender } = render(createElement(Owner, { changed: false }), {
       reactStrictMode: true,
     });
+
     await user.keyboard("{Control>}12{/Control}");
     rerender(createElement(Owner, { changed: true }));
     expect(screen.getByRole("status").textContent).toBe(

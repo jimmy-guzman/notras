@@ -26,6 +26,7 @@ describe("note tags", () => {
     async (control) => {
       const saved = Promise.withResolvers<SaveOutcome>();
       const writes: string[] = [];
+
       const note = createNotePersistence(
         {
           content: "# Note",
@@ -45,10 +46,12 @@ describe("note tags", () => {
           stash: async () => {},
           write: async (_path, content) => {
             writes.push(content);
+
             return await saved.promise;
           },
         }
       );
+
       openNote("note.md");
       const id = getTabState().activeId;
       registerTabHandles(id, {
@@ -58,9 +61,11 @@ describe("note tags", () => {
         insertText: () => {},
         toggleSource: () => {},
       });
+
       const client = new QueryClient({
         defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
       });
+
       client.setQueryData(noteQueries.tags().queryKey, [
         { count: 1, tag: "first" },
         { count: 1, tag: "second" },
@@ -101,9 +106,11 @@ describe("note tags", () => {
         </QueryClientProvider>
       );
       const user = userEvent.setup();
+
       if (control === "combobox") {
         await user.click(screen.getByRole("combobox", { name: "edit tags" }));
       }
+
       await user.click(screen.getByRole("option", { name: "first 1" }));
       await user.click(screen.getByRole("option", { name: "second 1" }));
       expect(
@@ -132,11 +139,14 @@ describe("note tags", () => {
       if (command === "list_tags") {
         return await listed.promise;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+
     onTestFinished(async () => {
       act(() => {
         listed.resolve([]);

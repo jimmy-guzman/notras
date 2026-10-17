@@ -51,6 +51,7 @@ function MainWindow() {
   const [{ data: notesDir }, { data: initialTabs }] = useSuspenseQueries({
     queries: [notesDirQuery, startupQuery],
   });
+
   const [tag, setTag] = useState<string>();
   const queryClient = useQueryClient();
   const [paletteSession, setPaletteSession] = useState(0);
@@ -148,7 +149,9 @@ function MainWindow() {
     const refreshExternal = () => {
       refreshTabs((tab) => tab.kind === "external");
     };
+
     window.addEventListener("focus", refreshExternal);
+
     return () => {
       window.removeEventListener("focus", refreshExternal);
     };
@@ -159,7 +162,9 @@ function MainWindow() {
     const flushAll = () => {
       void flushPendingWrites();
     };
+
     window.addEventListener("blur", flushAll);
+
     return () => {
       window.removeEventListener("blur", flushAll);
     };
@@ -187,6 +192,7 @@ function MainWindow() {
     };
 
     const unlistenNew = listen("menu-new-note", openDraft);
+
     const unlistenOpen = listen("open-file", () => {
       void drainPendingOpens();
     });

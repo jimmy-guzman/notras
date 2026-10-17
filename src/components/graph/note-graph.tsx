@@ -68,15 +68,19 @@ function keyOf(item: Item) {
     case "note": {
       return item.note.path;
     }
+
     case "hub": {
       return hubKey(item.pill.hub);
     }
+
     case "placeholder": {
       return `dangling:${item.target}`;
     }
+
     case "overflow": {
       return item.id;
     }
+
     default: {
       return "";
     }
@@ -152,31 +156,38 @@ function itemsOf(picture: Picture): Item[] {
   const { dangling, hubs, incoming, note, outgoing } = picture;
   const linked = new Set(outgoing.map((mention) => mention.note.path));
   const mentioned = new Set(incoming.map((mention) => mention.note.path));
+
   const left = capped(
     incoming.flatMap((mention) =>
       linked.has(mention.note.path) ? [] : [mention.note]
     )
   );
+
   // Real links first, then what room the cap leaves for placeholders.
   const right = capped(outgoing.map((mention) => mention.note));
+
   const room = Math.max(
     0,
     CAP - right.shown.length - (right.hidden > 0 ? 1 : 0)
   );
+
   const shownDangling = dangling.slice(0, room);
   const hiddenRight = right.hidden + (dangling.length - shownDangling.length);
   const top = leading(hubs, TOP_CAP);
+
   const ring = layoutRing(
     left.shown.length + (left.hidden > 0 ? 1 : 0),
     right.shown.length + shownDangling.length + (hiddenRight > 0 ? 1 : 0),
     top.shown.length + (top.hidden > 0 ? 1 : 0)
   );
+
   const noteItem = (entry: NoteMeta, position: RingPosition): Item => ({
     both: linked.has(entry.path) && mentioned.has(entry.path),
     kind: "note",
     note: entry,
     position,
   });
+
   const overflowIn = ring.incoming.at(-1);
   const overflowOut = ring.outgoing.at(-1);
   const overflowTop = ring.top.at(-1);
@@ -239,6 +250,7 @@ function useStageSize(ref: RefObject<HTMLDivElement | null>) {
 
   useLayoutEffect(() => {
     const stage = ref.current;
+
     const observer = new ResizeObserver(([entry]) => {
       if (entry !== undefined) {
         setSize({
@@ -581,9 +593,11 @@ export function NoteGraph({
   const [live, setLive] = useState<string | null>(null);
 
   const items = itemsOf(picture);
+
   const centreKey = keyOf(
     items[0] ?? { kind: "placeholder", position: CENTRE, target: "" }
   );
+
   const ring = items
     .flatMap((item) =>
       item.kind === "placeholder" || Number.isNaN(item.position.angle)
@@ -655,6 +669,7 @@ export function NoteGraph({
             />
           );
         }
+
         if (item.kind === "overflow") {
           return (
             <OverflowPill
@@ -667,6 +682,7 @@ export function NoteGraph({
             />
           );
         }
+
         return (
           <Pill
             centre={keyOf(item) === centreKey}
@@ -704,12 +720,15 @@ export function TabGraph({ tab }: TabGraphProps) {
     forPath: string;
     hub: Hub;
   } | null>(null);
+
   const hub = hubState?.forPath === tab.path ? hubState.hub : null;
+
   const result = useQuery(
     noteQueries.graph(
       hub === null ? { kind: "note", path: tab.path } : { hub, kind: "hub" }
     )
   );
+
   const reported = useRef<string | null>(null);
   const failure = result.error ?? result.data?.mentionsError ?? null;
 
@@ -726,6 +745,7 @@ export function TabGraph({ tab }: TabGraphProps) {
 
   const picture = result.data?.picture;
   const [last, setLast] = useState(picture);
+
   if (picture !== undefined && picture !== last) {
     setLast(picture);
   }

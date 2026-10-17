@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createEditorExtensions } from "@/components/editor/extensions";
 
 const editors: Editor[] = [];
+
 function mount(content: string) {
   const editor = new Editor({
     content,
@@ -11,7 +12,9 @@ function mount(content: string) {
     element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
+
   editors.push(editor);
+
   return editor;
 }
 
@@ -26,6 +29,7 @@ describe("selection highlight", () => {
     for (const editor of editors) {
       editor.destroy();
     }
+
     editors.length = 0;
   });
 

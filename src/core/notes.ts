@@ -112,6 +112,7 @@ const titleMarkdown = new Marked({
       start: (source) => source.indexOf("[["),
       tokenizer: (source) => {
         const match = WIKILINK_TITLE.exec(source);
+
         return match === null
           ? undefined
           : { raw: match[0], text: match.groups?.title, type: "codespan" };
@@ -141,16 +142,20 @@ function inlineTitle(tokens: Token[]): string {
         case "html": {
           return "\n".repeat(lineBreaks(token.raw));
         }
+
         case "br": {
           return "\n";
         }
+
         case "codespan": {
           return hasText(token) ? token.text : "";
         }
+
         default: {
           if ("tokens" in token && token.tokens !== undefined) {
             return inlineTitle(token.tokens);
           }
+
           return hasText(token) ? decodeHTML(token.text) : "";
         }
       }
@@ -166,6 +171,7 @@ interface TitleAt {
 function tokenTitle(tokens: Token[], firstLine: number): TitleAt | undefined {
   let line = firstLine;
   let found: TitleAt | undefined;
+
   for (const token of tokens) {
     if (isList(token)) {
       found = tokenTitle(token.items, line);
@@ -186,11 +192,14 @@ function tokenTitle(tokens: Token[], firstLine: number): TitleAt | undefined {
               title: first[1].trim().replaceAll(TITLE_SPACE, " "),
             };
     }
+
     if (found !== undefined) {
       break;
     }
+
     line += lineBreaks(token.raw);
   }
+
   return found;
 }
 
@@ -208,6 +217,7 @@ const LINK_DEFINITION = /\[[^\]\n]*\]:/u;
 function windowTitle(body: string, end: number) {
   const window = body.slice(0, end);
   const found = tokenTitle(titleMarkdown.lexer(window), 0);
+
   return found !== undefined && lineBreaks(window) > found.line + 1
     ? found
     : undefined;
@@ -222,6 +232,7 @@ function windowTitle(body: string, end: number) {
 export function bodyTitle(body: string) {
   for (let end = TITLE_WINDOW; end < body.length; end *= 2) {
     const found = windowTitle(body, end);
+
     // An unresolved reference keeps its brackets, and a definition further
     // down would resolve it.
     if (
@@ -231,6 +242,7 @@ export function bodyTitle(body: string) {
       return found;
     }
   }
+
   return tokenTitle(titleMarkdown.lexer(body), 0);
 }
 
@@ -240,13 +252,16 @@ export function titleSource(content: string) {
   const candidate = bodyTitle(parsed.body);
   const lines = content.split("\n");
   const prefix = content.slice(0, content.length - parsed.body.length);
+
   const line =
     candidate === undefined
       ? prefix.split("\n").findLastIndex((text) => FRONTMATTER_TITLE.test(text))
       : lineBreaks(prefix) + candidate.line;
+
   const title = candidate?.title ?? parsed.frontmatter.title;
   const titleLine = lines[line];
   const from = lines.slice(0, line).join("\n").length + (line === 0 ? 0 : 1);
+
   return title === undefined || titleLine === undefined
     ? undefined
     : { from, title, to: from + titleLine.length };

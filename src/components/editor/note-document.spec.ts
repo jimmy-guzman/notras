@@ -39,6 +39,7 @@ describe("note document", () => {
       "---\ntitle: Old\ntags: [a]\n---\n```\ncode\n```",
       "imported.md"
     );
+
     const tags = note.content().indexOf("[a]") + 2;
     note.editor.view.dispatch(
       note.editor.state.tr.insertText("b", tags, tags + 1)
@@ -108,6 +109,7 @@ describe("note document", () => {
       "---\ntitle: legacy\n---\nbody",
       "shopping.md"
     );
+
     note.rename("Weekend errands");
     expect(note.content()).toBe(
       "---\ntitle: legacy\n---\n# Weekend errands\n\nbody"

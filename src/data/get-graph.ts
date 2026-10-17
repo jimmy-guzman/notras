@@ -10,6 +10,7 @@ import type {
 function pictureResult(picture: NativePicture): Picture {
   if (picture.kind === "hub") {
     const hubs = picture.members.filter((member) => member.kind === "hub");
+
     const notes = picture.members
       .flatMap((member) =>
         member.kind === "note"
@@ -17,8 +18,10 @@ function pictureResult(picture: NativePicture): Picture {
           : []
       )
       .toSorted((left, right) => left.note.path.localeCompare(right.note.path));
+
     return { ...picture, members: [...hubs, ...notes] };
   }
+
   return {
     ...picture.graph,
     incoming: picture.graph.incoming
@@ -34,6 +37,7 @@ export async function getGraph(target: GraphTarget) {
   const result = await nativeCommand(
     async () => await commands.readGraph(target)
   );
+
   return {
     mentionsError: result.mentionsError,
     picture:

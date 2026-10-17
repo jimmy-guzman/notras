@@ -19,6 +19,7 @@ const parse = (markdown: string, extensions = createEditorExtensions({})) => {
     element: document.createElement("div"),
     extensions,
   });
+
   const json = editor.getJSON();
 
   editor.destroy();

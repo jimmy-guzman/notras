@@ -26,14 +26,18 @@ async function mountStrip(tabs: Tab[]) {
     if (command === "get_notes_dir") {
       return "/notes";
     }
+
     if (command.startsWith("plugin:")) {
       return 0;
     }
+
     throw new Error(`unexpected command: ${command}`);
   });
+
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+
   const { container } = render(
     <QueryClientProvider client={client}>
       <Suspense fallback={null}>
@@ -43,7 +47,9 @@ async function mountStrip(tabs: Tab[]) {
       </Suspense>
     </QueryClientProvider>
   );
+
   await screen.findAllByRole("tab");
+
   return container;
 }
 
@@ -58,6 +64,7 @@ describe("tab strip", () => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       localStorage.removeItem("recent-notes:/notes");
       const first = "a";
       localStorage.setItem(
@@ -77,6 +84,7 @@ describe("tab strip", () => {
         for (const tab of getTabState().tabs) {
           closeTab(tab.id);
         }
+
         localStorage.removeItem("recent-notes:/notes");
       });
       await mountStrip(getTabState().tabs);
@@ -89,9 +97,11 @@ describe("tab strip", () => {
       });
       expect(getTabState().activeId).toBe(first);
       expect(readRecentNotes("/notes")).toStrictEqual([]);
+
       if (drag) {
         await user.pointer({ coords: { x: 10, y: 0 }, target });
       }
+
       await user.pointer({ keys: "[/MouseLeft]", target });
       expect(readRecentNotes("/notes")).toStrictEqual(drag ? [] : ["a.md"]);
     }
@@ -120,6 +130,7 @@ describe("tab strip", () => {
           title: "Live title",
           words: 2,
         });
+
         act(() => {
           onTestFinished(
             registerTabSnapshot(
@@ -147,6 +158,7 @@ describe("tab strip", () => {
       const container = await mountStrip([
         { id: "a", kind: "note", path: "a.md" },
       ]);
+
       expect(container.firstElementChild).toHaveAttribute(
         "data-tauri-drag-region",
         "deep"
@@ -160,6 +172,7 @@ describe("tab strip", () => {
       ]);
       const tabs = screen.getAllByRole("tab");
       expect(tabs).toHaveLength(2);
+
       for (const tab of tabs) {
         expect(tab).not.toHaveAttribute("data-tauri-drag-region");
         expect(tab.parentElement).toHaveAttribute(

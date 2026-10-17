@@ -24,23 +24,29 @@ function filterKind(prefix: string): SearchFilter["kind"] {
     case "folder:": {
       return "folder";
     }
+
     case "from:": {
       return "from";
     }
+
     case "link:": {
       return "link";
     }
+
     case "mention:": {
       return "mention";
     }
+
     case "to:": {
       return "to";
     }
+
     default: {
       return "tag";
     }
   }
 }
+
 const WHITESPACE = /\s/u;
 const NEEDS_QUOTES = /[\s"\\]/u;
 
@@ -51,6 +57,7 @@ function readValue(input: string, start: number) {
 
   while (end < input.length) {
     const char = input[end];
+
     if (char === "\\" && (input[end + 1] === '"' || input[end + 1] === "\\")) {
       value += input[end + 1];
       end += 2;
@@ -84,8 +91,10 @@ function scanSearch(input: string) {
       offset += 1;
       continue;
     }
+
     const prefix = FILTER_START.exec(input.slice(offset))?.[0];
     const part = readValue(input, offset + (prefix?.length ?? 0));
+
     if (prefix === undefined) {
       words.push(input.slice(offset, part.end));
     } else {
@@ -98,6 +107,7 @@ function scanSearch(input: string) {
       });
       incomplete ||= !part.complete;
     }
+
     offset = part.end;
   }
 
@@ -106,6 +116,7 @@ function scanSearch(input: string) {
 
 export function parseSearch(input: string): NoteSearch {
   const { incomplete, query, tokens } = scanSearch(input);
+
   return {
     filters: tokens.map(({ kind, value }) => ({ kind, value })),
     incomplete,
@@ -119,9 +130,11 @@ export function searchSuggestion(
   cursor = input.length
 ): SearchFilter | undefined {
   const { tokens } = scanSearch(input);
+
   const token =
     tokens.find(({ end, start }) => start <= cursor && cursor <= end) ??
     tokens.findLast(({ complete }) => !complete);
+
   return token === undefined
     ? undefined
     : { kind: token.kind, value: token.value };
@@ -133,15 +146,18 @@ export function insertSearchFilter(
   cursor = input.length
 ): string {
   const { tokens } = scanSearch(input);
+
   const candidate =
     tokens.find(({ end, start }) => start <= cursor && cursor <= end) ??
     tokens.findLast(({ complete }) => !complete);
+
   const token = candidate?.kind === filter.kind ? candidate : undefined;
   const escaped = filter.value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
   const value = NEEDS_QUOTES.test(filter.value) ? `"${escaped}"` : escaped;
   const prefix = filter.kind === "tag" ? "#" : `${filter.kind}:`;
   const before = token === undefined ? input : input.slice(0, token.start);
   const after = token === undefined ? "" : input.slice(token.end).trimStart();
+
   return `${before}${before === "" || WHITESPACE.test(before.at(-1) ?? "") ? "" : " "}${prefix}${value} ${after}`;
 }
 
@@ -160,6 +176,7 @@ export function searchFolders(
     ),
     (folder) => folder
   );
+
   return folders
     .map((folder) => ({ count: counts.get(folder)?.length ?? 0, folder }))
     .toSorted((left, right) => left.folder.localeCompare(right.folder));

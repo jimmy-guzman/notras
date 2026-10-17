@@ -49,6 +49,7 @@ interface ActionsViewProps {
 }
 
 const STORAGE_KEY = "recent-actions";
+
 const RecentActionsSchema = pipe(
   array(string()),
   check((values) => new Set(values).size === values.length)
@@ -67,6 +68,7 @@ export function ActionsView({
         "could not read recent commands"
       ) ?? []
   );
+
   const recent =
     query.trim() === ""
       ? history
@@ -75,7 +77,9 @@ export function ActionsView({
           )
           .slice(0, 5)
       : [];
+
   const recentValues = new Set(recent.map((action) => action.value));
+
   const groups = [
     { actions: recent, heading: "recent" },
     {
@@ -110,6 +114,7 @@ export function ActionsView({
                       value,
                       ...history.filter((previous) => previous !== value),
                     ];
+
                     writeStored(
                       STORAGE_KEY,
                       next,

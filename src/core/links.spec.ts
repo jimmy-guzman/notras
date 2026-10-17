@@ -194,6 +194,7 @@ describe("native resolver parity", () => {
               meta("projects/../../escape.md"),
             ]
           : [meta(fixture.expected)];
+
       expect(
         linkResolver(notes).path(fixture.destination, fixture.from)?.path ??
           null

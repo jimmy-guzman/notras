@@ -77,6 +77,7 @@ function adaptBlock(node: Node, $target: ResolvedPos) {
   }
 
   const itemName = LIST_ITEM_TYPE.get(parent.type.name);
+
   const itemType =
     itemName === undefined ? undefined : parent.type.schema.nodes[itemName];
 
@@ -358,6 +359,7 @@ export function moveRange(
   // covering all of them, so a caret stays a caret and a second `⌥↓` finds the
   // same range.
   const end = Math.min(pos + content.size, tr.doc.content.size);
+
   const carry = (from: number) =>
     Math.min(Math.max(pos + (from - range.start), pos), end);
 

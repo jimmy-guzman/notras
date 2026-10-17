@@ -33,6 +33,7 @@ export function SourceEditor({
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = host.current;
+
     const mount = (target: HTMLDivElement) => {
       editor.setOptions({
         editorProps: {
@@ -47,9 +48,11 @@ export function SourceEditor({
       });
       editor.mount(target);
       const chain = editor.chain();
+
       if (config.focusOnMount === true) {
         chain.focus();
       }
+
       chain
         .setTextSelection(
           Math.max(
@@ -65,6 +68,7 @@ export function SourceEditor({
           const scroller = target.closest<HTMLElement>(
             '[data-slot="scroll-area-viewport"]'
           );
+
           const top = scroller?.scrollTop;
 
           editor.view.focus();
@@ -80,10 +84,12 @@ export function SourceEditor({
           editor.chain().focus().insertContent(text).run();
         },
       });
+
       return () => {
         editor.unmount();
       };
     };
+
     return element === null ? undefined : mount(element);
   }, [config, editor]);
 

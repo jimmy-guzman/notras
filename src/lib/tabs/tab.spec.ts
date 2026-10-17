@@ -212,6 +212,7 @@ describe(closeTab, () => {
       note("d.md"),
       true
     );
+
     const withoutOpener = closeTab(opened, "id-a.md");
 
     const next = closeTab(withoutOpener, "id-d.md");
@@ -225,6 +226,7 @@ describe(closeTab, () => {
       note("d.md"),
       true
     );
+
     const dragged = moveTabTo(opened, "id-d.md", 3);
 
     const next = closeTab(dragged, "id-d.md");
@@ -529,6 +531,7 @@ describe(pushClosed, () => {
 
   it("should bound the stack at ten", () => {
     let closed: ReturnType<typeof pushClosed> = [];
+
     for (let index = 0; index < 14; index += 1) {
       closed = pushClosed(closed, note(`${index}.md`), index);
     }
@@ -546,14 +549,17 @@ describe("reopening a batch", () => {
   it("should rebuild the strip in order when a batch is reopened", () => {
     const tabs = [note("a.md"), note("b.md"), note("c.md"), note("d.md")];
     let closedRightmostFirst: ReturnType<typeof pushClosed> = [];
+
     for (const index of [3, 2, 1]) {
       const tab = tabs[index];
+
       if (tab !== undefined) {
         closedRightmostFirst = pushClosed(closedRightmostFirst, tab, index);
       }
     }
 
     let rebuilt: TabState = { activeId: "id-a.md", tabs: [note("a.md")] };
+
     for (const entry of closedRightmostFirst) {
       rebuilt = openTabAt(rebuilt, entry.tab, entry.index);
     }

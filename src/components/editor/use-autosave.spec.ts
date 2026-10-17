@@ -12,6 +12,7 @@ function mountAutosave(
   write: (path: string, content: string) => Promise<Date>
 ) {
   let onDisk = true;
+
   const persistence = createNotePersistence(
     {
       content: "",
@@ -29,6 +30,7 @@ function mountAutosave(
         if (!onDisk) {
           throw new FileError({ kind: "not-found", message: "No such file" });
         }
+
         return { content: "", revision: "r0", updatedAt: new Date(0) };
       },
       stash: async () => {},
@@ -42,6 +44,7 @@ function mountAutosave(
       }),
     }
   );
+
   const { result } = renderHook(() => useAutosave(persistence));
 
   return {
@@ -50,6 +53,7 @@ function mountAutosave(
       await act(async () => {
         landed = await result.current.flush();
       });
+
       return landed;
     },
     get reason() {
@@ -99,6 +103,7 @@ describe(useAutosave, () => {
 
   it("should write the buffer once the debounce elapses", async () => {
     const written: string[] = [];
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -114,6 +119,7 @@ describe(useAutosave, () => {
 
   it("should not write while the file is missing", async () => {
     const written: string[] = [];
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -129,6 +135,7 @@ describe(useAutosave, () => {
 
   it("should report the buffer safe to quit while holding text it cannot write", async () => {
     const written: string[] = [];
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -146,6 +153,7 @@ describe(useAutosave, () => {
 
   it("should not write once a read found the file missing while the debounce was pending", async () => {
     const written: string[] = [];
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -161,6 +169,7 @@ describe(useAutosave, () => {
 
   it("should write what is on screen once the file is back", async () => {
     const written: string[] = [];
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -184,6 +193,7 @@ describe(useAutosave, () => {
   it("should land overlapping writes in the order they were flushed", async () => {
     const written: string[] = [];
     const landWrite: (() => void)[] = [];
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -191,6 +201,7 @@ describe(useAutosave, () => {
       landWrite.push(() => {
         resolve(new Date(1));
       });
+
       return await promise;
     });
 
@@ -236,6 +247,7 @@ describe(useAutosave, () => {
   it("should write again after a write fails", async () => {
     const written: string[] = [];
     let failNext = true;
+
     const harness = mountAutosave(async (_path, content) => {
       written.push(content);
 
@@ -262,6 +274,7 @@ describe(useAutosave, () => {
 
   it("should say why the write failed while it is failed", async () => {
     let failNext = true;
+
     const harness = mountAutosave(async () => {
       if (failNext) {
         failNext = false;

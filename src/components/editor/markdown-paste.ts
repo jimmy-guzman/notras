@@ -67,6 +67,7 @@ function firstItemContent(parent: globalThis.Node): Element | Text | null {
     if (child instanceof Text && child.data.trim() !== "") {
       return child;
     }
+
     if (child instanceof Element) {
       if (
         child.matches(
@@ -75,12 +76,15 @@ function firstItemContent(parent: globalThis.Node): Element | Text | null {
       ) {
         return child;
       }
+
       const content = firstItemContent(child);
+
       if (content !== null) {
         return content;
       }
     }
   }
+
   return null;
 }
 
@@ -90,13 +94,16 @@ function htmlTaskText(parent: globalThis.Node): string {
       if (child instanceof Text) {
         return child.data;
       }
+
       if (child instanceof Element && child.matches("ul, ol")) {
         return "";
       }
+
       // Inline code is a boundary, even when its text completes a marker.
       if (child instanceof Element && child.matches("code, pre")) {
         return "\u0000";
       }
+
       return htmlTaskText(child);
     })
     .join("");
@@ -108,6 +115,7 @@ function htmlTask(item: HTMLLIElement) {
   if (first instanceof HTMLInputElement && first.type === "checkbox") {
     return { checkbox: first, checked: first.checked, lead: item, prefix: 0 };
   }
+
   if (!(first instanceof Text)) {
     return null;
   }
@@ -137,11 +145,13 @@ function convertHtmlTask(item: HTMLLIElement, task: HtmlTask) {
       if (!(node instanceof Text)) {
         continue;
       }
+
       if (remaining <= node.length) {
         range.setEnd(node, remaining);
         range.deleteContents();
         break;
       }
+
       remaining -= node.length;
     }
   } else {
@@ -155,6 +165,7 @@ function convertHtmlTask(item: HTMLLIElement, task: HtmlTask) {
   const content = document.createElement("div");
   content.append(...item.childNodes);
   const first = firstItemContent(content);
+
   if (
     first === null ||
     (first instanceof Element &&
@@ -162,6 +173,7 @@ function convertHtmlTask(item: HTMLLIElement, task: HtmlTask) {
   ) {
     content.prepend(document.createElement("p"));
   }
+
   item.replaceChildren(content);
 }
 
@@ -177,6 +189,7 @@ function normalizeHtmlTasks(root: HTMLElement) {
     const items = [...list.children].flatMap((item) =>
       item instanceof HTMLLIElement ? [{ item, task: htmlTask(item) }] : []
     );
+
     if (
       items.length !== list.children.length ||
       items.every(
@@ -187,12 +200,15 @@ function normalizeHtmlTasks(root: HTMLElement) {
     }
 
     const runs: HTMLUListElement[] = [];
+
     for (const { item, task } of items) {
       if (task !== null) {
         convertHtmlTask(item, task);
       }
+
       const type = item.dataset.type === "taskItem" ? "taskList" : undefined;
       const last = runs.at(-1);
+
       const run =
         last !== undefined && last.dataset.type === type
           ? last
@@ -202,15 +218,19 @@ function normalizeHtmlTasks(root: HTMLElement) {
         for (const attribute of list.attributes) {
           run.setAttribute(attribute.name, attribute.value);
         }
+
         if (type === undefined) {
           delete run.dataset.type;
         } else {
           run.dataset.type = type;
         }
+
         runs.push(run);
       }
+
       run.append(item);
     }
+
     list.replaceWith(...runs);
   }
 }
@@ -219,6 +239,7 @@ function localizeHtmlHeadingLinks(root: HTMLElement, schema: Schema) {
   const anchors = headingAnchors(
     DOMParser.fromSchema(schema).parse(root).content
   );
+
   const links = [...root.querySelectorAll("a[href]")].flatMap((anchor) => {
     const href = anchor.getAttribute("href");
     const url = href === null ? null : URL.parse(href);
@@ -231,7 +252,9 @@ function localizeHtmlHeadingLinks(root: HTMLElement, schema: Schema) {
     ) {
       return [];
     }
+
     const fragment = href.slice(href.indexOf("#"));
+
     try {
       if (!anchors.has(decodeURIComponent(fragment.slice(1)))) {
         return [];
@@ -242,9 +265,12 @@ function localizeHtmlHeadingLinks(root: HTMLElement, schema: Schema) {
       if (error instanceof URIError) {
         return [];
       }
+
       throw error;
     }
+
     url.hash = "";
+
     return [{ anchor, base: url.href, fragment }];
   });
 
@@ -266,9 +292,11 @@ function normalizedHtml(html: string, schema: Schema) {
   }
 
   normalizeHtmlTasks(root);
+
   if (root.querySelector("a[href]") !== null) {
     localizeHtmlHeadingLinks(root, schema);
   }
+
   return root.innerHTML;
 }
 
@@ -283,6 +311,7 @@ function editorSource(metadata: string): ClipboardSource | null {
   if (metadata === "") {
     return null;
   }
+
   return {
     kind: "code",
     language: parse(EDITOR_METADATA, metadata, {
@@ -309,6 +338,7 @@ function contentBySource(
         }
       : { marks: [{ type: "code" }], text: code, type: "text" };
   }
+
   // A copy out of a markdown file is markdown whatever HTML sits beside it.
   const prose = source === null ? markdown : source.kind === "code";
 
@@ -328,6 +358,7 @@ function takesTurn(
   readClipboardSource: ReadClipboardSource | null
 ) {
   const text = clipboardData.getData("text/plain");
+
   const waitsOnSource =
     readClipboardSource !== null &&
     text !== "" &&
@@ -350,6 +381,7 @@ function landReplay(view: EditorView, event: ClipboardEvent, replay: Replay) {
   if (replay.kind === "text") {
     event.preventDefault();
     view.pasteText(replay.text);
+
     return true;
   }
 
@@ -366,8 +398,10 @@ function landReplay(view: EditorView, event: ClipboardEvent, replay: Replay) {
   if (replay.plain && text !== "") {
     event.preventDefault();
     view.pasteText(text, event);
+
     return true;
   }
+
   if (
     html === "" ||
     view.state.selection.$from.parent.type.spec.code === true
@@ -377,6 +411,7 @@ function landReplay(view: EditorView, event: ClipboardEvent, replay: Replay) {
 
   event.preventDefault();
   view.pasteHTML(html, event);
+
   return true;
 }
 
@@ -396,6 +431,7 @@ function clipboardCopy(clipboardData: DataTransfer) {
       copy.setData(type, value);
     }
   }
+
   return copy;
 }
 
@@ -433,6 +469,7 @@ function untilReplaced(
  */
 function pasteBookmark(state: EditorState, pending: Set<PendingPaste>) {
   const { from, to } = state.selection;
+
   const replaced =
     from !== to &&
     [...pending].some(({ selection }) => {
@@ -533,6 +570,7 @@ async function pasteImage(
         .focus()
         .command(({ tr }) => {
           tr.setSelection(paste.selection.resolve(tr.doc));
+
           return true;
         })
         .setImage({ src })
@@ -568,6 +606,7 @@ async function pastePlainText(
     if (editor.isDestroyed) {
       return;
     }
+
     if (text === null || text === "") {
       throw new Error("The clipboard holds no text");
     }
@@ -621,12 +660,14 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             keydown: (_view, event) => {
               // Shift+Insert is a paste key, not a plain paste.
               shiftHeld = event.shiftKey && event.key !== "Insert";
+
               return false;
             },
             keyup: (_view, event) => {
               if (event.key === "Shift") {
                 shiftHeld = false;
               }
+
               return false;
             },
             // Ahead of every `handlePaste`, so a handler earlier in the
@@ -649,6 +690,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
               }
 
               const text = clipboardData.getData("text/plain");
+
               // Word and Numbers copy a picture beside the text; a browser
               // copies an image with none. Text on the clipboard is what was
               // copied.
@@ -670,6 +712,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                     title: "could not paste image",
                     type: "error",
                   });
+
                   return true;
                 }
 
@@ -684,8 +727,10 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   pending,
                   previous
                 );
+
                 return true;
               }
+
               if (
                 !takesTurn(
                   clipboardData,
@@ -715,6 +760,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   });
 
                   replay = { event: again, kind: "clipboard", plain, source };
+
                   try {
                     view.dom.dispatchEvent(again);
                   } finally {
@@ -728,6 +774,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 pending,
                 previous
               );
+
               return true;
             },
           },
@@ -750,6 +797,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   });
 
                   replay = { event: again, kind: "text", text };
+
                   try {
                     this.editor.view.dom.dispatchEvent(again);
                   } finally {
@@ -760,6 +808,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 pending,
                 previous
               );
+
               return true;
             },
           }),
@@ -807,6 +856,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   .chain()
                   .command(({ tr }) => {
                     tr.setMeta("paste", true).setMeta("uiEvent", "paste");
+
                     return true;
                   })
                   .insertContent(content)
@@ -818,6 +868,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 title: "could not paste",
                 type: "error",
               });
+
               return false;
             }
           },
@@ -829,6 +880,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             for (const paste of pending) {
               paste.selection = paste.selection.map(transaction.mapping);
             }
+
             return null;
           },
           init: () => null,

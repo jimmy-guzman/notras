@@ -44,11 +44,13 @@ const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
 function listenForWarnings() {
   let disposed = false;
   let unlisten: (() => void) | undefined;
+
   const subscribe = async () => {
     try {
       const stop = await events.mutationWarnings.listen(({ payload }) => {
         reportNoteWarnings(payload.warnings);
       });
+
       if (disposed) {
         stop();
       } else {
@@ -62,7 +64,9 @@ function listenForWarnings() {
       });
     }
   };
+
   void subscribe();
+
   return () => {
     disposed = true;
     unlisten?.();

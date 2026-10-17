@@ -58,15 +58,19 @@ function fakeViewport(
   const characters = 2000;
   // A scroll reaches the editor only through a scroller it is in.
   const host = editor.view.dom.parentElement;
+
   if (host !== null) {
     document.body.append(host);
   }
+
   const caretAt = (_x: number, y: number) => {
     const { node, offset } = editor.view.domAtPos(
       1 + scrolled + Math.round((y / 800) * characters)
     );
+
     return { offset, offsetNode: node };
   };
+
   Object.defineProperty(document, "elementFromPoint", {
     configurable: true,
     value: () => editor.view.dom.querySelector("code"),
@@ -91,6 +95,7 @@ function fakeViewport(
     Reflect.deleteProperty(document, "caretPositionFromPoint");
     host?.remove();
   });
+
   return {
     scrollTo(character: number) {
       scrolled = character;
@@ -101,10 +106,11 @@ function fakeViewport(
 
 function coloredText(editor: Editor, role: string) {
   return [...editor.view.dom.querySelectorAll(".syntax-token")]
-    .filter(
-      (span) => span.getAttribute("style")?.includes(`var(--${role})`) === true
+    .flatMap((span) =>
+      span.getAttribute("style")?.includes(`var(--${role})`) === true
+        ? [span.textContent]
+        : []
     )
-    .map((span) => span.textContent)
     .join("");
 }
 
@@ -216,9 +222,11 @@ describe("code block highlighting", () => {
     await vi.waitFor(() => {
       expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
     });
+
     const spans = [...editor.view.dom.querySelectorAll("pre")].map((pre) =>
       [...pre.querySelectorAll(".syntax-token")].map((span) => span.textContent)
     );
+
     expect(spans[0]).toContain("let");
     expect(spans[0]).not.toContain("let b");
     expect(spans[1]).toContain("const");
@@ -355,6 +363,7 @@ describe("code block highlighting", () => {
   }) => {
     const source =
       "---\npinned: true\n...\n# title\n\n```python\nreturn 42\n```";
+
     const editor = createEditor("markdown", source);
     onTestFinished(() => {
       editor.destroy();
@@ -429,10 +438,12 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const lines = 3000;
+
     const editor = createEditor(
       "ts",
       Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
     );
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -462,10 +473,12 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const lines = 1500;
+
     const editor = createEditor(
       "ts",
       Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
     );
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -491,10 +504,12 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const lines = 3000;
+
     const text = Array.from(
       { length: lines },
       (_, i) => `const again${i} = ${i};`
     ).join("\n");
+
     const first = createEditor("ts", text);
     fakeViewport(first, onTestFinished);
     await vi.waitFor(() => {
@@ -533,6 +548,7 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const blocks = 1000;
+
     const editor = new Editor({
       content: {
         content: Array.from({ length: blocks }, (_, index) => ({
@@ -552,10 +568,12 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       editor.destroy();
     });
     const viewport = fakeViewport(editor, onTestFinished);
+
     const lastFence = () =>
       [...editor.view.dom.querySelectorAll("pre")]
         .at(-1)
@@ -580,6 +598,7 @@ describe("code block highlighting", () => {
     onTestFinished(() => {
       posted.mockRestore();
     });
+
     const editor = new Editor({
       content: {
         content: [
@@ -601,6 +620,7 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -620,6 +640,7 @@ describe("code block highlighting", () => {
     onTestFinished(() => {
       vi.useRealTimers();
     });
+
     const editor = new Editor({
       content: {
         content: ["framed", "frames", "framing"].map((name) => ({
@@ -639,6 +660,7 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -659,6 +681,7 @@ describe("code block highlighting", () => {
     onTestFinished,
   }) => {
     const blocks = 400;
+
     const editor = new Editor({
       content: {
         content: Array.from({ length: blocks }, (_, index) => ({
@@ -678,6 +701,7 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -685,6 +709,7 @@ describe("code block highlighting", () => {
     onTestFinished(() => {
       posted.mockRestore();
     });
+
     // The worker shim posts again whatever it queued before it started.
     const requested = () => [
       ...new Set(
@@ -693,6 +718,7 @@ describe("code block highlighting", () => {
         )
       ),
     ];
+
     fakeViewport(editor, onTestFinished).scrollTo(
       editor.state.doc.content.size - 2000
     );
@@ -803,6 +829,7 @@ describe("code block highlighting", () => {
       posted.mockRestore();
       vi.useRealTimers();
     });
+
     const editor = new Editor({
       content: {
         content: Array.from({ length: 400 }, (_, index) => ({
@@ -822,6 +849,7 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       editor.destroy();
     });
@@ -830,9 +858,11 @@ describe("code block highlighting", () => {
     expect(posted).toHaveBeenCalledOnce();
 
     const last = editor.state.doc.lastChild;
+
     if (last === null) {
       throw new Error("The document is empty");
     }
+
     const start = editor.state.doc.content.size - last.nodeSize + 1;
     editor.commands.insertContentAt({ from: start, to: start + 5 }, "let");
 
@@ -853,6 +883,7 @@ describe("code block highlighting", () => {
       posted.mockRestore();
       vi.useRealTimers();
     });
+
     const hidden = new Editor({
       content: {
         content: Array.from({ length: 400 }, (_, index) => ({
@@ -872,6 +903,7 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       hidden.destroy();
     });
@@ -881,6 +913,7 @@ describe("code block highlighting", () => {
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const shown = new Editor({
       content: {
         content: [
@@ -902,6 +935,7 @@ describe("code block highlighting", () => {
         Markdown,
       ],
     });
+
     onTestFinished(() => {
       shown.destroy();
       host.remove();

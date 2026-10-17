@@ -29,8 +29,10 @@ function isContent(value: unknown): value is JSONContent {
 /** A node's JSON for the markdown serializer; ProseMirror types `toJSON` as `any`. */
 export function contentOf(node: Node): JSONContent {
   const json: unknown = node.toJSON();
+
   if (!isContent(json)) {
     throw new Error("The node did not serialize");
   }
+
   return json;
 }

@@ -28,29 +28,37 @@ describe("workspace", () => {
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -78,39 +86,50 @@ describe("workspace", () => {
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes") {
         if (args === undefined || !("filters" in args)) {
           throw new Error("list_notes requires filters");
         }
+
         return await recent.promise;
       }
+
       if (command === "list_tags") {
         return await tags.promise;
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(async () => {
       act(() => {
         recent.resolve([]);
         tags.resolve([]);
       });
+
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -124,9 +143,11 @@ describe("workspace", () => {
     await screen.findByText("loading recent note...");
     const buttons = await screen.findAllByRole("button", { name: NEW_NOTE });
     const [button] = buttons;
+
     if (button === undefined) {
       throw new Error("new note action did not render");
     }
+
     await user.click(button);
     expect(
       await screen.findByRole("tab", { name: "untitled" })
@@ -176,18 +197,23 @@ describe("workspace", () => {
           { kind: "note", path: "second.md" },
         ];
       }
+
       if (command === "get_notes_dir") {
         return "/notes";
       }
+
       if (command === "index_status") {
         return { state: "ready" };
       }
+
       if (command === "list_notes" || command === "list_tags") {
         return [];
       }
+
       if (command === "read_conflict") {
         return null;
       }
+
       if (command === "read_note") {
         return {
           content: "# Restored\n\nRestored document",
@@ -195,23 +221,29 @@ describe("workspace", () => {
           updatedAt: 1,
         };
       }
+
       if (command === "take_pending_open" || command === "find_mentions") {
         return [];
       }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
+
       throw new Error(`unexpected command: ${command}`);
     });
+
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
       },
     });
+
     onTestFinished(() => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       client.clear();
       clearMocks();
       localStorage.removeItem("tabs");
@@ -258,12 +290,15 @@ describe("workspace", () => {
         if (command === "classify_open_paths") {
           return [{ kind: "note", path: "first.md" }];
         }
+
         if (command === "get_notes_dir") {
           return "/notes";
         }
+
         if (command === "index_status") {
           return { state: "ready" };
         }
+
         if (command === "list_notes") {
           return [
             {
@@ -278,13 +313,16 @@ describe("workspace", () => {
             },
           ];
         }
+
         if (command === "read_conflict") {
           return null;
         }
+
         if (command === "read_note") {
           if (args === undefined || !("path" in args)) {
             throw new Error("read_note requires a path");
           }
+
           if (args.path === "first.md") {
             return {
               content:
@@ -293,6 +331,7 @@ describe("workspace", () => {
               updatedAt: 1,
             };
           }
+
           if (args.path === "second.md") {
             return {
               content: "# Second\n\nReplacement document.",
@@ -300,27 +339,34 @@ describe("workspace", () => {
               updatedAt: 1,
             };
           }
+
           throw new Error(`unexpected path: ${String(args.path)}`);
         }
+
         if (
           ["list_tags", "take_pending_open", "find_mentions"].includes(command)
         ) {
           return [];
         }
+
         if (command.startsWith("plugin:")) {
           return 0;
         }
+
         throw new Error(`unexpected command: ${command}`);
       });
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       onTestFinished(() => {
         for (const tab of getTabState().tabs) {
           closeTab(tab.id);
         }
+
         client.clear();
         clearMocks();
         localStorage.removeItem("tabs");
@@ -332,9 +378,11 @@ describe("workspace", () => {
       );
       const user = userEvent.setup();
       await screen.findByText("End of first note.");
+
       const surface = screen
         .getByRole("tabpanel")
         .querySelector(".ProseMirror");
+
       if (
         surface === null ||
         !("editor" in surface) ||
@@ -342,11 +390,14 @@ describe("workspace", () => {
       ) {
         throw new Error("the rich editor did not mount");
       }
+
       const { editor } = surface;
       const mutations: MutationRecord[] = [];
+
       const observer = new MutationObserver((records) => {
         mutations.push(...records);
       });
+
       observer.observe(surface, { childList: true, subtree: true });
       onTestFinished(() => {
         observer.disconnect();
@@ -388,16 +439,20 @@ describe("launch note", () => {
       for (const tab of getTabState().tabs) {
         closeTab(tab.id);
       }
+
       localStorage.clear();
+
       if (withHistory) {
         rememberNote("/notes", "chosen.md");
         rememberNote("/notes", "missing.md");
       }
+
       mockWindows("main");
       mockIPC((command) => {
         if (command === "get_notes_dir") {
           return "/notes";
         }
+
         if (command === "list_notes") {
           return [
             {
@@ -432,34 +487,43 @@ describe("launch note", () => {
             },
           ];
         }
+
         if (command === "index_status") {
           return { state: "ready" };
         }
+
         if (command === "read_note") {
           return { content: "# Opened", revision: "r1", updatedAt: 1 };
         }
+
         if (command === "read_conflict") {
           return null;
         }
+
         if (
           ["list_tags", "take_pending_open", "find_mentions"].includes(command)
         ) {
           return [];
         }
+
         if (command.startsWith("plugin:")) {
           return 0;
         }
+
         throw new Error(`unexpected command: ${command}`);
       });
+
       const client = new QueryClient({
         defaultOptions: {
           queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
         },
       });
+
       onTestFinished(() => {
         for (const tab of getTabState().tabs) {
           closeTab(tab.id);
         }
+
         client.clear();
         clearMocks();
         localStorage.clear();

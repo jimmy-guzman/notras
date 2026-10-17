@@ -7,5 +7,6 @@ export async function searchNotes(search: NoteSearch) {
   const notes = await nativeCommand(
     async () => await commands.searchNotes(search)
   );
+
   return notes.map(noteResult);
 }

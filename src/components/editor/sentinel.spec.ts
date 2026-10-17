@@ -126,6 +126,7 @@ describe("source -> rich caret mapping", () => {
     // The stripped buffer serializes to the canonical clean form -- the
     // same comparison the runtime corruption guard makes (must NOT fire).
     const manager = requireManager(editor);
+
     const canonical = fileMarkdown(
       manager,
       editor.schema.nodeFromJSON(manager.parse(markdown))
@@ -145,6 +146,7 @@ describe("source -> rich caret mapping", () => {
     editor.view.dispatch(editor.state.tr.delete(pos, pos + 1));
 
     const manager = requireManager(editor);
+
     const canonical = fileMarkdown(
       manager,
       editor.schema.nodeFromJSON(manager.parse(markdown))

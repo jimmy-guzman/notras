@@ -10,6 +10,7 @@ describe("reindex", () => {
     it("should return the paths affected by rebuilding the index", async () => {
       mockIPC((command) => {
         expect(command).toBe("reindex_all");
+
         return ["changed.md", "removed.md"];
       });
       await expect(reindexAll()).resolves.toStrictEqual([

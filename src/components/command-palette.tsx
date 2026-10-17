@@ -140,6 +140,7 @@ export function CommandPalette({
   const chordsByName = useChordsByName();
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
+
   const currentNote =
     currentPath === undefined || activeSnapshot === undefined
       ? undefined
@@ -149,6 +150,7 @@ export function CommandPalette({
           tags: activeSnapshot.tags,
           title: activeSnapshot.title,
         };
+
   // cmdk's `onSelect` carries no event, so the modifier is read off the
   // gesture that triggered it, in the capture phase to beat cmdk's own handler.
   const newTabRef = useRef(false);
@@ -160,32 +162,39 @@ export function CommandPalette({
   const [query, setQuery] = useState(
     mode === "find" && tag !== undefined ? `#${tag} ` : ""
   );
+
   const [view, setView] = useState<PaletteView>(mode);
   const [filterQuery, setFilterQuery] = useState("");
   const [cursor, setCursor] = useState(query.length);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [searchLoading, setSearchLoading] = useState(false);
+
   const resetSearchScroll = () => {
     if (listRef.current !== null) {
       listRef.current.scrollTop = 0;
     }
   };
+
   useLayoutEffect(() => {
     inputRef.current?.focus();
+
     if (view === "rename") {
       inputRef.current?.select();
     }
   }, [view]);
+
   const trackCursor = (event: React.SyntheticEvent<HTMLInputElement>) => {
     setCursor(
       event.currentTarget.selectionStart ?? event.currentTarget.value.length
     );
   };
+
   const changeQuery = (next: string) => {
     setQuery(next);
     setCursor(inputRef.current?.selectionStart ?? next.length);
   };
+
   const applySuggestion = (next: string) => {
     setQuery(next);
     setCursor(next.length);
@@ -238,8 +247,10 @@ export function CommandPalette({
     ) {
       details.cancel();
       back();
+
       return;
     }
+
     onOpenChange(next);
   };
 
@@ -284,9 +295,11 @@ export function CommandPalette({
 
     void runAction("could not move note", async () => {
       const session = getTabHandles(activeId);
+
       if (session?.changePath === undefined) {
         throw new Error("The note is still opening");
       }
+
       await session.changePath({ folder, kind: "move" });
     });
   };
@@ -302,9 +315,11 @@ export function CommandPalette({
 
     void runAction("could not rename note", async () => {
       const session = getTabHandles(activeId);
+
       if (session?.changePath === undefined) {
         throw new Error("The note is still opening");
       }
+
       await session.changePath({ kind: "retitle", title: query.trim() });
     });
   };
@@ -331,6 +346,7 @@ export function CommandPalette({
     onSelect: () => {
       void runAction("could not export pdf", async () => {
         const path = await getTabHandles(activeId)?.exportPdf();
+
         if (path !== undefined && path !== null) {
           toast.add({ title: "pdf exported", type: "success" });
         }

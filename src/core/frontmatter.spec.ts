@@ -8,6 +8,7 @@ describe("frontmatter", () => {
   it("should preserve nested metadata when editing note-level pin and tags", () => {
     const content =
       "---\nplugin:\n  pinned: true\n  tags:\n    - nested\n  title: plugin title\n---\nbody";
+
     expect(parseNote(content).frontmatter).toStrictEqual({
       pinned: false,
       tags: [],
@@ -28,6 +29,7 @@ describe("frontmatter", () => {
           pinned: false,
         })
       );
+
       expect(content).toBe("body\n");
       expect(parseNote(content)).toStrictEqual({
         body: "body\n",
@@ -41,6 +43,7 @@ describe("frontmatter", () => {
         "---\npinned: true\ntags: [a]\n---\nbody\n",
         ({ pinned }) => ({ pinned: !pinned })
       );
+
       expect(unpinned).toBe("---\ntags: [a]\n---\nbody\n");
       expect(
         updateFrontmatter(unpinned, ({ pinned }) => ({ pinned: !pinned }))

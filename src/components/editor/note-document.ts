@@ -44,10 +44,13 @@ export function createNoteDocument(
 ) {
   let nextName = 0;
   let applying = false;
+
   const names = new Map<number, Naming>([
     [0, { kind: "filename", value: filename }],
   ]);
+
   const historyPlugin = history();
+
   const namingHistory = new Plugin({
     appendTransaction: (transactions, _previous, state) => {
       const edited = transactions.some(
@@ -59,14 +62,18 @@ export function createNoteDocument(
             ? touchesSourceTitle(tr)
             : tr.getMeta("titleEdited") === true)
       );
+
       if (!edited || titleSource(state.doc.textContent) === undefined) {
         return null;
       }
+
       nextName += 1;
       names.set(nextName, { kind: "content" });
+
       return state.tr.setDocAttribute("name", nextName);
     },
   });
+
   const editor = new Editor({
     content: {
       content: [
@@ -99,6 +106,7 @@ export function createNoteDocument(
       );
     },
   });
+
   // Tiptap normally installs plugins on first mount. Rich-mode edits need
   // source history before the source view has ever been displayed.
   editor.view.updateState(
@@ -106,25 +114,33 @@ export function createNoteDocument(
   );
 
   const content = () => editor.state.doc.textContent;
+
   const nameId = () => {
     const { attrs } = editor.state.doc;
+
     if (!hasNameId(attrs)) {
       throw new TypeError("The document has no filename history");
     }
+
     return attrs.name;
   };
+
   const dispatch = (transaction: Transaction) => {
     applying = true;
+
     try {
       editor.view.dispatch(transaction);
     } finally {
       applying = false;
     }
   };
+
   let pendingSelection: SelectionReader | undefined;
+
   const settleSelection = () => {
     const selection = pendingSelection?.();
     pendingSelection = undefined;
+
     if (selection !== undefined) {
       dispatch(
         editor.state.tr.setSelection(
@@ -137,6 +153,7 @@ export function createNoteDocument(
       );
     }
   };
+
   // History bookmarks the selection it sees when an event opens, which is the
   // one moment the rich caret has to be here. `namingHistory` stays out of the
   // dry run because applying it counts a name.
@@ -144,16 +161,21 @@ export function createNoteDocument(
     undoDepth(
       editor.state.reconfigure({ plugins: [historyPlugin] }).apply(tr)
     ) > undoDepth(editor.state);
+
   const edit = (next: string, details: DocumentEdit) => {
     const patch = changedRange(content(), next);
+
     const tr =
       details.separate === true
         ? closeHistory(editor.state.tr)
         : editor.state.tr;
+
     if (patch.from !== patch.to || patch.text !== "") {
       tr.insertText(patch.text, patch.from + 1, patch.to + 1);
     }
+
     tr.setMeta("titleEdited", details.titleEdited);
+
     // A touch with unchanged text still introduces a naming action.
     if (
       details.titleEdited &&
@@ -164,14 +186,18 @@ export function createNoteDocument(
       names.set(nextName, { kind: "content" });
       tr.setDocAttribute("name", nextName).setMeta("titleEdited", false);
     }
+
     if (pendingSelection !== undefined && opensHistoryEvent(tr)) {
       settleSelection();
     }
+
     dispatch(tr);
+
     if (details.separate === true) {
       dispatch(closeHistory(editor.state.tr));
     }
   };
+
   return {
     acknowledgeName: (id: number, actual: string) => {
       names.set(id, { kind: "filename", value: actual });
@@ -191,13 +217,16 @@ export function createNoteDocument(
     nameId,
     naming: (): Naming => {
       const value = names.get(nameId());
+
       if (value === undefined) {
         throw new Error("The filename history is missing");
       }
+
       return value;
     },
     redo: () => {
       settleSelection();
+
       return redo(editor.state, dispatch);
     },
     rename: (title: string) => {
@@ -230,6 +259,7 @@ export function createNoteDocument(
     }),
     undo: () => {
       settleSelection();
+
       return undo(editor.state, dispatch);
     },
   };
