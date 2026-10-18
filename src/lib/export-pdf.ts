@@ -9,11 +9,11 @@ import { commands } from "@/server/adapters/bindings";
  */
 function fitTables(surface: HTMLElement, sheet: HTMLElement) {
   const column = surface.firstElementChild?.getBoundingClientRect().width ?? 0;
-  const live = surface.querySelectorAll(".tableWrapper");
+  const live = surface.querySelectorAll(".tableWrapper table");
   const copies = sheet.querySelectorAll<HTMLElement>(".tableWrapper");
 
   for (const [index, copy] of copies.entries()) {
-    const width = live[index]?.scrollWidth ?? 0;
+    const width = live[index]?.getBoundingClientRect().width ?? 0;
 
     if (width > column) {
       copy.style.zoom = String(column / width);

@@ -27,6 +27,7 @@ import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorState } from "@tiptap/pm/state";
 import { Mapping, StepMap } from "@tiptap/pm/transform";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
 import { encode } from "mdurl";
@@ -66,6 +67,7 @@ import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
 import { carryChange } from "./source-change";
+import { TableNodeView } from "./table-node-view";
 import { isSafeUrl } from "./urls";
 import { Wikilink } from "./wikilink";
 
@@ -1349,7 +1351,14 @@ export function createEditorExtensions(
       saveImage: options.saveImage ?? null,
     }),
     TableKit.configure({ table: false }),
-    BoundedTable.configure({ resizable: false }),
+    BoundedTable.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(TableNodeView, {
+          className: "tableWrapper",
+          contentDOMElementTag: "tbody",
+        });
+      },
+    }).configure({ resizable: false }),
     NoteBulletList,
     NoteOrderedList,
     NoteTaskList,
