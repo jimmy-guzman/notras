@@ -46,6 +46,7 @@ export async function setup(
 
   const appCache = path.join(homedir(), "Library/Caches", identifier);
   const appLogs = path.join(homedir(), "Library/Logs", identifier);
+  const webKit = path.join(homedir(), "Library/WebKit", identifier);
   const note = path.join(library, "smoke-note.md");
 
   const cleanup = async () => {
@@ -53,6 +54,7 @@ export async function setup(
     await rm(appData, { force: true, recursive: true });
     await rm(appCache, { force: true, recursive: true });
     await rm(appLogs, { force: true, recursive: true });
+    await rm(webKit, { force: true, recursive: true });
   };
 
   try {
@@ -79,11 +81,7 @@ export async function setup(
               },
             ],
           },
-          // A non-persistent store keeps the tabs store's localStorage from leaking between runs.
-          windows: tauriConfig.app.windows.map((window) => ({
-            ...window,
-            incognito: true,
-          })),
+          windows: tauriConfig.app.windows,
           withGlobalTauri: true,
         },
         build: {
@@ -123,11 +121,10 @@ export async function setup(
       path.join(artifacts, "build.log"),
       result.stdout + result.stderr
     );
-    project.provide("smoke", {
-      artifacts,
-      binary: path.join(root, "cargo/debug/notras"),
-      note,
-    });
+    // WebKit keys an unbundled binary's default data store by executable name, so a per-run name keeps both launches on one store that no other run shares.
+    const binary = path.join(run, identifier);
+    await cp(path.join(root, "cargo/debug/notras"), binary);
+    project.provide("smoke", { artifacts, binary, note });
 
     return async () => {
       try {
