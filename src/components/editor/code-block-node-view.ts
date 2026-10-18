@@ -18,6 +18,8 @@ import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
+import { codeBlockScrollbar } from "./code-block-scrollbar";
+
 // ProseMirror builds a block where React cannot render, so the icons
 // render once as the module evaluates, ahead of the app's own render, and
 // are cloned into each block.
@@ -87,10 +89,12 @@ export function codeBlockNodeView(
   const select = document.createElement("select");
   const pre = document.createElement("pre");
   const code = document.createElement("code");
+  const scrollbar = codeBlockScrollbar(pre, view.dom);
 
   dom.className = "code-block-wrapper";
   toolbar.className = "code-block-toolbar";
   toolbar.contentEditable = "false";
+  scrollbar.bar.contentEditable = "false";
   openButton.type = "button";
   openButton.className = "code-block-button";
   openButton.setAttribute("aria-label", "open diagram");
@@ -107,7 +111,7 @@ export function codeBlockNodeView(
   width.append(label, select);
   toolbar.append(copyButton, width);
   pre.append(code);
-  dom.append(toolbar, pre);
+  dom.append(toolbar, pre, scrollbar.bar);
 
   let node = mounted;
   // Hundreds of blocks would carry hundreds of copies of the list, and every
@@ -251,6 +255,7 @@ export function codeBlockNodeView(
     destroy: () => {
       destroyed = true;
       window.clearTimeout(copiedTimer);
+      scrollbar.destroy();
 
       if (frame !== undefined) {
         cancelAnimationFrame(frame);
@@ -259,7 +264,8 @@ export function codeBlockNodeView(
     dom,
     ignoreMutation: (mutation) => !code.contains(mutation.target),
     stopEvent: (event) =>
-      event.target instanceof globalThis.Node && toolbar.contains(event.target),
+      event.target instanceof globalThis.Node &&
+      (toolbar.contains(event.target) || scrollbar.bar.contains(event.target)),
     update: (next) => {
       if (next.type !== node.type) {
         return false;
