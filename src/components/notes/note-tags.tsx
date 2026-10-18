@@ -3,7 +3,6 @@ import { HashIcon, TagIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Chord } from "@/components/chord";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -28,33 +27,12 @@ import { useHotkey } from "@/lib/ui/shortcuts";
 
 const EDIT_TAGS = "Mod+Shift+Y";
 
-interface TagBadgeProps {
-  onFilter: (tag: string) => void;
-  tag: string;
-}
-
-function TagBadge({ onFilter, tag }: TagBadgeProps) {
-  const filter = () => {
-    onFilter(tag);
-  };
-
-  return (
-    <Badge
-      render={<button aria-label={`#${tag}`} onClick={filter} type="button" />}
-      variant="ghost"
-    >
-      {`#${tag}`}
-    </Badge>
-  );
-}
-
 interface NoteTagsProps {
-  onFilter: (tag: string) => void;
   path: string;
   tags: string[];
 }
 
-export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
+export function NoteTags({ path, tags }: NoteTagsProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const allTags = useQuery({ ...noteQueries.tags(), enabled: open });
@@ -100,99 +78,88 @@ export function NoteTags({ onFilter, path, tags }: NoteTagsProps) {
     await allTags.refetch();
   };
 
-  const hasTags = tags.length > 0;
-
   return (
-    <div className="flex min-w-0 items-center gap-1">
-      <Combobox
-        inputValue={query}
-        items={items}
-        multiple
-        onInputValueChange={setQuery}
-        onOpenChange={setOpen}
-        onValueChange={(value) => {
-          void commitTags(value);
-        }}
-        open={open}
-        value={tags}
-      >
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <ComboboxTrigger
-                className="[&>svg:last-child]:hidden"
-                render={
-                  <Button
-                    aria-label="edit tags"
-                    size="icon-xs"
-                    variant="ghost"
-                  />
-                }
-              />
-            }
-          >
-            <TagIcon className={BAR_GLYPH} />
-          </TooltipTrigger>
-          <TooltipContent>
-            edit tags <Chord hotkey={EDIT_TAGS} />
-          </TooltipContent>
-        </Tooltip>
-        <ComboboxContent
-          align="start"
-          className="w-56 min-w-56"
-          side="top"
-          sideOffset={4}
+    <Combobox
+      inputValue={query}
+      items={items}
+      multiple
+      onInputValueChange={setQuery}
+      onOpenChange={setOpen}
+      onValueChange={(value) => {
+        void commitTags(value);
+      }}
+      open={open}
+      value={tags}
+    >
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <ComboboxTrigger
+              className="[&>svg:last-child]:hidden"
+              render={
+                <Button
+                  aria-label="edit tags"
+                  size={tags.length === 0 ? "icon-xs" : "xs"}
+                  variant="ghost"
+                />
+              }
+            />
+          }
         >
-          <ComboboxInput placeholder="filter tags..." showTrigger={false} />
-          {allTags.data === undefined && allTags.isPending ? (
-            <output className="text-muted-foreground block px-3 py-2 text-xs">
-              loading tag suggestions...
-            </output>
-          ) : null}
-          {allTags.isError ? (
-            <output className="block px-3 py-2 text-xs">
-              <span className="block">could not load tag suggestions</span>
-              <span className="block">{reasonOf(allTags.error)}</span>
-              <Button
-                onClick={() => {
-                  void retry();
-                }}
-                size="sm"
-                variant="ghost"
-              >
-                retry
-              </Button>
-            </output>
-          ) : null}
-          {allTags.isSuccess ? (
-            <ComboboxEmpty>
-              <p className="text-muted-foreground">no tags yet</p>
-              <p className="text-faint">Type to create one</p>
-            </ComboboxEmpty>
-          ) : null}
-          <ComboboxList>
-            {(tag: string) => (
-              <ComboboxItem key={tag} value={tag}>
-                <HashIcon className="text-muted-foreground" />
-                <span className="truncate">{tag}</span>
-                <span className="text-faint ml-auto">
-                  {counts.get(tag) ?? (allTags.data === undefined ? "" : "new")}
-                </span>
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
-      {hasTags ? (
-        // The focus ring is a shadow outside a chip's box, and the clip lands
-        // on the padding edge, so padding cancelled by a margin gives the ring
-        // its room without moving a chip.
-        <div className="-m-1 flex min-w-0 items-center gap-1 overflow-hidden p-1">
-          {tags.map((tag) => (
-            <TagBadge key={tag} onFilter={onFilter} tag={tag} />
-          ))}
-        </div>
-      ) : null}
-    </div>
+          <TagIcon className={BAR_GLYPH} />
+          {tags.length === 0 ? null : (
+            <span className="tabular-nums">{tags.length}</span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          edit tags <Chord hotkey={EDIT_TAGS} />
+        </TooltipContent>
+      </Tooltip>
+      <ComboboxContent
+        align="end"
+        className="w-56 min-w-56"
+        side="bottom"
+        sideOffset={4}
+      >
+        <ComboboxInput placeholder="filter tags..." showTrigger={false} />
+        {allTags.data === undefined && allTags.isPending ? (
+          <output className="text-muted-foreground block px-3 py-2 text-xs">
+            loading tag suggestions...
+          </output>
+        ) : null}
+        {allTags.isError ? (
+          <output className="block px-3 py-2 text-xs">
+            <span className="block">could not load tag suggestions</span>
+            <span className="block">{reasonOf(allTags.error)}</span>
+            <Button
+              onClick={() => {
+                void retry();
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              retry
+            </Button>
+          </output>
+        ) : null}
+        {allTags.isSuccess ? (
+          <ComboboxEmpty>
+            <p className="text-muted-foreground">no tags yet</p>
+            <p className="text-faint">Type to create one</p>
+          </ComboboxEmpty>
+        ) : null}
+        <ComboboxList>
+          {(tag: string) => (
+            <ComboboxItem key={tag} value={tag}>
+              <HashIcon className="text-muted-foreground" />
+              <span className="truncate">{tag}</span>
+              <span className="text-faint ml-auto">
+                {counts.get(tag) ?? (allTags.data === undefined ? "" : "new")}
+              </span>
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }

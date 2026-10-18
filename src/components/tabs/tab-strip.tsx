@@ -21,10 +21,9 @@ import {
 } from "@dnd-kit/sortable";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { BarButton } from "@/components/bar-button";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -308,7 +307,7 @@ function handleDragStart(event: DragStartEvent) {
 /**
  * The open tabs, in the title bar where the note's title used to sit (`D52`).
  *
- * One tab stop with arrow keys inside it, the `ToggleGroup` pattern `D37` set.
+ * One tab stop with arrow keys inside it.
  * Dragging one is dnd-kit's, and `D60` carries why. A tab among neighbours
  * keeps its press for the tab drag, and a lone tab has nowhere to go, so it
  * hands the press to the window instead.
@@ -427,7 +426,8 @@ function TabList({ activeId, tabs }: TabListProps) {
           <div
             // `relative` so a tab's `offsetParent` is the strip, which the
             // measure above reads against.
-            className="relative flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+            // The strip scrolls to keep the active tab in view; the overflow count is how hidden tabs are reached, so a scrollbar would be a second door.
+            className="relative flex min-w-0 flex-1 [scrollbar-width:none] items-center gap-1 overflow-x-auto"
             onKeyDown={handleKeyDown}
             ref={listRef}
             role="tablist"
@@ -452,32 +452,10 @@ function TabList({ activeId, tabs }: TabListProps) {
 
 interface TabStripProps {
   activeId: string;
-  onNew: () => void;
   tabs: Tab[];
 }
 
-/**
- * The open tabs, then the button that makes one.
- *
- * With no tabs the button is the whole strip. Nothing is left to cover the
- * titlebar's drag region, so pressing the bar moves the window.
- */
-export function TabStrip({ activeId, onNew, tabs }: TabStripProps) {
-  if (tabs.length === 0) {
-    return (
-      <BarButton
-        className="ms-auto"
-        Icon={PlusIcon}
-        label="new note"
-        onClick={onNew}
-      />
-    );
-  }
-
-  return (
-    <>
-      <TabList activeId={activeId} tabs={tabs} />
-      <BarButton Icon={PlusIcon} label="new note" onClick={onNew} />
-    </>
-  );
+/** The open tabs. With none, nothing covers the titlebar's drag region. */
+export function TabStrip({ activeId, tabs }: TabStripProps) {
+  return tabs.length === 0 ? null : <TabList activeId={activeId} tabs={tabs} />;
 }

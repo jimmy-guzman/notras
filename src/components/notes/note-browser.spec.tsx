@@ -120,18 +120,16 @@ function mount(
 }
 
 describe("note browser", () => {
-  it("should toggle the browser from the status strip with no tab open", async () => {
+  it("should toggle the browser from one button that stays put with no tab open", async () => {
     const user = mount(() => []);
 
-    const toggle = within(await screen.findByRole("contentinfo")).getByRole(
-      "button",
-      { name: "browse notes" }
-    );
+    const toggle = await screen.findByRole("button", { name: "browse notes" });
 
     await user.click(toggle);
     expect(
       await screen.findByRole("complementary", { name: "browse notes" })
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "browse notes" })).toBe(toggle);
     await user.click(toggle);
     expect(
       screen.queryByRole("complementary", { name: "browse notes" })

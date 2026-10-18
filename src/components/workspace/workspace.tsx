@@ -1,17 +1,15 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
-import { PanelLeftIcon, SearchIcon } from "lucide-react";
+import { cn } from "cn";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePanelRef } from "react-resizable-panels";
 
-import { BarButton } from "@/components/bar-button";
 import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
 import { NoteBrowser } from "@/components/notes/note-browser";
-import { NoteStatus } from "@/components/notes/note-status";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
 import { Button } from "@/components/ui/button";
@@ -20,9 +18,9 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { Separator } from "@/components/ui/separator";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
+import { BarGroup } from "@/components/workspace/bar-group";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { indexStatusQuery } from "@/data/index-status";
@@ -40,10 +38,9 @@ import {
   openDraft,
   openInitialNote,
   reopenTab,
-  useTabSnapshot,
   useTabState,
 } from "@/lib/tabs/store";
-import type { Tab, TabState } from "@/lib/tabs/tab";
+import type { TabState } from "@/lib/tabs/tab";
 import { fileKind, stepTab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
@@ -173,40 +170,6 @@ function RecentNote({ initialTabs }: { initialTabs: TabState }) {
   );
 }
 
-interface ActiveNoteStatusProps {
-  graphEnabled: boolean;
-  onFilterTag: (tag: string) => void;
-  onToggleGraph: () => void;
-  onToggleSource: () => void;
-  tab: Tab;
-}
-
-function ActiveNoteStatus({
-  graphEnabled,
-  onFilterTag,
-  onToggleGraph,
-  onToggleSource,
-  tab,
-}: ActiveNoteStatusProps) {
-  const snapshot = useTabSnapshot(tab.id);
-
-  return (
-    <NoteStatus
-      graphEnabled={graphEnabled}
-      note={
-        tab.kind === "note"
-          ? { path: tab.path, tags: snapshot?.tags ?? [] }
-          : undefined
-      }
-      onFilterTag={onFilterTag}
-      onToggleGraph={onToggleGraph}
-      onToggleSource={onToggleSource}
-      sourceEnabled={snapshot?.sourceMode ?? false}
-      words={snapshot?.words ?? 0}
-    />
-  );
-}
-
 function closeActive() {
   closeTab(getTabState().activeId);
 }
@@ -304,6 +267,9 @@ function BrowserPanels({ children }: { children: ReactNode }) {
 
   return (
     <ResizablePanelGroup
+      // Self-only: the group shows through only above and below the resize
+      // gap, and the part above sits in the title band.
+      data-tauri-drag-region
       elementRef={group}
       orientation="horizontal"
       onLayoutChanged={(layout, { isUserInteraction }) => {
@@ -341,6 +307,21 @@ function BrowserPanels({ children }: { children: ReactNode }) {
       }}
     >
       <ResizablePanel
+        id="note-editor"
+        minSize={240}
+        className="flex min-h-0 flex-col"
+      >
+        {children}
+      </ResizablePanel>
+      <ResizableHandle
+        aria-label="resize note browser"
+        className="mt-8 mb-1"
+        disabled={!open}
+        disableDoubleClick
+        elementRef={separator}
+        hidden={!open}
+      />
+      <ResizablePanel
         id="note-browser"
         collapsedSize={0}
         collapsedThreshold={0}
@@ -351,29 +332,27 @@ function BrowserPanels({ children }: { children: ReactNode }) {
         groupResizeBehavior="preserve-pixel-size"
         panelRef={panel}
       >
-        <NoteBrowser />
-      </ResizablePanel>
-      <ResizableHandle
-        aria-label="resize note browser"
-        disabled={!open}
-        disableDoubleClick
-        elementRef={separator}
-        hidden={!open}
-      />
-      <ResizablePanel
-        id="note-editor"
-        minSize={240}
-        className="flex min-h-0 flex-col"
-      >
-        {children}
+        <div className="flex size-full min-h-0 flex-col">
+          {/* Not `Titlebar`: its traffic-light inset would give the collapsed panel 88px of content it cannot fit. */}
+          <div className="flex h-8 shrink-0" data-tauri-drag-region="deep" />
+          <div
+            className={cn(
+              "me-1 mb-1 flex min-h-0 flex-1 overflow-clip rounded-lg",
+              open &&
+                "animate-in fade-in-0 slide-in-from-right-8 duration-200 ease-out motion-reduce:animate-none"
+            )}
+          >
+            <NoteBrowser />
+          </div>
+        </div>
       </ResizablePanel>
     </ResizablePanelGroup>
   );
 }
 
 /**
- * The window: the tab strip, every open tab's live session, and the two bands
- * that frame them.
+ * The window: the title bar, every open tab's live session, and the browser
+ * beside them.
  *
  * Every session stays mounted, so anything that listens to the window or the
  * keyboard belongs here rather than inside one of them. Registered N times it
@@ -381,12 +360,10 @@ function BrowserPanels({ children }: { children: ReactNode }) {
  */
 export function Workspace({
   initialTabs,
-  onFilterTag,
   onOpenSearch,
 }: {
   /** The tab state at launch, or null when saved tabs were restored into it. */
   initialTabs: TabState | null;
-  onFilterTag: (tag: string) => void;
   onOpenSearch: () => void;
 }) {
   const browserOpen = useNoteBrowser();
@@ -537,22 +514,64 @@ export function Workspace({
     },
   ]);
 
+  // The tabs stop short of whatever part of the pinned group overlaps their bar.
+  const titlebar = useRef<HTMLDivElement>(null);
+  const cluster = useRef<HTMLDivElement>(null);
+  const [reserve, setReserve] = useState(0);
+  useLayoutEffect(() => {
+    const bar = titlebar.current;
+    const group = cluster.current;
+
+    const measure = () => {
+      if (bar === null || group === null) {
+        return;
+      }
+
+      setReserve(
+        Math.max(
+          0,
+          Math.ceil(
+            bar.getBoundingClientRect().right -
+              group.getBoundingClientRect().left
+          )
+        )
+      );
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+
+    if (bar !== null && group !== null) {
+      observer.observe(bar);
+      observer.observe(group);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <div className="bg-shell flex min-h-0 flex-1 flex-col">
-      <Titlebar>
-        <TabStrip activeId={activeId} onNew={openDraft} tabs={tabs} />
-        <BarButton
-          Icon={SearchIcon}
-          label="find a note"
-          onClick={onOpenSearch}
-        />
-      </Titlebar>
       <SidebarProvider
         open={browserOpen}
-        className="relative mx-1 min-h-0 flex-1 overflow-clip"
+        className="relative min-h-0 flex-1 overflow-clip"
       >
         <BrowserPanels>
-          <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-clip">
+          <Titlebar
+            className="pe-(--bar-reserve)"
+            ref={titlebar}
+            // The bar's own 4px end gap, plus the group's overlap.
+            style={{ "--bar-reserve": `${reserve + 4}px` }}
+          >
+            <TabStrip activeId={activeId} tabs={tabs} />
+          </Titlebar>
+          <div
+            className={cn(
+              "bg-background relative ms-1 mb-1 flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-lg",
+              !browserOpen && "me-1"
+            )}
+          >
             {tabs.length === 0 ? (
               <>
                 <Welcome onNew={openDraft} onSearch={onOpenSearch} />
@@ -581,26 +600,16 @@ export function Workspace({
             )}
           </div>
         </BrowserPanels>
-      </SidebarProvider>
-      <footer className="bg-shell text-muted-foreground flex h-8 shrink-0 items-center gap-1 p-1 text-xs">
-        <BarButton
-          Icon={PanelLeftIcon}
-          label="browse notes"
-          onClick={toggleNoteBrowser}
+        <BarGroup
+          activeTab={activeTab}
+          graphEnabled={graphMode}
+          onNew={openDraft}
+          onSearch={onOpenSearch}
+          onToggleGraph={toggleGraphView}
+          onToggleSource={toggleSource}
+          ref={cluster}
         />
-        {activeTab === undefined ? null : (
-          <>
-            <Separator orientation="vertical" />
-            <ActiveNoteStatus
-              graphEnabled={graphMode}
-              onFilterTag={onFilterTag}
-              onToggleGraph={toggleGraphView}
-              onToggleSource={toggleSource}
-              tab={activeTab}
-            />
-          </>
-        )}
-      </footer>
+      </SidebarProvider>
     </div>
   );
 }

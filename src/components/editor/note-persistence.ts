@@ -8,7 +8,6 @@ import { mergeDocuments } from "@/core/merge";
 import { resolveTitle } from "@/core/notes";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { reasonOf } from "@/lib/ui/failure";
-import { countWords } from "@/lib/utils/word-count";
 import type { SaveName } from "@/server/adapters/bindings";
 
 import { createNoteDocument } from "./note-document";
@@ -165,7 +164,6 @@ export function createNotePersistence(
       status: current.status,
       tags: parsed.frontmatter.tags,
       title: resolveTitle(current.path, parsed.body, parsed.frontmatter.title),
-      words: countWords(current.content),
     };
   });
 

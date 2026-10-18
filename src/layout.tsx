@@ -52,18 +52,15 @@ function MainWindow() {
     queries: [notesDirQuery, startupQuery],
   });
 
-  const [tag, setTag] = useState<string>();
   const queryClient = useQueryClient();
   const [paletteSession, setPaletteSession] = useState(0);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // A tag chip opens the palette without setting a mode, so it lands on find.
-  const paletteOpen = paletteMode !== undefined || tag !== undefined;
+  const paletteOpen = paletteMode !== undefined;
   const paletteView = paletteMode ?? "find";
 
   const closePalette = () => {
     setPaletteMode(undefined);
-    setTag(undefined);
   };
 
   const handlePaletteOpenChange = (next: boolean) => {
@@ -77,8 +74,6 @@ function MainWindow() {
     closePalette();
   };
 
-  // Toggling out of the mode that is showing closes through `closePalette`,
-  // which also clears a tag opening the palette on nobody's mode.
   const togglePaletteMode = (next: PaletteMode) => {
     if (paletteOpen && paletteView === next) {
       closePalette();
@@ -283,20 +278,18 @@ function MainWindow() {
       <div className="bg-background text-foreground flex h-svh flex-col">
         <Workspace
           initialTabs={initialTabs}
-          onFilterTag={setTag}
           onOpenSearch={() => {
             handlePaletteOpenChange(true);
           }}
         />
       </div>
       <CommandPalette
-        key={`${tag ?? ""}:${paletteView}:${paletteSession}`}
+        key={`${paletteView}:${paletteSession}`}
         mode={paletteView}
         notesDir={notesDir}
         onOpenChange={handlePaletteOpenChange}
         onOpenSettings={openSettings}
         open={paletteOpen}
-        tag={tag}
       />
       <SettingsDialog
         key={notesDir}

@@ -69,7 +69,6 @@ describe("store", () => {
       status: "saved",
       tags: [],
       title: "Loaded",
-      words: 1,
     });
 
     act(() => {
@@ -203,7 +202,6 @@ describe("store", () => {
           status: "saved",
           tags: [],
           title: "Loaded",
-          words: 1,
         }))
       );
       expect(hasTabSnapshot("kept-a")).toBeTruthy();

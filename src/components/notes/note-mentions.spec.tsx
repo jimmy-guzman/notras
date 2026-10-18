@@ -66,18 +66,19 @@ describe("note mentions", () => {
     });
 
     it("should count the notes linking here", () => {
-      const host = mount([
-        mention("a.md", "see [[here]]"),
-        mention("b.md", "and [[here]]"),
-      ]);
+      mount([mention("a.md", "see [[here]]"), mention("b.md", "and [[here]]")]);
 
-      expect(host.textContent).toBe("2 mentions");
+      expect(
+        screen.getByRole("button", { name: "2 mentions" })
+      ).toHaveTextContent(/^2$/u);
     });
 
     it("should count one note in the singular", () => {
-      const host = mount([mention("a.md", "see [[here]]")]);
+      mount([mention("a.md", "see [[here]]")]);
 
-      expect(host.textContent).toBe("1 mention");
+      expect(
+        screen.getByRole("button", { name: "1 mention" })
+      ).toHaveTextContent(/^1$/u);
     });
 
     it("should list each linking note with the line that links here", async () => {
@@ -219,7 +220,9 @@ describe("note mentions", () => {
         await client.query(noteQueries.mentions("atlas.md"));
       });
       await waitFor(() => {
-        expect(host.textContent).toBe("2 mentions");
+        expect(
+          screen.getByRole("button", { name: "2 mentions" })
+        ).toHaveTextContent(/^2$/u);
       });
       expect(calls).toStrictEqual([
         { args: { path: "atlas.md" }, command: "find_mentions" },

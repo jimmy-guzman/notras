@@ -1,8 +1,5 @@
-import type { ReactNode } from "react";
-
-interface TitlebarProps {
-  children?: ReactNode;
-}
+import { cn } from "cn";
+import type { ComponentProps } from "react";
 
 /**
  * The window drag region, and the only bar above the note.
@@ -16,13 +13,15 @@ interface TitlebarProps {
  * it lands on a control. Tauri's handler treats a button, an input, or a `tab`
  * role as that boundary, so a control opts out by being one.
  */
-export function Titlebar({ children }: TitlebarProps) {
+export function Titlebar({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className="bg-shell text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-1 py-1 pe-1 text-xs"
+      className={cn(
+        "bg-shell text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-1 py-1 pe-1 text-xs",
+        className
+      )}
       data-tauri-drag-region="deep"
-    >
-      {children}
-    </div>
+      {...props}
+    />
   );
 }

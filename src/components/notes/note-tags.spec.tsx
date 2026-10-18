@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { createNotePersistence } from "@/components/editor/note-persistence";
 import type { SaveOutcome } from "@/components/editor/note-persistence";
@@ -88,7 +88,7 @@ describe("note tags", () => {
       render(
         <QueryClientProvider client={client}>
           {control === "combobox" ? (
-            <NoteTags onFilter={ignore} path="note.md" tags={[]} />
+            <NoteTags path="note.md" tags={[]} />
           ) : (
             <Command shouldFilter={false}>
               <CommandList>
@@ -133,6 +133,30 @@ describe("note tags", () => {
     }
   );
 
+  it("should count the note's tags on the button that edits them", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NoteTags path="a.md" tags={["one", "two"]} />
+      </QueryClientProvider>
+    );
+
+    expect(
+      screen.getByRole("combobox", { name: "edit tags" })
+    ).toHaveTextContent(/^2$/u);
+  });
+
+  it("should show the tag glyph alone on a note with no tags", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NoteTags path="a.md" tags={[]} />
+      </QueryClientProvider>
+    );
+
+    expect(
+      screen.getByRole("combobox", { name: "edit tags" })
+    ).toHaveTextContent(/^$/u);
+  });
+
   it("should keep attached tags and typed choices available while suggestions load", async () => {
     const listed = Promise.withResolvers<[]>();
     mockIPC(async (command) => {
@@ -154,19 +178,18 @@ describe("note tags", () => {
       client.clear();
       clearMocks();
     });
-    const onFilter = vi.fn<(tag: string) => void>();
     render(
       <QueryClientProvider client={client}>
-        <NoteTags onFilter={onFilter} path="a.md" tags={["attached"]} />
+        <NoteTags path="a.md" tags={["attached"]} />
       </QueryClientProvider>
     );
     const user = userEvent.setup();
-    expect(
-      screen.getByRole("button", { name: "#attached" })
-    ).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "edit tags" }));
     expect(
       await screen.findByText("loading tag suggestions...")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "attached" })
     ).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("filter tags..."), "newtag");
     expect(screen.getByRole("option", { name: "newtag" })).toBeInTheDocument();

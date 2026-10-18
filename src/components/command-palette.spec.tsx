@@ -317,7 +317,6 @@ describe("command palette keyboard", () => {
         status: "dirty",
         tags: ["work"],
         title: "Atlas",
-        words: 1,
       }))
     );
 
@@ -373,7 +372,6 @@ describe("command palette actions", () => {
         status: "saved",
         tags: [],
         title: "Atlas",
-        words: 1,
       }))
     );
     const changes: unknown[] = [];
@@ -405,7 +403,6 @@ describe("command palette actions", () => {
         status: "saved",
         tags: [],
         title: "Atlas",
-        words: 1,
       }))
     );
     mount("actions", []);
@@ -595,7 +592,6 @@ describe("recent commands", () => {
         status: "saved",
         tags: [],
         title: "Atlas",
-        words: 1,
       }))
     );
     const initial = mount("actions", []);
@@ -758,7 +754,6 @@ describe("recent commands", () => {
         status: "saved",
         tags: [],
         title: "Atlas",
-        words: 1,
       }))
     );
     const palette = mount("actions", []);
@@ -874,11 +869,7 @@ describe("recent commands", () => {
 
     const workspace = render(
       <QueryClientProvider client={client}>
-        <Workspace
-          initialTabs={null}
-          onFilterTag={() => {}}
-          onOpenSearch={() => {}}
-        />
+        <Workspace initialTabs={null} onOpenSearch={() => {}} />
       </QueryClientProvider>
     );
 
@@ -1459,7 +1450,6 @@ describe("recent note results", () => {
         status: "saved",
         tags: [],
         title: "Gone",
-        words: 1,
       }))
     );
     rememberNote("/notes", "gone.md");
