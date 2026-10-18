@@ -102,19 +102,19 @@ describe("export pdf", () => {
     });
 
     const surface = surfaceOf(
-      '<p>hello</p><div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div>'
+      '<div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div>'
     );
 
-    const [column, table] = [
-      surface.querySelector("p"),
-      surface.querySelector("table"),
-    ];
+    const wrapper = surface.querySelector(".tableWrapper");
+    const table = surface.querySelector("table");
 
-    if (column === null || table === null) {
-      throw new Error("the surface lost its blocks");
+    if (wrapper === null || table === null) {
+      throw new Error("the surface lost its table");
     }
 
-    column.getBoundingClientRect = () => new DOMRect(0, 0, 600, 20);
+    surface.style.padding = "0 24px";
+    Object.defineProperty(surface, "clientWidth", { value: 648 });
+    Object.defineProperty(wrapper, "clientWidth", { value: 900 });
     table.getBoundingClientRect = () => new DOMRect(0, 0, 1200, 40);
 
     await expect(
@@ -122,6 +122,43 @@ describe("export pdf", () => {
     ).resolves.toBe("/exports/hello.pdf");
 
     expect(zoom).toBe("0.5");
+  });
+
+  it("should shrink a table under a list item to the item", async () => {
+    let zoom: string | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      zoom = document.querySelector<HTMLElement>(".print-sheet .tableWrapper")
+        ?.style.zoom;
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<ul><li><p>item</p><div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div></li></ul>'
+    );
+
+    const wrapper = surface.querySelector(".tableWrapper");
+    const table = surface.querySelector("table");
+
+    if (wrapper === null || table === null) {
+      throw new Error("the surface lost its table");
+    }
+
+    surface.style.padding = "0 24px";
+    Object.defineProperty(surface, "clientWidth", { value: 648 });
+    Object.defineProperty(wrapper, "clientWidth", { value: 500 });
+    table.getBoundingClientRect = () => new DOMRect(0, 0, 800, 40);
+
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).resolves.toBe("/exports/hello.pdf");
+
+    expect(zoom).toBe("0.625");
   });
 
   it("should copy the surface once it is painted after the dialog closes", async () => {

@@ -64,6 +64,15 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* The tier between the reading column and the pane: how far a block whose
+   width is its own, a table for now, may grow past the column before it
+   scrolls. 54rem is the nearest rem to Typora's writing area, 860px with its
+   padding, which read as one page where 64rem read as a table beside the
+   column. Outside the inline theme so the width is a variable at runtime. */
+@theme {
+  --container-wide: 54rem;
+}
+
 /* Violet marks the active row; pink remains reserved for actions. The fence
    on paper takes this palette too: paper forces light prose, not a light card. */
 :root,
@@ -469,20 +478,48 @@ body.dragging .ProseMirror .selected-text,
    a leading border and `border-collapse` is `separate`, so a box on the table
    drew the top edge twice, and the header could not drop edges it did not own.
    The node view puts every row in `tbody`, so `thead th` never matches and the
-   header is restated here. The wrapper is not Typeset's `.typeset-scroll`, whose
-   `width: max-content` stops a prose cell wrapping; it takes the gap, the scroll
-   area inside it takes the scroll, and the table keeps `max-width: 100%`. The
-   6ch floor is Obsidian's, and it is what pushes a wide table into that scroll
-   instead of crushing it. Until the node view's first render, a microtask after
-   the note mounts, the rows sit in a bare `tbody` here with nothing to scroll
-   them; the clip keeps that table from widening the editor's own viewport. */
+   header is restated here. Until the node view's first render, a microtask
+   after the note mounts, the rows sit in a bare `tbody` here with nothing to
+   scroll them; the clip keeps that table from widening the editor's own
+   viewport. */
 .ProseMirror .tableWrapper {
   margin-block-start: var(--typeset-flow);
   overflow-x: clip;
 }
+/* A wide table takes room on both sides of the column, as far as the wide
+   tier or the pane, whichever is narrower; at the whole pane a table read as
+   a page of its own beside the column. `3rem` is the column's two gutters and
+   `cqi` is the pane, which `EditorContent`'s container supplies. The box
+   inside the wrapper is the one that scrolls, since the one that stops
+   growing is the one that can. A table under a list item is not top-level and
+   keeps to its item. */
+.ProseMirror > .tableWrapper {
+  --wide-box: calc(min(100cqi, var(--container-wide)) - 3rem);
+
+  width: var(--wide-box);
+  margin-inline-start: calc(50% - var(--wide-box) / 2);
+}
+.ProseMirror > .tableWrapper > .table-box {
+  width: max-content;
+  min-width: calc(min(100cqi, var(--container-2xl)) - 3rem);
+  max-width: 100%;
+  margin-inline: auto;
+}
+/* A column is as wide as its widest cell and a row is one line, the layout
+   Typeset's `.typeset-scroll` takes. Auto layout shrank every column toward
+   its floor before the box scrolled, and a twelve-column table read as twelve
+   ragged columns of wrapped words. The cap on a cell's paragraph is what lets a
+   sentence wrap where a value does not; `max-width` bounds a block's
+   contribution to its column. The 6ch floor keeps an empty cell wide enough to
+   click into. */
 .ProseMirror .tableWrapper table {
+  width: max-content;
+  max-width: none;
   margin-block-start: 0;
   border-block-end: 0;
+}
+.ProseMirror :is(th, td) > p {
+  max-width: 40ch;
 }
 /* Tiptap's `NodeViewContent` writes `pre-wrap` inline on the table, so the
    cells restate the editor's `break-spaces` and wrap trailing spaces like the
@@ -1012,9 +1049,19 @@ body.dragging .ProseMirror .selected-text,
     text-decoration-line: none;
   }
   /* The viewport's own box would keep a tall table on one page; without it the
-     rows break like any other block. */
+     rows break like any other block. Paper has no pane for a wide table to
+     take, so the wrapper keeps to the column and `export-pdf.ts` zooms the
+     table down to it. */
   .print-sheet .table-viewport {
     display: contents;
+  }
+  .print-sheet .ProseMirror > .tableWrapper {
+    width: auto;
+    margin-inline-start: 0;
+  }
+  .print-sheet .ProseMirror > .tableWrapper > .table-box {
+    width: auto;
+    min-width: 0;
   }
 }
 
