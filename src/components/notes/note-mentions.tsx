@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileTextIcon } from "lucide-react";
+import { FileTextIcon, LinkIcon } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useEffect, useRef } from "react";
 
 import { Chord } from "@/components/chord";
 import { NoteLabel } from "@/components/notes/note-label";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,7 @@ import {
 import type { Mention } from "@/core/links";
 import { noteQueries } from "@/data/queries";
 import { openNote } from "@/lib/tabs/store";
+import { BAR_GLYPH } from "@/lib/ui/bar";
 import { reasonOf } from "@/lib/ui/failure";
 import { setMentionsOpen, useMentionsOpen } from "@/lib/ui/mentions";
 import { useHotkey } from "@/lib/ui/shortcuts";
@@ -121,26 +122,23 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
           render={
             <DropdownMenuTrigger
               render={
-                <Badge
-                  render={
-                    <button
-                      aria-label={`${count} ${count === 1 ? "mention" : "mentions"}`}
-                      type="button"
-                    />
-                  }
+                <Button
+                  aria-label={`${count} ${count === 1 ? "mention" : "mentions"}`}
+                  size="xs"
                   variant="ghost"
                 />
               }
             />
           }
         >
-          {count} {count === 1 ? "mention" : "mentions"}
+          <LinkIcon className={BAR_GLYPH} />
+          <span className="tabular-nums">{count}</span>
         </TooltipTrigger>
         <TooltipContent>
           show mentions <Chord hotkey={SHOW_MENTIONS} />
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="start" className="w-72" side="top">
+      <DropdownMenuContent align="end" className="w-72" side="bottom">
         {mentions.map((mention) => (
           <MentionItem key={mention.note.path} mention={mention} />
         ))}

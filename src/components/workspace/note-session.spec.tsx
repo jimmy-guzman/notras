@@ -48,8 +48,6 @@ function savesContent(
   );
 }
 
-const NOOP = () => {};
-
 const tab = { id: "t1", kind: "note", path: "a.md" } as const;
 const UNFOLDED_CONTEXT = /# Errands\s+one\s+two/u;
 
@@ -2242,7 +2240,7 @@ describe(NoteSession, () => {
     );
     render(
       <QueryClientProvider client={client}>
-        <TabStrip activeId={outside.id} onNew={NOOP} tabs={[outside]} />
+        <TabStrip activeId={outside.id} tabs={[outside]} />
         <NoteSession active tab={outside} />
       </QueryClientProvider>
     );

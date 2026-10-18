@@ -19,8 +19,6 @@ import {
 import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 
-const NOOP = () => {};
-
 async function mountStrip(tabs: Tab[]) {
   mockIPC((command) => {
     if (command === "get_notes_dir") {
@@ -42,7 +40,7 @@ async function mountStrip(tabs: Tab[]) {
     <QueryClientProvider client={client}>
       <Suspense fallback={null}>
         <Titlebar>
-          <TabStrip activeId={tabs[0]?.id ?? ""} onNew={NOOP} tabs={tabs} />
+          <TabStrip activeId={tabs[0]?.id ?? ""} tabs={tabs} />
         </Titlebar>
       </Suspense>
     </QueryClientProvider>
@@ -128,7 +126,6 @@ describe("tab strip", () => {
           status: "saved",
           tags: [],
           title: "Live title",
-          words: 2,
         });
 
         act(() => {

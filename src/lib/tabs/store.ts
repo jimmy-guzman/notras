@@ -57,7 +57,6 @@ export interface TabSnapshot {
   status: SaveStatus;
   tags: string[];
   title: string;
-  words: number;
 }
 
 const tabs = createStore<TabState>({ activeId: "", tabs: [] });

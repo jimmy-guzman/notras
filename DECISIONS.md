@@ -299,6 +299,8 @@ The tag editor is a `Combobox` generated from the shadcn `base-maia` registry, i
 
 Both halves of the old tag UX were hand-rolled over capabilities the index already had. `listTags()` and `getTagFilter()` existed with no caller, while a 64px input let a typo fork `standup` from `standups` and the palette substring-matched a vocabulary it recomputed on every keystroke, disagreeing with the index it stood in for.
 
+**Superseded in part by `D98`,** which moves the tag control back to the title bar as an icon and a count and drops the chips. The combobox and the palette's `#` token stand.
+
 Tags moved down because the titlebar could not hold them: `D28` put title, tags, and pin in one band, where the chip row was pinned to `w-16` to keep the title readable. The status strip is where the note's other metadata already sits.
 
 **Rejected: keeping tags in the titlebar with the combobox inline.** Smallest diff, and it leaves `D28` whole. Rejected because it keeps the space war that produced `w-16`, and because `D28`'s own constraint requires widening the `button, input` no-drag rule for any other interactive element in the drag region. Moving the tags out satisfies that constraint by deletion.
@@ -435,6 +437,8 @@ The strip sets one gap and each item carries its own padding, which comes from t
 
 **Superseded in part by `D38`,** which moved the save glyph out of the strip and into the titlebar. The recipe stands and the strip is one item shorter.
 
+**Superseded by `D98`,** which removes the strip.
+
 `DESIGN.md` lists which component each item is. The distances that fall out are an outcome rather than a target: spacing is stated once, at the footer, and adding an item means choosing what the item is rather than re-deriving a sum.
 
 **Rejected: holding equal optical gaps by hand.** The first version of this entry did, with `px-1` on two chips, a `size-6` box on the glyph, and a wrapper `div` carrying a third gap. It was exact on the day it was written. Rejected because a text pill and an icon square have different padding by nature, so equality between them is a coincidence someone re-establishes after every change, and nothing in the gate notices when it lapses.
@@ -450,6 +454,8 @@ The strip sets one gap and each item carries its own padding, which comes from t
 ### D37 Chrome toggles come from `Toggle`, at one size and one on-state
 
 Anything in chrome that turns on and off is `Toggle` or `ToggleGroupItem` from `@base-ui/react`, at the size and on-state `DESIGN.md` states. Two hand-rolled versions preceded it, one per surface, drawing their on-states in the accent and the primary, which `DESIGN.md` rules out of chrome.
+
+**Superseded in part by `D98`,** which makes the view toggles standalone `Toggle`s. The size and the on-state stand.
 
 The three view toggles are one `ToggleGroup` but stay three independent settings: `StatusBar` takes three booleans and three handlers, and a descriptor array routes a change back to the one whose membership flipped.
 
@@ -626,6 +632,8 @@ The app had three numbers for one thing, and the pin and the save glyph sat adja
 Open notes are a strip of tabs in the 36px title bar, from `src/components/tabs/tab-strip.tsx`. The save glyph and the pin stay at the right in `NoteControls`, and the note's title is now the active tab's label. `DESIGN.md` carries the shape.
 
 **Superseded in part by `D87` and `D88`,** which take the save glyph and then the pin out of the bar. The strip and the title-as-label stand.
+
+**Superseded in part by `D98`,** which removes the status strip, so one band frames the note.
 
 **Amends `D10`,** which rejected navigation chrome because ⌘K finds a note in a keystroke. That reasoning holds and this does not contest it. Tabs answer a different question: which notes are open at once, and how to return to one without losing your place in it. Finding a note and keeping it open are not the same act, and the palette stays the way notes are found.
 
@@ -1161,6 +1169,8 @@ The states that matter are `failed` and `conflict`. `conflict` already had a pan
 
 `PinToggle` is gone. Pinning is the palette's `pin note` / `unpin note` row and ⌘⇧D, both over `changeNoteMetadata(path, ({ pinned }) => ({ pinned: !pinned }))`, which flips the value the session document holds rather than one read off a snapshot. Nothing on screen says a note is pinned while it is being written. A `BarButton` named `find a note` in `src/components/workspace/workspace.tsx` takes the slot after the tab strip and opens ⌘P in find mode.
 
+**Superseded in part by `D98`,** which moves the find button into the title bar's pinned group, where browse notes holds the trailing slot. The pin's removal stands.
+
 Pinning puts a note at the top of ⌘P, overriding recency. It is a property of how the note is reached, not of the note, so the state belongs where reaching happens: `NoteLabel` already draws a pin in every list and the row already reads the state as its inverse. The bar toggle was the last piece of `D28`'s identity band after tags (`D30`), the title (`D52`) and the save glyph (`D87`) left it, and it was the one note-level action with a bar control of its own where rename, move and delete have none. `D31` kept the tag picker in chrome because tagging happens while writing; pinning happens once.
 
 Removing it removed the one-gesture route, and ⌘⇧D is the replacement that adds nothing to the bars. It sits with ⌘⇧Y and ⌘⇧L, the other note-level chords, and keeps the letter browsers use for a bookmark. ⌘D stays on focus mode, which is toggled all day.
@@ -1268,3 +1278,25 @@ A resized image is saved as `<img src="attachments/x.png" alt="shot" width="400"
 **Rejected: storing and writing `height` too.** TipTap's resizable image commits both. Rejected because a width alone keeps the ratio in every renderer, while a stored height distorts the image where the column is narrower than the width and the browser clamps one axis.
 
 **Constraint:** a tag carrying any other attribute, a `height` or a `style` included, is the author's HTML and stays code, since the image node could not write it back whole.
+
+### D98 One bar, the browser on the right, and the note's facts as counts
+
+The main window has one band, the title bar. The note browser docks on the right as a rounded card shaped like the note's, and the title bar's buttons sit in one group pinned to the window's top right: the tag control and the mentions count, the view toggles, then new note, find a note and browse notes. The status strip, its word count and its tag chips are gone. `DESIGN.md` carries the shape.
+
+The strip spent 32px of height on every note to hold one button about the window and four things about the note. With the browser on the left, the tab strip started above the browser, so the active tab read as the browser's title rather than the note's. On the right, the tabs sit over the note whether the browser is open or not, and the browse button joins the other bar buttons. Chrome's side panel takes the same side and the same card shape since its 2023 refresh.
+
+The group is pinned to the window rather than drawn in whichever bar sits beside the browser, so the browse button stays under the pointer as it toggles. The tabs measure the group and stop short of it.
+
+**Rejected: the strip's items as a row at the end of the note.** Nothing in the chrome, and the facts travel with the note. Rejected because the end of a long note is never on screen.
+
+**Rejected: a line of tags and mentions under the note's title, as Notion places backlinks.** On screen when a note opens. Rejected because it puts chrome inside the note.
+
+**Rejected: an info button opening tags, mentions and the word count, as Bear's info panel does.** One button for every fact. Rejected because a count on each control says what the panel would, without a door to open.
+
+**Rejected: revealing the closed browser while the pointer rests on the window's edge.** Arc's peek, which keeps the note's layout still. Rejected after trying it: drawn over the note it hid the note, and pushing the note aside slid most of each line off a 700px window. On the right, that edge belongs to the editor's scrollbar.
+
+**Rejected: keeping the view toggles in one `ToggleGroup`.** One tab stop with arrow keys between them. Rejected because the group's flush form squares the inner corners into a segmented bar, while every other bar button keeps its own radius. ⌘E and ⌘⌥G reach both toggles without the tab order, so each takes a tab stop of its own.
+
+**Rejected: a plain line between the button runs.** Rejected because a 14px line between 24px buttons reads as one more glyph, so the separator is etched.
+
+**Constraint:** clicking a tag no longer filters the palette by it, and the palette's `#` token is the way in. The word count left the app.

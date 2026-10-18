@@ -77,6 +77,76 @@ describe("workspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("should show only the app's controls with no tab, and a draft's view toggle once one opens", async () => {
+    localStorage.removeItem("tabs");
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByRole("button", { name: "find a note" });
+    expect(
+      screen.getByRole("button", { name: "browse notes" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "markdown source" })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "new note" }));
+
+    expect(
+      await screen.findByRole("button", { name: "markdown source" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "graph view" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "edit tags" })
+    ).not.toBeInTheDocument();
+  });
+
   it("should open a draft before library queries finish, creating nothing, and keep it when a late restore lands", async () => {
     localStorage.removeItem("tabs");
     mockWindows("main");

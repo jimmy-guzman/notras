@@ -120,7 +120,6 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   onOpenSettings: () => void;
   open: boolean;
-  tag?: string;
 }
 
 // oxlint-disable-next-line complexity, react-doctor/no-giant-component -- the split is tracked in #203
@@ -130,7 +129,6 @@ export function CommandPalette({
   onOpenChange,
   onOpenSettings,
   open,
-  tag,
 }: CommandPaletteProps) {
   const { activeId, tabs } = useTabState();
   // A snapshot changes on every keystroke and this component is mounted for
@@ -155,17 +153,11 @@ export function CommandPalette({
   // gesture that triggered it, in the capture phase to beat cmdk's own handler.
   const newTabRef = useRef(false);
 
-  // A tag chip navigates with `?tag=`, which is what opens the palette. The
-  // parent keys this component on the tag and the mode, so the seed applies
-  // once per tag and typing afterwards is never overwritten. Only find reads
-  // a tag: switching to actions over an open filter starts on an empty input.
-  const [query, setQuery] = useState(
-    mode === "find" && tag !== undefined ? `#${tag} ` : ""
-  );
+  const [query, setQuery] = useState("");
 
   const [view, setView] = useState<PaletteView>(mode);
   const [filterQuery, setFilterQuery] = useState("");
-  const [cursor, setCursor] = useState(query.length);
+  const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [searchLoading, setSearchLoading] = useState(false);
