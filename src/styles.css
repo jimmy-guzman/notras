@@ -464,20 +464,27 @@ body.dragging .ProseMirror .selected-text,
    drew the top edge twice, and the header could not drop edges it did not own.
    The node view puts every row in `tbody`, so `thead th` never matches and the
    header is restated here. The wrapper is not Typeset's `.typeset-scroll`, whose
-   `width: max-content` stops a prose cell wrapping; it takes the scroll and the
-   gap and the table keeps `max-width: 100%`. The 6ch floor is Obsidian's, and it
-   is what pushes a wide table into that scroll instead of crushing it. */
+   `width: max-content` stops a prose cell wrapping; it takes the gap, the scroll
+   area inside it takes the scroll, and the table keeps `max-width: 100%`. The
+   6ch floor is Obsidian's, and it is what pushes a wide table into that scroll
+   instead of crushing it. Until the node view's first render, a microtask after
+   the note mounts, the rows sit in a bare `tbody` here with nothing to scroll
+   them; the clip keeps that table from widening the editor's own viewport. */
 .ProseMirror .tableWrapper {
   margin-block-start: var(--typeset-flow);
-  overflow-x: auto;
+  overflow-x: clip;
 }
-.ProseMirror .tableWrapper > table {
+.ProseMirror .tableWrapper table {
   margin-block-start: 0;
   border-block-end: 0;
 }
+/* Tiptap's `NodeViewContent` writes `pre-wrap` inline on the table, so the
+   cells restate the editor's `break-spaces` and wrap trailing spaces like the
+   paragraphs around them. */
 .ProseMirror :is(th, td) {
   min-width: 6ch;
   padding-inline-start: 1em;
+  white-space: break-spaces;
   border-inline-start: 1px solid var(--typeset-rule);
 }
 .ProseMirror :is(th, td):first-child {
@@ -980,7 +987,8 @@ body.dragging .ProseMirror .selected-text,
     margin-block-end: calc(-1 * var(--keep-with-next, 0px));
     content: "";
   }
-  /* Paper has no scroll: long code wraps and a wide table runs to the edge. */
+  /* Paper has no scroll: long code wraps, and `export-pdf.ts` zooms a wide
+     table down to the column. */
   .print-sheet .ProseMirror pre {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -997,8 +1005,10 @@ body.dragging .ProseMirror .selected-text,
   .print-sheet :is(a[data-note], .wikilink) {
     text-decoration-line: none;
   }
-  .print-sheet .ProseMirror .tableWrapper {
-    overflow: visible;
+  /* The viewport's own box would keep a tall table on one page; without it the
+     rows break like any other block. */
+  .print-sheet .table-viewport {
+    display: contents;
   }
 }
 

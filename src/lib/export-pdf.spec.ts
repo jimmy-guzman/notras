@@ -87,6 +87,43 @@ describe("export pdf", () => {
     expect(surface.isConnected).toBeTruthy();
   });
 
+  it("should shrink a table wider than the column to fit the page", async () => {
+    let zoom: string | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      zoom = document.querySelector<HTMLElement>(".print-sheet .tableWrapper")
+        ?.style.zoom;
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<p>hello</p><div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div>'
+    );
+
+    const [column, table] = [
+      surface.querySelector("p"),
+      surface.querySelector("table"),
+    ];
+
+    if (column === null || table === null) {
+      throw new Error("the surface lost its blocks");
+    }
+
+    column.getBoundingClientRect = () => new DOMRect(0, 0, 600, 20);
+    table.getBoundingClientRect = () => new DOMRect(0, 0, 1200, 40);
+
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).resolves.toBe("/exports/hello.pdf");
+
+    expect(zoom).toBe("0.5");
+  });
+
   it("should copy the surface once it is painted after the dialog closes", async () => {
     const surface = surfaceOf("<pre>const</pre>");
     const painting = Promise.withResolvers<undefined>();

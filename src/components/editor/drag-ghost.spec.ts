@@ -1,19 +1,29 @@
+import { act, render } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
+import { EditorContent } from "@tiptap/react";
+import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
 import { DragGhost } from "./drag-ghost";
 import { createEditorExtensions } from "./extensions";
 
-/** The stack `move-selection.spec.ts` builds, so a real view produces the DOM. */
-function load(markdown: string) {
+/**
+ * The stack `move-selection.spec.ts` builds, mounted the way the app mounts
+ * it, so the DOM the ghost reads has a table around a row: that table is a
+ * React node view, which renders only under `EditorContent`.
+ */
+async function load(markdown: string) {
   const editor = new Editor({
     content: markdown,
     contentType: "markdown",
-    element: document.createElement("div"),
     extensions: createEditorExtensions({}),
   });
 
+  // The node views render a microtask after the mount.
+  await act(async () => {
+    render(createElement(EditorContent, { editor }));
+  });
   editor.state.doc.check();
 
   return editor;
@@ -33,8 +43,8 @@ function positionsOf(doc: Node, type: string) {
   return positions;
 }
 
-function ghostFor(markdown: string, type: string, take = positionsOf) {
-  const editor = load(markdown);
+async function ghostFor(markdown: string, type: string, take = positionsOf) {
+  const editor = await load(markdown);
 
   const ghost = DragGhost.ofBlocks(
     editor.view,
@@ -53,10 +63,10 @@ function ghostFor(markdown: string, type: string, take = positionsOf) {
 }
 
 describe(DragGhost, () => {
-  it("should keep a task item a row rather than a bare item", () => {
+  it("should keep a task item a row rather than a bare item", async () => {
     // The row recipe is reached through the list, so an item travelling without
     // one drops its checkbox to a line of its own.
-    const { editor, element, ghost } = ghostFor("- [x] one", "taskItem");
+    const { editor, element, ghost } = await ghostFor("- [x] one", "taskItem");
     const rows = element.querySelectorAll('ul[data-type="taskList"] > li');
 
     ghost.destroy();
@@ -65,9 +75,9 @@ describe(DragGhost, () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("should carry sibling items in one list", () => {
+  it("should carry sibling items in one list", async () => {
     // Two lists would put a list's margins between rows that had none.
-    const { editor, element, ghost } = ghostFor(
+    const { editor, element, ghost } = await ghostFor(
       "- [ ] one\n- [ ] two",
       "taskItem"
     );
@@ -82,8 +92,8 @@ describe(DragGhost, () => {
     expect(rows).toHaveLength(2);
   });
 
-  it("should keep the number an ordered item was dragged from", () => {
-    const { editor, element, ghost } = ghostFor(
+  it("should keep the number an ordered item was dragged from", async () => {
+    const { editor, element, ghost } = await ghostFor(
       "1. one\n2. two",
       "listItem",
       (doc, type) => positionsOf(doc, type).slice(1)
@@ -97,8 +107,8 @@ describe(DragGhost, () => {
     expect(list?.start).toBe(2);
   });
 
-  it("should give a table row a table to render in", () => {
-    const { editor, element, ghost } = ghostFor(
+  it("should give a table row a table to render in", async () => {
+    const { editor, element, ghost } = await ghostFor(
       "| a | b |\n| - | - |\n| one | two |",
       "tableRow",
       (doc, type) => positionsOf(doc, type).slice(1)
@@ -112,8 +122,8 @@ describe(DragGhost, () => {
     expect(row?.textContent).toBe("onetwo");
   });
 
-  it("should take itself off the body when the drag ends", () => {
-    const { editor, ghost } = ghostFor("one", "paragraph");
+  it("should take itself off the body when the drag ends", async () => {
+    const { editor, ghost } = await ghostFor("one", "paragraph");
 
     ghost.destroy();
     editor.destroy();
@@ -122,8 +132,8 @@ describe(DragGhost, () => {
     expect(document.body.classList.contains("dragging")).toBeFalsy();
   });
 
-  it("should sit below and right of the pointer", () => {
-    const { editor, element, ghost } = ghostFor("one", "paragraph");
+  it("should sit below and right of the pointer", async () => {
+    const { editor, element, ghost } = await ghostFor("one", "paragraph");
 
     ghost.moveTo(100, 200);
 
@@ -136,8 +146,8 @@ describe(DragGhost, () => {
     expect(transform).toBe("translate3d(116px, 216px, 0)");
   });
 
-  it("should carry the words alone, in their block's own element", () => {
-    const editor = load("## one two three");
+  it("should carry the words alone, in their block's own element", async () => {
+    const editor = await load("## one two three");
     // The heading's text starts at 1, so "two" runs from 5 to 8.
     const ghost = DragGhost.ofText(editor.view, 5, 8, 0, 0);
     const heading = document.querySelector(".drag-ghost h2");
@@ -148,10 +158,10 @@ describe(DragGhost, () => {
     expect(heading?.textContent).toBe("two");
   });
 
-  it("should keep the mark around words taken from inside it", () => {
+  it("should keep the mark around words taken from inside it", async () => {
     // `cloneContents` drops the range's common ancestor, which is the mark's
     // own element when the words sit wholly inside it.
-    const editor = load("**one two** three");
+    const editor = await load("**one two** three");
     const ghost = DragGhost.ofText(editor.view, 5, 8, 0, 0);
     const strong = document.querySelector(".drag-ghost strong");
 
