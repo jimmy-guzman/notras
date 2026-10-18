@@ -1313,7 +1313,7 @@ export function Editor(mountProps: EditorProps) {
 
   return (
     <ScrollArea className="min-h-0 flex-1 select-text" ref={attachScrollArea}>
-      <EditorContent className="min-h-full" editor={editor} />
+      <EditorContent className="@container min-h-full" editor={editor} />
       {linkHover === null || linkEditor !== null ? null : (
         <LinkHover
           onEdit={editHoveredLink}

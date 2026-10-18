@@ -1300,3 +1300,21 @@ The group is pinned to the window rather than drawn in whichever bar sits beside
 **Rejected: a plain line between the button runs.** Rejected because a 14px line between 24px buttons reads as one more glyph, so the separator is etched.
 
 **Constraint:** clicking a tag no longer filters the palette by it, and the palette's `#` token is the way in. The word count left the app.
+
+### D99 A wide table grows to a wide tier and keeps one line per row
+
+A table lays its columns out at their content width, caps a cell's paragraph at `40ch`, and grows past the reading column on both sides when it needs the room, centred on the column as far as a wide tier of `54rem`, or the pane when that is narrower. The tier is the nearest rem to Typora's writing area, 860px with its padding in the GitHub theme: a table at that width still read as part of the page, where 64rem read as a table beside the column. A table that fits the column sits on it, and one wider than the tier scrolls. Before this, a table was bounded by the 624px column and auto layout shrank every column toward a 6ch floor before the box scrolled, so a twelve-column table of short values read as twelve ragged columns of wrapped words, and the window the app is written for is barely wider than the column.
+
+**Rejected: keeping the column as the bound and wrapping tighter,** Obsidian's shape with its 6ch floor. The crush is what made a wide table unreadable, and no floor fixes it in a 700px window.
+
+**Rejected: `white-space: nowrap` on every cell.** A sentence in a cell then never wraps and a prose table scrolls for its whole width. The cap on the paragraph keeps a value on one line and lets a sentence wrap.
+
+**Rejected: growing to the right from the prose edge,** Notion's shape, which keeps the left edge on the prose. The owner read it on screen and asked for the room on both sides. A centred box that overflows cannot be scrolled to its left side, so the box that centres is no wider than the pane and is the one that scrolls.
+
+**Rejected: the whole pane as the limit,** and then a `64rem` tier. The pane showed the most columns, and on a wide window the owner read a table at 1400px as a page of its own beside a 672px column; at 64rem it still did. The tier keeps a table tied to the prose, at the cost of columns that scroll.
+
+**Rejected: widening the reading column on a wide window,** or a readable-line-length toggle like Obsidian's. The column's 624px is already about 75 characters at 16px, the top of the range body text reads well at, and a toggle moves that judgment onto a setting. The space beside the column is for blocks whose width is their own.
+
+**Rejected: a sticky first column while scrolling.** It needs an opaque background painted into a table drawn with no box, and a selected or caret cell under it reads oddly. One-line rows let the eye follow a row across the scroll.
+
+**Constraint:** a prose-heavy table that fit by wrapping tight now scrolls a little instead. The `40ch` cap is provisional until prose tables have been read on screen at it.

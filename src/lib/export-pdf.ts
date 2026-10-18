@@ -3,20 +3,32 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { commands } from "@/server/adapters/bindings";
 
 /**
- * Paper has no scroll, so a table wider than the column shrinks to fit it. The
- * column is the width the surface's first block has on screen, which `pdf.rs`
- * gives the page whatever its size.
+ * Paper has no scroll, so a table wider than its room shrinks to fit it. The
+ * room is the column, the surface's content width on screen, which `pdf.rs`
+ * gives the page whatever its size, or the table's own wrapper when that is
+ * narrower, as it is under a list item. A table can be wider than the column,
+ * so no block stands in for it.
  */
 function fitTables(surface: HTMLElement, sheet: HTMLElement) {
-  const column = surface.firstElementChild?.getBoundingClientRect().width ?? 0;
-  const live = surface.querySelectorAll(".tableWrapper table");
+  const { paddingLeft: left, paddingRight: right } = getComputedStyle(surface);
+
+  // oxlint-disable-next-line unicorn/prefer-number-coercion -- a computed length carries its unit, which Number() reads as NaN
+  const inset = Number.parseFloat(left) + Number.parseFloat(right);
+
+  const column = surface.clientWidth - inset;
+  const live = surface.querySelectorAll<HTMLElement>(".tableWrapper");
   const copies = sheet.querySelectorAll<HTMLElement>(".tableWrapper");
 
   for (const [index, copy] of copies.entries()) {
-    const width = live[index]?.getBoundingClientRect().width ?? 0;
+    const wrapper = live[index];
 
-    if (width > column) {
-      copy.style.zoom = String(column / width);
+    const width =
+      wrapper?.querySelector("table")?.getBoundingClientRect().width ?? 0;
+
+    const room = Math.min(column, wrapper?.clientWidth ?? column);
+
+    if (width > room) {
+      copy.style.zoom = String(room / width);
     }
   }
 }
