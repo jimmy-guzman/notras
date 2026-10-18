@@ -6,7 +6,7 @@ import { describe, expect, inject, it } from "vitest";
 
 describe("native smoke", () => {
   it("should save an edit to disk and display it after restarting the app", async () => {
-    const { artifacts, binary, dataStore, note } = inject("smoke");
+    const { artifacts, binary, note } = inject("smoke");
     const marker = `saved-${Date.now()}`;
 
     const launch = async () =>
@@ -17,7 +17,6 @@ describe("native smoke", () => {
           captureBackendLogs: true,
           captureFrontendLogs: true,
           driverProvider: "embedded",
-          env: { NOTRAS_SMOKE_DATA_STORE: dataStore },
           logDir: artifacts,
           startTimeout: 30_000,
         },
@@ -75,19 +74,6 @@ describe("native smoke", () => {
         );
       }
 
-      try {
-        await first.tauri.execute(async ({ core }) => {
-          await core.invoke("plugin:webview|clear_all_browsing_data", {
-            label: "main",
-          });
-        });
-      } catch (cleanupError) {
-        await appendFile(
-          path.join(artifacts, "failure.txt"),
-          `\nStorage cleanup failed: ${String(cleanupError)}`
-        );
-      }
-
       throw error;
     } finally {
       await cleanupWdioSession(first);
@@ -109,11 +95,6 @@ describe("native smoke", () => {
       await expect
         .poll(async () => await editor.getText(), { timeout: 15_000 })
         .toContain(`Original body. ${marker}`);
-      await second.tauri.execute(async ({ core }) => {
-        await core.invoke("plugin:webview|clear_all_browsing_data", {
-          label: "main",
-        });
-      });
     } catch (error) {
       await writeFile(
         path.join(artifacts, "failure.txt"),
@@ -126,19 +107,6 @@ describe("native smoke", () => {
         await appendFile(
           path.join(artifacts, "failure.txt"),
           `\nScreenshot failed: ${String(screenshotError)}`
-        );
-      }
-
-      try {
-        await second.tauri.execute(async ({ core }) => {
-          await core.invoke("plugin:webview|clear_all_browsing_data", {
-            label: "main",
-          });
-        });
-      } catch (cleanupError) {
-        await appendFile(
-          path.join(artifacts, "failure.txt"),
-          `\nStorage cleanup failed: ${String(cleanupError)}`
         );
       }
 

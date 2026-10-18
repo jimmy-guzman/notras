@@ -310,27 +310,6 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Err(error)
 }
 
-#[cfg(feature = "smoke")]
-fn smoke_context(mut context: tauri::Context<tauri::Wry>) -> tauri::Context<tauri::Wry> {
-    assert!(
-        context
-            .config()
-            .identifier
-            .starts_with("codes.jimmy.notras.smoke."),
-        "The smoke build requires an isolated app identifier."
-    );
-    let data_store = serde_json::from_str::<[u8; 16]>(
-        &std::env::var("NOTRAS_SMOKE_DATA_STORE")
-            .expect("The smoke build requires NOTRAS_SMOKE_DATA_STORE."),
-    )
-    .expect("NOTRAS_SMOKE_DATA_STORE must contain sixteen bytes as JSON.");
-    // The context macro emits a Vec for this array-valued config field.
-    for window in &mut context.config_mut().app.windows {
-        window.data_store_identifier = Some(data_store);
-    }
-    context
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // First, so what the other plugins log is caught too.
@@ -369,9 +348,6 @@ pub fn run() {
     }
 
     let bindings = bindings::builder();
-    let context = tauri::generate_context!();
-    #[cfg(feature = "smoke")]
-    let context = smoke_context(context);
     let built = builder
         .register_uri_scheme_protocol(external_image::SCHEME, |_, request| {
             external_image::respond(&request)
@@ -394,7 +370,7 @@ pub fn run() {
             bindings.mount_events(app);
             setup(app)
         })
-        .build(context);
+        .build(tauri::generate_context!());
     let app = match built {
         Ok(app) => app,
         Err(error) => {

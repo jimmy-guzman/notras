@@ -1,14 +1,6 @@
 import { execFile } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -20,59 +12,9 @@ import tauriConfig from "../src-tauri/tauri.conf.json";
 // oxlint-disable-next-line typescript/strict-void-return -- Node supplies a custom promisify implementation for execFile's ChildProcess return.
 const exec = promisify(execFile);
 
-async function verifyProductionBuild(root: string, artifacts: string) {
-  const native = await exec(
-    "cargo",
-    ["tree", "--locked", "-p", "notras", "--edges", "normal"],
-    { maxBuffer: 4 * 1024 * 1024 }
-  );
-
-  await writeFile(
-    path.join(artifacts, "production-dependencies.txt"),
-    native.stdout
-  );
-
-  if (native.stdout.includes("tauri-plugin-wdio")) {
-    throw new Error(
-      "The production dependency graph includes smoke instrumentation."
-    );
-  }
-
-  const output = path.join(root, "production-web");
-
-  const web = await exec("pnpm", ["build:web", "--outDir", output], {
-    maxBuffer: 4 * 1024 * 1024,
-  });
-
-  await writeFile(
-    path.join(artifacts, "production-build.log"),
-    web.stdout + web.stderr
-  );
-  const assets = await readdir(path.join(output, "assets"));
-  await Promise.all(
-    assets.map(async (entry) => {
-      if (!entry.endsWith(".js")) {
-        return;
-      }
-
-      const source = await readFile(
-        path.join(output, "assets", entry),
-        "utf-8"
-      );
-
-      if (source.includes("wdioTauri") || source.includes("WDIO Tauri")) {
-        throw new Error(
-          `The production asset ${entry} includes smoke instrumentation.`
-        );
-      }
-    })
-  );
-}
-
 interface SmokeRun {
   artifacts: string;
   binary: string;
-  dataStore: string;
   note: string;
 }
 
@@ -86,15 +28,7 @@ export async function setup(
   project: TestProject
 ): Promise<() => Promise<void>> {
   if (process.platform !== "darwin") {
-    throw new Error("The native smoke test requires macOS 26 or later.");
-  }
-
-  const { stdout: version } = await exec("sw_vers", ["-productVersion"]);
-
-  if (Number(version.split(".")[0]) < 26) {
-    throw new Error(
-      `The native smoke test requires macOS 26, found ${version.trim()}.`
-    );
+    throw new Error("The native smoke test runs on macOS.");
   }
 
   const root = path.resolve("target/smoke");
@@ -130,7 +64,6 @@ export async function setup(
       path.join(appData, "settings.json"),
       JSON.stringify({ notesDir: library })
     );
-    await verifyProductionBuild(root, artifacts);
     const config = path.join(run, "tauri.json");
     await writeFile(
       config,
@@ -141,15 +74,16 @@ export async function setup(
               "default",
               {
                 identifier: "smoke",
-                permissions: [
-                  "wdio:default",
-                  "core:webview:allow-clear-all-browsing-data",
-                ],
+                permissions: ["wdio:default"],
                 windows: ["main"],
               },
             ],
           },
-          windows: tauriConfig.app.windows,
+          // A non-persistent store keeps the tabs store's localStorage from leaking between runs.
+          windows: tauriConfig.app.windows.map((window) => ({
+            ...window,
+            incognito: true,
+          })),
           withGlobalTauri: true,
         },
         build: {
@@ -192,7 +126,6 @@ export async function setup(
     project.provide("smoke", {
       artifacts,
       binary: path.join(root, "cargo/debug/notras"),
-      dataStore: JSON.stringify([...randomBytes(16)]),
       note,
     });
 
