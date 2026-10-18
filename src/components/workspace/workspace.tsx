@@ -315,7 +315,7 @@ function BrowserPanels({ children }: { children: ReactNode }) {
       </ResizablePanel>
       <ResizableHandle
         aria-label="resize note browser"
-        className="mt-8 mb-1"
+        className="mt-8"
         disabled={!open}
         disableDoubleClick
         elementRef={separator}
@@ -337,7 +337,7 @@ function BrowserPanels({ children }: { children: ReactNode }) {
           <div className="flex h-8 shrink-0" data-tauri-drag-region="deep" />
           <div
             className={cn(
-              "me-1 mb-1 flex min-h-0 flex-1 overflow-clip rounded-lg",
+              "me-1 flex min-h-0 flex-1 overflow-clip rounded-lg",
               open &&
                 "animate-in fade-in-0 slide-in-from-right-8 duration-200 ease-out motion-reduce:animate-none"
             )}
@@ -568,7 +568,7 @@ export function Workspace({
           </Titlebar>
           <div
             className={cn(
-              "bg-background relative ms-1 mb-1 flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-lg",
+              "bg-background relative ms-1 flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-lg",
               !browserOpen && "me-1"
             )}
           >
