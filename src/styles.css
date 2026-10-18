@@ -715,9 +715,16 @@ body.dragging .ProseMirror .selected-text,
    at once. */
 .code-block-wrapper {
   --bg: var(--card);
+  /* The bar is a clone of a scroll area's, and its root, which sets this,
+     is not cloned with it. */
+  --scroll-area-corner-width: 0px;
   position: relative;
   background: var(--bg);
   border-radius: var(--radius-md);
+}
+/* Code scrolls behind the editor's bar, which the node view draws. */
+.code-block-wrapper > pre {
+  scrollbar-width: none;
 }
 .code-block-toolbar,
 .image-toolbar {
