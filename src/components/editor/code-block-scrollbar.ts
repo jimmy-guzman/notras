@@ -1,8 +1,10 @@
+import { CSPProvider } from "@base-ui/react/csp-provider";
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { ScrollBar } from "@/components/ui/scroll-area";
+import { styleNonce } from "@/lib/style-nonce";
 
 // Base UI's floor for the thumb, its idle time before the bar fades, and its
 // reading of a scroll's end as 100ms without another scroll event.
@@ -12,14 +14,21 @@ const SCROLL_END = 100;
 
 // A code block has to be whole in ProseMirror's own pass, before React
 // renders, so the bar the note and a table scroll behind renders once as the
-// module evaluates and each block takes a clone of it.
+// module evaluates and each block takes a clone of it. This root sits outside
+// main.tsx's tree, so it needs its own CSPProvider: React hoists Base UI's
+// native-scrollbar-hiding style by href, and the first copy mounted keeps the
+// shared node, nonce or not (D76).
 const rendered = document.createElement("div");
 
 createRoot(rendered).render(
   createElement(
-    ScrollAreaPrimitive.Root,
-    null,
-    createElement(ScrollBar, { keepMounted: true, orientation: "horizontal" })
+    CSPProvider,
+    { nonce: styleNonce },
+    createElement(
+      ScrollAreaPrimitive.Root,
+      null,
+      createElement(ScrollBar, { keepMounted: true, orientation: "horizontal" })
+    )
   )
 );
 
