@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.11.0](https://github.com/jimmy-guzman/notras/compare/v0.10.7...v0.11.0) (2026-10-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** 💥 the word count is gone
+
+### Features
+
+* **editor:** ✨ give tables the editor's scrollbar ([#377](https://github.com/jimmy-guzman/notras/issues/377)) ([319e1d7](https://github.com/jimmy-guzman/notras/commit/319e1d7de814e75d8354e297c41e6dbdab696268))
+* **editor:** ✨ grow a wide table past the column ([#382](https://github.com/jimmy-guzman/notras/issues/382)) ([9db4180](https://github.com/jimmy-guzman/notras/commit/9db4180703ead0787ef2e66e7bff5e017248331d))
+* **editor:** ✨ open a diagram in a zoomable viewer ([#376](https://github.com/jimmy-guzman/notras/issues/376)) ([8517082](https://github.com/jimmy-guzman/notras/commit/851708254db32113d29ffc3a46c77b63a93313ad))
+* **ui:** ✨ give the note the window under one bar ([#378](https://github.com/jimmy-guzman/notras/issues/378)) ([6688712](https://github.com/jimmy-guzman/notras/commit/6688712312991b61fd6afed1124cc96783472667))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 give code blocks the editor's scrollbar ([#383](https://github.com/jimmy-guzman/notras/issues/383)) ([3a480ff](https://github.com/jimmy-guzman/notras/commit/3a480ffcf2d7d7d1e74af6b7ed7d86f66afb3e63))
+
+
+### Refactoring
+
+* **ui:** 🔄 move browser toggle to status bar ([#372](https://github.com/jimmy-guzman/notras/issues/372)) ([c49ada0](https://github.com/jimmy-guzman/notras/commit/c49ada0425157ff164b074d1566c61cd13e12c01))
+
 ## [0.10.7](https://github.com/jimmy-guzman/notras/compare/v0.10.6...v0.10.7) (2026-10-15)
 
 
