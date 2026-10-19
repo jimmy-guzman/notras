@@ -38,7 +38,7 @@ export function TableNodeView({ editor }: ReactNodeViewProps) {
   }, [editor]);
 
   return (
-    <NodeViewWrapper className="table-box">
+    <NodeViewWrapper>
       <ScrollAreaPrimitive.Root>
         {/* Base UI puts a viewport that overflows in the tab order, which would
             make a wide table a tab stop between the bars and the note. */}

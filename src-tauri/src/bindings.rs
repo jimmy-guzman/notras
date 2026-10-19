@@ -69,6 +69,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::write_external::<tauri::Wry>,
             notes::save_note::<tauri::Wry>,
             pdf::export_pdf::<tauri::Wry>,
+            pdf::pdf_layout_width,
             windows::show_capture::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![

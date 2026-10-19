@@ -1307,6 +1307,8 @@ The group is pinned to the window rather than drawn in whichever bar sits beside
 
 A table lays its columns out at their content width, caps a cell's paragraph at `40ch`, and grows past the reading column on both sides when it needs the room, centred on the column as far as a wide tier of `54rem`, or the pane when that is narrower. The tier is the nearest rem to Typora's writing area, 860px with its padding in the GitHub theme: a table at that width still read as part of the page, where 64rem read as a table beside the column. A table that fits the column sits on it, and one wider than the tier scrolls. Before this, a table was bounded by the 624px column and auto layout shrank every column toward a 6ch floor before the box scrolled, so a twelve-column table of short values read as twelve ragged columns of wrapped words, and the window the app is written for is barely wider than the column.
 
+**Superseded in part by `D100`,** which keeps a wide table to the column. The content-width columns, one-line rows and the `40ch` cap stand.
+
 **Rejected: keeping the column as the bound and wrapping tighter,** Obsidian's shape with its 6ch floor. The crush is what made a wide table unreadable, and no floor fixes it in a 700px window.
 
 **Rejected: `white-space: nowrap` on every cell.** A sentence in a cell then never wraps and a prose table scrolls for its whole width. The cap on the paragraph keeps a value on one line and lets a sentence wrap.
@@ -1320,3 +1322,11 @@ A table lays its columns out at their content width, caps a cell's paragraph at 
 **Rejected: a sticky first column while scrolling.** It needs an opaque background painted into a table drawn with no box, and a selected or caret cell under it reads oddly. One-line rows let the eye follow a row across the scroll.
 
 **Constraint:** a prose-heavy table that fit by wrapping tight now scrolls a little instead. The `40ch` cap is provisional until prose tables have been read on screen at it.
+
+### D100 A wide table keeps to the column and scrolls
+
+A table stays inside the reading column and scrolls sideways when it is wider, as it did before `D99`. The rest of `D99` holds: columns at their content width, one line per row, and a cell's paragraph capped at `40ch`. Those are what made a wide table readable. In the 700px window the app is written for, `min(100cqi, 54rem) - 3rem` is the pane less its gutters, a few pixels past the column, so the tier changed little there, and the owner read wide tables as readable at the column once rows held one line.
+
+**Rejected: keeping the tier for tables alone.** It held one block kind to a second width that only a wide window shows, and it carried a container query on the editor, two print resets and an export measurement that a table wider than the column needed.
+
+**Rejected: the tier for diagrams and code blocks,** tried on a branch for #380 and closed. Code wraps, so a wider card only lengthened its lines, and a drawing gained nothing in a 700px window that the viewer does not already give it.

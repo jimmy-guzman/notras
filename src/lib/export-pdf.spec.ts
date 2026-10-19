@@ -16,6 +16,7 @@ function surfaceOf(html: string) {
 describe("export pdf", () => {
   afterEach(() => {
     clearMocks();
+    vi.restoreAllMocks();
     document.body.replaceChildren();
   });
 
@@ -53,6 +54,10 @@ describe("export pdf", () => {
     mockIPC((command, args) => {
       if (command === "plugin:dialog|save") {
         return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
       }
 
       expect(command).toBe("export_pdf");
@@ -95,6 +100,10 @@ describe("export pdf", () => {
         return "/exports/hello.pdf";
       }
 
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
       zoom = document.querySelector<HTMLElement>(".print-sheet .tableWrapper")
         ?.style.zoom;
 
@@ -105,17 +114,18 @@ describe("export pdf", () => {
       '<div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div>'
     );
 
-    const wrapper = surface.querySelector(".tableWrapper");
-    const table = surface.querySelector("table");
-
-    if (wrapper === null || table === null) {
-      throw new Error("the surface lost its table");
-    }
-
-    surface.style.padding = "0 24px";
-    Object.defineProperty(surface, "clientWidth", { value: 648 });
-    Object.defineProperty(wrapper, "clientWidth", { value: 900 });
-    table.getBoundingClientRect = () => new DOMRect(0, 0, 1200, 40);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+      function width(this: HTMLElement) {
+        return this.matches(".print-sheet .tableWrapper") ? 600 : 900;
+      }
+    );
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function rect(this: Element) {
+        return this.matches("table")
+          ? new DOMRect(0, 0, 1200, 40)
+          : new DOMRect();
+      }
+    );
 
     await expect(
       exportPdf(surface, "hello", "hello", async () => {})
@@ -132,6 +142,10 @@ describe("export pdf", () => {
         return "/exports/hello.pdf";
       }
 
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
       zoom = document.querySelector<HTMLElement>(".print-sheet .tableWrapper")
         ?.style.zoom;
 
@@ -142,23 +156,176 @@ describe("export pdf", () => {
       '<ul><li><p>item</p><div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div></li></ul>'
     );
 
-    const wrapper = surface.querySelector(".tableWrapper");
-    const table = surface.querySelector("table");
-
-    if (wrapper === null || table === null) {
-      throw new Error("the surface lost its table");
-    }
-
-    surface.style.padding = "0 24px";
-    Object.defineProperty(surface, "clientWidth", { value: 648 });
-    Object.defineProperty(wrapper, "clientWidth", { value: 500 });
-    table.getBoundingClientRect = () => new DOMRect(0, 0, 800, 40);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+      function width(this: HTMLElement) {
+        return this.matches(".print-sheet li .tableWrapper") ? 500 : 900;
+      }
+    );
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function rect(this: Element) {
+        return this.matches("table")
+          ? new DOMRect(0, 0, 800, 40)
+          : new DOMRect();
+      }
+    );
 
     await expect(
       exportPdf(surface, "hello", "hello", async () => {})
     ).resolves.toBe("/exports/hello.pdf");
 
     expect(zoom).toBe("0.625");
+  });
+
+  it("should keep a heading with a diagram holding the caret at its folded height", async () => {
+    let keep: string | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
+      keep = document
+        .querySelector<HTMLElement>(".print-sheet h2")
+        ?.style.getPropertyValue("--keep-with-next");
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<h2>flow</h2><div class="code-block-wrapper code-block-editing"><div class="code-block-diagram"><svg></svg></div><pre>graph</pre></div>'
+    );
+
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function rect(this: Element) {
+        if (this.matches("h2")) {
+          return new DOMRect(0, 0, 600, 40);
+        }
+
+        // The open code adds 300px under the drawing.
+        return this.matches(".code-block-editing")
+          ? new DOMRect(0, 40, 600, 600)
+          : new DOMRect(0, 40, 600, 300);
+      }
+    );
+
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).resolves.toBe("/exports/hello.pdf");
+
+    expect(keep).toBe("300px");
+  });
+
+  it("should keep a heading with a wide table at its shrunk height", async () => {
+    let keep: string | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
+      keep = document
+        .querySelector<HTMLElement>(".print-sheet h2")
+        ?.style.getPropertyValue("--keep-with-next");
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<h2>figures</h2><div class="tableWrapper"><div><table><tbody><tr><td>wide</td></tr></tbody></table></div></div>'
+    );
+
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(600);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function rect(this: Element) {
+        if (this.matches("h2")) {
+          return new DOMRect(0, 0, 600, 40);
+        }
+
+        if (this.matches("table")) {
+          return new DOMRect(0, 40, 1200, 400);
+        }
+
+        const zoom =
+          this instanceof HTMLElement && this.style.zoom !== ""
+            ? Number(this.style.zoom)
+            : 1;
+
+        return new DOMRect(0, 40, 600, 400 * zoom);
+      }
+    );
+
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).resolves.toBe("/exports/hello.pdf");
+
+    expect(keep).toBe("200px");
+  });
+
+  it("should lay the copy out at the width the paper lays a note out", async () => {
+    let width: string | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 463.37;
+      }
+
+      width = document
+        .querySelector<HTMLElement>(".print-sheet")
+        ?.style.getPropertyValue("--print-width");
+
+      return null;
+    });
+
+    const surface = surfaceOf("<p>hello</p>");
+
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {})
+    ).resolves.toBe("/exports/hello.pdf");
+
+    expect(width).toBe("463.37px");
+  });
+
+  it("should print what the last paint drew when the note changes while the paper width is read", async () => {
+    let printed: string | null | undefined;
+    const surface = surfaceOf("<pre>const</pre>");
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        surface.innerHTML = "<pre>let</pre>";
+
+        return 672;
+      }
+
+      printed = document.querySelector(
+        ".print-sheet .syntax-token"
+      )?.textContent;
+
+      return null;
+    });
+
+    await expect(
+      exportPdf(surface, "hello", "hello", async () => {
+        surface.innerHTML = `<pre><span class="syntax-token">${surface.textContent}</span></pre>`;
+      })
+    ).resolves.toBe("/exports/hello.pdf");
+
+    expect(printed).toBe("let");
   });
 
   it("should copy the surface once it is painted after the dialog closes", async () => {
@@ -172,6 +339,10 @@ describe("export pdf", () => {
         order.push("dialog");
 
         return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
       }
 
       printed = document.querySelector(
@@ -206,6 +377,10 @@ describe("export pdf", () => {
     mockIPC(async (command) => {
       if (command === "plugin:dialog|save") {
         return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
       }
 
       return await refused();

@@ -26,6 +26,41 @@ mod native {
     const COLUMN: f64 = 504.0;
     /// Half an inch, for a paper too narrow to hold the column.
     const MIN_INLINE_MARGIN: f64 = 36.0;
+    /// WebKit lays a printed page out at 1.25 CSS pixels per point of
+    /// printable width, its minimum shrink, where CSS has 4/3. At that rate
+    /// the column would lay out at 630px and print 16px text at 12.8pt, so
+    /// the printable width is widened by 4/3 over 1.25 for the page to lay
+    /// out at the surface's 672px, and the job is scaled back by the inverse.
+    const PRINT_SCALE: f64 = 0.9375;
+
+    /// CSS has 96 pixels to the inch, and an inch is 72 points.
+    const POINTS_PER_PIXEL: f64 = 0.75;
+
+    /// The column a paper `width` points wide prints: the surface's, or what
+    /// a paper too narrow for it holds between half-inch margins.
+    fn printed_column(width: f64) -> f64 {
+        (width - 2.0 * MIN_INLINE_MARGIN).min(COLUMN)
+    }
+
+    /// The left and right margins for a paper `width` points wide. AppKit
+    /// scales a job from its left margin, so the widened printable width all
+    /// comes out of the right one, and the scaled column lands centred.
+    fn inline_margins(width: f64) -> (f64, f64) {
+        let column = printed_column(width);
+        let left = (width - column) / 2.0;
+
+        (left, width - left - column / PRINT_SCALE)
+    }
+
+    /// How wide in CSS pixels a paper `width` points wide lays a note out.
+    fn layout_width_for(width: f64) -> f64 {
+        printed_column(width) / POINTS_PER_PIXEL
+    }
+
+    /// How wide in CSS pixels the default paper lays a note out.
+    pub(super) fn layout_width() -> f64 {
+        layout_width_for(NSPrintInfo::sharedPrintInfo().paperSize().width)
+    }
 
     define_class!(
         // SAFETY: NSObject has no subclassing requirements and `PrintDone`
@@ -87,11 +122,12 @@ mod native {
                 &NSURL::fileURLWithPath(&NSString::from_str(path)),
             );
         }
-        let inline_margin = ((info.paperSize().width - COLUMN) / 2.0).max(MIN_INLINE_MARGIN);
+        let (left, right) = inline_margins(info.paperSize().width);
         info.setTopMargin(BLOCK_MARGIN);
         info.setBottomMargin(BLOCK_MARGIN);
-        info.setLeftMargin(inline_margin);
-        info.setRightMargin(inline_margin);
+        info.setLeftMargin(left);
+        info.setRightMargin(right);
+        info.setScalingFactor(PRINT_SCALE);
 
         // SAFETY: the print info is fully initialized and stays retained for
         // the operation's lifetime.
@@ -118,6 +154,57 @@ mod native {
             );
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn should_print_the_column_at_its_width_on_letter_and_a4() {
+            for width in [612.0, 595.28] {
+                let (left, right) = inline_margins(width);
+
+                assert!(((width - left - right) * PRINT_SCALE - COLUMN).abs() < 1e-9);
+            }
+        }
+
+        #[test]
+        fn should_centre_the_scaled_column_on_letter_a4_and_a5() {
+            for width in [612.0, 595.28, 419.53] {
+                let (left, right) = inline_margins(width);
+                let printed = (width - left - right) * PRINT_SCALE;
+
+                assert!((left + printed + left - width).abs() < 1e-9);
+            }
+        }
+
+        #[test]
+        fn should_answer_the_width_each_paper_lays_out_at() {
+            for (width, pixels) in [(612.0, 672.0), (595.28, 672.0), (419.53, 463.373_333)] {
+                let (left, right) = inline_margins(width);
+
+                // WebKit's 1.25 CSS pixels per point of printable width.
+                assert!(((width - left - right) * 1.25 - pixels).abs() < 1e-3);
+                assert!((layout_width_for(width) - pixels).abs() < 1e-3);
+            }
+        }
+    }
+}
+
+/// How wide in CSS pixels the default paper lays a printed note out, the
+/// width the copy that prints is measured at: the surface's 672px, or less
+/// on a paper narrower than 8in.
+#[tauri::command]
+#[specta::specta]
+pub fn pdf_layout_width() -> Result<f64, CommandError> {
+    #[cfg(target_os = "macos")]
+    {
+        Ok(native::layout_width())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("PDF export is only available on macOS".into())
     }
 }
 

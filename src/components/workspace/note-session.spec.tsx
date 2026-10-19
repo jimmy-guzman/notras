@@ -1350,6 +1350,10 @@ describe(NoteSession, () => {
           return "/exports/a.pdf";
         }
 
+        if (command === "pdf_layout_width") {
+          return 672;
+        }
+
         printed = document.querySelector(".print-sheet")?.textContent ?? "";
 
         return null;
@@ -1362,12 +1366,13 @@ describe(NoteSession, () => {
 
     expect(commands.map(([command]) => command)).toStrictEqual([
       "plugin:dialog|save",
+      "pdf_layout_width",
       "export_pdf",
     ]);
     expect(commands[0]?.[1]).toMatchObject({
       options: { defaultPath: "a.pdf" },
     });
-    expect(commands[1]?.[1]).toStrictEqual({
+    expect(commands[2]?.[1]).toStrictEqual({
       path: "/exports/a.pdf",
       title: "Errands",
     });
@@ -1392,6 +1397,10 @@ describe(NoteSession, () => {
       withDisk((command) => {
         if (command === "plugin:dialog|save") {
           return "/exports/a.pdf";
+        }
+
+        if (command === "pdf_layout_width") {
+          return 672;
         }
 
         printed = document.querySelector(
@@ -1425,6 +1434,10 @@ describe(NoteSession, () => {
       withDisk((command) => {
         if (command === "plugin:dialog|save") {
           return "/exports/a.pdf";
+        }
+
+        if (command === "pdf_layout_width") {
+          return 672;
         }
 
         printed = document.querySelector(".print-sheet pre")?.textContent;
