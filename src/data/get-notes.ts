@@ -12,7 +12,6 @@ export async function getNotes(filters: NoteFilters = {}) {
         limit: filters.limit ?? null,
         pinnedOnly: filters.pinnedOnly ?? null,
         query: filters.query ?? null,
-        sort: filters.sort ?? null,
         tag: filters.tag ?? null,
       })
   );

@@ -60,15 +60,7 @@ pub struct NoteFilters {
     pub limit: Option<u32>,
     pub pinned_only: Option<bool>,
     pub query: Option<String>,
-    pub sort: Option<NoteSort>,
     pub tag: Option<String>,
-}
-
-#[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[derive(Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum NoteSort {
-    Updated,
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -159,8 +151,6 @@ fn select_notes(
     let order = if matched.is_some() {
         "lower(note.title) = lower(:text) DESC, bm25(note_fts, 0, 1, 0) < 0 DESC, note.pinned DESC,
          bm25(note_fts), note.updated_at DESC, note.path"
-    } else if filters.sort.is_some() {
-        "note.updated_at DESC"
     } else {
         "note.pinned DESC, note.updated_at DESC"
     };
@@ -638,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn should_list_saved_metadata_with_exact_filters_and_requested_order() {
+    fn should_list_saved_metadata_with_exact_filters_and_pins_first() {
         let (_directory, core) = library();
         save(
             &core,
@@ -665,16 +655,6 @@ mod tests {
             ["work/pin2.md", "work/pinned.md", "work/new.md"]
         );
         assert_eq!(notes[1].tags, ["z", "a"]);
-        let recent = core
-            .read_view()
-            .unwrap()
-            .list_notes(&NoteFilters {
-                sort: Some(NoteSort::Updated),
-                limit: Some(1),
-                ..Default::default()
-            })
-            .unwrap();
-        assert_eq!(recent[0].path, "work/deep/other.md");
         let tagged = core
             .read_view()
             .unwrap()

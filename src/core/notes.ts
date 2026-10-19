@@ -21,8 +21,6 @@ export interface NoteFilters {
   limit?: number;
   pinnedOnly?: boolean;
   query?: string;
-  /** Default ordering is pinned-first; "updated" is strict recency. */
-  sort?: "updated";
   tag?: string;
 }
 

@@ -621,6 +621,50 @@ describe("note browser", () => {
     ).toHaveFocus();
   });
 
+  it("should list pinned notes first in recent", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: true,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 2,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "two.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Two",
+        updatedAt: 1,
+      },
+    ]);
+
+    await screen.findByRole("heading", { name: "Opened" });
+    rememberNote("/notes", "one.md");
+    rememberNote("/notes", "two.md");
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await user.click(
+      browser.getByRole("button", { name: "choose collection: all notes" })
+    );
+    await user.click(browser.getByRole("button", { name: "recent 2" }));
+    const list = within(browser.getByRole("list", { name: "notes in recent" }));
+    await waitFor(() => {
+      expect(list.getAllByRole("button")).toHaveLength(2);
+    });
+    expect(list.getAllByRole("button")[0]).toHaveTextContent("One");
+  });
+
   it("should retain an empty result while another search is pending and replace it with completed results", async () => {
     const pending = Promise.withResolvers<NoteMeta[]>();
     const requested: string[] = [];

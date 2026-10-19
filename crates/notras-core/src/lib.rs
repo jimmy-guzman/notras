@@ -28,8 +28,8 @@ pub use application::{
 };
 pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
 pub use queries::{
-    CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch, NoteSort, Picture,
-    ReadView, SearchFilter,
+    CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch, Picture, ReadView,
+    SearchFilter,
 };
 pub use relationships::{Graph, Hub, HubPill, Mention, MentionLine, RingMember};
 pub use scan::Scan;

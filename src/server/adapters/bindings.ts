@@ -167,7 +167,6 @@ export type NoteFilters = {
 	limit: number | null,
 	pinnedOnly: boolean | null,
 	query: string | null,
-	sort: NoteSort | null,
 	tag: string | null,
 };
 
@@ -190,8 +189,6 @@ export type NoteSearch = {
 	incomplete: boolean,
 	query: string,
 };
-
-export type NoteSort = "updated";
 
 /**  Relative paths whose saved content or index rows changed; empty means the library. */
 export type NotesChanged = {
