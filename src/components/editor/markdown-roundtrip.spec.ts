@@ -140,6 +140,7 @@ describe("markdown round-trip", () => {
     ["horizontal rule", "---"],
     ["hard break", "one  \ntwo"],
     ["wikilink", "see [[grocery list]] for details"],
+    ["embed", "see ![[grocery list]] for details"],
     ["literal tilde", "takes approx ~5 minutes"],
     ["literal underscore", "the snake_case name"],
     ["literal asterisk", "2 * 3 = 6"],
@@ -971,6 +972,17 @@ describe("markdown the user did not touch", () => {
     const reopened = load(serializeMarkdown(editor));
 
     expect(reopened.getHTML()).toContain("<p>text[r]</p>");
+    editor.destroy();
+    reopened.destroy();
+  });
+
+  it("should escape a typed bang that would turn a link into an image", () => {
+    const editor = open("see [a](https://a.b)");
+
+    editor.commands.insertContentAt(5, "!");
+    const reopened = load(serializeMarkdown(editor));
+
+    expect(reopened.getHTML()).toContain('<p>see !<a href="https://a.b"');
     editor.destroy();
     reopened.destroy();
   });

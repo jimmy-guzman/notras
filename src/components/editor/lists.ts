@@ -153,7 +153,7 @@ function withWrappedLines(
 
 /**
  * TODO: drop the parser once `@tiptap/extension-list` leads an item with a
- * paragraph. Through 3.31.4 an item can open with a table, fence, quote or
+ * paragraph. Through 3.32.0 an item can open with a table, fence, quote or
  * list, which the schema rejects.
  */
 export const NoteListItem = ListItem.extend({

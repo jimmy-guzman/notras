@@ -106,7 +106,7 @@ const NoteStrike = Strike.extend({
  * paragraph to upstream (`D58`).
  *
  * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
- * 3.31.4 its `parseMarkdown` returns the bare image for a paragraph holding
+ * 3.32.0 its `parseMarkdown` returns the bare image for a paragraph holding
  * only one, which suits the block image TipTap ships.
  */
 const NoteParagraph = Paragraph.extend({
@@ -426,7 +426,7 @@ function mapProse(markdown: string, transform: (text: string) => string) {
 }
 
 /** What upstream escapes in a text node, minus the backslash. */
-const TEXT_ESCAPE = new Set(["`", "*", "_", "[", "]", "~"]);
+const TEXT_ESCAPE = new Set(["!", "`", "*", "_", "[", "]", "~"]);
 
 /**
  * A `\\` pair is left alone, which keeps `escapeMarkdownTitle`'s output and an
@@ -1121,7 +1121,8 @@ function keepRereadSources(before: Node, after: Node) {
 
 /**
  * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` and
- * encodes `& < >` in every text node with no regard for context. Re-parsing
+ * encodes `& < >` in every text node, and escapes a `!` before any `[`, with
+ * no regard for context. Re-parsing
  * the stripped text leaves marked the authority on which escape was
  * load-bearing, per top-level block: a construct that needs its backslash
  * keeps every other backslash in its block, and an entity likewise.
@@ -1221,7 +1222,7 @@ export function serializeMarkdown(editor: Editor) {
  * calls methods a `Marked` instance has too.
  *
  * TODO: drop the widened type once `@tiptap/markdown` accepts a `Marked`
- * instance (through 3.31.4 it does not).
+ * instance (through 3.32.0 it does not).
  */
 const NoteMarkdown = Markdown.extend<
   Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }
