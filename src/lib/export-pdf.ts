@@ -3,32 +3,16 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { commands } from "@/server/adapters/bindings";
 
 /**
- * Paper has no scroll, so a table wider than its room shrinks to fit it. The
- * room is the column, the surface's content width on screen, which `pdf.rs`
- * gives the page whatever its size, or the table's own wrapper when that is
- * narrower, as it is under a list item. A table can be wider than the column,
- * so no block stands in for it.
+ * Paper has no scroll, so a table wider than its wrapper on the sheet shrinks
+ * to fit it: the column, or its item under a list item.
  */
-function fitTables(surface: HTMLElement, sheet: HTMLElement) {
-  const { paddingLeft: left, paddingRight: right } = getComputedStyle(surface);
-
-  // oxlint-disable-next-line unicorn/prefer-number-coercion -- a computed length carries its unit, which Number() reads as NaN
-  const inset = Number.parseFloat(left) + Number.parseFloat(right);
-
-  const column = surface.clientWidth - inset;
-  const live = surface.querySelectorAll<HTMLElement>(".tableWrapper");
-  const copies = sheet.querySelectorAll<HTMLElement>(".tableWrapper");
-
-  for (const [index, copy] of copies.entries()) {
-    const wrapper = live[index];
-
+function fitTables(sheet: HTMLElement) {
+  for (const wrapper of sheet.querySelectorAll<HTMLElement>(".tableWrapper")) {
     const width =
-      wrapper?.querySelector("table")?.getBoundingClientRect().width ?? 0;
+      wrapper.querySelector("table")?.getBoundingClientRect().width ?? 0;
 
-    const room = Math.min(column, wrapper?.clientWidth ?? column);
-
-    if (width > room) {
-      copy.style.zoom = String(room / width);
+    if (width > wrapper.clientWidth) {
+      wrapper.style.zoom = String(wrapper.clientWidth / width);
     }
   }
 }
@@ -48,20 +32,16 @@ const STATE_CLASSES = [
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
 
 /**
- * WebKit's print layout ignores `break-after: avoid`, so each heading's copy
- * learns how far the block after it reaches and the stylesheet stretches the
- * heading's unsplittable box that far. A list can split, so a heading carries
- * its first item only.
+ * WebKit's print layout ignores `break-after: avoid`, so each heading on the
+ * sheet learns how far the block after it reaches and the stylesheet stretches
+ * the heading's unsplittable box that far. A list can split, so a heading
+ * carries its first item only.
  */
-function keepHeadings(surface: HTMLElement, sheet: HTMLElement) {
-  const live = surface.querySelectorAll(HEADINGS);
-  const copies = sheet.querySelectorAll<HTMLElement>(HEADINGS);
+function keepHeadings(sheet: HTMLElement) {
+  for (const heading of sheet.querySelectorAll<HTMLElement>(HEADINGS)) {
+    const next = heading.nextElementSibling;
 
-  for (const [index, copy] of copies.entries()) {
-    const heading = live[index];
-    const next = heading?.nextElementSibling;
-
-    if (heading === undefined || next === null || next === undefined) {
+    if (next === null) {
       continue;
     }
 
@@ -73,7 +53,7 @@ function keepHeadings(surface: HTMLElement, sheet: HTMLElement) {
       carried.getBoundingClientRect().bottom -
       heading.getBoundingClientRect().bottom;
 
-    copy.style.setProperty("--keep-with-next", `${reach}px`);
+    heading.style.setProperty("--keep-with-next", `${reach}px`);
   }
 }
 
@@ -100,27 +80,37 @@ export async function exportPdf(
     return null;
   }
 
+  const width = await commands.pdfLayoutWidth();
+
+  if (width === null) {
+    throw new Error("The paper's width could not be read");
+  }
+
+  // Nothing is awaited between the paint and the copy, or a highlight started
+  // in the gap would print half applied.
   await painted();
   const sheet = document.createElement("div");
 
   sheet.className = "print-sheet";
+  sheet.style.setProperty("--print-width", `${width}px`);
   sheet.append(surface.cloneNode(true));
 
   for (const element of sheet.querySelectorAll("*")) {
     element.classList.remove(...STATE_CLASSES);
   }
 
-  fitTables(surface, sheet);
-  keepHeadings(surface, sheet);
   document.body.append(sheet);
 
   try {
     // A broken image rejects and prints as the broken image the editor shows.
+    // An image takes its height once decoded, so measuring waits for it.
     await Promise.allSettled(
       [...sheet.querySelectorAll("img")].map(async (image) => {
         await image.decode();
       })
     );
+    fitTables(sheet);
+    keepHeadings(sheet);
     await commands.exportPdf(path, title);
   } finally {
     sheet.remove();

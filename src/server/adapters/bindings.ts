@@ -52,6 +52,12 @@ export const commands = {
 	saveNote: (path: string, content: string, name: { kind: "content" } | { kind: "filename"; value: string } | null, expected: string) => __TAURI_INVOKE<SaveOutcome>("save_note", { path, content, name, expected }),
 	/**  Write the webview's current document to `path` as a paginated PDF. */
 	exportPdf: (path: string, title: string) => __TAURI_INVOKE<null>("export_pdf", { path, title }),
+	/**
+	 *  How wide in CSS pixels the default paper lays a printed note out, the
+	 *  width the copy that prints is measured at: the surface's 672px, or less
+	 *  on a paper narrower than 8in.
+	 */
+	pdfLayoutWidth: () => __TAURI_INVOKE<number | null>("pdf_layout_width"),
 	/**  Open quick capture, or focus its existing window. */
 	showCapture: () => __TAURI_INVOKE<void>("show_capture"),
 };

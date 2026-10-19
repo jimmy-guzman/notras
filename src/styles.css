@@ -64,15 +64,6 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* The tier between the reading column and the pane: how far a block whose
-   width is its own, a table for now, may grow past the column before it
-   scrolls. 54rem is the nearest rem to Typora's writing area, 860px with its
-   padding, which read as one page where 64rem read as a table beside the
-   column. Outside the inline theme so the width is a variable at runtime. */
-@theme {
-  --container-wide: 54rem;
-}
-
 /* Violet marks the active row; pink remains reserved for actions. The fence
    on paper takes this palette too: paper forces light prose, not a light card. */
 :root,
@@ -485,25 +476,6 @@ body.dragging .ProseMirror .selected-text,
 .ProseMirror .tableWrapper {
   margin-block-start: var(--typeset-flow);
   overflow-x: clip;
-}
-/* A wide table takes room on both sides of the column, as far as the wide
-   tier or the pane, whichever is narrower; at the whole pane a table read as
-   a page of its own beside the column. `3rem` is the column's two gutters and
-   `cqi` is the pane, which `EditorContent`'s container supplies. The box
-   inside the wrapper is the one that scrolls, since the one that stops
-   growing is the one that can. A table under a list item is not top-level and
-   keeps to its item. */
-.ProseMirror > .tableWrapper {
-  --wide-box: calc(min(100cqi, var(--container-wide)) - 3rem);
-
-  width: var(--wide-box);
-  margin-inline-start: calc(50% - var(--wide-box) / 2);
-}
-.ProseMirror > .tableWrapper > .table-box {
-  width: max-content;
-  min-width: calc(min(100cqi, var(--container-2xl)) - 3rem);
-  max-width: 100%;
-  margin-inline: auto;
 }
 /* A column is as wide as its widest cell and a row is one line, the layout
    Typeset's `.typeset-scroll` takes. Auto layout shrank every column toward
@@ -999,9 +971,32 @@ body.dragging .ProseMirror .selected-text,
    page, and `print-color-adjust` keeps the surfaces WebKit drops from print by
    default: the code card, the inline chip and the checked task box. The
    surface keeps its side padding, which is where a task box overhangs the
-   column; `pdf.rs` sizes the page's side margins around the surface's width. */
+   column; `pdf.rs` sizes the page's side margins around the surface's width.
+   On screen the copy lays out unseen at the width the default paper lays it
+   out, which `export-pdf.ts` asks `pdf.rs` for, so it measures the note as
+   paper will hold it: the rules below that change a block's size apply on
+   screen too, and only colour and page breaks wait for print. */
 .print-sheet {
-  display: none;
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: var(--print-width);
+  pointer-events: none;
+  visibility: hidden;
+}
+.print-sheet .ProseMirror {
+  padding-block: 0;
+}
+/* Paper has no scroll: long code wraps, and `export-pdf.ts` zooms a wide
+   table down to its room. */
+.print-sheet .ProseMirror pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+/* The viewport's own box would keep a tall table on one page; without it the
+   rows break like any other block. */
+.print-sheet .table-viewport {
+  display: contents;
 }
 @media print {
   html,
@@ -1013,11 +1008,10 @@ body.dragging .ProseMirror .selected-text,
     display: none;
   }
   .print-sheet {
-    display: block;
+    position: static;
+    width: auto;
     print-color-adjust: exact;
-  }
-  .print-sheet .ProseMirror {
-    padding-block: 0;
+    visibility: visible;
   }
   /* Typeset keeps a fence, a table and a quote whole. WebKit's print layout
      ignores `orphans`, `widows` and `break-after: avoid`, so a paragraph stays
@@ -1037,12 +1031,6 @@ body.dragging .ProseMirror .selected-text,
     margin-block-end: calc(-1 * var(--keep-with-next, 0px));
     content: "";
   }
-  /* Paper has no scroll: long code wraps, and `export-pdf.ts` zooms a wide
-     table down to the column. */
-  .print-sheet .ProseMirror pre {
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-  }
   /* The fence keeps the dark card, so `.typeset`'s ink is restated on it. The
      chip stays with the prose, on `--muted` since `--card` is a shade off
      white paper. A note link's underline promises what paper cannot open. */
@@ -1054,21 +1042,6 @@ body.dragging .ProseMirror .selected-text,
   }
   .print-sheet :is(a[data-note], .wikilink) {
     text-decoration-line: none;
-  }
-  /* The viewport's own box would keep a tall table on one page; without it the
-     rows break like any other block. Paper has no pane for a wide table to
-     take, so the wrapper keeps to the column and `export-pdf.ts` zooms the
-     table down to it. */
-  .print-sheet .table-viewport {
-    display: contents;
-  }
-  .print-sheet .ProseMirror > .tableWrapper {
-    width: auto;
-    margin-inline-start: 0;
-  }
-  .print-sheet .ProseMirror > .tableWrapper > .table-box {
-    width: auto;
-    min-width: 0;
   }
 }
 

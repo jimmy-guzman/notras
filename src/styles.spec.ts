@@ -612,14 +612,6 @@ const TABLE_LAYOUT = /\.tableWrapper table \{\s*width:\s*(?<value>[\w-]+);/u;
 
 const CELL_CAP = /:is\(th, td\) > p \{\s*max-width:\s*(?<value>\d+ch)/u;
 
-const WIDE_TIER = /--container-wide:\s*(?<value>\d+rem)/u;
-
-const WIDE_TABLE_REACH =
-  /\.ProseMirror > \.tableWrapper \{\s*--wide-box:\s*(?<value>calc\(.*?\) - 3rem\));/u;
-
-const TABLE_BOX_FLOOR =
-  /> \.table-box \{[^}]*?min-width:\s*(?<value>calc\([^;]*\))/u;
-
 describe("wide tables", () => {
   it("should lay a table out at its content width", () => {
     expect(firstMatch(TABLE_LAYOUT, source, "the table's layout width")).toBe(
@@ -629,19 +621,6 @@ describe("wide tables", () => {
 
   it("should wrap a cell's text past about 40 characters", () => {
     expect(firstMatch(CELL_CAP, source, "the cell paragraph cap")).toBe("40ch");
-  });
-
-  it("should stop a top-level table at the wide tier or the pane", () => {
-    expect(firstMatch(WIDE_TIER, source, "the wide tier")).toBe("54rem");
-    expect(firstMatch(WIDE_TABLE_REACH, source, "the wide table's reach")).toBe(
-      "calc(min(100cqi, var(--container-wide)) - 3rem)"
-    );
-  });
-
-  it("should keep a table that fits the column on the column", () => {
-    expect(firstMatch(TABLE_BOX_FLOOR, source, "the table box's floor")).toBe(
-      "calc(min(100cqi, var(--container-2xl)) - 3rem)"
-    );
   });
 });
 
