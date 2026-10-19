@@ -158,7 +158,6 @@ describe("palette search states", () => {
         limit: null,
         pinnedOnly: null,
         query: null,
-        sort: null,
         tag: null,
       },
     });

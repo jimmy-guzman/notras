@@ -126,9 +126,9 @@ function collectionNotes(
   });
 
   return collection.kind === "recent" && query.trim() === ""
-    ? filtered.toSorted(
-        (a, b) => history.indexOf(a.path) - history.indexOf(b.path)
-      )
+    ? filtered
+        .toSorted((a, b) => history.indexOf(a.path) - history.indexOf(b.path))
+        .toSorted((a, b) => Number(b.pinned) - Number(a.pinned))
     : filtered;
 }
 
@@ -427,7 +427,6 @@ function Browser({ notesDir }: { notesDir: string }) {
     ...noteQueries.list({
       includePreview: true,
       query: debounced,
-      sort: "updated",
     }),
     enabled: open,
     placeholderData: keepPreviousData,
