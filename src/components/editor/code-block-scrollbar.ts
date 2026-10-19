@@ -17,7 +17,7 @@ const SCROLL_END = 100;
 // module evaluates and each block takes a clone of it. This root sits outside
 // main.tsx's tree, so it needs its own CSPProvider: React hoists Base UI's
 // native-scrollbar-hiding style by href, and the first copy mounted keeps the
-// shared node, nonce or not (D76).
+// shared node, nonce or not.
 const rendered = document.createElement("div");
 
 createRoot(rendered).render(
