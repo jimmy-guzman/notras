@@ -394,4 +394,70 @@ describe("export pdf", () => {
     });
     expect(document.querySelector(".print-sheet")).toBeNull();
   });
+
+  it("should print the reason for an image that fails after the copy is made", async () => {
+    let printed: { failed: boolean; text: string | undefined } | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
+      const wrapper = document.querySelector<HTMLElement>(
+        ".print-sheet [data-image]"
+      );
+
+      printed = {
+        failed: wrapper?.dataset.failed !== undefined,
+        text: wrapper?.textContent,
+      };
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<p><span data-image><img src="gone.png" alt=""><span class="image-failure"><span></span></span></span></p>'
+    );
+
+    const wrapper = surface.querySelector<HTMLElement>("[data-image]");
+    const source = surface.querySelector("img");
+
+    // What the node view does when the editor's load fails.
+    source?.addEventListener("error", () => {
+      if (wrapper !== null) {
+        wrapper.dataset.failed = "";
+      }
+
+      const reason = surface.querySelector(".image-failure > span");
+
+      if (reason !== null) {
+        reason.textContent = "No image is at gone.png";
+      }
+    });
+    // happy-dom loads no image, so the editor's load is held in flight here,
+    // and the copy's decode rejects the way WebKit's does for one that fails.
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(
+      false
+    );
+    vi.spyOn(HTMLImageElement.prototype, "decode").mockImplementation(
+      async () => {
+        setTimeout(() => {
+          source?.dispatchEvent(new Event("error"));
+        }, 0);
+
+        throw new DOMException("The image cannot be decoded", "EncodingError");
+      }
+    );
+
+    await exportPdf(surface, "hello", "hello", async () => {});
+
+    expect(printed).toStrictEqual({
+      failed: true,
+      text: "No image is at gone.png",
+    });
+  });
 });
