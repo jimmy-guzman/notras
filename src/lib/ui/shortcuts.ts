@@ -6,7 +6,7 @@ import {
   useHotkeyRegistrations,
 } from "@tanstack/react-hotkeys";
 import type {
-  Hotkey,
+  HotkeyChord,
   HotkeyCallback,
   HotkeyRegistrationHandle,
 } from "@tanstack/react-hotkeys";
@@ -19,7 +19,7 @@ interface ShortcutOptions {
 
 interface ShortcutDefinition {
   callback: HotkeyCallback;
-  hotkey: Hotkey;
+  hotkey: HotkeyChord;
   options?: ShortcutOptions;
 }
 
@@ -104,7 +104,7 @@ export function useHotkeys(
 
 /** Register one window shortcut with the current committed callback and options. */
 export function useHotkey(
-  hotkey: Hotkey,
+  hotkey: HotkeyChord,
   callback: HotkeyCallback,
   options?: ShortcutOptions
 ): void {
@@ -135,7 +135,10 @@ export function chordGlyph(hotkey: string) {
  * register shortcuts without updating themselves during render.
  */
 export function useChordsByName() {
-  const { hotkeys } = useHotkeyRegistrations();
-
-  return Map.groupBy(hotkeys, ({ options }) => options.meta?.name);
+  return Map.groupBy(
+    useHotkeyRegistrations().filter(
+      (registration) => registration.kind === "chord"
+    ),
+    ({ options }) => options.meta?.name
+  );
 }
