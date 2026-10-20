@@ -21,7 +21,14 @@ import {
 } from "@dnd-kit/sortable";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ChevronDownIcon, XIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  Code2Icon,
+  FileSymlinkIcon,
+  FileTextIcon,
+  WaypointsIcon,
+  XIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -50,9 +57,11 @@ import {
   showTab,
   useTabSnapshot,
 } from "@/lib/tabs/store";
+import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab, TabStep } from "@/lib/tabs/tab";
 import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
 import { BAR_GLYPH } from "@/lib/ui/bar";
+import { useGraphMode } from "@/lib/ui/graph";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -92,6 +101,55 @@ const ANNOUNCEMENTS: Announcements = {
 /** Also animate an order change no drag made, which is what `⌘⌥⇧←/→` does. */
 const animateLayoutChanges: AnimateLayoutChanges = (args) =>
   args.isSorting || args.wasDragging ? defaultAnimateLayoutChanges(args) : true;
+
+const MARKER_GLYPH = "text-muted-foreground me-1.5 size-3 shrink-0";
+
+interface TabMarkerProps {
+  snapshot: TabSnapshot | undefined;
+  tab: Tab;
+}
+
+/**
+ * The dot when a save failed or needs review, otherwise what the tab shows.
+ * Graph wins over source because it covers the editor.
+ */
+function TabMarker({ snapshot, tab }: TabMarkerProps) {
+  const graphMode = useGraphMode(tab.id);
+
+  if (snapshot?.status === "failed" || snapshot?.status === "conflict") {
+    return (
+      // The glyph's box, so swapping one for the other never moves the label.
+      <span
+        className={cn(MARKER_GLYPH, "inline-flex items-center justify-center")}
+      >
+        <span className="bg-destructive size-1.5 rounded-full">
+          <span className="sr-only">
+            {[
+              snapshot.status === "failed" ? "could not save" : "needs review",
+              snapshot.reason,
+            ]
+              .filter((part) => part !== undefined)
+              .join(": ")}
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  if (tab.kind === "note" && graphMode) {
+    return <WaypointsIcon className={MARKER_GLYPH} />;
+  }
+
+  if (snapshot?.sourceMode === true) {
+    return <Code2Icon className={MARKER_GLYPH} />;
+  }
+
+  return tab.kind === "external" ? (
+    <FileSymlinkIcon className={MARKER_GLYPH} />
+  ) : (
+    <FileTextIcon className={MARKER_GLYPH} />
+  );
+}
 
 interface TabItemProps {
   active: boolean;
@@ -186,25 +244,13 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           />
         }
       >
-        {snapshot?.status === "failed" || snapshot?.status === "conflict" ? (
-          <span className="bg-destructive me-1.5 size-1.5 shrink-0 rounded-full">
-            <span className="sr-only">
-              {[
-                snapshot.status === "failed"
-                  ? "could not save"
-                  : "needs review",
-                snapshot.reason,
-              ]
-                .filter((part) => part !== undefined)
-                .join(": ")}
-            </span>
-          </span>
-        ) : null}
         <button
           aria-controls={tabPanelId(id)}
           aria-selected={active}
-          className="min-w-0 flex-1 truncate text-start focus-visible:outline-none"
-          data-tauri-drag-region={sole || undefined}
+          className="flex min-w-0 flex-1 items-center text-start focus-visible:outline-none"
+          // `deep`, since a bare mark only counts a press on the button itself
+          // and the label and glyph sit inside it.
+          data-tauri-drag-region={sole ? "deep" : undefined}
           id={tabButtonId(id)}
           onClick={select}
           // The handle, so the close button beside it never starts a drag.
@@ -214,7 +260,8 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           tabIndex={active ? 0 : -1}
           type="button"
         >
-          {label}
+          <TabMarker snapshot={snapshot} tab={tab} />
+          <span className="truncate">{label}</span>
         </button>
         <button
           aria-label={`close ${label}`}

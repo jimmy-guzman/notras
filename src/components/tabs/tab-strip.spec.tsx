@@ -18,6 +18,7 @@ import {
 } from "@/lib/tabs/store";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
+import { hideGraph, showGraph } from "@/lib/ui/graph";
 
 async function mountStrip(tabs: Tab[]) {
   mockIPC((command) => {
@@ -144,6 +145,133 @@ describe("tab strip", () => {
     );
   });
 
+  describe("tab glyphs", () => {
+    it.each([
+      { glyph: "lucide-file-text", graph: false, kind: "note", source: false },
+      {
+        glyph: "lucide-file-symlink",
+        graph: true,
+        kind: "external",
+        source: false,
+      },
+      { glyph: "lucide-code-xml", graph: false, kind: "note", source: true },
+      {
+        glyph: "lucide-code-xml",
+        graph: false,
+        kind: "external",
+        source: true,
+      },
+      { glyph: "lucide-waypoints", graph: true, kind: "note", source: true },
+    ] as const)(
+      "should show $glyph for a $kind tab with graph $graph and source $source",
+      async ({ glyph, graph, kind, source }) => {
+        localStorage.setItem(
+          "tabs",
+          JSON.stringify({
+            activeId: "a",
+            carets: {},
+            tabs: [{ id: "a", kind, path: "/notes/a.md" }],
+          })
+        );
+        restoreTabs();
+        onTestFinished(() => {
+          closeTab("a");
+        });
+
+        if (graph) {
+          showGraph("a");
+          onTestFinished(() => {
+            hideGraph("a");
+          });
+        }
+
+        const snapshot = createStore<TabSnapshot>({
+          pinned: false,
+          reason: undefined,
+          sourceMode: source,
+          status: "saved",
+          tags: [],
+          title: "a",
+        });
+
+        onTestFinished(
+          registerTabSnapshot(
+            "a",
+            createStore(() => snapshot.get())
+          )
+        );
+        await mountStrip(getTabState().tabs);
+
+        expect(
+          screen.getByRole("tab", { name: "a" }).querySelector("svg")
+        ).toHaveClass(glyph);
+      }
+    );
+
+    it("should show the note glyph on a draft", async () => {
+      await mountStrip([{ id: "draft", kind: "draft", path: "" }]);
+
+      expect(screen.getByRole("tab").querySelector("svg")).toHaveClass(
+        "lucide-file-text"
+      );
+    });
+
+    it("should put the dot in the glyph's place when a save fails", async () => {
+      const snapshot = createStore<TabSnapshot>({
+        pinned: false,
+        reason: "disk full",
+        sourceMode: true,
+        status: "failed",
+        tags: [],
+        title: "a",
+      });
+
+      onTestFinished(
+        registerTabSnapshot(
+          "a",
+          createStore(() => snapshot.get())
+        )
+      );
+      await mountStrip([{ id: "a", kind: "note", path: "a.md" }]);
+
+      const tab = screen.getByRole("tab", {
+        name: "could not save: disk full a",
+      });
+
+      expect(tab.querySelector("svg")).toBeNull();
+    });
+
+    it("should select an inactive tab when its glyph is clicked", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [
+            { id: "a", kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+        closeTab("b");
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+      const glyph = screen.getByRole("tab", { name: "b" }).querySelector("svg");
+
+      if (glyph === null) {
+        throw new Error("tab b has no glyph");
+      }
+
+      await user.click(glyph);
+
+      expect(getTabState().activeId).toBe("b");
+    });
+  });
+
   /**
    * Tauri's injected handler reads `data-tauri-drag-region` off the pressed
    * element's ancestors: a `deep` band moves the window from any descendant, a
@@ -182,7 +310,7 @@ describe("tab strip", () => {
     it("should hand a lone tab's press to the window", async () => {
       await mountStrip([{ id: "a", kind: "note", path: "a.md" }]);
       const tab = screen.getByRole("tab");
-      expect(tab).toHaveAttribute("data-tauri-drag-region", "true");
+      expect(tab).toHaveAttribute("data-tauri-drag-region", "deep");
       expect(tab.parentElement).not.toHaveAttribute("data-tauri-drag-region");
     });
   });
