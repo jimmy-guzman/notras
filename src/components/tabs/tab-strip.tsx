@@ -220,63 +220,63 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger
-        render={
-          // Presentational so the tablist reads as holding tabs, with the
-          // close button a sibling of the tab rather than a child of it.
-          <span
-            className={cn(
-              "group tab-motion hover:text-foreground has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm ps-1.5 pe-1 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
-              active
-                ? "bg-background text-foreground"
-                : "hover:bg-muted dark:hover:bg-muted/50",
-              // oxlint-disable-next-line shadcn/no-raw-colors -- shadcn-ui/lint#10: a custom --shadow-* token reads as a color
-              isDragging && "shadow-drag z-10 cursor-grabbing"
-            )}
-            data-tab-id={id}
-            data-tauri-drag-region={sole ? undefined : "false"}
-            ref={setRefs}
-            role="presentation"
-            style={{
-              "--tab-transition": transition,
-              "--tab-x": `${transform?.x ?? 0}px`,
-            }}
-          />
-        }
+      {/* Presentational so the tablist reads as holding tabs, with the close
+          button a sibling of the tab rather than a child of it. */}
+      <span
+        className={cn(
+          "group tab-motion hover:text-foreground has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+          active
+            ? "bg-background text-foreground"
+            : "hover:bg-muted dark:hover:bg-muted/50",
+          isDragging && "shadow-drag z-10 cursor-grabbing"
+        )}
+        data-tab-id={id}
+        ref={setRefs}
+        role="presentation"
+        style={{
+          "--tab-transition": transition,
+          "--tab-x": `${transform?.x ?? 0}px`,
+        }}
       >
-        <button
-          aria-controls={tabPanelId(id)}
-          aria-selected={active}
-          className="flex min-w-0 flex-1 items-center text-start focus-visible:outline-none"
-          // `deep`, since a bare mark only counts a press on the button itself
-          // and the label and glyph sit inside it.
-          data-tauri-drag-region={sole ? "deep" : undefined}
-          id={tabButtonId(id)}
-          onClick={select}
-          // The handle, so the close button beside it never starts a drag.
-          onPointerDown={startPress}
-          ref={setActivatorNodeRef}
-          role="tab"
-          tabIndex={active ? 0 : -1}
-          type="button"
+        <ContextMenuTrigger
+          className="flex min-w-0 flex-1 items-center self-stretch"
+          data-tauri-drag-region={sole ? undefined : "false"}
+          render={<span role="presentation" />}
         >
-          <TabMarker snapshot={snapshot} tab={tab} />
-          <span className="truncate">{label}</span>
-        </button>
-        <button
-          aria-label={`close ${label}`}
-          className={cn(
-            "hover:bg-muted hover:text-foreground ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-all duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
-            active && "text-muted-foreground opacity-100"
-          )}
-          data-tab-close
-          onClick={close}
-          tabIndex={-1}
-          type="button"
-        >
-          <XIcon className={BAR_GLYPH} />
-        </button>
-      </ContextMenuTrigger>
+          <button
+            aria-controls={tabPanelId(id)}
+            aria-selected={active}
+            className="flex min-w-0 flex-1 items-center ps-1.5 text-start focus-visible:outline-none"
+            // `deep`, since a bare mark only counts a press on the button itself
+            // and the label and glyph sit inside it.
+            data-tauri-drag-region={sole ? "deep" : undefined}
+            id={tabButtonId(id)}
+            onClick={select}
+            // The handle, so the close button beside it never starts a drag.
+            onPointerDown={startPress}
+            ref={setActivatorNodeRef}
+            role="tab"
+            tabIndex={active ? 0 : -1}
+            type="button"
+          >
+            <TabMarker snapshot={snapshot} tab={tab} />
+            <span className="truncate">{label}</span>
+          </button>
+          <button
+            aria-label={`close ${label}`}
+            className={cn(
+              "hover:bg-muted hover:text-foreground ms-1 me-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-all duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
+              active && "text-muted-foreground opacity-100"
+            )}
+            data-tab-close
+            onClick={close}
+            tabIndex={-1}
+            type="button"
+          >
+            <XIcon className={BAR_GLYPH} />
+          </button>
+        </ContextMenuTrigger>
+      </span>
       <ContextMenuContent>
         <ContextMenuItem onClick={close}>close</ContextMenuItem>
         <ContextMenuItem onClick={closeOthers}>close others</ContextMenuItem>
