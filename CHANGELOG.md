@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.1](https://github.com/jimmy-guzman/notras/compare/v0.11.0...v0.11.1) (2026-10-20)
+
+
+### Features
+
+* **tabs:** ✨ show what each tab holds with an icon ([#389](https://github.com/jimmy-guzman/notras/issues/389)) ([647ec05](https://github.com/jimmy-guzman/notras/commit/647ec05a113a3220e5e8e5f89e412fdf967cf0c6))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 nonce the code block scrollbar's detached root ([#384](https://github.com/jimmy-guzman/notras/issues/384)) ([beabe10](https://github.com/jimmy-guzman/notras/commit/beabe1065efb235ffb6f265944872eab7ac87b96))
+* **export:** 🐛 print headings with their block, tables in column ([#387](https://github.com/jimmy-guzman/notras/issues/387)) ([43eb805](https://github.com/jimmy-guzman/notras/commit/43eb805bb1a50fba6ebbcd388fd64046bbe1ef50))
+* **ui:** 🐛 put pinned notes first in the browser ([#386](https://github.com/jimmy-guzman/notras/issues/386)) ([3774a2e](https://github.com/jimmy-guzman/notras/commit/3774a2eb3b50ed207c314a020b60d2655caff352))
+
 ## [0.11.0](https://github.com/jimmy-guzman/notras/compare/v0.10.7...v0.11.0) (2026-10-18)
 
 
