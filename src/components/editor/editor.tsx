@@ -22,6 +22,7 @@ import {
   syntaxSettled,
   windowSyntaxToScreen,
 } from "@/components/editor/code-block-shiki";
+import type { ImageSource } from "@/components/editor/image-resize";
 import { dragRange, isRowRange } from "@/components/editor/move-selection";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
@@ -90,7 +91,10 @@ function wordsAt(state: EditorState) {
     : state.doc.textBetween(from, to);
 }
 
-/** The slice with every image's source rewritten by `rewrite`. */
+/**
+ * The slice with every image's source rewritten by `rewrite`. An empty source
+ * names no file, so it stays empty rather than resolving to a folder.
+ */
 function withImageSources(slice: Slice, rewrite: (src: string) => string) {
   const rewritten = (content: Fragment): Fragment =>
     Fragment.from(
@@ -99,7 +103,7 @@ function withImageSources(slice: Slice, rewrite: (src: string) => string) {
           const src = hasString(node.attrs, "src") ? node.attrs.src : "";
 
           return node.type.create(
-            { ...node.attrs, src: rewrite(src) },
+            { ...node.attrs, src: src === "" ? src : rewrite(src) },
             null,
             node.marks
           );
@@ -117,11 +121,13 @@ function withImageSources(slice: Slice, rewrite: (src: string) => string) {
  * `from`, or the source as written where it is not a file in the library.
  */
 function librarySrc(src: string, from: string) {
-  const path = isRelativeDestination(src)
-    ? foldPath(decodeAttachmentPath(src), from)
-    : undefined;
+  if (!isRelativeDestination(src)) {
+    return src;
+  }
 
-  return path === undefined ? src : encodeAttachmentPath(path);
+  const folded = foldPath(decodeAttachmentPath(src), from);
+
+  return "path" in folded ? encodeAttachmentPath(folded.path) : src;
 }
 
 /**
@@ -298,8 +304,8 @@ function followLink(
 /**
  * The rendered image behind a double-click or a node selection, when it has
  * something bigger to show. A selection's DOM is the resize wrapper around
- * the image. One that did not load answers null: the broken glyph in the
- * note already says why.
+ * the image. One that did not load answers null: its place in the note
+ * already says why.
  */
 function viewableImage(target: EventTarget | null) {
   if (!(target instanceof Element)) {
@@ -536,8 +542,8 @@ interface EditorProps {
   /** Navigate when a wikilink pill is clicked. */
   onWikilinkClick?: (title: string) => void;
   placeholderText?: string;
-  /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs. */
-  resolveImageSrc?: (src: string) => string;
+  /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs, with what shows when one does not load. */
+  resolveImageSrc?: (src: string) => ImageSource;
   /** The note a wikilink title lands on, or undefined when it names none. */
   resolveWikilink?: (title: string) => string | undefined;
   /**

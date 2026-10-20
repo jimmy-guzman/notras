@@ -102,7 +102,7 @@ export async function exportPdf(
   document.body.append(sheet);
 
   try {
-    // A broken image rejects and prints as the broken image the editor shows.
+    // An image that did not load rejects and prints the reason the editor shows.
     // An image takes its height once decoded, so measuring waits for it.
     await Promise.allSettled(
       [...sheet.querySelectorAll("img")].map(async (image) => {

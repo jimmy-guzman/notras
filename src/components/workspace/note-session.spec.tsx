@@ -1507,11 +1507,89 @@ describe(NoteSession, () => {
 
     expect(sources).toStrictEqual([
       "asset://localhost/%2Fnotes%2Fprojects%2Fmy%20shot.png",
-      "",
-      "",
-      "",
-      "https://example.com/a.png",
+      null,
+      null,
+      null,
+      null,
     ]);
+  });
+
+  it("should say why an image does not show in its place", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("projects/a.md", {
+      content:
+        "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)\n\n![abs](/etc/x.png)\n\n![hidden](.hidden/x.png)\n\n![empty]()\n\n![drive](c:/x.png)\n\n![web](https://example.com/a.png)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(
+      tabOpeningQuery("t5", "note", "projects/a.md").queryKey,
+      {
+        file: {
+          content:
+            "# A\n\n![shot](./my%20shot.png)\n\n![up](../../up.png)\n\n![abs](/etc/x.png)\n\n![hidden](.hidden/x.png)\n\n![empty]()\n\n![drive](c:/x.png)\n\n![web](https://example.com/a.png)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t5", kind: "note", path: "projects/a.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t5");
+
+    expect(
+      screen.getByText("../../up.png climbs out of the notes folder")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("/etc/x.png is an absolute path")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        String.raw`Image path parts cannot contain \ or :, or start with a dot`
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Images from the web do not load")
+    ).toBeInTheDocument();
+    expect(screen.getByText("This image has no path")).toBeInTheDocument();
+    expect(
+      screen.getByText("c:/x.png is an absolute path")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No image is at ./my shot.png")).toBeNull();
+
+    act(() => {
+      screen
+        .getByRole("img", { name: "shot" })
+        .dispatchEvent(new Event("error"));
+    });
+
+    expect(
+      screen.getByText("No image is at ./my shot.png")
+    ).toBeInTheDocument();
   });
 
   it("should send an external file's image to the scheme with the document and the source", async () => {

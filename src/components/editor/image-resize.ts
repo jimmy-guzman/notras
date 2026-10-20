@@ -1,28 +1,41 @@
 import type { NodeViewRenderer } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
-import { Maximize2Icon } from "lucide-react";
-import { createElement } from "react";
+import { ImageOffIcon, Maximize2Icon } from "lucide-react";
+import { Fragment, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { hasNumber, hasString } from "@/components/editor/attrs";
 
 const MIN_WIDTH = 64;
 
-// ProseMirror builds the node where React cannot render, so the icon renders
-// once as the module evaluates and is cloned into each image.
+// ProseMirror builds the node where React cannot render, so the icons render
+// once as the module evaluates and are cloned into each image.
 const icons = document.createElement("div");
 
-createRoot(icons).render(createElement(Maximize2Icon, { size: 13 }));
+createRoot(icons).render(
+  createElement(
+    Fragment,
+    null,
+    createElement(Maximize2Icon, { size: 13 }),
+    createElement(ImageOffIcon, { size: 13 })
+  )
+);
 
-function openIcon() {
-  const drawn = icons.firstElementChild;
+function icon(index: number) {
+  const drawn = icons.children.item(index);
 
   if (drawn === null) {
     throw new Error("The image icon did not render");
   }
 
   return drawn.cloneNode(true);
+}
+
+/** Where an image loads from, or null when it is refused, and what its place says when it does not show. */
+export interface ImageSource {
+  failure: string;
+  src: string | null;
 }
 
 interface Resize {
@@ -40,16 +53,34 @@ function widthAt({ available, startWidth, startX }: Resize, clientX: number) {
   );
 }
 
+function srcOf(attrs: Node["attrs"]) {
+  return hasString(attrs, "src") ? attrs.src : "";
+}
+
+function showFailure(dom: HTMLElement, reason: HTMLElement, failure: string) {
+  dom.dataset.failed = "";
+  reason.textContent = failure;
+}
+
 function applyAttributes(
+  dom: HTMLElement,
   image: HTMLImageElement,
+  reason: HTMLElement,
   attrs: Node["attrs"],
-  resolveSrc: (src: string) => string
+  resolveSrc: (src: string) => ImageSource
 ) {
-  const src = resolveSrc(hasString(attrs, "src") ? attrs.src : "");
+  const { failure, src } = resolveSrc(srcOf(attrs));
   const width = hasNumber(attrs, "width") ? attrs.width : null;
 
-  // Reassigning an unchanged src still restarts the load and blinks the image.
-  if (image.getAttribute("src") !== src) {
+  if (src === null) {
+    image.removeAttribute("src");
+    delete image.dataset.loaded;
+    showFailure(dom, reason, failure);
+  } else if (image.getAttribute("src") !== src) {
+    // Only a new src loads: reassigning an unchanged one restarts the load and blinks the image.
+    delete image.dataset.loaded;
+    delete dom.dataset.failed;
+    reason.textContent = "";
     image.src = src;
   }
 
@@ -72,10 +103,11 @@ function applyAttributes(
  * that view hears it, so one press is one drag. The width is clamped at the
  * source to what the line can show, so the number stored is the one seen. A
  * toolbar shows on hover with the one action an image has, the way a code
- * block shows copy, so the double-click has something to teach it.
+ * block shows copy, so the double-click has something to teach it. An image
+ * that is refused or fails to load shows why in its place.
  */
 export function imageNodeView(
-  resolveSrc: (src: string) => string,
+  resolveSrc: (src: string) => ImageSource,
   openImage: ((image: HTMLImageElement) => void) | null
 ): NodeViewRenderer {
   return ({ getPos, node: mounted, view }) => {
@@ -84,6 +116,8 @@ export function imageNodeView(
     const toolbar = document.createElement("div");
     const open = document.createElement("button");
     const handle = document.createElement("div");
+    const failure = document.createElement("span");
+    const reason = document.createElement("span");
     const listeners = new AbortController();
     const { signal } = listeners;
     let node = mounted;
@@ -96,17 +130,27 @@ export function imageNodeView(
     open.type = "button";
     open.className = "code-block-button";
     open.setAttribute("aria-label", "open image");
-    open.append(openIcon(), "open");
+    open.append(icon(0), "open");
     toolbar.append(open);
     handle.className = "image-handle";
-    dom.append(image, toolbar, handle);
-    applyAttributes(image, node.attrs, resolveSrc);
+    failure.className = "image-failure";
+    failure.contentEditable = "false";
+    failure.append(icon(1), reason);
+    dom.append(image, failure, toolbar, handle);
+    applyAttributes(dom, image, reason, node.attrs, resolveSrc);
 
     const markLoaded = () => {
       image.dataset.loaded = "";
     };
 
     image.addEventListener("load", markLoaded, { signal });
+    image.addEventListener(
+      "error",
+      () => {
+        showFailure(dom, reason, resolveSrc(srcOf(node.attrs)).failure);
+      },
+      { signal }
+    );
 
     // A cached image is complete before the listener attached.
     if (image.complete && image.naturalWidth > 0) {
@@ -179,7 +223,7 @@ export function imageNodeView(
       }
 
       if (!moved || event.type === "pointercancel" || pos === undefined) {
-        applyAttributes(image, node.attrs, resolveSrc);
+        applyAttributes(dom, image, reason, node.attrs, resolveSrc);
 
         return;
       }
@@ -212,7 +256,7 @@ export function imageNodeView(
         }
 
         node = updated;
-        applyAttributes(image, node.attrs, resolveSrc);
+        applyAttributes(dom, image, reason, node.attrs, resolveSrc);
 
         return true;
       },

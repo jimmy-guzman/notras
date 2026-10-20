@@ -118,24 +118,32 @@ describe(isRelativeDestination, () => {
 
 describe(foldPath, () => {
   it("should fold a decoded path onto the note's folder", () => {
-    expect(foldPath("../docs/my spec.pdf", "projects/a.md")).toBe(
-      "docs/my spec.pdf"
-    );
-    expect(foldPath("./shot.png", "a.md")).toBe("shot.png");
-    expect(foldPath("attachments/x.png", "projects/a.md")).toBe(
-      "projects/attachments/x.png"
-    );
+    expect(foldPath("../docs/my spec.pdf", "projects/a.md")).toStrictEqual({
+      path: "docs/my spec.pdf",
+    });
+    expect(foldPath("./shot.png", "a.md")).toStrictEqual({ path: "shot.png" });
+    expect(foldPath("attachments/x.png", "projects/a.md")).toStrictEqual({
+      path: "projects/attachments/x.png",
+    });
   });
 
-  it("should fold to nothing above the root", () => {
-    expect(foldPath("../x.png", "a.md")).toBeUndefined();
+  it("should refuse a path that climbs above the root", () => {
+    expect(foldPath("../x.png", "a.md")).toStrictEqual({ refused: "climb" });
   });
 
-  it("should fold to nothing for a segment the library refuses", () => {
-    expect(foldPath("..\\..\\secret.png", "projects/a.md")).toBeUndefined();
-    expect(foldPath("c:/secret.png", "a.md")).toBeUndefined();
-    expect(foldPath(".private.png", "a.md")).toBeUndefined();
-    expect(foldPath(".hidden/x.png", "a.md")).toBeUndefined();
+  it("should refuse a segment the library refuses", () => {
+    expect(foldPath("..\\..\\secret.png", "projects/a.md")).toStrictEqual({
+      refused: "segment",
+    });
+    expect(foldPath("c:/secret.png", "a.md")).toStrictEqual({
+      refused: "segment",
+    });
+    expect(foldPath(".private.png", "a.md")).toStrictEqual({
+      refused: "segment",
+    });
+    expect(foldPath(".hidden/x.png", "a.md")).toStrictEqual({
+      refused: "segment",
+    });
   });
 });
 

@@ -530,8 +530,24 @@ body.dragging .ProseMirror .selected-text,
   max-width: 100%;
   vertical-align: bottom;
 }
-.ProseMirror .ProseMirror-selectednode img {
+.ProseMirror .ProseMirror-selectednode :is(img, .image-failure) {
   outline: 2px solid var(--ring);
+}
+.ProseMirror .image-failure {
+  display: none;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875em;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: var(--radius-md);
+}
+.ProseMirror [data-failed] img {
+  display: none;
+}
+.ProseMirror [data-failed] .image-failure {
+  display: inline-flex;
 }
 .ProseMirror .image-handle {
   position: absolute;

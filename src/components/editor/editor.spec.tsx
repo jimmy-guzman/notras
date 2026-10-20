@@ -117,7 +117,10 @@ function clickAt(
 const mountImage = async (naturalWidth: number) => {
   const mounted = await mount({
     initialContent: "![shot](attachments/shot.png)",
-    resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
+    resolveImageSrc: (src) => ({
+      failure: `No image is at ${src}`,
+      src: `asset://localhost/notes/${src}`,
+    }),
   });
 
   const image = mounted.editor.view.dom.querySelector('img[alt="shot"]');
@@ -232,7 +235,10 @@ describe("image resize", () => {
   it("should draw a sized image at its width", async () => {
     const { editor } = await mount({
       initialContent: '<img src="attachments/shot.png" alt="shot" width="240">',
-      resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: `asset://localhost/notes/${src}`,
+      }),
     });
 
     const image = editor.view.dom.querySelector('img[alt="shot"]');
@@ -241,6 +247,34 @@ describe("image resize", () => {
     expect(image).toHaveAttribute(
       "src",
       "asset://localhost/notes/attachments/shot.png"
+    );
+  });
+
+  it("should drop an image's reason once its source resolves", async () => {
+    const { editor } = await mount({
+      initialContent: "![shot](gone.png)",
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: src === "gone.png" ? null : `asset://localhost/notes/${src}`,
+      }),
+    });
+
+    expect(screen.getByText("No image is at gone.png")).toBeInTheDocument();
+
+    // The paragraph opens at 0, so the image is the node at 1.
+    act(() => {
+      editor.view.dispatch(
+        editor.view.state.tr.setNodeMarkup(1, null, {
+          alt: "shot",
+          src: "shot.png",
+        })
+      );
+    });
+
+    expect(screen.queryByText("No image is at gone.png")).toBeNull();
+    expect(screen.getByRole("img", { name: "shot" })).toHaveAttribute(
+      "src",
+      "asset://localhost/notes/shot.png"
     );
   });
 });
@@ -1698,7 +1732,10 @@ describe("copy", () => {
   it("should copy an image by its path in the notes folder rather than the app's URL", async () => {
     const { editor, scroller } = await mount({
       initialContent: "a ![pic](attachments/x.png) b",
-      resolveImageSrc: (src) => `asset://localhost/notes/${src}`,
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: `asset://localhost/notes/${src}`,
+      }),
     });
 
     const copied = copyBetween(
@@ -1712,6 +1749,30 @@ describe("copy", () => {
     );
     expect(copied.getData("text/html")).toContain('src="attachments/x.png"');
     expect(copied.getData("text/html")).not.toContain("asset://");
+  });
+
+  it("should keep an image with no path empty through a copy and paste", async () => {
+    const { editor } = await mount({
+      documentPath: () => "projects/a.md",
+      initialContent: "a ![e]() b",
+    });
+
+    const copied = copyBetween(
+      editor,
+      rangeOf(editor, "a").from,
+      rangeOf(editor, "b").to
+    );
+
+    const { editor: pasted, handle } = await mount({
+      documentPath: () => "projects/a.md",
+      initialContent: "",
+    });
+
+    pasted.view.dom.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: copied })
+    );
+
+    expect(handle.getContent().trimEnd()).toBe("a ![e]() b");
   });
 
   it.each([

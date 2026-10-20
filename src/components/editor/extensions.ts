@@ -37,6 +37,7 @@ import { BoundedTable } from "@/components/editor/bounded-tokenizers";
 import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
 import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
 import { imageNodeView } from "@/components/editor/image-resize";
+import type { ImageSource } from "@/components/editor/image-resize";
 import { imageTag, imageTagAt } from "@/components/editor/image-tag";
 import {
   NoteBulletList,
@@ -79,7 +80,7 @@ export interface EditorExtensionOptions {
   placeholderText?: string;
   readClipboardSource?: ReadClipboardSource;
   readClipboardText?: ReadClipboardText;
-  resolveImageSrc?: (src: string) => string;
+  resolveImageSrc?: (src: string) => ImageSource;
   saveImage?: SaveImage;
 }
 
@@ -133,11 +134,15 @@ function bareDestination(url: string) {
   return encode(url);
 }
 
+function passImageSrc(src: string): ImageSource {
+  return { failure: `No image is at ${src}`, src };
+}
+
 interface NoteImageOptions extends Partial<ImageOptions> {
   HTMLAttributes: ImageOptions["HTMLAttributes"];
   /** Shows the image bigger; null leaves the image without its open button. */
   openImage: ((image: HTMLImageElement) => void) | null;
-  resolveSrc: (src: string) => string;
+  resolveSrc: (src: string) => ImageSource;
 }
 
 const NoteImage = Image.extend<NoteImageOptions>({
@@ -155,7 +160,7 @@ const NoteImage = Image.extend<NoteImageOptions>({
       HTMLAttributes: {},
       ...this.parent?.(),
       openImage: null,
-      resolveSrc: (src: string) => src,
+      resolveSrc: passImageSrc,
     };
   },
   // The rendered element's URL only loads inside this app and names the home
@@ -211,7 +216,7 @@ const NoteImage = Image.extend<NoteImageOptions>({
     return [
       "img",
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        src: this.options.resolveSrc(src),
+        src: this.options.resolveSrc(src).src ?? "",
       }),
     ];
   },
@@ -1368,7 +1373,7 @@ export function createEditorExtensions(
       // Markdown images are inline; the block default breaks a paragraph (`D58`).
       inline: true,
       openImage: options.openImage ?? null,
-      resolveSrc: options.resolveImageSrc ?? ((src: string) => src),
+      resolveSrc: options.resolveImageSrc ?? passImageSrc,
     }),
     Placeholder.configure({
       placeholder: options.placeholderText ?? "write another note...",
