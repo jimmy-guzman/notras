@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/jimmy-guzman/notras/compare/v0.11.1...v0.11.2) (2026-10-21)
+
+
+### Features
+
+* **editor:** ✨ say why an image does not show ([#392](https://github.com/jimmy-guzman/notras/issues/392)) ([8915846](https://github.com/jimmy-guzman/notras/commit/891584604435176c92297dbe14607bcb810d298d))
+
 ## [0.11.1](https://github.com/jimmy-guzman/notras/compare/v0.11.0...v0.11.1) (2026-10-20)
 
 
