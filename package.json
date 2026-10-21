@@ -107,7 +107,7 @@
     "ultracite": "8.0.1",
     "vite": "8.3.4",
     "vitest": "5.0.5",
-    "webdriverio": "9.32.0"
+    "webdriverio": "10.1.0"
   },
   "packageManager": "pnpm@12.14.0"
 }
