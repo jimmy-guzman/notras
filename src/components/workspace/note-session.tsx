@@ -176,33 +176,66 @@ interface SessionBufferProps {
   tab: Tab;
 }
 
+const WEB_SCHEME = /^https?:/iu;
+
+// A drive letter reads as a one-letter scheme, so it is caught before the scheme check.
+const ABSOLUTE_PATH = /^(?:\/|[a-z]:[\\/])/iu;
+
 /**
  * A relative image resolves against the file that holds it, the way a link
- * does. A source with a scheme passes through for the webview to judge, and
- * an anchor or an absolute path renders as a broken image rather than a fetch
- * from the app's own bundle. A note's image loads through the asset protocol under
- * the notes dir, and one that climbs out renders as a broken image. An
- * external file's image goes to the `external-image` scheme with the document
- * and the source, and Rust resolves the pair on each request.
+ * does. A web image is refused before it loads, since loading one tells its
+ * host the note was opened. Another source with a scheme passes through for
+ * the webview to judge. A note's image loads through the asset protocol under
+ * the notes dir, and one that climbs out or names a part a library path
+ * refuses never loads. An external file's image goes to the `external-image`
+ * scheme with the document and the source, and Rust resolves the pair on each
+ * request. A load that fails means no image the webview can draw is there.
  */
 function imageSrc(src: string, kind: OpenKind, from: string, notesDir: string) {
-  if (!isRelativeDestination(src)) {
-    return hasScheme(src) ? src : "";
+  const path = decodeAttachmentPath(src);
+  const missing = `No image is at ${path}`;
+
+  if (path === "") {
+    return { failure: "This image has no path", src: null };
   }
 
-  const path = decodeAttachmentPath(src);
+  if (WEB_SCHEME.test(src)) {
+    return { failure: "Images from the web do not load", src: null };
+  }
+
+  if (ABSOLUTE_PATH.test(src)) {
+    return { failure: `${path} is an absolute path`, src: null };
+  }
+
+  if (!isRelativeDestination(src)) {
+    return { failure: missing, src: hasScheme(src) ? src : null };
+  }
 
   if (kind === "external") {
     const query = new URLSearchParams({ doc: from, src: path });
 
-    return `${convertFileSrc("", "external-image")}?${query}`;
+    return {
+      failure: missing,
+      src: `${convertFileSrc("", "external-image")}?${query}`,
+    };
   }
 
-  const resolved = foldPath(path, from);
+  const folded = foldPath(path, from);
 
-  return resolved === undefined
-    ? ""
-    : convertFileSrc(`${notesDir}/${resolved}`);
+  if ("path" in folded) {
+    return {
+      failure: missing,
+      src: convertFileSrc(`${notesDir}/${folded.path}`),
+    };
+  }
+
+  return {
+    failure:
+      folded.refused === "climb"
+        ? `${path} climbs out of the notes folder`
+        : String.raw`Image path parts cannot contain \ or :, or start with a dot`,
+    src: null,
+  };
 }
 
 const EMPTY_DRAFT: SessionFile = {

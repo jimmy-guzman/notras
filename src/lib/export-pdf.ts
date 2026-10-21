@@ -57,6 +57,47 @@ function keepHeadings(sheet: HTMLElement) {
   }
 }
 
+/** Settles once the editor's image has loaded or failed, after its node view drew the outcome. */
+async function settled(image: HTMLImageElement) {
+  if (image.complete) {
+    return;
+  }
+
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  const outcome = Promise.withResolvers<Event>();
+
+  image.addEventListener("load", outcome.resolve, { signal });
+  image.addEventListener("error", outcome.resolve, { signal });
+  await outcome.promise;
+  listeners.abort();
+}
+
+/**
+ * A copy loads its image afresh with no node view listening, so one the editor
+ * was still loading when it was copied takes the editor's reason if it fails.
+ * An image takes its height once decoded, so measuring waits for this.
+ */
+async function settlePrintedImage(
+  source: HTMLImageElement,
+  copy: HTMLImageElement
+) {
+  try {
+    await copy.decode();
+  } catch {
+    await settled(source);
+
+    const from = source.closest<HTMLElement>("[data-image]");
+    const to = copy.closest<HTMLElement>("[data-image]");
+    const reason = from?.querySelector(".image-failure");
+
+    if (from?.dataset.failed !== undefined && to !== null && reason) {
+      to.dataset.failed = "";
+      to.querySelector(".image-failure")?.replaceWith(reason.cloneNode(true));
+    }
+  }
+}
+
 /**
  * Save a rendered note as a PDF through the native save dialog and answer
  * where it went, or null when the dialog was cancelled and nothing was
@@ -102,11 +143,17 @@ export async function exportPdf(
   document.body.append(sheet);
 
   try {
-    // A broken image rejects and prints as the broken image the editor shows.
-    // An image takes its height once decoded, so measuring waits for it.
-    await Promise.allSettled(
-      [...sheet.querySelectorAll("img")].map(async (image) => {
-        await image.decode();
+    const sources = [...surface.querySelectorAll("img")];
+
+    await Promise.all(
+      [...sheet.querySelectorAll("img")].map(async (copy, index) => {
+        const source = sources[index];
+
+        if (source === undefined) {
+          throw new Error("The printed copy holds an image the note does not");
+        }
+
+        await settlePrintedImage(source, copy);
       })
     );
     fitTables(sheet);

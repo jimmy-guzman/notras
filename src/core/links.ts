@@ -60,11 +60,14 @@ const REFUSED_SEGMENT = /^\.|[\\:\0]/u;
 
 /**
  * Fold a decoded relative path onto the folder of `from`, `.` and `..`
- * included, or undefined when it climbs above the notes root.
+ * included, or say why it cannot: it climbs above the notes root, or it
+ * carries a segment a library path refuses.
  */
-export function foldPath(path: string, from: string): string | undefined {
+export function foldPath(
+  path: string,
+  from: string
+): { path: string } | { refused: "climb" | "segment" } {
   const segments: string[] = [];
-  let refused = false;
 
   for (const segment of [...noteFolder(from).split("/"), ...path.split("/")]) {
     if (segment === "" || segment === ".") {
@@ -73,22 +76,20 @@ export function foldPath(path: string, from: string): string | undefined {
 
     if (segment === "..") {
       if (segments.pop() === undefined) {
-        refused = true;
-        break;
+        return { refused: "climb" };
       }
 
       continue;
     }
 
     if (REFUSED_SEGMENT.test(segment)) {
-      refused = true;
-      break;
+      return { refused: "segment" };
     }
 
     segments.push(segment);
   }
 
-  return refused ? undefined : segments.join("/");
+  return { path: segments.join("/") };
 }
 
 /** Resolve a destination's path segments without looking up an indexed note. */
@@ -175,9 +176,9 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
   const path: LinkResolver["path"] = (destination, from) => {
     const joined = resolveNotePath(destination, from);
 
-    return joined === undefined
-      ? undefined
-      : (byPath.get(joined) ?? byLowerPath.get(joined.toLowerCase()));
+    return "path" in joined
+      ? (byPath.get(joined.path) ?? byLowerPath.get(joined.path.toLowerCase()))
+      : undefined;
   };
 
   return {
