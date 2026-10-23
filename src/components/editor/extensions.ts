@@ -61,6 +61,7 @@ import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
 import { CodeBlockTab } from "./code-block-tab";
 import { DragSelection } from "./drag-selection";
+import { Embed } from "./embed";
 import { LinkDefinition } from "./link-definition";
 import { MarkdownPaste } from "./markdown-paste";
 import type { SaveImage } from "./markdown-paste";
@@ -1390,6 +1391,7 @@ export function createEditorExtensions(
     }),
     CaretAfterBreak,
     DragSelection,
+    Embed,
     MarkdownLinkInputRule,
     MoveSelectionKeys,
     SelectionHighlight,

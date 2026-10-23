@@ -509,6 +509,34 @@ describe("link clicks", () => {
     expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
   });
 
+  it("should open a clicked embed's note", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[other]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("other"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
+  });
+
+  it("should open the note of an embed behind the caret with ⌘⇧O", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[other]] after",
+      onWikilinkClick,
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(2);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
+  });
+
   it("should leave caret placement to the editor beside a wikilink pill", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
 
@@ -775,6 +803,37 @@ describe("link hover", () => {
 
       expect(screen.getByRole("button", { name: "edit link" })).toBeVisible();
       expect(screen.getByText("other.md")).toBeVisible();
+    }
+  );
+
+  it.each(["[[Atlas]]", "![[Atlas]]"])(
+    "should rename %s from the preview's edit button",
+    async (initialContent) => {
+      const { handle } = await mount({
+        initialContent,
+        resolveWikilink: () => "atlas.md",
+      });
+
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByText("Atlas"));
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "edit link" }));
+      const title = screen.getByRole("textbox", { name: "note title" });
+      await user.clear(title);
+      await user.type(title, "Globe");
+      await user.click(screen.getByRole("button", { name: "apply link" }));
+
+      expect(handle.getContent()).toBe(
+        initialContent.replace("Atlas", "Globe")
+      );
     }
   );
 
@@ -1053,6 +1112,24 @@ describe("link hover", () => {
 });
 
 describe("document observation", () => {
+  it("should not count an edit below an embed alone on the first line as a title edit", async () => {
+    const change = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
+    const { editor } = await mount({
+      initialContent: "![[x]]\n\nsecond",
+      onChange: change,
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(editor.state.doc.content.size - 1, "Z");
+    });
+
+    expect(change).toHaveBeenLastCalledWith(
+      expect.stringContaining("secondZ"),
+      { titleEdited: false }
+    );
+  });
+
   it("should apply a document observation without losing selection or existing undo", async () => {
     const { editor, handle, scroller } = await mount({
       initialContent: "# old\n\nbody",
@@ -1556,6 +1633,40 @@ describe("mermaid diagrams", () => {
     await user.keyboard("/dia{Enter}");
 
     expect(handle.getContent().trimEnd()).toBe("```mermaid\n\n```");
+  });
+});
+
+describe("title menu", () => {
+  it("should insert a wikilink from the title menu", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see [[[[groc{Enter}");
+
+    expect(handle.getContent()).toBe("see [[grocery list]] ");
+  });
+
+  it("should insert an embed from the title menu after a bang", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see ![[[[groc{Enter}");
+
+    expect(handle.getContent()).toBe("see ![[grocery list]] ");
   });
 });
 

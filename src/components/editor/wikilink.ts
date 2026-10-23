@@ -60,15 +60,22 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
     const suggestion: Omit<SuggestionOptions<string, string>, "editor"> = {
       allowSpaces: true,
+      allowedPrefixes: [" ", "!"],
       char: "[[",
       command: ({ editor: instance, props: title, range }) => {
+        const embeds =
+          instance.state.doc.textBetween(range.from - 1, range.from) === "!";
+
         instance
           .chain()
           .focus()
-          .insertContentAt(range, [
-            { attrs: { title }, type: this.name },
-            { text: " ", type: "text" },
-          ])
+          .insertContentAt(
+            embeds ? { from: range.from - 1, to: range.to } : range,
+            [
+              { attrs: { title }, type: embeds ? "embed" : this.name },
+              { text: " ", type: "text" },
+            ]
+          )
           .run();
       },
       items: ({ query }) =>

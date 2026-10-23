@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import { createEditorExtensions } from "./extensions";
 
 /**
- * The wikilink parity table. `finds_the_wikilinks_the_editor_renders` in
- * `src-tauri/src/index.rs` asserts the same cases in the same order, so what
- * the editor renders as a pill and what the index records can be diffed by
- * eye. A case missing here is a case nothing checks.
+ * The wikilink parity table. `should_find_the_wikilinks_the_editor_renders` in
+ * `crates/notras-core/src/markdown.rs` asserts the same cases in the same
+ * order, so what the editor renders as a pill or an embed and what the index
+ * records can be diffed by eye. A case missing here is a case nothing checks.
  */
 const cases: [markdown: string, targets: string[]][] = [
   ["see [[a]] here", ["a"]],
@@ -22,8 +22,9 @@ const cases: [markdown: string, targets: string[]][] = [
   ["[[ spaced ]]", [" spaced "]],
   ["[[**a**]]", ["**a**"]],
   ["[[a\\]]", ["a\\"]],
-  // An embed reads as a wikilink behind a `!` until transclusion lands.
+  // An embed links to its note, and an escaped `!` leaves a plain wikilink.
   ["![[a]]", ["a"]],
+  ["\\![[a]]", ["a"]],
   // A bracket inside the target, or nothing inside, opens no link.
   ["[[a]b]]", []],
   ["[[[a]]]", ["a"]],
@@ -98,7 +99,7 @@ const cases: [markdown: string, targets: string[]][] = [
   ["<em>x</em>[[a]]", ["a"]],
 ];
 
-/** The target of every wikilink pill a markdown string parses into, in order. */
+/** The target of every wikilink and embed a markdown string parses into, in order. */
 function wikilinkTargets(markdown: string) {
   const editor = new Editor({
     content: markdown,
@@ -110,7 +111,7 @@ function wikilinkTargets(markdown: string) {
   const targets: string[] = [];
 
   editor.state.doc.descendants((node) => {
-    if (node.type.name === "wikilink") {
+    if (node.type.name === "wikilink" || node.type.name === "embed") {
       targets.push(String(node.attrs.title));
     }
 
@@ -124,7 +125,7 @@ function wikilinkTargets(markdown: string) {
 
 describe("wikilink", () => {
   it.each(cases)(
-    "should render a pill where the index records a link in %j",
+    "should render a link where the index records one in %j",
     (markdown, expected) => {
       expect(wikilinkTargets(markdown)).toStrictEqual(expected);
     }

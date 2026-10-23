@@ -65,7 +65,8 @@ function isFindOpen(state: EditorState) {
 }
 
 function textOf(node: Node) {
-  return node.type.name === "wikilink" && hasString(node.attrs, "title")
+  return (node.type.name === "wikilink" || node.type.name === "embed") &&
+    hasString(node.attrs, "title")
     ? node.attrs.title
     : node.textContent;
 }
@@ -84,7 +85,10 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
         });
       }
     } else if (node.isLeaf) {
-      const text = node.type.name === "wikilink" ? textOf(node) : "\n";
+      const text =
+        node.type.name === "wikilink" || node.type.name === "embed"
+          ? textOf(node)
+          : "\n";
 
       // Code units, not code points: `match.index` counts the former.
       for (let i = 0; i < text.length; i += 1) {

@@ -23,6 +23,7 @@ describe(headingAnchors, () => {
       "# **Strong** `code` [label](https://example.com) ![alt](shot.png) [[Note]]",
       ["strong-code-label-alt-note"],
     ],
+    ["## see ![[Atlas]]", ["see-atlas"]],
     [
       "not a heading\n\n```markdown\n# code heading\n```\n\n> ## Quoted heading",
       ["quoted-heading"],

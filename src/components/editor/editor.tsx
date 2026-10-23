@@ -64,17 +64,22 @@ const HOVER_OPEN_MS = 300;
 
 const UNSAFE_LINK_REASON = "That link uses a scheme notras will not open";
 
+function opensNote(node: ProseMirrorNode | null) {
+  return node?.type.name === "wikilink" || node?.type.name === "embed";
+}
+
 /**
- * The title of the wikilink the caret sits in or beside, or "" where none is.
- * The node after the caret is only the answer when it is the pill: with text
- * following one, `nodeAt(head)` is that text and the pill is behind the caret.
+ * The title of the wikilink or embed the caret sits in or beside, or "" where
+ * none is. The node after the caret is only the answer when it is the link:
+ * with text following one, `nodeAt(head)` is that text and the link is behind
+ * the caret.
  */
-function wikilinkTitleAt(state: EditorState, head: number) {
+function noteTitleAt(state: EditorState, head: number) {
   const after = state.doc.nodeAt(head);
   const before = head > 0 ? state.doc.nodeAt(head - 1) : null;
-  const node = after?.type.name === "wikilink" ? after : before;
+  const node = opensNote(after) ? after : before;
 
-  return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
+  return opensNote(node) ? String(node?.attrs.title ?? "") : "";
 }
 
 /**
@@ -391,7 +396,7 @@ function firstTitle(doc: ProseMirrorNode) {
 
         from = position + 1 + offset + child.nodeSize;
         text = "";
-      } else if (child.type.name === "wikilink") {
+      } else if (opensNote(child)) {
         text += String(child.attrs.title);
       } else if (child.isText) {
         text += child.textContent;
@@ -705,7 +710,7 @@ export function Editor(mountProps: EditorProps) {
             return true;
           }
 
-          const title = wikilinkTitleAt(instance.state, head);
+          const title = noteTitleAt(instance.state, head);
 
           if (title !== "" && config.onWikilinkClick) {
             config.onWikilinkClick(title);
@@ -780,7 +785,7 @@ export function Editor(mountProps: EditorProps) {
 
         if (
           Object.hasOwn(target.dataset, "wikilink") &&
-          node.type.name === "wikilink" &&
+          opensNote(node) &&
           config.onWikilinkClick
         ) {
           config.onWikilinkClick(String(node.attrs.title ?? ""));
@@ -1273,6 +1278,7 @@ export function Editor(mountProps: EditorProps) {
           .chain()
           .focus()
           .updateAttributes("wikilink", { title: text.trim() })
+          .updateAttributes("embed", { title: text.trim() })
           .run();
       } else {
         editor.commands.focus();

@@ -14,7 +14,10 @@ export function headingAnchors(content: Fragment): Map<string, number> {
     }
 
     const text = node.textBetween(0, node.content.size, "", (leaf) => {
-      if (leaf.type.name === "wikilink" && hasString(leaf.attrs, "title")) {
+      if (
+        (leaf.type.name === "wikilink" || leaf.type.name === "embed") &&
+        hasString(leaf.attrs, "title")
+      ) {
         return leaf.attrs.title;
       }
 
