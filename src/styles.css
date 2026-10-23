@@ -533,7 +533,7 @@ body.dragging .ProseMirror .selected-text,
 .ProseMirror .ProseMirror-selectednode :is(img, .image-failure) {
   outline: 2px solid var(--ring);
 }
-.ProseMirror .image-failure {
+.ProseMirror :is(.image-failure, .embed-failure) {
   display: none;
   gap: 0.5rem;
   align-items: center;
@@ -619,6 +619,35 @@ body.dragging .ProseMirror .selected-text,
 .wikilink:hover {
   color: var(--primary);
   text-decoration-color: currentcolor;
+}
+
+/* An embed holds another note's body, so it sits apart from the note's own
+   text on the hairline the table and quote rules use, and a click anywhere on
+   it opens that note. */
+.ProseMirror .embed[data-shown] {
+  display: block;
+  margin-block-start: var(--typeset-flow);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border: 1px solid var(--typeset-rule);
+  border-radius: var(--radius-md);
+}
+.ProseMirror .embed:not([data-shown]) > .embed-body,
+.ProseMirror .embed:is([data-shown], [data-failed]) > .wikilink {
+  display: none;
+}
+.ProseMirror .embed[data-failed] > .embed-failure {
+  display: inline-flex;
+}
+.ProseMirror .embed-body {
+  display: block;
+}
+.ProseMirror .embed-body > .ProseMirror > :first-child {
+  margin-block-start: 0;
+}
+.ProseMirror .ProseMirror-selectednode.embed[data-shown],
+.ProseMirror .ProseMirror-selectednode.embed > .embed-failure {
+  outline: 2px solid var(--ring);
 }
 
 /* Suggestion menus (slash commands, wikilink completion). */

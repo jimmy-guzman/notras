@@ -1592,6 +1592,216 @@ describe(NoteSession, () => {
     ).toBeInTheDocument();
   });
 
+  it("should show an embedded note's body without its frontmatter, and read it again after a change", async () => {
+    const atlas = {
+      createdAt: 1,
+      folder: "",
+      path: "atlas.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Atlas",
+      updatedAt: 1,
+    };
+
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_notes") {
+          return [atlas];
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, [
+      { ...atlas, createdAt: new Date(1), updatedAt: new Date(1) },
+    ]);
+    disk.set("atlas.md", {
+      content: "---\ntitle: Atlas\n---\nfirst body",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t6", "note", "host.md").queryKey, {
+      file: {
+        content: "see ![[Atlas]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t6", kind: "note", path: "host.md" }} />
+      </QueryClientProvider>
+    );
+    await editor("t6");
+
+    await waitFor(() =>
+      expect(screen.getByText("first body")).toBeInTheDocument()
+    );
+    expect(screen.queryByText("title: Atlas")).toBeNull();
+
+    disk.set("atlas.md", {
+      content: "---\ntitle: Atlas\n---\nsecond body",
+      revision: "r1",
+      updatedAt: 2,
+    });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText("second body")).toBeInTheDocument()
+    );
+  });
+
+  it("should say in an embed's place that its title names no note, or why its note could not be read", async () => {
+    const listed = {
+      createdAt: 1,
+      folder: "",
+      path: "locked.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Locked",
+      updatedAt: 1,
+    };
+
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, [
+      { ...listed, createdAt: new Date(1), updatedAt: new Date(1) },
+    ]);
+    client.setQueryData(tabOpeningQuery("t7", "note", "host.md").queryKey, {
+      file: {
+        content: "![[Nowhere]]\n\n![[Locked]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t7", kind: "note", path: "host.md" }} />
+      </QueryClientProvider>
+    );
+    await editor("t7");
+
+    await waitFor(() =>
+      expect(screen.getByText('No note is named "nowhere"')).toBeInTheDocument()
+    );
+    await waitFor(() =>
+      expect(screen.getByText("No such file")).toBeInTheDocument()
+    );
+  });
+
+  it("should resolve an embed from the note's new folder after it moves", async () => {
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, [
+      {
+        createdAt: new Date(1),
+        folder: "a",
+        path: "a/plan.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Plan",
+        updatedAt: new Date(1),
+      },
+      {
+        createdAt: new Date(1),
+        folder: "b",
+        path: "b/plan.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Plan",
+        updatedAt: new Date(1),
+      },
+    ]);
+    disk.set("a/plan.md", {
+      content: "the a plan",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    disk.set("b/plan.md", {
+      content: "the b plan",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t8", "note", "a/host.md").queryKey, {
+      file: { content: "![[Plan]]", revision: "r0", updatedAt: new Date(1) },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+
+    const session = render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t8", kind: "note", path: "a/host.md" }}
+        />
+      </QueryClientProvider>
+    );
+
+    await editor("t8");
+    await waitFor(() =>
+      expect(screen.getByText("the a plan")).toBeInTheDocument()
+    );
+
+    session.rerender(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t8", kind: "note", path: "b/host.md" }}
+        />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("the b plan")).toBeInTheDocument()
+    );
+  });
+
   it("should send an external file's image to the scheme with the document and the source", async () => {
     mockConvertFileSrc("macos");
     mockIPC(

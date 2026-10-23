@@ -608,6 +608,169 @@ describe("link clicks", () => {
   });
 });
 
+describe("embeds", () => {
+  it("should show the embedded note's body in the embed's place", async () => {
+    await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "# Atlas\n\nthe atlas body",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(screen.getByText("the atlas body")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Atlas" })).toBeInTheDocument();
+  });
+
+  it("should say why in the embed's place when its note does not show", async () => {
+    await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({ failure: 'No note is named "atlas"' });
+
+        return () => {};
+      },
+    });
+
+    expect(screen.getByText('No note is named "atlas"')).toBeInTheDocument();
+  });
+
+  it("should draw an embed inside the embedded note as a pill", async () => {
+    const watched: string[] = [];
+
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (title, show) => {
+        watched.push(title);
+        show({
+          body: "see ![[Deeper]]",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(watched).toStrictEqual(["Atlas"]);
+    expect(screen.getByText("Deeper")).toBeInTheDocument();
+  });
+
+  it("should show the title until the embedded note arrives, then stop following it once removed", async () => {
+    const shows: ((note: { body: string } | null) => void)[] = [];
+    const stop = vi.fn<() => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        shows.push((note) => {
+          show(
+            note === null
+              ? null
+              : { ...note, resolveImageSrc: (src) => ({ failure: "", src }) }
+          );
+        });
+
+        return stop;
+      },
+    });
+
+    expect(screen.getByText("Atlas")).toBeInTheDocument();
+    act(() => {
+      shows[0]?.({ body: "arrived" });
+    });
+    expect(screen.getByText("arrived")).toBeInTheDocument();
+    act(() => {
+      editor.commands.setContent("gone", { contentType: "markdown" });
+    });
+
+    expect(stop).toHaveBeenCalledOnce();
+  });
+});
+
+describe("events inside an embed", () => {
+  it("should open the embedded note from a click on a link in its body", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+    const onNoteLinkClick = vi.fn<(href: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      onNoteLinkClick,
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "see [site](other.md) here",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      clickAt(editor, screen.getByRole("link", { name: "site" }), 1, 1)
+    ).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("Atlas");
+    expect(onNoteLinkClick).not.toHaveBeenCalled();
+  });
+
+  it("should leave a press on a fragment link in its body to the editor, so the click opens the embedded note", async () => {
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "see [top](#top) here",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      fireEvent.mouseDown(screen.getByRole("link", { name: "top" }), {
+        button: 0,
+      })
+    ).toBeTruthy();
+  });
+
+  it("should edit the embed itself from the preview of a pill in its body", async () => {
+    const { handle } = await mount({
+      initialContent: "see ![[Atlas]]",
+      resolveWikilink: () => "atlas.md",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "see [[Deeper]]",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    fireEvent.mouseOver(screen.getByText("Deeper"));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "edit link" }));
+
+    expect(screen.getByRole("textbox", { name: "note title" })).toHaveValue(
+      "Atlas"
+    );
+    expect(handle.getContent()).toBe("see ![[Atlas]]");
+  });
+});
+
 describe("heading links", () => {
   it("should focus a heading when the click starts outside the editor", async () => {
     render(<input aria-label="outside" />);

@@ -61,7 +61,8 @@ import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
 import { CodeBlockTab } from "./code-block-tab";
 import { DragSelection } from "./drag-selection";
-import { Embed } from "./embed";
+import { Embed, embedNodeView } from "./embed";
+import type { WatchEmbed } from "./embed";
 import { LinkDefinition } from "./link-definition";
 import { MarkdownPaste } from "./markdown-paste";
 import type { SaveImage } from "./markdown-paste";
@@ -83,6 +84,7 @@ export interface EditorExtensionOptions {
   readClipboardText?: ReadClipboardText;
   resolveImageSrc?: (src: string) => ImageSource;
   saveImage?: SaveImage;
+  watchEmbed?: WatchEmbed;
 }
 
 /**
@@ -1391,7 +1393,17 @@ export function createEditorExtensions(
     }),
     CaretAfterBreak,
     DragSelection,
-    Embed,
+    Embed.extend({
+      addNodeView() {
+        const { watchEmbed } = options;
+
+        return watchEmbed === undefined
+          ? null
+          : embedNodeView(watchEmbed, (resolveImageSrc) =>
+              createEditorExtensions({ placeholderText: "", resolveImageSrc })
+            );
+      },
+    }),
     MarkdownLinkInputRule,
     MoveSelectionKeys,
     SelectionHighlight,

@@ -1,8 +1,10 @@
 import {
+  QueryObserver,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import type { NotifyOnChangeProps } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { cn } from "cn";
@@ -12,6 +14,7 @@ import { flushSync } from "react-dom";
 
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
+import type { WatchEmbed } from "@/components/editor/embed";
 import type { FindHandle } from "@/components/editor/find";
 import type {
   DocumentEdit,
@@ -180,6 +183,9 @@ const WEB_SCHEME = /^https?:/iu;
 
 // A drive letter reads as a one-letter scheme, so it is caught before the scheme check.
 const ABSOLUTE_PATH = /^(?:\/|[a-z]:[\\/])/iu;
+
+/** What redraws an embed: a new read, or a failed one. */
+const EMBED_CHANGES: NotifyOnChangeProps = ["data", "error"];
 
 /**
  * A relative image resolves against the file that holds it, the way a link
@@ -586,6 +592,67 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   const resolveWikilink = (title: string) =>
     live.current.resolveLinks?.title(title, live.current.path)?.path;
 
+  // An embed resolves from the note's folder, so a move has every embed
+  // resolve again.
+  const embedFollowers = useRef(new Set<(path: string) => void>());
+  useLayoutEffect(() => {
+    for (const follow of embedFollowers.current) {
+      follow(tab.path);
+    }
+  }, [tab.path]);
+
+  const watchEmbed: WatchEmbed = (title, show) => {
+    const optionsFor = (from: string) => ({
+      ...noteQueries.embed(title, from),
+      notifyOnChangeProps: EMBED_CHANGES,
+    });
+
+    const observer = new QueryObserver(
+      queryClient,
+      optionsFor(live.current.path)
+    );
+
+    const shownFor = ({
+      data,
+      error,
+    }: ReturnType<typeof observer.getCurrentResult>) => {
+      if (error !== null) {
+        return { failure: error.message };
+      }
+
+      if (data === undefined) {
+        return null;
+      }
+
+      if (data === null) {
+        return { failure: `No note is named "${title.trim().toLowerCase()}"` };
+      }
+
+      return {
+        body: data.body,
+        resolveImageSrc: (src: string) =>
+          imageSrc(src, "note", data.path, notesDir),
+      };
+    };
+
+    const follow = (path: string) => {
+      observer.setOptions(optionsFor(path));
+    };
+
+    embedFollowers.current.add(follow);
+    show(shownFor(observer.getCurrentResult()));
+
+    // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- the returned function releases it, and the node view calls that on destroy
+    const unsubscribe = observer.subscribe((result) => {
+      show(shownFor(result));
+    });
+
+    return () => {
+      embedFollowers.current.delete(follow);
+      unsubscribe();
+    };
+  };
+
   const openFileLink = async (href: string) => {
     try {
       await openLinkedFile(live.current.path, href);
@@ -647,6 +714,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           onNoteLinkClick: openNoteLink,
           onWikilinkClick: openWikilink,
           resolveWikilink,
+          watchEmbed,
         }
       : {
           documentPath: () => null,

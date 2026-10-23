@@ -39,6 +39,7 @@ import {
 } from "@/lib/utils/attachments";
 import { commands } from "@/server/adapters/bindings";
 
+import type { WatchEmbed } from "./embed";
 import {
   converterOf,
   copiedMarkdown,
@@ -558,6 +559,8 @@ interface EditorProps {
   stripSentinel?: boolean;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
+  /** Follows the note an embed names; without it an embed draws as a pill. */
+  watchEmbed?: WatchEmbed;
 }
 
 /**
@@ -757,7 +760,8 @@ export function Editor(mountProps: EditorProps) {
 
         const target =
           event.target instanceof Element
-            ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
+            ? (event.target.closest<HTMLElement>(".embed") ??
+              event.target.closest<HTMLElement>("a[href], [data-wikilink]"))
             : null;
 
         // A resolved text position can belong to a link even when the pointer
@@ -857,7 +861,8 @@ export function Editor(mountProps: EditorProps) {
 
           const target =
             event.target instanceof Element
-              ? event.target.closest("a[href]")
+              ? (event.target.closest(".embed") ??
+                event.target.closest("a[href]"))
               : null;
 
           if (
@@ -876,7 +881,8 @@ export function Editor(mountProps: EditorProps) {
         mouseout: (_view, event) => {
           const target =
             event.target instanceof Element
-              ? event.target.closest("a[href], [data-wikilink]")
+              ? (event.target.closest(".embed") ??
+                event.target.closest("a[href], [data-wikilink]"))
               : null;
 
           if (
@@ -895,7 +901,8 @@ export function Editor(mountProps: EditorProps) {
         mouseover: (view, event) => {
           const target =
             event.target instanceof Element
-              ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
+              ? (event.target.closest<HTMLElement>(".embed") ??
+                event.target.closest<HTMLElement>("a[href], [data-wikilink]"))
               : null;
 
           if (
@@ -1000,6 +1007,7 @@ export function Editor(mountProps: EditorProps) {
 
           return attachmentDestination(await attachImage(base64), from);
         },
+        watchEmbed: config.watchEmbed,
       }),
       Find,
       linkShortcut,
