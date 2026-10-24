@@ -2,6 +2,8 @@ import { cn } from "cn";
 import { PencilIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { clampToViewport } from "./clamp-to-viewport";
+
 export interface LinkHoverState {
   editable: boolean;
   /** Rect of the link being pointed at, for placing the panel under it. */
@@ -32,24 +34,12 @@ export function LinkHover({
 }: LinkHoverProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Clamp inside the viewport once rendered, the same policy the link editor
-  // and the suggestion menu use.
   useEffect(() => {
     const element = containerRef.current;
 
-    if (element === null) {
-      return;
+    if (element !== null) {
+      clampToViewport(element, state.left, state.top);
     }
-
-    const rect = element.getBoundingClientRect();
-    const margin = 8;
-
-    element.style.left = `${Math.max(margin, Math.min(state.left, window.innerWidth - rect.width - margin))}px`;
-    element.style.top = `${
-      state.top + rect.height + margin > window.innerHeight
-        ? Math.max(margin, state.top - rect.height - 28)
-        : state.top
-    }px`;
   }, [state.left, state.top]);
 
   return (

@@ -877,8 +877,12 @@ body.dragging .ProseMirror .selected-text,
   position: fixed;
   z-index: 50;
   display: flex;
+  flex-direction: column;
   gap: 0.35rem;
-  align-items: center;
+  /* A shrink-to-fit width would follow `left`, which the clamp sets from the
+     width, so the two would chase each other across frames. */
+  width: max-content;
+  max-width: calc(100vw - 1rem);
   padding: 0.35rem;
   color: var(--popover-foreground);
   background: var(--popover);
@@ -895,10 +899,23 @@ body.dragging .ProseMirror .selected-text,
   background: var(--input);
   border-radius: calc(var(--radius-lg) - 0.35rem);
 }
+.link-editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
 .link-editor-actions {
   display: flex;
   gap: 0.15rem;
   align-items: center;
+}
+.link-editor-reason {
+  /* The row sets the width; the reason wraps inside it. */
+  contain: inline-size;
+  padding-inline: 0.5rem;
+  font-size: var(--text-xs);
+  color: var(--destructive);
 }
 /* Where a link goes, while the pointer is on it. Same surface as the editor it
    opens, since they are two states of one thing. */

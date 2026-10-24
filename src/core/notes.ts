@@ -98,7 +98,26 @@ export function filenameFromTitle(title: string) {
   return slug === "" ? "untitled" : slug;
 }
 
-const WIKILINK_TITLE = /^\[\[(?<title>[^\n[\]]+)\]\]/u;
+const WIKILINK_TITLE = String.raw`[^\n[\]]+`;
+const WHOLE_WIKILINK_TITLE = new RegExp(`^${WIKILINK_TITLE}$`, "u");
+
+/** `[[title]]` at the start of the text, its title in the `title` group. */
+export const WIKILINK_TOKEN = new RegExp(
+  String.raw`^\[\[(?<title>${WIKILINK_TITLE})\]\]`,
+  "u"
+);
+
+/** `![[title]]` at the start of the text, its title in the `title` group. */
+export const EMBED_TOKEN = new RegExp(
+  String.raw`^!\[\[(?<title>${WIKILINK_TITLE})\]\]`,
+  "u"
+);
+
+/** Whether `title` reads back as a wikilink's or an embed's title once saved. */
+export function isWikilinkTitle(title: string) {
+  return WHOLE_WIKILINK_TITLE.test(title);
+}
+
 const TITLE_SPACE = /\s+/gu;
 const FRONTMATTER_TITLE = /^title\s*:/u;
 
@@ -109,7 +128,7 @@ const titleMarkdown = new Marked({
       name: "codespan",
       start: (source) => source.indexOf("[["),
       tokenizer: (source) => {
-        const match = WIKILINK_TITLE.exec(source);
+        const match = WIKILINK_TOKEN.exec(source);
 
         return match === null
           ? undefined

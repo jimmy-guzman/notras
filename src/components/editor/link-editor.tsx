@@ -1,5 +1,9 @@
 import { CheckIcon, UnlinkIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+
+import { isWikilinkTitle } from "@/core/notes";
+
+import { clampToViewport } from "./clamp-to-viewport";
 
 export interface LinkEditorState {
   /** Distinguishes one invocation from the next, so the popover remounts. */
@@ -32,6 +36,12 @@ export function LinkEditor({
   const [text, setText] = useState(state.text);
   const containerRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
+  const reasonId = useId();
+
+  const refused =
+    state.kind === "wikilink" &&
+    text.trim() !== "" &&
+    !isWikilinkTitle(text.trim());
 
   // The caller keys this on `state.id`, so a second invocation arrives as a
   // fresh mount and the draft starts empty without a reset pass.
@@ -40,43 +50,42 @@ export function LinkEditor({
     firstFieldRef.current?.select();
   }, []);
 
-  // Clamp inside the viewport once rendered (same policy as the
-  // suggestion menu).
+  // Clamp once rendered, and again whenever the reason adds or drops its
+  // line, so a popover flipped above the caret does not grow over the line
+  // it edits.
   useEffect(() => {
     const element = containerRef.current;
 
-    if (element === null) {
-      return;
+    const observer = new ResizeObserver(() => {
+      if (element !== null) {
+        clampToViewport(element, state.left, state.top);
+      }
+    });
+
+    if (element !== null) {
+      clampToViewport(element, state.left, state.top);
+      observer.observe(element);
     }
 
-    const rect = element.getBoundingClientRect();
-    const margin = 8;
-
-    const left = Math.max(
-      margin,
-      Math.min(state.left, window.innerWidth - rect.width - margin)
-    );
-
-    const top =
-      state.top + rect.height + margin > window.innerHeight
-        ? Math.max(margin, state.top - rect.height - 28)
-        : state.top;
-
-    element.style.left = `${left}px`;
-    element.style.top = `${top}px`;
+    return () => {
+      observer.disconnect();
+    };
   }, [state.left, state.top]);
 
   const submit = () => {
-    onSubmit(url, text);
+    if (!refused) {
+      onSubmit(url, text);
+    }
   };
 
   return (
     // Keys are handled on the container so Escape works from the buttons too.
+    // Enter submits from a field only, so on a button it presses that button.
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- popover-level key handling; focus always sits on a real control inside
     <div
       className="link-editor"
       onKeyDown={(event) => {
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
           event.preventDefault();
           submit();
         }
@@ -88,58 +97,67 @@ export function LinkEditor({
       }}
       ref={containerRef}
     >
-      <input
-        aria-label={state.kind === "wikilink" ? "note title" : "link text"}
-        className="link-editor-input"
-        onChange={(event) => {
-          setText(event.target.value);
-        }}
-        placeholder={
-          state.kind === "wikilink" ? "note title..." : "link text..."
-        }
-        ref={firstFieldRef}
-        value={text}
-      />
-      {state.kind === "wikilink" ? null : (
+      <div className="link-editor-row">
         <input
-          aria-label="link url"
+          aria-describedby={refused ? reasonId : undefined}
+          aria-invalid={refused}
+          aria-label={state.kind === "wikilink" ? "note title" : "link text"}
           className="link-editor-input"
           onChange={(event) => {
-            setUrl(event.target.value);
+            setText(event.target.value);
           }}
-          placeholder="enter url..."
-          type="url"
-          value={url}
+          placeholder={
+            state.kind === "wikilink" ? "note title..." : "link text..."
+          }
+          ref={firstFieldRef}
+          value={text}
         />
-      )}
-      <div className="link-editor-actions">
-        <button
-          aria-label="apply link"
-          className="code-block-button"
-          onClick={submit}
-          type="button"
-        >
-          <CheckIcon size={14} />
-        </button>
-        {state.url === "" || state.kind === "wikilink" ? null : (
+        {state.kind === "wikilink" ? null : (
+          <input
+            aria-label="link url"
+            className="link-editor-input"
+            onChange={(event) => {
+              setUrl(event.target.value);
+            }}
+            placeholder="enter url..."
+            type="url"
+            value={url}
+          />
+        )}
+        <div className="link-editor-actions">
           <button
-            aria-label="remove link"
+            aria-label="apply link"
             className="code-block-button"
-            onClick={onRemove}
+            onClick={submit}
             type="button"
           >
-            <UnlinkIcon size={14} />
+            <CheckIcon size={14} />
           </button>
-        )}
-        <button
-          aria-label="cancel"
-          className="code-block-button"
-          onClick={onCancel}
-          type="button"
-        >
-          <XIcon size={14} />
-        </button>
+          {state.url === "" || state.kind === "wikilink" ? null : (
+            <button
+              aria-label="remove link"
+              className="code-block-button"
+              onClick={onRemove}
+              type="button"
+            >
+              <UnlinkIcon size={14} />
+            </button>
+          )}
+          <button
+            aria-label="cancel"
+            className="code-block-button"
+            onClick={onCancel}
+            type="button"
+          >
+            <XIcon size={14} />
+          </button>
+        </div>
       </div>
+      {refused ? (
+        <p className="link-editor-reason" id={reasonId}>
+          A link&apos;s title cannot hold [ or ]
+        </p>
+      ) : null}
     </div>
   );
 }
