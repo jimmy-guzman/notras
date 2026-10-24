@@ -150,11 +150,16 @@ export const Wikilink = Node.create<WikilinkOptions>({
   name: "wikilink",
 
   parseHTML() {
-    // A pasted pill whose title would not read back stays as its words.
+    // A pasted pill whose title would not read back stays as its words. An
+    // embed span only reaches this rule once the embed's own rule refused it,
+    // so it stays as its words too rather than turning into a link.
     return [
       {
         getAttrs: (element) =>
-          isWikilinkTitle(pillTitle(element)) ? null : false,
+          element.dataset.embed === undefined &&
+          isWikilinkTitle(pillTitle(element))
+            ? null
+            : false,
         tag: "span[data-wikilink]",
       },
     ];

@@ -1567,6 +1567,7 @@ describe("paste formatting", () => {
   it.each([
     '<p>see <span class="wikilink" data-wikilink="a]b">a]b</span></p>',
     '<p>see <span class="wikilink" data-embed="a]b" data-wikilink="a]b">a]b</span></p>',
+    '<p>see <span class="wikilink" data-embed="a]b" data-wikilink="ab">a]b</span></p>',
   ])(
     "should paste a pill whose title holds a bracket as its words",
     async (html) => {
