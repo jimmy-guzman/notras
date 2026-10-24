@@ -179,8 +179,8 @@ importers:
         specifier: 10.0.0
         version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@tanstack/react-hotkeys':
-        specifier: 0.14.5
-        version: 0.14.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 0.16.0
+        version: 0.16.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-pacer':
         specifier: 0.24.1
         version: 0.24.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -2046,8 +2046,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@tanstack/hotkeys@0.15.1':
-    resolution: {integrity: sha512-Ck8a3ON2KOQi2o9IKgCIJxQXhRMLpcau1EAK8xQd3KUKvXGi0asY6Zlco8SJNHYAQGVPn0f6DQhg64L7IeZKbw==}
+  '@tanstack/hotkeys@0.17.0':
+    resolution: {integrity: sha512-HhgfF+Wqz3ofCQaDHXSkItRbLXmigoHsxJsQGbGc3Kgu/gunwcFLqVubfoUmdRK/YN7fuZYN2vEOk3oMGxSWTg==}
     engines: {node: '>=20'}
 
   '@tanstack/pacer@0.23.1':
@@ -2057,8 +2057,8 @@ packages:
   '@tanstack/query-core@5.104.3':
     resolution: {integrity: sha512-DZY9TuJAOgU3UyHUhXb4CcTYEHNZszlwkPg4VViIwTxOKzLprPUU+rbaPZQd3srqkGOtpaDdKpW972UV/LKlcg==}
 
-  '@tanstack/react-hotkeys@0.14.5':
-    resolution: {integrity: sha512-rOgTELMa419TizdCsjWRRnhXwTz5Z9IEwCxG+BuWmGl61qi7hk7mTp4SpbEANx7W481X8dplmteNucyWSX6hhA==}
+  '@tanstack/react-hotkeys@0.16.0':
+    resolution: {integrity: sha512-mP1ZFjBdqllK5xrUU2BGi2ZAryrVmgCAsWSEVJWq1w+qkxRNZ+c5h+J7+99sTwhVa2dLIgnJwE2PzITSopUZnA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: '>=16.8'
@@ -6587,7 +6587,7 @@ snapshots:
 
   '@tanstack/devtools-event-client@0.5.0': {}
 
-  '@tanstack/hotkeys@0.15.1':
+  '@tanstack/hotkeys@0.17.0':
     dependencies:
       '@tanstack/store': 0.11.2
 
@@ -6598,9 +6598,9 @@ snapshots:
 
   '@tanstack/query-core@5.104.3': {}
 
-  '@tanstack/react-hotkeys@0.14.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@tanstack/react-hotkeys@0.16.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@tanstack/hotkeys': 0.15.1
+      '@tanstack/hotkeys': 0.17.0
       '@tanstack/react-store': 0.11.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)

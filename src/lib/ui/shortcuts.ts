@@ -2,7 +2,7 @@ import {
   detectPlatform,
   formatForDisplay,
   getHotkeyManager,
-  normalizeRegisterableHotkey,
+  normalizeHotkey,
   useHotkeyRegistrations,
 } from "@tanstack/react-hotkeys";
 import type {
@@ -43,10 +43,7 @@ export function useHotkeys(
         ...definition.options,
       };
 
-      const hotkey = normalizeRegisterableHotkey(
-        definition.hotkey,
-        detectPlatform()
-      );
+      const hotkey = normalizeHotkey(definition.hotkey, detectPlatform());
 
       return {
         callback: definition.callback,
