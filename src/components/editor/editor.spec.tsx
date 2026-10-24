@@ -639,6 +639,147 @@ describe("embeds", () => {
     expect(screen.getByText('No note is named "atlas"')).toBeInTheDocument();
   });
 
+  it("should show an embedded image in the viewer from its open button", async () => {
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "![shot](attachments/shot.png)",
+          resolveImageSrc: (src) => ({
+            failure: "",
+            src: `asset://localhost/notes/${src}`,
+          }),
+        });
+
+        return () => {};
+      },
+    });
+    const image = await screen.findByRole("img", { name: "shot" });
+    Object.defineProperty(image, "naturalWidth", { value: 1 });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "open image" }));
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "shot",
+      })
+    ).toHaveAttribute("src", "asset://localhost/notes/attachments/shot.png");
+  });
+
+  it("should leave a press on a control in the embedded note to that control", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "plain words\n\n![shot](attachments/shot.png)\n\n```js\nconst x = 1;\n```",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const pressed = vi.fn<() => void>();
+
+    act(() => {
+      editor.registerPlugin(
+        new Plugin({
+          props: {
+            handleDOMEvents: {
+              mousedown: () => {
+                pressed();
+
+                return false;
+              },
+            },
+          },
+        })
+      );
+    });
+
+    const user = userEvent.setup();
+    const open = await screen.findByRole("button", { name: "open image" });
+    const words = screen.getByText("plain words");
+
+    await user.pointer({
+      keys: "[MouseLeft]",
+      target: screen.getByRole("button", { name: "copy code" }),
+    });
+    // Released on the words: a click on open would cover the note with the viewer.
+    await user.pointer({ keys: "[MouseLeft>]", target: open });
+    await user.pointer({ keys: "[/MouseLeft]", target: words });
+
+    expect(pressed).not.toHaveBeenCalled();
+
+    await user.pointer({ keys: "[MouseLeft>]", target: words });
+
+    expect(pressed).toHaveBeenCalledOnce();
+  });
+
+  it("should mark the embed shown only once its body has drawn", async () => {
+    const shows: ((body: string) => void)[] = [];
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        shows.push((body) => {
+          show({ body, resolveImageSrc: (src) => ({ failure: "", src }) });
+        });
+
+        return () => {};
+      },
+    });
+
+    const embed = editor.view.dom.querySelector(".embed");
+
+    shows[0]?.("arrived");
+
+    expect(embed).not.toHaveAttribute("data-shown");
+    expect(await screen.findByText("arrived")).toBeInTheDocument();
+    expect(embed).toHaveAttribute("data-shown");
+  });
+
+  it("should give an embedded code block its copy button but no language picker", async () => {
+    await mount({
+      initialContent: "```ts\nconst host = 1;\n```\n\n![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "```js\nconst embedded = 1;\n```",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      await screen.findAllByRole("button", { name: "copy code" })
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("combobox", { name: "code language" })
+    ).toHaveLength(1);
+  });
+
+  it("should draw a table in the embedded note", async () => {
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "| a | b |\n| --- | --- |\n| one | two |",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("cell", { name: "two" })).toBeInTheDocument();
+  });
+
   it("should draw an embed inside the embedded note as a pill", async () => {
     const watched: string[] = [];
 
@@ -692,6 +833,28 @@ describe("embeds", () => {
 });
 
 describe("events inside an embed", () => {
+  it("should open the embedded note from a click on a drawing in its body", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "```mermaid\ngraph TD\n  A --> B\n```",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(clickAt(editor, diagram, 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("Atlas");
+  });
+
   it("should open the embedded note from a click on a link in its body", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
     const onNoteLinkClick = vi.fn<(href: string) => void>();

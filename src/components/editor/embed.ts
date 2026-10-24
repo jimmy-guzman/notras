@@ -1,7 +1,10 @@
-import { Editor, Node } from "@tiptap/core";
+import { Node } from "@tiptap/core";
 import type { Extensions, NodeViewRenderer } from "@tiptap/core";
 import type { Attrs } from "@tiptap/pm/model";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { FileXIcon } from "lucide-react";
+import { createElement, useLayoutEffect } from "react";
+import { createRoot } from "react-dom/client";
 
 import { hasString } from "./attrs";
 import type { ImageSource } from "./image-resize";
@@ -35,6 +38,31 @@ export type WatchEmbed = (
 ) => () => void;
 
 /**
+ * The embedded note, drawn by a React editor as the note itself is, so the
+ * node views that render through React, tables among them, draw here too.
+ */
+function EmbeddedBody({
+  body,
+  extensions,
+  onDrawn,
+}: {
+  body: string;
+  extensions: Extensions;
+  onDrawn: () => void;
+}) {
+  const editor = useEditor({
+    content: body,
+    contentType: "markdown",
+    editable: false,
+    extensions,
+  });
+
+  useLayoutEffect(onDrawn, [onDrawn]);
+
+  return createElement(EditorContent, { editor });
+}
+
+/**
  * The embed as its note's body, drawn read-only by an editor of its own, as the
  * reason it cannot show one, or as the pill until either is known. The inner
  * editor takes `extensionsFor`'s extensions, which draw an embed as its pill,
@@ -51,26 +79,39 @@ export function embedNodeView(
     const body = document.createElement("span");
     const failure = document.createElement("span");
     const reason = document.createElement("span");
+    const inner = createRoot(body);
     let node = mounted;
-    let inner: Editor | null = null;
+    let shows = 0;
     let unwatch: (() => void) | null = null;
 
     const show = (shown: EmbedShown | null) => {
-      inner?.destroy();
-      inner =
-        shown === null || "failure" in shown
-          ? null
-          : new Editor({
-              content: shown.body,
-              contentType: "markdown",
-              editable: false,
-              element: body,
+      const drawn = shown !== null && !("failure" in shown);
+
+      shows += 1;
+      const read = shows;
+
+      inner.render(
+        drawn
+          ? createElement(EmbeddedBody, {
+              body: shown.body,
               extensions: extensionsFor(shown.resolveImageSrc),
-            });
+              // A new read is a new editor, since the editor takes its content once.
+              key: read,
+              // React commits the body a task after this render; marking the
+              // embed shown before then would draw an empty box.
+              onDrawn: () => {
+                dom.toggleAttribute("data-shown", read === shows);
+              },
+            })
+          : null
+      );
       reason.textContent =
         shown !== null && "failure" in shown ? shown.failure : "";
-      dom.toggleAttribute("data-shown", inner !== null);
       dom.toggleAttribute("data-failed", reason.textContent !== "");
+
+      if (!drawn) {
+        dom.toggleAttribute("data-shown", false);
+      }
     };
 
     const watchTitle = () => {
@@ -93,7 +134,11 @@ export function embedNodeView(
     return {
       destroy: () => {
         unwatch?.();
-        inner?.destroy();
+        // ProseMirror destroys a node view in its own update, which can run
+        // inside the note's React render, where an unmount cannot.
+        queueMicrotask(() => {
+          inner.unmount();
+        });
       },
       dom,
       // Everything under the wrapper is the inner editor's own DOM.

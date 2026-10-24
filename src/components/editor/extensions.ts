@@ -1400,7 +1400,12 @@ export function createEditorExtensions(
         return watchEmbed === undefined
           ? null
           : embedNodeView(watchEmbed, (resolveImageSrc) =>
-              createEditorExtensions({ placeholderText: "", resolveImageSrc })
+              createEditorExtensions({
+                openDiagram: options.openDiagram,
+                openImage: options.openImage,
+                placeholderText: "",
+                resolveImageSrc,
+              })
             );
       },
     }),

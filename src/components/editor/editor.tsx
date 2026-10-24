@@ -743,8 +743,10 @@ export function Editor(mountProps: EditorProps) {
         clipboardText(slice, view.state.schema, editorRef.current?.markdown),
       handleClickOn: (view, _pos, node, nodePos, event) => {
         // A drawn diagram folds its code away, so a click on it is a click
-        // at the end of that code.
+        // at the end of that code. One drawn inside an embed belongs to the
+        // embed's own editor, and the click lands on the embed.
         if (
+          node.type.name === "codeBlock" &&
           event.target instanceof Element &&
           event.target.closest(".code-block-diagram") !== null
         ) {

@@ -89,7 +89,9 @@ export function codeBlockNodeView(
   select.className = "code-block-language";
   select.setAttribute("aria-label", "code language");
   width.append(label, select);
-  toolbar.append(copyButton, width);
+  // A language picked in a read-only editor, an embed's, would change only
+  // that view and revert on the next read.
+  toolbar.append(copyButton, ...(view.editable ? [width] : []));
   pre.append(code);
   dom.append(toolbar, pre, scrollbar.bar);
 

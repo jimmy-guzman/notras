@@ -642,7 +642,7 @@ body.dragging .ProseMirror .selected-text,
 .ProseMirror .embed-body {
   display: block;
 }
-.ProseMirror .embed-body > .ProseMirror > :first-child {
+.ProseMirror .embed-body .ProseMirror > :first-child {
   margin-block-start: 0;
 }
 .ProseMirror .ProseMirror-selectednode.embed[data-shown],
