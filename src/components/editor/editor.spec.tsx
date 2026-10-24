@@ -1163,6 +1163,69 @@ describe("link hover", () => {
     }
   );
 
+  it.each(["[[Atlas]]", "![[Atlas]]"])(
+    "should refuse to rename %s to a title holding a bracket and say why",
+    async (initialContent) => {
+      const { handle } = await mount({
+        initialContent,
+        resolveWikilink: () => "atlas.md",
+      });
+
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByText("Atlas"));
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "edit link" }));
+      const title = screen.getByRole("textbox", { name: "note title" });
+      await user.clear(title);
+      await user.type(title, "a]b");
+      await user.click(screen.getByRole("button", { name: "apply link" }));
+
+      expect(title).toBeInTheDocument();
+      expect(title).toHaveAccessibleDescription(
+        "A link's title cannot hold [ or ]"
+      );
+      expect(handle.getContent()).toBe(initialContent);
+    }
+  );
+
+  it("should cancel a rename on Enter with cancel focused", async () => {
+    const { handle } = await mount({
+      initialContent: "[[Atlas]]",
+      resolveWikilink: () => "atlas.md",
+    });
+
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    fireEvent.mouseOver(screen.getByText("Atlas"));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "edit link" }));
+    const title = screen.getByRole("textbox", { name: "note title" });
+    await user.clear(title);
+    await user.type(title, "Globe");
+    await user.tab();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "cancel" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(title).not.toBeInTheDocument();
+    expect(handle.getContent()).toBe("[[Atlas]]");
+  });
+
   it("should cancel a pending preview when the pointer leaves", async () => {
     await mount({ initialContent: "[note](other.md)" });
     vi.useFakeTimers();
@@ -1500,6 +1563,32 @@ describe("paste formatting", () => {
 
     expect(handle.getContent().trimEnd()).toBe(String.raw`run \*\*x\*\* now`);
   });
+
+  it.each([
+    '<p>see <span class="wikilink" data-wikilink="a]b">a]b</span></p>',
+    '<p>see <span class="wikilink" data-embed="a]b" data-wikilink="a]b">a]b</span></p>',
+  ])(
+    "should paste a pill whose title holds a bracket as its words",
+    async (html) => {
+      const { editor, scroller } = await mount({ initialContent: "" });
+      const surface = scroller.querySelector(".ProseMirror");
+
+      if (surface === null) {
+        throw new Error("the editor surface did not render");
+      }
+
+      const clipboardData = new DataTransfer();
+
+      clipboardData.setData("text/plain", "see a]b");
+      clipboardData.setData("text/html", html);
+      act(() => {
+        surface.dispatchEvent(new ClipboardEvent("paste", { clipboardData }));
+      });
+
+      expect(editor.state.doc.textContent).toBe("see a]b");
+      expect(scroller.querySelector("[data-wikilink]")).toBeNull();
+    }
+  );
 });
 
 describe("code block clipboard", () => {
@@ -1993,6 +2082,23 @@ describe("title menu", () => {
     await user.keyboard("see ![[[[groc{Enter}");
 
     expect(handle.getContent()).toBe("see ![[grocery list]] ");
+  });
+
+  it("should leave out a title holding a bracket", async () => {
+    const { editor } = await mount({
+      initialContent: "",
+      titles: () => ["Array[0]", "Array notes"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see [[[[arr");
+
+    expect(screen.getByText("Array notes")).toBeVisible();
+    expect(screen.queryByText("Array[0]")).toBeNull();
   });
 });
 

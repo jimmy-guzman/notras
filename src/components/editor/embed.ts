@@ -6,11 +6,11 @@ import { FileXIcon } from "lucide-react";
 import { createElement, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
+import { EMBED_TOKEN, isWikilinkTitle } from "@/core/notes";
+
 import { hasString } from "./attrs";
 import type { ImageSource } from "./image-resize";
 import { nodeViewIcons } from "./node-view-icons";
-
-const EMBED_TOKEN = /^!\[\[(?<title>[^\n[\]]+)\]\]/u;
 
 const icon = nodeViewIcons({ failed: FileXIcon });
 
@@ -201,8 +201,19 @@ export const Embed = Node.create({
   name: "embed",
 
   parseHTML() {
-    // Above the wikilink's rule, which also matches `span[data-wikilink]`.
-    return [{ priority: 60, tag: "span[data-embed]" }];
+    // Above the wikilink's rule, which also matches `span[data-wikilink]`. A
+    // pasted embed whose title would not read back stays as its words.
+    return [
+      {
+        getAttrs: (element) =>
+          element.dataset.embed !== undefined &&
+          isWikilinkTitle(element.dataset.embed)
+            ? null
+            : false,
+        priority: 60,
+        tag: "span[data-embed]",
+      },
+    ];
   },
 
   parseMarkdown: (token, helpers) =>

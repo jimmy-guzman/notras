@@ -5,15 +5,18 @@ import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
 import { hasString } from "@/components/editor/attrs";
+import { isWikilinkTitle, WIKILINK_TOKEN } from "@/core/notes";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
 import { SuggestionMenu } from "./suggestion-menu";
 
-const WIKILINK_TOKEN = /^\[\[(?<title>[^\n[\]]+)\]\]/u;
-
 export interface WikilinkOptions {
   /** Live note titles for completion. */
   getTitles: () => string[];
+}
+
+function pillTitle(element: HTMLElement) {
+  return element.dataset.wikilink ?? element.textContent;
 }
 
 function toItems(props: {
@@ -38,8 +41,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
     return {
       title: {
         default: "",
-        parseHTML: (element: HTMLElement) =>
-          element.dataset.wikilink ?? element.textContent,
+        parseHTML: pillTitle,
         renderHTML: (attributes: Attrs) => ({
           "data-wikilink": hasString(attributes, "title")
             ? attributes.title
@@ -81,7 +83,11 @@ export const Wikilink = Node.create<WikilinkOptions>({
       items: ({ query }) =>
         this.options
           .getTitles()
-          .filter((title) => title.toLowerCase().includes(query.toLowerCase()))
+          .filter(
+            (title) =>
+              isWikilinkTitle(title) &&
+              title.toLowerCase().includes(query.toLowerCase())
+          )
           .slice(0, 8),
       pluginKey: new PluginKey("wikilinkSuggestion"),
       render: () => {
@@ -144,7 +150,14 @@ export const Wikilink = Node.create<WikilinkOptions>({
   name: "wikilink",
 
   parseHTML() {
-    return [{ tag: "span[data-wikilink]" }];
+    // A pasted pill whose title would not read back stays as its words.
+    return [
+      {
+        getAttrs: (element) =>
+          isWikilinkTitle(pillTitle(element)) ? null : false,
+        tag: "span[data-wikilink]",
+      },
+    ];
   },
 
   parseMarkdown: (token, helpers) =>
