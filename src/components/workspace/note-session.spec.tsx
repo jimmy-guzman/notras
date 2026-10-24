@@ -1802,6 +1802,44 @@ describe(NoteSession, () => {
     );
   });
 
+  it("should say in an external file's embed that embeds show in library notes only", async () => {
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    const path = "/Users/me/docs/note.md";
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(tabOpeningQuery("t9", "external", path).queryKey, {
+      file: {
+        content: "see ![[Atlas]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t9", kind: "external", path }} />
+      </QueryClientProvider>
+    );
+    await editor("t9");
+
+    expect(
+      screen.getByText("Embeds show in library notes only")
+    ).toBeInTheDocument();
+  });
+
   it("should send an external file's image to the scheme with the document and the source", async () => {
     mockConvertFileSrc("macos");
     mockIPC(

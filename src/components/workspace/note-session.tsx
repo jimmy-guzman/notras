@@ -187,6 +187,17 @@ const ABSOLUTE_PATH = /^(?:\/|[a-z]:[\\/])/iu;
 /** What redraws an embed: a new read, or a failed one. */
 const EMBED_CHANGES: NotifyOnChangeProps = ["data", "error"];
 
+function releaseNothing() {
+  // An external file's embed watches nothing.
+}
+
+/** An external file sits outside the library its titles resolve against. */
+const externalEmbed: WatchEmbed = (_title, show) => {
+  show({ failure: "Embeds show in library notes only" });
+
+  return releaseNothing;
+};
+
 /**
  * A relative image resolves against the file that holds it, the way a link
  * does. A web image is refused before it loads, since loading one tells its
@@ -720,6 +731,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           documentPath: () => null,
           onFileLinkClick: openExternalFileLink,
           onNoteLinkClick: openExternalNoteLink,
+          watchEmbed: externalEmbed,
         };
 
   const handleBodyChange = (content: string, edit: DocumentEdit) => {
