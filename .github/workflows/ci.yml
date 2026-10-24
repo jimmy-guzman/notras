@@ -32,6 +32,8 @@ permissions: {}
 jobs:
   typescript:
     needs: rust
+    # Run even when a Rust job fails, so a lint or test failure shows in the same run.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
