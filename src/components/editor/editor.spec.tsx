@@ -126,7 +126,7 @@ const mountImage = async (naturalWidth: number) => {
   const image = mounted.editor.view.dom.querySelector('img[alt="shot"]');
 
   if (!(image instanceof HTMLImageElement)) {
-    throw new Error("the image did not render");
+    throw new TypeError("the image did not render");
   }
 
   Object.defineProperty(image, "naturalWidth", { value: naturalWidth });
@@ -398,7 +398,7 @@ describe("image viewer", () => {
       .closest("[data-slot='viewer-content']")?.parentElement;
 
     if (!(beside instanceof HTMLElement)) {
-      throw new Error("the viewer has no frame");
+      throw new TypeError("the viewer has no frame");
     }
 
     await user.click(beside);
@@ -1772,7 +1772,7 @@ describe("mermaid diagrams", () => {
       .closest("[data-slot='viewer-content']");
 
     if (!(box instanceof HTMLElement)) {
-      throw new Error("the viewer has no content box");
+      throw new TypeError("the viewer has no content box");
     }
 
     return { box, dialog, drawnWidth: Number(diagram.getAttribute("width")) };

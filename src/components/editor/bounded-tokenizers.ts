@@ -49,5 +49,5 @@ export const BoundedTable = Table.extend({
     },
   },
   renderMarkdown: (node, helpers) =>
-    renderTableToMarkdown(node, helpers).replace(TABLE_PADDING, ""),
+    renderTableToMarkdown(node, helpers).replaceAll(TABLE_PADDING, ""),
 });
