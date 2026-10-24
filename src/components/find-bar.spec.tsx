@@ -209,7 +209,7 @@ describe("find controls", () => {
     const editor = container.querySelector(".ProseMirror");
 
     if (!(editor instanceof HTMLElement)) {
-      throw new Error("capture editor missing");
+      throw new TypeError("capture editor missing");
     }
 
     act(() => {

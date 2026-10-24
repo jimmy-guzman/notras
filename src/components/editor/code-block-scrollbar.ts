@@ -43,7 +43,7 @@ export function codeBlockScrollbar(pre: HTMLElement, host: HTMLElement) {
     ?.cloneNode(true);
 
   if (!(bar instanceof HTMLElement)) {
-    throw new Error("The code block scrollbar did not render");
+    throw new TypeError("The code block scrollbar did not render");
   }
 
   const thumb = bar.querySelector<HTMLElement>(

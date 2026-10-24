@@ -119,7 +119,7 @@ function matchesIn(doc: Node, query: string | null) {
     return [];
   }
 
-  const pattern = new RegExp(query.replace(REGEXP_SPECIAL, "\\$&"), "giu");
+  const pattern = new RegExp(query.replaceAll(REGEXP_SPECIAL, "\\$&"), "giu");
   const matches: Match[] = [];
   doc.descendants((node, position) => {
     if (!node.isTextblock) {
