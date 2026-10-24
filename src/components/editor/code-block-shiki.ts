@@ -574,7 +574,9 @@ function syntaxPlugin() {
           settled = undefined;
         }
 
-        if (outstanding > 0 || (follow && blocks.length > 0)) {
+        // The dispatch above can already have scheduled a frame, and a second
+        // one here would outlive the handle `destroy` cancels.
+        if (frame === 0 && (outstanding > 0 || (follow && blocks.length > 0))) {
           frame = requestAnimationFrame(tick);
         }
       }

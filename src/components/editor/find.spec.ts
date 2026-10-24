@@ -60,6 +60,12 @@ describe("find", () => {
       expect(find.snapshot().total).toBe(1);
     });
 
+    it("should match an embed's title", () => {
+      const { find } = mount("visit ![[Atlas]] today");
+      find.setQuery("atlas");
+      expect(find.snapshot()).toStrictEqual({ current: 1, total: 1 });
+    });
+
     it("should keep prose matches aligned after a wikilink title with an astral character", () => {
       const { find } = mount("visit [[🙂 Atlas]] today");
       find.setQuery("today");

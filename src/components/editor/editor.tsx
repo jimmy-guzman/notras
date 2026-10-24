@@ -39,6 +39,7 @@ import {
 } from "@/lib/utils/attachments";
 import { commands } from "@/server/adapters/bindings";
 
+import type { WatchEmbed } from "./embed";
 import {
   converterOf,
   copiedMarkdown,
@@ -64,17 +65,22 @@ const HOVER_OPEN_MS = 300;
 
 const UNSAFE_LINK_REASON = "That link uses a scheme notras will not open";
 
+function opensNote(node: ProseMirrorNode | null) {
+  return node?.type.name === "wikilink" || node?.type.name === "embed";
+}
+
 /**
- * The title of the wikilink the caret sits in or beside, or "" where none is.
- * The node after the caret is only the answer when it is the pill: with text
- * following one, `nodeAt(head)` is that text and the pill is behind the caret.
+ * The title of the wikilink or embed the caret sits in or beside, or "" where
+ * none is. The node after the caret is only the answer when it is the link:
+ * with text following one, `nodeAt(head)` is that text and the link is behind
+ * the caret.
  */
-function wikilinkTitleAt(state: EditorState, head: number) {
+function noteTitleAt(state: EditorState, head: number) {
   const after = state.doc.nodeAt(head);
   const before = head > 0 ? state.doc.nodeAt(head - 1) : null;
-  const node = after?.type.name === "wikilink" ? after : before;
+  const node = opensNote(after) ? after : before;
 
-  return node?.type.name === "wikilink" ? String(node.attrs.title ?? "") : "";
+  return opensNote(node) ? String(node?.attrs.title ?? "") : "";
 }
 
 /**
@@ -391,7 +397,7 @@ function firstTitle(doc: ProseMirrorNode) {
 
         from = position + 1 + offset + child.nodeSize;
         text = "";
-      } else if (child.type.name === "wikilink") {
+      } else if (opensNote(child)) {
         text += String(child.attrs.title);
       } else if (child.isText) {
         text += child.textContent;
@@ -553,6 +559,8 @@ interface EditorProps {
   stripSentinel?: boolean;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
+  /** Follows the note an embed names; without it an embed draws as a pill. */
+  watchEmbed?: WatchEmbed;
 }
 
 /**
@@ -705,7 +713,7 @@ export function Editor(mountProps: EditorProps) {
             return true;
           }
 
-          const title = wikilinkTitleAt(instance.state, head);
+          const title = noteTitleAt(instance.state, head);
 
           if (title !== "" && config.onWikilinkClick) {
             config.onWikilinkClick(title);
@@ -735,8 +743,10 @@ export function Editor(mountProps: EditorProps) {
         clipboardText(slice, view.state.schema, editorRef.current?.markdown),
       handleClickOn: (view, _pos, node, nodePos, event) => {
         // A drawn diagram folds its code away, so a click on it is a click
-        // at the end of that code.
+        // at the end of that code. One drawn inside an embed belongs to the
+        // embed's own editor, and the click lands on the embed.
         if (
+          node.type.name === "codeBlock" &&
           event.target instanceof Element &&
           event.target.closest(".code-block-diagram") !== null
         ) {
@@ -752,7 +762,8 @@ export function Editor(mountProps: EditorProps) {
 
         const target =
           event.target instanceof Element
-            ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
+            ? (event.target.closest<HTMLElement>(".embed") ??
+              event.target.closest<HTMLElement>("a[href], [data-wikilink]"))
             : null;
 
         // A resolved text position can belong to a link even when the pointer
@@ -780,7 +791,7 @@ export function Editor(mountProps: EditorProps) {
 
         if (
           Object.hasOwn(target.dataset, "wikilink") &&
-          node.type.name === "wikilink" &&
+          opensNote(node) &&
           config.onWikilinkClick
         ) {
           config.onWikilinkClick(String(node.attrs.title ?? ""));
@@ -852,7 +863,8 @@ export function Editor(mountProps: EditorProps) {
 
           const target =
             event.target instanceof Element
-              ? event.target.closest("a[href]")
+              ? (event.target.closest(".embed") ??
+                event.target.closest("a[href]"))
               : null;
 
           if (
@@ -871,7 +883,8 @@ export function Editor(mountProps: EditorProps) {
         mouseout: (_view, event) => {
           const target =
             event.target instanceof Element
-              ? event.target.closest("a[href], [data-wikilink]")
+              ? (event.target.closest(".embed") ??
+                event.target.closest("a[href], [data-wikilink]"))
               : null;
 
           if (
@@ -890,7 +903,8 @@ export function Editor(mountProps: EditorProps) {
         mouseover: (view, event) => {
           const target =
             event.target instanceof Element
-              ? event.target.closest<HTMLElement>("a[href], [data-wikilink]")
+              ? (event.target.closest<HTMLElement>(".embed") ??
+                event.target.closest<HTMLElement>("a[href], [data-wikilink]"))
               : null;
 
           if (
@@ -995,6 +1009,7 @@ export function Editor(mountProps: EditorProps) {
 
           return attachmentDestination(await attachImage(base64), from);
         },
+        watchEmbed: config.watchEmbed,
       }),
       Find,
       linkShortcut,
@@ -1273,6 +1288,7 @@ export function Editor(mountProps: EditorProps) {
           .chain()
           .focus()
           .updateAttributes("wikilink", { title: text.trim() })
+          .updateAttributes("embed", { title: text.trim() })
           .run();
       } else {
         editor.commands.focus();

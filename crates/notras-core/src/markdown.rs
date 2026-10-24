@@ -855,8 +855,9 @@ mod tests {
             ("[[ spaced ]]", &[" spaced "]),
             ("[[**a**]]", &["**a**"]),
             ("[[a\\]]", &["a\\"]),
-            // An embed reads as a wikilink behind a `!` until transclusion lands.
+            // An embed links to its note, and an escaped `!` leaves a plain wikilink.
             ("![[a]]", &["a"]),
+            ("\\![[a]]", &["a"]),
             // A bracket inside the target, or nothing inside, opens no link.
             ("[[a]b]]", &[]),
             ("[[[a]]]", &["a"]),

@@ -11,6 +11,7 @@ import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { getTags } from "./get-tags";
 import { getNotesDir } from "./notes-dir";
+import { readEmbeddedNote } from "./read-embedded-note";
 import { readSessionFile } from "./read-session-file";
 import { searchNotes } from "./search-notes";
 
@@ -25,9 +26,26 @@ declare module "@tanstack/react-query" {
 const all = ["notes"] as const;
 const index = [...all, "index"] as const;
 
+const list = (filters?: NoteFilters) =>
+  queryOptions({
+    meta: { what: "could not refresh the note list" },
+    queryFn: async () => await getNotes(filters),
+    queryKey: [...index, "list", filters ?? null] as const,
+  });
+
 /** Keyed generic to specific: every invalidation is one prefix. */
 export const noteQueries = {
   all,
+  /**
+   * The note an embed in `from` shows, or null when its title names none.
+   * Under the index prefix, so a write to any note reads it again.
+   */
+  embed: (title: string, from: string) =>
+    queryOptions({
+      queryFn: async ({ client }) =>
+        await readEmbeddedNote(await client.query(list()), title, from),
+      queryKey: [...index, "embed", from, title] as const,
+    }),
   folders: () =>
     queryOptions({
       meta: { what: "could not refresh the folder list" },
@@ -41,12 +59,7 @@ export const noteQueries = {
       queryKey: [...index, "graph", target] as const,
     }),
   index,
-  list: (filters?: NoteFilters) =>
-    queryOptions({
-      meta: { what: "could not refresh the note list" },
-      queryFn: async () => await getNotes(filters),
-      queryKey: [...index, "list", filters ?? null] as const,
-    }),
+  list,
   mentions: (path: string) =>
     queryOptions({
       meta: { what: "could not refresh the mentions" },

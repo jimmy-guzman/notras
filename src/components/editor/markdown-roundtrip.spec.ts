@@ -141,6 +141,8 @@ describe("markdown round-trip", () => {
     ["hard break", "one  \ntwo"],
     ["wikilink", "see [[grocery list]] for details"],
     ["embed", "see ![[grocery list]] for details"],
+    ["embed alone in its paragraph", "![[grocery list]]"],
+    ["bang escaped before a wikilink", "see \\![[grocery list]] here"],
     ["literal tilde", "takes approx ~5 minutes"],
     ["literal underscore", "the snake_case name"],
     ["literal asterisk", "2 * 3 = 6"],
@@ -149,6 +151,22 @@ describe("markdown round-trip", () => {
     ["escaped asterisks emphasis would eat", "\\*one\\*"],
   ])("should round-trip %s", (_name, markdown) => {
     expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it.each([
+    ["![[a]]", "embed"],
+    ["\\![[a]]", "wikilink"],
+  ])("should read %s as %s", (markdown, type) => {
+    const editor = load(markdown);
+
+    const types = findChildren(
+      editor.state.doc,
+      (node) => node.isAtom && !node.isText
+    ).map(({ node }) => node.type.name);
+
+    editor.destroy();
+
+    expect(types).toStrictEqual([type]);
   });
 
   it("should canonicalize a single-tilde strike read from a file", () => {

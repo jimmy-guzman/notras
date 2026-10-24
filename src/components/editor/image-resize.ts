@@ -2,35 +2,14 @@ import type { NodeViewRenderer } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
 import { ImageOffIcon, Maximize2Icon } from "lucide-react";
-import { Fragment, createElement } from "react";
-import { createRoot } from "react-dom/client";
 
 import { hasNumber, hasString } from "@/components/editor/attrs";
 
+import { nodeViewIcons } from "./node-view-icons";
+
 const MIN_WIDTH = 64;
 
-// ProseMirror builds the node where React cannot render, so the icons render
-// once as the module evaluates and are cloned into each image.
-const icons = document.createElement("div");
-
-createRoot(icons).render(
-  createElement(
-    Fragment,
-    null,
-    createElement(Maximize2Icon, { size: 13 }),
-    createElement(ImageOffIcon, { size: 13 })
-  )
-);
-
-function icon(index: number) {
-  const drawn = icons.children.item(index);
-
-  if (drawn === null) {
-    throw new Error("The image icon did not render");
-  }
-
-  return drawn.cloneNode(true);
-}
+const icon = nodeViewIcons({ failed: ImageOffIcon, open: Maximize2Icon });
 
 /** Where an image loads from, or null when it is refused, and what its place says when it does not show. */
 export interface ImageSource {
@@ -130,12 +109,12 @@ export function imageNodeView(
     open.type = "button";
     open.className = "code-block-button";
     open.setAttribute("aria-label", "open image");
-    open.append(icon(0), "open");
+    open.append(icon("open"), "open");
     toolbar.append(open);
     handle.className = "image-handle";
     failure.className = "image-failure";
     failure.contentEditable = "false";
-    failure.append(icon(1), reason);
+    failure.append(icon("failed"), reason);
     dom.append(image, failure, toolbar, handle);
     applyAttributes(dom, image, reason, node.attrs, resolveSrc);
 

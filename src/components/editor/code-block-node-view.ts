@@ -6,8 +6,6 @@ import { Plugin, TextSelection } from "@tiptap/pm/state";
 import type { NodeView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
-import { createElement, Fragment as ReactFragment } from "react";
-import { createRoot } from "react-dom/client";
 
 import { hasString } from "@/components/editor/attrs";
 import {
@@ -19,31 +17,13 @@ import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
 import { codeBlockScrollbar } from "./code-block-scrollbar";
+import { nodeViewIcons } from "./node-view-icons";
 
-// ProseMirror builds a block where React cannot render, so the icons
-// render once as the module evaluates, ahead of the app's own render, and
-// are cloned into each block.
-const icons = document.createElement("div");
-
-createRoot(icons).render(
-  createElement(
-    ReactFragment,
-    null,
-    createElement(CopyIcon, { size: 13 }),
-    createElement(CheckIcon, { size: 13 }),
-    createElement(Maximize2Icon, { size: 13 })
-  )
-);
-
-function icon(index: number) {
-  const drawn = icons.children[index];
-
-  if (drawn === undefined) {
-    throw new Error("The code block icons did not render");
-  }
-
-  return drawn.cloneNode(true);
-}
+const icon = nodeViewIcons({
+  copied: CheckIcon,
+  copy: CopyIcon,
+  open: Maximize2Icon,
+});
 
 function languageOf(node: Node) {
   return hasString(node.attrs, "language") ? node.attrs.language : "";
@@ -98,18 +78,20 @@ export function codeBlockNodeView(
   openButton.type = "button";
   openButton.className = "code-block-button";
   openButton.setAttribute("aria-label", "open diagram");
-  openButton.append(icon(2), "open");
+  openButton.append(icon("open"), "open");
   copyButton.type = "button";
   copyButton.className = "code-block-button";
   copyButton.setAttribute("aria-label", "copy code");
-  copyButton.append(icon(0), "copy");
+  copyButton.append(icon("copy"), "copy");
   width.className = "code-block-language-width";
   label.className = "code-block-language-label";
   label.setAttribute("aria-hidden", "true");
   select.className = "code-block-language";
   select.setAttribute("aria-label", "code language");
   width.append(label, select);
-  toolbar.append(copyButton, width);
+  // A language picked in a read-only editor, an embed's, would change only
+  // that view and revert on the next read.
+  toolbar.append(copyButton, ...(view.editable ? [width] : []));
   pre.append(code);
   dom.append(toolbar, pre, scrollbar.bar);
 
@@ -204,10 +186,10 @@ export function codeBlockNodeView(
           "text/plain": new Blob([node.textContent], { type: "text/plain" }),
         }),
       ]);
-      copyButton.replaceChildren(icon(1), "copied");
+      copyButton.replaceChildren(icon("copied"), "copied");
       window.clearTimeout(copiedTimer);
       copiedTimer = window.setTimeout(() => {
-        copyButton.replaceChildren(icon(0), "copy");
+        copyButton.replaceChildren(icon("copy"), "copy");
       }, 1500);
     } catch (error) {
       toast.add({

@@ -509,6 +509,34 @@ describe("link clicks", () => {
     expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
   });
 
+  it("should open a clicked embed's note", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[other]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("other"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
+  });
+
+  it("should open the note of an embed behind the caret with ⌘⇧O", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[other]] after",
+      onWikilinkClick,
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(2);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
+  });
+
   it("should leave caret placement to the editor beside a wikilink pill", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
 
@@ -577,6 +605,332 @@ describe("link clicks", () => {
     expect(screen.getByText("could not open link")).toBeVisible();
     expect(invoke).not.toHaveBeenCalled();
     expect(fireEvent.click(anchor)).toBeFalsy();
+  });
+});
+
+describe("embeds", () => {
+  it("should show the embedded note's body in the embed's place", async () => {
+    await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "# Atlas\n\nthe atlas body",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(screen.getByText("the atlas body")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Atlas" })).toBeInTheDocument();
+  });
+
+  it("should say why in the embed's place when its note does not show", async () => {
+    await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({ failure: 'No note is named "atlas"' });
+
+        return () => {};
+      },
+    });
+
+    expect(screen.getByText('No note is named "atlas"')).toBeInTheDocument();
+  });
+
+  it("should show an embedded image in the viewer from its open button", async () => {
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "![shot](attachments/shot.png)",
+          resolveImageSrc: (src) => ({
+            failure: "",
+            src: `asset://localhost/notes/${src}`,
+          }),
+        });
+
+        return () => {};
+      },
+    });
+    const image = await screen.findByRole("img", { name: "shot" });
+    Object.defineProperty(image, "naturalWidth", { value: 1 });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "open image" }));
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "shot",
+      })
+    ).toHaveAttribute("src", "asset://localhost/notes/attachments/shot.png");
+  });
+
+  it("should leave a press on a control in the embedded note to that control", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "plain words\n\n![shot](attachments/shot.png)\n\n```js\nconst x = 1;\n```",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const pressed = vi.fn<() => void>();
+
+    act(() => {
+      editor.registerPlugin(
+        new Plugin({
+          props: {
+            handleDOMEvents: {
+              mousedown: () => {
+                pressed();
+
+                return false;
+              },
+            },
+          },
+        })
+      );
+    });
+
+    const user = userEvent.setup();
+    const open = await screen.findByRole("button", { name: "open image" });
+    const words = screen.getByText("plain words");
+
+    await user.pointer({
+      keys: "[MouseLeft]",
+      target: screen.getByRole("button", { name: "copy code" }),
+    });
+    // Released on the words: a click on open would cover the note with the viewer.
+    await user.pointer({ keys: "[MouseLeft>]", target: open });
+    await user.pointer({ keys: "[/MouseLeft]", target: words });
+
+    expect(pressed).not.toHaveBeenCalled();
+
+    await user.pointer({ keys: "[MouseLeft>]", target: words });
+
+    expect(pressed).toHaveBeenCalledOnce();
+  });
+
+  it("should mark the embed shown only once its body has drawn", async () => {
+    const shows: ((body: string) => void)[] = [];
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        shows.push((body) => {
+          show({ body, resolveImageSrc: (src) => ({ failure: "", src }) });
+        });
+
+        return () => {};
+      },
+    });
+
+    const embed = editor.view.dom.querySelector(".embed");
+
+    shows[0]?.("arrived");
+
+    expect(embed).not.toHaveAttribute("data-shown");
+    expect(await screen.findByText("arrived")).toBeInTheDocument();
+    expect(embed).toHaveAttribute("data-shown");
+  });
+
+  it("should give an embedded code block its copy button but no language picker", async () => {
+    await mount({
+      initialContent: "```ts\nconst host = 1;\n```\n\n![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "```js\nconst embedded = 1;\n```",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      await screen.findAllByRole("button", { name: "copy code" })
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("combobox", { name: "code language" })
+    ).toHaveLength(1);
+  });
+
+  it("should draw a table in the embedded note", async () => {
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "| a | b |\n| --- | --- |\n| one | two |",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("cell", { name: "two" })).toBeInTheDocument();
+  });
+
+  it("should draw an embed inside the embedded note as a pill", async () => {
+    const watched: string[] = [];
+
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (title, show) => {
+        watched.push(title);
+        show({
+          body: "see ![[Deeper]]",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(watched).toStrictEqual(["Atlas"]);
+    expect(screen.getByText("Deeper")).toBeInTheDocument();
+  });
+
+  it("should show the title until the embedded note arrives, then stop following it once removed", async () => {
+    const shows: ((note: { body: string } | null) => void)[] = [];
+    const stop = vi.fn<() => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        shows.push((note) => {
+          show(
+            note === null
+              ? null
+              : { ...note, resolveImageSrc: (src) => ({ failure: "", src }) }
+          );
+        });
+
+        return stop;
+      },
+    });
+
+    expect(screen.getByText("Atlas")).toBeInTheDocument();
+    act(() => {
+      shows[0]?.({ body: "arrived" });
+    });
+    expect(screen.getByText("arrived")).toBeInTheDocument();
+    act(() => {
+      editor.commands.setContent("gone", { contentType: "markdown" });
+    });
+
+    expect(stop).toHaveBeenCalledOnce();
+  });
+});
+
+describe("events inside an embed", () => {
+  it("should open the embedded note from a click on a drawing in its body", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "```mermaid\ngraph TD\n  A --> B\n```",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(clickAt(editor, diagram, 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("Atlas");
+  });
+
+  it("should open the embedded note from a click on a link in its body", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+    const onNoteLinkClick = vi.fn<(href: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      onNoteLinkClick,
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "see [site](other.md) here",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      clickAt(editor, screen.getByRole("link", { name: "site" }), 1, 1)
+    ).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("Atlas");
+    expect(onNoteLinkClick).not.toHaveBeenCalled();
+  });
+
+  it("should leave a press on a fragment link in its body to the editor, so the click opens the embedded note", async () => {
+    await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "see [top](#top) here",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      fireEvent.mouseDown(screen.getByRole("link", { name: "top" }), {
+        button: 0,
+      })
+    ).toBeTruthy();
+  });
+
+  it("should edit the embed itself from the preview of a pill in its body", async () => {
+    const { handle } = await mount({
+      initialContent: "see ![[Atlas]]",
+      resolveWikilink: () => "atlas.md",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "see [[Deeper]]",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    fireEvent.mouseOver(screen.getByText("Deeper"));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "edit link" }));
+
+    expect(screen.getByRole("textbox", { name: "note title" })).toHaveValue(
+      "Atlas"
+    );
+    expect(handle.getContent()).toBe("see ![[Atlas]]");
   });
 });
 
@@ -775,6 +1129,37 @@ describe("link hover", () => {
 
       expect(screen.getByRole("button", { name: "edit link" })).toBeVisible();
       expect(screen.getByText("other.md")).toBeVisible();
+    }
+  );
+
+  it.each(["[[Atlas]]", "![[Atlas]]"])(
+    "should rename %s from the preview's edit button",
+    async (initialContent) => {
+      const { handle } = await mount({
+        initialContent,
+        resolveWikilink: () => "atlas.md",
+      });
+
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByText("Atlas"));
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "edit link" }));
+      const title = screen.getByRole("textbox", { name: "note title" });
+      await user.clear(title);
+      await user.type(title, "Globe");
+      await user.click(screen.getByRole("button", { name: "apply link" }));
+
+      expect(handle.getContent()).toBe(
+        initialContent.replace("Atlas", "Globe")
+      );
     }
   );
 
@@ -1053,6 +1438,24 @@ describe("link hover", () => {
 });
 
 describe("document observation", () => {
+  it("should not count an edit below an embed alone on the first line as a title edit", async () => {
+    const change = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
+
+    const { editor } = await mount({
+      initialContent: "![[x]]\n\nsecond",
+      onChange: change,
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(editor.state.doc.content.size - 1, "Z");
+    });
+
+    expect(change).toHaveBeenLastCalledWith(
+      expect.stringContaining("secondZ"),
+      { titleEdited: false }
+    );
+  });
+
   it("should apply a document observation without losing selection or existing undo", async () => {
     const { editor, handle, scroller } = await mount({
       initialContent: "# old\n\nbody",
@@ -1556,6 +1959,40 @@ describe("mermaid diagrams", () => {
     await user.keyboard("/dia{Enter}");
 
     expect(handle.getContent().trimEnd()).toBe("```mermaid\n\n```");
+  });
+});
+
+describe("title menu", () => {
+  it("should insert a wikilink from the title menu", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see [[[[groc{Enter}");
+
+    expect(handle.getContent()).toBe("see [[grocery list]] ");
+  });
+
+  it("should insert an embed from the title menu after a bang", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see ![[[[groc{Enter}");
+
+    expect(handle.getContent()).toBe("see ![[grocery list]] ");
   });
 });
 
