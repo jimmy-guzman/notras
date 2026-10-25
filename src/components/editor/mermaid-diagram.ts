@@ -1,9 +1,8 @@
-import type { renderMermaidSVG } from "beautiful-mermaid";
+import type { render } from "pele";
 
-import { styleNonce } from "@/lib/style-nonce";
 import { reasonOf } from "@/lib/ui/failure";
 
-type Engine = { reason: string } | { render: typeof renderMermaidSVG };
+type Engine = { reason: string } | { render: typeof render };
 
 let engine: Engine | undefined;
 
@@ -11,8 +10,8 @@ let engine: Engine | undefined;
 // draws. Resolves once it has loaded or failed.
 export const mermaidSettled = (async () => {
   try {
-    const { renderMermaidSVG } = await import("beautiful-mermaid");
-    engine = { render: renderMermaidSVG };
+    const pele = await import("pele");
+    engine = { render: pele.render };
   } catch (error) {
     engine = {
       reason: reasonOf(error) ?? "The diagram renderer did not load",
@@ -20,58 +19,34 @@ export const mermaidSettled = (async () => {
   }
 })();
 
-function draw(render: typeof renderMermaidSVG, code: string) {
+// The rest of pele's message quotes the source, which the open code shows.
+function firstLine(reason: string) {
+  return reason.replace(/\n[\s\S]*$/u, "").replace(/:$/u, "");
+}
+
+function draw(engineRender: typeof render, code: string) {
+  const fontFamily = getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-sans")
+    .trim();
+
   try {
-    return { svg: render(code, { transparent: true }) };
+    return {
+      svg: engineRender(code, { fontFamily, images: false, links: false }).svg,
+    };
   } catch (error) {
-    return { reason: reasonOf(error) ?? "The diagram could not be drawn" };
+    return {
+      reason: firstLine(reasonOf(error) ?? "The diagram could not be drawn"),
+    };
   }
 }
 
-// The attributes a `style` or `linkStyle` value reaches, and what a value
-// there may be: a color, a width, or one of the drawing's own variables and
-// fragments, so nothing that could name a resource.
-const PAINTED = ["color", "fill", "stroke", "stroke-width"];
-
-const PAINT =
-  /^(?:#[\da-f]{3,8}|[a-z]+|\d+(?:\.\d+)?(?:px|em|%)?|var\(--[\w-]+\)|url\(#[\w-]+\)|(?:rgb|hsl)a?\([\d.,%\s/]+\))$/iu;
-
+// Parsed apart from the page: its style policy drops the inline styles pele
+// draws with, and adoption re-checks nothing.
 function toElement(markup: string) {
   const svg = new DOMParser().parseFromString(
     markup,
     "image/svg+xml"
   ).documentElement;
-
-  const styles = svg.querySelectorAll("style");
-
-  if (styles.length === 0) {
-    throw new Error("The drawing carries no stylesheet");
-  }
-
-  // An xy chart carries a second stylesheet for its series, and the policy
-  // drops any block without the nonce.
-  for (const style of styles) {
-    // The stylesheet imports Inter from Google Fonts. The policy blocks the
-    // fetch and the app names its own face, so only the import goes.
-    style.textContent = style.textContent.replaceAll(/@import[^;]*;/gu, "");
-
-    if (styleNonce !== undefined) {
-      style.setAttribute("nonce", styleNonce);
-    }
-  }
-
-  // The root carries the library's default inks; the stylesheet sets the app's.
-  svg.removeAttribute("style");
-
-  for (const element of svg.querySelectorAll("*")) {
-    for (const name of PAINTED) {
-      const value = element.getAttribute(name);
-
-      if (value !== null && !PAINT.test(value)) {
-        element.removeAttribute(name);
-      }
-    }
-  }
 
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "diagram");
@@ -90,9 +65,8 @@ function reasonLine(reason: string) {
 
 /**
  * A `mermaid` fence's drawing, or the reason it has none. Nothing for an
- * empty fence, for one holding only its header, for an xy chart with no
- * series, and until the renderer has settled, so a note keeps editing
- * around it.
+ * empty fence, for one that draws nothing, and until the renderer has
+ * settled, so a note keeps editing around it.
  */
 export function drawMermaid(code: string): HTMLElement | undefined {
   if (engine === undefined || code.trim() === "") {
@@ -111,14 +85,10 @@ export function drawMermaid(code: string): HTMLElement | undefined {
 
   const svg = toElement(drawn.svg);
 
-  // A header with nothing under it draws at zero size, and an xy chart with
-  // no series draws a bare grid.
-  const bare =
-    svg.getAttribute("width") === "0" ||
-    (svg.querySelector(".xychart-grid") !== null &&
-      svg.querySelector(".xychart-bar, .xychart-line") === null);
-
-  if (bare) {
+  // A header with nothing under it draws a frame of empty `<g>` wrappers.
+  if (
+    svg.querySelector("text, path, rect, circle, polygon, ellipse") === null
+  ) {
     return undefined;
   }
 
