@@ -132,7 +132,7 @@ scripts/              # bindings.sh, icons.sh (macOS only), update-typeset.sh (D
 .github/homebrew/     # the cask template release.yml renders and pushes to the tap
 ```
 
-`scripts/icons.sh` owns icon generation. It derives size-adjusted artwork from `assets/icon.svg`, the only master, and produces the desktop PNGs, ICNS, and ICO under `src-tauri/icons/`. The tray derives a monochrome silhouette from the same SVG. Scheme-aware welcome marks and favicons, the dark touch icon, and the README hero are generated in the locations above. Every color in the artwork is a token read from `src/styles.css`; the bar weights by size live in the script. `CONTRIBUTING.md` lists the source-to-output workflow and required tools.
+`scripts/icons.sh` owns icon generation. It derives size-adjusted artwork from `assets/icon.svg`, the only master, and produces the desktop PNGs, ICNS, and ICO under `src-tauri/icons/`. The tray derives a monochrome silhouette from the same SVG. Scheme-aware welcome marks and favicons, the dark touch icon, and the README hero are generated in the locations above. Every color in the artwork is a token read from `src/styles.css`; the detail tiers by size live in the script. `CONTRIBUTING.md` lists the source-to-output workflow and required tools.
 
 ## Layer boundaries
 

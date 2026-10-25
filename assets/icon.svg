@@ -1,14 +1,15 @@
 <svg height="136" viewBox="var(--viewbox)" width="136" xmlns="http://www.w3.org/2000/svg">
   <title>notras</title>
   <defs>
-    <path id="tile" d="M152.50 68C152.50 27.90 153.81 6.68 141.56 -5.56C129.32 -17.81 108.10 -16.50 68 -16.50C27.90 -16.50 6.68 -17.81 -5.56 -5.56C-17.81 6.68 -16.50 27.90 -16.50 68C-16.50 108.10 -17.81 129.32 -5.56 141.56C6.68 153.81 27.90 152.50 68 152.50C108.10 152.50 129.32 153.81 141.56 141.56C153.81 129.32 152.50 108.10 152.50 68Z" />
-    <clipPath id="inside"><use href="#tile" /></clipPath>
-    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="var(--foreground)" stop-opacity=".16" /><stop offset=".5" stop-color="var(--foreground)" stop-opacity=".05" /><stop offset="1" stop-color="var(--foreground)" stop-opacity=".02" /></linearGradient>
-    <linearGradient id="sunset" gradientUnits="userSpaceOnUse" x1="0" y1="var(--y1)" x2="0" y2="var(--y4)"><stop stop-color="var(--pink)" /><stop offset=".5" stop-color="var(--violet)" /><stop offset="1" stop-color="var(--cyan)" /></linearGradient>
+    <linearGradient id="sunset" gradientUnits="userSpaceOnUse" x1="0" y1="-16.5" x2="0" y2="152.5"><stop stop-color="var(--pink)" /><stop offset=".5" stop-color="var(--violet)" /><stop offset="1" stop-color="var(--cyan)" /></linearGradient>
   </defs>
-  <g display="var(--tile)">
-    <use href="#tile" fill="var(--background)" />
-    <use href="#tile" clip-path="url(#inside)" fill="none" stroke="url(#edge)" stroke-width="var(--rim)" />
+  <path d="M152.50 68C152.50 27.90 153.81 6.68 141.56 -5.56C129.32 -17.81 108.10 -16.50 68 -16.50C27.90 -16.50 6.68 -17.81 -5.56 -5.56C-17.81 6.68 -16.50 27.90 -16.50 68C-16.50 108.10 -17.81 129.32 -5.56 141.56C6.68 153.81 27.90 152.50 68 152.50C108.10 152.50 129.32 153.81 141.56 141.56C153.81 129.32 152.50 108.10 152.50 68Z" fill="url(#sunset)" />
+  <g fill="var(--background)">
+    <circle cx="42" cy="var(--eye-y)" r="var(--eye)" />
+    <circle cx="94" cy="var(--eye-y)" r="var(--eye)" />
   </g>
-  <path d="M22 var(--y1)H114M22 var(--y2)H102M22 var(--y3)H108M22 var(--y4)H64" fill="none" stroke="url(#sunset)" stroke-width="var(--stroke)" stroke-linecap="round" />
+  <g fill="none" stroke="var(--background)" stroke-width="var(--stroke)" stroke-linecap="round">
+    <path display="var(--lines3)" d="M18 68H118M18 92H98M18 116H70" />
+    <path display="var(--lines2)" d="M18 var(--l1)H118M18 var(--l2)H78" />
+  </g>
 </svg>
