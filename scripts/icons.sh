@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-apple_art=824
-apple_canvas=1024
 tray_size=36
 
 hero_width=1280
@@ -54,38 +52,40 @@ palette() {
 }
 
 write_mark() {
-  local scheme=$1 logical=$2 target=$3 foreground background ink tile_end
-  local viewbox="0 0 136 136" tile=none sheet='url(#sheet)' seam=2 stroke=6 rim=3
+  local scheme=$1 logical=$2 target=$3 background pink violet cyan
+  local viewbox="-16.5 -16.5 169 169" stroke=13 eye=8 eye_y=32 lines3=inline lines2=none l1=76 l2=106
+  # Below 48 logical pixels the tile and the two lines sit on whole pixels of the logical size:
+  # at 32 a 26px tile with 3px lines, at 16 a 14px tile with 2px lines, and the 36px tray a
+  # 32px tile with 3px lines. The values are those pixel rows in tile units.
   if [ "$scheme" = tray ]; then
-    foreground="#ffffff" background="#000000" ink="#000000" tile_end="#000000"
-    sheet="#ffffff" viewbox="-6 -6 148 148" seam=15 stroke=9
+    # White on black so luminance becomes coverage below.
+    background="#000000" pink="#ffffff" violet="#ffffff" cyan="#ffffff"
+    viewbox="-27.0625 -27.0625 190.125 190.125" stroke=15.84 eye=8 eye_y=36 lines3=none lines2=inline l1=75.92 l2=107.6
   else
-    foreground=$(palette "$scheme" foreground)
     background=$(palette "$scheme" background)
-    if [ "$scheme" = dark ]; then
-      ink="#716b66" tile_end="#211b23"
-    else
-      ink="#faf7f2" tile_end="#eee7ed"
-    fi
+    pink=$(palette "$scheme" primary)
+    violet=$(palette "$scheme" syntax-keyword-import)
+    cyan=$(palette "$scheme" info)
     if [ "$logical" -gt 0 ]; then
-      viewbox="-36 -36 208 208" tile=inline
-      # Optical weights follow logical size, including Retina representations.
-      if [ "$logical" -le 24 ]; then seam=4.5 stroke=11 rim=6
-      elif [ "$logical" -le 48 ]; then seam=4 stroke=10 rim=4
-      else seam=3 stroke=8
+      viewbox="-36 -36 208 208"
+      # Detail drops as pixels run out: three lines, then two, thicker.
+      if [ "$logical" -le 24 ]; then viewbox="-28.5714 -28.5714 193.1429 193.1429" stroke=24.14 eye=12 eye_y=36 lines3=none lines2=inline l1=80.07 l2=116.29
+      elif [ "$logical" -le 48 ]; then stroke=19.5 eye=9.75 eye_y=34 lines3=none lines2=inline l1=77.75 l2=110.25
       fi
     fi
   fi
-  sed -e "s/var(--foreground)/$foreground/g" \
-    -e "s/var(--background)/$background/g" \
-    -e "s/var(--ink)/$ink/g" \
-    -e "s/var(--tile-end)/$tile_end/g" \
+  sed -e "s/var(--background)/$background/g" \
+    -e "s/var(--pink)/$pink/g" \
+    -e "s/var(--violet)/$violet/g" \
+    -e "s/var(--cyan)/$cyan/g" \
     -e "s/var(--viewbox)/$viewbox/g" \
-    -e "s/var(--tile)/$tile/g" \
-    -e "s|url(#sheet)|$sheet|g" \
-    -e "s/var(--seam)/$seam/g" \
     -e "s/var(--stroke)/$stroke/g" \
-    -e "s/var(--rim)/$rim/g" assets/icon.svg > "$target"
+    -e "s/var(--eye-y)/$eye_y/g" \
+    -e "s/var(--eye)/$eye/g" \
+    -e "s/var(--lines3)/$lines3/g" \
+    -e "s/var(--lines2)/$lines2/g" \
+    -e "s/var(--l1)/$l1/g" \
+    -e "s/var(--l2)/$l2/g" assets/icon.svg > "$target"
   if grep -Fq 'var(' "$target"; then
     echo "icons: unresolved token in $target" >&2
     exit 1
@@ -129,34 +129,13 @@ write_hero() {
 
 png_for() {
   set -e
-  local size=$1 scheme=${2:-dark} logical=${3:-$1} art padding bounds transform source mark
+  local size=$1 scheme=${2:-dark} logical=${3:-$1} mark
   local final=$work/final-$scheme-$size-$logical.png
   if [ ! -f "$final" ]; then
-    if [ "$logical" -gt 64 ]; then
-      padding=$((size * (apple_canvas - apple_art) / (2 * apple_canvas)))
-      art=$((size - 2 * padding))
-      source=$work/desktop.png
-      if [ ! -f "$source" ]; then
-        # Opening removes extraction speckles; the soft edge preserves antialiasing.
-        magick assets/icon-desktop.png -alpha extract -threshold 50% \
-          -morphology Open Disk:2 -blur 0x0.6 "$work/desktop-alpha.png"
-        magick assets/icon-desktop.png "$work/desktop-alpha.png" \
-          -alpha off -compose CopyOpacity -composite PNG32:"$source"
-      fi
-      bounds=$(magick "$work/desktop-alpha.png" -threshold 50% -format '%@' info:)
-      # Normalize the visible tile to a square, retaining the soft alpha fringe outside it.
-      transform=$(awk -F '[x+]' -v art="$art" -v padding="$padding" '{
-        printf "%.9f,0,0,%.9f,%.9f,%.9f", art/$1, art/$2, padding-$3*art/$1, padding-$4*art/$2
-      }' <<< "$bounds")
-      magick "$source" -virtual-pixel transparent -filter Mitchell \
-        -define distort:viewport="${size}x${size}+0+0" -distort AffineProjection "$transform" \
-        +repage -strip PNG32:"$final"
-    else
-      mark=$work/compact-$scheme-$size-$logical.svg
-      write_mark "$scheme" "$logical" "$mark"
-      rasterize "$mark" "$size" "compact-$scheme-$size-$logical"
-      cp "$work/compact-$scheme-$size-$logical/${size}x${size}.png" "$final"
-    fi
+    mark=$work/mark-$scheme-$size-$logical.svg
+    write_mark "$scheme" "$logical" "$mark"
+    rasterize "$mark" "$size" "mark-$scheme-$size-$logical"
+    cp "$work/mark-$scheme-$size-$logical/${size}x${size}.png" "$final"
   fi
   echo "$final"
 }
@@ -194,7 +173,7 @@ magick "$(png_for 16)" "$(png_for 32)" "$(png_for 48)" "$(png_for 64)" \
 
 write_mark tray 18 "$work/tray.svg"
 rasterize "$work/tray.svg" "$tray_size" tray
-# Luminance becomes coverage so macOS can tint the notes around transparent cutouts.
+# Luminance becomes coverage so macOS tints the tile and leaves the eyes and lines clear.
 magick "$work/tray/${tray_size}x${tray_size}.png" \
   -channel A -fx 'r*a' +channel -fill black -colorize 100 -strip PNG32:"$out/tray.png"
 

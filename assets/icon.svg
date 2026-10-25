@@ -1,27 +1,15 @@
 <svg height="136" viewBox="var(--viewbox)" width="136" xmlns="http://www.w3.org/2000/svg">
   <title>notras</title>
   <defs>
-    <linearGradient id="tile" x2="1" y2="1"><stop stop-color="var(--background)"/><stop offset="1" stop-color="var(--tile-end)"/></linearGradient>
-    <linearGradient id="rim" x1="0" y1=".5" x2="1" y2=".5"><stop stop-color="#83bac7" stop-opacity=".45"/><stop offset=".5" stop-color="#b5a0d4" stop-opacity=".3"/><stop offset="1" stop-color="#e99ac2" stop-opacity=".45"/></linearGradient>
-    <linearGradient id="cyan" x1="0" y1=".5" x2=".225" y2=".5"><stop stop-color="#6193a1" stop-opacity=".2"/><stop offset="1" stop-color="#6193a1" stop-opacity="0"/></linearGradient>
-    <linearGradient id="pink" x1="1" y1=".5" x2=".775" y2=".5"><stop stop-color="#a76e94" stop-opacity=".2"/><stop offset="1" stop-color="#a76e94" stop-opacity="0"/></linearGradient>
-    <linearGradient id="sheet" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#943958" />
-      <stop offset=".48" stop-color="#d778a5" />
-      <stop offset=".82" stop-color="#e99ac2" />
-      <stop offset=".97" stop-color="#e99ac2" />
-      <stop offset="1" stop-color="#e3b097" />
-    </linearGradient>
+    <linearGradient id="sunset" gradientUnits="userSpaceOnUse" x1="0" y1="-16.5" x2="0" y2="152.5"><stop stop-color="var(--pink)" /><stop offset=".5" stop-color="var(--violet)" /><stop offset="1" stop-color="var(--cyan)" /></linearGradient>
   </defs>
-  <g display="var(--tile)">
-    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="url(#tile)"/>
-    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="url(#cyan)"/>
-    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="url(#pink)"/>
-    <rect x="-16.5" y="-16.5" width="169" height="169" rx="48.75" fill="none" stroke="url(#rim)" stroke-width="var(--rim)"/>
+  <path d="M152.50 68C152.50 27.90 153.81 6.68 141.56 -5.56C129.32 -17.81 108.10 -16.50 68 -16.50C27.90 -16.50 6.68 -17.81 -5.56 -5.56C-17.81 6.68 -16.50 27.90 -16.50 68C-16.50 108.10 -17.81 129.32 -5.56 141.56C6.68 153.81 27.90 152.50 68 152.50C108.10 152.50 129.32 153.81 141.56 141.56C153.81 129.32 152.50 108.10 152.50 68Z" fill="url(#sunset)" />
+  <g fill="var(--background)">
+    <circle cx="42" cy="var(--eye-y)" r="var(--eye)" />
+    <circle cx="94" cy="var(--eye-y)" r="var(--eye)" />
   </g>
-  <rect x="51" y="32" width="71" height="96" rx="11" transform="rotate(10 86.5 80)" fill="url(#sheet)" />
-  <g transform="rotate(-11 57 64)">
-    <rect x="16" y="12" width="82" height="104" rx="11" fill="var(--foreground)" stroke="var(--background)" stroke-width="var(--seam)" paint-order="stroke fill" />
-    <path d="M32 42H82M32 58H76M32 74H68" fill="none" stroke="var(--ink)" stroke-width="var(--stroke)" stroke-linecap="round" />
+  <g fill="none" stroke="var(--background)" stroke-width="var(--stroke)" stroke-linecap="round">
+    <path display="var(--lines3)" d="M18 68H118M18 92H98M18 116H70" />
+    <path display="var(--lines2)" d="M18 var(--l1)H118M18 var(--l2)H78" />
   </g>
 </svg>

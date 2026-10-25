@@ -373,6 +373,8 @@ That sync is deliberately narrow, which is the whole trick. Nothing is ever inve
 
 ### D33 The icon is generated from a vector master and a render, split by size
 
+**Superseded by `D102`,** which generates every size from one vector master.
+
 `scripts/icons.sh` builds every file in `src-tauri/icons/` from sources in `assets/`. Four vector files carry the mark and a 1254px clay render carries the large sizes. Sizes at 16px come from `icon-tiny.svg`, 17 to 40 from `icon-small.svg`, 41 to 96 from `icon.svg`, and 97 and up from `icon-render.png`. `iconutil` assembles the ten representations into `icon.icns`, because `pnpm tauri icon` takes one source per run and the icns spans 16px to 1024px.
 
 Detail has to drop out as pixels run out. An eye is 4.1% of the tile and an accent dot 2.5%, so at 32px the dot is down to 0.6px and reads as colour noise, and at 16px two eyes merge into a bar that reads as a smudge. So `icon-small.svg` drops the accent and the back blob's eyes and enlarges the remaining pair, and `icon-tiny.svg` drops every dot and keeps the two-blob silhouette. The icon is the accented variant at large sizes and close to monochrome at small ones.
@@ -392,6 +394,8 @@ Detail has to drop out as pixels run out. An eye is 4.1% of the tile and an acce
 **Constraint:** the tray asset is one 36px square. `tray-icon` hardcodes an 18pt height and scales by aspect ratio, so a second file would never be read, and the glyph fills 92% of its frame to sit right in the menu bar.
 
 ### D34 The icon's edge follows measured macOS geometry
+
+**Amended by `D102`,** which keeps the shape and drops the lit edge and the shadow.
 
 The tile is a superellipse at exponent 5.0 on Apple's 824-on-1024 grid, carrying a lit edge ~20px wide and a soft drop shadow offset ~10px down, blurred 13px, at 17% opacity. Every figure comes from measuring the platform rather than from a spec: this machine runs macOS 26, so the ICNS containers of seven system apps were parsed and probed directly.
 
@@ -1340,3 +1344,19 @@ Its grammar rejects a parenthesis inside a style value, so `url()` cannot reach 
 **Rejected: staying on `beautiful-mermaid`.** Its six types, 1.5 MB chunk and Inter-estimated widths are what `pele` removes, and the renderer is still one file's import, as `D91` said it would be.
 
 **Constraint:** `pele` draws an empty frame for a bare `graph TD`, so a drawing with no drawn element is dropped. A bare `classDiagram` or an xy chart with no series is rejected, and shows the reason where `beautiful-mermaid`'s xy chart showed its code alone.
+
+### D102 The icon is a face on the tile, from one vector master
+
+The icon is the squircle itself, running pink through violet to cyan, with two eyes and three lines of a note cut into it in `--background`, the last line short, the way Finder's face is its tile. There is no container and no object inside one. The lines are a note with the next one begun, which is the tagline drawn; the gradient is the outrun sun's stripes, the one place the 80s influence shows; and the face is what makes the mark a character rather than the category's document glyph. `assets/icon.svg` is the only master: `scripts/icons.sh` resolves its tokens from `src/styles.css` and three detail tiers by logical size, and `pnpm tauri icon` rasterizes every output from that. `assets/icon-desktop.png` and the alpha cleanup, bounds mapping and affine crop that fitted it to the tile are gone with it.
+
+The previous mark was two rotated sheets in a clay render under a cyan-to-pink rim, and it failed in both directions at once. Two sheets with lines is the category's stock glyph, so it said nothing about notras, while the rim, the two-sided edge lighting, the gradient rear sheet and the render's depth were four decorations competing on a 32px tile. Stripping the decoration left the stock glyph; the face replaces the glyph and keeps one decoration.
+
+**Supersedes `D33` and amends `D34`.** The size split and the raster master in `D33` are gone, since one vector source can drop detail by size when the detail is lines and eyes behind `display` switches. The tile shape in `D34` stands, now as eight cubic curves fit to the exponent-5 superellipse within 0.13 units on the 169-unit tile, which is 0.8px at 1024. Its lit edge and its drop shadow do not ship: both existed to make a box read as a box, the shadow changed between 64px and 128px inside one icns because the vector path never drew one below 64 logical pixels, and the tile is now the mark rather than a surface behind one.
+
+**Rejected: a wikilink monogram, `[[n]]`.** Specific to the app's syntax and keyboard-first in spirit. Rejected because wikilinks are the category's shared feature rather than this app's, so the mark would have named Obsidian's territory, and the five glyphs crowded the tile.
+
+**Rejected: four bars alone, ragged on the right with the last one short,** in the same gradient. It was the tagline drawn with nothing else, and it held to 16px. Rejected because the tray strips the gradient, and four monochrome bars in a menu bar are a hamburger menu; cutting them out of the tile fixed the tray and left a note with no character.
+
+**Rejected: a gradient body with the face, on a flat tile at `--background`.** It was the character this entry keeps, inside a box. The box cost it: a creature floating in a container, a third of the pixels at 16 spent on margin, and the lit edge kept only so the container read as one. With the face on the tile the margin, the edge and the question of what colour the tile is all go away, and the tray is the Dock icon with no translation.
+
+**Constraint:** the welcome mark's substitution is restated in `src/styles.spec.ts`, which checks `public/logo-*.svg` against `assets/icon.svg` with the tokens and the large tier applied. A token renamed in the script or a value changed for the tile-less mark has to change there too.
