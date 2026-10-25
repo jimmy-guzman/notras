@@ -135,6 +135,16 @@ const titleMarkdown = new Marked({
           : { raw: match[0], text: match.groups?.title, type: "codespan" };
       },
     },
+    {
+      level: "inline",
+      name: "image",
+      start: (source) => source.indexOf("![["),
+      tokenizer: (source) => {
+        const match = EMBED_TOKEN.exec(source);
+
+        return match === null ? undefined : { raw: match[0], type: "image" };
+      },
+    },
   ],
   gfm: true,
 });
@@ -241,7 +251,8 @@ function windowTitle(body: string, end: number) {
 }
 
 /**
- * The first readable source line, excluding code, images, HTML and tables.
+ * The first readable source line, excluding code, images, embeds, HTML and
+ * tables.
  *
  * Lexing a 450 KB note takes 20ms and this runs on every keystroke, so the
  * lexer reads a window that doubles until it holds the answer.

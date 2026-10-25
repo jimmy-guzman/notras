@@ -154,6 +154,34 @@
     "line": 0
   },
   {
+    "name": "embed",
+    "content": "![[x]]\n\nafter embed",
+    "path": "note.md",
+    "expected": "after embed",
+    "line": 2
+  },
+  {
+    "name": "inline embed",
+    "content": "before ![[x]] after",
+    "path": "note.md",
+    "expected": "before after",
+    "line": 0
+  },
+  {
+    "name": "embed only",
+    "content": "![[x]]",
+    "path": "note.md",
+    "expected": "note",
+    "line": null
+  },
+  {
+    "name": "escaped embed",
+    "content": "\\![[x]]",
+    "path": "note.md",
+    "expected": "!x",
+    "line": 0
+  },
+  {
     "name": "html block",
     "content": "<div>hidden</div>\n\nafter html",
     "path": "note.md",
