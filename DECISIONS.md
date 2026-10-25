@@ -1330,3 +1330,13 @@ A table stays inside the reading column and scrolls sideways when it is wider, a
 **Rejected: keeping the tier for tables alone.** It held one block kind to a second width that only a wide window shows, and it carried a container query on the editor, two print resets and an export measurement that a table wider than the column needed.
 
 **Rejected: the tier for diagrams and code blocks,** tried on a branch for #380 and closed. Code wraps, so a wider card only lengthened its lines, and a drawing gained nothing in a 700px window that the viewer does not already give it.
+
+### D101 Diagrams draw through pele
+
+A `mermaid` fence draws through `pele`, Obsidian's renderer, in place of `beautiful-mermaid` (`D91`). It draws every diagram type built into Mermaid 12.1, where `beautiful-mermaid` drew six and showed a reason for the rest. It has no dependencies and builds to a 687 kB chunk, 253 kB gzipped, against 1.5 MB. It renders synchronously to an SVG string, so `D94`'s first-paint model holds, and it takes its inks as `--pele-*` custom properties, so the app's tokens color it in both appearances and on paper without a re-render. It measures labels through a canvas in the face the app passes it, which closes `D91`'s constraint that labels estimated for Inter sat tight in the app's sans. Measured in Node against 1.9.0, a flowchart of 100 nodes lays out in 2.1ms and 400 in 3.8ms, against 27ms and 293ms for `beautiful-mermaid` 1.1.3.
+
+Its grammar rejects a parenthesis inside a style value, so `url()` cannot reach the output, and links and images are turned off, which retires the attribute filter `D91`'s module carried. `ARCHITECTURE.md` covers how its inline styles pass the packaged style policy.
+
+**Rejected: staying on `beautiful-mermaid`.** Its six types, 1.5 MB chunk and Inter-estimated widths are what `pele` removes, and the renderer is still one file's import, as `D91` said it would be.
+
+**Constraint:** `pele` draws an empty frame for a bare `graph TD`, so a drawing with no drawn element is dropped. A bare `classDiagram` or an xy chart with no series is rejected, and shows the reason where `beautiful-mermaid`'s xy chart showed its code alone.

@@ -813,11 +813,9 @@ body.dragging .ProseMirror .selected-text,
 
 /* A drawing folds the code under it, keyed on the drawing's class, so a
    fence that draws nothing keeps its code open under its reason line. The
-   svg derives its inks from `--bg` and `--fg`; `--fg` and `--accent` sit on
-   the container, since the toolbar reads the app's `--accent`, and `--muted`
-   on the svg, since the paper rule reads the app's `--muted` before the svg
-   gives that name to an ink. The library colors extra chart series from a
-   hex accent and falls back to blue for a variable, hence the blends. */
+   inks resolve against the fence's `--bg`, which paper changes with them.
+   The series alternate dark and light so neighbours differ, and none drops
+   below 42% since a pie draws its labels in `--pele-bg` over them. */
 .code-block-diagram,
 .code-block-reason {
   padding: 0.75em 1em;
@@ -831,18 +829,28 @@ body.dragging .ProseMirror .selected-text,
 }
 .code-block-diagram,
 .viewer-diagram {
-  --fg: var(--foreground);
-  --accent: var(--foreground);
+  --pele-bg: var(--bg);
+  --pele-fg: var(--foreground);
+  --pele-muted: var(--muted-foreground);
+  --pele-accent: var(--foreground);
+  --pele-critical: var(--foreground);
+  --pele-line: color-mix(in srgb, var(--foreground) 50%, var(--bg));
+  --pele-surface: color-mix(in srgb, var(--foreground) 3%, var(--bg));
+  --pele-surface-alt: color-mix(in srgb, var(--foreground) 5%, var(--bg));
+  --pele-border: color-mix(in srgb, var(--foreground) 20%, var(--bg));
+  --pele-series-1: color-mix(in srgb, var(--foreground) 85%, var(--bg));
+  --pele-series-2: color-mix(in srgb, var(--foreground) 60%, var(--bg));
+  --pele-series-3: color-mix(in srgb, var(--foreground) 72%, var(--bg));
+  --pele-series-4: color-mix(in srgb, var(--foreground) 48%, var(--bg));
+  --pele-series-5: color-mix(in srgb, var(--foreground) 92%, var(--bg));
+  --pele-series-6: color-mix(in srgb, var(--foreground) 54%, var(--bg));
+  --pele-series-7: color-mix(in srgb, var(--foreground) 78%, var(--bg));
+  --pele-series-8: color-mix(in srgb, var(--foreground) 42%, var(--bg));
 }
 .code-block-wrapper > .code-block-diagram {
   cursor: text;
 }
 :is(.code-block-diagram, .viewer-diagram) > svg {
-  --muted: var(--muted-foreground);
-  --xychart-color-1: color-mix(in srgb, var(--fg) 60%, var(--bg));
-  --xychart-color-2: color-mix(in srgb, var(--fg) 40%, var(--bg));
-  --xychart-color-3: color-mix(in srgb, var(--fg) 80%, var(--bg));
-  --xychart-color-4: color-mix(in srgb, var(--fg) 25%, var(--bg));
   display: block;
   max-width: 100%;
   height: auto;
@@ -852,9 +860,6 @@ body.dragging .ProseMirror .selected-text,
 }
 .viewer-diagram > svg {
   width: 100%;
-}
-:is(.code-block-diagram, .viewer-diagram) svg text {
-  font-family: var(--font-sans);
 }
 .code-block-reason {
   padding-block-end: 0;

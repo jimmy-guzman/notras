@@ -1706,7 +1706,6 @@ describe("mermaid diagrams", () => {
     const wrapper = diagram.closest(".code-block-wrapper");
 
     expect(diagram.tagName).toBe("svg");
-    expect(diagram).not.toHaveAttribute("style");
     expect(wrapper).not.toHaveClass("code-block-editing");
     expect(wrapper?.querySelector(".code-block-diagram + pre")).not.toBeNull();
   });
@@ -1749,17 +1748,18 @@ describe("mermaid diagrams", () => {
     });
   });
 
-  it("should drop a reference to anything outside the drawing", async () => {
+  it("should draw a link and an image as text and keep a style line", async () => {
     await mount({
       initialContent:
-        "before\n\n```mermaid\ngraph TD\n  A --> B\n  linkStyle 0 stroke:URL(http://evil/x)\n  style A fill:rgb(255 0 0),stroke:#f00\n  style B fill:url(http://evil/x)\n```",
+        'before\n\n```mermaid\ngraph TD\n  A --> B\n  B --> C@{ img: "https://evil/x", label: "pic" }\n  click A "https://evil/y"\n  style A fill:#f00,stroke:#0f0\n```',
     });
 
     const diagram = await screen.findByRole("img", { name: "diagram" });
 
-    expect(diagram.outerHTML).not.toMatch(/url\((?!#)/iu);
-    expect(diagram.querySelector('[stroke="#f00"]')).not.toBeNull();
-    expect(diagram.querySelector('[fill="rgb(255 0 0)"]')).not.toBeNull();
+    expect(diagram.outerHTML).not.toContain("evil");
+    expect(diagram.querySelectorAll("a")).toHaveLength(0);
+    expect(diagram.querySelectorAll("image")).toHaveLength(0);
+    expect(diagram.querySelector('[style*="fill:#f00"]')).not.toBeNull();
   });
 
   it("should draw a fence in the node view's first render once the renderer has loaded", async () => {
@@ -1777,10 +1777,10 @@ describe("mermaid diagrams", () => {
 
   it("should show the reason for a diagram it cannot draw", async () => {
     await mount({
-      initialContent: "before\n\n```mermaid\npie title Pets\n```",
+      initialContent: "before\n\n```mermaid\ngraph TD\n  A -->\n```",
     });
 
-    const reason = await screen.findByText(/Invalid mermaid header/u);
+    const reason = await screen.findByText(/^Parse error on line 3$/u);
 
     expect(reason).toHaveClass("code-block-reason");
     expect(screen.queryByRole("img", { name: "diagram" })).toBeNull();
@@ -1967,7 +1967,29 @@ describe("mermaid diagrams", () => {
     expect(editor.state.selection.from).toBe(end);
   });
 
-  it.each(["graph TD", "xychart-beta"])(
+  it("should draw a diagram written on one line", async () => {
+    await mount({
+      initialContent: "before\n\n```mermaid\ngraph TD; A-->B\n```",
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(diagram.querySelector("text")?.textContent).toBe("A");
+  });
+
+  it("should draw a diagram whose shapes carry no label", async () => {
+    await mount({
+      initialContent:
+        "before\n\n```mermaid\nstateDiagram-v2\n  [*] --> [*]\n```",
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(diagram.querySelector("text")).toBeNull();
+    expect(diagram.querySelectorAll("circle")).toHaveLength(3);
+  });
+
+  it.each(["graph TD", "%% a note\ngraph TD"])(
     "should draw nothing for a fence holding only %s",
     async (header) => {
       const { editor } = await mount({
@@ -1988,10 +2010,10 @@ describe("mermaid diagrams", () => {
 
   it("should show no open button for a fence that does not draw", async () => {
     const { editor } = await mount({
-      initialContent: "before\n\n```mermaid\npie title Pets\n```",
+      initialContent: "before\n\n```mermaid\ngraph TD\n  A -->\n```",
     });
 
-    await screen.findByText(/Invalid mermaid header/u);
+    await screen.findByText(/^Parse error on line 3$/u);
 
     expect(
       within(editor.view.dom).queryByRole("button", { name: "open diagram" })
