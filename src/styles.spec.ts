@@ -483,6 +483,12 @@ describe("paper palette", () => {
       blockOf(source, ".print-sheet :is(a[data-note], .wikilink)")
     ).toContain("text-decoration-line: none;");
   });
+
+  it("should zoom the sheet by 1.25 over 4/3 so 16px prints at 12pt", () => {
+    const print = source.slice(source.indexOf("@media print"));
+
+    expect(blockOf(print, ".print-sheet")).toContain("zoom: 0.9375;");
+  });
 });
 
 describe("reading typography", () => {

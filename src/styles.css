@@ -1042,7 +1042,7 @@ body.dragging .ProseMirror .selected-text,
    On screen the copy lays out unseen at the width the default paper lays it
    out, which `export-pdf.ts` asks `pdf.rs` for, so it measures the note as
    paper will hold it: the rules below that change a block's size apply on
-   screen too, and only colour and page breaks wait for print. */
+   screen too, and only colour, the zoom and page breaks wait for print. */
 .print-sheet {
   position: fixed;
   inset-block-start: 0;
@@ -1074,9 +1074,15 @@ body.dragging .ProseMirror .selected-text,
   body > :not(.print-sheet) {
     display: none;
   }
+  /* WebKit lays a printed page out at 1.25 CSS pixels per point where CSS has
+     4/3, which would print 16px at 12.8pt. The zoom is 1.25 over 4/3, so the
+     sheet lays its 672px out in the page's 630px and prints at 12pt. Zoom is
+     layout, so the page breaks WebKit computes are the ones it paints; a
+     scaled print job paginates at the unscaled page height instead. */
   .print-sheet {
     position: static;
     width: auto;
+    zoom: 0.9375;
     print-color-adjust: exact;
     visibility: visible;
   }
