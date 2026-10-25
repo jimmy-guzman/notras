@@ -35,7 +35,7 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 | `pnpm prepare`        | install the git hooks (lefthook)                   |
 | `pnpm tauri`          | run the tauri cli directly                         |
 
-To regenerate the icon family and README hero, edit `assets/icon.svg` for the shared vector artwork or `assets/icon-desktop.png` for the large desktop artwork, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
+To regenerate the icon family and README hero, edit `assets/icon.svg`, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
 
 Edit the sources rather than the generated files in `src-tauri/icons/`, the marks and icons in `public/`, or `assets/hero.png`.
 
