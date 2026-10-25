@@ -51,12 +51,25 @@ palette() {
   ' src/styles.css
 }
 
+# Lays a tier out in whole pixels: canvas, tile, bar, pitch and the first bar's
+# centre, all in px, become a viewbox and weights on the 169-unit tile, so every
+# horizontal edge lands on the pixel grid instead of straddling two rows.
+fit() {
+  read -r viewbox stroke pitch y1 < <(awk -v c="$1" -v t="$2" -v b="$3" -v p="$4" -v f="$5" 'BEGIN {
+    u = 169 / t
+    x = -16.5 - (c - t) / 2 * u
+    printf "%.4f,%.4f,%.4f,%.4f %.4f %.4f %.4f\n", x, x, c * u, c * u, b * u, p * u, x + f * u
+  }')
+  viewbox=${viewbox//,/ }
+}
+
 write_mark() {
   local scheme=$1 logical=$2 target=$3 background foreground pink violet cyan
-  local viewbox="0 0 136 136" tile=none pitch=26 stroke=15 rim=3
+  local viewbox="0 0 136 136" tile=none pitch=26 stroke=15 rim=3 y1=29
   if [ "$scheme" = tray ]; then
     background="#ffffff" foreground="#000000" pink="#000000" violet="#000000" cyan="#000000"
-    viewbox="-24 -24 184 184" tile=inline pitch=30 stroke=14 rim=0
+    tile=inline rim=0
+    fit 36 32 3 5 10.5
   else
     background=$(palette "$scheme" background)
     foreground=$(palette "$scheme" foreground)
@@ -66,12 +79,13 @@ write_mark() {
     if [ "$logical" -gt 0 ]; then
       viewbox="-36 -36 208 208" tile=inline
       # Bars thicken and spread as pixels run out, so four still read at 16px.
-      if [ "$logical" -le 24 ]; then pitch=32 stroke=20 rim=6
-      elif [ "$logical" -le 48 ]; then pitch=28 stroke=17 rim=4
+      if [ "$logical" -le 24 ]; then rim=6; fit 16 14 2 3 4
+      elif [ "$logical" -le 48 ]; then rim=4; fit 32 26 3 5 8.5
       fi
     fi
   fi
-  local y1=$((68 - 3 * pitch / 2))
+  local y2 y3 y4
+  read -r y2 y3 y4 < <(awk -v a="$y1" -v p="$pitch" 'BEGIN { printf "%s %s %s\n", a + p, a + 2 * p, a + 3 * p }')
   sed -e "s/var(--background)/$background/g" \
     -e "s/var(--foreground)/$foreground/g" \
     -e "s/var(--pink)/$pink/g" \
@@ -82,9 +96,9 @@ write_mark() {
     -e "s/var(--rim)/$rim/g" \
     -e "s/var(--stroke)/$stroke/g" \
     -e "s/var(--y1)/$y1/g" \
-    -e "s/var(--y2)/$((y1 + pitch))/g" \
-    -e "s/var(--y3)/$((y1 + 2 * pitch))/g" \
-    -e "s/var(--y4)/$((y1 + 3 * pitch))/g" assets/icon.svg > "$target"
+    -e "s/var(--y2)/$y2/g" \
+    -e "s/var(--y3)/$y3/g" \
+    -e "s/var(--y4)/$y4/g" assets/icon.svg > "$target"
   if grep -Fq 'var(' "$target"; then
     echo "icons: unresolved token in $target" >&2
     exit 1
