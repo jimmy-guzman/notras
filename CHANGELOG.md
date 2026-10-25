@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.2](https://github.com/jimmy-guzman/notras/compare/v0.11.1...v0.11.2) (2026-10-25)
+
+
+### Features
+
+* **editor:** ✨ draw every mermaid diagram type ([#407](https://github.com/jimmy-guzman/notras/issues/407)) ([f660644](https://github.com/jimmy-guzman/notras/commit/f660644c9b54a22a93d132856700709a1caa252b))
+* **editor:** ✨ say why an image does not show ([#392](https://github.com/jimmy-guzman/notras/issues/392)) ([8915846](https://github.com/jimmy-guzman/notras/commit/891584604435176c92297dbe14607bcb810d298d))
+* **editor:** ✨ show a note's body where ![[note]] sits ([#402](https://github.com/jimmy-guzman/notras/issues/402)) ([fcdd7f6](https://github.com/jimmy-guzman/notras/commit/fcdd7f6e794b083a3aed7953840cc4d4530c6c98))
+* **icon:** ✨ draw the icon as a face on the tile ([#414](https://github.com/jimmy-guzman/notras/issues/414)) ([56cd3c3](https://github.com/jimmy-guzman/notras/commit/56cd3c3a063cf792651e070bb1627ef420c6dce8))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 keep a wikilink when its title holds a bracket ([#406](https://github.com/jimmy-guzman/notras/issues/406)) ([8db1b9a](https://github.com/jimmy-guzman/notras/commit/8db1b9a766311d34ecf493854852a0a4a93afc84))
+* **export:** 🐛 keep a tall image on one page in a pdf ([#408](https://github.com/jimmy-guzman/notras/issues/408)) ([82b40e0](https://github.com/jimmy-guzman/notras/commit/82b40e038a8be4b42a27fe013ab159838c2fb8ca))
+* **notes:** 🐛 skip an embed when titling a note ([#411](https://github.com/jimmy-guzman/notras/issues/411)) ([c30d4e4](https://github.com/jimmy-guzman/notras/commit/c30d4e42c9bc280b3d41a0145497278975307760))
+
 ## [0.11.1](https://github.com/jimmy-guzman/notras/compare/v0.11.0...v0.11.1) (2026-10-20)
 
 
