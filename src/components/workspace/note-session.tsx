@@ -813,6 +813,21 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       target.insertText(text);
     };
 
+    // An open find keeps the hand however the note changes surface. Otherwise
+    // ⌘E decides which surface owns the caret; the other one's handle belongs
+    // to an editor that has already been destroyed.
+    const focus = () => {
+      if (graphMode) {
+        focusGraph();
+      } else if (noteFind.store.state.open) {
+        noteFind.focus();
+      } else if (persistence.store.state.sourceMode) {
+        sourceRef.current?.focus();
+      } else {
+        editorRef.current?.focus();
+      }
+    };
+
     // The caret rides through the markdown converters as a sentinel, so the
     // mapping between the two surfaces is exact (see sentinel.ts). The mode
     // is read from the session because tab handles outlive individual renders.
@@ -838,6 +853,10 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       }
 
       persistence.setSourceMode(!wasSource);
+
+      if (noteFind.store.state.open) {
+        noteFind.focusOnReturn();
+      }
     };
 
     const exportRichPdf = async () => {
@@ -854,18 +873,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         noteTitle(live.current.path),
         persistence.snapshot.state.title
       );
-    };
-
-    // ⌘E decides which surface owns the caret; the other one's handle belongs
-    // to an editor that has already been destroyed.
-    const focus = () => {
-      if (graphMode) {
-        focusGraph();
-      } else if (persistence.store.state.sourceMode) {
-        sourceRef.current?.focus();
-      } else {
-        editorRef.current?.focus();
-      }
     };
 
     registerTabHandles(id, {
@@ -886,7 +893,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       !active ||
       graphMode ||
       reviewingRef.current ||
-      noteFind.store.state.open ||
+      noteFind.store.state.searchPending ||
       (browserOpen && noteBrowserHasFocus())
     ) {
       return;

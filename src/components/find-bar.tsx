@@ -37,6 +37,16 @@ export function FindBar({ controller }: FindBarProps) {
     controller.setQuery(event.target.value);
   };
 
+  const attach = (element: HTMLInputElement) => {
+    input.current = element;
+    const detach = controller.attachInput(element);
+
+    return () => {
+      input.current = null;
+      detach();
+    };
+  };
+
   const previous = () => {
     controller.navigate(-1);
   };
@@ -113,7 +123,7 @@ export function FindBar({ controller }: FindBarProps) {
           aria-label="find text"
           onChange={change}
           placeholder="find in note..."
-          ref={input}
+          ref={attach}
           value={state.query}
         />
         <InputGroupAddon align="inline-end">

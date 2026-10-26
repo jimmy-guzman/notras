@@ -27,6 +27,15 @@ export function createFindController() {
   let seedOnBind = false;
   let targetOwner: string | undefined;
   let searchOwner: string | undefined;
+  let input: HTMLInputElement | null = null;
+  /** Focus the field cannot take yet, paid when it shows or an editor binds. */
+  let owed = false;
+
+  const takeFocus = (element: HTMLInputElement) => {
+    owed = false;
+    element.focus({ preventScroll: true });
+    element.select();
+  };
 
   const refresh = () => {
     const available = target?.alive() === true;
@@ -61,6 +70,7 @@ export function createFindController() {
 
   /** Closes find without moving focus or the caret. */
   const dismiss = () => {
+    owed = false;
     searchOwner = undefined;
     target?.setQuery(null);
     store.setState((state) => ({
@@ -81,6 +91,19 @@ export function createFindController() {
   };
 
   return {
+    attachInput: (element: HTMLInputElement) => {
+      input = element;
+
+      if (owed) {
+        takeFocus(element);
+      }
+
+      return () => {
+        if (input === element) {
+          input = null;
+        }
+      };
+    },
     /** `owner` is the editor's tab: a search's find ends when another tab binds. */
     bind: (handle: FindHandle, owner?: string) => {
       unbind();
@@ -102,15 +125,13 @@ export function createFindController() {
       if (store.state.searchPending) {
         store.setState((state) => ({ ...state, searchPending: false }));
         placeCaret();
-      } else {
-        store.setState((state) => ({
-          ...state,
-          focusRequest:
-            state.focusRequest + Number(state.open && !noteBrowserHasFocus()),
-        }));
       }
 
       refresh();
+
+      if (owed && input !== null) {
+        takeFocus(input);
+      }
 
       return () => {
         if (target === handle) {
@@ -127,6 +148,18 @@ export function createFindController() {
       dismiss();
     },
     dismiss,
+    /** Into the field now when it shows, otherwise as soon as it does. */
+    focus: () => {
+      if (input === null) {
+        owed = true;
+      } else {
+        takeFocus(input);
+      }
+    },
+    /** Into the field once the surface ⌘E is swapping in binds. */
+    focusOnReturn: () => {
+      owed = true;
+    },
     navigate: (direction: -1 | 1) => {
       if (target?.alive() !== true || store.state.query === "") {
         return;
