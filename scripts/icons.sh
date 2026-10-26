@@ -117,7 +117,8 @@ write_hero() {
   block=$((wh + 10 + th))
   by=$(((hero_height - block) / 2))
   tx=$((gx + hero_icon + hero_gap))
-  rasterize public/logo-dark.svg "$hero_icon" hero
+  write_mark dark 0 "$work/mark.svg"
+  rasterize "$work/mark.svg" "$hero_icon" hero
   cp "$work/hero/${hero_icon}x${hero_icon}.png" "$icon"
   magick -size ${hero_width}x${hero_height} xc:none -fill "$hero_background" \
     -draw "roundrectangle 0,0 $((hero_width - 1)),$((hero_height - 1)) $hero_radius,$hero_radius" \
@@ -177,12 +178,10 @@ rasterize "$work/tray.svg" "$tray_size" tray
 magick "$work/tray/${tray_size}x${tray_size}.png" \
   -channel A -fx 'r*a' +channel -fill black -colorize 100 -strip PNG32:"$out/tray.png"
 
-write_mark dark 0 public/logo-dark.svg
-write_mark light 0 public/logo-light.svg
 cp "$(png_for 32 dark 16)" public/favicon-dark.png
 cp "$(png_for 32 light 16)" public/favicon-light.png
 cp "$(png_for 180 dark)" public/apple-touch-icon.png
 
 write_hero
 
-echo "icons: desktop icons, tray, favicons, theme-aware marks and README hero generated"
+echo "icons: desktop icons, tray, favicons and README hero generated"

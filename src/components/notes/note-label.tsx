@@ -37,7 +37,10 @@ export function NoteLabel({
   note: NoteMeta;
 }) {
   return (
-    <span className="flex min-w-0 items-center gap-1.5" title={note.path}>
+    <span
+      className="flex min-w-0 flex-1 items-center gap-1.5"
+      title={note.path}
+    >
       <Highlighted className="truncate" text={note.title} />
       {note.pinned ? (
         <PinIcon aria-label="pinned" className="size-3 opacity-60" />

@@ -1347,6 +1347,8 @@ Its grammar rejects a parenthesis inside a style value, so `url()` cannot reach 
 
 ### D102 The icon is a face on the tile, from one vector master
 
+**Amended by `D103`,** which draws the welcome mark in the app and drops the `public/logo-*.svg` files and their test.
+
 The icon is the squircle itself, running pink through violet to cyan, with two eyes and three lines of a note cut into it in `--background`, the last line short, the way Finder's face is its tile. There is no container and no object inside one. The lines are a note with the next one begun, which is the tagline drawn; the gradient is the outrun sun's stripes, the one place the 80s influence shows; and the face is what makes the mark a character rather than the category's document glyph. `assets/icon.svg` is the only master: `scripts/icons.sh` resolves its tokens from `src/styles.css` and three detail tiers by logical size, and `pnpm tauri icon` rasterizes every output from that. `assets/icon-desktop.png` and the alpha cleanup, bounds mapping and affine crop that fitted it to the tile are gone with it.
 
 The previous mark was two rotated sheets in a clay render under a cyan-to-pink rim, and it failed in both directions at once. Two sheets with lines is the category's stock glyph, so it said nothing about notras, while the rim, the two-sided edge lighting, the gradient rear sheet and the render's depth were four decorations competing on a 32px tile. Stripping the decoration left the stock glyph; the face replaces the glyph and keeps one decoration.
@@ -1359,4 +1361,32 @@ The previous mark was two rotated sheets in a clay render under a cyan-to-pink r
 
 **Rejected: a gradient body with the face, on a flat tile at `--background`.** It was the character this entry keeps, inside a box. The box cost it: a creature floating in a container, a third of the pixels at 16 spent on margin, and the lit edge kept only so the container read as one. With the face on the tile the margin, the edge and the question of what colour the tile is all go away, and the tray is the Dock icon with no translation.
 
-**Constraint:** the welcome mark's substitution is restated in `src/styles.spec.ts`, which checks `public/logo-*.svg` against `assets/icon.svg` with the tokens and the large tier applied. A token renamed in the script or a value changed for the tile-less mark has to change there too.
+**Constraint:** the welcome mark's geometry is restated outside the master, and a test holds the two together. `D103` moved that restatement from `public/logo-*.svg` under `src/styles.spec.ts` to `src/components/mark.tsx` under its own spec.
+
+### D103 The face lives
+
+`D102` made the icon a character, and the app it opened kept it as a logo: a static image on the welcome screen, swapped by scheme through a `<picture>`. The welcome mark is now drawn inline by `Mark` from the icon's geometry on the live tokens, so it follows the scheme on its own and its eyes can move. On the welcome screen it blinks, the one motion in the app that carries no state change. The same mark stands still above "nothing found" in the palette and the browser, where the app speaks and has nothing to show.
+
+**Rejected: the stripes as tints on states.** Violet for the active row, cyan for the selection and a pink caret, four hex values in `src/styles.css`. Built, and dropped the same day: the change was a colour note nobody could see, and the icon's essence is the character rather than three hues.
+
+**Rejected: the window as the tile.** The shell running the icon's sweep, pink through violet to cyan at dusk strength, so the frame and the band were the tile and the note its cutout. Built and seen: a plum band and teal rails read as a tinted frame, which is the palette changed again rather than the character arriving. Dropped with the tints.
+
+**Rejected: the face over a note or workspace that could not load.** A character beside "could not read this note" reads as a joke at the reader's expense. A search that could not run is a shrug the face can carry, so the mark stands there as it does over "nothing found".
+
+**Rejected: eyes that follow the pointer.** One living moment is a character; two is a toy on the welcome screen. The blink is enough to say the mark is alive.
+
+**Constraint:** `src/components/mark.spec.tsx` holds `Mark` to `assets/icon.svg`: the tile path, the eye positions and the three lines are read from the master and compared. A change to the master's geometry fails there until the component follows.
+
+### D104 Home lists recent notes, and launch lands on it
+
+With no tab open the app shows home: the lockup, then the last five notes visited under "recent", pinned ones ahead, in the order ⌘P shows with an empty query. Each row carries ⌘1 to ⌘5, the chords that select tabs once one is open, so "⌘n is the nth thing in front of you" holds on both screens. With nothing to restore, launch lands on home and opens nothing.
+
+Home is seen at two moments: after closing every tab, and at a launch with nothing to restore. At both, the likeliest next step is the note last visited. Before this the app opened that note on its own, which made the choice for the user and kept the screen from ever showing; the list puts the same note one key away and leaves the choice.
+
+**Rejected: opening the last chosen note on launch,** which the app did. Rejected because it decided for the user, and because a home nobody sees cannot be made useful.
+
+**Rejected: a pinned group above the recent rows.** Pinned notes already lead the recent order, and two groups for five rows is the browser's job.
+
+**Rejected: dropping the wordmark for a plainer home.** A 112px face beside a tagline and two buttons is top-heavy; the wordmark balances the lockup.
+
+**Constraint:** the ⌘1 to ⌘9 tab jumps mount beside the sessions, in `TabJumps`, and home registers ⌘1 to ⌘5 for its rows. One chord has one owner at a time, and the owner leaving cleans up before the next one registers. The hotkey manager warns on a second registration of the same chord. A conditional list in `Workspace`'s own hook drew that warning on every close of the last tab, because a child's effects run before its parent's.

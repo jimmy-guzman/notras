@@ -28,7 +28,6 @@ import {
   hasTabSnapshot,
   moveTab,
   openDraft,
-  openInitialNote,
   openNote,
   openTab,
   persistTabs,
@@ -829,16 +828,20 @@ describe("note choices", () => {
   });
 
   it("should remember successful choices and leave automatic tab changes alone", () => {
-    openInitialNote("initial.md");
+    openNote("initial.md");
     const initial = getTabState().activeId;
-    registerLoadedNote(initial, "/notes");
     expect(readRecentNotes("/notes")).toStrictEqual([]);
+    registerLoadedNote(initial, "/notes");
+    expect(readRecentNotes("/notes")).toStrictEqual(["initial.md"]);
 
     openNote("chosen.md", true);
     const chosen = getTabState().activeId;
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect(readRecentNotes("/notes")).toStrictEqual(["initial.md"]);
     registerLoadedNote(chosen, "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual(["chosen.md"]);
+    expect(readRecentNotes("/notes")).toStrictEqual([
+      "chosen.md",
+      "initial.md",
+    ]);
     activateTab(initial);
     expect(readRecentNotes("/notes")).toStrictEqual([
       "initial.md",

@@ -1,4 +1,3 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { cn } from "cn";
@@ -6,13 +5,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePanelRef } from "react-resizable-panels";
 
-import { Chord } from "@/components/chord";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
 import { NoteBrowser } from "@/components/notes/note-browser";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
-import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -21,11 +18,9 @@ import {
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
 import { BarGroup } from "@/components/workspace/bar-group";
+import { Home } from "@/components/workspace/home";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
-import { indexStatusQuery } from "@/data/index-status";
-import { noteQueries, notesDirQuery } from "@/data/queries";
-import { lastChosenNote } from "@/lib/recent-notes";
 import {
   activateTab,
   changeNoteMetadata,
@@ -36,11 +31,9 @@ import {
   hasTabSnapshot,
   moveTab,
   openDraft,
-  openInitialNote,
   reopenTab,
   useTabState,
 } from "@/lib/tabs/store";
-import type { TabState } from "@/lib/tabs/tab";
 import { fileKind, stepTab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
@@ -67,108 +60,6 @@ const TAB_JUMPS = [
   ["Mod+8", 7],
   ["Mod+9", -1],
 ] as const;
-
-function Welcome({
-  onNew,
-  onSearch,
-}: {
-  onNew: () => void;
-  onSearch: () => void;
-}) {
-  return (
-    <div className="flex flex-1 items-center justify-center">
-      <div className="flex items-center gap-7">
-        <picture className="shrink-0">
-          <source
-            media="(prefers-color-scheme: light)"
-            srcSet="/logo-light.svg"
-          />
-          <img
-            alt=""
-            className="size-28"
-            height={112}
-            src="/logo-dark.svg"
-            width={112}
-          />
-        </picture>
-        <div className="flex flex-col items-start gap-4">
-          <div className="flex flex-col gap-2">
-            <h1 className="tracking-wordmark font-sans text-5xl leading-none font-semibold">
-              notras
-            </h1>
-            <p className="text-muted-foreground leading-tagline text-xl tracking-tight">
-              write another note
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={onNew}>
-              new note <Chord hotkey="Mod+N" />
-            </Button>
-            <Button onClick={onSearch} variant="secondary">
-              search <Chord hotkey="Mod+P" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RecentNote({ initialTabs }: { initialTabs: TabState }) {
-  const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-
-  const latest = useQuery({
-    ...noteQueries.list(),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-
-  const opened = useRef(false);
-  useEffect(() => {
-    if (latest.isSuccess && !opened.current) {
-      opened.current = true;
-      const note = lastChosenNote(notesDir, latest.data);
-
-      if (note !== undefined && getTabState() === initialTabs) {
-        openInitialNote(note.path);
-      }
-    }
-  }, [initialTabs, latest.data, latest.isSuccess, notesDir]);
-  const indexStatus = useQuery(indexStatusQuery);
-
-  const retry = async () => {
-    await latest.refetch();
-  };
-
-  if (latest.isSuccess) {
-    return null;
-  }
-
-  if (latest.isError) {
-    return (
-      <output className="block p-3 text-center text-sm">
-        <span className="block">could not open the recent note</span>
-        <span className="block">{reasonOf(latest.error)}</span>
-        <Button
-          onClick={() => {
-            void retry();
-          }}
-          size="sm"
-          variant="ghost"
-        >
-          retry
-        </Button>
-      </output>
-    );
-  }
-
-  return (
-    <output className="text-muted-foreground block p-3 text-center text-xs">
-      {indexStatus.data?.state === "scanning"
-        ? "indexing notes..."
-        : "loading recent note..."}
-    </output>
-  );
-}
 
 function closeActive() {
   closeTab(getTabState().activeId);
@@ -233,6 +124,25 @@ function carryTab(offset: number) {
   if (index !== -1) {
     moveTab(state.activeId, index + offset);
   }
+}
+
+/**
+ * Mounted only beside open tabs, so home's rows hold the same chords alone. A
+ * child's cleanup runs before the next child registers, in both directions;
+ * a conditional list in the parent's own hook would register home's rows
+ * first and draw the manager's warning on every close of the last tab.
+ */
+function TabJumps() {
+  useHotkeys(
+    TAB_JUMPS.map(([hotkey, index]) => ({
+      callback: () => {
+        jumpToTab(index);
+      },
+      hotkey,
+    }))
+  );
+
+  return null;
 }
 
 function BrowserPanels({ children }: { children: ReactNode }) {
@@ -358,17 +268,9 @@ function BrowserPanels({ children }: { children: ReactNode }) {
  * keyboard belongs here rather than inside one of them. Registered N times it
  * would fire N times, and a dropped file would land in every open note.
  */
-export function Workspace({
-  initialTabs,
-  onOpenSearch,
-}: {
-  /** The tab state at launch, or null when saved tabs were restored into it. */
-  initialTabs: TabState | null;
-  onOpenSearch: () => void;
-}) {
+export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
   const browserOpen = useNoteBrowser();
-  const tabState = useTabState();
-  const { activeId, tabs } = tabState;
+  const { activeId, tabs } = useTabState();
 
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const graphMode = useGraphMode(activeId);
@@ -464,14 +366,6 @@ export function Workspace({
       void togglePinned();
     },
     { meta: { name: "pin" } }
-  );
-  useHotkeys(
-    TAB_JUMPS.map(([hotkey, index]) => ({
-      callback: () => {
-        jumpToTab(index);
-      },
-      hotkey,
-    }))
   );
   useHotkeys([
     {
@@ -573,14 +467,10 @@ export function Workspace({
             )}
           >
             {tabs.length === 0 ? (
-              <>
-                <Welcome onNew={openDraft} onSearch={onOpenSearch} />
-                {tabState === initialTabs ? (
-                  <RecentNote initialTabs={initialTabs} />
-                ) : null}
-              </>
+              <Home onNew={openDraft} onSearch={onOpenSearch} />
             ) : (
               <>
+                <TabJumps />
                 {tabs.map((tab) =>
                   tab.id === activeId || hasTabSnapshot(tab.id) ? (
                     <NoteSession

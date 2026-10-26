@@ -173,32 +173,6 @@ describe.each([
   });
 });
 
-describe.each([
-  ["dark", darkTokens],
-  ["light", lightTokens],
-])("%s artwork", (scheme, tokens) => {
-  it("should export the logo from the icon source in the scheme's palette", () => {
-    const mark = projectFile("assets", "icon.svg")
-      .replaceAll("var(--background)", tokenValue(scheme, tokens, "background"))
-      .replaceAll("var(--pink)", tokenValue(scheme, tokens, "primary"))
-      .replaceAll(
-        "var(--violet)",
-        tokenValue(scheme, tokens, "syntax-keyword-import")
-      )
-      .replaceAll("var(--cyan)", tokenValue(scheme, tokens, "info"))
-      .replaceAll("var(--viewbox)", "-16.5 -16.5 169 169")
-      .replaceAll("var(--stroke)", "13")
-      .replaceAll("var(--eye-y)", "32")
-      .replaceAll("var(--eye)", "8")
-      .replaceAll("var(--lines3)", "inline")
-      .replaceAll("var(--lines2)", "none")
-      .replaceAll("var(--l1)", "76")
-      .replaceAll("var(--l2)", "106");
-
-    expect(projectFile("public", `logo-${scheme}.svg`)).toBe(mark);
-  });
-});
-
 const COMMENT = /\/\*[\s\S]*?\*\//gu;
 const URL_VALUE = /url\([^)]*\)/gu;
 

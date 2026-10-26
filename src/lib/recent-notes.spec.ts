@@ -7,7 +7,6 @@ import { Toaster } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import {
   forgetNote,
-  lastChosenNote,
   readRecentNotes,
   recentNotes,
   rememberNote,
@@ -173,9 +172,6 @@ describe("recent notes", () => {
         "old.md",
       ]
     );
-    expect(lastChosenNote("/notes", notes)?.path).toBe("chosen.md");
-    expect(lastChosenNote("/elsewhere", notes)?.path).toBe("a.md");
-    expect(lastChosenNote("/notes", [])).toBeUndefined();
   });
 
   it("should carry renames and moves without a visit and remove deleted history only from its library", () => {

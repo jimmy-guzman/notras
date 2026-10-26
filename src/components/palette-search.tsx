@@ -4,6 +4,7 @@ import { FileTextIcon, FolderIcon, HashIcon, PlusIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
+import { Mark } from "@/components/mark";
 import { Highlighted, NoteLabel } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
@@ -12,6 +13,7 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { filenameFromTitle } from "@/core/notes";
@@ -402,6 +404,9 @@ function NoteResults({
       {!pending && (visible.length === 0 || failed) && !offerCreate ? (
         <Empty aria-live="polite">
           <EmptyHeader>
+            <EmptyMedia>
+              <Mark size={32} />
+            </EmptyMedia>
             <EmptyTitle>{status.title}</EmptyTitle>
             <EmptyDescription>{status.description}</EmptyDescription>
           </EmptyHeader>

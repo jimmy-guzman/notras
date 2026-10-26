@@ -10,7 +10,7 @@ import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
 import { rememberNote } from "@/lib/recent-notes";
-import { closeTab, getTabState } from "@/lib/tabs/store";
+import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
 import type { NoteMeta } from "@/server/adapters/bindings";
@@ -247,6 +247,9 @@ describe("note browser", () => {
       },
     ]);
 
+    act(() => {
+      openNote("one.md");
+    });
     await screen.findByRole("heading", { name: "Opened" });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
 
@@ -310,6 +313,9 @@ describe("note browser", () => {
     onTestFinished(() => {
       noteFind.close();
     });
+    act(() => {
+      openNote("one.md");
+    });
     await screen.findByRole("heading", { name: "Opened" });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
 
@@ -362,6 +368,9 @@ describe("note browser", () => {
 
     onTestFinished(() => {
       noteFind.close();
+    });
+    act(() => {
+      openNote("one.md");
     });
     await screen.findByRole("heading", { name: "Opened" });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
@@ -582,6 +591,9 @@ describe("note browser", () => {
       },
     ]);
 
+    act(() => {
+      openNote("one.md");
+    });
     await screen.findByRole("heading", { name: "Opened" });
     rememberNote("/notes", "one.md");
     rememberNote("/notes", "two.md");
@@ -645,6 +657,9 @@ describe("note browser", () => {
       },
     ]);
 
+    act(() => {
+      openNote("one.md");
+    });
     await screen.findByRole("heading", { name: "Opened" });
     rememberNote("/notes", "one.md");
     rememberNote("/notes", "two.md");

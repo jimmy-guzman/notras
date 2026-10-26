@@ -37,7 +37,7 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 
 To regenerate the icon family and README hero, edit `assets/icon.svg`, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
 
-Edit the sources rather than the generated files in `src-tauri/icons/`, the marks and icons in `public/`, or `assets/hero.png`.
+Edit the sources rather than the generated files in `src-tauri/icons/`, the icons in `public/`, or `assets/hero.png`. The welcome mark in `src/components/mark.tsx` repeats the master's geometry by hand, and `src/components/mark.spec.tsx` fails when the two drift.
 
 Rust commands run from the repository root. The workspace holds the `notras-core` engine and the Tauri shell in `src-tauri`. Install the extra tools once:
 
