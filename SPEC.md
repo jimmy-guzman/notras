@@ -171,7 +171,7 @@ What notras does, as claims checkable against a running build.
 
 ## Find in a note
 
-- ⌘F opens or focuses a floating find bar at the editor's upper-right. While open it keeps focus when another tab shows or ⌘E swaps the surface. It searches the active unsaved buffer in rich text, raw source, external-file tabs, and quick capture. From graph view it returns to the editor. With no editor available, the palette action is absent.
+- ⌘F opens or focuses a floating find bar at the editor's upper-right. While open it keeps focus when another tab's note shows or ⌘E swaps the surface. It searches the active unsaved buffer in rich text, raw source, external-file tabs, and quick capture. From graph view it returns to the editor. With no editor available, the palette action is absent.
 - A single-line editor selection seeds the query. Otherwise the window's last query is reused. Query and open state stay in memory across tabs and rich/source changes; capture keeps separate state.
 - Matching is literal, case-insensitive, and non-overlapping. Rich text matches across formatting within each text block, including code, table cells, link labels, and atomic wikilink and embed titles. Source searches the entire raw file, including frontmatter.
 - The bar shows `current / total`, previous, next, and close controls. The total counts the whole note. Matches on screen are highlighted as the note scrolls, and the active match has an outline. Searching and navigating preserve document content and undo history. Edits and undo recompute matches.
