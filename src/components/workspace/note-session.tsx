@@ -71,6 +71,7 @@ import {
   cancelNoteVisit,
   clearRestoredCaret,
   closeTab,
+  getTabHandles,
   getTabState,
   openNote,
   openTab,
@@ -85,7 +86,7 @@ import type { Tab } from "@/lib/tabs/tab";
 import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
-import { useGraphMode } from "@/lib/ui/graph";
+import { focusGraph, useGraphMode } from "@/lib/ui/graph";
 import { noteBrowserHasFocus, useNoteBrowser } from "@/lib/ui/note-browser";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import type { OpenKind } from "@/server/adapters/bindings";
@@ -855,19 +856,31 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       );
     };
 
+    // ⌘E decides which surface owns the caret; the other one's handle belongs
+    // to an editor that has already been destroyed.
+    const focus = () => {
+      if (graphMode) {
+        focusGraph();
+      } else if (persistence.store.state.sourceMode) {
+        sourceRef.current?.focus();
+      } else {
+        editorRef.current?.focus();
+      }
+    };
+
     registerTabHandles(id, {
       changePath: tab.kind === "note" ? changePath : undefined,
       editMetadata: tab.kind === "note" ? persistence.editMetadata : undefined,
       exportPdf: exportRichPdf,
+      focus,
       getCaret,
       insertText,
       toggleSource,
     });
-  }, [changePath, id, persistence, tab.kind]);
+  }, [changePath, graphMode, id, persistence, tab.kind]);
 
   // A tab mounted in the background never took focus, so it takes it on the
-  // way in. ⌘P decides which surface owns the caret; the other one's handle
-  // belongs to an editor that has already been destroyed.
+  // way in.
   useEffect(() => {
     if (
       !active ||
@@ -879,12 +892,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       return;
     }
 
-    if (persistence.store.state.sourceMode) {
-      sourceRef.current?.focus();
-    } else {
-      editorRef.current?.focus();
-    }
-  }, [active, browserOpen, graphMode, persistence]);
+    getTabHandles(id)?.focus();
+  }, [active, browserOpen, graphMode, id]);
 
   return (
     <div

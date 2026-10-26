@@ -40,9 +40,10 @@ export interface TabHandles {
   editMetadata?: (edit: FrontmatterEdit) => Promise<void>;
   /** Save the rich view as a PDF and answer its path, null when cancelled, or refuse with the reason the toast shows. */
   exportPdf: () => Promise<string | null>;
+  focus: () => void;
   /** The caret's offset in this buffer's markdown, or -1. Read only when the set is persisted. */
   getCaret: () => number;
-  /** Into whichever surface is live, since ⌘P swaps which one owns the caret. */
+  /** Into whichever surface is live, since ⌘E swaps which one owns the caret. */
   insertText: (text: string) => void;
   /** Switching surfaces carries the caret through the editor handle, which only the session holds. */
   toggleSource: () => void;
@@ -263,12 +264,11 @@ export function getTabHandles(id: string) {
   return handles.get(id);
 }
 
-/** Called once per session. Nothing subscribes, so this does not emit. */
+/** Nothing subscribes, so this does not emit. */
 export function registerTabHandles(id: string, next: TabHandles) {
   handles.set(id, next);
 }
 
-/** Connect the bars to the session's derived state for its mounted lifetime. */
 /**
  * How a tab re-reads its file when the disk may have changed. The latest
  * registration wins, and releasing an older one leaves the newer in place.

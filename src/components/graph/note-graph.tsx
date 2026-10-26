@@ -22,7 +22,7 @@ import { noteQueries } from "@/data/queries";
 import { openNote } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
-import { hideGraph, hopTo } from "@/lib/ui/graph";
+import { hideGraph, hopTo, registerGraphFocus } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 
 import type { RingPosition } from "./layout";
@@ -616,7 +616,13 @@ export function NoteGraph({
 
   // Landing, whether by toggle or by hop, puts the hand on the centre.
   useEffect(() => {
-    pills.current.get(centreKey)?.focus();
+    const focus = () => {
+      pills.current.get(centreKey)?.focus();
+    };
+
+    focus();
+
+    return registerGraphFocus(focus);
   }, [centreKey, pills]);
 
   const keys: RingKeys = {

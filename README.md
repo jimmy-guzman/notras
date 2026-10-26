@@ -64,6 +64,7 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | `⌃⇥`               | next tab (`⌃⇧⇥` for previous)    |
 | `⌘⌥→`              | next tab (`⌘⌥←` for previous)    |
 | `⌘⌥⇧→`             | move the tab right (`⌘⌥⇧←` left) |
+| `⌘⇧A`              | show every open tab              |
 | `⌘E`               | toggle raw markdown source       |
 | `⌘F`               | find in the current buffer       |
 | `⌘G` / `⌘⇧G`       | next / previous match            |

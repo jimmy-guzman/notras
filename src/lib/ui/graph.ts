@@ -13,6 +13,23 @@ export function useGraphMode(id: string) {
   return useSelector(graphs, (ids) => ids.has(id));
 }
 
+/** Only one graph shows at a time, so the latest registration is the one on screen. */
+let focusCentre: (() => void) | undefined;
+
+export function registerGraphFocus(focus: () => void) {
+  focusCentre = focus;
+
+  return () => {
+    if (focusCentre === focus) {
+      focusCentre = undefined;
+    }
+  };
+}
+
+export function focusGraph() {
+  focusCentre?.();
+}
+
 /** Only ids of tabs still open, so a closed or replaced tab's flag does not linger. */
 function alive(ids: ReadonlySet<string>) {
   const open = new Set(getTabState().tabs.map((tab) => tab.id));

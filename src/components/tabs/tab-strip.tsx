@@ -30,7 +30,9 @@ import {
   XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
+import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -42,9 +44,15 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
 import { notesDirQuery } from "@/data/queries";
 import { copyTabPath } from "@/lib/tabs/copy-path";
@@ -53,15 +61,25 @@ import {
   closeOtherTabs,
   closeTab,
   closeTabsAfter,
+  getTabHandles,
+  getTabState,
   moveTab,
   showTab,
   useTabSnapshot,
 } from "@/lib/tabs/store";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab, TabStep } from "@/lib/tabs/tab";
-import { stepTab, tabButtonId, tabFullPath, tabPanelId } from "@/lib/tabs/tab";
+import {
+  stepTab,
+  tabButtonId,
+  tabFullPath,
+  tabPanelId,
+  tabRun,
+} from "@/lib/tabs/tab";
 import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useGraphMode } from "@/lib/ui/graph";
+import { useHotkey } from "@/lib/ui/shortcuts";
+import { setTabListOpen, useTabListOpen } from "@/lib/ui/tab-list";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -71,6 +89,12 @@ const STEPS = new Map<string, TabStep>([
 ]);
 
 const ACTIVATION_DISTANCE_PX = 4;
+
+/** A tab's `min-w-24` and the strip's `gap-1`, which decide how many fit whole. */
+const TAB_MIN_PX = 96;
+const TAB_GAP_PX = 4;
+
+const SHOW_TABS = "Mod+Shift+A";
 
 /** dnd-kit defaults to 250ms; `DESIGN.md` names 0.15s for the bars. */
 const TAB_TRANSITION = { duration: 150, easing: "ease" };
@@ -162,7 +186,6 @@ interface TabItemProps {
 function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   const { id } = tab;
   const snapshot = useTabSnapshot(id);
-  const ref = useRef<HTMLSpanElement | null>(null);
   const label = snapshot?.title ?? noteTitle(tab.path);
 
   const {
@@ -179,18 +202,6 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
     id,
     transition: TAB_TRANSITION,
   });
-
-  // Keyboard switching can land on a tab that is scrolled out of the strip.
-  useEffect(() => {
-    if (active) {
-      ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
-  }, [active]);
-
-  const setRefs = (node: HTMLSpanElement | null) => {
-    ref.current = node;
-    setNodeRef(node);
-  };
 
   const select = () => {
     activateTab(id);
@@ -230,8 +241,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
             : "hover:bg-muted dark:hover:bg-muted/50",
           isDragging && "shadow-drag z-10 cursor-grabbing"
         )}
-        data-tab-id={id}
-        ref={setRefs}
+        ref={setNodeRef}
         role="presentation"
         style={{
           "--tab-transition": transition,
@@ -294,49 +304,108 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   );
 }
 
-interface OverflowItemProps {
+interface TabListItemProps {
   tab: Tab;
 }
 
-function OverflowItem({ tab }: OverflowItemProps) {
+function TabListItem({ tab }: TabListItemProps) {
   const snapshot = useTabSnapshot(tab.id);
   const label = snapshot?.title ?? noteTitle(tab.path);
 
-  const select = () => {
-    activateTab(tab.id);
+  return (
+    <DropdownMenuRadioItem closeOnClick value={tab.id}>
+      {label}
+    </DropdownMenuRadioItem>
+  );
+}
+
+interface TabListMenuProps {
+  activeId: string;
+  tabs: Tab[];
+}
+
+/** Every open tab, including the ones the strip has no room for. */
+function TabListMenu({ activeId, tabs }: TabListMenuProps) {
+  const open = useTabListOpen();
+  const picked = useRef(false);
+  const chevron = useRef<HTMLButtonElement>(null);
+
+  useHotkey(
+    SHOW_TABS,
+    () => {
+      setTabListOpen(true);
+    },
+    { meta: { name: "show tabs" } }
+  );
+
+  // The store outlives the strip, so a list left open would greet the next tab.
+  useEffect(
+    () => () => {
+      setTabListOpen(false);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (open) {
+      picked.current = false;
+    }
+  }, [open]);
+
+  const pick = (id: string) => {
+    picked.current = true;
+    activateTab(id);
   };
 
-  return <DropdownMenuItem onClick={select}>{label}</DropdownMenuItem>;
-}
+  // The note focuses through its handle, since returning it would skip the
+  // editor's scroll restore. The chevron is returned, not true, because focus
+  // from before ⌘⇧A may sit in a note the pick made inert.
+  const focusOnClose = () => {
+    if (!picked.current) {
+      return true;
+    }
 
-interface OverflowMenuProps {
-  hidden: Tab[];
-}
+    getTabHandles(getTabState().activeId)?.focus();
 
-/** The tabs the strip has scrolled out of reach. */
-function OverflowMenu({ hidden }: OverflowMenuProps) {
-  if (hidden.length === 0) {
-    return null;
-  }
+    const holder = document.activeElement;
+
+    const landed =
+      holder !== null &&
+      holder !== document.body &&
+      holder.closest('[role="menu"]') === null;
+
+    return landed ? false : chevron.current;
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={`${hidden.length} ${hidden.length === 1 ? "tab" : "tabs"} out of view`}
-            size="xs"
-            variant="ghost"
-          />
-        }
-      >
-        {hidden.length}
-        <ChevronDownIcon data-icon="inline-end" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {hidden.map((tab) => (
-          <OverflowItem key={tab.id} tab={tab} />
-        ))}
+    <DropdownMenu onOpenChange={setTabListOpen} open={open}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label="show tabs"
+                  ref={chevron}
+                  size="icon-xs"
+                  variant="ghost"
+                />
+              }
+            />
+          }
+        >
+          <ChevronDownIcon className={BAR_GLYPH} />
+        </TooltipTrigger>
+        <TooltipContent>
+          show tabs <Chord hotkey={SHOW_TABS} />
+        </TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent className="w-56" finalFocus={focusOnClose}>
+        <DropdownMenuRadioGroup onValueChange={pick} value={activeId}>
+          {tabs.map((tab) => (
+            <TabListItem key={tab.id} tab={tab} />
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -361,9 +430,15 @@ function handleDragStart(event: DragStartEvent) {
  */
 function TabList({ activeId, tabs }: TabListProps) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
-  const listRef = useRef<HTMLDivElement>(null);
-  const [hidden, setHidden] = useState<string[]>([]);
+  // Every tab until first measured.
+  const [fit, setFit] = useState(Number.POSITIVE_INFINITY);
+  const [previous, setPrevious] = useState(0);
+  const run = tabRun({ activeId, tabs }, fit, previous);
   const ids = tabs.map((tab) => tab.id);
+
+  if (run.start !== previous) {
+    setPrevious(run.start);
+  }
 
   // No keyboard sensor: it wants the `attributes` spread, which would overwrite
   // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D60`).
@@ -373,58 +448,26 @@ function TabList({ activeId, tabs }: TabListProps) {
     })
   );
 
-  useEffect(() => {
-    const list = listRef.current;
+  const observeWidth = (list: HTMLDivElement) => {
+    // Synchronous, or a frame of cut tabs paints first.
+    const observer = new ResizeObserver(() => {
+      flushSync(() => {
+        setFit(
+          Math.floor(
+            (list.clientWidth + TAB_GAP_PX) / (TAB_MIN_PX + TAB_GAP_PX)
+          )
+        );
+      });
+    });
 
-    const measure = () => {
-      if (list === null) {
-        return;
-      }
-
-      const open = new Set(ids);
-
-      const next: string[] = [];
-
-      for (const item of list.querySelectorAll<HTMLElement>("[data-tab-id]")) {
-        // Not a rect: a drag transforms a tab out of its slot, and a rect
-        // would call it hidden for being mid-slide.
-        const outOfView =
-          item.offsetLeft + item.offsetWidth <= list.scrollLeft + 1 ||
-          item.offsetLeft >= list.scrollLeft + list.clientWidth - 1;
-
-        const id = item.dataset.tabId ?? "";
-
-        // A tab closed between the measurement and this frame still has a
-        // node until React commits.
-        if (outOfView && open.has(id)) {
-          next.push(id);
-        }
-      }
-
-      // Scrolling fires this every frame; only a real change may re-render.
-      setHidden((current) =>
-        current.length === next.length &&
-        current.every((id, at) => id === next[at])
-          ? current
-          : next
-      );
-    };
-
-    const observer = new ResizeObserver(measure);
-
-    if (list !== null) {
-      measure();
-      observer.observe(list);
-      list.addEventListener("scroll", measure);
-    }
+    observer.observe(list);
 
     return () => {
       observer.disconnect();
-      list?.removeEventListener("scroll", measure);
     };
-  }, [ids]);
+  };
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const step = STEPS.get(event.key);
 
     if (step === undefined) {
@@ -438,11 +481,14 @@ function TabList({ activeId, tabs }: TabListProps) {
     }
 
     event.preventDefault();
-    activateTab(target.id);
+    // Synchronous, so the target is in the strip before it takes focus.
+    flushSync(() => {
+      activateTab(target.id);
+    });
     // Focus follows, or `tabIndex` moves to the new tab while focus stays on
     // the old one and Enter fires whichever button was left behind.
-    listRef.current
-      ?.querySelector<HTMLElement>(`#${CSS.escape(tabButtonId(target.id))}`)
+    event.currentTarget
+      .querySelector<HTMLElement>(`#${CSS.escape(tabButtonId(target.id))}`)
       ?.focus();
   };
 
@@ -456,10 +502,9 @@ function TabList({ activeId, tabs }: TabListProps) {
     moveTab(String(active.id), ids.indexOf(String(over.id)));
   };
 
-  const hiddenIds = new Set(hidden);
-
   return (
     <>
+      <TabListMenu activeId={activeId} tabs={tabs} />
       <DndContext
         accessibility={{ announcements: ANNOUNCEMENTS }}
         collisionDetection={closestCenter}
@@ -469,18 +514,18 @@ function TabList({ activeId, tabs }: TabListProps) {
         onDragStart={handleDragStart}
         sensors={sensors}
       >
-        <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
+        <SortableContext
+          items={run.tabs.map((tab) => tab.id)}
+          strategy={horizontalListSortingStrategy}
+        >
           <div
-            // `relative` so a tab's `offsetParent` is the strip, which the
-            // measure above reads against.
-            // The strip scrolls to keep the active tab in view; the overflow count is how hidden tabs are reached, so a scrollbar would be a second door.
-            className="relative flex min-w-0 flex-1 [scrollbar-width:none] items-center gap-1 overflow-x-auto"
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-clip"
             onKeyDown={handleKeyDown}
-            ref={listRef}
+            ref={observeWidth}
             role="tablist"
             tabIndex={-1}
           >
-            {tabs.map((tab) => (
+            {run.tabs.map((tab) => (
               <TabItem
                 active={tab.id === activeId}
                 key={tab.id}
@@ -492,7 +537,6 @@ function TabList({ activeId, tabs }: TabListProps) {
           </div>
         </SortableContext>
       </DndContext>
-      <OverflowMenu hidden={tabs.filter((tab) => hiddenIds.has(tab.id))} />
     </>
   );
 }

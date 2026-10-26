@@ -405,6 +405,7 @@ describe("store", () => {
 
       const handles = {
         exportPdf: async () => null,
+        focus: () => {},
         getCaret: () => 7,
         insertText: () => {},
         toggleSource: () => {},
@@ -422,6 +423,7 @@ describe("store", () => {
 
       registerTabHandles(id, {
         exportPdf: async () => null,
+        focus: () => {},
         getCaret: () => 7,
         insertText: () => {},
         toggleSource: () => {},
@@ -709,6 +711,7 @@ describe(changeNoteMetadata, () => {
     registerTabHandles(id, {
       editMetadata: note.editMetadata,
       exportPdf: async () => null,
+      focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},
@@ -786,6 +789,7 @@ describe(changeNoteMetadata, () => {
     registerTabHandles(id, {
       editMetadata: note.editMetadata,
       exportPdf: async () => null,
+      focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},

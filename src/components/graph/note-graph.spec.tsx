@@ -12,6 +12,7 @@ import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
 import { getTabState } from "@/lib/tabs/store";
+import { focusGraph } from "@/lib/ui/graph";
 
 import { NoteGraph, TabGraph } from "./note-graph";
 
@@ -144,6 +145,17 @@ describe(NoteGraph, () => {
 
   it("should land on the centre", () => {
     mount(notePicture({ outgoing: [mention("d.md")] }));
+
+    expect(screen.getByRole("button", { name: "c" })).toHaveFocus();
+  });
+
+  it("should put focus back on the centre when the graph is asked for it", () => {
+    mount(notePicture({ outgoing: [mention("d.md")] }));
+
+    act(() => {
+      screen.getByRole("button", { name: "d" }).focus();
+      focusGraph();
+    });
 
     expect(screen.getByRole("button", { name: "c" })).toHaveFocus();
   });

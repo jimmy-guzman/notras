@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore } from "@tanstack/react-store";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
@@ -13,14 +13,16 @@ import {
   closeTab,
   getTabState,
   registerLoadedNote,
+  registerTabHandles,
   registerTabSnapshot,
   restoreTabs,
 } from "@/lib/tabs/store";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
+import { tabPanelId } from "@/lib/tabs/tab";
 import { hideGraph, showGraph } from "@/lib/ui/graph";
 
-async function mountStrip(tabs: Tab[]) {
+async function mountStrip(tabs: Tab[], activeId = tabs[0]?.id ?? "") {
   mockIPC((command) => {
     if (command === "get_notes_dir") {
       return "/notes";
@@ -41,7 +43,7 @@ async function mountStrip(tabs: Tab[]) {
     <QueryClientProvider client={client}>
       <Suspense fallback={null}>
         <Titlebar>
-          <TabStrip activeId={tabs[0]?.id ?? ""} tabs={tabs} />
+          <TabStrip activeId={activeId} tabs={tabs} />
         </Titlebar>
       </Suspense>
     </QueryClientProvider>
@@ -113,11 +115,9 @@ describe("tab strip", () => {
         const user = userEvent.setup();
         await mountStrip([{ id: "draft", kind: "external", path }]);
         expect(screen.getByRole("tab", { name: "draft" })).toBeVisible();
-        await user.click(
-          screen.getByRole("button", { name: "1 tab out of view" })
-        );
+        await user.click(screen.getByRole("button", { name: "show tabs" }));
         expect(
-          await screen.findByRole("menuitem", { name: "draft" })
+          await screen.findByRole("menuitemradio", { name: "draft" })
         ).toBeVisible();
 
         const snapshot = createStore<TabSnapshot>({
@@ -139,10 +139,267 @@ describe("tab strip", () => {
         });
         expect(screen.getByRole("tab", { name: "Live title" })).toBeVisible();
         expect(
-          screen.getByRole("menuitem", { name: "Live title" })
+          screen.getByRole("menuitemradio", { name: "Live title" })
         ).toBeVisible();
       }
     );
+  });
+
+  describe("tab list", () => {
+    it("should list every open tab with the showing one checked", async () => {
+      await mountStrip([
+        { id: "a", kind: "note", path: "a.md" },
+        { id: "b", kind: "note", path: "b.md" },
+      ]);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+
+      expect(
+        await screen.findByRole("menuitemradio", { name: "a" })
+      ).toBeChecked();
+      expect(
+        screen.getByRole("menuitemradio", { name: "b" })
+      ).not.toBeChecked();
+    });
+
+    it("should show the tab picked from the list", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [
+            { id: "a", kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+        closeTab("b");
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+      await user.click(await screen.findByRole("menuitemradio", { name: "b" }));
+
+      expect(getTabState().activeId).toBe("b");
+      await waitFor(() => {
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+    });
+
+    it("should close the list when the showing tab is picked", async () => {
+      await mountStrip([{ id: "a", kind: "note", path: "a.md" }]);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+      await user.click(await screen.findByRole("menuitemradio", { name: "a" }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+    });
+
+    it("should put focus in the note when the showing tab is picked", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [{ id: "a", kind: "note", path: "a.md" }],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+      });
+      const panel = document.createElement("div");
+      panel.id = tabPanelId("a");
+      const note = document.createElement("textarea");
+      panel.append(note);
+      document.body.append(panel);
+      onTestFinished(() => {
+        panel.remove();
+      });
+      registerTabHandles("a", {
+        exportPdf: async () => null,
+        focus: () => {
+          note.focus();
+        },
+        getCaret: () => 0,
+        insertText: () => {},
+        toggleSource: () => {},
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+      await user.click(await screen.findByRole("menuitemradio", { name: "a" }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+      expect(note).toHaveFocus();
+    });
+
+    it("should leave focus on the chevron when the picked note cannot take it", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [{ id: "a", kind: "note", path: "a.md" }],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+      });
+      const panel = document.createElement("div");
+      panel.id = tabPanelId("a");
+      panel.inert = true;
+      const note = document.createElement("textarea");
+      panel.append(note);
+      document.body.append(panel);
+      onTestFinished(() => {
+        panel.remove();
+      });
+      registerTabHandles("a", {
+        exportPdf: async () => null,
+        focus: () => {
+          note.focus();
+        },
+        getCaret: () => 0,
+        insertText: () => {},
+        toggleSource: () => {},
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+      await user.click(await screen.findByRole("menuitemradio", { name: "a" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "show tabs" })).toHaveFocus();
+      });
+    });
+
+    it("should leave focus on the chevron after a shortcut pick the note cannot take", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [
+            { id: "a", kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+        closeTab("b");
+      });
+      const panel = document.createElement("div");
+      panel.id = tabPanelId("a");
+      const note = document.createElement("textarea");
+      panel.append(note);
+      document.body.append(panel);
+      onTestFinished(() => {
+        panel.remove();
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+
+      act(() => {
+        note.focus();
+      });
+      await user.keyboard("{Control>}{Shift>}a{/Shift}{/Control}");
+      const item = await screen.findByRole("menuitemradio", { name: "b" });
+      panel.inert = true;
+      await user.click(item);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "show tabs" })).toHaveFocus();
+      });
+    });
+
+    it("should return focus to where it was on esc after the shortcut opens the list", async () => {
+      await mountStrip([
+        { id: "a", kind: "note", path: "a.md" },
+        { id: "b", kind: "note", path: "b.md" },
+      ]);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+      await user.click(await screen.findByRole("menuitemradio", { name: "b" }));
+      act(() => {
+        screen.getByRole("tab", { name: "a" }).focus();
+      });
+      await user.keyboard("{Control>}{Shift>}a{/Shift}{/Control}");
+      await screen.findByRole("menu");
+      await user.keyboard("{Escape}");
+
+      await waitFor(() => {
+        expect(screen.getByRole("tab", { name: "a" })).toHaveFocus();
+      });
+    });
+
+    it("should open the list with its shortcut", async () => {
+      await mountStrip([{ id: "a", kind: "note", path: "a.md" }]);
+      const user = userEvent.setup();
+
+      await user.keyboard("{Control>}{Shift>}a{/Shift}{/Control}");
+
+      expect(
+        await screen.findByRole("menuitemradio", { name: "a" })
+      ).toBeVisible();
+    });
+
+    it("should show only the tabs that fit whole, holding the showing one", async () => {
+      const Platform = globalThis.ResizeObserver;
+      const reports: ResizeObserverCallback[] = [];
+
+      // happy-dom lays nothing out and never reports, so the test does both.
+      Object.assign(globalThis, {
+        ResizeObserver: class extends Platform {
+          constructor(onResize: ResizeObserverCallback) {
+            super(onResize);
+            reports.push(onResize);
+          }
+        },
+      });
+      onTestFinished(() => {
+        Object.assign(globalThis, { ResizeObserver: Platform });
+      });
+      await mountStrip(
+        [
+          { id: "a", kind: "note", path: "a.md" },
+          { id: "b", kind: "note", path: "b.md" },
+          { id: "c", kind: "note", path: "c.md" },
+          { id: "d", kind: "note", path: "d.md" },
+        ],
+        "d"
+      );
+      Object.defineProperty(screen.getByRole("tablist"), "clientWidth", {
+        value: 220,
+      });
+
+      act(() => {
+        for (const report of reports) {
+          report([], new Platform(report));
+        }
+      });
+
+      expect(
+        screen.getAllByRole("tab").map((tab) => tab.textContent)
+      ).toStrictEqual(["c", "d"]);
+    });
   });
 
   describe("tab glyphs", () => {

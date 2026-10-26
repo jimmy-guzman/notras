@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Layout } from "@/layout";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
+import { hideGraph } from "@/lib/ui/graph";
 
 const editors = () => document.querySelectorAll(".ProseMirror").length;
 
@@ -339,6 +340,115 @@ describe("workspace", () => {
     await user.click(screen.getByRole("tab", { selected: false }));
     expect(editors()).toBe(2);
     expect(readRecentNotes("/notes")).toStrictEqual(["first.md", "second.md"]);
+  });
+
+  it("should put focus back on the graph's centre when its showing tab is picked from the list", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "second",
+        carets: {},
+        tabs: [
+          { id: "first", kind: "note", path: "first.md" },
+          { id: "second", kind: "note", path: "second.md" },
+        ],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [
+          { kind: "note", path: "first.md" },
+          { kind: "note", path: "second.md" },
+        ];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return { content: "# Restored\n\nbody", revision: "r", updatedAt: 1 };
+      }
+
+      if (command === "read_graph") {
+        return {
+          mentionsError: null,
+          picture: {
+            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "second.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "second",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      hideGraph("second");
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("body");
+    await user.click(screen.getByRole("button", { name: "graph view" }));
+    await screen.findByRole("button", { name: "second" });
+    await user.click(screen.getByRole("button", { name: "show tabs" }));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "Restored" })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "second" })).toHaveFocus();
+    });
   });
 
   it.each([

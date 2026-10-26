@@ -17,6 +17,7 @@ import {
   tabButtonId,
   tabFullPath,
   tabPanelId,
+  tabRun,
 } from "./tab";
 
 const WHITESPACE = /\s/u;
@@ -465,6 +466,65 @@ describe(stepTab, () => {
 
   it("should land on nothing when no tabs are open", () => {
     expect(stepTab({ activeId: "", tabs: [] }, "next")).toBeUndefined();
+  });
+});
+
+describe(tabRun, () => {
+  const five = ["a.md", "b.md", "c.md", "d.md", "e.md"].map(note);
+
+  it("should stay put while the active tab is in the run", () => {
+    expect(
+      tabRun({ activeId: "id-c.md", tabs: five }, 3, 1).tabs.map(
+        (tab) => tab.path
+      )
+    ).toStrictEqual(["b.md", "c.md", "d.md"]);
+  });
+
+  it("should move right only far enough to end on the active tab", () => {
+    expect(
+      tabRun({ activeId: "id-e.md", tabs: five }, 3, 0).tabs.map(
+        (tab) => tab.path
+      )
+    ).toStrictEqual(["c.md", "d.md", "e.md"]);
+  });
+
+  it("should move left only far enough to start on the active tab", () => {
+    expect(
+      tabRun({ activeId: "id-b.md", tabs: five }, 3, 2).tabs.map(
+        (tab) => tab.path
+      )
+    ).toStrictEqual(["b.md", "c.md", "d.md"]);
+  });
+
+  it("should pull back when closing tabs leaves room at the end", () => {
+    expect(
+      tabRun({ activeId: "id-c.md", tabs: five.slice(0, 3) }, 3, 2).start
+    ).toBe(0);
+  });
+
+  it("should show every tab while they all fit", () => {
+    expect(
+      tabRun(
+        { activeId: "id-e.md", tabs: five },
+        Number.POSITIVE_INFINITY,
+        0
+      ).tabs.map((tab) => tab.path)
+    ).toStrictEqual(["a.md", "b.md", "c.md", "d.md", "e.md"]);
+  });
+
+  it("should show the active tab alone when not even one fits", () => {
+    expect(
+      tabRun({ activeId: "id-d.md", tabs: five }, 0, 0).tabs.map(
+        (tab) => tab.path
+      )
+    ).toStrictEqual(["d.md"]);
+  });
+
+  it("should show nothing when no tabs are open", () => {
+    expect(tabRun({ activeId: "", tabs: [] }, 3, 2)).toStrictEqual({
+      start: 0,
+      tabs: [],
+    });
   });
 });
 

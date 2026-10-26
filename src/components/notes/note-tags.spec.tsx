@@ -57,6 +57,7 @@ describe("note tags", () => {
       registerTabHandles(id, {
         editMetadata: note.editMetadata,
         exportPdf: async () => null,
+        focus: () => {},
         getCaret: () => 0,
         insertText: () => {},
         toggleSource: () => {},

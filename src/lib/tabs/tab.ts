@@ -107,6 +107,16 @@ export function stepTab(state: TabState, step: TabStep): Tab | undefined {
   return state.tabs[(index + (step === "next" ? 1 : -1) + count) % count];
 }
 
+/** `fit` tabs, at least one, holding the active tab, moved the least from `previous`. */
+export function tabRun(state: TabState, fit: number, previous: number) {
+  const size = Math.max(1, fit);
+  const active = indexOfId(state.tabs, state.activeId);
+  const holding = Math.min(Math.max(previous, active - size + 1), active);
+  const start = Math.max(0, Math.min(holding, state.tabs.length - size));
+
+  return { start, tabs: state.tabs.slice(start, start + size) };
+}
+
 /**
  * Open `tab`, replacing the active one unless `newTab`.
  *
