@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.3](https://github.com/jimmy-guzman/notras/compare/v0.11.2...v0.11.3) (2026-10-27)
+
+
+### Features
+
+* **tabs:** ✨ list every open tab w/ ⌘⇧A & never cut one off ([#415](https://github.com/jimmy-guzman/notras/issues/415)) ([ed0ece6](https://github.com/jimmy-guzman/notras/commit/ed0ece6e2592a5be81c3751da23b1cb5f496f1ab))
+* **ui:** ✨ recent notes on home ([#417](https://github.com/jimmy-guzman/notras/issues/417)) ([9d9968c](https://github.com/jimmy-guzman/notras/commit/9d9968c5a516f1e4aec59a6ee13527fc5f19a1da))
+
 ## [0.11.2](https://github.com/jimmy-guzman/notras/compare/v0.11.1...v0.11.2) (2026-10-25)
 
 
