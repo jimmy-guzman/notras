@@ -24,16 +24,41 @@
 - **Links you can query**: `[[wikilinks]]` with autocomplete, a count of the notes that mention this one, and search filters for tags, folders, links and mentions.
 - **WYSIWYG markdown**: `⌘E` for the source, a `/` menu, blocks you drag or move with `⌥↑` and `⌥↓`, and autosave.
 
-<table>
-  <tr>
-    <td><img src="assets/home.png" alt="Home, with the mark and the five most recent notes under ⌘1 to ⌘5"></td>
-    <td><img src="assets/browser.png" alt="The note browser beside a note, with search, the collection picker and every note in the library"></td>
-  </tr>
-  <tr>
-    <td><img src="assets/graph.png" alt="The graph for a note, mentions on the left, links on the right and its tags above"></td>
-    <td><img src="assets/palette.png" alt="The action palette over a note, each action with its shortcut"></td>
-  </tr>
-</table>
+The note browser, with search, the collection picker and every note in the library.
+
+<p align="center">
+  <img src="assets/browser.png" alt="The note browser beside a note, with search, the collection picker and every note in the library" width="960">
+</p>
+
+The review, after an agent changed the line you were editing: each overlapping place, with your text beside the version on disk.
+
+<p align="center">
+  <img src="assets/review.png" alt="The review for a note, with one overlapping place showing the unsaved text beside the version on disk and a resolve button" width="960">
+</p>
+
+The graph for a note, mentions on the left, links on the right and its tags above.
+
+<p align="center">
+  <img src="assets/graph.png" alt="The graph for a note, mentions on the left, links on the right and its tags above" width="960">
+</p>
+
+The action palette, each action with its shortcut.
+
+<p align="center">
+  <img src="assets/palette.png" alt="The action palette over a note, each action with its shortcut" width="960">
+</p>
+
+Quick capture, the jot window `⌘⇧N` opens over any app.
+
+<p align="center">
+  <img src="assets/capture.png" alt="The quick capture window, a small jot editor with esc saves note in its footer" width="560">
+</p>
+
+Home, with the five most recent notes under `⌘1` to `⌘5`.
+
+<p align="center">
+  <img src="assets/home.png" alt="Home, with the mark and the five most recent notes under ⌘1 to ⌘5" width="960">
+</p>
 
 ## Install
 
