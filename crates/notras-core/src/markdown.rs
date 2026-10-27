@@ -592,10 +592,10 @@ fn wikilink_targets(body: &str) -> Vec<(usize, &str)> {
             % 2
             == 1;
         let target = body[inner..]
-            .find(']')
+            .find(['[', ']', '\n'])
+            .filter(|&end| body[inner + end..].starts_with("]]"))
             .map(|end| &body[inner..inner + end])
-            .filter(|target| !target.is_empty() && !target.contains(['[', '\n']))
-            .filter(|target| body[inner + target.len()..].starts_with("]]"));
+            .filter(|target| !target.is_empty());
 
         match target {
             Some(target) if !escaped => {
