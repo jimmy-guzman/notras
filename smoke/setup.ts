@@ -81,7 +81,11 @@ export async function setup(
               },
             ],
           },
-          windows: tauriConfig.app.windows,
+          // The README screenshots are dark whatever the system scheme is.
+          windows: tauriConfig.app.windows.map((window) => ({
+            ...window,
+            theme: "Dark",
+          })),
           withGlobalTauri: true,
         },
         build: {

@@ -6,6 +6,10 @@
   A keyboard-driven notes app. Your notes are markdown files in a folder you own.
 </p>
 
+<p align="center">
+  <img src="assets/editor.png" alt="A note open in notras: a heading, wikilinks, a task list, a highlighted TypeScript block and a drawn mermaid flowchart, with three tabs above" width="960">
+</p>
+
 ## Features
 
 - **Portable**: plain `.md` in a folder you pick, written as GFM, so any editor opens it, and markdown you did not edit is saved as you wrote it. Attachments are files, frontmatter keys notras does not use stay as written, and the filename follows the heading. On macOS a note exports to PDF.
@@ -19,6 +23,17 @@
 - **Tags in the file**: a frontmatter `tags:` list rather than a database. `⌘⇧Y` edits them, `#tag` filters search, the sidebar lists them, and the graph shows every note that carries one.
 - **Links you can query**: `[[wikilinks]]` with autocomplete, a count of the notes that mention this one, and search filters for tags, folders, links and mentions.
 - **WYSIWYG markdown**: `⌘E` for the source, a `/` menu, blocks you drag or move with `⌥↑` and `⌥↓`, and autosave.
+
+<table>
+  <tr>
+    <td><img src="assets/home.png" alt="Home, with the mark and the five most recent notes under ⌘1 to ⌘5"></td>
+    <td><img src="assets/browser.png" alt="The note browser beside a note, with search, the collection picker and every note in the library"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/graph.png" alt="The graph for a note, mentions on the left, links on the right and its tags above"></td>
+    <td><img src="assets/palette.png" alt="The action palette over a note, each action with its shortcut"></td>
+  </tr>
+</table>
 
 ## Install
 

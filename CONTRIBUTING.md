@@ -29,6 +29,7 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 | `pnpm test`           | run tests (Vitest, watches)                        |
 | `pnpm coverage`       | tests with coverage                                |
 | `pnpm smoke`          | native launch, edit and restart smoke test (macOS) |
+| `pnpm screenshots`    | regenerate the README screenshots (macOS)          |
 | `pnpm knip`           | unused code/deps, test-only exports                |
 | `pnpm icons`          | generate the icon family and README hero           |
 | `pnpm clean`          | remove build output                                |
@@ -38,6 +39,8 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 To regenerate the icon family and README hero, edit `assets/icon.svg`, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
 
 Edit the sources rather than the generated files in `src-tauri/icons/`, the icons in `public/`, or `assets/hero.png`. The welcome mark in `src/components/mark.tsx` repeats the master's geometry by hand, and `src/components/mark.spec.tsx` fails when the two drift.
+
+The README screenshots are generated too. `pnpm screenshots` builds the smoke binary, seeds it with the notes in `smoke/library/`, drives it through the smoke harness and captures the native window into `assets/`, dark whatever the system scheme is. It needs macOS, and the first run asks to grant Screen Recording to the terminal, since without it `screencapture` returns the wallpaper. The app comes to the front for the run and stays there after it. Edit the notes in `smoke/library/` or the states in `smoke/screenshots.spec.ts` rather than the PNGs.
 
 Rust commands run from the repository root. The workspace holds the `notras-core` engine and the Tauri shell in `src-tauri`. Install the extra tools once:
 
