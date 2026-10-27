@@ -7,7 +7,7 @@ import { object, parse, string } from "valibot";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { Layout } from "@/layout";
-import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
+import { readRecentNotes } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { hideGraph } from "@/lib/ui/graph";
@@ -213,7 +213,6 @@ describe("workspace", () => {
       </QueryClientProvider>
     );
     const user = userEvent.setup();
-    await screen.findByText("loading recent note...");
     const buttons = await screen.findAllByRole("button", { name: NEW_NOTE });
     const [button] = buttons;
 
@@ -721,118 +720,6 @@ describe("workspace", () => {
       expect(
         mutations.flatMap((record) => [...record.addedNodes])
       ).toHaveLength(0);
-    }
-  );
-});
-
-describe("launch note", () => {
-  it.each([true, false])(
-    "should open the last surviving choice or fall back to last saved, with history %s",
-    async (withHistory) => {
-      for (const tab of getTabState().tabs) {
-        closeTab(tab.id);
-      }
-
-      localStorage.clear();
-
-      if (withHistory) {
-        rememberNote("/notes", "chosen.md");
-        rememberNote("/notes", "missing.md");
-      }
-
-      mockWindows("main");
-      mockIPC((command) => {
-        if (command === "get_notes_dir") {
-          return "/notes";
-        }
-
-        if (command === "list_notes") {
-          return [
-            {
-              createdAt: 0,
-              folder: "",
-              path: "pin.md",
-              pinned: true,
-              snippet: null,
-              tags: [],
-              title: "Pin",
-              updatedAt: 1,
-            },
-            {
-              createdAt: 0,
-              folder: "",
-              path: "newest.md",
-              pinned: false,
-              snippet: null,
-              tags: [],
-              title: "Newest",
-              updatedAt: 100,
-            },
-            {
-              createdAt: 0,
-              folder: "",
-              path: "chosen.md",
-              pinned: false,
-              snippet: null,
-              tags: [],
-              title: "Chosen",
-              updatedAt: 0,
-            },
-          ];
-        }
-
-        if (command === "index_status") {
-          return { state: "ready" };
-        }
-
-        if (command === "read_note") {
-          return { content: "# Opened", revision: "r1", updatedAt: 1 };
-        }
-
-        if (command === "read_conflict") {
-          return null;
-        }
-
-        if (
-          ["list_tags", "take_pending_open", "find_mentions"].includes(command)
-        ) {
-          return [];
-        }
-
-        if (command.startsWith("plugin:")) {
-          return 0;
-        }
-
-        throw new Error(`unexpected command: ${command}`);
-      });
-
-      const client = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-        },
-      });
-
-      onTestFinished(() => {
-        for (const tab of getTabState().tabs) {
-          closeTab(tab.id);
-        }
-
-        client.clear();
-        clearMocks();
-        localStorage.clear();
-      });
-      render(
-        <QueryClientProvider client={client}>
-          <Layout />
-        </QueryClientProvider>
-      );
-      await screen.findByRole("heading", { name: "Opened" });
-      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
-        withHistory ? "chosen.md" : "newest.md",
-      ]);
-      expect(readRecentNotes("/notes")).toStrictEqual(
-        withHistory ? ["missing.md", "chosen.md"] : []
-      );
     }
   );
 });

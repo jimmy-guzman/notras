@@ -45,13 +45,6 @@ export function recentNotes(notesDir: string, notes: NoteMeta[]): NoteMeta[] {
   );
 }
 
-export function lastChosenNote(
-  notesDir: string,
-  notes: NoteMeta[]
-): NoteMeta | undefined {
-  return orderByVisit(notesDir, notes)[0];
-}
-
 export function rememberNote(notesDir: string, path: string): void {
   writeHistory(notesDir, [
     path,

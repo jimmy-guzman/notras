@@ -16,12 +16,14 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
+import { Mark } from "@/components/mark";
 import { Highlighted } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
@@ -648,6 +650,9 @@ function Browser({ notesDir }: { notesDir: string }) {
           notes.length === 0 ? (
             <Empty aria-live="polite">
               <EmptyHeader>
+                <EmptyMedia>
+                  <Mark expression="meh" size={32} />
+                </EmptyMedia>
                 <EmptyTitle>nothing found</EmptyTitle>
                 <EmptyDescription>
                   Try different words or choose another collection.

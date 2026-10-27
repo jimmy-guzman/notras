@@ -48,7 +48,7 @@ function disposeLater(...pending: Promise<() => void>[]) {
 }
 
 function MainWindow() {
-  const [{ data: notesDir }, { data: initialTabs }] = useSuspenseQueries({
+  const [{ data: notesDir }] = useSuspenseQueries({
     queries: [notesDirQuery, startupQuery],
   });
 
@@ -277,7 +277,6 @@ function MainWindow() {
     <TooltipProvider>
       <div className="bg-background text-foreground flex h-svh flex-col">
         <Workspace
-          initialTabs={initialTabs}
           onOpenSearch={() => {
             handlePaletteOpenChange(true);
           }}

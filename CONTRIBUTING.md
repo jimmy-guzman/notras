@@ -37,7 +37,7 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 
 To regenerate the icon family and README hero, edit `assets/icon.svg`, then run `pnpm icons`. The command needs macOS for `iconutil`, ImageMagick from `brew install imagemagick`, and project dependencies installed with `pnpm install`.
 
-Edit the sources rather than the generated files in `src-tauri/icons/`, the marks and icons in `public/`, or `assets/hero.png`.
+Edit the sources rather than the generated files in `src-tauri/icons/`, the icons in `public/`, or `assets/hero.png`. The welcome mark in `src/components/mark.tsx` repeats the master's geometry by hand, and `src/components/mark.spec.tsx` fails when the two drift.
 
 Rust commands run from the repository root. The workspace holds the `notras-core` engine and the Tauri shell in `src-tauri`. Install the extra tools once:
 
@@ -58,7 +58,7 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 
 ## Native smoke test
 
-`pnpm smoke` builds and launches an isolated native application on macOS. One test edits a seeded note, reads the saved Markdown file, restarts the process, and checks the text in the editor. Run it from a desktop session with the normal development prerequisites installed. Its build output and diagnostics live under `target/smoke/`. The required macOS Rust CI job runs the same command and retains failure artifacts for seven days.
+`pnpm smoke` builds and launches an isolated native application on macOS. One test opens a seeded note from home, edits it, reads the saved Markdown file, restarts the process, and checks the text in the restored tab. Run it from a desktop session with the normal development prerequisites installed. Its build output and diagnostics live under `target/smoke/`. The required macOS Rust CI job runs the same command and retains failure artifacts for seven days.
 
 The smoke test covers the combined webview, IPC and file persistence path. It does not establish keyboard fidelity, IME behavior, tab navigation, caret or undo restoration, quit flushing, tray interactions, global shortcuts, or OS dialogs. Those native interactions still need the manual checks in `AGENTS.md`. Test instrumentation requires the explicit `smoke` Cargo feature and frontend build mode; normal builds exclude it.
 

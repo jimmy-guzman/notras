@@ -1,27 +1,23 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { getTabState, reclassifyTabs, restoreTabs } from "@/lib/tabs/store";
+import { reclassifyTabs, restoreTabs } from "@/lib/tabs/store";
 import { commands } from "@/server/adapters/bindings";
 
 import { getNotesDir } from "./notes-dir";
 
 /**
  * Reopen last session's tabs. A restored path that no longer reads closes its
- * own tab, so nothing is checked against disk here. Resolves to the tab state
- * at launch when nothing was saved, which is how the workspace tells whether
- * anything has been opened since, and to null when the saved tabs came back.
+ * own tab, so nothing is checked against disk here.
  */
 async function restoreSession() {
-  const restored = restoreTabs();
-
-  if (restored) {
+  if (restoreTabs()) {
     await reclassifyTabs(
       async (paths) => await commands.classifyOpenPaths(paths),
       await getNotesDir()
     );
   }
 
-  return restored ? null : getTabState();
+  return null;
 }
 
 /**

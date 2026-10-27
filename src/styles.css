@@ -204,8 +204,8 @@
   html {
     overscroll-behavior: none;
   }
-  /* Motion carries a state change, so removing it costs nothing but the
-     transition. Every animation here has a real non-motion end state. */
+  /* Every animation here, the blink included, has a real non-motion end
+     state, so removing it costs nothing but the transition. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -214,6 +214,25 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
     }
+  }
+}
+
+/* The welcome mark's eyes close for about 80ms each way every 4.2s. The one
+   motion that carries no state change: it is the character. The reduced-motion
+   rule above collapses it to a still mark. */
+.mark-blinking circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mark-blink 4.2s ease-in-out infinite;
+}
+@keyframes mark-blink {
+  0%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  98% {
+    transform: scaleY(0.1);
   }
 }
 

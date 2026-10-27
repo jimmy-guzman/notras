@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createElement } from "react";
+import { createElement, Suspense } from "react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { CommandPalette } from "@/components/command-palette";
@@ -859,6 +859,18 @@ describe("recent commands", () => {
     const client = new QueryClient();
     mockWindows("main");
     mockIPC((command) => {
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes") {
+        return [];
+      }
+
       if (command.startsWith("plugin:")) {
         return 0;
       }
@@ -870,12 +882,16 @@ describe("recent commands", () => {
       clearMocks();
     });
 
+    // Home suspends on the notes directory, which the layout owns in the app.
     const workspace = render(
       <QueryClientProvider client={client}>
-        <Workspace initialTabs={null} onOpenSearch={() => {}} />
+        <Suspense fallback={null}>
+          <Workspace onOpenSearch={() => {}} />
+        </Suspense>
       </QueryClientProvider>
     );
 
+    await screen.findByRole("button", { name: "browse notes" });
     await user.keyboard("{Control>}\\{/Control}");
     workspace.unmount();
     const palette = mount("actions", []);

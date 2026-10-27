@@ -50,40 +50,40 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 <details>
 <summary>All shortcuts</summary>
 
-| Shortcut           | Action                           |
-| ------------------ | -------------------------------- |
-| `⌘\`               | toggle the note browser          |
-| `⌘P`               | find a note                      |
-| `⌘⇧P`              | run an action                    |
-| `⌘N`               | new note, in a new tab           |
-| `⌘⏎`               | (palette) open in a new tab      |
-| `⌘W`               | close tab                        |
-| `⌘⌥⇧W`             | close other tabs                 |
-| `⌘⇧T`              | reopen the last closed tab       |
-| `⌘1`-`⌘9`          | nth tab; `⌘9` is the last one    |
-| `⌃⇥`               | next tab (`⌃⇧⇥` for previous)    |
-| `⌘⌥→`              | next tab (`⌘⌥←` for previous)    |
-| `⌘⌥⇧→`             | move the tab right (`⌘⌥⇧←` left) |
-| `⌘⇧A`              | show every open tab              |
-| `⌘E`               | toggle raw markdown source       |
-| `⌘F`               | find in the current buffer       |
-| `⌘G` / `⌘⇧G`       | next / previous match            |
-| `⌘⌥G`              | toggle graph view                |
-| `⌥↑`/`⌥↓`          | move the selected blocks         |
-| `⇧⏎`               | line break inside the block      |
-| `⌘⌥⇧V`             | paste as plain text              |
-| `⌘⇧K`              | add / edit link                  |
-| `⌘⇧O`              | open the link, image or diagram  |
-| `⌘=` / `⌘-` / `⌘0` | zoom the open image or diagram   |
-| `⌘⇧L`              | show mentions                    |
-| `⌘⇧Y`              | edit tags                        |
-| `⌘⇧D`              | pin or unpin the note            |
-| `⌘,`               | settings                         |
-| `⌘⇧N`              | global quick capture             |
-| `esc`              | (capture window) save + hide     |
-| `⌘⏎`               | (capture window) save + hide     |
-| `esc`              | (review) back to the note        |
-| `⌘⏎`               | (review) resolve                 |
+| Shortcut | Action |
+| --- | --- |
+| `⌘\` | toggle the note browser |
+| `⌘P` | find a note |
+| `⌘⇧P` | run an action |
+| `⌘N` | new note, in a new tab |
+| `⌘⏎` | (palette) open in a new tab |
+| `⌘W` | close tab |
+| `⌘⌥⇧W` | close other tabs |
+| `⌘⇧T` | reopen the last closed tab |
+| `⌘1`-`⌘9` | nth tab, or nth recent note on home; `⌘9` is the last tab |
+| `⌃⇥` | next tab (`⌃⇧⇥` for previous) |
+| `⌘⌥→` | next tab (`⌘⌥←` for previous) |
+| `⌘⌥⇧→` | move the tab right (`⌘⌥⇧←` left) |
+| `⌘⇧A` | show every open tab |
+| `⌘E` | toggle raw markdown source |
+| `⌘F` | find in the current buffer |
+| `⌘G` / `⌘⇧G` | next / previous match |
+| `⌘⌥G` | toggle graph view |
+| `⌥↑`/`⌥↓` | move the selected blocks |
+| `⇧⏎` | line break inside the block |
+| `⌘⌥⇧V` | paste as plain text |
+| `⌘⇧K` | add / edit link |
+| `⌘⇧O` | open the link, image or diagram |
+| `⌘=` / `⌘-` / `⌘0` | zoom the open image or diagram |
+| `⌘⇧L` | show mentions |
+| `⌘⇧Y` | edit tags |
+| `⌘⇧D` | pin or unpin the note |
+| `⌘,` | settings |
+| `⌘⇧N` | global quick capture |
+| `esc` | (capture window) save + hide |
+| `⌘⏎` | (capture window) save + hide |
+| `esc` | (review) back to the note |
+| `⌘⏎` | (review) resolve |
 
 - `⌘⇧D`, `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need a note from your library. A file opened from outside has no frontmatter and is not in the index.
 - The palette and tab shortcuts do not reach the capture window. `esc`, `⌘⏎`, `⌘F` and the editor's own keys do.

@@ -351,11 +351,6 @@ function chooseActiveTab() {
   rememberChosenTab();
 }
 
-/** Open the launch fallback without recording a choice. */
-export function openInitialNote(path: string): void {
-  setState(openInList(getTabState(), newTab("note", path)));
-}
-
 export function openTab(kind: Tab["kind"], path: string, inNewTab = false) {
   setState(openInList(getTabState(), newTab(kind, path), inNewTab));
   chooseActiveTab();

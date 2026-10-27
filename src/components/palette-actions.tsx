@@ -3,6 +3,7 @@ import { useState } from "react";
 import { array, check, pipe, string } from "valibot";
 
 import { Chord } from "@/components/chord";
+import { Mark } from "@/components/mark";
 import {
   CommandEmpty,
   CommandGroup,
@@ -13,6 +14,7 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { readStored, writeStored } from "@/lib/storage";
@@ -93,6 +95,9 @@ export function ActionsView({
       <CommandEmpty>
         <Empty>
           <EmptyHeader>
+            <EmptyMedia>
+              <Mark expression="meh" size={32} />
+            </EmptyMedia>
             <EmptyTitle>nothing found</EmptyTitle>
             <EmptyDescription>
               <Chord hotkey="Mod+P" /> to search notes

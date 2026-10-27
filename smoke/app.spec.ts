@@ -31,6 +31,14 @@ describe("native smoke", () => {
     try {
       await writeFile(
         path.join(artifacts, "stage.txt"),
+        "Opening the seeded note from home"
+      );
+      // Launch lands on home; the seeded note is its one recent row.
+      const row = first.$('[aria-label="recent notes"] button');
+      await row.waitForDisplayed({ timeout: 30_000 });
+      await row.click();
+      await writeFile(
+        path.join(artifacts, "stage.txt"),
         "Editing and waiting for persistence"
       );
       const editor = first.$('[contenteditable="true"]');
