@@ -30,6 +30,31 @@ const cases: [markdown: string, targets: string[]][] = [
   ["[[[a]]]", ["a"]],
   ["[[a]]]", ["a"]],
   ["[[]]", []],
+  // A wikilink takes its bytes before a link or code span opens in them.
+  ["[[a]](u)", ["a"]],
+  ["[[`a`]]", ["`a`"]],
+  ["[[a`]] [[b]] `c`", ["a`", "b"]],
+  // A bare URL that runs into a wikilink takes it.
+  ["http://x[[a]]", []],
+  ["http://x**y**[[a]]", []],
+  ["http://x`y`[[a]]", []],
+  ["www.x*y*[[a]]", []],
+  // A bare URL inside emphasis ends where the emphasis closes.
+  ["*http://x*[[a]]", ["a"]],
+  ["**http://x**[[a]]", ["a"]],
+  ["~~http://x~~[[a]]", ["a"]],
+  ["_http://x_[[a]]", ["a"]],
+  ["a *b http://x*[[c]]", ["c"]],
+  ["x*http://y*[[a]]", ["a"]],
+  ["*http://x*~~[[a]]~~", ["a"]],
+  ["*http://x*_[[a]]_", ["a"]],
+  ["**http://x**__[[a]]__", ["a"]],
+  // The editor closes no emphasis at a `*` between punctuation and `~`.
+  ["*http://x(a)*~~[[b]]~~", []],
+  ["***http://x(a)***~~[[b]]~~", []],
+  ["_http://x(a)_~~[[b]]~~", ["b"]],
+  ["*http://xe\u0301*~~[[b]]~~", ["b"]],
+  ["*http://x$*~~[[b]]~~", []],
   // A bracket behind an odd run of backslashes is text.
   ["a\\[[b]]", []],
   ["\\\\[[a]]", ["a"]],
@@ -43,7 +68,8 @@ const cases: [markdown: string, targets: string[]][] = [
   ["*[[a]]*", ["a"]],
   ["[see [[a]]](http://x)", ["a"]],
   ["[see [[**a**]]](x)", ["**a**"]],
-  ["![see [[a]]](x)", ["a"]],
+  // An image's description is not prose.
+  ["![see [[a]]](x)", []],
   // A link destination is not prose.
   ["[t]([[a]])", []],
   ["[x]: http://y\n[[a]]", ["a"]],

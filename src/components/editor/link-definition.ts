@@ -23,7 +23,8 @@ export const LinkDefinition = Node.create({
     }
 
     return helpers.createNode("linkDefinition", undefined, [
-      // The trailing newlines are marked's block separator, not the author's.
+      // marked keeps the line ending that closes the block, which the file
+      // around the node writes, not its text.
       helpers.createTextNode(token.raw.replace(TRAILING_NEWLINES, "")),
     ]);
   },

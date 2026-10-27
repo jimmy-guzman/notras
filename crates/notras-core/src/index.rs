@@ -51,7 +51,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 11;
+const SCHEMA_VERSION: i64 = 12;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -1090,6 +1090,26 @@ mod tests {
             ("https://? ", &[]),
             ("www.", &[]),
             ("`https://github.com/a`", &[]),
+            ("https://github.com/`a`b", &["https://github.com/`a`b"]),
+            ("*https://github.com/a*b", &["https://github.com/a"]),
+            ("*https://github.com/a*~~b~~", &["https://github.com/a"]),
+            (
+                "*https://github.com/a(b)*~~(c)~~",
+                &["https://github.com/a(b)*~~(c)"],
+            ),
+            ("*http://x(a)*~~[[b]]~~", &["http://x(a)*~~[[b]]"]),
+            ("***http://x(a)***~~[[b]]~~", &["http://x(a)***~~[[b]]"]),
+            ("_http://x(a)_~~[[b]]~~", &["http://x(a)"]),
+            ("*http://xe\u{301}*~~[[b]]~~", &["http://xe\u{301}"]),
+            (
+                "***https://github.com/a(b)***~~c~~",
+                &["https://github.com/a(b)***~~c"],
+            ),
+            (
+                "_https://github.com/a(b)_~~(c)~~",
+                &["https://github.com/a(b)"],
+            ),
+            ("see https://x.com[a](b.md)", &["https://x.com[a](b.md)"]),
             ("![a](https://github.com/a.png)", &[]),
             ("[https://github.com/a](b.md)", &["b.md"]),
             ("<span>https://github.com/a</span>", &[]),

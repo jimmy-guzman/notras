@@ -26,7 +26,10 @@ const NO_TOKENIZER: MarkdownTokenizer = {
   },
 };
 
-/** marked reads a marker line that ends in a space as a paragraph. */
+/**
+ * Upstream writes a space after a marker that ends its line, which would land
+ * as a trailing space on every edited item that opens with a nested block.
+ */
 const MARKER_LINE_SPACES = /(?<=^\S+) +(?=\n)/u;
 
 /** Upstream writes every numbered marker with a period. */

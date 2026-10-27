@@ -237,15 +237,28 @@ const TITLE_WINDOW = 2048;
 const LINK_DEFINITION = /\[[^\]\n]*\]:/u;
 
 /**
- * The title in the first `end` characters, or undefined when the cut sits in
- * the line after it: that line can still turn the title into a table header
- * or a setext heading, and no later line can.
+ * A line that ends a paragraph above it whatever follows: a blank line, or an
+ * ATX heading, a fence or a non-empty list item at most three spaces in: some
+ * of the starts CommonMark lets interrupt a paragraph. A quote, a rule or an
+ * HTML start also interrupts one, and leaving them out only widens the window.
+ * `breaks_paragraph` in `crates/notras-core/src/markdown.rs` is the same test.
+ */
+const PARAGRAPH_BREAK =
+  /^(?:[ \t]*\r?$| {0,3}(?:#{1,6}(?:[ \t]|\r?$)|`{3,}[^`]*$|~~~|(?:[-+*]|1[.)])[ \t]+[^ \t\r]))/u;
+
+/**
+ * The title in the first `end` characters, or undefined until a whole line
+ * after it there ends its paragraph, so no later line can close a link or code
+ * span the title line opens, or turn it into a table header or a setext
+ * heading.
  */
 function windowTitle(body: string, end: number) {
   const window = body.slice(0, end);
   const found = tokenTitle(titleMarkdown.lexer(window), 0);
+  const whole = window.split("\n").slice(0, -1);
 
-  return found !== undefined && lineBreaks(window) > found.line + 1
+  return found !== undefined &&
+    whole.slice(found.line + 1).some((text) => PARAGRAPH_BREAK.test(text))
     ? found
     : undefined;
 }

@@ -22,6 +22,7 @@ import { reasonOf } from "@/lib/ui/failure";
 
 const BACKTICK_RUN = /`+/gu;
 const TILDE_RUN = /~+/gu;
+const LAST_LINE_ENDING = /\n$/u;
 
 /**
  * Characters decorated around what is on screen, half each side. One
@@ -661,6 +662,23 @@ export const CodeBlockShiki = CodeBlock.extend({
     // CodeBlock's only plugin pastes editor metadata as a block, and
     // MarkdownPaste owns that metadata.
     return [syntaxPlugin()];
+  },
+  /**
+   * TODO: drop this once marked trims indented code again. Through 18.1.1 an
+   * indented block with no blank line after it keeps its last line ending in
+   * its text, which the fence it is written as would show as a blank line.
+   */
+  parseMarkdown(token, helpers) {
+    const trimmed =
+      token.codeBlockStyle === "indented"
+        ? { ...token, text: token.text?.replace(LAST_LINE_ENDING, "") }
+        : token;
+
+    if (!this.parent) {
+      throw new Error("CodeBlock has no markdown parser to extend");
+    }
+
+    return this.parent(trimmed, helpers);
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";

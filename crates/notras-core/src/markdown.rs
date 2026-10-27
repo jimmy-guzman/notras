@@ -1,8 +1,15 @@
 use std::ops::Range;
 
 use pulldown_cmark::{Event, LinkType, Options, Parser, Tag, TagEnd};
+use unicode_properties::general_category::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
 use crate::frontmatter;
+
+/// GFM as the editor reads it, short of its bare autolinks, which `autolinks`
+/// finds in prose.
+const OPTIONS: Options = Options::ENABLE_TABLES
+    .union(Options::ENABLE_TASKLISTS)
+    .union(Options::ENABLE_STRIKETHROUGH);
 
 /// `strip_suffix`, ignoring ASCII case, so `.MD` strips the way `.md` does.
 fn strip_suffix_ignore_case<'a>(name: &'a str, suffix: &str) -> Option<&'a str> {
@@ -28,88 +35,6 @@ pub(crate) fn title_of(rel_path: &str) -> String {
         .or_else(|| strip_suffix_ignore_case(name, ".md"))
         .unwrap_or(name)
         .to_string()
-}
-
-pub(crate) struct BodyTitle {
-    pub text: String,
-    pub line: usize,
-}
-
-/// The first readable source line, matching `bodyTitle` in TypeScript.
-pub(crate) fn body_title(body: &str) -> Option<BodyTitle> {
-    let options = Options::ENABLE_TABLES
-        | Options::ENABLE_TASKLISTS
-        | Options::ENABLE_STRIKETHROUGH
-        | Options::ENABLE_WIKILINKS;
-    let mut excluded = 0;
-    let mut text = String::new();
-    let mut title_line = None;
-    for (event, range) in Parser::new_ext(body, options).into_offset_iter() {
-        if excluded > 0 {
-            match event {
-                Event::Start(_) => excluded += 1,
-                Event::End(_) => excluded -= 1,
-                _ => {}
-            }
-            continue;
-        }
-        let part = match event {
-            Event::Start(
-                Tag::CodeBlock(_) | Tag::HtmlBlock | Tag::Table(_) | Tag::Image { .. },
-            ) => {
-                excluded = 1;
-                continue;
-            }
-            Event::Start(Tag::Link {
-                link_type: LinkType::WikiLink { .. },
-                ..
-            }) => {
-                excluded = 1;
-                body[range.clone()]
-                    .strip_prefix("[[")
-                    .and_then(|link| link.strip_suffix("]]"))
-                    .expect("a wiki link range includes its delimiters")
-                    .into()
-            }
-            Event::Text(part) | Event::Code(part) => part,
-            Event::SoftBreak
-            | Event::HardBreak
-            | Event::End(TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item) => {
-                if title_line.is_some() {
-                    break;
-                }
-                continue;
-            }
-            _ => continue,
-        };
-        let line = body[..range.start]
-            .bytes()
-            .filter(|byte| *byte == b'\n')
-            .count();
-        if title_line.is_some_and(|previous| previous != line) {
-            break;
-        }
-        if part.chars().any(|ch| !frontmatter::is_space(ch)) {
-            title_line = Some(line);
-        }
-        text.push_str(&part);
-    }
-    title_line.map(|line| BodyTitle {
-        text: text
-            .split(frontmatter::is_space)
-            .filter(|part| !part.is_empty())
-            .collect::<Vec<_>>()
-            .join(" "),
-        line,
-    })
-}
-
-/// Readable body title, imported title, then filename stem, matching TypeScript.
-pub(crate) fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
-    body_title(parsed.body)
-        .map(|title| title.text)
-        .or_else(|| parsed.frontmatter.title.clone())
-        .unwrap_or_else(|| title_of(rel_path))
 }
 
 /// `line` is 1-based and `target` is the text between the brackets as written.
@@ -254,30 +179,41 @@ pub(crate) fn is_note_path(destination: &str) -> bool {
             || strip_suffix_ignore_case(name, ".markdown").is_some())
 }
 
-struct Scan {
+/// A byte mask over `len` bytes that holds inside any of `spans`.
+fn span_mask(len: usize, spans: impl IntoIterator<Item = Range<usize>>) -> Vec<bool> {
+    let mut mask = vec![false; len];
+    for span in spans {
+        mask[span].fill(true);
+    }
+    mask
+}
+
+struct Scan<'a> {
     link_spans: Vec<Range<usize>>,
     links: Vec<(usize, String)>,
     prose: Vec<bool>,
+    wikilinks: Vec<(usize, &'a str)>,
 }
 
-/// Where a `[[link]]` counts, byte by byte: true for prose, false for what the
-/// editor's parser reads as code, HTML, or a link destination.
+/// What the editor draws, byte by byte: true for prose, false for what its
+/// parser reads as code, HTML, a link destination, or an image, which it draws
+/// without its description. Wikilinks and embeds come from `masked_wikilinks`,
+/// and one counts where its first byte is prose.
 ///
 /// CommonMark decides the blocks, so a fence, an indented block and a backtick
 /// span are opaque on both sides. Emphasis delimiters are prose, since the
 /// editor's tokenizer takes `[[**a**]]` whole. Text between a matching pair of
 /// inline tags is opaque too, because the editor parses that stretch as HTML
 /// rather than markdown, while an unmatched tag hides only itself.
-fn scan(body: &str) -> Scan {
-    let options =
-        Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
+fn scan(body: &str) -> Scan<'_> {
+    let (drawn, masked) = masked_wikilinks(body);
     let mut prose = vec![false; body.len()];
     let mut opaque: Vec<Range<usize>> = Vec::new();
     let mut open_tags: Vec<(String, usize)> = Vec::new();
     let mut links = Vec::new();
-    let mut link_spans = Vec::new();
+    let mut link_spans: Vec<Range<usize>> = drawn.iter().map(|link| link.span.clone()).collect();
 
-    for (event, range) in Parser::new_ext(body, options).into_offset_iter() {
+    for (event, range) in Parser::new_ext(&masked, OPTIONS).into_offset_iter() {
         match event {
             Event::Text(_) => {
                 prose[range.clone()].fill(true);
@@ -309,7 +245,10 @@ fn scan(body: &str) -> Scan {
                     link_spans.push(range.clone());
                     links.push((range.start, dest_url.to_string()));
                 }
-                Tag::Image { .. } => link_spans.push(range),
+                Tag::Image { .. } => {
+                    opaque.push(range.clone());
+                    link_spans.push(range);
+                }
                 Tag::Superscript | Tag::Subscript => {}
                 Tag::CodeBlock(_) | Tag::HtmlBlock => {
                     opaque.push(range);
@@ -326,29 +265,44 @@ fn scan(body: &str) -> Scan {
     }
     links.retain(|(at, _)| !opaque.iter().any(|span| span.contains(at)));
 
-    for (at, target, end) in autolinks(body, &prose, &link_spans) {
+    // A bare URL runs on through a link that follows it with no space, which
+    // the editor then draws as part of the URL.
+    let bare = autolinks(body, &masked, &prose, &link_spans);
+    let swallowed = span_mask(body.len(), bare.iter().map(|(at, _, end)| *at..*end));
+    links.retain(|(at, _)| !swallowed[*at]);
+    for (at, target, end) in bare {
         links.push((at, target));
         link_spans.push(at..end);
     }
     links.sort_by_key(|(at, _)| *at);
 
+    let wikilinks = drawn
+        .iter()
+        .filter(|link| prose[link.span.start])
+        .map(|link| (link.span.start + usize::from(link.embed), link.target))
+        .collect();
+
     Scan {
         link_spans,
         links,
         prose,
+        wikilinks,
     }
 }
 
-fn trim_autolink(raw: &str) -> &str {
+/// `raw` less the trailing punctuation GFM leaves out of a bare URL.
+/// `next_close` gives the offset in `raw` of the first `)` at or after an
+/// offset, so a run of unclosed `(` is not searched once per URL.
+fn trim_autolink(raw: &str, next_close: impl Fn(usize) -> Option<usize>) -> &str {
     let mut end = 0;
     while end < raw.len() {
         let rest = &raw[end..];
         let ch = rest.chars().next().unwrap();
         if ch == '(' {
-            let Some(close) = rest.find(')') else {
+            let Some(close) = next_close(end) else {
                 break;
             };
-            end += close + 1;
+            end = close + 1;
         } else if ch == '&' {
             let entity = rest.strip_prefix('&').unwrap().strip_suffix(';');
             if entity.is_some_and(|name| {
@@ -382,6 +336,8 @@ fn trim_autolink(raw: &str) -> &str {
 }
 
 fn bare_email(raw: &str) -> Option<&str> {
+    // The same byte class as `email_local_ends`, which `autolinks` reads to
+    // skip a run whose `@` already failed.
     let local = raw
         .bytes()
         .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'+' | b'-'))
@@ -407,7 +363,7 @@ fn bare_email(raw: &str) -> Option<&str> {
     end.map(|end| &raw[..end])
 }
 
-fn bare_destination(raw: &str) -> Option<(&str, String)> {
+fn bare_url(raw: &str, next_close: impl Fn(usize) -> Option<usize>) -> Option<(&str, String)> {
     let prefix = ["https://", "http://", "ftp://", "www."]
         .into_iter()
         .find(|prefix| {
@@ -418,57 +374,151 @@ fn bare_destination(raw: &str) -> Option<(&str, String)> {
                     start.eq_ignore_ascii_case(prefix)
                 }
             })
-        });
-    if let Some(prefix) = prefix {
-        if !raw
-            .as_bytes()
-            .get(prefix.len())
-            .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'-')
-        {
-            return None;
-        }
-        let value = trim_autolink(raw);
-        let target = if prefix == "www." {
-            format!("http://{value}")
-        } else {
-            value.to_string()
-        };
-        Some((value, target))
-    } else {
-        bare_email(raw).map(|value| (value, format!("mailto:{value}")))
+        })?;
+    if !raw
+        .as_bytes()
+        .get(prefix.len())
+        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'-')
+    {
+        return None;
     }
+    let value = trim_autolink(raw, next_close);
+    let target = if prefix == "www." {
+        format!("http://{value}")
+    } else {
+        value.to_string()
+    };
+
+    Some((value, target))
 }
 
-/// GFM bare destinations inside parser-approved prose. Explicit links and
-/// wikilinks own their spans, so their labels never produce nested links.
-fn autolinks(body: &str, prose: &[bool], spans: &[Range<usize>]) -> Vec<(usize, String, usize)> {
-    let mut linked = vec![false; body.len()];
-    for span in spans {
-        linked[span.clone()].fill(true);
+/// Whether the editor leaves open an emphasis span that CommonMark closes at
+/// `range.end`. GFM in the editor's parser counts `~` as a letter when it
+/// decides whether a `*` run can close, so a `*` run with Unicode punctuation
+/// or a symbol other than `~` before it and `~` after it closes nothing there, as in
+/// `*a(b)*~~c~~`. A `_` run closes there in both parsers. A nested span ends
+/// inside the run, so the whole run is read on both sides.
+fn editor_keeps_open(text: &str, range: &Range<usize>) -> bool {
+    let span = &text[range.start..range.end];
+    let before = span.trim_end_matches('*').chars().next_back();
+
+    span.ends_with('*')
+        && text[range.end..].trim_start_matches('*').starts_with('~')
+        && before.is_some_and(|ch| {
+            ch != '~'
+                && matches!(
+                    ch.general_category_group(),
+                    GeneralCategoryGroup::Punctuation | GeneralCategoryGroup::Symbol
+                )
+        })
+}
+
+/// Where a bare URL starting at each byte of `text` has to end: at whitespace,
+/// `<`, the end of its block, or the closing delimiter of emphasis it starts
+/// inside. The editor's URL rule, `[^\s<]*`, runs on through code, escapes and
+/// emphasis that opens after the URL starts, while emphasis around the URL
+/// lexes its content on its own.
+fn url_ends(text: &str) -> Vec<usize> {
+    let mut in_block = vec![false; text.len()];
+    // Pulldown starts an outer span before the spans inside it, so an inner
+    // span's end overwrites the outer one's and each byte keeps its innermost.
+    let mut closes = vec![text.len(); text.len()];
+    for (event, range) in Parser::new_ext(text, OPTIONS).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Paragraph | Tag::Heading { .. } | Tag::TableCell | Tag::Item) => {
+                in_block[range].fill(true);
+            }
+            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Strikethrough)
+                if !editor_keeps_open(text, &range) =>
+            {
+                closes[range.clone()].fill(range.end);
+            }
+            _ => {}
+        }
     }
-    let mut wikilinks = wikilink_targets(body, 0..body.len()).into_iter().peekable();
+
+    let mut ends = vec![text.len(); text.len()];
+    let mut stop = text.len();
+    for (at, ch) in text.char_indices().rev() {
+        if !in_block[at] || ch.is_whitespace() || ch == '<' {
+            stop = at;
+        }
+        ends[at] = stop.min(closes[at]);
+    }
+
+    ends
+}
+
+/// Each byte's offset of the end of the email local part it starts, the run
+/// of bytes `bare_email` accepts before an `@`.
+fn email_local_ends(body: &str) -> Vec<usize> {
+    let mut ends = vec![body.len(); body.len() + 1];
+    for (at, byte) in body.bytes().enumerate().rev() {
+        let local = byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'+' | b'-');
+        ends[at] = if local { ends[at + 1] } else { at };
+    }
+    ends
+}
+
+/// Each byte's offset of the first `)` at or after it, or `body.len()`.
+fn next_closing_parens(body: &str) -> Vec<usize> {
+    let mut closes = vec![body.len(); body.len() + 1];
+    for (at, byte) in body.bytes().enumerate().rev() {
+        closes[at] = if byte == b')' { at } else { closes[at + 1] };
+    }
+    closes
+}
+
+/// GFM bare destinations that start inside parser-approved prose, ending where
+/// `url_ends` reads them in `parsed`, the text CommonMark parsed. Explicit
+/// links and wikilinks own their spans, so their labels never produce nested
+/// links.
+///
+/// A long run with no space would cost a scan per byte, so each byte's end,
+/// email local part and next `)` are found once, and an `@` that fails as an
+/// email is not read again from the same run.
+fn autolinks(
+    body: &str,
+    parsed: &str,
+    prose: &[bool],
+    spans: &[Range<usize>],
+) -> Vec<(usize, String, usize)> {
+    // Every bare URL holds `://` or `www.` and every email an `@`, so a body
+    // with none of them skips the parse `url_ends` makes. On a 188 KB note
+    // with no address that parse cost about a quarter of the scan.
+    if !(body.contains("://") || body.contains("www.") || body.contains('@')) {
+        return Vec::new();
+    }
+    let linked = span_mask(body.len(), spans.iter().cloned());
+    let bytes = body.as_bytes();
+    let ends = url_ends(parsed);
+    let local_ends = email_local_ends(body);
+    let closes = next_closing_parens(body);
+    let mut failed_email = None;
     let mut found = Vec::new();
     let mut until = 0;
     for (at, _) in body.char_indices() {
         if at < until || !prose[at] || linked[at] {
             continue;
         }
-        while wikilinks.peek().is_some_and(|(open, _)| *open < at) {
-            wikilinks.next();
-        }
-        if let Some(&(open, target)) = wikilinks.peek() {
-            if open == at {
-                until = open + target.len() + 4;
-                wikilinks.next();
-                continue;
+        let at_sign = local_ends[at];
+        let email = at_sign > at && bytes.get(at_sign) == Some(&b'@');
+        let end = ends[at];
+        let raw = &body[at..end];
+        let next_close =
+            |offset: usize| (closes[at + offset] < end).then(|| closes[at + offset] - at);
+        let destination = match bare_url(raw, next_close) {
+            Some(url) => Some(url),
+            None if email && failed_email != Some((at_sign, end)) => {
+                let value = bare_email(raw);
+                if value.is_none() {
+                    failed_email = Some((at_sign, end));
+                }
+                value.map(|value| (value, format!("mailto:{value}")))
             }
-        }
-        let rest = &body[at..];
-        let raw_end = rest
-            .char_indices()
-            .find(|(offset, c)| !prose[at + offset] || c.is_whitespace() || *c == '<')
-            .map_or(rest.len(), |(offset, _)| offset);
-        if let Some((value, target)) = bare_destination(&rest[..raw_end]) {
+            None => None,
+        };
+        if let Some((value, target)) = destination {
             until = at + value.len();
             found.push((at, target, until));
         }
@@ -476,22 +526,33 @@ fn autolinks(body: &str, prose: &[bool], spans: &[Range<usize>]) -> Vec<(usize, 
     found
 }
 
-fn prose_mask(body: &str) -> Vec<bool> {
-    scan(body).prose
+/// The byte offset each line of `body` starts at, so a note with thousands of
+/// links counts its newlines once rather than once per link.
+fn line_starts(body: &str) -> Vec<usize> {
+    std::iter::once(0)
+        .chain(body.match_indices('\n').map(|(at, _)| at + 1))
+        .collect()
 }
 
-fn line_at(body: &str, at: usize) -> (usize, &str) {
-    let line_start = body[..at].rfind('\n').map_or(0, |i| i + 1);
-    let line_end = body[at..].find('\n').map_or(body.len(), |i| at + i);
+/// How much of a long line a link keeps around itself as its context. Storing
+/// the whole line for each of thousands of links on one line grows the index
+/// as links times line length, and the mentions row shows 32 characters before
+/// a link and what fits after it.
+const CONTEXT_BEFORE: usize = 160;
+const CONTEXT_AFTER: usize = 400;
 
-    (
-        body[..at].matches('\n').count() + 1,
-        body[line_start..line_end].trim_end_matches('\r'),
-    )
+/// The 1-based line holding byte `at`, and that line's text, cut to a window
+/// around `at` when the line is long.
+fn line_at<'a>(body: &'a str, starts: &[usize], at: usize) -> (usize, &'a str) {
+    let line = starts.partition_point(|&start| start <= at);
+    let line_end = starts.get(line).map_or(body.len(), |next| next - 1);
+    let from = body.floor_char_boundary(at.saturating_sub(CONTEXT_BEFORE).max(starts[line - 1]));
+    let to = body.ceil_char_boundary((at + CONTEXT_AFTER).min(line_end));
+
+    (line, body[from..to].trim_end_matches('\r'))
 }
 
-fn prose_ranges(body: &str) -> Vec<Range<usize>> {
-    let mask = prose_mask(body);
+fn prose_ranges(mask: &[bool]) -> Vec<Range<usize>> {
     let mut ranges = Vec::new();
     let mut start = None;
 
@@ -512,15 +573,15 @@ fn prose_ranges(body: &str) -> Vec<Range<usize>> {
     ranges
 }
 
-/// Every `[[target]]` in `body[range]`, read the way the editor's tokenizer
-/// reads it: the target holds no bracket and no newline, a `[[` that opens
-/// nothing is text, and a bracket behind an odd run of backslashes is escaped.
-/// Yields each target with the byte offset of its `[[`.
-fn wikilink_targets(body: &str, range: Range<usize>) -> Vec<(usize, &str)> {
+/// Every `[[target]]` in `body`, read the way the editor's tokenizer reads it:
+/// the target holds no bracket and no newline, a `[[` that opens nothing is
+/// text, and a bracket behind an odd run of backslashes is escaped. Yields each
+/// target with the byte offset of its `[[`.
+fn wikilink_targets(body: &str) -> Vec<(usize, &str)> {
     let mut found = Vec::new();
-    let mut at = range.start;
+    let mut at = 0;
 
-    while let Some(offset) = body[at..range.end].find("[[") {
+    while let Some(offset) = body[at..].find("[[") {
         let open = at + offset;
         let inner = open + 2;
         let escaped = body[..open]
@@ -530,11 +591,11 @@ fn wikilink_targets(body: &str, range: Range<usize>) -> Vec<(usize, &str)> {
             .count()
             % 2
             == 1;
-        let target = body[inner..range.end]
-            .find(']')
+        let target = body[inner..]
+            .find(['[', ']', '\n'])
+            .filter(|&end| body[inner + end..].starts_with("]]"))
             .map(|end| &body[inner..inner + end])
-            .filter(|target| !target.is_empty() && !target.contains(['[', '\n']))
-            .filter(|target| body[inner + target.len()..range.end].starts_with("]]"));
+            .filter(|target| !target.is_empty());
 
         match target {
             Some(target) if !escaped => {
@@ -548,22 +609,340 @@ fn wikilink_targets(body: &str, range: Range<usize>) -> Vec<(usize, &str)> {
     found
 }
 
-/// Kept in parity with the editor's tokenizer: `finds_the_wikilinks_the_editor_renders`
-/// below and `src/components/editor/wikilink.spec.ts` assert one table of cases.
+/// A `[[target]]`, or an `![[target]]` embed when `embed` is set, whose bytes
+/// `span` holds, the embed's `!` included.
+struct DrawnWikilink<'a> {
+    embed: bool,
+    span: Range<usize>,
+    target: &'a str,
+}
+
+/// Every wikilink and embed the editor's grammar reads, before CommonMark has
+/// a say. A `!` behind an odd run of backslashes is text, and the wikilink
+/// after it stays a wikilink.
+fn wikilink_candidates(body: &str) -> Vec<DrawnWikilink<'_>> {
+    wikilink_targets(body)
+        .into_iter()
+        .map(|(open, target)| {
+            let embed = body[..open].strip_suffix('!').is_some_and(|before| {
+                before
+                    .bytes()
+                    .rev()
+                    .take_while(|&byte| byte == b'\\')
+                    .count()
+                    % 2
+                    == 0
+            });
+
+            DrawnWikilink {
+                embed,
+                span: open - usize::from(embed)..open + target.len() + 4,
+                target,
+            }
+        })
+        .collect()
+}
+
+/// Which of `candidates` the editor draws, given how CommonMark parses `text`.
+/// The editor's tokenizer tries a `[[` before anything else at its byte, so a
+/// link, image or code span that opens there or inside it loses to it. Code,
+/// HTML, an image, an autolink or a bare URL that opens before it hides it, and
+/// none is drawn in a link destination, in a definition, or across a table
+/// cell.
+fn editor_draws(text: &str, candidates: &[DrawnWikilink<'_>]) -> Vec<bool> {
+    let mut visible = vec![false; text.len()];
+    let mut opens = vec![false; text.len()];
+    let mut hidden = vec![false; text.len()];
+    let mut cells = Vec::new();
+    let mut explicit = Vec::new();
+
+    for (event, range) in Parser::new_ext(text, OPTIONS).into_offset_iter() {
+        let hides = match &event {
+            Event::Text(_) => {
+                visible[range.clone()].fill(true);
+                false
+            }
+            Event::Code(_) | Event::InlineHtml(_) => {
+                opens[range.start] = true;
+                true
+            }
+            Event::Html(_)
+            | Event::Start(
+                Tag::CodeBlock(_)
+                | Tag::HtmlBlock
+                | Tag::Link {
+                    link_type: LinkType::Autolink | LinkType::Email,
+                    ..
+                },
+            ) => true,
+            Event::Start(Tag::Image { .. }) => {
+                opens[range.start] = true;
+                explicit.push(range.clone());
+                true
+            }
+            Event::Start(Tag::Link { .. }) => {
+                opens[range.start] = true;
+                explicit.push(range.clone());
+                false
+            }
+            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Strikethrough) => {
+                opens[range.start] = true;
+                false
+            }
+            Event::Start(Tag::TableCell) => {
+                cells.push(range.clone());
+                false
+            }
+            _ => false,
+        };
+        if hides {
+            hidden[range.start + 1..range.end].fill(true);
+        }
+    }
+    for (at, _, end) in autolinks(text, text, &visible, &explicit) {
+        hidden[at + 1..end].fill(true);
+    }
+
+    candidates
+        .iter()
+        .map(|link| {
+            let start = link.span.start;
+            let last = link.span.end - 1;
+            let reached = visible[start] || opens[link.span.clone()].contains(&true);
+            let split = cells
+                .iter()
+                .any(|cell| cell.contains(&start) != cell.contains(&last));
+
+            reached && !hidden[start] && !split
+        })
+        .collect()
+}
+
+/// The wikilinks and embeds the editor draws in `text`, and `text` with each
+/// of their bytes turned to `%`, so CommonMark reads them as plain text and
+/// opens no link, image or code span inside one. `%` is punctuation like the
+/// brackets it replaces, so emphasis beside a wikilink flanks the same way.
+/// Masking a wikilink can end a code span that hid a later one, so the
+/// decisions repeat until they settle.
+fn masked_wikilinks(text: &str) -> (Vec<DrawnWikilink<'_>>, String) {
+    let candidates = wikilink_candidates(text);
+    if candidates.is_empty() {
+        return (candidates, text.to_owned());
+    }
+    let mut kept = vec![false; candidates.len()];
+    let mut masked = text.to_owned();
+
+    // Each round that changes a decision is followed by another, and a note
+    // that never settles keeps the last round's.
+    for _ in 0..=candidates.len() {
+        let next = editor_draws(&masked, &candidates);
+        if next == kept {
+            break;
+        }
+        kept = next;
+        let mut bytes = text.as_bytes().to_vec();
+        for (link, _) in candidates.iter().zip(&kept).filter(|(_, kept)| **kept) {
+            bytes[link.span.clone()].fill(b'%');
+        }
+        masked = String::from_utf8(bytes).expect("a span starts and ends on an ASCII bracket");
+    }
+
+    let drawn = candidates
+        .into_iter()
+        .zip(kept)
+        .filter_map(|(link, kept)| kept.then_some(link))
+        .collect();
+
+    (drawn, masked)
+}
+
+pub(crate) struct BodyTitle {
+    pub text: String,
+    pub line: usize,
+}
+
+/// `text[range]` with each wikilink inside it read as its target, as written,
+/// and each embed as nothing.
+fn titled(text: &str, range: Range<usize>, wikilinks: &[DrawnWikilink<'_>]) -> String {
+    let mut titled = String::new();
+    let mut at = range.start;
+
+    for link in wikilinks
+        .iter()
+        .filter(|link| range.contains(&link.span.start))
+    {
+        titled.push_str(&text[at..link.span.start]);
+        if !link.embed {
+            titled.push_str(link.target);
+        }
+        at = link.span.end;
+    }
+    titled.push_str(&text[at..range.end]);
+
+    titled
+}
+
+/// The first readable source line of `text`.
+fn readable_line(text: &str) -> Option<BodyTitle> {
+    let (wikilinks, masked) = masked_wikilinks(text);
+    let mut excluded = 0;
+    let mut title = String::new();
+    let mut title_line = None;
+    for (event, range) in Parser::new_ext(&masked, OPTIONS).into_offset_iter() {
+        if excluded > 0 {
+            match event {
+                Event::Start(_) => excluded += 1,
+                Event::End(_) => excluded -= 1,
+                _ => {}
+            }
+            continue;
+        }
+        let part = match event {
+            Event::Start(
+                Tag::CodeBlock(_) | Tag::HtmlBlock | Tag::Table(_) | Tag::Image { .. },
+            ) => {
+                excluded = 1;
+                continue;
+            }
+            Event::Text(part) => {
+                if wikilinks
+                    .iter()
+                    .any(|link| range.contains(&link.span.start))
+                {
+                    titled(text, range.clone(), &wikilinks).into()
+                } else {
+                    part
+                }
+            }
+            Event::Code(part) => part,
+            Event::SoftBreak
+            | Event::HardBreak
+            | Event::End(TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item) => {
+                if title_line.is_some() {
+                    break;
+                }
+                continue;
+            }
+            _ => continue,
+        };
+        let line = text[..range.start]
+            .bytes()
+            .filter(|byte| *byte == b'\n')
+            .count();
+        if title_line.is_some_and(|previous| previous != line) {
+            break;
+        }
+        if part.chars().any(|ch| !frontmatter::is_space(ch)) {
+            title_line = Some(line);
+        }
+        title.push_str(&part);
+    }
+    title_line.map(|line| BodyTitle {
+        text: title
+            .split(frontmatter::is_space)
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" "),
+        line,
+    })
+}
+
+/// Enough for a title and the block after it in nearly every note.
+const TITLE_WINDOW: usize = 2048;
+
+/// Whether a `[label]: destination` sits anywhere in `body`, which can resolve
+/// a `[label]` above it.
+fn has_link_definition(body: &str) -> bool {
+    body.match_indices("]:").any(|(at, _)| {
+        body[..at]
+            .rfind(['[', ']', '\n'])
+            .is_some_and(|open| body.as_bytes()[open] == b'[')
+    })
+}
+
+/// Whether `line` ends a paragraph above it whatever follows: a blank line, or
+/// an ATX heading, a fence or a non-empty list item at most three spaces in:
+/// some of the starts CommonMark lets interrupt a paragraph. A quote, a rule
+/// or an HTML start also interrupts one, and leaving them out only widens the
+/// window. `PARAGRAPH_BREAK` in `src/core/notes.ts` is the same test.
+fn breaks_paragraph(line: &str) -> bool {
+    let line = line.trim_end_matches('\r');
+    let rest = line.trim_start_matches(' ');
+    if rest.bytes().all(|byte| matches!(byte, b' ' | b'\t')) {
+        return true;
+    }
+    if line.len() - rest.len() > 3 {
+        return false;
+    }
+    let hashes = rest.bytes().take_while(|&byte| byte == b'#').count();
+    let heading = (1..=6).contains(&hashes)
+        && rest[hashes..]
+            .chars()
+            .next()
+            .is_none_or(|ch| matches!(ch, ' ' | '\t'));
+    let ticks = rest.bytes().take_while(|&byte| byte == b'`').count();
+    let fence = (ticks >= 3 && !rest[ticks..].contains('`')) || rest.starts_with("~~~");
+    let item = rest
+        .strip_prefix(['-', '+', '*'])
+        .or_else(|| rest.strip_prefix("1."))
+        .or_else(|| rest.strip_prefix("1)"))
+        .is_some_and(|after| {
+            after.starts_with([' ', '\t']) && !after.trim_matches([' ', '\t']).is_empty()
+        });
+
+    heading || fence || item
+}
+
+/// Whether a whole line after line `line` of `window` ends the title's
+/// paragraph, so no later line can close a link or code span the title line
+/// opens, or turn it into a table header or a setext heading.
+fn ends_title_paragraph(window: &str, line: usize) -> bool {
+    window
+        .rsplit_once('\n')
+        .is_some_and(|(whole, _)| whole.split('\n').skip(line + 1).any(breaks_paragraph))
+}
+
+/// The first readable source line, matching `bodyTitle` in TypeScript.
+///
+/// Reading wikilinks parses the text more than once, so like `bodyTitle` this
+/// reads a window from the start that doubles until it holds the answer: the
+/// title, with a line after it that ends its paragraph.
+pub(crate) fn body_title(body: &str) -> Option<BodyTitle> {
+    std::iter::successors(Some(TITLE_WINDOW), |end| end.checked_mul(2))
+        .take_while(|end| *end < body.len())
+        .find_map(|end| {
+            let window = &body[..body.floor_char_boundary(end)];
+
+            // An unresolved reference keeps its brackets, and a definition
+            // further down would resolve it.
+            readable_line(window).filter(|found| {
+                ends_title_paragraph(window, found.line)
+                    && !(found.text.contains('[') && has_link_definition(body))
+            })
+        })
+        .or_else(|| readable_line(body))
+}
+
+/// Readable body title, imported title, then filename stem, matching TypeScript.
+pub(crate) fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) -> String {
+    body_title(parsed.body)
+        .map(|title| title.text)
+        .or_else(|| parsed.frontmatter.title.clone())
+        .unwrap_or_else(|| title_of(rel_path))
+}
+
 /// The body text rich mode shows, less reference definitions, which is what
 /// search indexes. Link destinations and images show as no text in the editor,
 /// so a hit on them could never be found in the note. A definition shows as
 /// code, but it holds a link's destination, so it is left out the way an inline
 /// link's destination is. `link:` finds the destinations links use.
 pub(crate) fn readable_text(body: &str) -> String {
-    let options =
-        Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS | Options::ENABLE_STRIKETHROUGH;
     let mut text = String::new();
     let mut images = 0_usize;
     // An HTML block arrives one line per event, and whether rich mode draws it
     // as an image is a question about the whole block.
     let mut html_block: Option<String> = None;
-    for event in Parser::new_ext(body, options) {
+    for event in Parser::new_ext(body, OPTIONS) {
         match event {
             Event::Start(Tag::Image { .. }) => images += 1,
             // Find reads an image as a line break, so it splits words here too.
@@ -610,12 +989,16 @@ pub(crate) fn readable_text(body: &str) -> String {
     text
 }
 
+/// Kept in parity with the editor's tokenizer: `should_find_the_wikilinks_the_editor_renders`
+/// below and `src/components/editor/wikilink.spec.ts` assert one table of cases.
 pub(crate) fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
-    prose_ranges(body)
+    let starts = line_starts(body);
+
+    scan(body)
+        .wikilinks
         .into_iter()
-        .flat_map(|range| wikilink_targets(body, range))
         .map(|(open, target)| {
-            let (line, context) = line_at(body, open);
+            let (line, context) = line_at(body, &starts, open);
 
             Wikilink {
                 context,
@@ -633,14 +1016,16 @@ pub(crate) struct MarkdownLink<'a> {
 }
 
 /// Kept in parity with the editor's parser the way `wikilinks` is:
-/// `finds_the_markdown_note_links_the_editor_renders` below and
+/// `should_find_the_markdown_note_links_the_editor_renders` below and
 /// `src/components/editor/markdown-link.spec.ts` assert one table of cases.
 pub(crate) fn destinations(body: &str) -> Vec<MarkdownLink<'_>> {
+    let starts = line_starts(body);
+
     scan(body)
         .links
         .into_iter()
         .map(|(open, target)| {
-            let (line, context) = line_at(body, open);
+            let (line, context) = line_at(body, &starts, open);
 
             MarkdownLink {
                 context,
@@ -689,20 +1074,20 @@ pub(crate) fn bare_mentions<'a>(
     exclude_title_line: bool,
 ) -> Vec<(usize, &'a str)> {
     let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
-    let markdown_links = scan(body).link_spans;
+    let Scan {
+        link_spans: links,
+        prose,
+        ..
+    } = scan(body);
     let title_line = exclude_title_line
         .then(|| body_title(body))
         .flatten()
         .map(|title| title.line);
     let is_word = |ch: char| ch.is_alphanumeric() || ch == '_';
+    let starts = line_starts(body);
     let mut found = Vec::new();
 
-    for range in prose_ranges(body) {
-        let links: Vec<Range<usize>> = wikilink_targets(body, range.clone())
-            .into_iter()
-            .map(|(open, target)| open..open + target.len() + 4)
-            .chain(markdown_links.iter().cloned())
-            .collect();
+    for range in prose_ranges(&prose) {
         let run = &body[range.clone()];
         let mut skip_until = 0;
 
@@ -720,7 +1105,7 @@ pub(crate) fn bare_mentions<'a>(
             let linked = links
                 .iter()
                 .any(|span| start < span.end && end > span.start);
-            let (line, context) = line_at(body, start);
+            let (line, context) = line_at(body, &starts, start);
 
             if !bounded || linked || title_line == Some(line - 1) {
                 continue;
@@ -833,6 +1218,17 @@ mod tests {
         assert_eq!(resolve_title(&parsed, ".md"), "");
     }
 
+    #[test]
+    fn should_keep_a_window_of_a_long_line_as_a_link_context() {
+        let long = format!("{}[[a]]{}\nnext", "x ".repeat(1000), " y".repeat(1000));
+        let links = wikilinks(&long);
+
+        assert_eq!(links[0].line, 1);
+        assert!(links[0].context.contains("[[a]]"));
+        assert!(links[0].context.len() <= CONTEXT_BEFORE + CONTEXT_AFTER);
+        assert_eq!(wikilinks("see [[a]] here\r\n")[0].context, "see [[a]] here");
+    }
+
     /// The wikilink parity table. `src/components/editor/wikilink.spec.ts`
     /// asserts the same cases in the same order against the editor's parser,
     /// so what the index records and what the editor renders as a pill can be
@@ -863,6 +1259,31 @@ mod tests {
             ("[[[a]]]", &["a"]),
             ("[[a]]]", &["a"]),
             ("[[]]", &[]),
+            // A wikilink takes its bytes before a link or code span opens in them.
+            ("[[a]](u)", &["a"]),
+            ("[[`a`]]", &["`a`"]),
+            ("[[a`]] [[b]] `c`", &["a`", "b"]),
+            // A bare URL that runs into a wikilink takes it.
+            ("http://x[[a]]", &[]),
+            ("http://x**y**[[a]]", &[]),
+            ("http://x`y`[[a]]", &[]),
+            ("www.x*y*[[a]]", &[]),
+            // A bare URL inside emphasis ends where the emphasis closes.
+            ("*http://x*[[a]]", &["a"]),
+            ("**http://x**[[a]]", &["a"]),
+            ("~~http://x~~[[a]]", &["a"]),
+            ("_http://x_[[a]]", &["a"]),
+            ("a *b http://x*[[c]]", &["c"]),
+            ("x*http://y*[[a]]", &["a"]),
+            ("*http://x*~~[[a]]~~", &["a"]),
+            ("*http://x*_[[a]]_", &["a"]),
+            ("**http://x**__[[a]]__", &["a"]),
+            // The editor closes no emphasis at a `*` between punctuation and `~`.
+            ("*http://x(a)*~~[[b]]~~", &[]),
+            ("***http://x(a)***~~[[b]]~~", &[]),
+            ("_http://x(a)_~~[[b]]~~", &["b"]),
+            ("*http://xe\u{301}*~~[[b]]~~", &["b"]),
+            ("*http://x$*~~[[b]]~~", &[]),
             // A bracket behind an odd run of backslashes is text.
             ("a\\[[b]]", &[]),
             ("\\\\[[a]]", &["a"]),
@@ -876,7 +1297,8 @@ mod tests {
             ("*[[a]]*", &["a"]),
             ("[see [[a]]](http://x)", &["a"]),
             ("[see [[**a**]]](x)", &["**a**"]),
-            ("![see [[a]]](x)", &["a"]),
+            // An image's description is not prose.
+            ("![see [[a]]](x)", &[]),
             // A link destination is not prose.
             ("[t]([[a]])", &[]),
             ("[x]: http://y\n[[a]]", &["a"]),
@@ -984,6 +1406,8 @@ mod tests {
             ("[a](b.md) and [c](b.md)", &["b.md", "b.md"]),
             ("[a](b.md)[c](d.md)", &["b.md", "d.md"]),
             ("[a](b.md \"t\") x [[b]]", &["b.md"]),
+            ("[[a]](b.md)", &[]),
+            ("see http://x[a](b.md)", &[]),
         ];
 
         for (markdown, expected) in cases {
