@@ -77,7 +77,7 @@ export async function setup(
               {
                 identifier: "smoke",
                 permissions: ["wdio:default"],
-                windows: ["main"],
+                windows: ["main", "capture"],
               },
             ],
           },

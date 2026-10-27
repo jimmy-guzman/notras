@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, rm, stat } from "node:fs/promises";
+import { cp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -95,13 +95,35 @@ async function activate(pid: number) {
   await exec("osascript", ["-l", "JavaScript", "-e", script]);
 }
 
-/** The window server's number for the app's one window, read without Accessibility. */
-async function windowNumber(pid: number) {
+/** Clicks the palette action with this name, which reaches what the harness has no shortcut for. */
+async function runAction(browser: Browser, name: string) {
+  await press(browser, "P", "KeyP", { meta: true, shift: true });
+  await browser
+    .$('[placeholder="run an action..."]')
+    .waitForDisplayed({ timeout: 10_000 });
+
+  await browser.execute((text) => {
+    const option = [...document.querySelectorAll('[role="option"]')].find(
+      (candidate) => candidate.textContent?.startsWith(text)
+    );
+
+    if (option === undefined) {
+      throw new Error(`No action named ${text} in the palette.`);
+    }
+
+    option.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+  }, name);
+}
+
+/** The window server's number for the app's window with this title, read without Accessibility. */
+async function windowNumber(pid: number, title: string) {
   const script = `
     ObjC.import("CoreGraphics");
     const ref = $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0);
     const windows = ObjC.deepUnwrap(ObjC.castRefToObject(ref));
-    const own = windows.find((w) => w.kCGWindowOwnerPID === ${pid} && w.kCGWindowLayer === 0);
+    const own = windows.find((w) => w.kCGWindowOwnerPID === ${pid} && w.kCGWindowName === ${JSON.stringify(title)});
     own === undefined ? "" : String(own.kCGWindowNumber);
   `;
 
@@ -115,7 +137,9 @@ async function windowNumber(pid: number) {
   const number = Number(stdout.trim());
 
   if (stdout.trim() === "" || !Number.isInteger(number)) {
-    throw new Error(`No window on screen for pid ${pid}.`);
+    throw new Error(
+      `No window titled ${title} on screen for pid ${pid}. Titles come back empty until the terminal has Screen Recording.`
+    );
   }
 
   return number;
@@ -135,7 +159,7 @@ async function capture(browser: Browser, window: number, name: string) {
 }
 
 describe("README screenshots", () => {
-  it("should capture home, the editor, the browser, the graph and the palette", async () => {
+  it("should capture home, the editor, the browser, the graph, the palette, the review and quick capture", async () => {
     const { artifacts, binary, note } = inject("smoke");
     const library = path.dirname(note);
 
@@ -160,7 +184,7 @@ describe("README screenshots", () => {
         .waitForDisplayed({ timeout: 30_000 });
       const pid = await processId(binary);
       await activate(pid);
-      const window = await windowNumber(pid);
+      const window = await windowNumber(pid, "notras");
 
       await press(browser, "\\", "Backslash", { meta: true });
       await openRow(browser, "Pour-over", false);
@@ -209,6 +233,81 @@ describe("README screenshots", () => {
         .$('[aria-label="recent notes"] button')
         .waitForDisplayed({ timeout: 10_000 });
       await capture(browser, window, "home");
+
+      await press(browser, "1", "Digit1", { meta: true });
+      const editor = browser.$('[contenteditable="true"]');
+      await editor.waitForDisplayed({ timeout: 10_000 });
+      await expect
+        .poll(async () => await editor.getText(), { timeout: 10_000 })
+        .toContain("A 15g dose");
+      // The embedded driver's action keys do not edit contenteditable elements.
+      await browser.execute(() => {
+        const paragraph = document.querySelector('[contenteditable="true"] p');
+        const selection = document.getSelection();
+
+        if (!(paragraph instanceof HTMLElement) || !selection) {
+          throw new Error("The note editor has no paragraph to edit.");
+        }
+
+        const range = document.createRange();
+        range.selectNodeContents(paragraph);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      });
+
+      const seed = await readFile(
+        path.resolve("smoke/library/pour-over.md"),
+        "utf-8"
+      );
+
+      await editor.addValue(" Grind at 22 clicks.");
+      // Lands inside the 800 ms autosave window, so the edit is still unsaved when the file changes under it.
+      await writeFile(
+        path.join(library, "pour-over.md"),
+        seed.replace("A 15g dose", "A 16g dose")
+      );
+      await browser.$("button=review").waitForDisplayed({ timeout: 10_000 });
+      await browser.$("button=review").click();
+      await browser
+        .$('[aria-label="review overlapping edits"]')
+        .waitForDisplayed({ timeout: 10_000 });
+      await browser.execute(() => {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
+      await capture(browser, window, "review");
+
+      await runAction(browser, "quick capture");
+      await expect
+        .poll(async () => await windowNumber(pid, "quick capture"), {
+          timeout: 10_000,
+        })
+        .toBeGreaterThan(0);
+      await browser.tauri.switchWindow("capture");
+      // The switch takes key status from the window, which greys its traffic lights, and
+      // WebKit reports no focused element until the window is key again, so the blur waits.
+      await browser.tauri.execute(
+        async ({ core }) =>
+          await core.invoke("plugin:window|set_focus", { label: "capture" })
+      );
+      await expect
+        .poll(async () => await browser.execute(() => document.hasFocus()), {
+          timeout: 10_000,
+        })
+        .toBe(true);
+      await browser.execute(() => {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
+      await capture(
+        browser,
+        await windowNumber(pid, "quick capture"),
+        "capture"
+      );
+      await browser.tauri.switchWindow("main");
     } catch (error) {
       await browser.saveScreenshot(path.join(artifacts, "failure.png"));
 
@@ -218,9 +317,15 @@ describe("README screenshots", () => {
     }
 
     const files = await Promise.all(
-      ["home", "editor", "browser", "graph", "palette"].map(
-        async (name) => await stat(path.resolve("assets", `${name}.png`))
-      )
+      [
+        "home",
+        "editor",
+        "browser",
+        "graph",
+        "palette",
+        "review",
+        "capture",
+      ].map(async (name) => await stat(path.resolve("assets", `${name}.png`)))
     );
 
     for (const file of files) {

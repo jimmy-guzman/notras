@@ -40,7 +40,7 @@ To regenerate the icon family and README hero, edit `assets/icon.svg`, then run 
 
 Edit the sources rather than the generated files in `src-tauri/icons/`, the icons in `public/`, or `assets/hero.png`. The welcome mark in `src/components/mark.tsx` repeats the master's geometry by hand, and `src/components/mark.spec.tsx` fails when the two drift.
 
-The README screenshots are generated too. `pnpm screenshots` builds the smoke binary, seeds it with the notes in `smoke/library/`, drives it through the smoke harness and captures the native window into `assets/`, dark whatever the system scheme is. It needs macOS, and the first run asks to grant Screen Recording to the terminal, since without it `screencapture` returns the wallpaper. The app comes to the front for the run and stays there after it. Edit the notes in `smoke/library/` or the states in `smoke/screenshots.spec.ts` rather than the PNGs.
+The README screenshots are generated too. `pnpm screenshots` builds the smoke binary, seeds it with the notes in `smoke/library/`, drives it through the smoke harness and captures the main window and the quick capture window into `assets/`, dark whatever the system scheme is. It needs macOS, and the terminal needs Screen Recording before the first run, since without it the window server reports no window titles and `screencapture` returns the wallpaper. The app comes to the front for the run and stays there after it. Edit the notes in `smoke/library/` or the states in `smoke/screenshots.spec.ts` rather than the PNGs.
 
 Rust commands run from the repository root. The workspace holds the `notras-core` engine and the Tauri shell in `src-tauri`. Install the extra tools once:
 
