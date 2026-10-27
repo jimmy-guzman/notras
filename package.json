@@ -18,7 +18,8 @@
     "icons": "./scripts/icons.sh",
     "knip": "knip && knip --production",
     "prepare": "lefthook install",
-    "smoke": "vitest run --config smoke.config.ts",
+    "screenshots": "vitest run --config smoke.config.ts smoke/screenshots.spec.ts",
+    "smoke": "vitest run --config smoke.config.ts smoke/app.spec.ts",
     "tauri": "tauri",
     "test": "vitest"
   },
