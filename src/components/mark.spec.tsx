@@ -35,13 +35,10 @@ const tier = (token: string) =>
   );
 
 describe(Mark, () => {
-  it("should draw the tile, the eyes and the lines from the icon master", () => {
+  it("should draw the eyes and the lines from the icon master, with no tile", () => {
     const { container } = render(<Mark size={112} />);
 
-    expect(container.querySelector('path[fill^="url("]')).toHaveAttribute(
-      "d",
-      attribute(/<path d="(?<value>[^"]+)" fill="url\(#sunset\)"/u, "the tile")
-    );
+    expect(container.querySelectorAll("path")).toHaveLength(1);
     expect(container.querySelector("path[stroke]")).toHaveAttribute(
       "d",
       attribute(
@@ -72,6 +69,18 @@ describe(Mark, () => {
       "stroke-width",
       tier("stroke")
     );
+  });
+
+  it("should close the eyes to dashes in the lines' stroke when meh", () => {
+    const { container } = render(<Mark expression="meh" size={32} />);
+
+    expect(container.querySelector("circle")).toBeNull();
+
+    const [eyes, lines] = container.querySelectorAll("path[stroke]");
+
+    expect(eyes).toHaveAttribute("d", "M36 38H48M88 38H100");
+    expect(eyes).toHaveAttribute("stroke-width", tier("stroke"));
+    expect(lines).toHaveAttribute("stroke-width", tier("stroke"));
   });
 
   it("should blink only when asked", () => {

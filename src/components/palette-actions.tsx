@@ -96,7 +96,7 @@ export function ActionsView({
         <Empty>
           <EmptyHeader>
             <EmptyMedia>
-              <Mark size={32} />
+              <Mark expression="meh" size={32} />
             </EmptyMedia>
             <EmptyTitle>nothing found</EmptyTitle>
             <EmptyDescription>

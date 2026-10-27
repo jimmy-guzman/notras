@@ -133,7 +133,7 @@ export function Home({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={onNew}>
+              <Button onClick={onNew} variant="secondary">
                 new note <Chord hotkey="Mod+N" />
               </Button>
               <Button onClick={onSearch} variant="secondary">

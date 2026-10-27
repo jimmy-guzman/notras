@@ -405,7 +405,7 @@ function NoteResults({
         <Empty aria-live="polite">
           <EmptyHeader>
             <EmptyMedia>
-              <Mark size={32} />
+              <Mark expression="meh" size={32} />
             </EmptyMedia>
             <EmptyTitle>{status.title}</EmptyTitle>
             <EmptyDescription>{status.description}</EmptyDescription>

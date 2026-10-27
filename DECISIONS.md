@@ -1365,6 +1365,8 @@ The previous mark was two rotated sheets in a clay render under a cyan-to-pink r
 
 ### D103 The face lives
 
+**Amended by `D105`,** which drops the tile from the in-app face and gives it a second expression.
+
 `D102` made the icon a character, and the app it opened kept it as a logo: a static image on the welcome screen, swapped by scheme through a `<picture>`. The welcome mark is now drawn inline by `Mark` from the icon's geometry on the live tokens, so it follows the scheme on its own and its eyes can move. On the welcome screen it blinks, the one motion in the app that carries no state change. The same mark stands still above "nothing found" in the palette and the browser, where the app speaks and has nothing to show.
 
 **Rejected: the stripes as tints on states.** Violet for the active row, cyan for the selection and a pink caret, four hex values in `src/styles.css`. Built, and dropped the same day: the change was a colour note nobody could see, and the icon's essence is the character rather than three hues.
@@ -1390,3 +1392,13 @@ Home is seen at two moments: after closing every tab, and at a launch with nothi
 **Rejected: dropping the wordmark for a plainer home.** A 112px face beside a tagline and two buttons is top-heavy; the wordmark balances the lockup.
 
 **Constraint:** the ⌘1 to ⌘9 tab jumps mount beside the sessions, in `TabJumps`, and home registers ⌘1 to ⌘5 for its rows. One chord has one owner at a time, and the owner leaving cleans up before the next one registers. The hotkey manager warns on a second registration of the same chord. A conditional list in `Workspace`'s own hook drew that warning on every close of the last tab, because a child's effects run before its parent's.
+
+### D105 In the app the face is written in ink, with no tile
+
+`Mark` draws the icon's eyes and lines in the sunset ink with no squircle around them. The Dock icon keeps the tile (`D102`); inside the app the window is the tile and the page its cutout, so a tile on the page is a box inside a box. Home's two buttons go quiet with it, since the face now carries the colour. The face has two expressions: awake on home, where it blinks, and meh above "nothing found", the eyes closed to two dashes in the lines' stroke.
+
+**Rejected: body ink for the face.** Two dots and three bars in `--foreground` are a hamburger menu with eyes, and the sunset would be gone from the app.
+
+**Rejected: sad or angry eyes.** Angry blames the reader and sad pities the app. Meh says what the state is.
+
+**Constraint:** the geometry stays the master's, so `src/components/mark.spec.tsx` reads the lines and eyes from `assets/icon.svg` and the stroke from `scripts/icons.sh`; only the tile is no longer shared.
