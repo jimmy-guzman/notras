@@ -7,9 +7,10 @@ import { isNotePath } from "@/core/links";
 import { createEditorExtensions } from "./extensions";
 
 /**
- * The markdown-link parity table. `finds_the_markdown_note_links_the_editor_renders`
- * in `src-tauri/src/index.rs` asserts the same cases in the same order, so what
- * the index records and what the editor opens on a click can be diffed by eye.
+ * The markdown-link parity table. `should_find_the_markdown_note_links_the_editor_renders`
+ * in `crates/notras-core/src/markdown.rs` asserts the same cases in the same
+ * order, so what the index records and what the editor opens on a click can be
+ * diffed by eye.
  */
 const cases: [markdown: string, targets: string[]][] = [
   ["[a](b.md)", ["b.md"]],
@@ -54,6 +55,8 @@ const cases: [markdown: string, targets: string[]][] = [
   ["[a](b.md) and [c](b.md)", ["b.md", "b.md"]],
   ["[a](b.md)[c](d.md)", ["b.md", "d.md"]],
   ['[a](b.md "t") x [[b]]', ["b.md"]],
+  ["[[a]](b.md)", []],
+  ["see http://x[a](b.md)", []],
 ];
 
 /** The destination of every note link a markdown string parses into, in order. */
@@ -110,6 +113,17 @@ describe("destination indexing parity", () => {
     ["https://? ", []],
     ["www.", []],
     ["`https://github.com/a`", []],
+    ["https://github.com/`a`b", ["https://github.com/`a`b"]],
+    ["*https://github.com/a*b", ["https://github.com/a"]],
+    ["*https://github.com/a*~~b~~", ["https://github.com/a"]],
+    ["*https://github.com/a(b)*~~(c)~~", ["https://github.com/a(b)*~~(c)"]],
+    ["*http://x(a)*~~[[b]]~~", ["http://x(a)*~~[[b]]"]],
+    ["***http://x(a)***~~[[b]]~~", ["http://x(a)***~~[[b]]"]],
+    ["_http://x(a)_~~[[b]]~~", ["http://x(a)"]],
+    ["*http://xe\u0301*~~[[b]]~~", ["http://xe\u0301"]],
+    ["***https://github.com/a(b)***~~c~~", ["https://github.com/a(b)***~~c"]],
+    ["_https://github.com/a(b)_~~(c)~~", ["https://github.com/a(b)"]],
+    ["see https://x.com[a](b.md)", ["https://x.com[a](b.md)"]],
     ["![a](https://github.com/a.png)", []],
     ["[https://github.com/a](b.md)", ["b.md"]],
     ["<span>https://github.com/a</span>", []],

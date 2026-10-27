@@ -21,7 +21,7 @@ const block = Lexer.rules.block.gfm;
  * which was most of the cost of opening a long plain note.
  *
  * TODO: drop the gate once Marked matches its anchored block rules without
- * scanning past position zero in WebKit. Through 17.0.6 it does not.
+ * scanning past position zero in WebKit. Through 18.1.1 it does not.
  */
 const blockGates: TokenizerObject = {
   blockquote: gate(block.blockquote),
