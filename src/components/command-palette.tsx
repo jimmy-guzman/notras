@@ -2,6 +2,7 @@ import { detectPlatform } from "@tanstack/react-hotkeys";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
+  ChevronDownIcon,
   Code2Icon,
   CopyIcon,
   DownloadIcon,
@@ -74,6 +75,7 @@ import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
+import { setTabListOpen } from "@/lib/ui/tab-list";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands } from "@/server/adapters/bindings";
 
@@ -505,6 +507,17 @@ export function CommandPalette({
       },
       text: toggleActionText(graphEnabled, "graph view"),
       value: "toggle-graph",
+    },
+    {
+      Icon: ChevronDownIcon,
+      label: "show tabs",
+      needs: "tab",
+      onSelect: () => {
+        close();
+        setTabListOpen(true);
+      },
+      text: "show tabs",
+      value: "show-tabs",
     },
     {
       Icon: XIcon,

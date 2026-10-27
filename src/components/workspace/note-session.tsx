@@ -71,6 +71,7 @@ import {
   cancelNoteVisit,
   clearRestoredCaret,
   closeTab,
+  getTabHandles,
   getTabState,
   openNote,
   openTab,
@@ -85,7 +86,7 @@ import type { Tab } from "@/lib/tabs/tab";
 import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
-import { useGraphMode } from "@/lib/ui/graph";
+import { focusGraph, useGraphMode } from "@/lib/ui/graph";
 import { noteBrowserHasFocus, useNoteBrowser } from "@/lib/ui/note-browser";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import type { OpenKind } from "@/server/adapters/bindings";
@@ -812,6 +813,21 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       target.insertText(text);
     };
 
+    // An open find keeps the hand however the note changes surface. Otherwise
+    // ⌘E decides which surface owns the caret; the other one's handle belongs
+    // to an editor that has already been destroyed.
+    const focus = () => {
+      if (graphMode) {
+        focusGraph();
+      } else if (noteFind.store.state.open) {
+        noteFind.focus();
+      } else if (persistence.store.state.sourceMode) {
+        sourceRef.current?.focus();
+      } else {
+        editorRef.current?.focus();
+      }
+    };
+
     // The caret rides through the markdown converters as a sentinel, so the
     // mapping between the two surfaces is exact (see sentinel.ts). The mode
     // is read from the session because tab handles outlive individual renders.
@@ -837,6 +853,10 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       }
 
       persistence.setSourceMode(!wasSource);
+
+      if (noteFind.store.state.open) {
+        noteFind.focusOnReturn();
+      }
     };
 
     const exportRichPdf = async () => {
@@ -859,32 +879,28 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       changePath: tab.kind === "note" ? changePath : undefined,
       editMetadata: tab.kind === "note" ? persistence.editMetadata : undefined,
       exportPdf: exportRichPdf,
+      focus,
       getCaret,
       insertText,
       toggleSource,
     });
-  }, [changePath, id, persistence, tab.kind]);
+  }, [changePath, graphMode, id, persistence, tab.kind]);
 
   // A tab mounted in the background never took focus, so it takes it on the
-  // way in. ⌘P decides which surface owns the caret; the other one's handle
-  // belongs to an editor that has already been destroyed.
+  // way in.
   useEffect(() => {
     if (
       !active ||
       graphMode ||
       reviewingRef.current ||
-      noteFind.store.state.open ||
+      noteFind.store.state.searchPending ||
       (browserOpen && noteBrowserHasFocus())
     ) {
       return;
     }
 
-    if (persistence.store.state.sourceMode) {
-      sourceRef.current?.focus();
-    } else {
-      editorRef.current?.focus();
-    }
-  }, [active, browserOpen, graphMode, persistence]);
+    getTabHandles(id)?.focus();
+  }, [active, browserOpen, graphMode, id]);
 
   return (
     <div

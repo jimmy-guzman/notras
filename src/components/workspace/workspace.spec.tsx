@@ -3,11 +3,14 @@ import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
+import { object, parse, string } from "valibot";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { Layout } from "@/layout";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
+import { noteFind } from "@/lib/ui/find";
+import { hideGraph } from "@/lib/ui/graph";
 
 const editors = () => document.querySelectorAll(".ProseMirror").length;
 
@@ -340,6 +343,226 @@ describe("workspace", () => {
     expect(editors()).toBe(2);
     expect(readRecentNotes("/notes")).toStrictEqual(["first.md", "second.md"]);
   });
+
+  it("should put focus back on the graph's centre when its showing tab is picked from the list", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "second",
+        carets: {},
+        tabs: [
+          { id: "first", kind: "note", path: "first.md" },
+          { id: "second", kind: "note", path: "second.md" },
+        ],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [
+          { kind: "note", path: "first.md" },
+          { kind: "note", path: "second.md" },
+        ];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return { content: "# Restored\n\nbody", revision: "r", updatedAt: 1 };
+      }
+
+      if (command === "read_graph") {
+        return {
+          mentionsError: null,
+          picture: {
+            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "second.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "second",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      hideGraph("second");
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("body");
+    await user.click(screen.getByRole("button", { name: "graph view" }));
+    await screen.findByRole("button", { name: "second" });
+    await user.click(screen.getByRole("button", { name: "show tabs" }));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "Restored" })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "second" })).toHaveFocus();
+    });
+  });
+
+  it.each(["picking another tab from the list", "toggling markdown source"])(
+    "should keep focus in the open find bar after %s",
+    async (action) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "first",
+          carets: {},
+          tabs: [
+            { id: "first", kind: "note", path: "first.md" },
+            { id: "second", kind: "note", path: "second.md" },
+          ],
+        })
+      );
+      mockWindows("main");
+      mockIPC((command, args) => {
+        if (command === "classify_open_paths") {
+          return [
+            { kind: "note", path: "first.md" },
+            { kind: "note", path: "second.md" },
+          ];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_conflict") {
+          return null;
+        }
+
+        if (command === "read_note") {
+          const { path } = parse(object({ path: string() }), args);
+
+          return path === "first.md"
+            ? { content: "# First\n\nfirst body", revision: "r", updatedAt: 1 }
+            : {
+                content: "# Second\n\nsecond body",
+                revision: "r",
+                updatedAt: 1,
+              };
+        }
+
+        if (command === "take_pending_open" || command === "find_mentions") {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      });
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        noteFind.dismiss();
+
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+      const user = userEvent.setup();
+
+      await screen.findByText("first body");
+      await user.click(screen.getByRole("tab", { name: "second" }));
+      await screen.findByText("second body");
+      await user.keyboard("{Control>}f{/Control}");
+      await screen.findByRole("textbox", { name: "find text" });
+
+      if (action === "toggling markdown source") {
+        await user.click(
+          screen.getByRole("button", { name: "markdown source" })
+        );
+      } else {
+        await user.click(screen.getByRole("button", { name: "show tabs" }));
+        await user.click(
+          await screen.findByRole("menuitemradio", { name: "First" })
+        );
+      }
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("textbox", { name: "find text" })
+        ).toHaveFocus();
+      });
+    }
+  );
 
   it.each([
     { action: "closing", remainingTabs: [] },

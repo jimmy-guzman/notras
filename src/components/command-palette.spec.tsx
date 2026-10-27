@@ -380,6 +380,7 @@ describe("command palette actions", () => {
         changes.push(change);
       },
       exportPdf: async () => null,
+      focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},
@@ -428,6 +429,7 @@ describe("command palette actions", () => {
 
     registerTabHandles(getTabState().activeId, {
       exportPdf,
+      focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},
@@ -444,6 +446,7 @@ describe("command palette actions", () => {
     openNote("projects/atlas.md");
     registerTabHandles(getTabState().activeId, {
       exportPdf: async () => null,
+      focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
       toggleSource: () => {},
