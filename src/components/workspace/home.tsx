@@ -119,7 +119,7 @@ export function Home({
   return (
     <div className="flex flex-1 items-center justify-center px-6">
       <div className="flex w-full max-w-md flex-col">
-        <div className="flex items-center gap-7">
+        <div className="flex flex-wrap items-center gap-7">
           <div className="shrink-0">
             <Mark blinking size={112} />
           </div>
@@ -132,7 +132,7 @@ export function Home({
                 write another note
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button onClick={onNew} variant="secondary">
                 new note <Chord hotkey="Mod+N" />
               </Button>

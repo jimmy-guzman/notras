@@ -48,6 +48,14 @@ function mountHome(
       return indexState === "scanning" ? await scanning.promise : notes;
     }
 
+    if (command === "read_note") {
+      return { content: "# Opened\n\nBody", revision: "r1", updatedAt: 1 };
+    }
+
+    if (command === "read_conflict") {
+      return null;
+    }
+
     if (
       command === "list_tags" ||
       command === "take_pending_open" ||
@@ -158,16 +166,19 @@ describe("home", () => {
     await waitFor(() => {
       expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual(["a.md"]);
     });
+    await screen.findByRole("heading", { name: "Opened" });
 
     act(() => {
       closeTab(getTabState().activeId);
     });
     await screen.findByRole("list", { name: "recent notes" });
 
-    await user.keyboard("{Control>}1{/Control}");
+    // The visit put a.md first, so b.md is now the second row.
+    await user.keyboard("{Control>}2{/Control}");
     await waitFor(() => {
       expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual(["b.md"]);
     });
+    await screen.findByRole("heading", { name: "Opened" });
     expect(warn).not.toHaveBeenCalled();
 
     // With a tab open the same chord is the tab jump again.
