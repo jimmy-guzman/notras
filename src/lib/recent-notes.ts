@@ -26,22 +26,17 @@ export function readRecentNotes(notesDir: string): string[] {
   );
 }
 
-function orderByVisit(notesDir: string, notes: NoteMeta[]) {
+export function recentNotes(notesDir: string, notes: NoteMeta[]): NoteMeta[] {
   const history = readRecentNotes(notesDir);
   const positions = new Map(history.map((path, index) => [path, index]));
 
   return notes.toSorted(
     (a, b) =>
+      Number(b.pinned) - Number(a.pinned) ||
       (positions.get(a.path) ?? history.length) -
         (positions.get(b.path) ?? history.length) ||
       b.updatedAt.getTime() - a.updatedAt.getTime() ||
       (a.path < b.path ? -1 : Number(a.path > b.path))
-  );
-}
-
-export function recentNotes(notesDir: string, notes: NoteMeta[]): NoteMeta[] {
-  return orderByVisit(notesDir, notes).toSorted(
-    (a, b) => Number(b.pinned) - Number(a.pinned)
   );
 }
 
