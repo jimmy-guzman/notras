@@ -68,6 +68,7 @@ function ViewPicker({ tab }: { tab: Tab }) {
           showView(tab.id, picked);
         }
       }}
+      spacing={0}
       value={[view]}
     >
       <ViewItem Icon={FileTextIcon} label="note" view="note" />
