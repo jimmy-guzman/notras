@@ -7,9 +7,11 @@ import type {
 import {
   Extension,
   findChildren,
+  getMarkType,
   InputRule,
   markInputRule,
   mergeAttributes,
+  PasteRule,
 } from "@tiptap/core";
 import { Code } from "@tiptap/extension-code";
 import { HardBreak } from "@tiptap/extension-hard-break";
@@ -261,7 +263,35 @@ const NoteHardBreak = HardBreak.extend({
       : "  \n",
 });
 
+/**
+ * GitHub's autolink shapes: a `scheme://` URL, `mailto:`, a `www.` address, or
+ * an email. A bare `SKILL.md` or `pr.py` is a file name, though `.md` and `.py`
+ * are also top-level domains, and `SKILL.md:12` is a file and line.
+ */
+const AUTOLINK =
+  /^(?:[a-z][a-z\d+.-]*:\/\/|mailto:|www\.|[^\s/@]+@[^\s/@]+$)/iu;
+
 const NoteLink = Link.extend({
+  // The upstream rule keeps off text whose marks exclude links, which
+  // `NoteCode` never does, while the autolink plugin checks for the code mark.
+  addPasteRules() {
+    return (this.parent?.() ?? []).map(
+      (rule) =>
+        new PasteRule({
+          find: rule.find,
+          // `null` fails the rule for the whole paste; `undefined` skips only
+          // the match inside code.
+          handler: (props) =>
+            props.state.doc.rangeHasMark(
+              props.range.from,
+              props.range.to,
+              getMarkType("code", props.state.schema)
+            )
+              ? undefined
+              : rule.handler(props),
+        })
+    );
+  },
   /**
    * Upstream renders a rejected href blank, and overriding `renderHTML` to mark
    * a note link dropped that. A note's href comes off disk, so the check is
@@ -1188,9 +1218,7 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
     .join("");
 
   // Upstream writes nothing for a document holding only spaces and `&nbsp;`.
-  return markdown.replaceAll("&nbsp;", "").replaceAll(" ", "").trim() === ""
-    ? ""
-    : markdown;
+  return markdown.replaceAll("&nbsp;", "").trim() === "" ? "" : markdown;
 }
 
 /**
@@ -1336,6 +1364,7 @@ export function createEditorExtensions(
     NoteLink.configure({
       HTMLAttributes: { rel: null, target: null },
       openOnClick: false,
+      shouldAutoLink: (value) => AUTOLINK.test(value),
     }),
     NoteParagraph,
     NoteListItem,

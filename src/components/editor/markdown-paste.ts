@@ -291,6 +291,15 @@ function normalizedHtml(html: string, schema: Schema) {
     return html;
   }
 
+  // WebKit hands the HTML over in its interchange form, with a space at a
+  // text node's edge as a non-breaking space in a span. ProseMirror restores
+  // them after this transform, too late for the marker check.
+  for (const span of root.querySelectorAll("span.Apple-converted-space")) {
+    if (span.childNodes.length === 1 && span.textContent === "\u00A0") {
+      span.replaceWith(" ");
+    }
+  }
+
   normalizeHtmlTasks(root);
 
   if (root.querySelector("a[href]") !== null) {
