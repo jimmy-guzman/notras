@@ -231,18 +231,22 @@ fn collision(path: &str) -> CommandError {
     }
 }
 
+/// A refused publish to `path`, reported as a collision when the name was taken.
+fn publish_error(path: &str, error: io::Error) -> CommandError {
+    if error.kind() == io::ErrorKind::AlreadyExists {
+        CommandError::with_source(collision(path).message, error)
+    } else {
+        error.into()
+    }
+}
+
 /// Publish a fully written sibling, refusing a destination that already exists.
 fn create_file(target: &Located, rel: &str, content: &str) -> Result<i64, CommandError> {
     let mut temp = TempSibling::create(&target.dir)?;
     write_temp(temp.file_mut(), content)?;
     let updated_at = checked_mtime(temp.file())?;
-    temp.publish(&target.name).map_err(|error| {
-        if error.kind() == io::ErrorKind::AlreadyExists {
-            CommandError::with_source(collision(rel).message, error)
-        } else {
-            error.into()
-        }
-    })?;
+    temp.publish(&target.name)
+        .map_err(|error| publish_error(rel, error))?;
     Ok(updated_at)
 }
 
@@ -650,13 +654,8 @@ fn publish_move(
         .set_times(fs::FileTimes::new().set_modified(metadata.modified()?))?;
     temp.file().sync_all()?;
     let updated_at = checked_mtime(temp.file())?;
-    temp.publish(&target.name).map_err(|error| {
-        if error.kind() == io::ErrorKind::AlreadyExists {
-            CommandError::with_source(collision(to.as_str()).message, error)
-        } else {
-            error.into()
-        }
-    })?;
+    temp.publish(&target.name)
+        .map_err(|error| publish_error(to.as_str(), error))?;
     let mut warnings = Vec::new();
     let remaining_source = match source.remove_file() {
         Ok(()) => None,
