@@ -46,6 +46,23 @@ describe("markdown paste", () => {
     expect(editor.state.doc.firstChild?.childCount).toBe(2);
   });
 
+  it("should recognize a task whose marker WebKit handed over with an interchange space", () => {
+    editor = new Editor({
+      content: "",
+      extensions: createEditorExtensions({}),
+    });
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "- [ ] **task** body");
+    clipboardData.setData(
+      "text/html",
+      '<ul><li><p>[ ]<span class="Apple-converted-space">&nbsp;</span><strong>task</strong> body</p></li></ul>'
+    );
+    editor.view.dom.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData })
+    );
+    expect(serializeMarkdown(editor).trimEnd()).toBe("- [ ] **task** body");
+  });
+
   it.each([
     ["<ul><li>[<code>x</code>] literal</li></ul>", "- [`x`] literal"],
     ["<ul><li>[ ] <code>task body</code></li></ul>", "- [ ] `task body`"],
@@ -1354,6 +1371,61 @@ describe("markdown paste", () => {
           type: "paragraph",
         },
       ]);
+    });
+  });
+
+  describe("autolink on paste", () => {
+    it.each([
+      ["see SKILL.md and pr.py", "see SKILL.md and pr.py"],
+      ["see mastodon.social/@jimmy", "see mastodon.social/@jimmy"],
+      ["see www.example.com", "see [www.example.com](http://www.example.com)"],
+      ["mail hi@example.com", "mail [hi@example.com](mailto:hi@example.com)"],
+      ["run `https://example.com`", "run `https://example.com`"],
+    ])("should link GitHub's autolink shapes alone: %s", (text, expected) => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      pasteText(editor, text);
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(expected);
+    });
+
+    it.each(["SKILL.md:12", "localhost:3000"])(
+      "should paste %s over a selection as text",
+      (text) => {
+        editor = new Editor({
+          content: "<p>word</p>",
+          extensions: createEditorExtensions({}),
+        });
+        editor.commands.setTextSelection({ from: 1, to: 5 });
+        pasteText(editor, text);
+
+        expect(serializeMarkdown(editor).trimEnd()).toBe(text);
+      }
+    );
+
+    it("should link a plain URL beside one inside inline code in pasted HTML", () => {
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({}),
+      });
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text/plain",
+        "see https://a.example and run https://b.example"
+      );
+      clipboardData.setData(
+        "text/html",
+        "<p>see https://a.example and run <code>https://b.example</code></p>"
+      );
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "see [https://a.example](https://a.example) and run `https://b.example`"
+      );
     });
   });
 
