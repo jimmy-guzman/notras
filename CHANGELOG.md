@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.4](https://github.com/jimmy-guzman/notras/compare/v0.11.3...v0.11.4) (2026-10-28)
+
+
+### Features
+
+* **ui:** ✨ pick light, dark or auto on macos ([#428](https://github.com/jimmy-guzman/notras/issues/428)) ([14a195c](https://github.com/jimmy-guzman/notras/commit/14a195c88b025a05a946bc57d2269144006aff6e))
+* **ui:** ✨ switch note, source and graph in one picker ([#429](https://github.com/jimmy-guzman/notras/issues/429)) ([3deb89b](https://github.com/jimmy-guzman/notras/commit/3deb89b0f39cb8faa433b4528e94559b7a013ecc))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 paste task lists as tasks and file names as text ([#426](https://github.com/jimmy-guzman/notras/issues/426)) ([2d05793](https://github.com/jimmy-guzman/notras/commit/2d05793ee640cbf1e5be289eb1bed1f8e46923b4))
+* **notes:** 🐛 agree with the editor on titles and links ([#420](https://github.com/jimmy-guzman/notras/issues/420)) ([d1f02c2](https://github.com/jimmy-guzman/notras/commit/d1f02c2dcc264dacbb62d5901a2082678b319559))
+
 ## [0.11.3](https://github.com/jimmy-guzman/notras/compare/v0.11.2...v0.11.3) (2026-10-27)
 
 
