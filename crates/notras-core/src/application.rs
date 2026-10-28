@@ -618,6 +618,15 @@ fn record_folders(core: &Library, folder: &str) -> Vec<MutationWarning> {
     warnings
 }
 
+/// Whether `name` exists in `dir`, a dangling symlink included.
+fn taken(dir: &Dir, name: &str) -> io::Result<bool> {
+    match dir.symlink_metadata(name) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 fn publish_move(
     core: &Library,
     from: &RelativePath,
@@ -631,10 +640,8 @@ fn publish_move(
         dir: ensure_folder(&core.root, folder)?,
         name: name.to_owned(),
     };
-    match target.symlink_metadata() {
-        Ok(_) => return Err(collision(to.as_str())),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
+    if taken(&target.dir, &target.name)? {
+        return Err(collision(to.as_str()));
     }
     let mut temp = TempSibling::create(&target.dir)?;
     temp.file().set_permissions(metadata.permissions())?;
@@ -1007,11 +1014,7 @@ impl Library {
         let mut path = RelativePath::parse(&format!("{base}.md"))?;
         let parent = self.root.try_clone()?;
         let mut counter = 1;
-        while match parent.symlink_metadata(path.split().1) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        } {
+        while taken(&parent, path.split().1)? {
             counter += 1;
             path = RelativePath::parse(&format!("{}.md", suffixed_filename(&base, counter)))?;
         }
@@ -1127,11 +1130,7 @@ impl Library {
         };
         let mut candidate = name;
         let mut counter = 1;
-        while match dir.symlink_metadata(&candidate) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        } {
+        while taken(&dir, &candidate)? {
             counter += 1;
             candidate = format!("{stem}-{counter}{ext}");
         }
@@ -1188,11 +1187,7 @@ impl Library {
             .unwrap_or_default();
         let mut candidate = format!("pasted-{stamp}.{extension}");
         let mut counter = 1;
-        while match dir.symlink_metadata(&candidate) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        } {
+        while taken(&dir, &candidate)? {
             counter += 1;
             candidate = format!("pasted-{stamp}-{counter}.{extension}");
         }
