@@ -11,7 +11,7 @@ use crate::{
     frontmatter, index, markdown,
     note_file::{content_revision, timestamp_millis, Exchange, TempSibling},
     relationships,
-    relative_path::{ensure_folder, Located, RelativePath},
+    relative_path::{ensure_folder, join, Located, RelativePath},
     Library,
 };
 
@@ -1049,11 +1049,7 @@ impl Library {
         };
         let (folder, _) = relative.split();
         let mut receipt = MutationReceipt {
-            path: if folder.is_empty() {
-                result.name
-            } else {
-                format!("{folder}/{}", result.name)
-            },
+            path: join(folder, &result.name),
             revision: result.revision,
             updated_at: result.updated_at,
             warnings: result.warnings,
@@ -1082,18 +1078,13 @@ impl Library {
     ) -> Result<PathMutationReceipt, CommandError> {
         let folder = validate_folder(folder)?;
         let name = path.rsplit('/').next().ok_or("A note without a filename")?;
-        let target = if folder.is_empty() {
-            name.to_owned()
-        } else {
-            format!("{folder}/{name}")
-        };
         let from = RelativePath::parse(&path)?;
-        let to = RelativePath::parse(&target)?;
+        let to = RelativePath::parse(&join(&folder, name))?;
         let opened = from.resolve(&self.root)?.open_read()?;
         let metadata = opened.metadata()?;
         let updated_at = timestamp_millis(metadata.modified())?;
         let content = io::read_to_string(opened)?;
-        if path == target {
+        if path == to.as_str() {
             return Ok(PathMutationReceipt {
                 path,
                 file: NoteFile::from_disk(content, updated_at),

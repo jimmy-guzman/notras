@@ -19,6 +19,15 @@ fn open_child(dir: &Dir, name: &str) -> io::Result<Option<Dir>> {
     dir.open_dir_nofollow(name).map(Some)
 }
 
+/// `name` inside `folder`, where an empty folder is the notes root.
+pub(crate) fn join(folder: &str, name: &str) -> String {
+    if folder.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{folder}/{name}")
+    }
+}
+
 pub(crate) fn ensure_folder(root: &Dir, folder: &str) -> io::Result<Dir> {
     let mut dir = root.try_clone()?;
     for part in folder.split('/').filter(|part| !part.is_empty()) {
