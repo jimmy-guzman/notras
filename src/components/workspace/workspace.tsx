@@ -242,7 +242,7 @@ function BrowserPanels({ children }: { children: ReactNode }) {
           <div className="flex h-8 shrink-0" data-tauri-drag-region="deep" />
           <div
             className={cn(
-              "me-1 flex min-h-0 flex-1 overflow-clip rounded-t-lg",
+              "flex min-h-0 flex-1 overflow-clip rounded-t-lg",
               open &&
                 "animate-in fade-in-0 slide-in-from-right-8 duration-200 ease-out motion-reduce:animate-none"
             )}
@@ -453,12 +453,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
           >
             <TabStrip activeId={activeId} tabs={tabs} />
           </Titlebar>
-          <div
-            className={cn(
-              "bg-background relative ms-1 flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-t-lg",
-              !browserOpen && "me-1"
-            )}
-          >
+          <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-t-lg">
             {tabs.length === 0 ? (
               <Home onNew={openDraft} onSearch={onOpenSearch} />
             ) : (
