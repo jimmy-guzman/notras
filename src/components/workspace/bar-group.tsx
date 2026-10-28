@@ -1,5 +1,6 @@
 import {
   Code2Icon,
+  FileTextIcon,
   PanelRightIcon,
   PlusIcon,
   SearchIcon,
@@ -12,7 +13,7 @@ import { Chord } from "@/components/chord";
 import { MentionsOf } from "@/components/notes/note-mentions";
 import { NoteTags } from "@/components/notes/note-tags";
 import { Separator } from "@/components/ui/separator";
-import { Toggle } from "@/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
   TooltipContent,
@@ -23,27 +24,23 @@ import type { Tab } from "@/lib/tabs/tab";
 import { BAR_GLYPH } from "@/lib/ui/bar";
 import { toggleNoteBrowser } from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
+import { showView, useTabView } from "@/lib/ui/view";
+import type { TabView } from "@/lib/ui/view";
 
-interface ViewToggleProps {
+interface ViewItemProps {
   Icon: typeof Code2Icon;
   label: string;
-  onToggle: () => void;
-  pressed: boolean;
+  view: TabView;
 }
 
-function ViewToggle({ Icon, label, onToggle, pressed }: ViewToggleProps) {
+function ViewItem({ Icon, label, view }: ViewItemProps) {
   const chords = useChordsByName().get(label);
 
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Toggle
-            aria-label={label}
-            onPressedChange={onToggle}
-            pressed={pressed}
-            size="icon-xs"
-          />
+          <ToggleGroupItem aria-label={label} size="icon-xs" value={view} />
         }
       >
         <Icon className={BAR_GLYPH} />
@@ -58,20 +55,33 @@ function ViewToggle({ Icon, label, onToggle, pressed }: ViewToggleProps) {
   );
 }
 
-interface NoteControlsProps {
-  graphEnabled: boolean;
-  onToggleGraph: () => void;
-  onToggleSource: () => void;
-  tab: Tab;
+/** The views a tab has, one lit. Picking an item shows its view; the chords are what toggle back. */
+function ViewPicker({ tab }: { tab: Tab }) {
+  const view = useTabView(tab.id);
+
+  return (
+    <ToggleGroup
+      aria-label="view"
+      onValueChange={([picked]) => {
+        // Base UI reports a click on the lit item as an empty value. The picker is a choice of one, so that click keeps the view.
+        if (picked !== undefined) {
+          showView(tab.id, picked);
+        }
+      }}
+      spacing={0}
+      value={[view]}
+    >
+      <ViewItem Icon={FileTextIcon} label="note" view="note" />
+      <ViewItem Icon={Code2Icon} label="markdown source" view="source" />
+      {tab.kind === "note" ? (
+        <ViewItem Icon={WaypointsIcon} label="graph view" view="graph" />
+      ) : null}
+    </ToggleGroup>
+  );
 }
 
 /** What the showing tab carries, then how it is viewed. Only a library note has tags, mentions or a graph. */
-function NoteControls({
-  graphEnabled,
-  onToggleGraph,
-  onToggleSource,
-  tab,
-}: NoteControlsProps) {
+function NoteControls({ tab }: { tab: Tab }) {
   const snapshot = useTabSnapshot(tab.id);
 
   return (
@@ -84,26 +94,13 @@ function NoteControls({
           <Separator className="mx-1" orientation="vertical" />
         </>
       ) : null}
-      <ViewToggle
-        Icon={Code2Icon}
-        label="markdown source"
-        onToggle={onToggleSource}
-        pressed={snapshot?.sourceMode ?? false}
-      />
-      {tab.kind === "note" ? (
-        <ViewToggle
-          Icon={WaypointsIcon}
-          label="graph view"
-          onToggle={onToggleGraph}
-          pressed={graphEnabled}
-        />
-      ) : null}
+      <ViewPicker tab={tab} />
       <Separator className="mx-1" orientation="vertical" />
     </>
   );
 }
 
-interface BarGroupProps extends Omit<NoteControlsProps, "tab"> {
+interface BarGroupProps {
   activeTab: Tab | undefined;
   onNew: () => void;
   onSearch: () => void;
@@ -115,29 +112,14 @@ interface BarGroupProps extends Omit<NoteControlsProps, "tab"> {
  * browser is open, so the button that toggles it never moves under the
  * pointer. The note's controls lead; the app's follow.
  */
-export function BarGroup({
-  activeTab,
-  graphEnabled,
-  onNew,
-  onSearch,
-  onToggleGraph,
-  onToggleSource,
-  ref,
-}: BarGroupProps) {
+export function BarGroup({ activeTab, onNew, onSearch, ref }: BarGroupProps) {
   return (
     <div
       className="text-muted-foreground absolute top-0 right-0 flex h-8 items-center py-1 pe-1"
       data-tauri-drag-region="deep"
       ref={ref}
     >
-      {activeTab === undefined ? null : (
-        <NoteControls
-          graphEnabled={graphEnabled}
-          onToggleGraph={onToggleGraph}
-          onToggleSource={onToggleSource}
-          tab={activeTab}
-        />
-      )}
+      {activeTab === undefined ? null : <NoteControls tab={activeTab} />}
       <BarButton Icon={PlusIcon} label="new note" onClick={onNew} />
       <BarButton Icon={SearchIcon} label="find a note" onClick={onSearch} />
       <BarButton

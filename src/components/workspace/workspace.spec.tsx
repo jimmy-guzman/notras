@@ -10,9 +10,17 @@ import { Layout } from "@/layout";
 import { readRecentNotes } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
-import { hideGraph } from "@/lib/ui/graph";
+import { hideGraph } from "@/lib/ui/view";
 
 const editors = () => document.querySelectorAll(".ProseMirror").length;
+
+/** The view items lit in the bar. */
+const pressed = () =>
+  ["note", "markdown source", "graph view"].filter(
+    (name) =>
+      screen.getByRole("button", { name }).getAttribute("aria-pressed") ===
+      "true"
+  );
 
 const NEW_NOTE = /new note/u;
 
@@ -450,6 +458,486 @@ describe("workspace", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "second" })).toHaveFocus();
     });
+  });
+
+  it.each([
+    ["⌘E", "{Control>}e{/Control}"],
+    ["the source button", "click"],
+  ])(
+    "should light one view at a time and go from the graph to the source on %s",
+    async (_door, press) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "only",
+          carets: {},
+          tabs: [{ id: "only", kind: "note", path: "only.md" }],
+        })
+      );
+      mockWindows("main");
+      mockIPC((command) => {
+        if (command === "classify_open_paths") {
+          return [{ kind: "note", path: "only.md" }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_conflict") {
+          return null;
+        }
+
+        if (command === "read_note") {
+          return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
+        }
+
+        if (command === "read_graph") {
+          return {
+            mentionsError: null,
+            picture: {
+              graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+              kind: "note",
+              note: {
+                createdAt: 0,
+                folder: "",
+                path: "only.md",
+                pinned: false,
+                snippet: null,
+                tags: [],
+                title: "only",
+                updatedAt: 0,
+              },
+            },
+          };
+        }
+
+        if (command === "take_pending_open" || command === "find_mentions") {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      });
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        hideGraph("only");
+
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+      const user = userEvent.setup();
+
+      await screen.findByText("body");
+      expect(pressed()).toStrictEqual(["note"]);
+
+      await user.click(screen.getByRole("button", { name: "graph view" }));
+      await screen.findByRole("button", { name: "only" });
+      expect(pressed()).toStrictEqual(["graph view"]);
+
+      await (press === "click"
+        ? user.click(screen.getByRole("button", { name: "markdown source" }))
+        : user.keyboard(press));
+
+      await waitFor(() => {
+        expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+      });
+      expect(screen.queryByRole("button", { name: "only" })).toBeNull();
+      expect(pressed()).toStrictEqual(["markdown source"]);
+
+      await user.click(screen.getByRole("button", { name: "note" }));
+
+      await waitFor(() => {
+        expect(document.querySelector("[data-source-editor]")).toBeNull();
+      });
+      expect(pressed()).toStrictEqual(["note"]);
+    }
+  );
+
+  it("should keep the showing view when its lit item is picked, and leave it when its chord is pressed again", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "only",
+        carets: {},
+        tabs: [{ id: "only", kind: "note", path: "only.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "only.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
+      }
+
+      if (command === "read_graph") {
+        return {
+          mentionsError: null,
+          picture: {
+            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "only.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "only",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      hideGraph("only");
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("body");
+    await user.click(screen.getByRole("button", { name: "note" }));
+    expect(document.querySelector("[data-source-editor]")).toBeNull();
+    expect(pressed()).toStrictEqual(["note"]);
+
+    await user.click(screen.getByRole("button", { name: "graph view" }));
+    await screen.findByRole("button", { name: "only" });
+    await user.click(screen.getByRole("button", { name: "graph view" }));
+    expect(screen.getByRole("button", { name: "only" })).toBeInTheDocument();
+    expect(pressed()).toStrictEqual(["graph view"]);
+
+    await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "only" })).toBeNull();
+    });
+    expect(pressed()).toStrictEqual(["note"]);
+
+    await user.click(screen.getByRole("button", { name: "markdown source" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+    });
+    await user.click(screen.getByRole("button", { name: "markdown source" }));
+    expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+    expect(pressed()).toStrictEqual(["markdown source"]);
+
+    await user.keyboard("{Control>}e{/Control}");
+    await waitFor(() => {
+      expect(document.querySelector("[data-source-editor]")).toBeNull();
+    });
+    expect(pressed()).toStrictEqual(["note"]);
+  });
+
+  it.each([
+    ["markdown source", true],
+    ["note", false],
+  ])(
+    "should show %s when it is picked from a graph over the source",
+    async (picked, sourceShows) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "only",
+          carets: {},
+          tabs: [{ id: "only", kind: "note", path: "only.md" }],
+        })
+      );
+      mockWindows("main");
+      mockIPC((command) => {
+        if (command === "classify_open_paths") {
+          return [{ kind: "note", path: "only.md" }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_conflict") {
+          return null;
+        }
+
+        if (command === "read_note") {
+          return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
+        }
+
+        if (command === "read_graph") {
+          return {
+            mentionsError: null,
+            picture: {
+              graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+              kind: "note",
+              note: {
+                createdAt: 0,
+                folder: "",
+                path: "only.md",
+                pinned: false,
+                snippet: null,
+                tags: [],
+                title: "only",
+                updatedAt: 0,
+              },
+            },
+          };
+        }
+
+        if (command === "take_pending_open" || command === "find_mentions") {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      });
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        hideGraph("only");
+
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+      const user = userEvent.setup();
+
+      await screen.findByText("body");
+      await user.keyboard("{Control>}e{/Control}");
+      await waitFor(() => {
+        expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+      });
+      await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+      await screen.findByRole("button", { name: "only" });
+
+      await user.click(screen.getByRole("button", { name: picked }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "only" })).toBeNull();
+      });
+      await waitFor(() => {
+        expect(document.querySelector("[data-source-editor]") !== null).toBe(
+          sourceShows
+        );
+      });
+      expect(pressed()).toStrictEqual([picked]);
+    }
+  );
+
+  it("should return from the graph to the source it left", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "only",
+        carets: {},
+        tabs: [{ id: "only", kind: "note", path: "only.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "only.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
+      }
+
+      if (command === "read_graph") {
+        return {
+          mentionsError: null,
+          picture: {
+            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "only.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "only",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      hideGraph("only");
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("body");
+    await user.keyboard("{Control>}e{/Control}");
+    await waitFor(() => {
+      expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+    });
+
+    await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+    await screen.findByRole("button", { name: "only" });
+    expect(
+      screen.getByRole("button", { name: "markdown source" })
+    ).toHaveAttribute("aria-pressed", "false");
+
+    await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "only" })).toBeNull();
+    });
+    expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "markdown source" })
+    ).toHaveAttribute("aria-pressed", "true");
+
+    act(() => {
+      screen.getByRole("button", { name: "markdown source" }).focus();
+    });
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("button", { name: "graph view" })).toHaveFocus();
+    await user.keyboard("{ArrowLeft}{ArrowLeft}");
+    expect(screen.getByRole("button", { name: "note" })).toHaveFocus();
   });
 
   it.each(["picking another tab from the list", "toggling markdown source"])(

@@ -459,7 +459,7 @@ The strip sets one gap and each item carries its own padding, which comes from t
 
 Anything in chrome that turns on and off is `Toggle` or `ToggleGroupItem` from `@base-ui/react`, at the size and on-state `DESIGN.md` states. Two hand-rolled versions preceded it, one per surface, drawing their on-states in the accent and the primary, which `DESIGN.md` rules out of chrome.
 
-**Superseded in part by `D98`,** which makes the view toggles standalone `Toggle`s. The size and the on-state stand.
+**Superseded in part by `D98`.** The size and the on-state stand.
 
 The three view toggles are one `ToggleGroup` but stay three independent settings: `StatusBar` takes three booleans and three handlers, and a descriptor array routes a change back to the one whose membership flipped.
 
@@ -1302,6 +1302,8 @@ The group is pinned to the window rather than drawn in whichever bar sits beside
 **Rejected: revealing the closed browser while the pointer rests on the window's edge.** Arc's peek, which keeps the note's layout still. Rejected after trying it: drawn over the note it hid the note, and pushing the note aside slid most of each line off a 700px window. On the right, that edge belongs to the editor's scrollbar.
 
 **Rejected: keeping the view toggles in one `ToggleGroup`.** One tab stop with arrow keys between them. Rejected because the group's flush form squares the inner corners into a segmented bar, while every other bar button keeps its own radius. ⌘E and ⌘⌥G reach both toggles without the tab order, so each takes a tab stop of its own.
+
+**Refined: the two toggles are one picker with three items, note, markdown source and graph view.** Two independent toggles stood for three views of one tab, so entering the graph from the source lit both, and ⌘E under the graph flipped an editor nobody could see. The picker lights one item, and the source mode a graph covers is where leaving it returns to rather than a second lit control. `src/components/ui/toggle-group.tsx` drops the generated group's corner squaring, so its items keep their own corners.
 
 **Rejected: a plain line between the button runs.** Rejected because a 14px line between 24px buttons reads as one more glyph, so the separator is etched.
 

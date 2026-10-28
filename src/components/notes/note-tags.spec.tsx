@@ -60,7 +60,7 @@ describe("note tags", () => {
         focus: () => {},
         getCaret: () => 0,
         insertText: () => {},
-        toggleSource: () => {},
+        setSource: () => {},
       });
 
       const client = new QueryClient({

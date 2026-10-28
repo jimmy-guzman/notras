@@ -77,9 +77,9 @@ import {
   tabRun,
 } from "@/lib/tabs/tab";
 import { BAR_GLYPH } from "@/lib/ui/bar";
-import { useGraphMode } from "@/lib/ui/graph";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { setTabListOpen, useTabListOpen } from "@/lib/ui/tab-list";
+import { useTabView } from "@/lib/ui/view";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -133,12 +133,9 @@ interface TabMarkerProps {
   tab: Tab;
 }
 
-/**
- * The dot when a save failed or needs review, otherwise what the tab shows.
- * Graph wins over source because it covers the editor.
- */
+/** The dot when a save failed or needs review, otherwise the view the tab shows. */
 function TabMarker({ snapshot, tab }: TabMarkerProps) {
-  const graphMode = useGraphMode(tab.id);
+  const view = useTabView(tab.id);
 
   if (snapshot?.status === "failed" || snapshot?.status === "conflict") {
     return (
@@ -160,11 +157,11 @@ function TabMarker({ snapshot, tab }: TabMarkerProps) {
     );
   }
 
-  if (tab.kind === "note" && graphMode) {
+  if (view === "graph") {
     return <WaypointsIcon className={MARKER_GLYPH} />;
   }
 
-  if (snapshot?.sourceMode === true) {
+  if (view === "source") {
     return <Code2Icon className={MARKER_GLYPH} />;
   }
 

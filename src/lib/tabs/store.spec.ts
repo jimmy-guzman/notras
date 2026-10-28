@@ -407,7 +407,7 @@ describe("store", () => {
         focus: () => {},
         getCaret: () => 7,
         insertText: () => {},
-        toggleSource: () => {},
+        setSource: () => {},
       };
 
       registerTabHandles(tab?.id ?? "", handles);
@@ -425,7 +425,7 @@ describe("store", () => {
         focus: () => {},
         getCaret: () => 7,
         insertText: () => {},
-        toggleSource: () => {},
+        setSource: () => {},
       });
       closeTab(id);
 
@@ -713,7 +713,7 @@ describe(changeNoteMetadata, () => {
       focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
-      toggleSource: () => {},
+      setSource: () => {},
     });
 
     const changeTags = async (update: (current: string[]) => string[]) => {
@@ -791,7 +791,7 @@ describe(changeNoteMetadata, () => {
       focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
-      toggleSource: () => {},
+      setSource: () => {},
     });
 
     const changeTags = async (update: (current: string[]) => string[]) => {

@@ -86,8 +86,8 @@ import type { Tab } from "@/lib/tabs/tab";
 import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
-import { focusGraph, useGraphMode } from "@/lib/ui/graph";
 import { noteBrowserHasFocus, useNoteBrowser } from "@/lib/ui/note-browser";
+import { focusGraph, useGraphMode } from "@/lib/ui/view";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import type { OpenKind } from "@/server/adapters/bindings";
 
@@ -774,7 +774,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     // Whichever surface is live owns the caret; the other one's handle is stale
     // (it was torn down by the mode toggle).
     // Body-relative, so source mode has to shed the frontmatter prefix the way
-    // `toggleSource` does.
+    // `setSource` does.
     const getCaret = () => {
       if (!persistence.store.state.sourceMode) {
         return editorRef.current?.getCaretSourceOffset() ?? -1;
@@ -831,11 +831,16 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     // The caret rides through the markdown converters as a sentinel, so the
     // mapping between the two surfaces is exact (see sentinel.ts). The mode
     // is read from the session because tab handles outlive individual renders.
-    const toggleSource = () => {
+    const setSource = (on: boolean) => {
+      const wasSource = persistence.store.state.sourceMode;
+
+      if (wasSource === on) {
+        return;
+      }
+
       const raw = persistence.store.state.content;
       const currentBody = parseNote(raw).body;
       const prefixLength = bodyPrefix(raw);
-      const wasSource = persistence.store.state.sourceMode;
 
       if (wasSource) {
         const offset = sourceRef.current?.getCursorOffset() ?? 0;
@@ -852,7 +857,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         setSourceCursor(offset === -1 ? raw.length : prefixLength + offset);
       }
 
-      persistence.setSourceMode(!wasSource);
+      persistence.setSourceMode(on);
 
       if (noteFind.store.state.open) {
         noteFind.focusOnReturn();
@@ -882,7 +887,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       focus,
       getCaret,
       insertText,
-      toggleSource,
+      setSource,
     });
   }, [changePath, graphMode, id, persistence, tab.kind]);
 

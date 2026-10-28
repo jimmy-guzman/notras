@@ -12,7 +12,7 @@ import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
 import { getTabState } from "@/lib/tabs/store";
-import { focusGraph } from "@/lib/ui/graph";
+import { focusGraph } from "@/lib/ui/view";
 
 import { NoteGraph, TabGraph } from "./note-graph";
 

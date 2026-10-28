@@ -78,11 +78,11 @@ import {
 import { tabFullPath } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { openNoteFind, openSearchResult } from "@/lib/ui/find";
-import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
 import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { setTabListOpen } from "@/lib/ui/tab-list";
+import { pressView, useTabView } from "@/lib/ui/view";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands } from "@/server/adapters/bindings";
 import type { Appearance } from "@/server/adapters/bindings";
@@ -165,7 +165,7 @@ export function CommandPalette({
   // A snapshot changes on every keystroke and this component is mounted for
   // the life of the window, so it subscribes only while it is on screen.
   const activeSnapshot = useTabSnapshot(open ? activeId : "");
-  const graphEnabled = useGraphMode(activeId);
+  const tabView = useTabView(open ? activeId : "");
   const chordsByName = useChordsByName();
   const queryClient = useQueryClient();
 
@@ -531,12 +531,9 @@ export function CommandPalette({
       needs: "tab",
       onSelect: () => {
         close();
-        getTabHandles(activeId)?.toggleSource();
+        pressView(activeId, "source");
       },
-      text: toggleActionText(
-        activeSnapshot?.sourceMode ?? false,
-        "markdown source"
-      ),
+      text: toggleActionText(tabView === "source", "markdown source"),
       value: "toggle-source",
     },
     {
@@ -545,9 +542,9 @@ export function CommandPalette({
       needs: "note",
       onSelect: () => {
         close();
-        toggleGraph(activeId);
+        pressView(activeId, "graph");
       },
-      text: toggleActionText(graphEnabled, "graph view"),
+      text: toggleActionText(tabView === "graph", "graph view"),
       value: "toggle-graph",
     },
     {
