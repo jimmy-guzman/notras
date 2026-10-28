@@ -8,7 +8,7 @@ import { hasString } from "@/components/editor/attrs";
 import { isWikilinkTitle, WIKILINK_TOKEN } from "@/core/notes";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
-import { SuggestionMenu } from "./suggestion-menu";
+import { SuggestionMenu, suggestionFloatingUi } from "./suggestion-menu";
 
 export interface WikilinkOptions {
   /** Live note titles for completion. */
@@ -80,6 +80,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
           )
           .run();
       },
+      floatingUi: suggestionFloatingUi,
       items: ({ query }) =>
         this.options
           .getTitles()
@@ -98,26 +99,13 @@ export const Wikilink = Node.create<WikilinkOptions>({
             menu?.destroy();
             menu = null;
           },
-          onKeyDown: (props) => {
-            if (props.event.key === "Escape") {
-              menu?.destroy();
-              menu = null;
-
-              return true;
-            }
-
-            if (menu === null) {
-              return false;
-            }
-
-            return menu.handleKey(props.event);
-          },
+          onKeyDown: (props) => menu?.handleKey(props.event) ?? false,
           onStart: (props) => {
-            menu = new SuggestionMenu();
-            menu.update(toItems(props), props.clientRect?.());
+            menu = new SuggestionMenu(props.mount);
+            menu.update(toItems(props));
           },
           onUpdate: (props) => {
-            menu?.update(toItems(props), props.clientRect?.());
+            menu?.update(toItems(props));
           },
         };
       },

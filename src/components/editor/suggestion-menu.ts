@@ -1,8 +1,34 @@
+import type {
+  SuggestionFloatingUiOptions,
+  SuggestionMount,
+} from "@tiptap/suggestion";
+
+const MARGIN = 8;
+
 /**
- * Minimal DOM dropdown shared by the slash menu and wikilink completion.
- * No positioning library: absolutely positioned off the suggestion's
- * client rect, styled with app tokens (see `.suggestion-menu` in
- * styles.css).
+ * Fixed, like every floating surface, and kept a margin inside the viewport,
+ * which the plugin's `flip` alone does not do.
+ */
+export const suggestionFloatingUi: SuggestionFloatingUiOptions = {
+  middleware: [
+    {
+      fn: ({ rects, x, y }) => ({
+        x: Math.max(
+          MARGIN,
+          Math.min(x, window.innerWidth - rects.floating.width - MARGIN)
+        ),
+        y: Math.max(MARGIN, y),
+      }),
+      name: "clampToViewport",
+    },
+  ],
+  strategy: "fixed",
+};
+
+/**
+ * Minimal DOM dropdown shared by the slash menu and wikilink completion. The
+ * suggestion plugin mounts and places it; it is styled with app tokens (see
+ * `.suggestion-menu` in styles.css).
  */
 export interface SuggestionMenuItem {
   hint?: string;
@@ -17,19 +43,20 @@ export class SuggestionMenu {
   private readonly id: string;
   private items: SuggestionMenuItem[] = [];
   private selected = 0;
+  private readonly unmount: () => void;
 
-  constructor() {
+  constructor(mount: SuggestionMount) {
     this.element = document.createElement("div");
     this.element.className = "suggestion-menu";
     this.element.role = "listbox";
-    document.body.append(this.element);
     SuggestionMenu.instances += 1;
     this.id = `suggestion-menu-${SuggestionMenu.instances}`;
     this.element.id = this.id;
+    this.unmount = mount(this.element);
   }
 
   destroy() {
-    this.element.remove();
+    this.unmount();
   }
 
   handleKey(event: KeyboardEvent): boolean {
@@ -67,37 +94,10 @@ export class SuggestionMenu {
     }
   }
 
-  update(items: SuggestionMenuItem[], rect: DOMRect | null | undefined) {
+  update(items: SuggestionMenuItem[]) {
     this.items = items;
     this.selected = Math.min(this.selected, Math.max(0, items.length - 1));
-    // Render first so the menu's size is measurable for positioning.
     this.render();
-
-    if (rect) {
-      this.position(rect);
-    }
-  }
-
-  /** Place below the cursor; flip above when the viewport would clip it. */
-  private position(rect: DOMRect) {
-    const menu = this.element.getBoundingClientRect();
-    const margin = 8;
-
-    const fitsBelow =
-      rect.bottom + 4 + menu.height + margin <= window.innerHeight;
-
-    const fitsAbove = rect.top - 4 - menu.height >= margin;
-
-    const top =
-      fitsBelow || !fitsAbove ? rect.bottom + 4 : rect.top - 4 - menu.height;
-
-    const left = Math.max(
-      margin,
-      Math.min(rect.left, window.innerWidth - menu.width - margin)
-    );
-
-    this.element.style.left = `${left}px`;
-    this.element.style.top = `${Math.max(margin, top)}px`;
   }
 
   private render() {
