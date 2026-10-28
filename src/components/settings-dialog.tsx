@@ -1,3 +1,4 @@
+import { detectPlatform } from "@tanstack/react-hotkeys";
 import {
   queryOptions,
   useMutation,
@@ -20,12 +21,15 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { setAppearance } from "@/data/appearance";
 import { setNotesDir } from "@/data/notes-dir";
-import { notesDirQuery } from "@/data/queries";
+import { appearanceQuery, notesDirQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { reclassifyTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { commands } from "@/server/adapters/bindings";
+import type { Appearance } from "@/server/adapters/bindings";
 
 interface SettingsDialogProps {
   notesDir: string;
@@ -61,6 +65,54 @@ export function SettingsDialog({
       });
     }
   }, [autostartError]);
+
+  // The setting exists on macOS alone.
+  const appearanceSupported = detectPlatform() === "mac";
+
+  const { data: appearance, error: appearanceError } = useQuery({
+    ...appearanceQuery,
+    enabled: appearanceSupported,
+  });
+
+  // The palette reads it at launch, so a failure waits for the dialog to say so.
+  useEffect(() => {
+    if (open && appearanceError !== null) {
+      toast.add({
+        description: reasonOf(appearanceError),
+        title: "could not read the appearance",
+        type: "error",
+      });
+    }
+  }, [appearanceError, open]);
+
+  const { mutate: writeAppearance } = useMutation({
+    mutationFn: setAppearance,
+    mutationKey: ["appearance"],
+    onError: (error) => {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not change appearance",
+        type: "error",
+      });
+    },
+    onMutate: async (value: Appearance) => {
+      await queryClient.cancelQueries({ queryKey: appearanceQuery.queryKey });
+      queryClient.setQueryData(appearanceQuery.queryKey, value);
+    },
+    // A later pick is already on screen while an earlier one settles, so only
+    // the last pick re-reads what was saved.
+    onSettled: async () => {
+      if (queryClient.isMutating({ mutationKey: ["appearance"] }) > 1) {
+        return;
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: appearanceQuery.queryKey,
+      });
+    },
+    // Two quick picks must reach Rust in the order they were made.
+    scope: { id: "appearance" },
+  });
 
   const changeNotesDir = async () => {
     try {
@@ -189,6 +241,34 @@ export function SettingsDialog({
               onCheckedChange={toggleAutostart}
             />
           </div>
+          {appearanceSupported && (
+            <div className="flex items-center justify-between">
+              <span
+                className="text-sm leading-none font-medium"
+                id="appearance-label"
+              >
+                appearance
+              </span>
+              <ToggleGroup
+                aria-labelledby="appearance-label"
+                disabled={appearance === undefined}
+                onValueChange={([value]) => {
+                  // Pressing the chosen item again empties the group.
+                  if (value !== undefined) {
+                    writeAppearance(value);
+                  }
+                }}
+                size="sm"
+                spacing={0}
+                value={appearance === undefined ? [] : [appearance]}
+                variant="outline"
+              >
+                <ToggleGroupItem value="auto">auto</ToggleGroupItem>
+                <ToggleGroupItem value="light">light</ToggleGroupItem>
+                <ToggleGroupItem value="dark">dark</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          )}
           <p className="text-muted-foreground text-xs">
             quick capture from anywhere with <Chord hotkey="Mod+Shift+N" />
           </p>

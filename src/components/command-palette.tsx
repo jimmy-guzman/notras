@@ -1,4 +1,5 @@
 import { detectPlatform } from "@tanstack/react-hotkeys";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
@@ -13,6 +14,7 @@ import {
   Link2Icon,
   ListEndIcon,
   ListXIcon,
+  MoonIcon,
   NotebookPenIcon,
   PanelLeftIcon,
   PencilIcon,
@@ -21,13 +23,16 @@ import {
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
+  SunIcon,
+  SunMoonIcon,
   TagIcon,
   Trash2Icon,
   Undo2Icon,
   WaypointsIcon,
   XIcon,
 } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ActionsView } from "@/components/palette-actions";
 import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
@@ -50,8 +55,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { noteFolder } from "@/core/notes";
 import type { NoteMeta } from "@/core/notes";
+import { setAppearance } from "@/data/appearance";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
+import { appearanceQuery } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
 import { forgetNote } from "@/lib/recent-notes";
 import { copyTabPath } from "@/lib/tabs/copy-path";
@@ -78,6 +85,28 @@ import { useChordsByName } from "@/lib/ui/shortcuts";
 import { setTabListOpen } from "@/lib/ui/tab-list";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands } from "@/server/adapters/bindings";
+import type { Appearance } from "@/server/adapters/bindings";
+
+const APPEARANCES = [
+  { Icon: SunMoonIcon, appearance: "auto" },
+  { Icon: SunIcon, appearance: "light" },
+  { Icon: MoonIcon, appearance: "dark" },
+] satisfies { Icon: LucideIcon; appearance: Appearance }[];
+
+const DARK_SCHEME = "(prefers-color-scheme: dark)";
+
+function subscribeToScheme(onChange: () => void) {
+  const query = matchMedia(DARK_SCHEME);
+  query.addEventListener("change", onChange);
+
+  return () => {
+    query.removeEventListener("change", onChange);
+  };
+}
+
+function schemeOnScreen(): Appearance {
+  return matchMedia(DARK_SCHEME).matches ? "dark" : "light";
+}
 
 function toggleActionText(enabled: boolean, mode: string) {
   return `${enabled ? "turn off" : "turn on"} ${mode}`;
@@ -138,6 +167,19 @@ export function CommandPalette({
   const activeSnapshot = useTabSnapshot(open ? activeId : "");
   const graphEnabled = useGraphMode(activeId);
   const chordsByName = useChordsByName();
+  const queryClient = useQueryClient();
+
+  // Read at launch rather than on open, so the rows never shift under the
+  // pointer when the read lands. The setting exists on macOS alone.
+  const { data: appearance } = useQuery({
+    ...appearanceQuery,
+    enabled: detectPlatform() === "mac",
+  });
+
+  // The webview's media query follows the forced appearance, so this is the
+  // scheme on screen in every mode.
+  const shown = useSyncExternalStore(subscribeToScheme, schemeOnScreen);
+
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
 
@@ -601,6 +643,30 @@ export function CommandPalette({
       text: "settings",
       value: "settings",
     },
+    // A row for the look already on screen would change nothing you can see.
+    ...(detectPlatform() === "mac"
+      ? APPEARANCES.flatMap(({ Icon, appearance: choice }) =>
+          choice === appearance || choice === shown
+            ? []
+            : [
+                {
+                  Icon,
+                  label: `${choice} appearance`,
+                  needs: "none",
+                  onSelect: () => {
+                    void runAction("could not change appearance", async () => {
+                      await setAppearance(choice);
+                      await queryClient.invalidateQueries({
+                        queryKey: appearanceQuery.queryKey,
+                      });
+                    });
+                  },
+                  text: `${choice} appearance`,
+                  value: `appearance-${choice}`,
+                } satisfies PaletteAction,
+              ]
+        )
+      : []),
     {
       Icon: RefreshCwIcon,
       label: "reindex library",

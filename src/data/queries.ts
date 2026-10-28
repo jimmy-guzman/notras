@@ -5,6 +5,7 @@ import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
 import type { GraphTarget, OpenKind } from "@/server/adapters/bindings";
 
+import { getAppearance } from "./appearance";
 import { readConflictStash } from "./conflict-stash";
 import { getFolders } from "./get-folders";
 import { getMentions } from "./get-mentions";
@@ -112,6 +113,12 @@ export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
     queryKey: ["tab-opening", id, kind] as const,
     staleTime: "static",
   });
+
+export const appearanceQuery = queryOptions({
+  meta: { what: "could not read the appearance" },
+  queryFn: getAppearance,
+  queryKey: ["appearance"],
+});
 
 /** Settings rather than index: no write to a note can move it. */
 export const notesDirQuery = queryOptions({

@@ -19,7 +19,7 @@ import { Workspace } from "@/components/workspace/workspace";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
-import { noteQueries } from "@/data/queries";
+import { appearanceQuery, noteQueries } from "@/data/queries";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import {
@@ -57,6 +57,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
     ),
   ]);
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
+  client.setQueryData(appearanceQuery.queryKey, "auto");
   const closed: boolean[] = [];
   onTestFinished(() => {
     client.clear();
@@ -502,6 +503,101 @@ describe("recent commands", () => {
       ]);
     }
   );
+
+  it("should switch to the chosen appearance and stop offering it", async () => {
+    // happy-dom does not report macOS, and the rows exist only there.
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+    });
+    const saved: unknown[] = [];
+    mockIPC((command, payload) => {
+      if (command === "set_appearance") {
+        saved.push(payload);
+
+        return null;
+      }
+
+      if (command === "get_appearance") {
+        return "dark";
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+    const palette = mount("actions", []);
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "dark appearance" })
+    );
+
+    expect(saved).toStrictEqual([{ appearance: "dark" }]);
+    expect(palette.closed).toStrictEqual([false]);
+    expect(
+      await screen.findByRole("option", { name: "auto appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "dark appearance" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer only the other scheme on auto", () => {
+    // happy-dom does not report macOS, and the rows exist only there.
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+    });
+    mount("actions", []);
+
+    expect(
+      screen.getByRole("option", { name: "dark appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "light appearance" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "auto appearance" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer the other scheme and auto when dark is pinned", async () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    // happy-dom paints light; a pinned dark puts dark on screen.
+    vi.stubGlobal("matchMedia", (media: string) => ({
+      addEventListener: () => {},
+      matches: media === "(prefers-color-scheme: dark)",
+      media,
+      removeEventListener: () => {},
+    }));
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+    const palette = mount("actions", []);
+
+    palette.client.setQueryData(appearanceQuery.queryKey, "dark");
+
+    expect(
+      await screen.findByRole("option", { name: "auto appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "light appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "dark appearance" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer no appearance away from macOS", async () => {
+    const palette = mount("actions", []);
+
+    await palette.user.type(palette.input, "appearance");
+
+    expect(document.body.textContent).not.toContain("appearance ");
+    expect(document.body.textContent).toContain("nothing found");
+  });
 
   it("should offer and run commands when recent history cannot be read", async () => {
     const getItem = localStorage.getItem.bind(localStorage);
