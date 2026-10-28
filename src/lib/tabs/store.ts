@@ -45,8 +45,8 @@ export interface TabHandles {
   getCaret: () => number;
   /** Into whichever surface is live, since ⌘E swaps which one owns the caret. */
   insertText: (text: string) => void;
-  /** Switching surfaces carries the caret through the editor handle, which only the session holds. */
-  toggleSource: () => void;
+  /** Show the source or the note. Switching carries the caret through the editor handle, which only the session holds. */
+  setSource: (on: boolean) => void;
 }
 
 /** What a session publishes for the bars and the palette to draw. */
@@ -252,6 +252,14 @@ export function hasTabSnapshot(id: string) {
 
 export function useTabState() {
   return useSelector(tabs);
+}
+
+export function getTabSnapshot(id: string) {
+  return snapshots.state[id]?.state;
+}
+
+export function subscribeTabState(listener: () => void) {
+  return tabs.subscribe(listener);
 }
 
 export function useTabSnapshot(id: string) {

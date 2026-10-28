@@ -37,7 +37,6 @@ import {
 import { fileKind, stepTab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
-import { toggleGraph, useGraphMode } from "@/lib/ui/graph";
 import {
   closeNoteBrowser,
   readNoteBrowserWidth,
@@ -46,6 +45,7 @@ import {
   useNoteBrowser,
 } from "@/lib/ui/note-browser";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
+import { pressView, useGraphMode } from "@/lib/ui/view";
 import { attachmentLink } from "@/lib/utils/attachments";
 
 /** ⌘9 is the last tab rather than the ninth, which is the macOS convention. */
@@ -69,17 +69,12 @@ function closeOthers() {
   closeOtherTabs(getTabState().activeId);
 }
 
-function toggleSource() {
-  getTabHandles(getTabState().activeId)?.toggleSource();
+function pressSource() {
+  pressView(getTabState().activeId, "source");
 }
 
-function toggleGraphView() {
-  const state = getTabState();
-  const tab = state.tabs.find((entry) => entry.id === state.activeId);
-
-  if (tab?.kind === "note") {
-    toggleGraph(state.activeId);
-  }
+function pressGraph() {
+  pressView(getTabState().activeId, "graph");
 }
 
 async function togglePinned() {
@@ -354,10 +349,8 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
   useHotkey("Mod+Shift+T", reopenTab, {
     meta: { name: "reopen last closed tab" },
   });
-  useHotkey("Mod+E", toggleSource, { meta: { name: "markdown source" } });
-  useHotkey("Mod+Alt+G", toggleGraphView, {
-    meta: { name: "graph view" },
-  });
+  useHotkey("Mod+E", pressSource, { meta: { name: "markdown source" } });
+  useHotkey("Mod+Alt+G", pressGraph, { meta: { name: "graph view" } });
   useHotkey("Mod+F", openNoteFind, { meta: { name: "find in note" } });
   useHotkey("Mod+\\", toggleNoteBrowser, { meta: { name: "browse notes" } });
   useHotkey(
@@ -492,11 +485,8 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
         </BrowserPanels>
         <BarGroup
           activeTab={activeTab}
-          graphEnabled={graphMode}
           onNew={openDraft}
           onSearch={onOpenSearch}
-          onToggleGraph={toggleGraphView}
-          onToggleSource={toggleSource}
           ref={cluster}
         />
       </SidebarProvider>

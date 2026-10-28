@@ -1381,7 +1381,7 @@ describe(NoteSession, () => {
 
     commands.length = 0;
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(true);
     });
     await editor();
 
@@ -2316,7 +2316,7 @@ describe(NoteSession, () => {
 
       if (sourceMode) {
         act(() => {
-          sessionHandles().toggleSource();
+          sessionHandles().setSource(true);
         });
       }
 
@@ -2361,7 +2361,7 @@ describe(NoteSession, () => {
       expect(surface.state.doc.textContent).not.toContain("plus typing");
       expect(surface.state.doc.textContent).toContain("Weekend errands");
       act(() => {
-        sessionHandles().toggleSource();
+        sessionHandles().setSource(!sourceMode);
       });
       const other = await editor();
       act(() => {
@@ -2416,7 +2416,7 @@ describe(NoteSession, () => {
 
       if (sourceMode) {
         act(() => {
-          sessionHandles().toggleSource();
+          sessionHandles().setSource(true);
         });
       }
 
@@ -2501,7 +2501,7 @@ describe(NoteSession, () => {
 
       if (sourceMode) {
         act(() => {
-          sessionHandles().toggleSource();
+          sessionHandles().setSource(true);
         });
       }
 
@@ -2619,7 +2619,7 @@ describe(NoteSession, () => {
     mountSession("---\ntags: [old]\n---\nbody");
     await editor();
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(true);
     });
     const source = await editor();
     act(() => {
@@ -2627,7 +2627,7 @@ describe(NoteSession, () => {
       source.commands.insertContent("---\ntags: [edited]\n---\nbody");
     });
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(false);
     });
     const rich = await editor();
     act(() => {
@@ -2695,7 +2695,7 @@ describe(NoteSession, () => {
     mountSession("body");
     await editor();
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(true);
     });
     const source = await editor();
     act(() => {
@@ -2711,7 +2711,7 @@ describe(NoteSession, () => {
       source.commands.insertContent("---\ntags: [second]\n---\nbody");
     });
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(false);
     });
     const rich = await editor();
     act(() => {
@@ -2793,7 +2793,7 @@ describe(NoteSession, () => {
     mountSession("*hello*");
     await editor();
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(true);
     });
     const source = await editor();
     act(() => {
@@ -2801,11 +2801,11 @@ describe(NoteSession, () => {
       source.commands.insertContent("_hello_");
     });
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(false);
     });
     await editor();
     act(() => {
-      sessionHandles().toggleSource();
+      sessionHandles().setSource(true);
     });
     const remounted = await editor();
     expect(remounted.state.doc.textContent).toBe("_hello_");

@@ -1303,6 +1303,8 @@ The group is pinned to the window rather than drawn in whichever bar sits beside
 
 **Rejected: keeping the view toggles in one `ToggleGroup`.** One tab stop with arrow keys between them. Rejected because the group's flush form squares the inner corners into a segmented bar, while every other bar button keeps its own radius. ⌘E and ⌘⌥G reach both toggles without the tab order, so each takes a tab stop of its own.
 
+**Refined: the two toggles are one picker with three items, note, markdown source and graph view.** Two independent toggles stood for three views of one tab, so entering the graph from the source lit both, and ⌘E under the graph flipped an editor nobody could see. The picker lights one item, and the source mode a graph covers is where leaving it returns to rather than a second lit control. `src/components/ui/toggle-group.tsx` drops the generated group's corner squaring, so its items keep their own corners.
+
 **Rejected: a plain line between the button runs.** Rejected because a 14px line between 24px buttons reads as one more glyph, so the separator is etched.
 
 **Constraint:** clicking a tag no longer filters the palette by it, and the palette's `#` token is the way in. The word count left the app.

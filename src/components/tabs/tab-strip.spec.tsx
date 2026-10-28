@@ -20,7 +20,7 @@ import {
 import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { tabPanelId } from "@/lib/tabs/tab";
-import { hideGraph, showGraph } from "@/lib/ui/graph";
+import { hideGraph, showGraph } from "@/lib/ui/view";
 
 async function mountStrip(tabs: Tab[], activeId = tabs[0]?.id ?? "") {
   mockIPC((command) => {
@@ -232,7 +232,7 @@ describe("tab strip", () => {
         },
         getCaret: () => 0,
         insertText: () => {},
-        toggleSource: () => {},
+        setSource: () => {},
       });
       await mountStrip(getTabState().tabs);
       const user = userEvent.setup();
@@ -275,7 +275,7 @@ describe("tab strip", () => {
         },
         getCaret: () => 0,
         insertText: () => {},
-        toggleSource: () => {},
+        setSource: () => {},
       });
       await mountStrip(getTabState().tabs);
       const user = userEvent.setup();

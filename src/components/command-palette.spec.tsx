@@ -384,7 +384,7 @@ describe("command palette actions", () => {
       focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
-      toggleSource: () => {},
+      setSource: () => {},
     });
     const palette = mount("actions", []);
     await palette.user.click(
@@ -433,7 +433,7 @@ describe("command palette actions", () => {
       focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
-      toggleSource: () => {},
+      setSource: () => {},
     });
     const palette = mount("actions", []);
     await palette.user.type(palette.input, "export");
@@ -450,7 +450,7 @@ describe("command palette actions", () => {
       focus: () => {},
       getCaret: () => 0,
       insertText: () => {},
-      toggleSource: () => {},
+      setSource: () => {},
     });
     const palette = mount("actions", []);
     await palette.user.type(palette.input, "export");

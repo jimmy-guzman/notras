@@ -22,8 +22,8 @@ import { noteQueries } from "@/data/queries";
 import { openNote } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
-import { hideGraph, hopTo, registerGraphFocus } from "@/lib/ui/graph";
 import { setMentionsOpen } from "@/lib/ui/mentions";
+import { hideGraph, hopTo, registerGraphFocus } from "@/lib/ui/view";
 
 import type { RingPosition } from "./layout";
 import { clockwiseFrom, layoutRing, layoutRound } from "./layout";
