@@ -1,12 +1,16 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, DebouncedEvent};
+use notify::{RecommendedWatcher, RecursiveMode};
+use notify_debouncer_full::{
+    new_debouncer, DebounceEventResult, DebouncedEvent, Debouncer, RecommendedCache,
+};
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::notes;
 use crate::state::AppState;
+
+pub type NotesWatcher = Debouncer<RecommendedWatcher, RecommendedCache>;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
 /// Our own writes are indexed synchronously by the commands; the mtime skip in
@@ -15,13 +19,7 @@ pub fn start<R: Runtime>(
     app: AppHandle<R>,
     notes_dir: PathBuf,
     generation: u64,
-) -> Result<
-    notify_debouncer_full::Debouncer<
-        notify::RecommendedWatcher,
-        notify_debouncer_full::RecommendedCache,
-    >,
-    notify::Error,
-> {
+) -> Result<NotesWatcher, notify::Error> {
     let handler_app = app.clone();
     let debouncer = new_debouncer(
         Duration::from_millis(300),
