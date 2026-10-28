@@ -543,6 +543,53 @@ describe("recent commands", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("should offer only the other scheme on auto", () => {
+    // happy-dom does not report macOS, and the rows exist only there.
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+    });
+    mount("actions", []);
+
+    expect(
+      screen.getByRole("option", { name: "dark appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "light appearance" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "auto appearance" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer the other scheme and auto when dark is pinned", async () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    // happy-dom paints light; a pinned dark puts dark on screen.
+    vi.stubGlobal("matchMedia", (media: string) => ({
+      addEventListener: () => {},
+      matches: media === "(prefers-color-scheme: dark)",
+      media,
+      removeEventListener: () => {},
+    }));
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+    const palette = mount("actions", []);
+
+    palette.client.setQueryData(appearanceQuery.queryKey, "dark");
+
+    expect(
+      await screen.findByRole("option", { name: "auto appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "light appearance" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "dark appearance" })
+    ).not.toBeInTheDocument();
+  });
+
   it("should offer no appearance away from macOS", async () => {
     const palette = mount("actions", []);
 

@@ -32,7 +32,7 @@ import {
   XIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ActionsView } from "@/components/palette-actions";
 import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
@@ -92,6 +92,21 @@ const APPEARANCES = [
   { Icon: SunIcon, appearance: "light" },
   { Icon: MoonIcon, appearance: "dark" },
 ] satisfies { Icon: LucideIcon; appearance: Appearance }[];
+
+const DARK_SCHEME = "(prefers-color-scheme: dark)";
+
+function subscribeToScheme(onChange: () => void) {
+  const query = matchMedia(DARK_SCHEME);
+  query.addEventListener("change", onChange);
+
+  return () => {
+    query.removeEventListener("change", onChange);
+  };
+}
+
+function schemeOnScreen(): Appearance {
+  return matchMedia(DARK_SCHEME).matches ? "dark" : "light";
+}
 
 function toggleActionText(enabled: boolean, mode: string) {
   return `${enabled ? "turn off" : "turn on"} ${mode}`;
@@ -160,6 +175,10 @@ export function CommandPalette({
     ...appearanceQuery,
     enabled: detectPlatform() === "mac",
   });
+
+  // The webview's media query follows the forced appearance, so this is the
+  // scheme on screen in every mode.
+  const shown = useSyncExternalStore(subscribeToScheme, schemeOnScreen);
 
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const currentPath = activeTab?.kind === "note" ? activeTab.path : undefined;
@@ -624,9 +643,10 @@ export function CommandPalette({
       text: "settings",
       value: "settings",
     },
+    // A row for the look already on screen would change nothing you can see.
     ...(detectPlatform() === "mac"
       ? APPEARANCES.flatMap(({ Icon, appearance: choice }) =>
-          choice === appearance
+          choice === appearance || choice === shown
             ? []
             : [
                 {
