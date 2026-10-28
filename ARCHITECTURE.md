@@ -218,7 +218,7 @@ Each editor parses with its own Marked instance from `marked-blocks.ts`, because
 
 ### Editing session per tab
 
-`Workspace` and `CaptureWindow` own their inset note frames. Each frame is one clipped surface: the editor and source-view scrollers own scrolling inside it, and their scrollbar sits on its edge. The workspace frame contains the welcome view or mounted sessions, graph overlay, and find bar. Capture places its editor and find bar inside its frame. `Titlebar` is shared by both windows.
+`Workspace` and `CaptureWindow` own their note frames. Each frame is one clipped surface: the editor and source-view scrollers own scrolling inside it, and their scrollbar sits on its edge. The workspace frame contains the welcome view or mounted sessions, graph overlay, and find bar. Capture places its editor and find bar inside its frame. `Titlebar` is shared by both windows.
 
 The session registers its document-change listener in a layout effect before it reads. Reads wait for the editor's ready handle, because reconciliation updates the visible document through it. On that handle the buffer reads once, which catches a change between the opening read and the mount, and registers `persistence.refresh` with `registerTabRefresh`. Before the buffer mounts, the tab's registered refresher retries the opening read. Unsubscribing a replaced listener leaves its replacement attached.
 
