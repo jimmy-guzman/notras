@@ -1,6 +1,7 @@
 import type {
   SuggestionFloatingUiOptions,
   SuggestionMount,
+  SuggestionOptions,
 } from "@tiptap/suggestion";
 
 const MARGIN = 8;
@@ -9,7 +10,7 @@ const MARGIN = 8;
  * Fixed, like every floating surface, and kept a margin inside the viewport,
  * which the plugin's `flip` alone does not do.
  */
-export const suggestionFloatingUi: SuggestionFloatingUiOptions = {
+const floatingUi: SuggestionFloatingUiOptions = {
   middleware: [
     {
       fn: ({ rects, x, y }) => ({
@@ -36,7 +37,7 @@ export interface SuggestionMenuItem {
   run: () => void;
 }
 
-export class SuggestionMenu {
+class SuggestionMenu {
   private static instances = 0;
 
   private readonly element: HTMLDivElement;
@@ -138,4 +139,34 @@ export class SuggestionMenu {
       .querySelector(".suggestion-item-selected")
       ?.scrollIntoView({ block: "nearest" });
   }
+}
+
+/** Shows a suggestion plugin's items in a `SuggestionMenu`, as `toItems` labels them. */
+export function suggestionMenuOptions<I>(
+  toItems: (props: {
+    command: (item: I) => void;
+    items: I[];
+  }) => SuggestionMenuItem[]
+): Pick<SuggestionOptions<I, I>, "floatingUi" | "render"> {
+  return {
+    floatingUi,
+    render: () => {
+      let menu: null | SuggestionMenu = null;
+
+      return {
+        onExit: () => {
+          menu?.destroy();
+          menu = null;
+        },
+        onKeyDown: (props) => menu?.handleKey(props.event) ?? false,
+        onStart: (props) => {
+          menu = new SuggestionMenu(props.mount);
+          menu.update(toItems(props));
+        },
+        onUpdate: (props) => {
+          menu?.update(toItems(props));
+        },
+      };
+    },
+  };
 }
