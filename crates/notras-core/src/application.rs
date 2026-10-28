@@ -165,10 +165,6 @@ fn in_line_endings_of(disk: &str, content: &str) -> String {
     }
 }
 
-fn is_markdown(path: &Path) -> bool {
-    index::is_note_file(path)
-}
-
 /// Whether the system would run the file rather than open it.
 ///
 /// LaunchServices executes a file with no extension when its mode allows, and
@@ -711,7 +707,7 @@ fn save_file(
     name: Option<SaveName>,
     expected: &str,
 ) -> Result<Publication<FileCommit>, CommandError> {
-    if !is_markdown(Path::new(&source.name)) {
+    if !index::is_note_file(Path::new(&source.name)) {
         return Err("Notes must be Markdown files".into());
     }
     let filename = match name {
@@ -723,7 +719,7 @@ fn save_file(
                 .map(|title| format!("{}.md", filename_from_title(&title)))
         }
         Some(SaveName::Filename(filename)) => {
-            if !valid_segment(&filename) || !is_markdown(Path::new(&filename)) {
+            if !valid_segment(&filename) || !index::is_note_file(Path::new(&filename)) {
                 return Err("Invalid note filename".into());
             }
             Some(filename)
@@ -793,7 +789,7 @@ fn save_file(
 }
 
 pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
-    if !is_markdown(path) {
+    if !index::is_note_file(path) {
         return Err("Only Markdown files can be opened".into());
     }
     let file = File::open(path)?;
@@ -808,7 +804,7 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
 /// symlink is followed, since the document is the anchor and nothing around it
 /// is the library's to fence.
 fn external_target(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
-    if !is_markdown(document) {
+    if !index::is_note_file(document) {
         return Err("Only Markdown files can be opened".into());
     }
     if !fs::metadata(document)?.is_file() {
@@ -845,7 +841,7 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
 /// The shell classifies it as a note or another external file.
 pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
-    if !is_markdown(&target) {
+    if !index::is_note_file(&target) {
         return Err("Only Markdown files open as tabs".into());
     }
     if !fs::metadata(&target)?.is_file() {
@@ -859,7 +855,7 @@ pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, Comm
 /// Checked the way a note's linked file is before the shell hands it over.
 pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
-    if is_markdown(&target) {
+    if index::is_note_file(&target) {
         return Err("Markdown files open in notras".into());
     }
     let name = target
