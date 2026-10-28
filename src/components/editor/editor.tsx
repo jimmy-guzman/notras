@@ -56,7 +56,7 @@ import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
 import { LinkHover } from "./link-hover";
 import type { DocumentEdit, SelectionReader } from "./note-document";
-import { findSentinel, SENTINEL } from "./sentinel";
+import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 /** Long enough to cross the gap between a link and its panel. */
@@ -489,10 +489,9 @@ function positionInDocument(
   offset: number
 ) {
   const manager = converterOf(editor);
-  const at = Math.max(0, Math.min(offset, content.length));
 
   const marked = editor.schema.nodeFromJSON(
-    manager.parse(content.slice(0, at) + SENTINEL + content.slice(at))
+    manager.parse(insertSentinel(content, offset))
   );
 
   const clean = editor.schema.nodeFromJSON(manager.parse(content));
