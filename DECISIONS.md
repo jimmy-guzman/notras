@@ -459,7 +459,7 @@ The strip sets one gap and each item carries its own padding, which comes from t
 
 Anything in chrome that turns on and off is `Toggle` or `ToggleGroupItem` from `@base-ui/react`, at the size and on-state `DESIGN.md` states. Two hand-rolled versions preceded it, one per surface, drawing their on-states in the accent and the primary, which `DESIGN.md` rules out of chrome.
 
-**Superseded in part by `D98`,** which makes the view toggles standalone `Toggle`s. The size and the on-state stand.
+**Superseded in part by `D98`.** The size and the on-state stand.
 
 The three view toggles are one `ToggleGroup` but stay three independent settings: `StatusBar` takes three booleans and three handlers, and a descriptor array routes a change back to the one whose membership flipped.
 
