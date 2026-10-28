@@ -166,13 +166,6 @@ pub fn remove_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool
     Ok(conn.execute("DELETE FROM folder WHERE path = ?1", [rel_path])? == 1)
 }
 
-fn folder_of(rel_path: &str) -> String {
-    match rel_path.rsplit_once('/') {
-        Some((folder, _)) => folder.to_string(),
-        None => String::new(),
-    }
-}
-
 /// A title written without brackets in another note's prose.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Debug, Serialize)]
@@ -376,7 +369,7 @@ pub(crate) fn index_note(
         rusqlite::params![
             rel_path,
             title,
-            folder_of(rel_path),
+            relative.split().0,
             parsed.frontmatter.pinned,
             created_at,
             updated_at,
