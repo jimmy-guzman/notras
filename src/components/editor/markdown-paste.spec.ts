@@ -1405,6 +1405,23 @@ describe("markdown paste", () => {
       }
     );
 
+    it.each([
+      ["<p>word</p>", "[word](https://example.com)"],
+      ["<p><code>word</code></p>", "[`word`](https://example.com)"],
+    ])(
+      "should link the selection when a URL is pasted over %s",
+      (content, expected) => {
+        editor = new Editor({
+          content,
+          extensions: createEditorExtensions({}),
+        });
+        editor.commands.setTextSelection({ from: 1, to: 5 });
+        pasteText(editor, "https://example.com");
+
+        expect(serializeMarkdown(editor).trimEnd()).toBe(expected);
+      }
+    );
+
     it("should link a plain URL beside one inside inline code in pasted HTML", () => {
       editor = new Editor({
         content: "",
