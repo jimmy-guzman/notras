@@ -8,7 +8,6 @@ import {
   filenameFromTitle,
   noteTitle,
   resolveTitle,
-  retitleLeadingHeading,
   titleSource,
 } from "./notes";
 
@@ -62,50 +61,6 @@ describe(resolveTitle, () => {
   it("should name a note with no filename stem untitled, as native creation does", () => {
     expect(resolveTitle("", "")).toBe("untitled");
     expect(resolveTitle(".md", "")).toBe("untitled");
-  });
-});
-
-describe(retitleLeadingHeading, () => {
-  it("should rewrite an existing leading heading", () => {
-    expect(retitleLeadingHeading("# old\n\nbody\n", "new")).toBe(
-      "# new\n\nbody\n"
-    );
-  });
-
-  it("should skip blank lines and frontmatter is already stripped", () => {
-    expect(retitleLeadingHeading("\n\n# old\nbody", "new")).toBe(
-      "\n\n# new\nbody"
-    );
-  });
-
-  it("should preserve indentation", () => {
-    expect(retitleLeadingHeading("  # old\nbody\n", "new")).toBe(
-      "  # new\nbody\n"
-    );
-  });
-
-  it.each([
-    ["prose", "just prose\n# later\n"],
-    ["a deeper heading", "## section\nbody\n"],
-    ["a list", "- item\n"],
-    ["a fence", "```\n# not a heading\n```\n"],
-    ["no indent room", "    # four spaces\n"],
-    ["an empty body", ""],
-  ])("should leave a body opening with %s byte-identical", (_label, body) => {
-    expect(retitleLeadingHeading(body, "new")).toBe(body);
-  });
-
-  it.each([
-    ["", "empty"],
-    ["a\nb", "a line break"],
-  ])("should refuse a title that is %j (%s)", (title) => {
-    expect(retitleLeadingHeading("# old\n", title)).toBe("# old\n");
-  });
-
-  it("should round-trip through resolveTitle", () => {
-    const body = retitleLeadingHeading("# old\n", "effect: a primer");
-
-    expect(resolveTitle("note.md", body)).toBe("effect: a primer");
   });
 });
 

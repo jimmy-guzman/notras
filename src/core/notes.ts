@@ -45,35 +45,6 @@ export function noteTitle(path: string) {
  */
 export const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/u;
 
-const LINE_BREAK = /[\n\r]/u;
-
-/**
- * Rewrite the body's leading `#` heading to `title`, or return `body`
- * byte-identical when there is none.
- *
- * The rule is deliberately narrow: an existing heading is rewritten, one is
- * never invented by this helper. Prose, lists, quotes, and deeper headings
- * are left alone. Indentation is preserved.
- */
-export function retitleLeadingHeading(body: string, title: string) {
-  const lines = body.split("\n");
-  const index = lines.findIndex((candidate) => candidate.trim() !== "");
-  const line = index === -1 ? undefined : lines[index];
-
-  // A title carrying a line break would split the heading in two.
-  if (line === undefined || title === "" || LINE_BREAK.test(title)) {
-    return body;
-  }
-
-  if (!ATX_HEADING.test(line)) {
-    return body;
-  }
-
-  const next = `${line.slice(0, line.indexOf("#"))}# ${title}`;
-
-  return next === line ? body : lines.with(index, next).join("\n");
-}
-
 /**
  * A filesystem-safe filename for `title`, without its extension.
  *
