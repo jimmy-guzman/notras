@@ -3,14 +3,14 @@ import { queryOptions } from "@tanstack/react-query";
 import type { NoteFilters } from "@/core/notes";
 import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
+import { commands } from "@/server/adapters/bindings";
 import type { GraphTarget, OpenKind } from "@/server/adapters/bindings";
 
 import { getAppearance } from "./appearance";
 import { readConflictStash } from "./conflict-stash";
-import { getFolders } from "./get-folders";
 import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
-import { getTags } from "./get-tags";
+import { nativeCommand } from "./native-command";
 import { getNotesDir } from "./notes-dir";
 import { readEmbeddedNote } from "./read-embedded-note";
 import { readSessionFile } from "./read-session-file";
@@ -50,7 +50,8 @@ export const noteQueries = {
   folders: () =>
     queryOptions({
       meta: { what: "could not refresh the folder list" },
-      queryFn: getFolders,
+      queryFn: async () =>
+        await nativeCommand(async () => await commands.listFolders()),
       queryKey: [...index, "folders"] as const,
     }),
   graph: (target: GraphTarget) =>
@@ -76,7 +77,8 @@ export const noteQueries = {
   tags: () =>
     queryOptions({
       meta: { what: "could not refresh the tag list" },
-      queryFn: getTags,
+      queryFn: async () =>
+        await nativeCommand(async () => await commands.listTags()),
       queryKey: [...index, "tags"] as const,
     }),
 };
