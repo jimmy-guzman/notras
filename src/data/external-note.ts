@@ -1,4 +1,5 @@
 import { nativeCommand } from "@/data/native-command";
+import { saveResult } from "@/data/note-results";
 import { commands } from "@/server/adapters/bindings";
 import type { SaveName } from "@/server/adapters/bindings";
 
@@ -22,20 +23,9 @@ export async function writeExternalNote(
   name: SaveName | null,
   expected: string
 ) {
-  const outcome = await nativeCommand(
-    async () => await commands.writeExternal(path, content, name, expected)
+  return saveResult(
+    await nativeCommand(
+      async () => await commands.writeExternal(path, content, name, expected)
+    )
   );
-
-  return outcome.kind === "committed"
-    ? {
-        kind: outcome.kind,
-        receipt: {
-          ...outcome.receipt,
-          updatedAt: new Date(outcome.receipt.updatedAt),
-        },
-      }
-    : {
-        file: { ...outcome.file, updatedAt: new Date(outcome.file.updatedAt) },
-        kind: outcome.kind,
-      };
 }
