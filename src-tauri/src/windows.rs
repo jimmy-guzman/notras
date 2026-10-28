@@ -1,6 +1,6 @@
 use notras_core::CommandError;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Runtime, Theme};
+use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::{Store, StoreExt};
 
 /// The scheme the app paints in. `Auto` follows the system.
@@ -12,13 +12,14 @@ pub enum Appearance {
     Dark,
 }
 
+#[cfg(target_os = "macos")]
 impl Appearance {
     /// The theme to force on the app, or `None` to follow the system.
-    pub(crate) fn theme(self) -> Option<Theme> {
+    pub(crate) fn theme(self) -> Option<tauri::Theme> {
         match self {
             Self::Auto => None,
-            Self::Light => Some(Theme::Light),
-            Self::Dark => Some(Theme::Dark),
+            Self::Light => Some(tauri::Theme::Light),
+            Self::Dark => Some(tauri::Theme::Dark),
         }
     }
 }
