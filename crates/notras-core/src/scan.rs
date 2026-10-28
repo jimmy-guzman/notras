@@ -97,12 +97,7 @@ impl Scan {
     }
 
     fn index_path(&mut self, conn: &Connection, root: &Dir, path: &str) -> Result<(), IndexError> {
-        let result = if self.force {
-            index::reindex_file(conn, root, path)
-        } else {
-            index::index_file(conn, root, path)
-        };
-        match result {
+        match index::index_note(conn, root, path, self.force) {
             Ok(true) => self.report.changed.push(path.to_owned()),
             Ok(false) => {}
             Err(IndexError::Io(error)) => {

@@ -289,19 +289,15 @@ pub fn remove(conn: &Connection, rel_path: &str) -> rusqlite::Result<()> {
     tx.commit()
 }
 
-/// Index a single note file. Returns `true` when the index changed. Files
-/// whose mtime matches the stored row are skipped, which also suppresses
-/// watcher echo for writes that already indexed synchronously.
-pub fn index_file(conn: &Connection, root: &Dir, rel_path: &str) -> Result<bool, IndexError> {
-    index_note(conn, root, rel_path, false)
-}
-
 /// Reconcile a known file mutation even when two writes share a timestamp.
 pub fn reindex_file(conn: &Connection, root: &Dir, rel_path: &str) -> Result<bool, IndexError> {
     index_note(conn, root, rel_path, true)
 }
 
-fn index_note(
+/// Index a single note file. Returns `true` when the index changed. Unless
+/// `force`, a file whose mtime matches the stored row is skipped, which also
+/// suppresses watcher echo for writes that already indexed synchronously.
+pub(crate) fn index_note(
     conn: &Connection,
     root: &Dir,
     rel_path: &str,
@@ -460,7 +456,7 @@ fn index_note(
 }
 
 /// Full scan: index every note file and drop rows for files that no longer
-/// exist. Cheap on re-runs thanks to the mtime skip in `index_file`.
+/// exist. Cheap on re-runs thanks to the mtime skip in `index_note`.
 ///
 /// A file that is there but cannot be read keeps whatever row it has, and so
 /// does everything under a folder that cannot be listed: absence from the walk
@@ -527,7 +523,7 @@ mod tests {
             ("metadata.md", "---\ntitle: café\n---\nbody"),
         ] {
             fs::write(dir.join(path), body).unwrap();
-            index_file(&conn, &root(dir), path).unwrap();
+            index_note(&conn, &root(dir), path, false).unwrap();
         }
         let mut previous = conn.prepare(
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1
@@ -765,7 +761,7 @@ mod tests {
         assert_eq!(rows[0][0], json!("real.md"));
 
         // Even asked for directly, a symlink never lands a row.
-        index_file(&conn, &root(&dir), "linked.md").unwrap();
+        index_note(&conn, &root(&dir), "linked.md", false).unwrap();
         let rows = select(
             &conn,
             "SELECT path FROM note WHERE path = ?1",
@@ -1305,7 +1301,7 @@ mod tests {
         fs::write(&note, "---\ntags: [work]\n---\n# note\n[[other]]").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        index_file(&conn, &root(directory.path()), "note.md").unwrap();
+        index_note(&conn, &root(directory.path()), "note.md", false).unwrap();
         conn.execute_batch(
             "CREATE TRIGGER refuse_delete BEFORE DELETE ON note_link
              BEGIN SELECT RAISE(FAIL, 'index unavailable'); END;",
@@ -1313,7 +1309,7 @@ mod tests {
         .unwrap();
         fs::remove_file(&note).unwrap();
 
-        assert!(index_file(&conn, &root(directory.path()), "note.md").is_err());
+        assert!(index_note(&conn, &root(directory.path()), "note.md", false).is_err());
         assert_eq!(
             select(
                 &conn,
@@ -1328,7 +1324,7 @@ mod tests {
         );
 
         conn.execute_batch("DROP TRIGGER refuse_delete").unwrap();
-        index_file(&conn, &root(directory.path()), "note.md").unwrap();
+        index_note(&conn, &root(directory.path()), "note.md", false).unwrap();
         assert_eq!(
             select(
                 &conn,
@@ -1350,7 +1346,7 @@ mod tests {
         fs::write(&note, "# original").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        index_file(&conn, &root(directory.path()), "note.md").unwrap();
+        index_note(&conn, &root(directory.path()), "note.md", false).unwrap();
         conn.execute(
             "UPDATE note SET updated_at = 'invalid' WHERE path = 'note.md'",
             [],
@@ -1359,7 +1355,7 @@ mod tests {
         fs::write(&note, "# changed").unwrap();
 
         assert!(matches!(
-            index_file(&conn, &root(directory.path()), "note.md"),
+            index_note(&conn, &root(directory.path()), "note.md", false),
             Err(IndexError::Db(rusqlite::Error::InvalidColumnType(..)))
         ));
         assert_eq!(
@@ -1404,11 +1400,11 @@ mod tests {
         fs::write(folder.join("note.md"), "# note").unwrap();
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
-        index_file(&conn, &root(directory.path()), "folder/note.md").unwrap();
+        index_note(&conn, &root(directory.path()), "folder/note.md", false).unwrap();
         fs::rename(&folder, outside.path().join("folder")).unwrap();
         std::os::unix::fs::symlink(outside.path().join("folder"), &folder).unwrap();
 
-        index_file(&conn, &root(directory.path()), "folder/note.md").unwrap();
+        index_note(&conn, &root(directory.path()), "folder/note.md", false).unwrap();
 
         assert_eq!(
             select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
@@ -1450,7 +1446,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn).unwrap();
 
-        assert!(index_file(&conn, &root(directory.path()), "note.md").is_err());
+        assert!(index_note(&conn, &root(directory.path()), "note.md", false).is_err());
         assert_eq!(
             select(&conn, "SELECT count(*) FROM note", &[]).unwrap(),
             vec![vec![json!(0)]]

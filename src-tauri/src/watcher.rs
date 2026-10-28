@@ -10,7 +10,7 @@ use crate::state::AppState;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
 /// Our own writes are indexed synchronously by the commands; the mtime skip in
-/// `index_file` keeps those from echoing back out as change events.
+/// `index_note` keeps those from echoing back out as change events.
 pub fn start<R: Runtime>(
     app: AppHandle<R>,
     notes_dir: PathBuf,

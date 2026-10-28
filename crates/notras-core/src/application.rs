@@ -1864,7 +1864,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("a.md"), "# old").unwrap();
-        index::index_file(&core.conn, &core.root, "a.md").unwrap();
+        index::index_note(&core.conn, &core.root, "a.md", false).unwrap();
         core.conn.execute_batch("PRAGMA query_only = ON").unwrap();
         let receipt = saved(&core, "a.md", "# saved", None).unwrap();
         assert!(
