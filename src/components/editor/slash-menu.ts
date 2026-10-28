@@ -167,7 +167,6 @@ export const SlashMenu = Extension.create({
         );
       },
       pluginKey: new PluginKey("slashMenuSuggestion"),
-      startOfLine: false,
       ...suggestionMenuOptions(toItems),
     };
 

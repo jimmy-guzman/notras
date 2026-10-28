@@ -51,7 +51,6 @@ function isFindState(value: unknown): value is FindState {
   );
 }
 
-const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
 
 // The screen is sampled at mid-width, so its first and last lines reach past
@@ -119,7 +118,7 @@ function matchesIn(doc: Node, query: string | null) {
     return [];
   }
 
-  const pattern = new RegExp(query.replaceAll(REGEXP_SPECIAL, "\\$&"), "giu");
+  const pattern = new RegExp(RegExp.escape(query), "giu");
   const matches: Match[] = [];
   doc.descendants((node, position) => {
     if (!node.isTextblock) {
