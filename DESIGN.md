@@ -49,7 +49,7 @@ Blackout pairs a warm near-black writing surface with softened ivory text and a 
 | Edges | `--border`, `--input`, `--groove`, `--groove-highlight` | Border matches the shell; input edges have their own stronger neutral; the bar's separator is a groove line and a highlight, both mixed from the shell |
 | Status | `--success`, `--warning`, `--info`, `--destructive` | Green success, amber warning, cyan information, and coral-red errors |
 
-- The system chooses the scheme. `:root` defines dark, and `@media (prefers-color-scheme: light), print` supplies light values. The app has no theme toggle, and print uses the light palette except inside a fence, which keeps the dark one.
+- The system chooses the scheme unless the appearance setting pins one, which it can on macOS alone. `:root` defines dark, and `@media (prefers-color-scheme: light), print` supplies light values. The setting forces the app's native appearance, which the webview's media query follows, so the stylesheet has no theme class. Print uses the light palette except inside a fence, which keeps the dark one.
 - Ghost buttons use `--muted` on hover, at 50% in dark mode. Toggles use the full muted fill on hover and while pressed. Active tabs retain the workspace fill. These states keep neutral surfaces and body ink.
 - Note links inherit the surrounding text's color and weight at rest and use `--primary` on hover. Pink also supplies syntax declarations and selected table-cell tints.
 - Status toasts use their status ink for the title and icon, body ink for the description, and a 7% Oklab mix of status ink into `--popover` for the surface. Default and loading toasts use the popover surface without a status tint.

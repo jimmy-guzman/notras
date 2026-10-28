@@ -70,6 +70,8 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::save_note::<tauri::Wry>,
             pdf::export_pdf::<tauri::Wry>,
             pdf::pdf_layout_width,
+            windows::get_appearance::<tauri::Wry>,
+            windows::set_appearance::<tauri::Wry>,
             windows::show_capture::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
@@ -1005,6 +1007,118 @@ mod tests {
         assert_eq!(
             fs::read_to_string(directory.path().join("atlas.md")).unwrap(),
             "# Atlas\n[[Source]]"
+        );
+    }
+
+    #[test]
+    fn should_save_the_appearance_and_refuse_one_it_does_not_know() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let settings = directory.path().join("settings/settings.json");
+
+        let store = tauri_plugin_store::StoreExt::store(&app, "settings.json").unwrap();
+
+        assert_eq!(
+            invoke(&window, "get_appearance", json!({})),
+            Ok(json!("auto"))
+        );
+        // The mock runtime cannot paint a theme, so the save is driven below the command.
+        crate::windows::save_appearance(&store, crate::windows::Appearance::Light).unwrap();
+        let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(saved["appearance"], "light");
+        assert_eq!(
+            invoke(&window, "get_appearance", json!({})),
+            Ok(json!("light"))
+        );
+
+        assert!(invoke(&window, "set_appearance", json!({"appearance": "sepia"})).is_err());
+        let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(saved["appearance"], "light");
+
+        store.set("appearance", json!("sepia"));
+        assert_eq!(
+            invoke(&window, "get_appearance", json!({})),
+            Err(json!({
+                "kind": "failed",
+                "message": "The saved appearance \"sepia\" is not auto, light or dark"
+            }))
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn should_keep_the_saved_appearance_when_a_change_cannot_be_written() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let store = tauri_plugin_store::StoreExt::store(&app, "settings.json").unwrap();
+        let settings = directory.path().join("settings/settings.json");
+        store.set("appearance", json!("light"));
+        store.save().unwrap();
+        fs::remove_file(&settings).unwrap();
+        fs::create_dir(&settings).unwrap();
+
+        assert!(invoke(&window, "set_appearance", json!({"appearance": "dark"})).is_err());
+        assert_eq!(
+            invoke(&window, "get_appearance", json!({})),
+            Ok(json!("light"))
+        );
+
+        fs::remove_dir(&settings).unwrap();
+        store.set("notesDir", json!("/notes"));
+        store.save().unwrap();
+        let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(saved["appearance"], "light");
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn should_refuse_to_change_the_appearance_away_from_macos() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            invoke(&window, "set_appearance", json!({"appearance": "dark"})),
+            Err(json!({
+                "kind": "failed",
+                "message": "Changing the appearance is only available on macOS"
+            }))
+        );
+        assert_eq!(
+            invoke(&window, "get_appearance", json!({})),
+            Ok(json!("auto"))
         );
     }
 

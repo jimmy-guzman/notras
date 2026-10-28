@@ -41,7 +41,7 @@ const BG_LIGHT: Color = Color(0xfa, 0xf7, 0xf2, 255);
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 18.0);
 
-fn background_for(theme: Theme) -> Color {
+pub(crate) fn background_for(theme: Theme) -> Color {
     match theme {
         Theme::Light => BG_LIGHT,
         _ => BG_DARK,
@@ -174,6 +174,12 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     writing_tools::suppress_affordance_check();
 
+    let store = app.store("settings.json")?;
+    // The appearance setting is macOS only, so elsewhere the system's scheme
+    // stands whatever settings.json says.
+    #[cfg(target_os = "macos")]
+    app.set_theme(windows::stored_appearance(&store)?.theme());
+
     // The config paints the window dark at creation, which is earlier than this
     // runs. Correcting it here is what keeps a light-mode launch from flashing
     // dark instead of white.
@@ -185,7 +191,6 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Resolve the notes directory: saved setting, else ~/notras.
-    let store = app.store("settings.json")?;
     let notes_dir = match store
         .get("notesDir")
         .and_then(|value| value.as_str().map(std::path::PathBuf::from))

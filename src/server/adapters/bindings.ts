@@ -58,6 +58,14 @@ export const commands = {
 	 *  on a paper narrower than 8in.
 	 */
 	pdfLayoutWidth: () => __TAURI_INVOKE<number | null>("pdf_layout_width"),
+	getAppearance: () => __TAURI_INVOKE<Appearance>("get_appearance"),
+	/**
+	 *  Save the appearance, then paint it. A choice the next launch would forget
+	 *  is not applied. macOS only: on Linux tao rewrites GTK's "prefer dark" for
+	 *  the whole app on every window it creates and every desktop change, so a
+	 *  forced appearance does not hold there.
+	 */
+	setAppearance: (appearance: Appearance) => __TAURI_INVOKE<null>("set_appearance", { appearance }),
 	/**  Open quick capture, or focus its existing window. */
 	showCapture: () => __TAURI_INVOKE<void>("show_capture"),
 };
@@ -70,6 +78,9 @@ export const events = {
 };
 
 /* Types */
+/**  The scheme the app paints in. `Auto` follows the system. */
+export type Appearance = "auto" | "light" | "dark";
+
 /**  Where the pasted text came from, as far as the native clipboard says. */
 export type ClipboardSource = 
 /**  A code editor, with the language it named. */
