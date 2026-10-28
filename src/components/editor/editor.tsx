@@ -534,7 +534,6 @@ interface EditorProps {
   initialContent: string;
   /** Opens find on this word at mount. */
   initialFind?: string;
-  onBlur?: () => void;
   onChange: (content: string, edit: DocumentEdit) => void;
   /** Open a file the note links to, relative to the note. */
   onFileLinkClick?: (href: string) => void;
@@ -1015,9 +1014,6 @@ export function Editor(mountProps: EditorProps) {
     ],
     immediatelyRender: true,
     injectNonce: styleNonce,
-    onBlur: () => {
-      config.onBlur?.();
-    },
     onCreate: ({ editor: instance }) => {
       editorRef.current = instance;
       config.onReady?.({
