@@ -962,14 +962,6 @@ pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     }
 }
 
-pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
-    let notes_dir = fs::canonicalize(notes_dir).unwrap_or_else(|_| notes_dir.to_path_buf());
-    paths
-        .into_iter()
-        .map(|path| classify_open(&notes_dir, path))
-        .collect()
-}
-
 /// The extension for an image's bytes, read from its signature rather than
 /// from the type the webview reports.
 fn image_extension(bytes: &[u8]) -> Option<&'static str> {
@@ -2334,10 +2326,12 @@ mod tests {
         let link = link_directory.path().join("library");
         std::os::unix::fs::symlink(&real, &link).unwrap();
 
-        let through_link =
-            classify_opens(&link, vec![real.join("a.md").to_string_lossy().to_string()]);
-        let through_real =
-            classify_opens(&real, vec![link.join("a.md").to_string_lossy().to_string()]);
+        let through_link = Library::open(&link, &link_directory.path().join(".index"))
+            .unwrap()
+            .classify_opens(vec![real.join("a.md").to_string_lossy().to_string()]);
+        let through_real = Library::open(&real, &real_directory.path().join(".index"))
+            .unwrap()
+            .classify_opens(vec![link.join("a.md").to_string_lossy().to_string()]);
 
         assert_eq!(
             through_link,

@@ -134,7 +134,10 @@ impl Library {
     }
 
     pub fn classify_opens(&self, paths: Vec<String>) -> Vec<PendingOpen> {
-        application::classify_opens(&self.notes_dir, paths)
+        paths
+            .into_iter()
+            .map(|path| self.classify_open(path))
+            .collect()
     }
 }
 
