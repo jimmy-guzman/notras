@@ -17,35 +17,14 @@ export interface NoteSearch {
   query: string;
 }
 
-const FILTER_START = /^(?:folder:|from:|link:|mention:|to:|#)/u;
-
-function filterKind(prefix: string): SearchFilter["kind"] {
-  switch (prefix) {
-    case "folder:": {
-      return "folder";
-    }
-
-    case "from:": {
-      return "from";
-    }
-
-    case "link:": {
-      return "link";
-    }
-
-    case "mention:": {
-      return "mention";
-    }
-
-    case "to:": {
-      return "to";
-    }
-
-    default: {
-      return "tag";
-    }
-  }
-}
+const FILTER_PREFIXES = [
+  ["folder:", "folder"],
+  ["from:", "from"],
+  ["link:", "link"],
+  ["mention:", "mention"],
+  ["to:", "to"],
+  ["#", "tag"],
+] as const satisfies readonly (readonly [string, SearchFilter["kind"]])[];
 
 const WHITESPACE = /\s/u;
 const NEEDS_QUOTES = /[\s"\\]/u;
@@ -92,18 +71,22 @@ function scanSearch(input: string) {
       continue;
     }
 
-    const prefix = FILTER_START.exec(input.slice(offset))?.[0];
-    const part = readValue(input, offset + (prefix?.length ?? 0));
+    const rest = input.slice(offset);
+    const filter = FILTER_PREFIXES.find(([prefix]) => rest.startsWith(prefix));
 
-    if (prefix === undefined) {
+    const part = readValue(input, offset + (filter?.[0].length ?? 0));
+
+    if (filter === undefined) {
       words.push(input.slice(offset, part.end));
     } else {
+      const [, kind] = filter;
+
       tokens.push({
         complete: part.complete,
         end: part.end,
-        kind: filterKind(prefix),
+        kind,
         start: offset,
-        value: prefix === "#" ? part.value.toLowerCase() : part.value,
+        value: kind === "tag" ? part.value.toLowerCase() : part.value,
       });
       incomplete ||= !part.complete;
     }
