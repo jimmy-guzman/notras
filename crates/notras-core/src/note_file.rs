@@ -264,14 +264,18 @@ impl Drop for TempSibling {
     }
 }
 
-/// The revision of a document, derived from its bytes alone.
-pub(crate) fn content_revision(content: &str) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
 
-    Sha256::digest(content.as_bytes())
+    Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+/// The revision of a document, derived from its bytes alone.
+pub(crate) fn content_revision(content: &str) -> String {
+    sha256_hex(content.as_bytes())
 }
 
 pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> {
