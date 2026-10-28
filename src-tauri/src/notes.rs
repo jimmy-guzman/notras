@@ -45,7 +45,7 @@ fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
     }
 }
 
-fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
+pub(crate) fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
     app.state::<AppState>().library.publish(generation, || {
         if let Err(error) = (NotesChanged { paths }).emit(app) {
             log::error!("could not emit notes-changed: {error}");

@@ -24,7 +24,6 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_store::StoreExt;
 
-use crate::bindings::NotesChanged;
 use crate::library::LibraryOwner;
 use crate::state::AppState;
 use notras_core::Library;
@@ -224,17 +223,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let state = scan_app.state::<AppState>();
         match state.library.scan() {
             Ok(changed) => {
-                state.library.publish(changed.generation, || {
-                    if !changed.paths.is_empty() {
-                        if let Err(error) = (NotesChanged {
-                            paths: changed.paths,
-                        })
-                        .emit(&scan_app)
-                        {
-                            log::error!("could not emit notes-changed: {error}");
-                        }
-                    }
-                });
+                if !changed.paths.is_empty() {
+                    notes::emit_changed(&scan_app, changed.generation, changed.paths);
+                }
             }
             Err(error) => {
                 if !state.library.closing() {

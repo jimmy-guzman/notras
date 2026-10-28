@@ -4,9 +4,8 @@ use std::time::Duration;
 use notify::RecursiveMode;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, DebouncedEvent};
 use tauri::{AppHandle, Manager, Runtime};
-use tauri_specta::Event;
 
-use crate::bindings::NotesChanged;
+use crate::notes;
 use crate::state::AppState;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
@@ -62,16 +61,13 @@ fn handle<R: Runtime>(app: &AppHandle<R>, generation: u64, events: &[DebouncedEv
             return;
         }
     };
-    state.library.publish(generation, || {
-        if let Err(error) = (NotesChanged { paths }).emit(app) {
-            log::error!("could not emit notes-changed: {error}");
-        }
-    });
+    notes::emit_changed(app, generation, paths);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bindings::NotesChanged;
     use crate::library::LibraryOwner;
     use notras_core::Library;
     use std::fs;
