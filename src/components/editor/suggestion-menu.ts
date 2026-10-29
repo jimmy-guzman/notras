@@ -7,10 +7,7 @@ import type {
 const GAP = 4;
 const MARGIN = 8;
 
-/**
- * The plugin's `flip` keeps no margin, so this keeps 8px on every side and
- * shortens the menu to the roomier side of the query.
- */
+/** The plugin's `flip` keeps no margin; this keeps 8px and sizes the menu to fit. */
 const floatingUi: SuggestionFloatingUiOptions = {
   middleware: [
     {
@@ -55,7 +52,6 @@ export interface SuggestionMenuItem {
   run: () => void;
 }
 
-/** The dropdown both menus share, styled by `.suggestion-menu` in styles.css. */
 class SuggestionMenu {
   private static instances = 0;
 

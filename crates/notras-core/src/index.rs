@@ -287,9 +287,8 @@ pub fn reindex_file(conn: &Connection, root: &Dir, rel_path: &str) -> Result<boo
     index_note(conn, root, rel_path, true)
 }
 
-/// Index a single note file. Returns `true` when the index changed. Unless
-/// `force`, a file whose mtime matches the stored row is skipped, which also
-/// suppresses watcher echo for writes that already indexed synchronously.
+/// Returns `true` when the index changed. Unless `force`, a file whose mtime
+/// matches its row is skipped, so the app's own writes do not echo.
 pub(crate) fn index_note(
     conn: &Connection,
     root: &Dir,

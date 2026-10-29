@@ -617,7 +617,7 @@ fn record_folders(core: &Library, folder: &str) -> Vec<MutationWarning> {
     warnings
 }
 
-/// Whether `name` exists in `dir`, a dangling symlink included.
+/// A dangling symlink counts as taken.
 fn taken(dir: &Dir, name: &str) -> io::Result<bool> {
     match dir.symlink_metadata(name) {
         Ok(_) => Ok(true),
