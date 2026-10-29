@@ -1,4 +1,4 @@
-import { flip, hide, shift, size } from "@floating-ui/dom";
+import { detectOverflow, flip, shift, size } from "@floating-ui/dom";
 import type {
   SuggestionFloatingUiOptions,
   SuggestionMount,
@@ -6,6 +6,12 @@ import type {
 } from "@tiptap/suggestion";
 
 const MARGIN = 8;
+
+/**
+ * Each open menu's query node. The plugin anchors to the editor root, whose
+ * scrollers leave out a wide table's own.
+ */
+const queries = new WeakMap<Element, Element>();
 
 const floatingUi: SuggestionFloatingUiOptions = {
   middleware: [
@@ -20,14 +26,31 @@ const floatingUi: SuggestionFloatingUiOptions = {
       },
       padding: MARGIN,
     }),
-    hide(),
     {
-      fn: ({ elements, middlewareData, rects }) => {
+      fn: async (state) => {
+        const { elements, rects } = state;
+
+        const overflow = await detectOverflow(
+          {
+            ...state,
+            elements: {
+              ...elements,
+              reference: queries.get(elements.floating) ?? elements.reference,
+            },
+          },
+          { elementContext: "reference" }
+        );
+
+        const { height, width } = rects.reference;
+
         // A query with no size has no layout yet, so it is not out of view.
         elements.floating.toggleAttribute(
           "data-query-hidden",
-          middlewareData.hide?.referenceHidden === true &&
-            rects.reference.height > 0
+          height > 0 &&
+            (overflow.top >= height ||
+              overflow.bottom >= height ||
+              overflow.left >= width ||
+              overflow.right >= width)
         );
 
         return {};
@@ -108,7 +131,13 @@ class SuggestionMenu {
     }
   }
 
-  update(items: SuggestionMenuItem[]) {
+  update(items: SuggestionMenuItem[], query: Element | null) {
+    if (query === null) {
+      queries.delete(this.element);
+    } else {
+      queries.set(this.element, query);
+    }
+
     this.items = items;
     this.selected = Math.min(this.selected, Math.max(0, items.length - 1));
     this.render();
@@ -174,10 +203,10 @@ export function suggestionMenuOptions<I>(
         onKeyDown: (props) => menu?.handleKey(props.event) ?? false,
         onStart: (props) => {
           menu = new SuggestionMenu(props.mount);
-          menu.update(toItems(props));
+          menu.update(toItems(props), props.decorationNode);
         },
         onUpdate: (props) => {
-          menu?.update(toItems(props));
+          menu?.update(toItems(props), props.decorationNode);
         },
       };
     },
