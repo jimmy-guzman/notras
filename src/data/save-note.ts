@@ -1,7 +1,8 @@
-import { nativeCommand } from "@/data/native-command";
-import { saveResult } from "@/data/note-results";
 import { commands } from "@/server/adapters/bindings";
 import type { SaveName } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
+import { saveResult } from "./note-results";
 
 /** Save a complete document at the revision it started from; a changed file comes back instead. */
 export async function saveNote(

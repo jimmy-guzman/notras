@@ -19,7 +19,6 @@ fn open_child(dir: &Dir, name: &str) -> io::Result<Option<Dir>> {
     dir.open_dir_nofollow(name).map(Some)
 }
 
-/// `name` inside `folder`, where an empty folder is the notes root.
 pub(crate) fn join(folder: &str, name: &str) -> String {
     if folder.is_empty() {
         name.to_owned()

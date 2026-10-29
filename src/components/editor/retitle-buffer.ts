@@ -3,10 +3,7 @@ import { ATX_HEADING as HEADING } from "@/core/notes";
 
 const LINE_BREAK = /[\r\n]/u;
 
-/**
- * Set the naming heading, introducing it when the note has none. An existing
- * heading keeps its indentation.
- */
+/** Set the naming heading, introducing it when the note has none. */
 export function renameDocument(content: string, title: string): string {
   const name = title.trim();
 

@@ -227,7 +227,6 @@ fn collision(path: &str) -> CommandError {
     }
 }
 
-/// A refused publish to `path`, reported as a collision when the name was taken.
 fn publish_error(path: &str, error: io::Error) -> CommandError {
     if error.kind() == io::ErrorKind::AlreadyExists {
         CommandError::with_source(collision(path).message, error)
