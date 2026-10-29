@@ -1,47 +1,25 @@
+import { flip, shift, size } from "@floating-ui/dom";
 import type {
   SuggestionFloatingUiOptions,
   SuggestionMount,
   SuggestionOptions,
 } from "@tiptap/suggestion";
 
-const GAP = 4;
 const MARGIN = 8;
 
-/** The plugin's `flip` keeps no margin; this keeps 8px and sizes the menu to fit. */
 const floatingUi: SuggestionFloatingUiOptions = {
   middleware: [
-    {
-      fn: ({ elements, rects, x, y }) => {
-        const room = `${Math.max(
-          rects.reference.y - GAP - MARGIN,
-          window.innerHeight -
-            rects.reference.y -
-            rects.reference.height -
-            GAP -
-            MARGIN
-        )}px`;
-
-        if (elements.floating.style.getPropertyValue("--menu-room") !== room) {
-          elements.floating.style.setProperty("--menu-room", room);
-
-          return { reset: { rects: true } };
-        }
-
-        const above = rects.reference.y - GAP - rects.floating.height;
-
-        const crowdsBottom =
-          y + rects.floating.height > window.innerHeight - MARGIN;
-
-        return {
-          x: Math.max(
-            MARGIN,
-            Math.min(x, window.innerWidth - rects.floating.width - MARGIN)
-          ),
-          y: Math.max(MARGIN, crowdsBottom ? above : y),
-        };
+    flip({ padding: MARGIN }),
+    shift({ padding: MARGIN }),
+    size({
+      apply: ({ availableHeight, elements }) => {
+        elements.floating.style.setProperty(
+          "--menu-room",
+          `${availableHeight}px`
+        );
       },
-      name: "clampToViewport",
-    },
+      padding: MARGIN,
+    }),
   ],
   strategy: "fixed",
 };
@@ -164,10 +142,10 @@ export function suggestionMenuOptions<I>(
     command: (item: I) => void;
     items: I[];
   }) => SuggestionMenuItem[]
-): Pick<SuggestionOptions<I, I>, "floatingUi" | "offset" | "render"> {
+): Pick<SuggestionOptions<I, I>, "flip" | "floatingUi" | "render"> {
   return {
+    flip: false,
     floatingUi,
-    offset: { mainAxis: GAP },
     render: () => {
       let menu: null | SuggestionMenu = null;
 
