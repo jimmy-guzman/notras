@@ -1,4 +1,4 @@
-import { flip, shift, size } from "@floating-ui/dom";
+import { flip, hide, shift, size } from "@floating-ui/dom";
 import type {
   SuggestionFloatingUiOptions,
   SuggestionMount,
@@ -20,6 +20,20 @@ const floatingUi: SuggestionFloatingUiOptions = {
       },
       padding: MARGIN,
     }),
+    hide(),
+    {
+      fn: ({ elements, middlewareData, rects }) => {
+        // A query with no size has no layout yet, so it is not out of view.
+        elements.floating.toggleAttribute(
+          "data-query-hidden",
+          middlewareData.hide?.referenceHidden === true &&
+            rects.reference.height > 0
+        );
+
+        return {};
+      },
+      name: "hideWithQuery",
+    },
   ],
   strategy: "fixed",
 };
@@ -57,7 +71,10 @@ class SuggestionMenu {
   }
 
   handleKey(event: KeyboardEvent): boolean {
-    if (this.items.length === 0) {
+    if (
+      this.items.length === 0 ||
+      this.element.dataset.queryHidden !== undefined
+    ) {
       return false;
     }
 

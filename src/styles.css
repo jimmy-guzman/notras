@@ -686,6 +686,9 @@ body.dragging .ProseMirror .selected-text,
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-popover);
 }
+.suggestion-menu[data-query-hidden] {
+  visibility: hidden;
+}
 /* Concentric with the menu: the parent radius less the parent padding, so the
    two curves stay parallel if --radius moves. */
 .suggestion-item {
