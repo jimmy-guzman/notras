@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.5](https://github.com/jimmy-guzman/notras/compare/v0.11.4...v0.11.5) (2026-10-29)
+
+
+### Features
+
+* **ui:** ✨ run the note to the window's edges ([#434](https://github.com/jimmy-guzman/notras/issues/434)) ([bbc4dc7](https://github.com/jimmy-guzman/notras/commit/bbc4dc7b9023ad55979327a4ac69048e606db2cb))
+
+
+### Bug Fixes
+
+* **deps:** 🐛 patch rustls and dev tool advisories ([#431](https://github.com/jimmy-guzman/notras/issues/431)) ([9b9d7af](https://github.com/jimmy-guzman/notras/commit/9b9d7af8e93bfe0def7cfb799783227f58dd2ced))
+* **editor:** 🐛 keep slash & title menus inside the window ([#435](https://github.com/jimmy-guzman/notras/issues/435)) ([3342e4c](https://github.com/jimmy-guzman/notras/commit/3342e4c632662aa603182c5aa3d53f782c372eee))
+
 ## [0.11.4](https://github.com/jimmy-guzman/notras/compare/v0.11.3...v0.11.4) (2026-10-28)
 
 
