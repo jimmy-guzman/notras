@@ -64,13 +64,7 @@ export function showGraph(id: string) {
 }
 
 export function hideGraph(id: string) {
-  graphs.setState((ids) => {
-    const next = new Set(ids);
-
-    next.delete(id);
-
-    return next;
-  });
+  graphs.setState((ids) => ids.difference(new Set([id])));
 }
 
 /** Open a neighbour and stay in the graph, whichever tab that lands on. */

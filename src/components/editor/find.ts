@@ -51,6 +51,8 @@ function isFindState(value: unknown): value is FindState {
   );
 }
 
+// Not `RegExp.escape`: WebKit escapes an astral character by its low 16 bits,
+// so U+2002A gains a backslash and stops matching under the `u` flag.
 const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
 

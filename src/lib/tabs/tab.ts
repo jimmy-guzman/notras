@@ -190,43 +190,6 @@ export function closeDrafts(state: TabState): TabState {
   return next;
 }
 
-/**
- * Follow a file that moved. A rename or a folder move is a new path, so the
- * tab holding the old one has to move with it rather than be reopened. A
- * draft's first save is the same move from no path to one, and makes it a note.
- *
- * Landing on a path that is already open collapses the two, since one file
- * cannot hold two editing sessions.
- */
-export function replaceNotePath(
-  state: TabState,
-  id: string,
-  to: string
-): TabState {
-  const index = indexOfId(state.tabs, id);
-  const moved = state.tabs[index];
-
-  if (moved === undefined || moved.path === to) {
-    return state;
-  }
-
-  const kind = fileKind(moved.kind);
-  const existing = state.tabs[indexOfFile(state.tabs, kind, to)];
-
-  if (existing !== undefined) {
-    return {
-      activeId: state.activeId === moved.id ? existing.id : state.activeId,
-      tabs: state.tabs.toSpliced(index, 1),
-    };
-  }
-
-  // `activeId` is untouched: the id outlives the path, which is the point.
-  return {
-    activeId: state.activeId,
-    tabs: state.tabs.with(index, { ...moved, kind, path: to }),
-  };
-}
-
 /** Turn tab `id` into `open`, collapsing onto the tab already holding that file. */
 export function reclassifyTab(
   state: TabState,
@@ -253,6 +216,28 @@ export function reclassifyTab(
     activeId: state.activeId,
     tabs: state.tabs.with(index, { ...tab, kind: open.kind, path: open.path }),
   };
+}
+
+/**
+ * Follow a file that moved. A rename or a folder move is a new path, so the
+ * tab holding the old one has to move with it rather than be reopened. A
+ * draft's first save is the same move from no path to one, and makes it a note.
+ *
+ * Landing on a path that is already open collapses the two, since one file
+ * cannot hold two editing sessions.
+ */
+export function replaceNotePath(
+  state: TabState,
+  id: string,
+  to: string
+): TabState {
+  const moved = state.tabs[indexOfId(state.tabs, id)];
+
+  if (moved === undefined || moved.path === to) {
+    return state;
+  }
+
+  return reclassifyTab(state, id, { kind: fileKind(moved.kind), path: to });
 }
 
 /** Move `id` to `index`, clamped to the ends. */

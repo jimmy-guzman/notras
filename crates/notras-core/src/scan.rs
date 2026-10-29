@@ -7,7 +7,7 @@ use cap_std::fs::{Dir, ReadDir};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::index::{self, IndexError, ScanReport};
-use crate::relative_path::RelativePath;
+use crate::relative_path::{join, RelativePath};
 
 #[derive(Debug)]
 enum Entry {
@@ -36,14 +36,6 @@ pub struct Scan {
     stale: Vec<String>,
     deletions: Option<std::vec::IntoIter<String>>,
     report: ScanReport,
-}
-
-fn join(relative: &str, name: &str) -> String {
-    if relative.is_empty() {
-        name.to_owned()
-    } else {
-        format!("{relative}/{name}")
-    }
 }
 
 impl Scan {
@@ -77,11 +69,7 @@ impl Scan {
 
     fn unreadable(&mut self, relative: &str, error: io::Error) {
         log::warn!("could not list {relative}: {error}");
-        self.shadowed.push(if relative.is_empty() {
-            String::new()
-        } else {
-            format!("{relative}/")
-        });
+        self.shadowed.push(join(relative, ""));
         self.report.failures.push(error.into());
     }
 
@@ -97,12 +85,7 @@ impl Scan {
     }
 
     fn index_path(&mut self, conn: &Connection, root: &Dir, path: &str) -> Result<(), IndexError> {
-        let result = if self.force {
-            index::reindex_file(conn, root, path)
-        } else {
-            index::index_file(conn, root, path)
-        };
-        match result {
+        match index::index_note(conn, root, path, self.force) {
             Ok(true) => self.report.changed.push(path.to_owned()),
             Ok(false) => {}
             Err(IndexError::Io(error)) => {

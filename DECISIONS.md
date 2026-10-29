@@ -1139,7 +1139,7 @@ shadcn hands over source to own. The `add -o` regeneration was what made the fil
 
 **Constraint:** editor state that CSS reads is a data attribute (`data-focus-mode`, `data-reading` and `data-source-editor`, beside the existing `data-find-open`), never a class, since `no-restyle` reports a class the Tailwind grammar cannot classify and a state hook has no styling category to land in.
 
-**Constraint:** `knip.config.ts` still ignores `src/components/ui/**`, so an unused registry part goes unreported. Pruning is a follow-up.
+**Constraint:** knip covers `src/components/ui/**`, so an unused registry part is reported.
 
 **Constraint:** `React.CSSProperties` is augmented in `src/react-css-custom-properties.d.ts` to admit `--*` keys, the route React's own types name, so a dynamic value reaches a class such as `translate-x-(--tab-x)` without a type assertion.
 

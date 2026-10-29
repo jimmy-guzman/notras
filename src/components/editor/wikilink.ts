@@ -8,7 +8,7 @@ import { hasString } from "@/components/editor/attrs";
 import { isWikilinkTitle, WIKILINK_TOKEN } from "@/core/notes";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
-import { SuggestionMenu } from "./suggestion-menu";
+import { suggestionMenuOptions } from "./suggestion-menu";
 
 export interface WikilinkOptions {
   /** Live note titles for completion. */
@@ -90,37 +90,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
           )
           .slice(0, 8),
       pluginKey: new PluginKey("wikilinkSuggestion"),
-      render: () => {
-        let menu: null | SuggestionMenu = null;
-
-        return {
-          onExit: () => {
-            menu?.destroy();
-            menu = null;
-          },
-          onKeyDown: (props) => {
-            if (props.event.key === "Escape") {
-              menu?.destroy();
-              menu = null;
-
-              return true;
-            }
-
-            if (menu === null) {
-              return false;
-            }
-
-            return menu.handleKey(props.event);
-          },
-          onStart: (props) => {
-            menu = new SuggestionMenu();
-            menu.update(toItems(props), props.clientRect?.());
-          },
-          onUpdate: (props) => {
-            menu?.update(toItems(props), props.clientRect?.());
-          },
-        };
-      },
+      ...suggestionMenuOptions(toItems),
     };
 
     return [Suggestion({ editor, ...suggestion })];

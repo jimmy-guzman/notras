@@ -24,7 +24,6 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_store::StoreExt;
 
-use crate::bindings::NotesChanged;
 use crate::library::LibraryOwner;
 use crate::state::AppState;
 use notras_core::Library;
@@ -142,12 +141,6 @@ pub(crate) fn index_cache<R: Runtime>(
     Ok(manager.path().app_cache_dir()?.join("index"))
 }
 
-pub(crate) fn conflicts_dir<R: Runtime>(
-    manager: &impl Manager<R>,
-) -> tauri::Result<std::path::PathBuf> {
-    Ok(manager.path().app_data_dir()?.join("conflicts"))
-}
-
 /// Grant the asset protocol read access to a notes dir. Images inside notes are
 /// rendered through `convertFileSrc`, so the scope has to follow the folder the
 /// user picked -- the config ships with an empty static scope.
@@ -224,17 +217,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let state = scan_app.state::<AppState>();
         match state.library.scan() {
             Ok(changed) => {
-                state.library.publish(changed.generation, || {
-                    if !changed.paths.is_empty() {
-                        if let Err(error) = (NotesChanged {
-                            paths: changed.paths,
-                        })
-                        .emit(&scan_app)
-                        {
-                            log::error!("could not emit notes-changed: {error}");
-                        }
-                    }
-                });
+                if !changed.paths.is_empty() {
+                    notes::emit_changed(&scan_app, changed.generation, changed.paths);
+                }
             }
             Err(error) => {
                 if !state.library.closing() {

@@ -2,14 +2,13 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::library::{LibraryGuard, LibraryOwner};
-use notify::RecommendedWatcher;
-use notify_debouncer_full::{Debouncer, RecommendedCache};
+use crate::watcher::NotesWatcher;
 
 pub struct AppState {
     pub library: LibraryOwner,
     /// Kept outside `library` so replacing the watcher never happens while the
     /// library lock is held (the watcher callback takes that lock).
-    pub watcher: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
+    pub watcher: Mutex<Option<NotesWatcher>>,
     /// Files handed to us by "Open With" before the frontend was listening.
     pub pending_open: Mutex<Vec<String>>,
     /// Set once a quit is in flight, so the webview gets exactly one chance to
@@ -23,9 +22,7 @@ impl AppState {
         self.library.read()
     }
 
-    pub fn watcher(
-        &self,
-    ) -> MutexGuard<'_, Option<Debouncer<RecommendedWatcher, RecommendedCache>>> {
+    pub fn watcher(&self) -> MutexGuard<'_, Option<NotesWatcher>> {
         self.watcher.lock().expect("watcher state was poisoned")
     }
 

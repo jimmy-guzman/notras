@@ -1,28 +1,25 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, DebouncedEvent};
+use notify::{RecommendedWatcher, RecursiveMode};
+use notify_debouncer_full::{
+    new_debouncer, DebounceEventResult, DebouncedEvent, Debouncer, RecommendedCache,
+};
 use tauri::{AppHandle, Manager, Runtime};
-use tauri_specta::Event;
 
-use crate::bindings::NotesChanged;
+use crate::notes;
 use crate::state::AppState;
+
+pub type NotesWatcher = Debouncer<RecommendedWatcher, RecommendedCache>;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
 /// Our own writes are indexed synchronously by the commands; the mtime skip in
-/// `index_file` keeps those from echoing back out as change events.
+/// `index_note` keeps those from echoing back out as change events.
 pub fn start<R: Runtime>(
     app: AppHandle<R>,
     notes_dir: PathBuf,
     generation: u64,
-) -> Result<
-    notify_debouncer_full::Debouncer<
-        notify::RecommendedWatcher,
-        notify_debouncer_full::RecommendedCache,
-    >,
-    notify::Error,
-> {
+) -> Result<NotesWatcher, notify::Error> {
     let handler_app = app.clone();
     let debouncer = new_debouncer(
         Duration::from_millis(300),
@@ -62,16 +59,13 @@ fn handle<R: Runtime>(app: &AppHandle<R>, generation: u64, events: &[DebouncedEv
             return;
         }
     };
-    state.library.publish(generation, || {
-        if let Err(error) = (NotesChanged { paths }).emit(app) {
-            log::error!("could not emit notes-changed: {error}");
-        }
-    });
+    notes::emit_changed(app, generation, paths);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bindings::NotesChanged;
     use crate::library::LibraryOwner;
     use notras_core::Library;
     use std::fs;

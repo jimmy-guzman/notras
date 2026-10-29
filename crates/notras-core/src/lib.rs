@@ -35,12 +35,7 @@ pub use relationships::{Graph, Hub, HubPill, Mention, MentionLine, RingMember};
 pub use scan::Scan;
 
 pub(crate) fn index_key(notes_dir: &Path) -> String {
-    use sha2::{Digest, Sha256};
-
-    Sha256::digest(notes_dir.as_os_str().as_encoded_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    note_file::sha256_hex(notes_dir.as_os_str().as_encoded_bytes())
 }
 
 /// A library directory and its disposable index, accessed under one host-owned lock.
@@ -134,7 +129,10 @@ impl Library {
     }
 
     pub fn classify_opens(&self, paths: Vec<String>) -> Vec<PendingOpen> {
-        application::classify_opens(&self.notes_dir, paths)
+        paths
+            .into_iter()
+            .map(|path| self.classify_open(path))
+            .collect()
     }
 }
 

@@ -1,3 +1,5 @@
+import type { Node } from "@tiptap/pm/model";
+
 /**
  * The caret rides through the markdown converters as a sentinel character:
  * serialize/parse the document with the sentinel at the caret, then look at
@@ -14,14 +16,8 @@ export function insertSentinel(text: string, offset: number) {
   return text.slice(0, clamped) + SENTINEL + text.slice(clamped);
 }
 
-interface DocLike {
-  descendants: (
-    callback: (node: { isText: boolean; text?: string }, pos: number) => boolean
-  ) => void;
-}
-
 /** Absolute position of the sentinel character in a parsed doc, or null. */
-export function findSentinel(doc: DocLike): null | number {
+export function findSentinel(doc: Node): null | number {
   let found: null | number = null;
 
   doc.descendants((node, pos) => {

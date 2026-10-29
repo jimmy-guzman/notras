@@ -1,5 +1,5 @@
 import { parseNote } from "@/core/frontmatter";
-import { ATX_HEADING as HEADING, retitleLeadingHeading } from "@/core/notes";
+import { ATX_HEADING as HEADING } from "@/core/notes";
 
 const LINE_BREAK = /[\r\n]/u;
 
@@ -12,11 +12,15 @@ export function renameDocument(content: string, title: string): string {
   }
 
   const parsed = parseNote(content);
-  const heading = parsed.body.split("\n").find((line) => line.trim() !== "");
+  const lines = parsed.body.split("\n");
+  const index = lines.findIndex((line) => line.trim() !== "");
+  const heading = index === -1 ? undefined : lines[index];
 
   const body =
     heading !== undefined && HEADING.test(heading)
-      ? retitleLeadingHeading(parsed.body, name)
+      ? lines
+          .with(index, `${heading.slice(0, heading.indexOf("#"))}# ${name}`)
+          .join("\n")
       : `# ${name}\n\n${parsed.body}`;
 
   return content.slice(0, content.length - parsed.body.length) + body;

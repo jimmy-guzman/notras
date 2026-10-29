@@ -15,7 +15,6 @@ struct ActiveScan {
 }
 
 /// A replacement announced but not installed, holding what its watcher saw so far.
-#[derive(Debug)]
 struct Pending {
     generation: u64,
     observed: Vec<PathBuf>,
@@ -37,15 +36,6 @@ struct OwnedLibrary {
 pub struct Preparation<'a> {
     owner: &'a LibraryOwner,
     pub generation: u64,
-}
-
-impl std::fmt::Debug for Preparation<'_> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("Preparation")
-            .field("generation", &self.generation)
-            .finish_non_exhaustive()
-    }
 }
 
 impl Drop for Preparation<'_> {

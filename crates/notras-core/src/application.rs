@@ -11,7 +11,7 @@ use crate::{
     frontmatter, index, markdown,
     note_file::{content_revision, timestamp_millis, Exchange, TempSibling},
     relationships,
-    relative_path::{ensure_folder, Located, RelativePath},
+    relative_path::{ensure_folder, join, Located, RelativePath},
     Library,
 };
 
@@ -165,10 +165,6 @@ fn in_line_endings_of(disk: &str, content: &str) -> String {
     }
 }
 
-fn is_markdown(path: &Path) -> bool {
-    index::is_note_file(path)
-}
-
 /// Whether the system would run the file rather than open it.
 ///
 /// LaunchServices executes a file with no extension when its mode allows, and
@@ -231,18 +227,21 @@ fn collision(path: &str) -> CommandError {
     }
 }
 
+fn publish_error(path: &str, error: io::Error) -> CommandError {
+    if error.kind() == io::ErrorKind::AlreadyExists {
+        CommandError::with_source(collision(path).message, error)
+    } else {
+        error.into()
+    }
+}
+
 /// Publish a fully written sibling, refusing a destination that already exists.
 fn create_file(target: &Located, rel: &str, content: &str) -> Result<i64, CommandError> {
     let mut temp = TempSibling::create(&target.dir)?;
     write_temp(temp.file_mut(), content)?;
     let updated_at = checked_mtime(temp.file())?;
-    temp.publish(&target.name).map_err(|error| {
-        if error.kind() == io::ErrorKind::AlreadyExists {
-            CommandError::with_source(collision(rel).message, error)
-        } else {
-            error.into()
-        }
-    })?;
+    temp.publish(&target.name)
+        .map_err(|error| publish_error(rel, error))?;
     Ok(updated_at)
 }
 
@@ -618,6 +617,15 @@ fn record_folders(core: &Library, folder: &str) -> Vec<MutationWarning> {
     warnings
 }
 
+/// A dangling symlink counts as taken.
+fn taken(dir: &Dir, name: &str) -> io::Result<bool> {
+    match dir.symlink_metadata(name) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 fn publish_move(
     core: &Library,
     from: &RelativePath,
@@ -631,10 +639,8 @@ fn publish_move(
         dir: ensure_folder(&core.root, folder)?,
         name: name.to_owned(),
     };
-    match target.symlink_metadata() {
-        Ok(_) => return Err(collision(to.as_str())),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
+    if taken(&target.dir, &target.name)? {
+        return Err(collision(to.as_str()));
     }
     let mut temp = TempSibling::create(&target.dir)?;
     temp.file().set_permissions(metadata.permissions())?;
@@ -643,13 +649,8 @@ fn publish_move(
         .set_times(fs::FileTimes::new().set_modified(metadata.modified()?))?;
     temp.file().sync_all()?;
     let updated_at = checked_mtime(temp.file())?;
-    temp.publish(&target.name).map_err(|error| {
-        if error.kind() == io::ErrorKind::AlreadyExists {
-            CommandError::with_source(collision(to.as_str()).message, error)
-        } else {
-            error.into()
-        }
-    })?;
+    temp.publish(&target.name)
+        .map_err(|error| publish_error(to.as_str(), error))?;
     let mut warnings = Vec::new();
     let remaining_source = match source.remove_file() {
         Ok(()) => None,
@@ -705,7 +706,7 @@ fn save_file(
     name: Option<SaveName>,
     expected: &str,
 ) -> Result<Publication<FileCommit>, CommandError> {
-    if !is_markdown(Path::new(&source.name)) {
+    if !index::is_note_file(Path::new(&source.name)) {
         return Err("Notes must be Markdown files".into());
     }
     let filename = match name {
@@ -717,7 +718,7 @@ fn save_file(
                 .map(|title| format!("{}.md", filename_from_title(&title)))
         }
         Some(SaveName::Filename(filename)) => {
-            if !valid_segment(&filename) || !is_markdown(Path::new(&filename)) {
+            if !valid_segment(&filename) || !index::is_note_file(Path::new(&filename)) {
                 return Err("Invalid note filename".into());
             }
             Some(filename)
@@ -787,7 +788,7 @@ fn save_file(
 }
 
 pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
-    if !is_markdown(path) {
+    if !index::is_note_file(path) {
         return Err("Only Markdown files can be opened".into());
     }
     let file = File::open(path)?;
@@ -802,7 +803,7 @@ pub fn read_external(path: &Path) -> Result<NoteFile, CommandError> {
 /// symlink is followed, since the document is the anchor and nothing around it
 /// is the library's to fence.
 fn external_target(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
-    if !is_markdown(document) {
+    if !index::is_note_file(document) {
         return Err("Only Markdown files can be opened".into());
     }
     if !fs::metadata(document)?.is_file() {
@@ -839,7 +840,7 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
 /// The shell classifies it as a note or another external file.
 pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
-    if !is_markdown(&target) {
+    if !index::is_note_file(&target) {
         return Err("Only Markdown files open as tabs".into());
     }
     if !fs::metadata(&target)?.is_file() {
@@ -853,7 +854,7 @@ pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, Comm
 /// Checked the way a note's linked file is before the shell hands it over.
 pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
-    if is_markdown(&target) {
+    if index::is_note_file(&target) {
         return Err("Markdown files open in notras".into());
     }
     let name = target
@@ -955,14 +956,6 @@ pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     }
 }
 
-pub fn classify_opens(notes_dir: &Path, paths: Vec<String>) -> Vec<PendingOpen> {
-    let notes_dir = fs::canonicalize(notes_dir).unwrap_or_else(|_| notes_dir.to_path_buf());
-    paths
-        .into_iter()
-        .map(|path| classify_open(&notes_dir, path))
-        .collect()
-}
-
 /// The extension for an image's bytes, read from its signature rather than
 /// from the type the webview reports.
 fn image_extension(bytes: &[u8]) -> Option<&'static str> {
@@ -1007,11 +1000,7 @@ impl Library {
         let mut path = RelativePath::parse(&format!("{base}.md"))?;
         let parent = self.root.try_clone()?;
         let mut counter = 1;
-        while match parent.symlink_metadata(path.split().1) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        } {
+        while taken(&parent, path.split().1)? {
             counter += 1;
             path = RelativePath::parse(&format!("{}.md", suffixed_filename(&base, counter)))?;
         }
@@ -1046,11 +1035,7 @@ impl Library {
         };
         let (folder, _) = relative.split();
         let mut receipt = MutationReceipt {
-            path: if folder.is_empty() {
-                result.name
-            } else {
-                format!("{folder}/{}", result.name)
-            },
+            path: join(folder, &result.name),
             revision: result.revision,
             updated_at: result.updated_at,
             warnings: result.warnings,
@@ -1079,18 +1064,13 @@ impl Library {
     ) -> Result<PathMutationReceipt, CommandError> {
         let folder = validate_folder(folder)?;
         let name = path.rsplit('/').next().ok_or("A note without a filename")?;
-        let target = if folder.is_empty() {
-            name.to_owned()
-        } else {
-            format!("{folder}/{name}")
-        };
         let from = RelativePath::parse(&path)?;
-        let to = RelativePath::parse(&target)?;
+        let to = RelativePath::parse(&join(&folder, name))?;
         let opened = from.resolve(&self.root)?.open_read()?;
         let metadata = opened.metadata()?;
         let updated_at = timestamp_millis(metadata.modified())?;
         let content = io::read_to_string(opened)?;
-        if path == target {
+        if path == to.as_str() {
             return Ok(PathMutationReceipt {
                 path,
                 file: NoteFile::from_disk(content, updated_at),
@@ -1127,11 +1107,7 @@ impl Library {
         };
         let mut candidate = name;
         let mut counter = 1;
-        while match dir.symlink_metadata(&candidate) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        } {
+        while taken(&dir, &candidate)? {
             counter += 1;
             candidate = format!("{stem}-{counter}{ext}");
         }
@@ -1188,11 +1164,7 @@ impl Library {
             .unwrap_or_default();
         let mut candidate = format!("pasted-{stamp}.{extension}");
         let mut counter = 1;
-        while match dir.symlink_metadata(&candidate) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        } {
+        while taken(&dir, &candidate)? {
             counter += 1;
             candidate = format!("pasted-{stamp}-{counter}.{extension}");
         }
@@ -1869,7 +1841,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         fs::write(directory.path().join("a.md"), "# old").unwrap();
-        index::index_file(&core.conn, &core.root, "a.md").unwrap();
+        index::index_note(&core.conn, &core.root, "a.md", false).unwrap();
         core.conn.execute_batch("PRAGMA query_only = ON").unwrap();
         let receipt = saved(&core, "a.md", "# saved", None).unwrap();
         assert!(
@@ -2348,10 +2320,12 @@ mod tests {
         let link = link_directory.path().join("library");
         std::os::unix::fs::symlink(&real, &link).unwrap();
 
-        let through_link =
-            classify_opens(&link, vec![real.join("a.md").to_string_lossy().to_string()]);
-        let through_real =
-            classify_opens(&real, vec![link.join("a.md").to_string_lossy().to_string()]);
+        let through_link = Library::open(&link, &link_directory.path().join(".index"))
+            .unwrap()
+            .classify_opens(vec![real.join("a.md").to_string_lossy().to_string()]);
+        let through_real = Library::open(&real, &real_directory.path().join(".index"))
+            .unwrap()
+            .classify_opens(vec![link.join("a.md").to_string_lossy().to_string()]);
 
         assert_eq!(
             through_link,

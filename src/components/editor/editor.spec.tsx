@@ -2072,6 +2072,23 @@ describe("mermaid diagrams", () => {
 
     expect(handle.getContent().trimEnd()).toBe("```mermaid\n\n```");
   });
+
+  it("should close the slash menu on escape and keep the typed text", async () => {
+    const { editor, handle } = await mount({ initialContent: "" });
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("/dia");
+
+    expect(screen.getByText("diagram")).toBeVisible();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByText("diagram")).toBeNull();
+    expect(handle.getContent()).toBe("/dia");
+  });
 });
 
 describe("title menu", () => {
@@ -2122,6 +2139,59 @@ describe("title menu", () => {
 
     expect(screen.getByText("Array notes")).toBeVisible();
     expect(screen.queryByText("Array[0]")).toBeNull();
+  });
+
+  it("should insert the title the arrow keys pick", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list", "groceries"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see [[[[groc{ArrowDown}{Enter}");
+
+    expect(handle.getContent()).toBe("see [[groceries]] ");
+  });
+
+  it("should wrap to the last title from the first", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list", "groceries", "grocer"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see [[[[groc{ArrowUp}{Enter}");
+
+    expect(handle.getContent()).toBe("see [[grocer]] ");
+  });
+
+  it("should close the title menu on escape and keep the typed text", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("see [[[[groc");
+
+    expect(screen.getByText("grocery list")).toBeVisible();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByText("grocery list")).toBeNull();
+    expect(handle.getContent()).toBe("see [[groc");
   });
 });
 

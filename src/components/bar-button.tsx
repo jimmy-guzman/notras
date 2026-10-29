@@ -11,7 +11,6 @@ import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 
 interface BarButtonProps {
-  className?: string;
   Icon: LucideIcon;
   /** The accessible name, the tooltip, and the registration the chords are read from. */
   label: string;
@@ -19,7 +18,7 @@ interface BarButtonProps {
 }
 
 /** An icon-only ghost button in a bar, named and chorded by its tooltip. */
-export function BarButton({ className, Icon, label, onClick }: BarButtonProps) {
+export function BarButton({ Icon, label, onClick }: BarButtonProps) {
   const chords = useChordsByName().get(label);
 
   return (
@@ -28,7 +27,6 @@ export function BarButton({ className, Icon, label, onClick }: BarButtonProps) {
         render={
           <Button
             aria-label={label}
-            className={className}
             onClick={onClick}
             size="icon-xs"
             variant="ghost"

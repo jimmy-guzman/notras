@@ -5,7 +5,7 @@ import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
 import type { SuggestionMenuItem } from "./suggestion-menu";
-import { SuggestionMenu } from "./suggestion-menu";
+import { suggestionMenuOptions } from "./suggestion-menu";
 
 interface SlashCommand {
   /** Markdown shorthand shown on the right; omitted when there is none. */
@@ -167,38 +167,7 @@ export const SlashMenu = Extension.create({
         );
       },
       pluginKey: new PluginKey("slashMenuSuggestion"),
-      render: () => {
-        let menu: null | SuggestionMenu = null;
-
-        return {
-          onExit: () => {
-            menu?.destroy();
-            menu = null;
-          },
-          onKeyDown: (props) => {
-            if (props.event.key === "Escape") {
-              menu?.destroy();
-              menu = null;
-
-              return true;
-            }
-
-            if (menu === null) {
-              return false;
-            }
-
-            return menu.handleKey(props.event);
-          },
-          onStart: (props) => {
-            menu = new SuggestionMenu();
-            menu.update(toItems(props), props.clientRect?.());
-          },
-          onUpdate: (props) => {
-            menu?.update(toItems(props), props.clientRect?.());
-          },
-        };
-      },
-      startOfLine: false,
+      ...suggestionMenuOptions(toItems),
     };
 
     return [Suggestion({ editor, ...suggestion })];

@@ -676,7 +676,8 @@ body.dragging .ProseMirror .selected-text,
   display: flex;
   flex-direction: column;
   min-width: 11rem;
-  max-height: 18rem;
+  max-width: calc(100vw - 1rem);
+  max-height: min(18rem, var(--menu-room));
   padding: 0.25rem;
   overflow-y: auto;
   color: var(--popover-foreground);
@@ -684,6 +685,9 @@ body.dragging .ProseMirror .selected-text,
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-popover);
+}
+.suggestion-menu[data-query-hidden] {
+  visibility: hidden;
 }
 /* Concentric with the menu: the parent radius less the parent padding, so the
    two curves stay parallel if --radius moves. */

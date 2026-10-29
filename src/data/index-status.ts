@@ -5,13 +5,10 @@ import { nativeCommand } from "@/data/native-command";
 import { commands } from "@/server/adapters/bindings";
 import type { IndexStatus } from "@/server/adapters/bindings";
 
-export async function getIndexStatus(): Promise<IndexStatus> {
-  return await nativeCommand(async () => await commands.indexStatus());
-}
-
 export const indexStatusQuery = queryOptions({
   meta: { what: "could not refresh the index status" },
-  queryFn: getIndexStatus,
+  queryFn: async () =>
+    await nativeCommand(async () => await commands.indexStatus()),
   queryKey: ["index-status"] as const,
 });
 

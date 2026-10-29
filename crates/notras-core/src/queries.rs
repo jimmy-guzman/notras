@@ -457,7 +457,7 @@ mod tests {
         let absolute = core.notes_dir.join(path);
         fs::create_dir_all(absolute.parent().unwrap()).unwrap();
         fs::write(absolute, content).unwrap();
-        index::index_file(&core.conn, &core.root, path).unwrap();
+        index::index_note(&core.conn, &core.root, path, false).unwrap();
         core.conn
             .execute(
                 "UPDATE note SET created_at = 0, updated_at = ?1 WHERE path = ?2",

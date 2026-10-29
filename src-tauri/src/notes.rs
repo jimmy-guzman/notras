@@ -45,7 +45,7 @@ fn emit_warnings<R: Runtime>(app: &AppHandle<R>, warnings: &[MutationWarning]) {
     }
 }
 
-fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
+pub(crate) fn emit_changed<R: Runtime>(app: &AppHandle<R>, generation: u64, paths: Vec<String>) {
     app.state::<AppState>().library.publish(generation, || {
         if let Err(error) = (NotesChanged { paths }).emit(app) {
             log::error!("could not emit notes-changed: {error}");
@@ -370,8 +370,11 @@ pub async fn write_external<R: Runtime>(
 }
 
 fn conflicts_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, CommandError> {
-    crate::conflicts_dir(app)
-        .map_err(|error| CommandError::with_source("The data folder is unavailable", error))
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| CommandError::with_source("The data folder is unavailable", error))?;
+    Ok(data.join("conflicts"))
 }
 
 #[tauri::command]

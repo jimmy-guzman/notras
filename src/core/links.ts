@@ -104,28 +104,18 @@ function comparePaths(left: string, right: string) {
   const leftPoints = Array.from(left, (char) => char.codePointAt(0));
   const rightPoints = Array.from(right, (char) => char.codePointAt(0));
 
-  for (
-    let at = 0;
-    at < Math.max(leftPoints.length, rightPoints.length);
-    at += 1
-  ) {
-    const a = leftPoints[at];
-    const b = rightPoints[at];
+  const at = leftPoints.findIndex(
+    (point, index) => point !== rightPoints[index]
+  );
 
-    if (a === undefined) {
-      return b === undefined ? 0 : -1;
-    }
+  const a = leftPoints[at];
+  const b = rightPoints[at];
 
-    if (b === undefined) {
-      return 1;
-    }
-
-    if (a !== b) {
-      return a - b;
-    }
+  if (at === -1 || a === undefined) {
+    return leftPoints.length - rightPoints.length;
   }
 
-  return 0;
+  return b === undefined ? 1 : a - b;
 }
 
 function namesOf(meta: NoteMeta) {
