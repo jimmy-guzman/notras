@@ -676,7 +676,8 @@ body.dragging .ProseMirror .selected-text,
   display: flex;
   flex-direction: column;
   min-width: 11rem;
-  max-height: 18rem;
+  max-width: calc(100vw - 1rem);
+  max-height: min(18rem, var(--menu-room));
   padding: 0.25rem;
   overflow-y: auto;
   color: var(--popover-foreground);

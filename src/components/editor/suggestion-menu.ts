@@ -4,39 +4,58 @@ import type {
   SuggestionOptions,
 } from "@tiptap/suggestion";
 
+const GAP = 4;
 const MARGIN = 8;
 
 /**
- * Fixed, like every floating surface, and kept a margin inside the viewport,
- * which the plugin's `flip` alone does not do.
+ * The plugin's `flip` keeps no margin, so this keeps 8px on every side and
+ * shortens the menu to the roomier side of the query.
  */
 const floatingUi: SuggestionFloatingUiOptions = {
   middleware: [
     {
-      fn: ({ rects, x, y }) => ({
-        x: Math.max(
-          MARGIN,
-          Math.min(x, window.innerWidth - rects.floating.width - MARGIN)
-        ),
-        y: Math.max(MARGIN, y),
-      }),
+      fn: ({ elements, rects, x, y }) => {
+        const room = `${Math.max(
+          rects.reference.y - GAP - MARGIN,
+          window.innerHeight -
+            rects.reference.y -
+            rects.reference.height -
+            GAP -
+            MARGIN
+        )}px`;
+
+        if (elements.floating.style.getPropertyValue("--menu-room") !== room) {
+          elements.floating.style.setProperty("--menu-room", room);
+
+          return { reset: { rects: true } };
+        }
+
+        const above = rects.reference.y - GAP - rects.floating.height;
+
+        const crowdsBottom =
+          y + rects.floating.height > window.innerHeight - MARGIN;
+
+        return {
+          x: Math.max(
+            MARGIN,
+            Math.min(x, window.innerWidth - rects.floating.width - MARGIN)
+          ),
+          y: Math.max(MARGIN, crowdsBottom ? above : y),
+        };
+      },
       name: "clampToViewport",
     },
   ],
   strategy: "fixed",
 };
 
-/**
- * Minimal DOM dropdown shared by the slash menu and wikilink completion. The
- * suggestion plugin mounts and places it; it is styled with app tokens (see
- * `.suggestion-menu` in styles.css).
- */
 export interface SuggestionMenuItem {
   hint?: string;
   label: string;
   run: () => void;
 }
 
+/** The dropdown both menus share, styled by `.suggestion-menu` in styles.css. */
 class SuggestionMenu {
   private static instances = 0;
 
@@ -53,7 +72,10 @@ class SuggestionMenu {
     SuggestionMenu.instances += 1;
     this.id = `suggestion-menu-${SuggestionMenu.instances}`;
     this.element.id = this.id;
-    this.unmount = mount(this.element);
+    // autoUpdate cannot see the query span move when it wraps in a short note.
+    this.unmount = mount(this.element, {
+      autoUpdate: { animationFrame: true },
+    });
   }
 
   destroy() {
@@ -141,15 +163,15 @@ class SuggestionMenu {
   }
 }
 
-/** Shows a suggestion plugin's items in a `SuggestionMenu`, as `toItems` labels them. */
 export function suggestionMenuOptions<I>(
   toItems: (props: {
     command: (item: I) => void;
     items: I[];
   }) => SuggestionMenuItem[]
-): Pick<SuggestionOptions<I, I>, "floatingUi" | "render"> {
+): Pick<SuggestionOptions<I, I>, "floatingUi" | "offset" | "render"> {
   return {
     floatingUi,
+    offset: { mainAxis: GAP },
     render: () => {
       let menu: null | SuggestionMenu = null;
 
