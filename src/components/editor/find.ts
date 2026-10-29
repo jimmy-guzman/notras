@@ -51,6 +51,9 @@ function isFindState(value: unknown): value is FindState {
   );
 }
 
+// Not `RegExp.escape`: WebKit escapes an astral character by its low 16 bits,
+// so U+2002A gains a backslash and stops matching under the `u` flag.
+const REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const FIND_CLEARANCE = 52;
 
 // The screen is sampled at mid-width, so its first and last lines reach past
@@ -118,7 +121,7 @@ function matchesIn(doc: Node, query: string | null) {
     return [];
   }
 
-  const pattern = new RegExp(RegExp.escape(query), "giu");
+  const pattern = new RegExp(query.replaceAll(REGEXP_SPECIAL, "\\$&"), "giu");
   const matches: Match[] = [];
   doc.descendants((node, position) => {
     if (!node.isTextblock) {
