@@ -14,7 +14,6 @@
     "dialog:default",
     "opener:default",
     "opener:allow-reveal-item-in-dir",
-    "store:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-is-registered",
