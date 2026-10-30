@@ -138,7 +138,7 @@ What notras does, as claims checkable against a running build.
 
 ## Search and the palette
 
-- ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing. The find button at the right end of the title bar opens find mode too, over any tab and with none open.
+- ⌘P toggles the palette over whatever is showing, in find mode. ⌘⇧P toggles it in actions mode. Pressing one while the other shows switches mode rather than closing. Closing either mode fades the palette out, and its rows stay as they were when it closed until it is gone. The find button at the right end of the title bar opens find mode too, over any tab and with none open.
 - Find mode lists notes and never actions. Actions mode lists actions and never notes.
 - Search runs on SQLite FTS5 over the title and the body text rich mode shows, less reference definitions. Link destinations, images and the `<img>` tags rich mode draws as images are left out too, and `link:` finds the destinations links use. Results rank a title equal to the query, ignoring case, first, then titles containing a hit, then body hits. Within each band pinned notes lead, then bm25, then recency. With no query or only spaces, the palette lists pinned notes first. Within the pinned and unpinned groups, visited notes come first in last-chosen order, then unvisited notes by last saved. File path breaks ties.
 - Each term is stripped to letters, digits and `_`, then matched as a prefix. Terms are joined with AND.

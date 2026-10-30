@@ -457,6 +457,74 @@ describe("command palette actions", () => {
     expect(document.body.textContent).not.toContain("export pdf");
     expect(document.body.textContent).toContain("nothing found");
   });
+
+  it("should keep the showing tab's rows while the palette fades out", async () => {
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: true,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.folders().queryKey, []);
+    client.setQueryData(noteQueries.tags().queryKey, []);
+    client.setQueryData(appearanceQuery.queryKey, "auto");
+    onTestFinished(() => {
+      closeTab(tab);
+      client.clear();
+    });
+
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <CommandPalette
+          mode="actions"
+          notesDir="/notes"
+          onOpenChange={() => {}}
+          onOpenSettings={() => {}}
+          open
+        />
+      </QueryClientProvider>
+    );
+
+    const fade = screen
+      .getByRole("dialog")
+      .animate([{ opacity: 1 }, { opacity: 0 }], 60_000);
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <CommandPalette
+          mode="actions"
+          notesDir="/notes"
+          onOpenChange={() => {}}
+          onOpenSettings={() => {}}
+          open={false}
+        />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText("turn off markdown source")).toBeInTheDocument();
+    expect(screen.getByText("pin note")).toBeInTheDocument();
+    act(() => {
+      fade.finish();
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("pin note")).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("recent commands", () => {

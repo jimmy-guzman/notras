@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { object, parse, string } from "valibot";
@@ -596,5 +597,430 @@ describe("layout", () => {
     before.setStart(paragraph, 0);
     before.setEnd(anchor, caret.anchorOffset);
     expect(before.toString()).toBe("An ");
+  });
+
+  it("should keep the actions palette on screen while it fades out", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "first.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return {
+          content: "# First\n\nNothing here",
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Nothing here")).toBeInTheDocument();
+    await user.keyboard("{Control>}{Shift>}p{/Shift}{/Control}");
+    expect(await screen.findByText("pin note")).toBeInTheDocument();
+
+    const fade = screen
+      .getByRole("dialog")
+      .animate([{ opacity: 1 }, { opacity: 0 }], 60_000);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByText("pin note")).toBeInTheDocument();
+    act(() => {
+      fade.finish();
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("pin note")).not.toBeInTheDocument();
+    });
+  });
+
+  it("should keep a picked toggle's label while the palette fades out", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "first.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return {
+          content: "# First\n\nNothing here",
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+      localStorage.removeItem("recent-actions");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Nothing here")).toBeInTheDocument();
+    await user.keyboard("{Control>}{Shift>}p{/Shift}{/Control}");
+    expect(
+      await screen.findByText("turn on markdown source")
+    ).toBeInTheDocument();
+
+    const fade = screen
+      .getByRole("dialog")
+      .animate([{ opacity: 1 }, { opacity: 0 }], 60_000);
+
+    await user.click(
+      screen.getByRole("option", { name: /^turn on markdown source/u })
+    );
+
+    expect(screen.getByText("turn on markdown source")).toBeInTheDocument();
+    expect(
+      screen.queryByText("turn off markdown source")
+    ).not.toBeInTheDocument();
+    act(() => {
+      fade.finish();
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: "markdown source",
+        pressed: true,
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("should keep the closed tab's rows while the palette fades out", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "first.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return {
+          content: "# First\n\nNothing here",
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+      localStorage.removeItem("recent-actions");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Nothing here")).toBeInTheDocument();
+    await user.keyboard("{Control>}{Shift>}p{/Shift}{/Control}");
+    expect(await screen.findByText("close tab")).toBeInTheDocument();
+
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).queryByText("recent")).not.toBeInTheDocument();
+
+    const fade = dialog.animate([{ opacity: 1 }, { opacity: 0 }], 60_000);
+
+    await user.click(screen.getByRole("option", { name: "close tab ctrl+w" }));
+
+    expect(screen.getByText("pin note")).toBeInTheDocument();
+    expect(within(dialog).queryByText("recent")).not.toBeInTheDocument();
+    act(() => {
+      fade.finish();
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("pin note")).not.toBeInTheDocument();
+    });
+    expect(getTabState().tabs).toStrictEqual([]);
+  });
+
+  it("should keep a picked recent note in the list while the palette fades out", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command, args) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "first.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes") {
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "first.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "First",
+            updatedAt: 3,
+          },
+          {
+            createdAt: 0,
+            folder: "",
+            path: "second.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "Second",
+            updatedAt: 2,
+          },
+          {
+            createdAt: 0,
+            folder: "",
+            path: "third.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "Third",
+            updatedAt: 1,
+          },
+        ];
+      }
+
+      if (command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        const { path } = parse(object({ path: string() }), args);
+
+        return {
+          content:
+            path === "second.md"
+              ? "# Second\n\nPicked"
+              : "# First\n\nNothing here",
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Nothing here")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "find a note" }));
+
+    const dialog = screen.getByRole("dialog");
+
+    expect(
+      await within(dialog).findByRole("option", { name: /Second/u })
+    ).toBeInTheDocument();
+
+    const fade = dialog.animate([{ opacity: 1 }, { opacity: 0 }], 60_000);
+
+    await user.click(within(dialog).getByRole("option", { name: /Second/u }));
+
+    expect(await screen.findByText("Picked")).toBeInTheDocument();
+    expect(within(dialog).getByText("Second")).toBeInTheDocument();
+    expect(within(dialog).getByText("Third")).toBeInTheDocument();
+    act(() => {
+      fade.finish();
+    });
+    await waitFor(() => {
+      expect(dialog).not.toBeInTheDocument();
+    });
   });
 });

@@ -60,6 +60,7 @@ import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { appearanceQuery } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
+import { readRecentActions } from "@/lib/recent-actions";
 import { forgetNote } from "@/lib/recent-notes";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
@@ -145,6 +146,27 @@ function PaletteFooter({
   );
 }
 
+/**
+ * Shows `children` as last rendered while `open`. The popup stays on screen
+ * through its exit animation, and a pick changes what the rows read in the
+ * same update that closes the palette.
+ */
+function HeldOnClose({
+  children,
+  open,
+}: {
+  children: React.ReactNode;
+  open: boolean;
+}): React.ReactNode {
+  const [held, setHeld] = useState(children);
+
+  if (open && held !== children) {
+    setHeld(children);
+  }
+
+  return open ? children : held;
+}
+
 interface CommandPaletteProps {
   mode: PaletteMode;
   notesDir: string;
@@ -163,7 +185,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const { activeId, tabs } = useTabState();
   // A snapshot changes on every keystroke and this component is mounted for
-  // the life of the window, so it subscribes only while it is on screen.
+  // the life of the window, so it subscribes only while it is open.
   const activeSnapshot = useTabSnapshot(open ? activeId : "");
   const tabView = useTabView(open ? activeId : "");
   const chordsByName = useChordsByName();
@@ -198,6 +220,10 @@ export function CommandPalette({
   const newTabRef = useRef(false);
 
   const [query, setQuery] = useState("");
+
+  // Held here rather than in ActionsView, so a pick's update is frozen with
+  // the rest of the rows while the palette fades out.
+  const [recentActions, setRecentActions] = useState(readRecentActions);
 
   const [view, setView] = useState<PaletteView>(mode);
   const [filterQuery, setFilterQuery] = useState("");
@@ -776,89 +802,94 @@ export function CommandPalette({
       open={open}
       title="command palette"
     >
-      <Command
-        className={cn(
-          "h-auto min-h-0 **:data-[slot=command-input-wrapper]:shrink-0",
-          { "flex-1": listView }
-        )}
-        key={view}
-        label={
-          {
-            actions: "run an action",
-            delete: "confirm deletion",
-            filters: "add a search filter",
-            find: "find a note",
-            move: "move to folder",
-            rename: "rename note",
-            tags: "edit tags",
-          }[view]
-        }
-        onKeyDownCapture={trackNewTab}
-        onMouseDownCapture={trackNewTab}
-        shouldFilter={false}
-      >
-        <CommandInput
-          data-slot="input-group-control"
-          onSelect={trackCursor}
-          onValueChange={changeInput}
-          placeholder={
+      <HeldOnClose open={open}>
+        <Command
+          className={cn(
+            "h-auto min-h-0 **:data-[slot=command-input-wrapper]:shrink-0",
+            { "flex-1": listView }
+          )}
+          key={view}
+          label={
             {
-              actions: "run an action...",
+              actions: "run an action",
               delete: "confirm deletion",
-              filters: "search filters...",
-              find: "find a note...",
-              move: "move to folder... (type a new name to create it)",
-              rename: "new title...",
-              tags: "find or create a tag...",
+              filters: "add a search filter",
+              find: "find a note",
+              move: "move to folder",
+              rename: "rename note",
+              tags: "edit tags",
             }[view]
           }
-          readOnly={view === "delete"}
-          ref={inputRef}
-          value={inputValue}
-        />
-        <CommandList
-          className={cn("min-h-0", { "max-h-none flex-1": listView })}
-          ref={listRef}
+          onKeyDownCapture={trackNewTab}
+          onMouseDownCapture={trackNewTab}
+          shouldFilter={false}
         >
-          {noteView}
+          <CommandInput
+            data-slot="input-group-control"
+            onSelect={trackCursor}
+            onValueChange={changeInput}
+            placeholder={
+              {
+                actions: "run an action...",
+                delete: "confirm deletion",
+                filters: "search filters...",
+                find: "find a note...",
+                move: "move to folder... (type a new name to create it)",
+                rename: "new title...",
+                tags: "find or create a tag...",
+              }[view]
+            }
+            readOnly={view === "delete"}
+            ref={inputRef}
+            value={inputValue}
+          />
+          <CommandList
+            className={cn("min-h-0", { "max-h-none flex-1": listView })}
+            ref={listRef}
+          >
+            {noteView}
 
-          {view === "filters" ? (
-            <PaletteFilters onSelect={chooseFilter} query={filterQuery} />
-          ) : null}
+            {view === "filters" ? (
+              <PaletteFilters onSelect={chooseFilter} query={filterQuery} />
+            ) : null}
 
-          {view === "find" ? (
-            <PaletteSearch
-              cursor={cursor}
-              notesDir={notesDir}
-              onCreate={createFromQuery}
-              onLoadingChange={setSearchLoading}
-              onQueryChange={applySuggestion}
-              onResultQueryChange={resetSearchScroll}
-              onSelectNote={openNote}
-              query={query}
-            />
-          ) : null}
+            {view === "find" ? (
+              <PaletteSearch
+                cursor={cursor}
+                notesDir={notesDir}
+                onCreate={createFromQuery}
+                onLoadingChange={setSearchLoading}
+                onQueryChange={applySuggestion}
+                onResultQueryChange={resetSearchScroll}
+                onSelectNote={openNote}
+                query={query}
+                showing={currentPath}
+              />
+            ) : null}
 
-          {view === "actions" ? (
-            <ActionsView
-              actions={actions.filter(
-                (action) =>
-                  reachable[action.needs] &&
-                  (matchesQuery(action.text) || matchesQuery(action.label))
-              )}
-              chordsByName={chordsByName}
-              query={query}
-            />
-          ) : null}
-        </CommandList>
-      </Command>
-      {hasFooter ? (
-        <PaletteFooter
-          label={footerLabel}
-          loading={searchLoading}
-          onSelect={footerAction}
-        />
-      ) : null}
+            {view === "actions" ? (
+              <ActionsView
+                actions={actions.filter(
+                  (action) =>
+                    reachable[action.needs] &&
+                    (matchesQuery(action.text) || matchesQuery(action.label))
+                )}
+                chordsByName={chordsByName}
+                history={recentActions}
+                onHistoryChange={setRecentActions}
+                query={query}
+              />
+            ) : null}
+          </CommandList>
+        </Command>
+        {hasFooter ? (
+          <PaletteFooter
+            label={footerLabel}
+            loading={searchLoading}
+            onSelect={footerAction}
+          />
+        ) : null}
+      </HeldOnClose>
     </CommandDialog>
   );
 }
