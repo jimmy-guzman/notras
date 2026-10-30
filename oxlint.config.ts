@@ -28,6 +28,7 @@ export default defineConfig({
   ],
   // Dependency analyzers read plugin packages off the root config only, so the preset's entry is restated here.
   jsPlugins: [...(jsPlugins.jsPlugins ?? []), ...(shadcn.jsPlugins ?? [])],
+  options: { typeAware: true },
   overrides: [
     {
       files: ["**/*.spec.{ts,tsx}"],

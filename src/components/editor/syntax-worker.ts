@@ -230,13 +230,15 @@ async function respond({ code, document, id, language }: SyntaxRequest) {
   self.postMessage(response);
 }
 
+async function respondAfter(previous: Promise<void>, request: SyntaxRequest) {
+  await previous;
+  await respond(request);
+}
+
 // One request at a time: a splice describes the change since the answer
 // before it, so answers for a document must leave in the order they arrived.
 let queue = Promise.resolve();
 
 self.addEventListener("message", (event: MessageEvent<SyntaxRequest>) => {
-  // oxlint-disable-next-line promise/prefer-await-to-then -- the request queue chains each answer on the one before it
-  queue = queue.then(async () => {
-    await respond(event.data);
-  });
+  queue = respondAfter(queue, event.data);
 });
