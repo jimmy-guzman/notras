@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/core";
-import { Extension } from "@tiptap/core";
+import { Extension, findChildren } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
@@ -7,7 +7,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { bodyTitle } from "@/core/notes";
 
 import { hasNumber } from "./attrs";
-import { converterOf, fileMarkdown, serializeMarkdown } from "./extensions";
+import { converterOf, fileMarkdown } from "./extensions";
 import { headingText } from "./heading-anchors";
 
 export interface OutlineHeading {
@@ -27,14 +27,12 @@ function headingLevel(heading: Node) {
   return heading.attrs.level;
 }
 
-function h1Title(editor: Editor) {
-  const source = bodyTitle(serializeMarkdown(editor));
-
-  return source?.depth === 1 ? source.title : null;
+function isH1(node: Node) {
+  return node.type.name === "heading" && headingLevel(node) === 1;
 }
 
 /** With the note's link definitions, so a reference link resolves. */
-function titleOf(editor: Editor, heading: Node) {
+function titleOf(editor: Editor, blocks: Node[]) {
   const definitions = editor.state.doc.children.filter(
     (node) => node.type.name === "linkDefinition"
   );
@@ -42,9 +40,26 @@ function titleOf(editor: Editor, heading: Node) {
   return bodyTitle(
     fileMarkdown(
       converterOf(editor),
-      editor.schema.topNodeType.create(null, [heading, ...definitions])
+      editor.schema.topNodeType.create(null, [...blocks, ...definitions])
     )
-  )?.title;
+  );
+}
+
+/** Reads only up to the first h1, so a caret move or a keystroke never serializes the note. */
+function h1Title(editor: Editor) {
+  const blocks = editor.state.doc.children;
+
+  const end = blocks.findIndex(
+    (block) => isH1(block) || findChildren(block, isH1).length > 0
+  );
+
+  if (end === -1) {
+    return null;
+  }
+
+  const source = titleOf(editor, blocks.slice(0, end + 1));
+
+  return source?.depth === 1 ? source.title : null;
 }
 
 /** The h1 to h3 headings, less the h1 the tab shows as the title. */
@@ -73,7 +88,7 @@ export function outlineHeadings(editor: Editor): OutlineHeading[] {
       ? -1
       : found.findIndex(
           ({ heading, node }) =>
-            heading.level === 1 && titleOf(editor, node) === title
+            heading.level === 1 && titleOf(editor, [node])?.title === title
         );
 
   return found.flatMap(({ heading }, index) =>
