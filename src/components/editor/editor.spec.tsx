@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
+import { GapCursor } from "@tiptap/pm/gapcursor";
 import { NodeSelection, Plugin, Selection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
@@ -3389,5 +3390,313 @@ describe("markdown written elsewhere", () => {
     });
 
     expect(onChange.mock.lastCall?.[0]).toBe("xfirst\n\n- one\n\n__last__\n");
+  });
+});
+
+describe("outline", () => {
+  it("should list the note's h1 to h3 headings in order", async () => {
+    await mount({
+      initialContent:
+        "intro\n\n# One\n\n## Two\n\n#### Four\n\n### Three\n\nbody",
+    });
+
+    const outline = screen.getByRole("navigation", { name: "outline" });
+
+    expect(
+      within(outline)
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toStrictEqual(["One", "Two", "Three"]);
+  });
+
+  it("should leave out the headings of an embedded note", async () => {
+    await mount({
+      initialContent: "## Mine\n\n## Also mine\n\n![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "## Theirs\n\nthe atlas body",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(screen.getByText("the atlas body")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("navigation", { name: "outline" }))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toStrictEqual(["Mine", "Also mine"]);
+  });
+
+  it("should leave out a leading h1, which is the note's title", async () => {
+    await mount({
+      initialContent: "# Title\n\n## One\n\n### Two\n\nbody",
+    });
+
+    expect(
+      within(screen.getByRole("navigation", { name: "outline" }))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toStrictEqual(["One", "Two"]);
+  });
+
+  it.each([
+    ["no headings", "just a paragraph"],
+    ["only a title", "# Title\n\nbody"],
+    ["a title and one section", "# Title\n\n## One\n\nbody"],
+  ])("should show no outline for a note with %s", async (_case, content) => {
+    await mount({ initialContent: content });
+
+    expect(
+      screen.queryByRole("navigation", { name: "outline" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should put the caret at the start of a clicked heading", async () => {
+    render(<input aria-label="outside" />);
+
+    const { editor } = await mount({
+      focusOnMount: false,
+      initialContent: "## One\n\nbody\n\n## Two\n\nmore",
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("textbox", { name: "outside" }));
+    await user.click(screen.getByRole("button", { name: "Two" }));
+
+    expect(editor.isFocused).toBeTruthy();
+    expect(editor.state.selection.$from.parent.textContent).toBe("Two");
+    expect(editor.state.selection.$from.parentOffset).toBe(0);
+  });
+
+  it("should go to the next and previous heading with ⌃⌘↓ and ⌃⌘↑", async () => {
+    const { editor } = await mount({
+      initialContent: "intro\n\n# One\n\nbody\n\n## Two\n\nmore",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(1);
+      editor.view.focus();
+    });
+    const user = userEvent.setup();
+
+    await user.keyboard("{Control>}{ArrowDown}{/Control}");
+    expect(editor.state.selection.$from.parent.textContent).toBe("One");
+
+    await user.keyboard("{Control>}{ArrowDown}{/Control}");
+    expect(editor.state.selection.$from.parent.textContent).toBe("Two");
+
+    await user.keyboard("{Control>}{ArrowUp}{/Control}");
+    expect(editor.state.selection.$from.parent.textContent).toBe("One");
+    expect(editor.state.selection.$from.parentOffset).toBe(0);
+  });
+
+  it.each([
+    ["an embed", "![[Atlas]]\n\n# Plan\n\n## A\n\n## B"],
+    ["a fence", "```js\nlet a\n```\n\n# Plan\n\n## A\n\n## B"],
+    ["inline HTML", '<a name="top"></a>\n\n# Plan\n\n## A\n\n## B'],
+    ["a link definition", "[x]: https://example.com\n\n# Plan\n\n## A\n\n## B"],
+    ["a quoted fence", "> ```\n> code\n> ```\n\n# Plan\n\n## A\n\n## B"],
+  ])(
+    "should leave out the title h1 when %s comes before it",
+    async (_case, content) => {
+      await mount({
+        initialContent: content,
+        watchEmbed: (_title, show) => {
+          show({
+            body: "the atlas body",
+            resolveImageSrc: (src) => ({ failure: "", src }),
+          });
+
+          return () => {};
+        },
+      });
+
+      expect(
+        within(screen.getByRole("navigation", { name: "outline" }))
+          .getAllByRole("button")
+          .map((button) => button.textContent)
+      ).toStrictEqual(["A", "B"]);
+    }
+  );
+
+  it("should leave out the title h1 inside a quote", async () => {
+    await mount({ initialContent: "> # Plan\n\n## A\n\n## B" });
+
+    expect(
+      within(screen.getByRole("navigation", { name: "outline" }))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toStrictEqual(["A", "B"]);
+  });
+
+  it.each([
+    ["an image", "# ![logo](x.png) Plan\n\n## A\n\n## B"],
+    ["an embed first", "# ![[Atlas]] Plan\n\n## A\n\n## B"],
+    ["an embed last", "# Plan ![[Atlas]]\n\n## A\n\n## B"],
+    ["inline HTML", "# Plan <kbd>K</kbd>\n\n## A\n\n## B"],
+    [
+      "a reference link",
+      "# [Plan][x]\n\n## A\n\n## B\n\n[x]: https://example.com",
+    ],
+  ])("should leave out a title h1 that holds %s", async (_case, content) => {
+    await mount({
+      initialContent: content,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "the atlas body",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      within(screen.getByRole("navigation", { name: "outline" }))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toStrictEqual(["A", "B"]);
+  });
+
+  it("should mark the heading on the line a jump lands on, and the caret's at the note's end", async () => {
+    const { editor } = await mount({
+      initialContent:
+        "intro\n\n## One\n\nbody\n\n## Two\n\nbody\n\n## Three\n\nmore",
+    });
+
+    const note = editor.view.dom.closest('[data-slot="scroll-area-viewport"]');
+    const intro = editor.view.nodeDOM(0);
+    const [one, two, three] = editor.view.dom.querySelectorAll("h2");
+
+    if (!(note && intro instanceof Element && one && two && three)) {
+      throw new Error("the note did not render its headings");
+    }
+
+    vi.spyOn(intro, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 24, 600, 30)
+    );
+    vi.spyOn(one, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, -200, 600, 30)
+    );
+
+    const twoAt = vi
+      .spyOn(two, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 24, 600, 30));
+
+    vi.spyOn(three, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 300, 600, 30)
+    );
+    Object.defineProperty(note, "clientHeight", { value: 500 });
+    Object.defineProperty(note, "scrollHeight", {
+      configurable: true,
+      value: 2000,
+    });
+
+    fireEvent.scroll(note);
+
+    expect(screen.getByRole("button", { name: "Two" })).toHaveAttribute(
+      "aria-current",
+      "location"
+    );
+
+    twoAt.mockReturnValue(new DOMRect(0, 27, 600, 30));
+    fireEvent.scroll(note);
+
+    expect(screen.getByRole("button", { name: "One" })).toHaveAttribute(
+      "aria-current",
+      "location"
+    );
+
+    Object.defineProperty(note, "scrollHeight", { value: 500 });
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    });
+
+    expect(screen.getByRole("button", { name: "Three" })).toHaveAttribute(
+      "aria-current",
+      "location"
+    );
+  });
+
+  it("should measure the reading line from the first block past a hidden gap cursor", async () => {
+    const { editor } = await mount({
+      initialContent:
+        "| a |\n| - |\n| b |\n\n## One\n\nbody\n\n## Two\n\nbody\n\n## Three\n\nmore",
+    });
+
+    act(() => {
+      editor.view.dispatch(
+        editor.state.tr.setSelection(new GapCursor(editor.state.doc.resolve(0)))
+      );
+      editor.commands.blur();
+    });
+
+    const note = editor.view.dom.closest('[data-slot="scroll-area-viewport"]');
+    const table = editor.view.nodeDOM(0);
+    const [one, two, three] = editor.view.dom.querySelectorAll("h2");
+
+    if (!(note && table instanceof Element && one && two && three)) {
+      throw new Error("the note did not render its headings");
+    }
+
+    vi.spyOn(editor.view.dom, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, -1000, 600, 2000)
+    );
+    vi.spyOn(table, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, -1000, 600, 60)
+    );
+    vi.spyOn(one, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, -900, 600, 30)
+    );
+    vi.spyOn(two, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 600, 30)
+    );
+    vi.spyOn(three, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 600, 600, 30)
+    );
+    Object.defineProperty(note, "clientHeight", { value: 500 });
+    Object.defineProperty(note, "scrollHeight", { value: 5000 });
+
+    fireEvent.scroll(note);
+
+    expect(screen.getByRole("button", { name: "Two" })).toHaveAttribute(
+      "aria-current",
+      "location"
+    );
+  });
+
+  it("should scroll the note with a wheel the outline cannot use", async () => {
+    const { editor } = await mount({
+      initialContent: "## One\n\nbody\n\n## Two\n\nmore",
+    });
+
+    const note = editor.view.dom.closest('[data-slot="scroll-area-viewport"]');
+
+    fireEvent.wheel(screen.getByRole("navigation", { name: "outline" }), {
+      deltaY: 40,
+    });
+
+    expect(note?.scrollTop).toBe(40);
+  });
+
+  it("should not stop on the title with ⌃⌘↑", async () => {
+    const { editor } = await mount({
+      initialContent: "# Title\n\n## One\n\nbody",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      editor.view.focus();
+    });
+    const user = userEvent.setup();
+
+    await user.keyboard("{Control>}{ArrowUp}{/Control}");
+    expect(editor.state.selection.$from.parent.textContent).toBe("One");
+
+    await user.keyboard("{Control>}{ArrowUp}{/Control}");
+    expect(editor.state.selection.$from.parent.textContent).toBe("One");
   });
 });

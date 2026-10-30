@@ -51,11 +51,13 @@ import {
 import { createFindHandle, Find } from "./find";
 import type { FindHandle } from "./find";
 import { headingAnchors } from "./heading-anchors";
+import { HeadingKeys } from "./heading-navigation";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
 import { LinkHover } from "./link-hover";
 import type { DocumentEdit, SelectionReader } from "./note-document";
+import { NoteOutline } from "./note-outline";
 import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
@@ -1010,6 +1012,7 @@ export function Editor(mountProps: EditorProps) {
         watchEmbed: config.watchEmbed,
       }),
       Find,
+      HeadingKeys,
       linkShortcut,
     ],
     immediatelyRender: true,
@@ -1329,65 +1332,68 @@ export function Editor(mountProps: EditorProps) {
   };
 
   return (
-    <ScrollArea className="min-h-0 flex-1 select-text" ref={attachScrollArea}>
-      <EditorContent className="min-h-full" editor={editor} />
-      {linkHover === null || linkEditor !== null ? null : (
-        <LinkHover
-          onEdit={editHoveredLink}
-          onPointerLeave={() => {
-            closeHover.maybeExecute();
-          }}
-          onPointerOver={() => {
-            closeHover.cancel();
-          }}
-          state={linkHover}
-        />
-      )}
-      {linkEditor === null ? null : (
-        <LinkEditor
-          key={linkEditor.id}
-          onCancel={cancelLink}
-          onRemove={removeLink}
-          onSubmit={submitLink}
-          state={linkEditor}
-        />
-      )}
-      {viewer === null ? null : (
-        <ViewerDialog
-          onClosed={() => {
-            setViewer(null);
-            const scroller = scrollerRef.current;
-            const top = scroller?.scrollTop;
+    <>
+      <ScrollArea className="min-h-0 flex-1 select-text" ref={attachScrollArea}>
+        <EditorContent className="min-h-full" editor={editor} />
+        {linkHover === null || linkEditor !== null ? null : (
+          <LinkHover
+            onEdit={editHoveredLink}
+            onPointerLeave={() => {
+              closeHover.maybeExecute();
+            }}
+            onPointerOver={() => {
+              closeHover.cancel();
+            }}
+            state={linkHover}
+          />
+        )}
+        {linkEditor === null ? null : (
+          <LinkEditor
+            key={linkEditor.id}
+            onCancel={cancelLink}
+            onRemove={removeLink}
+            onSubmit={submitLink}
+            state={linkEditor}
+          />
+        )}
+        {viewer === null ? null : (
+          <ViewerDialog
+            onClosed={() => {
+              setViewer(null);
+              const scroller = scrollerRef.current;
+              const top = scroller?.scrollTop;
 
-            editorRef.current?.view.focus();
+              editorRef.current?.view.focus();
 
-            // WebKit reveals the selection on focus whatever `preventScroll`
-            // says, as the ready handle's focus explains, so the offset goes
-            // back the same way.
-            if (scroller !== null && top !== undefined) {
-              scroller.scrollTop = top;
-            }
-          }}
-          surface={viewer.kind === "diagram" ? "card" : "none"}
-          title={viewerTitle(viewer)}
-          width={viewer.width}
-        >
-          {viewer.kind === "image" ? (
-            <img
-              alt={viewer.alt}
-              className="h-auto w-full rounded-md"
-              src={viewer.src}
-            />
-          ) : (
-            <div
-              className="viewer-diagram"
-              ref={(host) => {
-                host?.replaceChildren(viewer.svg.cloneNode(true));
-              }}
-            />
-          )}
-        </ViewerDialog>
-      )}
-    </ScrollArea>
+              // WebKit reveals the selection on focus whatever `preventScroll`
+              // says, as the ready handle's focus explains, so the offset goes
+              // back the same way.
+              if (scroller !== null && top !== undefined) {
+                scroller.scrollTop = top;
+              }
+            }}
+            surface={viewer.kind === "diagram" ? "card" : "none"}
+            title={viewerTitle(viewer)}
+            width={viewer.width}
+          >
+            {viewer.kind === "image" ? (
+              <img
+                alt={viewer.alt}
+                className="h-auto w-full rounded-md"
+                src={viewer.src}
+              />
+            ) : (
+              <div
+                className="viewer-diagram"
+                ref={(host) => {
+                  host?.replaceChildren(viewer.svg.cloneNode(true));
+                }}
+              />
+            )}
+          </ViewerDialog>
+        )}
+      </ScrollArea>
+      <NoteOutline editor={editor} />
+    </>
   );
 }
