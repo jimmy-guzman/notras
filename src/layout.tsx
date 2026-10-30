@@ -54,19 +54,21 @@ function MainWindow() {
 
   const queryClient = useQueryClient();
   const [paletteSession, setPaletteSession] = useState(0);
-  const [paletteMode, setPaletteMode] = useState<PaletteMode>();
+  // Closing keeps the mode: it is part of the palette's key, and a new key
+  // would unmount the palette before its exit animation runs.
+  const [paletteView, setPaletteView] = useState<PaletteMode>("find");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const paletteOpen = paletteMode !== undefined;
-  const paletteView = paletteMode ?? "find";
 
   const closePalette = () => {
-    setPaletteMode(undefined);
+    setPaletteOpen(false);
   };
 
   const handlePaletteOpenChange = (next: boolean) => {
     if (next) {
       setPaletteSession((session) => session + 1);
-      setPaletteMode("find");
+      setPaletteView("find");
+      setPaletteOpen(true);
 
       return;
     }
@@ -82,7 +84,8 @@ function MainWindow() {
     }
 
     setPaletteSession((session) => session + 1);
-    setPaletteMode(next);
+    setPaletteView(next);
+    setPaletteOpen(true);
   };
 
   const openSettings = () => {

@@ -28,7 +28,6 @@ import type { SearchFilter } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { recentNotes } from "@/lib/recent-notes";
-import { useTabState } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 
 const VISIBLE_TAGS = 3;
@@ -172,14 +171,9 @@ function useDisplayedNotes(
   idle: boolean,
   pending: boolean,
   query: string,
-  notesDir: string
+  notesDir: string,
+  showing: string | undefined
 ) {
-  const { activeId, tabs } = useTabState();
-
-  const showing = tabs.find(
-    (tab) => tab.id === activeId && tab.kind === "note"
-  )?.path;
-
   const readyNotes = idle
     ? recentNotes(notesDir, currentNotes)
         .filter((note) => note.path !== showing)
@@ -235,7 +229,8 @@ function useDisplayedNotes(
 function useSearchResults(
   query: string,
   showPicker: boolean,
-  notesDir: string
+  notesDir: string,
+  showing: string | undefined
 ) {
   const [debounced] = useDebouncedValue(query, { wait: 150 });
   const search = parseSearch(query);
@@ -265,7 +260,8 @@ function useSearchResults(
     idle,
     pending,
     query,
-    notesDir
+    notesDir,
+    showing
   );
 
   const reading = showingResults && !waitingForDebounce && result.isFetching;
@@ -461,6 +457,8 @@ interface PaletteSearchProps {
   onResultQueryChange?: (query: string) => void;
   onSelectNote: (note: NoteMeta) => void;
   query: string;
+  /** The note the showing tab holds, left out of recent notes. */
+  showing?: string;
 }
 
 export function PaletteSearch({
@@ -472,6 +470,7 @@ export function PaletteSearch({
   onSelectNote,
   onResultQueryChange,
   query,
+  showing,
 }: PaletteSearchProps) {
   const candidate = searchSuggestion(query, cursor);
 
@@ -481,7 +480,7 @@ export function PaletteSearch({
   const showPicker = picker !== undefined;
   const choicesFailed = choicesError !== undefined;
   const choosingFilter = showPicker || choicesPending || choicesFailed;
-  const results = useSearchResults(query, choosingFilter, notesDir);
+  const results = useSearchResults(query, choosingFilter, notesDir, showing);
   const { indexing, pending, readingQuery, resultQuery } = results;
   useLayoutEffect(() => {
     // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect -- the parent resets its list's scroll position and sets no state

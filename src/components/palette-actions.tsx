@@ -1,6 +1,4 @@
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
-import { array, check, pipe, string } from "valibot";
 
 import { Chord } from "@/components/chord";
 import { Mark } from "@/components/mark";
@@ -17,7 +15,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { readStored, writeStored } from "@/lib/storage";
+import { writeRecentActions } from "@/lib/recent-actions";
 import type { useChordsByName } from "@/lib/ui/shortcuts";
 
 /**
@@ -47,30 +45,18 @@ export interface PaletteAction {
 interface ActionsViewProps {
   actions: PaletteAction[];
   chordsByName: ReturnType<typeof useChordsByName>;
+  history: string[];
+  onHistoryChange: (next: string[]) => void;
   query: string;
 }
-
-const STORAGE_KEY = "recent-actions";
-
-const RecentActionsSchema = pipe(
-  array(string()),
-  check((values) => new Set(values).size === values.length)
-);
 
 export function ActionsView({
   actions,
   chordsByName,
+  history,
+  onHistoryChange,
   query,
 }: ActionsViewProps) {
-  const [history, setHistory] = useState(
-    () =>
-      readStored(
-        STORAGE_KEY,
-        RecentActionsSchema,
-        "could not read recent commands"
-      ) ?? []
-  );
-
   const recent =
     query.trim() === ""
       ? history
@@ -120,12 +106,8 @@ export function ActionsView({
                       ...history.filter((previous) => previous !== value),
                     ];
 
-                    writeStored(
-                      STORAGE_KEY,
-                      next,
-                      "could not remember command"
-                    );
-                    setHistory(next);
+                    writeRecentActions(next);
+                    onHistoryChange(next);
                     onSelect();
                   }}
                   value={value}
