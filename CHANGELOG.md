@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.6](https://github.com/jimmy-guzman/notras/compare/v0.11.5...v0.11.6) (2026-10-30)
+
+
+### Features
+
+* **editor:** ✨ outline headings in the gutter, ⌃⌘↑/↓ to jump ([#442](https://github.com/jimmy-guzman/notras/issues/442)) ([705ee60](https://github.com/jimmy-guzman/notras/commit/705ee6083448c6f7a114078368be82e424fa4741))
+
+
+### Bug Fixes
+
+* **notes:** 🐛 keep the old notes folder when saving fails ([#441](https://github.com/jimmy-guzman/notras/issues/441)) ([51cf089](https://github.com/jimmy-guzman/notras/commit/51cf08961dad110737a1d0f779ed082dec71bbf8))
+* **ui:** 🐛 fade the palette out with its rows unchanged ([#438](https://github.com/jimmy-guzman/notras/issues/438)) ([926e677](https://github.com/jimmy-guzman/notras/commit/926e677c22c1d518ce9cf395e6c45e9d2480bf31))
+* **ui:** 🐛 match an open outline button to its hover ([#436](https://github.com/jimmy-guzman/notras/issues/436)) ([0bf23a1](https://github.com/jimmy-guzman/notras/commit/0bf23a1fe367ca67eb007bbf1e45306307eb5712))
+
 ## [0.11.5](https://github.com/jimmy-guzman/notras/compare/v0.11.4...v0.11.5) (2026-10-29)
 
 
