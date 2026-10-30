@@ -25,13 +25,17 @@ function firstLine(reason: string) {
 }
 
 function draw(engineRender: typeof render, code: string) {
-  const fontFamily = getComputedStyle(document.documentElement)
-    .getPropertyValue("--font-sans")
-    .trim();
+  const root = getComputedStyle(document.documentElement);
 
   try {
     return {
-      svg: engineRender(code, { fontFamily, images: false, links: false }).svg,
+      svg: engineRender(code, {
+        fontFamily: root.getPropertyValue("--font-sans").trim(),
+        fontFamilyMono: root.getPropertyValue("--font-mono").trim(),
+        images: false,
+        links: false,
+        monospace: ["attributes", "files", "members"],
+      }).svg,
     };
   } catch (error) {
     return {

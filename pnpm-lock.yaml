@@ -299,8 +299,8 @@ importers:
         specifier: 3.2.1
         version: 3.2.1
       pele:
-        specifier: 1.9.0
-        version: 1.9.0
+        specifier: 1.12.0
+        version: 1.12.0
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -4490,8 +4490,8 @@ packages:
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
-  pele@1.9.0:
-    resolution: {integrity: sha512-KUmBt7P5JduVKQaP6FKfXiRgH3LBVIKsmdgPJZU7jD3ye6F+Z8fbms+OjivE7rWY09Qx+5X65VKe/9ywKFJ9Sw==}
+  pele@1.12.0:
+    resolution: {integrity: sha512-3OdOK6rvkaTB569R4/I8U0H82MqPRxj7vfkbowa2rRhgSBPFhvWlfFy5eae0jP+2A6hE8abE17nsdyxJz2VBiQ==}
     engines: {node: '>=20'}
 
   pend@1.2.0:
@@ -9055,7 +9055,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pele@1.9.0: {}
+  pele@1.12.0: {}
 
   pend@1.2.0: {}
 

@@ -1763,6 +1763,20 @@ describe("mermaid diagrams", () => {
     expect(diagram.querySelector('[style*="fill:#f00"]')).not.toBeNull();
   });
 
+  it("should draw class members in the mono font", async () => {
+    await mount({
+      initialContent:
+        "before\n\n```mermaid\nclassDiagram\n  class A {\n    +int id\n  }\n```",
+    });
+
+    const diagram = await screen.findByRole("img", { name: "diagram" });
+
+    expect(within(diagram).getByText("+int id").parentElement).toHaveAttribute(
+      "font-family",
+      "var(--_fm)"
+    );
+  });
+
   it("should draw a fence in the node view's first render once the renderer has loaded", async () => {
     await mount({ initialContent: FENCE });
     await screen.findByRole("img", { name: "diagram" });
@@ -1781,7 +1795,7 @@ describe("mermaid diagrams", () => {
       initialContent: "before\n\n```mermaid\ngraph TD\n  A -->\n```",
     });
 
-    const reason = await screen.findByText(/^Parse error on line 3$/u);
+    const reason = await screen.findByText(/^Parse error on line 2$/u);
 
     expect(reason).toHaveClass("code-block-reason");
     expect(screen.queryByRole("img", { name: "diagram" })).toBeNull();
@@ -2014,7 +2028,7 @@ describe("mermaid diagrams", () => {
       initialContent: "before\n\n```mermaid\ngraph TD\n  A -->\n```",
     });
 
-    await screen.findByText(/^Parse error on line 3$/u);
+    await screen.findByText(/^Parse error on line 2$/u);
 
     expect(
       within(editor.view.dom).queryByRole("button", { name: "open diagram" })
