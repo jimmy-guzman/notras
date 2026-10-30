@@ -128,6 +128,10 @@ function isList(token: Token): token is Tokens.List {
   return token.type === "list";
 }
 
+function isHeading(token: Token): token is Tokens.Heading {
+  return token.type === "heading";
+}
+
 function hasText(token: Token): token is Token & { text: string } {
   return "text" in token && typeof token.text === "string";
 }
@@ -162,6 +166,7 @@ function inlineTitle(tokens: Token[]): string {
 }
 
 interface TitleAt {
+  depth?: number;
   line: number;
   title: string;
 }
@@ -186,6 +191,7 @@ function tokenTitle(tokens: Token[], firstLine: number): TitleAt | undefined {
         first === undefined
           ? undefined
           : {
+              depth: isHeading(token) ? token.depth : undefined,
               line: line + first[0],
               title: first[1].trim().replaceAll(TITLE_SPACE, " "),
             };

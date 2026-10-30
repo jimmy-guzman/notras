@@ -110,6 +110,7 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | `⌘G` / `⌘⇧G` | next / previous match |
 | `⌘⌥G` | toggle graph view |
 | `⌥↑`/`⌥↓` | move the selected blocks |
+| `⌃⌘↑` / `⌃⌘↓` | previous / next heading |
 | `⇧⏎` | line break inside the block |
 | `⌘⌥⇧V` | paste as plain text |
 | `⌘⇧K` | add / edit link |

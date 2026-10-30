@@ -911,7 +911,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     <div
       aria-labelledby={tabButtonId(id)}
       className={cn(
-        "absolute inset-0 flex flex-col",
+        "@container absolute inset-0 flex flex-col",
         // Opacity and `inert` keep the box and the scroll offset.
         // `content-visibility: hidden` collapses the scroll height;
         // `visibility: hidden` drops composited scrolling for every scroller
