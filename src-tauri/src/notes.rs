@@ -432,10 +432,11 @@ fn persist_notes_dir<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<(), C
     let store = app.store("settings.json").map_err(|error| {
         CommandError::with_source(format!("The setting could not be saved: {error}"), error)
     })?;
-    store.set("notesDir", Value::String(path.to_owned()));
-    store.save().map_err(|error| {
-        CommandError::with_source(format!("The setting could not be saved: {error}"), error)
-    })
+    crate::windows::save_setting(&store, "notesDir", Value::String(path.to_owned())).map_err(
+        |error| {
+            CommandError::with_source(format!("The setting could not be saved: {error}"), error)
+        },
+    )
 }
 
 /// Switch the library to `path`, running `persist` between preparation and installation.
@@ -648,5 +649,56 @@ mod tests {
             serde_json::to_value(error).unwrap(),
             serde_json::json!({"kind": "not-found", "message": "No such file"})
         );
+    }
+
+    #[test]
+    fn should_keep_the_saved_folder_when_saving_a_new_one_fails() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .build(context)
+            .unwrap();
+        let file = directory.path().join("settings/settings.json");
+        persist_notes_dir(app.handle(), "/notes/old").unwrap();
+        fs::remove_file(&file).unwrap();
+        fs::create_dir(&file).unwrap();
+
+        assert!(persist_notes_dir(app.handle(), "/notes/new").is_err());
+
+        fs::remove_dir(&file).unwrap();
+        let store = app.store("settings.json").unwrap();
+        store.set("appearance", json!("dark"));
+        store.save().unwrap();
+        let settings: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+        assert_eq!(settings["notesDir"], "/notes/old");
+    }
+
+    #[test]
+    fn should_save_no_folder_when_saving_the_first_one_fails() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .build(context)
+            .unwrap();
+        let file = directory.path().join("settings/settings.json");
+        let store = app.store("settings.json").unwrap();
+        store.set("appearance", json!("dark"));
+        store.save().unwrap();
+        fs::remove_file(&file).unwrap();
+        fs::create_dir(&file).unwrap();
+
+        assert!(persist_notes_dir(app.handle(), "/notes/new").is_err());
+
+        fs::remove_dir(&file).unwrap();
+        store.set("appearance", json!("light"));
+        store.save().unwrap();
+        let settings: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+        assert_eq!(settings, json!({"appearance": "light"}));
     }
 }

@@ -1,5 +1,8 @@
+use std::sync::{Mutex, PoisonError};
+
 use notras_core::CommandError;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::{Store, StoreExt};
 
@@ -27,6 +30,28 @@ impl Appearance {
 fn settings<R: Runtime>(app: &AppHandle<R>) -> Result<std::sync::Arc<Store<R>>, CommandError> {
     app.store("settings.json").map_err(|error| {
         CommandError::with_source(format!("The settings could not be opened: {error}"), error)
+    })
+}
+
+/// Set `key` and save the store. A failed save puts the previous value back,
+/// so the store never holds a value the next save of another key would write.
+/// Every call takes one lock, so another call's save cannot land between this
+/// set and its rollback.
+pub(crate) fn save_setting<R: Runtime>(
+    store: &Store<R>,
+    key: &str,
+    value: Value,
+) -> Result<(), tauri_plugin_store::Error> {
+    static SAVING: Mutex<()> = Mutex::new(());
+    // The lock guards no data, so a panic in another save leaves nothing to distrust.
+    let _saving = SAVING.lock().unwrap_or_else(PoisonError::into_inner);
+    let saved = store.get(key);
+    store.set(key, value);
+    store.save().inspect_err(|_| match saved {
+        Some(previous) => store.set(key, previous),
+        None => {
+            store.delete(key);
+        }
     })
 }
 
@@ -58,22 +83,12 @@ pub fn get_appearance<R: Runtime>(app: AppHandle<R>) -> Result<Appearance, Comma
     stored_appearance(&*settings(&app)?)
 }
 
-/// Save the appearance. A failed save puts the previous value back, so the
-/// store never holds a choice the next save of another key would write.
 #[cfg(any(target_os = "macos", test))]
 pub(crate) fn save_appearance<R: Runtime>(
     store: &Store<R>,
     appearance: Appearance,
 ) -> Result<(), CommandError> {
-    let saved = store.get("appearance");
-    store.set("appearance", serde_json::json!(appearance));
-    store.save().map_err(|error| {
-        match saved {
-            Some(value) => store.set("appearance", value),
-            None => {
-                store.delete("appearance");
-            }
-        }
+    save_setting(store, "appearance", serde_json::json!(appearance)).map_err(|error| {
         CommandError::with_source(format!("The appearance could not be saved: {error}"), error)
     })
 }
