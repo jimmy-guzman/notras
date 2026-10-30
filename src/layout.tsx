@@ -172,7 +172,7 @@ function MainWindow() {
   useEffect(() => {
     // Rust queues every "Open With" path and only signals that the queue has
     // something in it, so draining is the single delivery mechanism. Each one
-    // lands in its own tab rather than replacing what is open (`D54`).
+    // lands in its own tab rather than replacing what is open.
     const drainPendingOpens = async () => {
       try {
         const opens = await commands.pendingOpenFiles();

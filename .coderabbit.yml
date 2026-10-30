@@ -7,7 +7,6 @@ knowledge_base:
       - "**/AGENTS.md"
       - "ARCHITECTURE.md"
       - "DESIGN.md"
-      - "DECISIONS.md"
 reviews:
   path_filters:
     - "!.agents/skills/**"

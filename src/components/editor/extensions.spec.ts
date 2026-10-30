@@ -4,11 +4,9 @@ import { describe, expect, it } from "vitest";
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
 
 /**
- * The task-list CSS reaches a row as `ul[data-type="taskList"] > li` (`D39`),
+ * The task-list CSS reaches a row as `ul[data-type="taskList"] > li`,
  * which is only correct while TipTap renders a nested list inside the task
- * item's content div and leaves `data-type` off the node-view `li`. Nothing
- * else in the tree fails when a dependency bump changes either, and `D21` rules
- * out the end-to-end coverage that would have caught it.
+ * item's content div and leaves `data-type` off the node-view `li`.
  */
 const render = (markdown: string) => {
   const element = document.createElement("div");

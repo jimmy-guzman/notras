@@ -594,9 +594,6 @@ mod tests {
         );
     }
 
-    /// A file written from a terminal states its own title, and the index reads
-    /// that rather than the filename, through the real indexing path. `D32`
-    /// carries why the heading wins.
     #[test]
     fn should_index_a_heading_as_the_title() {
         let dir_directory = tempfile::tempdir().unwrap();
