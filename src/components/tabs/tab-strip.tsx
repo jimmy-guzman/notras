@@ -256,7 +256,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
             aria-selected={active}
             // The whole box, with the close button floating over its end, so
             // every press outside that button is the tab's.
-            className="flex min-w-0 flex-1 items-center self-stretch ps-1.5 pe-7 pb-1 text-start focus-visible:outline-none"
+            className="flex min-w-0 flex-1 items-center self-stretch ps-1.5 pe-7 text-start focus-visible:outline-none"
             // `deep`, since a bare mark only counts a press on the button itself
             // and the label and glyph sit inside it.
             data-tauri-drag-region={sole ? "deep" : undefined}
@@ -275,7 +275,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           <button
             aria-label={`close ${label}`}
             className={cn(
-              "hover:bg-muted hover:text-foreground absolute end-1 top-0.5 inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
+              "hover:bg-muted hover:text-foreground absolute end-1 top-1 inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
               active && "text-muted-foreground opacity-100"
             )}
             data-tab-close
