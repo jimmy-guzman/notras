@@ -91,6 +91,8 @@
   --input: #7b747d;
   --groove: color-mix(in srgb, black 60%, var(--shell));
   --groove-highlight: color-mix(in srgb, white 7%, var(--shell));
+  --ink-on-dark: var(--foreground);
+  --ink-on-light: var(--background);
   --ring: #e99ac2;
   --faint: #ada7af;
   --selection: #363c48;
@@ -136,6 +138,8 @@
     --input: #aaa4ad;
     --groove: color-mix(in srgb, black 15%, var(--shell));
     --groove-highlight: color-mix(in srgb, white 70%, var(--shell));
+    --ink-on-dark: var(--background);
+    --ink-on-light: var(--foreground);
     --ring: #ae286f;
     --faint: #635f69;
     --selection: #bdcce1;
@@ -838,7 +842,9 @@ body.dragging .ProseMirror .selected-text,
    fence that draws nothing keeps its code open under its reason line. The
    inks resolve against the fence's `--bg`, which paper changes with them.
    The series alternate dark and light so neighbours differ, and none drops
-   below 42% since a pie draws its labels in `--pele-bg` over them. */
+   below 42% since a pie draws its labels in `--pele-bg` over them. pele picks
+   the ink for text on a fill the source sets by the fill's lightness, not
+   by theme, so each palette names its inks by the fill they read on. */
 .code-block-diagram,
 .code-block-reason {
   padding: 0.75em 1em;
@@ -854,6 +860,8 @@ body.dragging .ProseMirror .selected-text,
 .viewer-diagram {
   --pele-bg: var(--bg);
   --pele-fg: var(--foreground);
+  --pele-fg-on-dark: var(--ink-on-dark);
+  --pele-fg-on-light: var(--ink-on-light);
   --pele-muted: var(--muted-foreground);
   --pele-accent: var(--foreground);
   --pele-critical: var(--foreground);
