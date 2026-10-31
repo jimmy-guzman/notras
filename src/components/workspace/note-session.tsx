@@ -581,7 +581,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         return;
       }
 
-      openNote(target.path);
+      openNote(target.path, true);
     } catch (error) {
       if (isCurrent()) {
         toast.add({
@@ -702,7 +702,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       const target = await resolveExternalLink(live.current.path, href);
 
       if (isCurrent()) {
-        openTab(target.kind, target.path);
+        openTab(target.kind, target.path, true);
       }
     } catch (error) {
       if (isCurrent()) {

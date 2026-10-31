@@ -11,7 +11,6 @@ import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
-import { getTabState } from "@/lib/tabs/store";
 import { focusGraph } from "@/lib/ui/view";
 
 import { NoteGraph, TabGraph } from "./note-graph";
@@ -305,15 +304,16 @@ describe(NoteGraph, () => {
     expect(onShowMentions).toHaveBeenCalledOnce();
   });
 
-  it("should fold a crowded right side into a count that lists every link", async () => {
+  it("should fold a crowded right side into a count that lists every link, hopping on a pick", async () => {
     const user = userEvent.setup();
-    const before = getTabState().tabs.length;
+    const onHop = vi.fn<(path: string, beside: boolean) => void>();
     mount(
       notePicture({
         outgoing: Array.from({ length: 14 }, (_, index) =>
           mention(`o${String(index).padStart(2, "0")}.md`)
         ),
-      })
+      }),
+      { onHop }
     );
 
     await user.click(screen.getByRole("button", { name: "3 more links" }));
@@ -324,10 +324,38 @@ describe(NoteGraph, () => {
     expect(rows[0]?.textContent).toBe("o00see [[c]]");
 
     await user.click(screen.getByRole("menuitem", { name: "o05 see [[c]]" }));
-    expect(getTabState().tabs).toHaveLength(before + 1);
-    expect(
-      getTabState().tabs.find((tab) => tab.id === getTabState().activeId)?.path
-    ).toBe("o05.md");
+    expect(onHop).toHaveBeenLastCalledWith("o05.md", false);
+
+    await user.click(screen.getByRole("button", { name: "3 more links" }));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("menuitem", { name: "o06 see [[c]]" }));
+    await user.keyboard("{/Meta}");
+    expect(onHop).toHaveBeenLastCalledWith("o06.md", true);
+  });
+
+  it("should hop from a crowded hub's member list the way a pill does", async () => {
+    const user = userEvent.setup();
+    const onHop = vi.fn<(path: string, beside: boolean) => void>();
+    mount(
+      hubPicture(
+        folder("work", 14),
+        Array.from({ length: 14 }, (_, index) => ({
+          kind: "note",
+          note: meta(`work/m${String(index).padStart(2, "0")}.md`),
+        }))
+      ),
+      { onHop }
+    );
+
+    await user.click(screen.getByRole("button", { name: "3 more members" }));
+    await user.click(screen.getByRole("menuitem", { name: "m12 work" }));
+    expect(onHop).toHaveBeenLastCalledWith("work/m12.md", false);
+
+    await user.click(screen.getByRole("button", { name: "3 more members" }));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("menuitem", { name: "m13 work" }));
+    await user.keyboard("{/Meta}");
+    expect(onHop).toHaveBeenLastCalledWith("work/m13.md", true);
   });
 
   it("should count placeholders the cap left out and list them as nothing to open", async () => {

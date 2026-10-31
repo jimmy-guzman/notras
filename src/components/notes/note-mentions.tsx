@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { FileTextIcon, LinkIcon } from "lucide-react";
-import type { MouseEvent } from "react";
 import { useEffect, useRef } from "react";
 
 import { Chord } from "@/components/chord";
@@ -47,18 +46,20 @@ function contextFrom(line: { context: string; match: string }) {
 
 interface MentionItemProps {
   mention: Mention;
+  onOpen: (path: string, beside: boolean) => void;
 }
 
-export function MentionItem({ mention }: MentionItemProps) {
+export function MentionItem({ mention, onOpen }: MentionItemProps) {
   const { lines, note } = mention;
   const [first] = lines;
 
-  const open = (event: MouseEvent) => {
-    openNote(note.path, event.metaKey);
-  };
-
   return (
-    <DropdownMenuItem className="items-start" onClick={open}>
+    <DropdownMenuItem
+      className="items-start"
+      onClick={(event) => {
+        onOpen(note.path, event.metaKey);
+      }}
+    >
       <FileTextIcon className="mt-0.5" />
       <div className="flex min-w-0 flex-col">
         <NoteLabel note={note}>
@@ -140,7 +141,13 @@ export function NoteMentions({ mentions }: NoteMentionsProps) {
       </Tooltip>
       <DropdownMenuContent align="end" className="w-72" side="bottom">
         {mentions.map((mention) => (
-          <MentionItem key={mention.note.path} mention={mention} />
+          <MentionItem
+            key={mention.note.path}
+            mention={mention}
+            onOpen={(path) => {
+              openNote(path, true);
+            }}
+          />
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

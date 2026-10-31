@@ -136,8 +136,12 @@ describe("note mentions", () => {
       expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
     });
 
-    it("should open the picked note in place, and beside it with ⌘", async () => {
-      mount([mention("a.md", "see [[here]]"), mention("b.md", "and [[here]]")]);
+    it("should open the picked note beside this one, with or without ⌘", async () => {
+      mount([
+        mention("a.md", "see [[here]]"),
+        mention("b.md", "and [[here]]"),
+        mention("c.md", "also [[here]]"),
+      ]);
       const user = userEvent.setup();
       const before = getTabState().tabs.length;
 
@@ -163,15 +167,33 @@ describe("note mentions", () => {
         throw new Error("second mention missing");
       }
 
-      await user.keyboard("{Meta>}");
       await user.click(second);
-      await user.keyboard("{/Meta}");
 
+      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual(
+        expect.arrayContaining(["a.md", "b.md"])
+      );
       expect(getTabState().tabs).toHaveLength(before + 2);
       expect(
         getTabState().tabs.find((tab) => tab.id === getTabState().activeId)
           ?.path
       ).toBe("b.md");
+
+      await showList();
+      const third = screen.getAllByRole("menuitem").at(2);
+
+      if (third === undefined) {
+        throw new Error("third mention missing");
+      }
+
+      await user.keyboard("{Meta>}");
+      await user.click(third);
+      await user.keyboard("{/Meta}");
+
+      expect(getTabState().tabs).toHaveLength(before + 3);
+      expect(
+        getTabState().tabs.find((tab) => tab.id === getTabState().activeId)
+          ?.path
+      ).toBe("c.md");
     });
   });
 

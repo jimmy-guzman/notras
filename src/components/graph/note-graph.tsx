@@ -19,7 +19,6 @@ import { hubKey, hubLabel } from "@/core/graph";
 import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
-import { openNote } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { setMentionsOpen } from "@/lib/ui/mentions";
@@ -460,11 +459,17 @@ function Placeholder({
   );
 }
 
-function NoteRow({ note }: { note: NoteMeta }) {
+function NoteRow({
+  note,
+  onHop,
+}: {
+  note: NoteMeta;
+  onHop: (path: string, beside: boolean) => void;
+}) {
   return (
     <DropdownMenuItem
       onClick={(event) => {
-        openNote(note.path, event.metaKey);
+        onHop(note.path, event.metaKey);
       }}
     >
       <FileTextIcon />
@@ -492,6 +497,7 @@ function HubRow({ onHub, pill }: { onHub: (hub: Hub) => void; pill: HubPill }) {
 interface OverflowPillProps {
   item: Item & { kind: "overflow" };
   keys: RingKeys;
+  onHop: (path: string, beside: boolean) => void;
   onHub: (hub: Hub) => void;
   onShowMentions: () => void;
   pillRef: PillRef;
@@ -500,6 +506,7 @@ interface OverflowPillProps {
 function OverflowPill({
   item,
   keys,
+  onHop,
   onHub,
   onShowMentions,
   pillRef,
@@ -539,7 +546,11 @@ function OverflowPill({
         {item.more.kind === "links"
           ? [
               ...item.more.outgoing.map((mention) => (
-                <MentionItem key={mention.note.path} mention={mention} />
+                <MentionItem
+                  key={mention.note.path}
+                  mention={mention}
+                  onOpen={onHop}
+                />
               )),
               ...item.more.dangling.map((target) => (
                 <DropdownMenuItem
@@ -553,7 +564,11 @@ function OverflowPill({
             ]
           : item.more.members.map((member) =>
               member.kind === "note" ? (
-                <NoteRow key={member.note.path} note={member.note} />
+                <NoteRow
+                  key={member.note.path}
+                  note={member.note}
+                  onHop={onHop}
+                />
               ) : (
                 <HubRow
                   key={hubKey(member.pill.hub)}
@@ -682,6 +697,7 @@ export function NoteGraph({
               item={item}
               key={item.id}
               keys={keys}
+              onHop={onHop}
               onHub={onHub}
               onShowMentions={onShowMentions}
               pillRef={pillRef}
