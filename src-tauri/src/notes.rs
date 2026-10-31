@@ -666,7 +666,16 @@ mod tests {
         fs::remove_file(&file).unwrap();
         fs::create_dir(&file).unwrap();
 
-        assert!(persist_notes_dir(app.handle(), "/notes/new").is_err());
+        let error = persist_notes_dir(app.handle(), "/notes/new").unwrap_err();
+        assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+        assert_eq!(
+            error.message,
+            if cfg!(windows) {
+                "Permission denied"
+            } else {
+                "That path is a folder"
+            }
+        );
 
         fs::remove_dir(&file).unwrap();
         let store = app.store("settings.json").unwrap();
@@ -693,12 +702,54 @@ mod tests {
         fs::remove_file(&file).unwrap();
         fs::create_dir(&file).unwrap();
 
-        assert!(persist_notes_dir(app.handle(), "/notes/new").is_err());
+        let error = persist_notes_dir(app.handle(), "/notes/new").unwrap_err();
+        assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+        assert_eq!(
+            error.message,
+            if cfg!(windows) {
+                "Permission denied"
+            } else {
+                "That path is a folder"
+            }
+        );
 
         fs::remove_dir(&file).unwrap();
         store.set("appearance", json!("light"));
         store.save().unwrap();
         let settings: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
         assert_eq!(settings, json!({"appearance": "light"}));
+    }
+
+    #[test]
+    fn should_report_watcher_reasons_without_marking_a_note_missing() {
+        use std::{error::Error as _, io};
+
+        for (source, reason) in [
+            (
+                notify::Error::io(io::Error::from(io::ErrorKind::PermissionDenied)),
+                "Permission denied",
+            ),
+            (
+                notify::Error::io(io::Error::from(io::ErrorKind::NotFound)),
+                "No such file",
+            ),
+            (
+                notify::Error::path_not_found(),
+                "The folder no longer exists",
+            ),
+            (
+                notify::Error::watch_not_found(),
+                "The folder is no longer being watched",
+            ),
+            (
+                notify::Error::new(notify::ErrorKind::MaxFilesWatch),
+                "The system's file watch limit has been reached",
+            ),
+        ] {
+            let error = watch_error(source);
+            assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+            assert_eq!(error.message, reason);
+            assert!(error.source().unwrap().is::<notify::Error>());
+        }
     }
 }

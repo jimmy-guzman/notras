@@ -138,3 +138,60 @@ pub async fn set_appearance<R: Runtime>(
         Err("Changing the appearance is only available on macOS".into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{error::Error as _, fs, io};
+
+    #[test]
+    fn should_keep_a_missing_settings_file_distinct_from_a_missing_note() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = fs::read(directory.path().join("settings.json")).unwrap_err();
+        let error = settings_error(tauri_plugin_store::Error::Io(source));
+
+        assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+        assert_eq!(error.message, "No such file");
+        let source = error
+            .source()
+            .unwrap()
+            .downcast_ref::<tauri_plugin_store::Error>()
+            .unwrap();
+        assert!(
+            matches!(source, tauri_plugin_store::Error::Io(error) if error.kind() == io::ErrorKind::NotFound)
+        );
+    }
+
+    #[test]
+    fn should_report_invalid_settings_data_with_its_diagnostic_cause() {
+        let source = serde_json::from_str::<Value>("{broken").unwrap_err();
+        let error = settings_error(tauri_plugin_store::Error::Deserialize(Box::new(source)));
+
+        assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+        assert_eq!(error.message, "The settings data is invalid");
+        assert!(error.source().unwrap().is::<tauri_plugin_store::Error>());
+    }
+
+    #[test]
+    fn should_report_unavailable_native_resources_without_losing_the_cause() {
+        for (source, reason) in [
+            (
+                tauri::Error::WindowNotFound,
+                "The window is no longer available",
+            ),
+            (
+                tauri::Error::WebviewNotFound,
+                "The webview is no longer available",
+            ),
+            (
+                tauri::Error::UnknownPath,
+                "The app data folder is unavailable",
+            ),
+        ] {
+            let error = tauri_error(source);
+            assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+            assert_eq!(error.message, reason);
+            assert!(error.source().unwrap().is::<tauri::Error>());
+        }
+    }
+}

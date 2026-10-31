@@ -183,6 +183,41 @@ mod tests {
 
         let error = read_conflict(&dir, OpenKind::Note, "a.md").unwrap_err();
 
-        assert_eq!(error.message, "The stored review could not be read");
+        assert_eq!(error.message, "The stored review data is invalid");
+        assert_eq!(error.kind, crate::application::ErrorKind::Failed);
+        assert!(std::error::Error::source(&error).is_some());
+    }
+
+    #[test]
+    fn should_explain_an_incomplete_stored_review() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join(stash_name(OpenKind::Note, "a.md")),
+            "{\"base\":",
+        )
+        .unwrap();
+
+        let error = read_conflict(directory.path(), OpenKind::Note, "a.md").unwrap_err();
+
+        assert_eq!(error.message, "The stored review data is incomplete");
+        assert_eq!(error.kind, crate::application::ErrorKind::Failed);
+    }
+
+    #[test]
+    fn should_explain_a_folder_in_place_of_a_stored_review() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(stash_name(OpenKind::Note, "a.md"))).unwrap();
+
+        let error = read_conflict(directory.path(), OpenKind::Note, "a.md").unwrap_err();
+
+        assert_eq!(
+            error.message,
+            if cfg!(windows) {
+                "Permission denied"
+            } else {
+                "That path is a folder"
+            }
+        );
+        assert_eq!(error.kind, crate::application::ErrorKind::Failed);
     }
 }

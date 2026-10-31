@@ -2524,6 +2524,56 @@ function pasteImage(editor: TiptapEditor, clipboardData = new DataTransfer()) {
 }
 
 describe("image paste", () => {
+  it("should explain a missing clipboard image without saving an attachment", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+
+    const missing = vi
+      .spyOn(DataTransferItem.prototype, "getAsFile")
+      .mockReturnValue(null);
+
+    onTestFinished(() => {
+      missing.mockRestore();
+    });
+    render(<Toaster />);
+    const { editor, handle } = await mount({ initialContent: "before" });
+
+    pasteImage(editor);
+
+    await expect(
+      screen.findByText("The clipboard contains no image file")
+    ).resolves.toBeDefined();
+    expect(handle.getContent().trimEnd()).toBe("before");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("should explain invalid image data without saving an attachment", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+
+    const invalid = vi
+      .spyOn(FileReader.prototype, "readAsDataURL")
+      .mockImplementation(function invalid(this: FileReader) {
+        this.dispatchEvent(new Event("load"));
+      });
+
+    onTestFinished(() => {
+      invalid.mockRestore();
+    });
+    render(<Toaster />);
+    const { editor, handle } = await mount({ initialContent: "before" });
+
+    pasteImage(editor);
+
+    await expect(
+      screen.findByText("The image data is not a valid data URL")
+    ).resolves.toBeDefined();
+    expect(handle.getContent().trimEnd()).toBe("before");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("should place the image where it was pasted after the note changes while it saves", async () => {
     const saved = Promise.withResolvers<string>();
     mockIPC(async (command) =>
