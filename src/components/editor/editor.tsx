@@ -170,6 +170,18 @@ function isDataUrl(result: FileReader["result"]): result is string {
   return typeof result === "string";
 }
 
+function imageReadReason(error: FileReader["error"]) {
+  if (error?.name === "NotFoundError") {
+    return "The image file no longer exists";
+  }
+
+  if (error?.name === "SecurityError") {
+    return "Access to the image file is blocked";
+  }
+
+  return "The image file is not readable";
+}
+
 async function readDataUrl(file: File) {
   const reader = new FileReader();
   const read = Promise.withResolvers<FileReader["result"]>();
@@ -178,7 +190,9 @@ async function readDataUrl(file: File) {
     read.resolve(reader.result);
   });
   reader.addEventListener("error", () => {
-    read.reject(reader.error);
+    read.reject(
+      new Error(imageReadReason(reader.error), { cause: reader.error })
+    );
   });
   reader.readAsDataURL(file);
   const result = await read.promise;
