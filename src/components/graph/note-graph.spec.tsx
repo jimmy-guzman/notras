@@ -1,6 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -11,8 +17,8 @@ import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
-import { getTabState } from "@/lib/tabs/store";
-import { focusGraph } from "@/lib/ui/view";
+import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
+import { focusGraph, hideGraph, useTabView } from "@/lib/ui/view";
 
 import { NoteGraph, TabGraph } from "./note-graph";
 
@@ -305,15 +311,16 @@ describe(NoteGraph, () => {
     expect(onShowMentions).toHaveBeenCalledOnce();
   });
 
-  it("should fold a crowded right side into a count that lists every link", async () => {
+  it("should fold a crowded right side into a count that lists every link, hopping on a pick", async () => {
     const user = userEvent.setup();
-    const before = getTabState().tabs.length;
+    const onHop = vi.fn<(path: string, beside: boolean) => void>();
     mount(
       notePicture({
         outgoing: Array.from({ length: 14 }, (_, index) =>
           mention(`o${String(index).padStart(2, "0")}.md`)
         ),
-      })
+      }),
+      { onHop }
     );
 
     await user.click(screen.getByRole("button", { name: "3 more links" }));
@@ -324,10 +331,38 @@ describe(NoteGraph, () => {
     expect(rows[0]?.textContent).toBe("o00see [[c]]");
 
     await user.click(screen.getByRole("menuitem", { name: "o05 see [[c]]" }));
-    expect(getTabState().tabs).toHaveLength(before + 1);
-    expect(
-      getTabState().tabs.find((tab) => tab.id === getTabState().activeId)?.path
-    ).toBe("o05.md");
+    expect(onHop).toHaveBeenLastCalledWith("o05.md", false);
+
+    await user.click(screen.getByRole("button", { name: "3 more links" }));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("menuitem", { name: "o06 see [[c]]" }));
+    await user.keyboard("{/Meta}");
+    expect(onHop).toHaveBeenLastCalledWith("o06.md", true);
+  });
+
+  it("should hop from a crowded hub's member list the way a pill does", async () => {
+    const user = userEvent.setup();
+    const onHop = vi.fn<(path: string, beside: boolean) => void>();
+    mount(
+      hubPicture(
+        folder("work", 14),
+        Array.from({ length: 14 }, (_, index) => ({
+          kind: "note",
+          note: meta(`work/m${String(index).padStart(2, "0")}.md`),
+        }))
+      ),
+      { onHop }
+    );
+
+    await user.click(screen.getByRole("button", { name: "3 more members" }));
+    await user.click(screen.getByRole("menuitem", { name: "m12 work" }));
+    expect(onHop).toHaveBeenLastCalledWith("work/m12.md", false);
+
+    await user.click(screen.getByRole("button", { name: "3 more members" }));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("menuitem", { name: "m13 work" }));
+    await user.keyboard("{/Meta}");
+    expect(onHop).toHaveBeenLastCalledWith("work/m13.md", true);
   });
 
   it("should count placeholders the cap left out and list them as nothing to open", async () => {
@@ -383,6 +418,108 @@ describe(NoteGraph, () => {
     expect(host.textContent).toContain("no links yet, and nothing mentions it");
     expect(host.textContent).not.toContain("links\n");
   });
+});
+
+describe(TabGraph, () => {
+  it.each([
+    { beside: false, list: "links" },
+    { beside: true, list: "links" },
+    { beside: false, list: "members" },
+    { beside: true, list: "members" },
+  ])(
+    "should keep the graph on through a pick from the crowded $list list, beside: $beside",
+    async ({ beside, list }) => {
+      const user = userEvent.setup();
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      const work: Hub = { folder: "work", kind: "folder" };
+      client.setQueryData(
+        noteQueries.graph({ kind: "note", path: "c.md" }).queryKey,
+        {
+          mentionsError: null,
+          picture: notePicture({
+            hubs: [folder("work", 14)],
+            outgoing: Array.from({ length: 14 }, (_, index) =>
+              mention(`o${String(index).padStart(2, "0")}.md`)
+            ),
+          }),
+        }
+      );
+      client.setQueryData(
+        noteQueries.graph({ hub: work, kind: "hub" }).queryKey,
+        {
+          mentionsError: null,
+          picture: hubPicture(
+            folder("work", 14),
+            Array.from({ length: 14 }, (_, index) => ({
+              kind: "note",
+              note: meta(`work/m${String(index).padStart(2, "0")}.md`),
+            }))
+          ),
+        }
+      );
+      mockIPC((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      });
+      openNote("c.md", true);
+      const origin = getTabState().activeId;
+      const before = getTabState().tabs.length;
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          hideGraph(tab.id);
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+      });
+      render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(TabGraph, {
+            tab: { id: origin, kind: "note", path: "c.md" },
+          })
+        )
+      );
+
+      if (list === "members") {
+        await user.click(screen.getByRole("button", { name: "work 14" }));
+      }
+
+      await user.click(screen.getByRole("button", { name: `3 more ${list}` }));
+
+      if (beside) {
+        await user.keyboard("{Meta>}");
+      }
+
+      await user.click(
+        screen.getByRole("menuitem", {
+          name: list === "links" ? "o05 see [[c]]" : "m12 work",
+        })
+      );
+
+      if (beside) {
+        await user.keyboard("{/Meta}");
+      }
+
+      const { activeId, tabs } = getTabState();
+
+      expect(tabs.find((tab) => tab.id === activeId)?.path).toBe(
+        list === "links" ? "o05.md" : "work/m12.md"
+      );
+      expect(tabs).toHaveLength(beside ? before + 1 : before);
+      expect(tabs.some((tab) => tab.id === origin)).toBe(beside);
+      expect(renderHook(() => useTabView(activeId)).result.current).toBe(
+        "graph"
+      );
+    }
+  );
 });
 
 describe("TabGraph native queries", () => {

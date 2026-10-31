@@ -31,6 +31,7 @@ import {
   moveTab,
   openDraft,
   openNote,
+  openTab,
   reclassifyTabs,
   refreshTabs,
   reopenTab,
@@ -1219,7 +1220,7 @@ describe(NoteSession, () => {
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
-  it("should open a markdown link from an external tab as the tab it already is", async () => {
+  it("should open a markdown link from an external tab beside it, as the tab it already is", async () => {
     const resolved: unknown[] = [];
     mockIPC(
       withDisk((command, args) => {
@@ -1240,13 +1241,15 @@ describe(NoteSession, () => {
     });
 
     const path = "/Users/me/docs/note.md";
+    openTab("external", path, true);
+    const origin = getTabState().activeId;
     client.setQueryData(notesDirQuery.queryKey, "/notes");
     disk.set(path, {
       content: "# Ext\n\n[other](../other.md)",
       revision: "r0",
       updatedAt: 1,
     });
-    client.setQueryData(tabOpeningQuery("t7", "external", path).queryKey, {
+    client.setQueryData(tabOpeningQuery(origin, "external", path).queryKey, {
       file: {
         content: "# Ext\n\n[other](../other.md)",
         revision: "r0",
@@ -1259,11 +1262,11 @@ describe(NoteSession, () => {
     });
     render(
       <QueryClientProvider client={client}>
-        <NoteSession active tab={{ id: "t7", kind: "external", path }} />
+        <NoteSession active tab={{ id: origin, kind: "external", path }} />
         <Toaster />
       </QueryClientProvider>
     );
-    const liveEditor = await editor("t7");
+    const liveEditor = await editor(origin);
     act(() => {
       liveEditor.commands.setTextSelection(
         liveEditor.state.doc.content.size - 2
@@ -1273,8 +1276,12 @@ describe(NoteSession, () => {
     await waitFor(() => {
       expect(
         getTabState().tabs.map((entry) => [entry.kind, entry.path])
-      ).toContainEqual(["external", "/Users/me/other.md"]);
+      ).toStrictEqual([
+        ["external", path],
+        ["external", "/Users/me/other.md"],
+      ]);
     });
+    expect(getTabState().activeId).not.toBe(origin);
     expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
     expect(resolved).toStrictEqual([
       { destination: "../other.md", document: "/Users/me/docs/note.md" },
@@ -1890,6 +1897,89 @@ describe(NoteSession, () => {
       return true;
     });
     expect(sources).toStrictEqual(["../my%20shot.png"]);
+  });
+
+  it("should open a wikilink beside the note and keep that note open", async () => {
+    openNote("a.md", true);
+
+    const origin = getTabState().tabs.find(
+      (entry) => entry.id === getTabState().activeId
+    );
+
+    if (origin === undefined) {
+      throw new Error("the originating tab did not open");
+    }
+
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_notes") {
+          return [
+            {
+              createdAt: 1,
+              folder: "",
+              path: "target.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Target",
+              updatedAt: 1,
+            },
+          ];
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set("a.md", {
+      content: "# Available\n\n[[Target]]",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin.id, "note", "a.md").queryKey, {
+      file: {
+        content: "# Available\n\n[[Target]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={origin} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin.id);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.find((entry) => entry.id === getTabState().activeId)
+          ?.path
+      ).toBe("target.md");
+    });
+    expect(getTabState().tabs.map((entry) => entry.path)).toStrictEqual([
+      "a.md",
+      "target.md",
+    ]);
+    expect(
+      getTabState().tabs.find((entry) => entry.path === "target.md")?.opener
+    ).toBe(origin.id);
   });
 
   it("should report a failed pending link lookup without treating the destination as missing", async () => {
