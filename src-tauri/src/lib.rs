@@ -4,6 +4,7 @@ mod external_image;
 mod library;
 mod notes;
 mod pdf;
+mod settings;
 mod state;
 mod watcher;
 mod windows;
@@ -22,7 +23,6 @@ use tauri::{
     WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-use tauri_plugin_store::StoreExt;
 
 use crate::library::LibraryOwner;
 use crate::state::AppState;
@@ -167,11 +167,11 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     writing_tools::suppress_affordance_check();
 
-    let store = app.store("settings.json")?;
+    let settings = settings::Settings::load(app.path().app_data_dir()?.join("settings.json"))?;
     // The appearance setting is macOS only, so elsewhere the system's scheme
     // stands whatever settings.json says.
     #[cfg(target_os = "macos")]
-    app.set_theme(windows::stored_appearance(&store)?.theme());
+    app.set_theme(settings.appearance()?.theme());
 
     // The config paints the window dark at creation, which is earlier than this
     // runs. Correcting it here is what keeps a light-mode launch from flashing
@@ -183,14 +183,11 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         use_compact_window_controls(&window);
     }
 
-    // Resolve the notes directory: saved setting, else ~/notras.
-    let notes_dir = match store
-        .get("notesDir")
-        .and_then(|value| value.as_str().map(std::path::PathBuf::from))
-    {
+    let notes_dir = match settings.notes_dir()? {
         Some(dir) => dir,
         None => app.path().home_dir()?.join("notras"),
     };
+    app.manage(settings);
 
     let library = Library::open(&notes_dir, &index_cache(app)?)?;
     let notes_dir = library.directory().to_owned();
@@ -284,20 +281,38 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+struct StartupFailed;
+
 fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let Err(error) = init(app) else {
         return Ok(());
     };
 
     log::error!("could not start: {error}");
-    // Blocking, so the reason is on screen before the process goes.
-    app.dialog()
+    app.manage(StartupFailed);
+    let parent = app
+        .get_webview_window("main")
+        .ok_or(tauri::Error::WindowNotFound)?
+        .as_ref()
+        .window();
+    // Retain the native parent for the dialog, without a webview that can invoke commands.
+    for window in app.webview_windows().values() {
+        window.as_ref().close()?;
+    }
+    let handle = app.handle().clone();
+    let dialog = app
+        .dialog()
         .message(error.to_string())
+        .parent(&parent)
         .title("notras could not start")
-        .kind(MessageDialogKind::Error)
-        .blocking_show();
+        .kind(MessageDialogKind::Error);
+    // The modal request must reach the event loop after the setup hook returns.
+    std::thread::spawn(move || {
+        dialog.blocking_show();
+        handle.exit(1);
+    });
 
-    Err(error)
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -316,8 +331,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_store::Builder::new().build());
+        .plugin(tauri_plugin_opener::init());
 
     #[cfg(feature = "smoke")]
     {
@@ -369,66 +383,83 @@ pub fn run() {
         }
     };
 
-    app.run(|app, event| match event {
-        // macOS only: the variant does not exist on the other targets, and an
-        // ungated arm is a Linux compile error the macOS gate cannot see.
-        #[cfg(target_os = "macos")]
-        RunEvent::Reopen { .. } => show_main(app),
-        // Every quit (⌘Q, tray, `quit_app`) funnels through here. The first one
-        // is held back so the webview can flush unsaved buffers; the frontend
-        // answers by calling `quit_app`, and a timer covers the case where it
-        // never does.
-        RunEvent::ExitRequested { api, code, .. } => {
-            // An update restart arrives here too, and Tauri ignores
-            // `prevent_exit` for it, so the handshake below would be a promise
-            // this process cannot keep. `installUpdate` flushes before it calls
-            // `relaunch` instead.
-            if code == Some(tauri::RESTART_EXIT_CODE) {
-                return;
-            }
-
-            if app
-                .state::<AppState>()
-                .quitting
-                .swap(true, Ordering::SeqCst)
-            {
-                return;
-            }
-            api.prevent_exit();
-            if let Err(error) = app.emit("app-quit", ()) {
-                log::error!("could not emit {}: {error}", "app-quit");
-            }
-
-            // Backstop for a webview that never answers. It re-checks the flag
-            // so a quit the frontend called off (a write failed, and exiting
-            // would lose the buffer) is not killed a moment later anyway.
-            let fallback = app.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(Duration::from_secs(5));
-                if fallback.state::<AppState>().quitting.load(Ordering::SeqCst) {
-                    fallback.exit(0);
+    app.run(|app, event| {
+        if app.try_state::<StartupFailed>().is_some() {
+            match event {
+                // The error dialog owns shutdown while initialization is incomplete.
+                RunEvent::ExitRequested {
+                    api, code: None, ..
+                } => api.prevent_exit(),
+                RunEvent::Exit => {
+                    if let Some(state) = app.try_state::<AppState>() {
+                        state.library.shutdown();
+                    }
                 }
-            });
-        }
-        #[cfg(target_os = "macos")]
-        RunEvent::Opened { urls } => {
-            let paths: Vec<String> = urls
-                .into_iter()
-                .filter_map(|url| url.to_file_path().ok())
-                .map(|path| path.to_string_lossy().to_string())
-                .collect();
-            if paths.is_empty() {
-                return;
+                _ => {}
             }
-            show_main(app);
-            // The queue is the only delivery mechanism -- the event just tells
-            // the frontend to drain it, so a path can never open twice.
-            app.state::<AppState>().pending_open().extend(paths);
-            if let Err(error) = app.emit("open-file", ()) {
-                log::error!("could not emit {}: {error}", "open-file");
-            }
+            return;
         }
-        RunEvent::Exit => app.state::<AppState>().library.shutdown(),
-        _ => {}
+        match event {
+            // macOS only: the variant does not exist on the other targets, and an
+            // ungated arm is a Linux compile error the macOS gate cannot see.
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => show_main(app),
+            // Every quit (⌘Q, tray, `quit_app`) funnels through here. The first one
+            // is held back so the webview can flush unsaved buffers; the frontend
+            // answers by calling `quit_app`, and a timer covers the case where it
+            // never does.
+            RunEvent::ExitRequested { api, code, .. } => {
+                // An update restart arrives here too, and Tauri ignores
+                // `prevent_exit` for it, so the handshake below would be a promise
+                // this process cannot keep. `installUpdate` flushes before it calls
+                // `relaunch` instead.
+                if code == Some(tauri::RESTART_EXIT_CODE) {
+                    return;
+                }
+
+                if app
+                    .state::<AppState>()
+                    .quitting
+                    .swap(true, Ordering::SeqCst)
+                {
+                    return;
+                }
+                api.prevent_exit();
+                if let Err(error) = app.emit("app-quit", ()) {
+                    log::error!("could not emit {}: {error}", "app-quit");
+                }
+
+                // Backstop for a webview that never answers. It re-checks the flag
+                // so a quit the frontend called off (a write failed, and exiting
+                // would lose the buffer) is not killed a moment later anyway.
+                let fallback = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_secs(5));
+                    if fallback.state::<AppState>().quitting.load(Ordering::SeqCst) {
+                        fallback.exit(0);
+                    }
+                });
+            }
+            #[cfg(target_os = "macos")]
+            RunEvent::Opened { urls } => {
+                let paths: Vec<String> = urls
+                    .into_iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().to_string())
+                    .collect();
+                if paths.is_empty() {
+                    return;
+                }
+                show_main(app);
+                // The queue is the only delivery mechanism -- the event just tells
+                // the frontend to drain it, so a path can never open twice.
+                app.state::<AppState>().pending_open().extend(paths);
+                if let Err(error) = app.emit("open-file", ()) {
+                    log::error!("could not emit {}: {error}", "open-file");
+                }
+            }
+            RunEvent::Exit => app.state::<AppState>().library.shutdown(),
+            _ => {}
+        }
     });
 }
