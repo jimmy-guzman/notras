@@ -26,6 +26,7 @@ impl Appearance {
 }
 
 /// Convert shell failures without giving a missing resource the meaning of a deleted note.
+#[cfg(any(target_os = "macos", test))]
 pub(crate) fn tauri_error(error: tauri::Error) -> CommandError {
     let reason = match &error {
         tauri::Error::Io(error) | tauri::Error::CurrentDir(error) => CommandError::io_reason(error),
