@@ -184,7 +184,7 @@ async function readDataUrl(file: File) {
   const result = await read.promise;
 
   if (!isDataUrl(result)) {
-    throw new Error("The pasted image could not be read");
+    throw new Error("The image data is not a valid data URL");
   }
 
   return result;

@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, Write as _};
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub fn stash_conflict(
 ) -> Result<(), CommandError> {
     fs::create_dir_all(dir)?;
     let bytes = serde_json::to_vec(stash)
-        .map_err(|error| CommandError::with_source("The review could not be stored", error))?;
+        .map_err(|error| CommandError::with_source("The review data is invalid", error))?;
     let directory = Dir::open_ambient_dir(dir, ambient_authority())?;
     let mut temp = TempSibling::create(&directory)?;
     temp.file_mut().write_all(&bytes)?;
@@ -49,14 +49,19 @@ pub fn read_conflict(
     kind: OpenKind,
     path: &str,
 ) -> Result<Option<ConflictStash>, CommandError> {
-    let file = match File::open(dir.join(stash_name(kind, path))) {
-        Ok(file) => file,
+    let bytes = match fs::read(dir.join(stash_name(kind, path))) {
+        Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
-    serde_json::from_reader(file)
-        .map(Some)
-        .map_err(|error| CommandError::with_source("The stored review could not be read", error))
+    serde_json::from_slice(&bytes).map(Some).map_err(|error| {
+        let reason = if error.is_eof() {
+            "The stored review data is incomplete"
+        } else {
+            "The stored review data is invalid"
+        };
+        CommandError::with_source(reason, error)
+    })
 }
 
 /// Forget a stored review; a note without one is left as it is.

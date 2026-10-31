@@ -27,10 +27,53 @@ impl Appearance {
     }
 }
 
+/// Convert shell failures without giving a missing resource the meaning of a deleted note.
+pub(crate) fn tauri_error(error: tauri::Error) -> CommandError {
+    let reason = match &error {
+        tauri::Error::Io(error) | tauri::Error::CurrentDir(error) => CommandError::io_reason(error),
+        tauri::Error::UnknownPath => "The app data folder is unavailable".into(),
+        tauri::Error::WindowNotFound => "The window is no longer available".into(),
+        tauri::Error::WebviewNotFound => "The webview is no longer available".into(),
+        // Both dispatch sites can fail when the runtime's event loop has closed.
+        tauri::Error::Runtime(_) => "The app's event loop is unavailable".into(),
+        _ => {
+            log::error!("unexpected shell failure: {error}");
+            "An unexpected error".into()
+        }
+    };
+    CommandError::with_source(reason, error)
+}
+
+/// Convert store failures once for both persisted settings, retaining their diagnostic cause.
+pub(crate) fn settings_error(error: tauri_plugin_store::Error) -> CommandError {
+    use tauri_plugin_store::Error;
+
+    let reason = match &error {
+        Error::Io(error) => CommandError::io_reason(error),
+        Error::Serialize(source) | Error::Deserialize(source) => {
+            if let Some(error) = source.downcast_ref::<std::io::Error>() {
+                CommandError::io_reason(error)
+            } else if source.is::<serde_json::Error>() {
+                "The settings data is invalid".into()
+            } else {
+                log::error!("unexpected settings data failure: {source}");
+                "An unexpected error".into()
+            }
+        }
+        Error::Json(_) => "The settings data is invalid".into(),
+        _ => {
+            if let Error::Tauri(error) = error {
+                return tauri_error(error);
+            }
+            log::error!("unexpected settings failure: {error}");
+            "An unexpected error".into()
+        }
+    };
+    CommandError::with_source(reason, error)
+}
+
 fn settings<R: Runtime>(app: &AppHandle<R>) -> Result<std::sync::Arc<Store<R>>, CommandError> {
-    app.store("settings.json").map_err(|error| {
-        CommandError::with_source(format!("The settings could not be opened: {error}"), error)
-    })
+    app.store("settings.json").map_err(settings_error)
 }
 
 /// Set `key` and save the store. A failed save puts the previous value back,
@@ -88,9 +131,7 @@ pub(crate) fn save_appearance<R: Runtime>(
     store: &Store<R>,
     appearance: Appearance,
 ) -> Result<(), CommandError> {
-    save_setting(store, "appearance", serde_json::json!(appearance)).map_err(|error| {
-        CommandError::with_source(format!("The appearance could not be saved: {error}"), error)
-    })
+    save_setting(store, "appearance", serde_json::json!(appearance)).map_err(settings_error)
 }
 
 /// Save the appearance, then paint it. A choice the next launch would forget
@@ -125,12 +166,7 @@ pub async fn set_appearance<R: Runtime>(
                 }
             }
         })
-        .map_err(|error| {
-            CommandError::with_source(
-                format!("The appearance could not be painted: {error}"),
-                error,
-            )
-        })
+        .map_err(tauri_error)
     }
     #[cfg(not(target_os = "macos"))]
     {

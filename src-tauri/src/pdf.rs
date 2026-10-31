@@ -206,7 +206,7 @@ pub async fn export_pdf<R: Runtime>(
                     let _ = done.send(Err(reason));
                 }
             })
-            .map_err(|error| CommandError::with_source("The PDF export could not start", error))?;
+            .map_err(crate::windows::tauri_error)?;
         // A closure that never ran drops its sender, which ends the wait
         // rather than hanging it.
         tauri::async_runtime::spawn_blocking(move || outcome.recv())

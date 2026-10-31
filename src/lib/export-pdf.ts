@@ -124,7 +124,7 @@ export async function exportPdf(
   const width = await commands.pdfLayoutWidth();
 
   if (width === null) {
-    throw new Error("The paper's width could not be read");
+    throw new Error("The paper width is unavailable");
   }
 
   // Nothing is awaited between the paint and the copy, or a highlight started

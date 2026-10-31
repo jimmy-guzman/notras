@@ -52,6 +52,23 @@ impl std::error::Error for CommandError {
 }
 
 impl CommandError {
+    /// The reason a syscall gives, in the app's words where it has them, and without the errno.
+    pub fn io_reason(error: &io::Error) -> String {
+        match error.kind() {
+            io::ErrorKind::NotFound => "No such file".to_string(),
+            io::ErrorKind::PermissionDenied => "Permission denied".to_string(),
+            io::ErrorKind::IsADirectory => "That path is a folder".to_string(),
+            io::ErrorKind::ReadOnlyFilesystem => "The volume is read-only".to_string(),
+            io::ErrorKind::StorageFull => "The disk is full".to_string(),
+            _ => {
+                let text = error.to_string();
+                text.split_once(" (os error ")
+                    .map_or(text.as_str(), |(head, _)| head)
+                    .to_string()
+            }
+        }
+    }
+
     /// Retain a diagnostic cause without exposing it in the serialized failure.
     pub fn with_source(
         message: impl Into<String>,
@@ -61,23 +78,6 @@ impl CommandError {
             kind: ErrorKind::Failed,
             message: message.into(),
             source: Some(Arc::new(source)),
-        }
-    }
-}
-
-/// The reason a syscall gives, in the app's words where it has them, and without the errno.
-fn io_reason(error: &io::Error) -> String {
-    match error.kind() {
-        io::ErrorKind::NotFound => "No such file".to_string(),
-        io::ErrorKind::PermissionDenied => "Permission denied".to_string(),
-        io::ErrorKind::IsADirectory => "That path is a folder".to_string(),
-        io::ErrorKind::ReadOnlyFilesystem => "The volume is read-only".to_string(),
-        io::ErrorKind::StorageFull => "The disk is full".to_string(),
-        _ => {
-            let text = error.to_string();
-            text.split_once(" (os error ")
-                .map_or(text.as_str(), |(head, _)| head)
-                .to_string()
         }
     }
 }
@@ -92,7 +92,7 @@ impl From<io::Error> for CommandError {
             } else {
                 ErrorKind::Failed
             },
-            message: io_reason(&error),
+            message: CommandError::io_reason(&error),
             source: Some(Arc::new(error)),
         }
     }
@@ -662,7 +662,7 @@ fn publish_move(
             );
             warnings.push(MutationWarning::Cleanup {
                 path: from.as_str().to_owned(),
-                message: io_reason(&error),
+                message: CommandError::io_reason(&error),
             });
             Some(from.as_str().to_owned())
         }
