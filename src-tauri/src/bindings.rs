@@ -538,12 +538,14 @@ mod tests {
         fs::create_dir_all(&initial).unwrap();
         let contract = builder::<tauri::test::MockRuntime>();
         let mut context = tauri::test::mock_context(tauri::test::noop_assets());
-        // The mock context has no bundle validation. An absolute identifier keeps
-        // the store plugin's app-data resolution inside this test's directory.
+        // The absolute identifier keeps the mock app cache inside the test directory.
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
                     Library::open(&initial, &directory.path().join(".index")).unwrap(),
@@ -611,6 +613,62 @@ mod tests {
             json!({"paths": ["after.md"]})
         );
         *app.state::<AppState>().watcher() = None;
+    }
+
+    #[test]
+    fn should_keep_the_active_library_when_its_new_folder_cannot_be_saved() {
+        let directory = tempfile::tempdir().unwrap();
+        let initial = directory.path().join("initial");
+        let fresh = directory.path().join("fresh");
+        let settings_path = directory.path().join("settings/settings.json");
+        let settings = crate::settings::Settings::load(settings_path.clone()).unwrap();
+        settings.save_notes_dir(initial.to_str().unwrap()).unwrap();
+        let original = fs::read(&settings_path).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier = directory.path().join("cache").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .manage(settings)
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(&initial, &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quitting: AtomicBool::new(false),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let active = invoke(&window, "get_notes_dir", json!({})).unwrap();
+        fs::remove_file(&settings_path).unwrap();
+        fs::create_dir(&settings_path).unwrap();
+
+        assert_eq!(
+            invoke(&window, "set_notes_dir", json!({"path": fresh})),
+            Err(json!({
+                "kind": "failed", "message": if cfg!(windows) { "Permission denied" } else { "That path is a folder" }
+            }))
+        );
+        assert_eq!(invoke(&window, "get_notes_dir", json!({})).unwrap(), active);
+        fs::remove_dir(&settings_path).unwrap();
+        fs::write(&settings_path, original).unwrap();
+        app.state::<crate::settings::Settings>()
+            .save_appearance(crate::windows::Appearance::Dark)
+            .unwrap();
+        assert_eq!(invoke(&window, "get_notes_dir", json!({})).unwrap(), active);
+        let reloaded = crate::settings::Settings::load(settings_path).unwrap();
+        let reopened = Library::open(
+            &reloaded.notes_dir().unwrap().unwrap(),
+            &directory.path().join("restart-index"),
+        )
+        .unwrap();
+        assert_eq!(json!(reopened.directory()), active);
     }
 
     #[cfg(unix)]
@@ -685,7 +743,10 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
                     Library::open(&initial, &directory.path().join(".index")).unwrap(),
@@ -1018,7 +1079,10 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .invoke_handler(contract.invoke_handler())
             .build(context)
             .unwrap();
@@ -1027,14 +1091,16 @@ mod tests {
             .unwrap();
         let settings = directory.path().join("settings/settings.json");
 
-        let store = tauri_plugin_store::StoreExt::store(&app, "settings.json").unwrap();
+        let store = app.state::<crate::settings::Settings>();
 
         assert_eq!(
             invoke(&window, "get_appearance", json!({})),
             Ok(json!("auto"))
         );
         // The mock runtime cannot paint a theme, so the save is driven below the command.
-        crate::windows::save_appearance(&store, crate::windows::Appearance::Light).unwrap();
+        store
+            .save_appearance(crate::windows::Appearance::Light)
+            .unwrap();
         let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
         assert_eq!(saved["appearance"], "light");
         assert_eq!(
@@ -1046,13 +1112,14 @@ mod tests {
         let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
         assert_eq!(saved["appearance"], "light");
 
-        store.set("appearance", json!("sepia"));
+        fs::write(&settings, br#"{"appearance":"sepia"}"#).unwrap();
+        let error = crate::settings::Settings::load(settings).err().unwrap();
         assert_eq!(
-            invoke(&window, "get_appearance", json!({})),
-            Err(json!({
+            serde_json::to_value(error).unwrap(),
+            json!({
                 "kind": "failed",
                 "message": "The saved appearance \"sepia\" is not auto, light or dark"
-            }))
+            })
         );
     }
 
@@ -1065,17 +1132,21 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .invoke_handler(contract.invoke_handler())
             .build(context)
             .unwrap();
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
             .build()
             .unwrap();
-        let store = tauri_plugin_store::StoreExt::store(&app, "settings.json").unwrap();
+        let store = app.state::<crate::settings::Settings>();
         let settings = directory.path().join("settings/settings.json");
-        store.set("appearance", json!("light"));
-        store.save().unwrap();
+        store
+            .save_appearance(crate::windows::Appearance::Light)
+            .unwrap();
         fs::remove_file(&settings).unwrap();
         fs::create_dir(&settings).unwrap();
 
@@ -1089,8 +1160,7 @@ mod tests {
         );
 
         fs::remove_dir(&settings).unwrap();
-        store.set("notesDir", json!("/notes"));
-        store.save().unwrap();
+        store.save_notes_dir("/notes").unwrap();
         let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
         assert_eq!(saved["appearance"], "light");
     }
@@ -1104,7 +1174,10 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .invoke_handler(contract.invoke_handler())
             .build(context)
             .unwrap();

@@ -48,6 +48,10 @@ Indexing failure cannot undo a committed file operation or hide its warning. Ind
 
 Poisoned mutexes cannot expose potentially interrupted state. Blocking-task panics must retain their original payload when propagated; non-panic task failures belong to the command error boundary.
 
+The shell owns settings validation, the settings path, and the cached values in one application state. Loading settings never writes; only an absent file permits defaults. Unknown JSON keys survive updates.
+
+Each update holds the store mutex while staging and synchronizing a sibling temporary file, replacing `settings.json`, and then publishing the cached values. Failed writes or replacements preserve the prior file and cached values. Folder changes persist before replacing the active library; appearance changes persist before painting. This coordinates updates within one process, without promising coordination between processes or durability across arbitrary power loss.
+
 ## Test boundaries
 
 React component tests use Testing Library and happy-dom; shared setup owns cleanup and DOM matchers. Frontend integration tests fake IPC while retaining the real adapters, query cache, and editor. DOM tests cannot establish native IME behavior, layout, or selection feel.
