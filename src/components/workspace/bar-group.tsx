@@ -115,7 +115,9 @@ interface BarGroupProps {
 export function BarGroup({ activeTab, onNew, onSearch, ref }: BarGroupProps) {
   return (
     <div
-      className="text-muted-foreground absolute top-0 right-0 flex h-8 items-center py-1 pe-1"
+      // Its widest state, two-digit tag and mention counts, so the strip's
+      // end and the tabs' widths hold still as the showing tab changes.
+      className="text-muted-foreground absolute top-0 right-0 flex h-8 min-w-66 items-center justify-end py-1 pe-1"
       data-tauri-drag-region="deep"
       ref={ref}
     >

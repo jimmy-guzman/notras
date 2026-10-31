@@ -22,6 +22,30 @@
     color 150ms ease-out;
 }
 
+/* A tab's feet, so the active tab flows into the note and a hovered one into
+   its fill. `inherit` follows the fill's fade. */
+@utility tab-shape {
+  position: relative;
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    width: 4px;
+    height: 4px;
+    pointer-events: none;
+    background: inherit;
+  }
+  &::before {
+    left: -4px;
+    mask: radial-gradient(circle at 0 0, transparent 4px, black 4px);
+  }
+  &::after {
+    right: -4px;
+    mask: radial-gradient(circle at 100% 0, transparent 4px, black 4px);
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-shell: var(--shell);

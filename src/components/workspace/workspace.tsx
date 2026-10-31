@@ -448,8 +448,9 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
           <Titlebar
             className="pe-(--bar-reserve)"
             ref={titlebar}
-            // The bar's own 4px end gap, plus the group's overlap.
-            style={{ "--bar-reserve": `${reserve + 4}px` }}
+            // The bar's own 4px end gap, plus the group's overlap or the card's
+            // 8px corner, whichever the last tab's foot has to clear.
+            style={{ "--bar-reserve": `${Math.max(reserve, 8) + 4}px` }}
           >
             <TabStrip activeId={activeId} tabs={tabs} />
           </Titlebar>
