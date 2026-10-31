@@ -12,6 +12,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { restrictToParentElement } from "@dnd-kit/modifiers";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import {
   defaultAnimateLayoutChanges,
@@ -232,7 +233,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           button a sibling of the tab rather than a child of it. */}
       <span
         className={cn(
-          "group tab-motion hover:text-foreground has-[:focus-visible]:outline-ring flex h-6 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+          "group tab-motion tab-shape hover:text-foreground has-[:focus-visible]:outline-ring flex h-7 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-t-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
           active
             ? "bg-background text-foreground"
             : "hover:bg-muted dark:hover:bg-muted/50",
@@ -253,7 +254,9 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           <button
             aria-controls={tabPanelId(id)}
             aria-selected={active}
-            className="flex min-w-0 flex-1 items-center ps-1.5 text-start focus-visible:outline-none"
+            // The whole box, with the close button floating over its end, so
+            // every press outside that button is the tab's.
+            className="flex min-w-0 flex-1 items-center self-stretch ps-1.5 pe-7 pb-1 text-start focus-visible:outline-none"
             // `deep`, since a bare mark only counts a press on the button itself
             // and the label and glyph sit inside it.
             data-tauri-drag-region={sole ? "deep" : undefined}
@@ -272,7 +275,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           <button
             aria-label={`close ${label}`}
             className={cn(
-              "hover:bg-muted hover:text-foreground ms-1 me-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-all duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
+              "hover:bg-muted hover:text-foreground absolute end-1 top-0.5 inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
               active && "text-muted-foreground opacity-100"
             )}
             data-tab-close
@@ -449,9 +452,11 @@ function TabList({ activeId, tabs }: TabListProps) {
     // Synchronous, or a frame of cut tabs paints first.
     const observer = new ResizeObserver(() => {
       flushSync(() => {
+        // `clientWidth` holds two gaps of padding for the feet, and the last
+        // tab needs no gap after it, so one gap comes off.
         setFit(
           Math.floor(
-            (list.clientWidth + TAB_GAP_PX) / (TAB_MIN_PX + TAB_GAP_PX)
+            (list.clientWidth - TAB_GAP_PX) / (TAB_MIN_PX + TAB_GAP_PX)
           )
         );
       });
@@ -507,6 +512,7 @@ function TabList({ activeId, tabs }: TabListProps) {
         collisionDetection={closestCenter}
         // What lets `animateLayoutChanges` see a change no drag made.
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        modifiers={[restrictToParentElement]}
         onDragEnd={handleDragEnd}
         onDragStart={handleDragStart}
         sensors={sensors}
@@ -516,7 +522,8 @@ function TabList({ activeId, tabs }: TabListProps) {
           strategy={horizontalListSortingStrategy}
         >
           <div
-            className="flex min-w-0 flex-1 items-center gap-1 overflow-clip"
+            // Room inside the clip for the feet and the 4px the tabs run below the row.
+            className="-mx-1 -mb-1 flex h-7 min-w-0 flex-1 items-center gap-1 overflow-clip px-1"
             onKeyDown={handleKeyDown}
             ref={observeWidth}
             role="tablist"

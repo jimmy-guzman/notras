@@ -361,45 +361,53 @@ describe("tab strip", () => {
       ).toBeVisible();
     });
 
-    it("should show only the tabs that fit whole, holding the showing one", async () => {
-      const Platform = globalThis.ResizeObserver;
-      const reports: ResizeObserverCallback[] = [];
+    // 203px is one short of the 204px two tabs need: 8px of foot padding, two
+    // 96px tabs and their 4px gap.
+    it.each([
+      { shown: ["c", "d"], width: 220 },
+      { shown: ["d"], width: 203 },
+    ])(
+      "should show only the tabs that fit a $width px strip whole, holding the showing one",
+      async ({ shown, width }) => {
+        const Platform = globalThis.ResizeObserver;
+        const reports: ResizeObserverCallback[] = [];
 
-      // happy-dom lays nothing out and never reports, so the test does both.
-      Object.assign(globalThis, {
-        ResizeObserver: class extends Platform {
-          constructor(onResize: ResizeObserverCallback) {
-            super(onResize);
-            reports.push(onResize);
+        // happy-dom lays nothing out and never reports, so the test does both.
+        Object.assign(globalThis, {
+          ResizeObserver: class extends Platform {
+            constructor(onResize: ResizeObserverCallback) {
+              super(onResize);
+              reports.push(onResize);
+            }
+          },
+        });
+        onTestFinished(() => {
+          Object.assign(globalThis, { ResizeObserver: Platform });
+        });
+        await mountStrip(
+          [
+            { id: "a", kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+            { id: "c", kind: "note", path: "c.md" },
+            { id: "d", kind: "note", path: "d.md" },
+          ],
+          "d"
+        );
+        Object.defineProperty(screen.getByRole("tablist"), "clientWidth", {
+          value: width,
+        });
+
+        act(() => {
+          for (const report of reports) {
+            report([], new Platform(report));
           }
-        },
-      });
-      onTestFinished(() => {
-        Object.assign(globalThis, { ResizeObserver: Platform });
-      });
-      await mountStrip(
-        [
-          { id: "a", kind: "note", path: "a.md" },
-          { id: "b", kind: "note", path: "b.md" },
-          { id: "c", kind: "note", path: "c.md" },
-          { id: "d", kind: "note", path: "d.md" },
-        ],
-        "d"
-      );
-      Object.defineProperty(screen.getByRole("tablist"), "clientWidth", {
-        value: 220,
-      });
+        });
 
-      act(() => {
-        for (const report of reports) {
-          report([], new Platform(report));
-        }
-      });
-
-      expect(
-        screen.getAllByRole("tab").map((tab) => tab.textContent)
-      ).toStrictEqual(["c", "d"]);
-    });
+        expect(
+          screen.getAllByRole("tab").map((tab) => tab.textContent)
+        ).toStrictEqual(shown);
+      }
+    );
   });
 
   describe("tab glyphs", () => {
