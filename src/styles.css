@@ -5,7 +5,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 /* shadcn/typeset, vendored verbatim and refreshed by scripts/update-typeset.sh
-   (`D40`). It reads the --color-* tokens directly, so the note surface is on the
+  . It reads the --color-* tokens directly, so the note surface is on the
    palette with nothing to repoint. */
 @import "./typeset.css";
 
@@ -403,7 +403,7 @@ body.dragging .ProseMirror .selected-text,
 /* Task lists: flex rows with hand-drawn checkboxes locked to the first text
    line. Every selector reaches a row as a child of its own list, because a task
    item holds `paragraph block*`, so a list nested inside one is an ordinary
-   list and keeps its markers (`D39`). The list is padded like any other list
+   list and keeps its markers. The list is padded like any other list
    and the row is pulled back by the checkbox column, so a checkbox sits in the
    marker gutter and a task, a bullet and a number share one indent ladder. The
    gap and the pull-back are one measured pair: the gap puts the box's right
@@ -765,7 +765,7 @@ body.dragging .ProseMirror .selected-text,
    between the item and the fence. `.code-block-wrapper > pre` is this repo's
    own shape and holds still. The reach costs a fence sitting deeper inside an
    item, inside a blockquote say, the same tightening, which is the direction
-   the list wants anyway. Unlike the row recipe `D39` scoped, nothing here sets
+   the list wants anyway. Unlike the direct-child row recipe, nothing here sets
    `display` or claims a child, so a descendant cannot delete a marker.
 
    The nested gap retains Typeset's step, resolved against the independent

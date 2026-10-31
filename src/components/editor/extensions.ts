@@ -91,7 +91,7 @@ export interface EditorExtensionOptions {
 
 /**
  * TipTap's `excludes: "_"` refuses a text node holding `code` beside any other
- * mark, which markdown writes freely and the parser builds (`D59`).
+ * mark, which markdown writes freely and the parser builds.
  */
 const NoteCode = Code.extend({ excludes: "" });
 
@@ -109,7 +109,7 @@ const NoteStrike = Strike.extend({
 
 /**
  * Keep the paragraph around an image alone in one, and hand every other
- * paragraph to upstream (`D58`).
+ * paragraph to upstream.
  *
  * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
  * 3.32.0 its `parseMarkdown` returns the bare image for a paragraph holding
@@ -133,7 +133,7 @@ const NoteParagraph = Paragraph.extend({
 
 /**
  * Escape what cannot sit in a bare destination. mdurl's default set keeps the
- * URL syntax and rewrites non-ASCII (`D57`).
+ * URL syntax and rewrites non-ASCII.
  */
 function bareDestination(url: string) {
   return encode(url);
@@ -1351,7 +1351,7 @@ export function createEditorExtensions(
           }),
         ]),
     // Swapped with NoteCode, a text node carrying both marks serializes its
-    // tildes inside the backticks and edits the file on open (`D59`).
+    // tildes inside the backticks and edits the file on open.
     NoteStrike,
     NoteCode,
     NoteHardBreak,
@@ -1402,7 +1402,7 @@ export function createEditorExtensions(
     NoteTaskList,
     NoteTaskItem.configure({ nested: true }),
     NoteImage.configure({
-      // Markdown images are inline; the block default breaks a paragraph (`D58`).
+      // Markdown images are inline; the block default breaks a paragraph.
       inline: true,
       openImage: options.openImage ?? null,
       resolveSrc: options.resolveImageSrc ?? passImageSrc,

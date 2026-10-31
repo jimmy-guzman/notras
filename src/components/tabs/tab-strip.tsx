@@ -97,7 +97,7 @@ const TAB_GAP_PX = 4;
 
 const SHOW_TABS = "Mod+Shift+A";
 
-/** dnd-kit defaults to 250ms; `DESIGN.md` names 0.15s for the bars. */
+/** dnd-kit defaults to 250ms; the bars use 150ms. */
 const TAB_TRANSITION = { duration: 150, easing: "ease" };
 
 function isTabDrag(data: Data | undefined): data is { label: string } {
@@ -108,7 +108,7 @@ function draggedLabel(data: Data | undefined) {
   return isTabDrag(data) ? data.label : "";
 }
 
-/** dnd-kit's defaults announce the minted id (`D56`). */
+/** dnd-kit's defaults announce the minted id. */
 const ANNOUNCEMENTS: Announcements = {
   onDragCancel: ({ active }) =>
     `left ${draggedLabel(active.data.current)} where it was`,
@@ -421,10 +421,10 @@ function handleDragStart(event: DragStartEvent) {
 }
 
 /**
- * The open tabs, in the title bar where the note's title used to sit (`D52`).
+ * The open tabs, in the title bar where the note's title used to sit.
  *
  * One tab stop with arrow keys inside it.
- * Dragging one is dnd-kit's, and `D60` carries why. A tab among neighbours
+ * dnd-kit owns tab dragging. A tab among neighbours
  * keeps its press for the tab drag, and a lone tab has nowhere to go, so it
  * hands the press to the window instead.
  */
@@ -441,7 +441,7 @@ function TabList({ activeId, tabs }: TabListProps) {
   }
 
   // No keyboard sensor: it wants the `attributes` spread, which would overwrite
-  // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders (`D60`).
+  // the `role="tab"` wiring, and `⌘⌥⇧←/→` already reorders.
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: ACTIVATION_DISTANCE_PX },

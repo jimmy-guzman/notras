@@ -143,7 +143,7 @@ export const HtmlBlock = Node.create({
     const text = (token.raw ?? "").replace(TRAILING_NEWLINES, "");
     const image = imageTagAttrs(text);
 
-    // A lone image is a paragraph in the doc (`D58`).
+    // A lone image is a paragraph in the doc.
     return image === null
       ? helpers.createNode("htmlBlock", undefined, [
           helpers.createTextNode(text),

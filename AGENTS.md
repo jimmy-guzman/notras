@@ -4,30 +4,11 @@ Apply these when writing or changing code, and when writing prose in this repo. 
 
 ## Project docs
 
-The context for this repo lives in the six documents below. Read the ones your change touches before changing anything.
+Read project docs selectively. `ARCHITECTURE.md` describes ownership, boundaries, and integrity constraints. `DESIGN.md` guides interface choices. `README.md` owns installation, the feature overview, and shortcuts. `CONTRIBUTING.md` owns build, verification, and maintenance instructions.
 
-| Doc | What it holds |
-| --- | --- |
-| `ARCHITECTURE.md` | How the system is built: stack, files as the source of truth, the index schema, structure, layer boundaries, key patterns, invariants. |
-| `DESIGN.md` | The interface conventions the app is built to: principles, typography, color, the icon, space, motion, interaction, the editor surface, copy, accessibility. |
-| `DECISIONS.md` | A log of decisions made, each with its rationale and what it rejected. A record, not a rulebook. |
-| `SPEC.md` | What the app does, as claims a reader can check against a running build. |
-| `README.md` | The front door. What notras is, how to install it, and the shortcuts table it owns. |
-| `CONTRIBUTING.md` | How to build and check notras: requirements, the scripts table, Rust commands, icon regeneration. |
+Update a document when its retained guidance changes. Routine behavior changes do not require a prose inventory or a documentation approval checkpoint. Implementation and tests provide evidence of current behavior; investigate disagreements with documentation before changing either.
 
-`AGENTS.md` holds rules and this map. Project fact belongs in one of the files above, so a stack detail, a pattern, or a color token added here is in the wrong place.
-
-- **Behavior you change is a claim in `SPEC.md`.** Update the claim in the same commit that changes the behavior. A behavior with no claim yet gets one.
-
-- **Actionable future work belongs in [GitHub issues](https://github.com/jimmy-guzman/notras/issues).** State the problem, the desired outcome, the evidence, and any unresolved prerequisite. Check for an existing issue before opening one. Speculative ideas need no backlog entry. What landed belongs in the commit, not in a second log.
-
-- **`DECISIONS.md` is history, not a constraint.** Reassess an old choice against current behavior and evidence. Routine implementation details belong in code; current behavior and ownership belong in `SPEC.md` and `ARCHITECTURE.md`. Add a decision entry only when the rationale needs a durable record beyond those sources. A rejected alternative alone does not require one.
-
-- **Reassess architectural invariants when behavior changes.** Update `ARCHITECTURE.md` to describe the resulting system. An existing invariant can be wrong; its presence does not require preserving it or adding a decision entry.
-
-- **Numbering is monotonic and IDs are never reused, even after the entry is removed.** A citation in a commit or another doc outlives the line it points at.
-
-- **Cite IDs, never restate, and never in code.** Write `D7` in commit messages, PR bodies, and the other docs. A copied constraint drifts away from its original as the original changes, while a citation keeps pointing at whatever the entry says now. A comment has to stand on its own instead: a reader in the file cannot follow the citation, and `DECISIONS.md` records what was decided once rather than what the code does now.
+Actionable future work belongs in GitHub issues. Check for an existing issue first. Record change-specific rationale in commits and PRs. Keep code comments self-contained, with no decision-log citations.
 
 ## Naming and layout
 
@@ -41,11 +22,11 @@ The context for this repo lives in the six documents below. Read the ones your c
 
 - **A comment carries a why, never a what.** Doc comments, meaning JSDoc and rustdoc, carry the contract. `TODO` and `FIXME` carry a known gap. A line comment earns its place when it holds reasoning the code cannot: a platform quirk, a race, a measured value, or the rejected alternative sitting one line away. Delete the ones that restate what the line below already says, since those are the ones that drift into lies.
 
-- **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and diff cleanly, so it is exempt from the comment rule above and excluded in `oxlint.config.ts` and `oxfmt.config.ts` (`D40`). Change the note surface through the `.typeset-note` preset in `src/styles.css`, never in the vendored file.
+- **`src/typeset.css` is vendored and edited by nobody.** It is upstream's file byte for byte, which is what lets `scripts/update-typeset.sh` re-fetch it and diff cleanly, so it is exempt from the comment rule above and excluded in `oxlint.config.ts` and `oxfmt.config.ts`. Change the note surface through the `.typeset-note` preset in `src/styles.css`, never in the vendored file.
 
 - **Prefer named exports.** Reach a file in another folder under `src/` through the `@/*` alias, never a `../` path. A file in the same folder imports with `./`.
 
-- **Ultracite, on oxlint and oxfmt, is the only JS/TS formatter and linter** (`D15`, `D41`, `D82`), and it is dev tooling only. Rust uses rustfmt and Clippy. A rule is turned off or narrowed only in `oxlint.config.ts`, with the reason on the line above it. Everywhere else a false positive is suppressed at the call site with `oxlint-disable-next-line` and a reason after `--`. Inline event handlers are allowed. Let the React Compiler own memoization (`ARCHITECTURE.md`). Add `useCallback`, `useMemo`, or `memo` only when profiling identifies a performance problem and before-and-after measurements verify the benefit. Never suppress a `react/*` diagnostic owned by the compiler, since suppressions hide compilation bailouts. `src/components/ui/**` is owned code under the same rules, and `@shadcn/lint` keeps a component's appearance inside its file and leaves a call site only placement (`D85`).
+- **Ultracite, on oxlint and oxfmt, is the only JS/TS formatter and linter**, and it is dev tooling only. Rust uses rustfmt and Clippy. A rule is turned off or narrowed only in `oxlint.config.ts`, with the reason on the line above it. Everywhere else a false positive is suppressed at the call site with `oxlint-disable-next-line` and a reason after `--`. Inline event handlers are allowed. Let the React Compiler own memoization (`ARCHITECTURE.md`). Add `useCallback`, `useMemo`, or `memo` only when profiling identifies a performance problem and before-and-after measurements verify the benefit. Never suppress a `react/*` diagnostic owned by the compiler, since suppressions hide compilation bailouts. `src/components/ui/**` is owned code under the same rules, and `@shadcn/lint` keeps a component's appearance inside its file and leaves a call site only placement.
 
 - **Sort object keys and imports alphabetically.** oxfmt sorts imports and the `sort-keys` fix sorts keys, both on save through the editors' oxc actions and again at `pnpm check` and in the commit hook.
 
@@ -148,7 +129,9 @@ CI checks native binding drift on Linux before starting the TypeScript job. Clip
 
 Regenerate `src/server/adapters/bindings.ts` with `pnpm bindings`; do not edit its generated command signatures or runtime by hand. Change the native registry or export configuration in Rust. `ARCHITECTURE.md` describes the contract and test boundary.
 
-For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the change against `SPEC.md`'s claims for that area. `pnpm smoke` covers one edit, save and relaunch path on macOS, and nothing automated covers the rest (`D21`). Say which claims you checked and which you took from the code alone.
+When changing file publication, check the platform limitations in `ARCHITECTURE.md` against the native implementation. Do not infer atomic conflict detection from the frontend revision check alone.
+
+For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the affected behavior against the task's acceptance criteria. `pnpm smoke` covers one edit, save and relaunch path on macOS, and nothing automated covers the rest. Say which behaviors you checked and which you took from the code alone.
 
 ## When to stop and ask
 
@@ -192,7 +175,7 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
 ### Words
 
-- **User-facing text in the app is cased by role.** Controls and titles lowercase, prose sentence case, xs section labels uppercase by CSS. `DESIGN.md` carries the rule and `D84` carries the reasoning.
+- **User-facing text in the app is cased by role.** Controls and titles lowercase, prose sentence case, xs section labels uppercase by CSS. `DESIGN.md` carries the rule.
 
 - **Cut adverbs that only add emphasis.** Genuinely, actually, really, simply, truly, fundamentally, inherently, crucially, importantly, just. They assert a force the sentence has not earned. An adverb that changes the meaning, like "only" or "directly", stays.
 
@@ -214,7 +197,7 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
 - **No sentence opens on an inverted Wh- clause.** "What triggers the reload is a newer mtime" holds the subject back to build suspense. Write "a newer mtime triggers the reload". A conditional opening is different and stays.
 
-- **No binary contrast where one side is a foil.** This bans "not X, it's Y", "the question isn't X, it's Y", "stops being X and becomes Y", and "X. That's it." A contrast earns its place when both sides name something a person would pick, as in a rejection clause in `DECISIONS.md`. It fails when one side exists to make the other sound better.
+- **No binary contrast where one side is a foil.** This bans "not X, it's Y", "the question isn't X, it's Y", "stops being X and becomes Y", and "X. That's it." A contrast earns its place when both sides name something a person would pick. It fails when one side exists to make the other sound better.
 
 - **No rhetorical setups, and no abstraction acting like a person.** This bans "what if", "think about it", "the data tells us". Name whoever or whatever does the thing.
 
@@ -232,7 +215,7 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
 - **State a claim with its evidence.** "Fast and lightweight" is not a claim. A file size, a benchmark, or a cited `D` entry is.
 
-- **No unfounded evaluation.** This bans "the best framework", "everyone knows", "obviously". `DECISIONS.md` compares by design, and evaluation there is allowed when the entry names the ground for it.
+- **No unfounded evaluation.** This bans "the best framework", "everyone knows", "obviously".
 
 - **No vague declaratives.** This bans "the reasons are structural", "the implications are significant". Name the reason or the implication.
 
@@ -242,7 +225,7 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
 ### Voice
 
-- **Third person for the system, imperative for instructions.** `AGENTS.md` gives instructions and addresses the reader. `ARCHITECTURE.md`, `DESIGN.md`, and `DECISIONS.md` describe a system and do not.
+- **Third person for the system, imperative for instructions.** `AGENTS.md` gives instructions and addresses the reader. `ARCHITECTURE.md` and `DESIGN.md` describe a system and do not.
 
 ## Git and PRs
 
@@ -266,6 +249,4 @@ These rules cover every markdown file here, plus commit messages and PR bodies.
 
   The issue reference stands alone on the first line when there is one. Why is required and comes first, since it frames how a reviewer reads the change, and it says what was wrong rather than what changed. Approach holds only what the diff cannot show: the alternative rejected, a departure from the usual pattern, what is out of scope, the one behavior change inside a refactor. Review names the feedback wanted, where to start, and a behavior that was never exercised that a reviewer would assume was covered. A label exists only when its sentence does, so a dependency bump is often a Why alone, and nothing follows Review. A real before and after, a number or a screenshot, sits after the sentence it supports. Keep each paragraph to three sentences or fewer, and the whole body under about 180 words. The no-wrap rule matters more here than anywhere else: GitHub renders every single newline in a PR body as a line break, so a wrapped body arrives as a ragged column.
 
-- **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`, which `D49` explains. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.
-
-- **After introducing a new pattern, feature, convention, or structural change, ask whether `AGENTS.md`, `ARCHITECTURE.md`, `DESIGN.md`, `DECISIONS.md`, `SPEC.md`, `README.md`, or `CONTRIBUTING.md` should be updated, then apply the changes.** Catching the update at the point of change is when it reliably happens at all.
+- **Releases are cut by release-please, and `package.json` holds the only version.** A conventional commit on `main` opens or updates a release PR; merging it tags `vX.Y.Z`, writes `CHANGELOG.md`, and drives the build, checksum and Homebrew cask jobs in `.github/workflows/release.yml`. Never hand-edit a version: `src-tauri/tauri.conf.json` derives it and `src-tauri/Cargo.toml`'s is pinned at `0.0.0`. The freeze covers that line and nothing else: a dependency added to the same file lands with the regenerated workspace `Cargo.lock`, which is what `cargo test --workspace --locked` checks. A stranded or partial release is republished with `gh workflow run release.yml -f tag=vX.Y.Z`, because the push path cannot redo it.

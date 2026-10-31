@@ -3,7 +3,7 @@ name = "notras"
 # Frozen, and not the app version. `tauri.conf.json` reads the version out of
 # `package.json`, which release-please owns. No release-please updater bumps
 # `Cargo.toml` and `Cargo.lock` together, so bumping this alone strands the
-# lockfile and breaks `cargo build --locked` (`D49`).
+# lockfile and breaks `cargo build --locked`.
 version = "0.0.0"
 description = "Write another note."
 authors = ["jimmy-guzman"]

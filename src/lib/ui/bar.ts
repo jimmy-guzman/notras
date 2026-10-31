@@ -1,5 +1,5 @@
 /**
- * How a standalone glyph in a bar control is drawn (`D51`).
+ * How a standalone glyph in a bar control is drawn.
  *
  * The stroke is not lucide's default: its 2 is against a 24-unit `viewBox`, so
  * it scales down with the glyph and 14px would render 1.167px. `strokeWidth`

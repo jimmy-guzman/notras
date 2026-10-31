@@ -6,7 +6,7 @@ const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/iu;
 
 /**
  * A path becomes a destination percent-encoded, the separators apart, since a
- * bare one ends at the first space (`D57`).
+ * bare one ends at the first space.
  */
 export function encodeAttachmentPath(relativePath: string) {
   return encode(relativePath, `/${encode.componentChars}`);

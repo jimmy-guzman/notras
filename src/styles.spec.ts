@@ -105,7 +105,7 @@ const SYNTAX = [
  * Every pair a reader actually sees, as `[text, surface]`. A code block sits on
  * `--card` while source mode is transparent onto `--background`, so the syntax
  * ramp is painted on both and has to clear the floor on both. `--muted` carries
- * the inline-code chip Typeset paints (`D40`), which body text and a muted
+ * the inline-code chip Typeset paints, which body text and a muted
  * heading both sit inside, and the `Kbd` chip, whose own text is
  * `--muted-foreground`.
  */
@@ -231,7 +231,7 @@ const DESCENDANT_ROW = /ul\[data-type="taskList"\]\s+li\b/u;
  * A task item holds `paragraph block*`, so a list nested inside one renders as
  * an ordinary `ul` of plain `li`. The row recipe sets `display: flex`, which is
  * not `list-item` and generates no marker box, so reaching a row through a
- * descendant `li` deletes the markers of every list a task carries (`D39`).
+ * descendant `li` deletes the markers of every list a task carries.
  */
 describe("task list styling", () => {
   it("should reach a task row as a child of its own list", () => {
@@ -254,7 +254,7 @@ const TEXT_TONES = ["destructive", "faint", "foreground", "muted-foreground"];
 /**
  * Typeset takes no colour of its own. It derives two paint roles from theme
  * tokens, and every colour it draws comes from one of those two or from
- * `--color-foreground` (`D40`). Reading them out of the vendored file is what
+ * `--color-foreground`. Reading them out of the vendored file is what
  * catches an upgrade that repoints one, since nothing else would.
  */
 const typesetRole = (role: string) => {
@@ -283,10 +283,8 @@ const markerRoles = [...typeset.matchAll(MARKER_COLOUR)].map(
 );
 
 /**
- * A `::marker` is a painted glyph, and pointing one at `--border` put a bullet
- * on the dark background at 1.27:1 before `D39`. Typeset paints every marker
- * from `--typeset-muted`, which is the conclusion `D39` reached, so the gate
- * asserts it still arrives that way rather than trusting the file.
+ * Markers need text contrast even when upstream changes their token mapping.
+ * A border token can leave a visible bullet unreadable on the note surface.
  */
 describe("note surface colours", () => {
   it("should paint every muted glyph in a text tone", () => {
@@ -380,7 +378,7 @@ describe("shared surface colors", () => {
  * dropped line falls back to a Typeset default in silence: `--typeset-size`
  * would follow the container instead of the base size, and
  * `--typeset-font-heading` would resolve `var(--font-heading)`, which this app
- * does not define, making the `font-family` declaration invalid (`D40`).
+ * does not define, making the `font-family` declaration invalid.
  */
 const TYPESET_CONTROLS = [
   "flow",
@@ -502,11 +500,8 @@ describe("reading typography", () => {
 });
 
 /**
- * `D39` logged the row's pull-back drifting out of step with the checkbox and
- * the flex gap as unenforced, and `D40` moved all three onto `em` so the ladder
- * survives the size Typeset uses below 768px. Both are readable from the
- * stylesheet, so neither has to stay unenforced: the pull-back has to cancel
- * exactly the box and the gap, or the marker column moves with nothing failing.
+ * The row's pull-back must cancel the checkbox width and flex gap so the
+ * marker column stays aligned as the note's font size changes.
  */
 const CHECKBOX_WIDTH = /> label > input \{[^}]*?width:\s*(?<value>[\d.]+)em/u;
 
@@ -702,7 +697,7 @@ describe("launch background", () => {
 const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/u;
 
 /**
- * The mark `DESIGN.md` documents, read as declarations rather than as the
+ * The keyboard focus mark, read as declarations rather than as the
  * presence of a `:focus-visible` selector. A rule that names the selector and
  * then paints nothing, or offsets an outline it never draws, leaves the control
  * exactly as bare as no rule at all.
