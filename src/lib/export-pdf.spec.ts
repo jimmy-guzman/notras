@@ -46,6 +46,26 @@ describe("export pdf", () => {
     expect(document.querySelector(".print-sheet")).toBeNull();
   });
 
+  it("should report an unavailable paper width without starting an export", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>((command) =>
+      command === "plugin:dialog|save" ? "/exports/hello.pdf" : null
+    );
+
+    mockIPC(invoke);
+    const painted = vi.fn<() => Promise<void>>();
+
+    await expect(
+      exportPdf(surfaceOf("<p>hello</p>"), "hello", "hello", painted)
+    ).rejects.toThrow("The paper width is unavailable");
+
+    expect(invoke.mock.calls.map(([command]) => command)).toStrictEqual([
+      "plugin:dialog|save",
+      "pdf_layout_width",
+    ]);
+    expect(painted).not.toHaveBeenCalled();
+    expect(document.querySelector(".print-sheet")).toBeNull();
+  });
+
   it("should print a copy of the surface at the chosen path and remove it after", async () => {
     let printed:
       | { state: Element | null; text: string | undefined }

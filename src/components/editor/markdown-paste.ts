@@ -566,7 +566,7 @@ async function pasteImage(
 ) {
   try {
     if (image === null) {
-      throw new Error("The pasted image could not be read");
+      throw new Error("The clipboard contains no image file");
     }
 
     const [src] = await Promise.all([saveImage(image), previous]);

@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, Write as _};
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub fn stash_conflict(
 ) -> Result<(), CommandError> {
     fs::create_dir_all(dir)?;
     let bytes = serde_json::to_vec(stash)
-        .map_err(|error| CommandError::with_source("The review could not be stored", error))?;
+        .map_err(|error| CommandError::with_source("The review data is invalid", error))?;
     let directory = Dir::open_ambient_dir(dir, ambient_authority())?;
     let mut temp = TempSibling::create(&directory)?;
     temp.file_mut().write_all(&bytes)?;
@@ -49,14 +49,19 @@ pub fn read_conflict(
     kind: OpenKind,
     path: &str,
 ) -> Result<Option<ConflictStash>, CommandError> {
-    let file = match File::open(dir.join(stash_name(kind, path))) {
-        Ok(file) => file,
+    let bytes = match fs::read(dir.join(stash_name(kind, path))) {
+        Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
-    serde_json::from_reader(file)
-        .map(Some)
-        .map_err(|error| CommandError::with_source("The stored review could not be read", error))
+    serde_json::from_slice(&bytes).map(Some).map_err(|error| {
+        let reason = if error.is_eof() {
+            "The stored review data is incomplete"
+        } else {
+            "The stored review data is invalid"
+        };
+        CommandError::with_source(reason, error)
+    })
 }
 
 /// Forget a stored review; a note without one is left as it is.
@@ -183,6 +188,41 @@ mod tests {
 
         let error = read_conflict(&dir, OpenKind::Note, "a.md").unwrap_err();
 
-        assert_eq!(error.message, "The stored review could not be read");
+        assert_eq!(error.message, "The stored review data is invalid");
+        assert_eq!(error.kind, crate::application::ErrorKind::Failed);
+        assert!(std::error::Error::source(&error).is_some());
+    }
+
+    #[test]
+    fn should_explain_an_incomplete_stored_review() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join(stash_name(OpenKind::Note, "a.md")),
+            "{\"base\":",
+        )
+        .unwrap();
+
+        let error = read_conflict(directory.path(), OpenKind::Note, "a.md").unwrap_err();
+
+        assert_eq!(error.message, "The stored review data is incomplete");
+        assert_eq!(error.kind, crate::application::ErrorKind::Failed);
+    }
+
+    #[test]
+    fn should_explain_a_folder_in_place_of_a_stored_review() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(stash_name(OpenKind::Note, "a.md"))).unwrap();
+
+        let error = read_conflict(directory.path(), OpenKind::Note, "a.md").unwrap_err();
+
+        assert_eq!(
+            error.message,
+            if cfg!(windows) {
+                "Permission denied"
+            } else {
+                "That path is a folder"
+            }
+        );
+        assert_eq!(error.kind, crate::application::ErrorKind::Failed);
     }
 }

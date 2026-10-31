@@ -26,6 +26,7 @@ import { Toaster } from "@/components/ui/toast";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
+import { MarkdownPaste } from "./markdown-paste";
 
 /**
  * Mount the editor and hand back its scroller div, its handle and the TipTap
@@ -2524,6 +2525,103 @@ function pasteImage(editor: TiptapEditor, clipboardData = new DataTransfer()) {
 }
 
 describe("image paste", () => {
+  it.each([
+    ["NotFoundError", "The image file no longer exists"],
+    ["SecurityError", "Access to the image file is blocked"],
+    ["NotReadableError", "The image file is not readable"],
+  ])("should explain %s and preserve its cause", async (name, reason) => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+
+    const source = new DOMException("Browser-specific detail", name);
+
+    const failed = vi
+      .spyOn(FileReader.prototype, "readAsDataURL")
+      .mockImplementation(function fail(this: FileReader) {
+        Object.defineProperty(this, "error", { value: source });
+        this.dispatchEvent(new ProgressEvent("error"));
+      });
+
+    onTestFinished(() => {
+      failed.mockRestore();
+    });
+    render(<Toaster />);
+
+    const { editor, handle } = await mount({ initialContent: "before" });
+
+    const saveImage = editor.extensionManager.extensions.find(
+      (extension): extension is typeof MarkdownPaste =>
+        extension.name === MarkdownPaste.name
+    )?.options.saveImage;
+
+    if (saveImage === null || saveImage === undefined) {
+      throw new Error("The editor has no image-save callback");
+    }
+
+    const saved = saveImage(new File(["image"], "shot.png"));
+    await expect(saved).rejects.toThrow(reason);
+    await expect(saved).rejects.toSatisfy(
+      (error) => error instanceof Error && error.cause === source
+    );
+
+    pasteImage(editor);
+
+    await expect(screen.findByText(reason)).resolves.toBeDefined();
+    expect(handle.getContent().trimEnd()).toBe("before");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("should explain a missing clipboard image without saving an attachment", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+
+    const missing = vi
+      .spyOn(DataTransferItem.prototype, "getAsFile")
+      .mockReturnValue(null);
+
+    onTestFinished(() => {
+      missing.mockRestore();
+    });
+    render(<Toaster />);
+    const { editor, handle } = await mount({ initialContent: "before" });
+
+    pasteImage(editor);
+
+    await expect(
+      screen.findByText("The clipboard contains no image file")
+    ).resolves.toBeDefined();
+    expect(handle.getContent().trimEnd()).toBe("before");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("should explain invalid image data without saving an attachment", async () => {
+    const invoke = vi.fn<Parameters<typeof mockIPC>[0]>();
+    mockIPC(invoke);
+    onTestFinished(clearMocks);
+
+    const invalid = vi
+      .spyOn(FileReader.prototype, "readAsDataURL")
+      .mockImplementation(function invalid(this: FileReader) {
+        this.dispatchEvent(new Event("load"));
+      });
+
+    onTestFinished(() => {
+      invalid.mockRestore();
+    });
+    render(<Toaster />);
+    const { editor, handle } = await mount({ initialContent: "before" });
+
+    pasteImage(editor);
+
+    await expect(
+      screen.findByText("The image data is not a valid data URL")
+    ).resolves.toBeDefined();
+    expect(handle.getContent().trimEnd()).toBe("before");
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("should place the image where it was pasted after the note changes while it saves", async () => {
     const saved = Promise.withResolvers<string>();
     mockIPC(async (command) =>

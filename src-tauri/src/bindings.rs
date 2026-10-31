@@ -1079,7 +1079,10 @@ mod tests {
         fs::remove_file(&settings).unwrap();
         fs::create_dir(&settings).unwrap();
 
-        assert!(invoke(&window, "set_appearance", json!({"appearance": "dark"})).is_err());
+        assert_eq!(
+            invoke(&window, "set_appearance", json!({"appearance": "dark"})),
+            Err(json!({"kind": "failed", "message": "That path is a folder"}))
+        );
         assert_eq!(
             invoke(&window, "get_appearance", json!({})),
             Ok(json!("light"))

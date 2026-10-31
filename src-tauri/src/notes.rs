@@ -429,14 +429,25 @@ pub async fn index_status<R: Runtime>(app: AppHandle<R>) -> Result<IndexStatus, 
 /// Save the chosen folder before the swap: a folder the next launch cannot find
 /// again is worse than one this launch never switched to.
 fn persist_notes_dir<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<(), CommandError> {
-    let store = app.store("settings.json").map_err(|error| {
-        CommandError::with_source(format!("The setting could not be saved: {error}"), error)
-    })?;
-    crate::windows::save_setting(&store, "notesDir", Value::String(path.to_owned())).map_err(
-        |error| {
-            CommandError::with_source(format!("The setting could not be saved: {error}"), error)
-        },
-    )
+    let store = app
+        .store("settings.json")
+        .map_err(crate::windows::settings_error)?;
+    crate::windows::save_setting(&store, "notesDir", Value::String(path.to_owned()))
+        .map_err(crate::windows::settings_error)
+}
+
+fn watch_error(error: notify::Error) -> CommandError {
+    let reason = match &error.kind {
+        notify::ErrorKind::Io(error) => CommandError::io_reason(error),
+        notify::ErrorKind::PathNotFound => "The folder no longer exists".into(),
+        notify::ErrorKind::WatchNotFound => "The folder is no longer being watched".into(),
+        notify::ErrorKind::MaxFilesWatch => "The system's file watch limit has been reached".into(),
+        notify::ErrorKind::InvalidConfig(_) | notify::ErrorKind::Generic(_) => {
+            log::error!("unexpected folder watcher failure: {error}");
+            "An unexpected error".into()
+        }
+    };
+    CommandError::with_source(reason, error)
 }
 
 /// Switch the library to `path`, running `persist` between preparation and installation.
@@ -471,9 +482,7 @@ fn switch_notes_dir<R: Runtime>(
         // reaches the owner, which holds it until the replacement is installed.
         let preparation = state.library.begin_replacement();
         let fresh = watcher::start(app.clone(), notes_dir.clone(), preparation.generation)
-            .map_err(|error| {
-                CommandError::with_source(format!("Could not watch the folder: {error}"), error)
-            })?;
+            .map_err(watch_error)?;
         state.library.prepare(&library)?;
         Some((library, notes_dir, fresh, preparation))
     };
@@ -666,7 +675,16 @@ mod tests {
         fs::remove_file(&file).unwrap();
         fs::create_dir(&file).unwrap();
 
-        assert!(persist_notes_dir(app.handle(), "/notes/new").is_err());
+        let error = persist_notes_dir(app.handle(), "/notes/new").unwrap_err();
+        assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+        assert_eq!(
+            error.message,
+            if cfg!(windows) {
+                "Permission denied"
+            } else {
+                "That path is a folder"
+            }
+        );
 
         fs::remove_dir(&file).unwrap();
         let store = app.store("settings.json").unwrap();
@@ -693,12 +711,54 @@ mod tests {
         fs::remove_file(&file).unwrap();
         fs::create_dir(&file).unwrap();
 
-        assert!(persist_notes_dir(app.handle(), "/notes/new").is_err());
+        let error = persist_notes_dir(app.handle(), "/notes/new").unwrap_err();
+        assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+        assert_eq!(
+            error.message,
+            if cfg!(windows) {
+                "Permission denied"
+            } else {
+                "That path is a folder"
+            }
+        );
 
         fs::remove_dir(&file).unwrap();
         store.set("appearance", json!("light"));
         store.save().unwrap();
         let settings: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
         assert_eq!(settings, json!({"appearance": "light"}));
+    }
+
+    #[test]
+    fn should_report_watcher_reasons_without_marking_a_note_missing() {
+        use std::{error::Error as _, io};
+
+        for (source, reason) in [
+            (
+                notify::Error::io(io::Error::from(io::ErrorKind::PermissionDenied)),
+                "Permission denied",
+            ),
+            (
+                notify::Error::io(io::Error::from(io::ErrorKind::NotFound)),
+                "No such file",
+            ),
+            (
+                notify::Error::path_not_found(),
+                "The folder no longer exists",
+            ),
+            (
+                notify::Error::watch_not_found(),
+                "The folder is no longer being watched",
+            ),
+            (
+                notify::Error::new(notify::ErrorKind::MaxFilesWatch),
+                "The system's file watch limit has been reached",
+            ),
+        ] {
+            let error = watch_error(source);
+            assert_eq!(error.kind, notras_core::ErrorKind::Failed);
+            assert_eq!(error.message, reason);
+            assert!(error.source().unwrap().is::<notify::Error>());
+        }
     }
 }
