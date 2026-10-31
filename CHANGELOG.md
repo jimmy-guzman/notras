@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.7](https://github.com/jimmy-guzman/notras/compare/v0.11.6...v0.11.7) (2026-10-31)
+
+
+### Features
+
+* **editor:** ✨ mono members & readable fills in diagrams ([#445](https://github.com/jimmy-guzman/notras/issues/445)) ([b78ce31](https://github.com/jimmy-guzman/notras/commit/b78ce31d862cea311754d9707679f5e55e3d3956))
+* **tabs:** ✨ attach tabs to the note & hold their width ([#450](https://github.com/jimmy-guzman/notras/issues/450)) ([51f0d3c](https://github.com/jimmy-guzman/notras/commit/51f0d3c469251fea387213cc689c43a0932da8d0))
+
+
+### Bug Fixes
+
+* 🐛 explain failure reasons ([#451](https://github.com/jimmy-guzman/notras/issues/451)) ([b8d213a](https://github.com/jimmy-guzman/notras/commit/b8d213a0c8115c5640fda714a8989c63d7beebbd))
+* **deps:** 🐛 patch systeminformation advisory ([#452](https://github.com/jimmy-guzman/notras/issues/452)) ([b567114](https://github.com/jimmy-guzman/notras/commit/b56711418d3515f5c7e88b2977b8f23a64d23007))
+
 ## [0.11.6](https://github.com/jimmy-guzman/notras/compare/v0.11.5...v0.11.6) (2026-10-30)
 
 
