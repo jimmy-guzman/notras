@@ -159,7 +159,7 @@ async function capture(browser: Browser, window: number, name: string) {
 }
 
 describe("README screenshots", () => {
-  it("should capture home, the editor, the browser, the graph, the palette, the review and quick capture", async () => {
+  it("should capture home, the editor, the browser, the graph, the note panel, the palette, the review and quick capture", async () => {
     const { artifacts, binary, note } = inject("smoke");
     const library = path.dirname(note);
 
@@ -186,7 +186,7 @@ describe("README screenshots", () => {
       await activate(pid);
       const window = await windowNumber(pid, "notras");
 
-      await press(browser, "\\", "Backslash", { meta: true });
+      // A first launch opens with the browser showing.
       await openRow(browser, "Pour-over", false);
       await openRow(browser, "Saturday ride", true);
       await openRow(browser, "Watch list", true);
@@ -217,6 +217,18 @@ describe("README screenshots", () => {
         .waitForDisplayed({ timeout: 10_000 });
       await capture(browser, window, "graph");
       await press(browser, "g", "KeyG", { alt: true, meta: true });
+
+      await press(browser, "L", "KeyL", { meta: true, shift: true });
+      await browser
+        .$('[aria-label="note panel: mentions"] li button')
+        .waitForDisplayed({ timeout: 10_000 });
+      await browser.execute(() => {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
+      await capture(browser, window, "panel");
+      await press(browser, "\\", "Backslash", { meta: true, shift: true });
 
       await press(browser, "P", "KeyP", { meta: true, shift: true });
       await browser
@@ -322,6 +334,7 @@ describe("README screenshots", () => {
         "editor",
         "browser",
         "graph",
+        "panel",
         "palette",
         "review",
         "capture",
