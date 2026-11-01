@@ -46,6 +46,36 @@
   }
 }
 
+/* The title band's divider. Each use places its own. */
+@utility groove {
+  width: 1px;
+  height: 16px;
+  background: var(--groove);
+  box-shadow: 1px 0 0 var(--groove-highlight);
+}
+
+/* The line between two resting tabs, and between the last one and new note. A
+   filled tab already shows its own edge, so the line on either side of it
+   goes. The groove and its highlight span 2px, centered in the strip's 4px
+   gap. A drag moves tabs by transform and reorders them only on drop, so
+   neighbors in the markup are not the ones on screen and every line goes
+   until the drop. */
+@utility tab-divider {
+  @apply groove;
+  position: absolute;
+  top: 50%;
+  left: -3px;
+  translate: 0 -50%;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+  [role="tablist"] > :is(:first-child, :hover, [data-active]) > &,
+  [role="tablist"] > :is(:hover, [data-active]) + * > &,
+  [role="tablist"]:has(> :last-child:is(:hover, [data-active])) + * > &,
+  :has(> [role="tablist"] > [data-dragging]) & {
+    opacity: 0;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-shell: var(--shell);
@@ -55,13 +85,11 @@
   --spacing-titlebar: 5.25rem;
   --shadow-popover: 0 8px 24px #0000002e;
   --shadow-drag: 0 2px 8px #0000002e;
-  --shadow-groove: 1px 0 0 var(--groove-highlight);
   --tracking-wordmark: -0.0375em;
   --leading-tagline: 1.3;
   --color-faint: var(--faint);
   --color-ring: var(--ring);
   --color-input: var(--input);
-  --color-groove: var(--groove);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
