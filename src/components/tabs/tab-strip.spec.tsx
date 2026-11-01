@@ -163,6 +163,65 @@ describe("tab strip", () => {
       ).not.toBeChecked();
     });
 
+    it("should keep the showing tab when an arrow key is pressed on new note", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [
+            { id: "a", kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+        closeTab("b");
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+
+      act(() => {
+        screen.getByRole("button", { name: "new note" }).focus();
+      });
+      await user.keyboard("{ArrowRight}{End}");
+
+      expect(getTabState().activeId).toBe("a");
+      expect(screen.getByRole("button", { name: "new note" })).toHaveFocus();
+    });
+
+    it("should keep the showing tab when an arrow key moves through a tab's context menu", async () => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "a",
+          carets: {},
+          tabs: [
+            { id: "a", kind: "note", path: "a.md" },
+            { id: "b", kind: "note", path: "b.md" },
+          ],
+        })
+      );
+      restoreTabs();
+      onTestFinished(() => {
+        closeTab("a");
+        closeTab("b");
+      });
+      await mountStrip(getTabState().tabs);
+      const user = userEvent.setup();
+
+      await user.pointer({
+        keys: "[MouseRight]",
+        target: screen.getByRole("tab", { name: "a" }),
+      });
+      await screen.findByRole("menuitem", { name: "close" });
+      await user.keyboard("{ArrowDown}{ArrowRight}");
+
+      expect(getTabState().activeId).toBe("a");
+    });
+
     it("should show the tab picked from the list", async () => {
       localStorage.setItem(
         "tabs",
@@ -361,11 +420,12 @@ describe("tab strip", () => {
       ).toBeVisible();
     });
 
-    // 203px is one short of the 204px two tabs need: 8px of foot padding, two
-    // 96px tabs and their 4px gap.
+    // 231px is one short of the 232px two tabs need: 8px of foot padding, two
+    // 96px tabs and the gap between them, then the gap before the 24px new
+    // note button.
     it.each([
-      { shown: ["c", "d"], width: 220 },
-      { shown: ["d"], width: 203 },
+      { shown: ["c", "d"], width: 232 },
+      { shown: ["d"], width: 231 },
     ])(
       "should show only the tabs that fit a $width px strip whole, holding the showing one",
       async ({ shown, width }) => {
@@ -393,9 +453,14 @@ describe("tab strip", () => {
           ],
           "d"
         );
-        Object.defineProperty(screen.getByRole("tablist"), "clientWidth", {
-          value: width,
-        });
+        // The room the strip has: the tablist sizes to its tabs inside it.
+        const strip = screen.getByRole("tablist").parentElement;
+
+        if (strip === null) {
+          throw new Error("the tablist has no strip around it");
+        }
+
+        Object.defineProperty(strip, "clientWidth", { value: width });
 
         act(() => {
           for (const report of reports) {

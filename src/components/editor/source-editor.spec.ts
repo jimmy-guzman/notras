@@ -1,4 +1,11 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
@@ -576,5 +583,149 @@ describe("source editor", () => {
     expect(second?.find.alive()).toBeTruthy();
     act(() => second?.find.setQuery("needle"));
     expect(second?.find.snapshot().total).toBe(2);
+  });
+});
+
+describe("source outline", () => {
+  it.for([
+    [
+      "a title h1 holding inline markup",
+      "# Hello *world*\n\n## A\n\n## B",
+      ["A", "B"],
+    ],
+    ["an opening rule that is not frontmatter", "---  \n# A\n---\n# B", ["B"]],
+    [
+      "setext and quoted headings",
+      "intro\n\nSetext\n------\n\n> ## Quoted\n\n## Plain",
+      ["Setext", "Quoted", "Plain"],
+    ],
+    ["lone CR line breaks", "intro\r## B\r## C", ["B", "C"]],
+    [
+      "a stray CR",
+      "## One\rstill one\n\n## Two\n\n## Three",
+      ["One", "Two", "Three"],
+    ],
+  ] as const)(
+    "should list what the note view lists for %s",
+    ([, content, expected], { onTestFinished }) => {
+      const note = createNoteDocument(content, "note.md");
+      const host = document.createElement("div");
+      document.body.append(host);
+      onTestFinished(() => {
+        note.destroy();
+        host.remove();
+      });
+
+      render(
+        createElement(SourceEditor, {
+          editor: note.editor,
+          focusOnMount: false,
+          outlineHost: host,
+        })
+      );
+
+      expect(
+        within(screen.getByRole("navigation", { name: "outline" }))
+          .getAllByRole("button")
+          .map((button) => button.textContent)
+      ).toStrictEqual(expected);
+    }
+  );
+
+  it("should hand a jump on so a covering view can step aside", async ({
+    onTestFinished,
+  }) => {
+    const note = createNoteDocument("## One\n\nbody\n\n## Two", "note.md");
+    const host = document.createElement("div");
+    document.body.append(host);
+    onTestFinished(() => {
+      note.destroy();
+      host.remove();
+    });
+    const jumps: string[] = [];
+
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: false,
+        onOutlineJump: () => {
+          jumps.push("jumped");
+        },
+        outlineHost: host,
+      })
+    );
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Two" }));
+
+    expect(jumps).toStrictEqual(["jumped"]);
+    expect(note.editor.state.selection.from).toBe(
+      note.editor.state.doc.textContent.indexOf("## Two") + 1
+    );
+  });
+
+  it("should jump to a heading's own line past a stray CR", async ({
+    onTestFinished,
+  }) => {
+    const content = "## One\rstill one\n\n## Two\n\n## Three";
+    const note = createNoteDocument(content, "note.md");
+    const host = document.createElement("div");
+    document.body.append(host);
+    onTestFinished(() => {
+      note.destroy();
+      host.remove();
+    });
+
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: false,
+        outlineHost: host,
+      })
+    );
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Two" }));
+
+    expect(note.editor.state.selection.from).toBe(
+      content.indexOf("## Two") + 1
+    );
+  });
+
+  it("should settle on the shortened note when most of it is deleted", async ({
+    onTestFinished,
+  }) => {
+    const note = createNoteDocument(
+      `## A\n\nbody\n\n## B\n\n${"long tail ".repeat(2000)}\n\n## C`,
+      "note.md"
+    );
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    onTestFinished(() => {
+      note.destroy();
+      host.remove();
+    });
+
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: false,
+        outlineHost: host,
+      })
+    );
+    act(() => {
+      note.editor.commands.setTextSelection(
+        note.editor.state.doc.content.size - 1
+      );
+    });
+
+    act(() => {
+      const { state } = note.editor.view;
+
+      note.editor.view.dispatch(state.tr.delete(1, state.doc.content.size - 1));
+    });
+
+    expect(
+      await screen.findByText("no headings in this note")
+    ).toBeInTheDocument();
   });
 });

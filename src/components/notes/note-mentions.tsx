@@ -1,48 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { FileTextIcon, LinkIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { FileTextIcon } from "lucide-react";
 
-import { Chord } from "@/components/chord";
 import { NoteLabel } from "@/components/notes/note-label";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { toast } from "@/components/ui/toast";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { contextFrom } from "@/core/links";
 import type { Mention } from "@/core/links";
-import { noteQueries } from "@/data/queries";
-import { openNote } from "@/lib/tabs/store";
-import { BAR_GLYPH } from "@/lib/ui/bar";
-import { reasonOf } from "@/lib/ui/failure";
-import { setMentionsOpen, useMentionsOpen } from "@/lib/ui/mentions";
-import { useHotkey } from "@/lib/ui/shortcuts";
-
-const SHOW_MENTIONS = "Mod+Shift+L";
-
-/** The row clamps to one line, so a link deep in a paragraph would sit past the ellipsis. */
-const CONTEXT_LEAD = 32;
-
-function contextFrom(line: { context: string; match: string }) {
-  const at = line.context.toLowerCase().indexOf(line.match.toLowerCase());
-  const rough = Math.max(0, at - CONTEXT_LEAD);
-
-  if (rough === 0) {
-    return line.context;
-  }
-
-  const boundary = line.context.indexOf(" ", rough);
-  const start = boundary === -1 || boundary >= at ? rough : boundary + 1;
-
-  return `…${line.context.slice(start)}`;
-}
 
 interface MentionItemProps {
   mention: Mention;
@@ -63,7 +24,7 @@ export function MentionItem({ mention, onOpen }: MentionItemProps) {
       <FileTextIcon className="mt-0.5" />
       <div className="flex min-w-0 flex-col">
         <NoteLabel note={note}>
-          {/* The chip counts notes, so a note linking twice says so here. */}
+          {/* The pill counts notes, so a note linked twice says so here. */}
           {lines.length === 1 ? null : (
             <span className="text-muted-foreground text-xs tabular-nums">
               +{lines.length - 1}
@@ -75,114 +36,5 @@ export function MentionItem({ mention, onOpen }: MentionItemProps) {
         </span>
       </div>
     </DropdownMenuItem>
-  );
-}
-
-interface NoteMentionsProps {
-  mentions: Mention[];
-}
-
-/** Absent while nothing mentions the note: a zero would be a bar item carrying no information. */
-export function NoteMentions({ mentions }: NoteMentionsProps) {
-  const open = useMentionsOpen();
-  const count = mentions.length;
-
-  useHotkey(
-    SHOW_MENTIONS,
-    () => {
-      setMentionsOpen(true);
-    },
-    { meta: { name: "show mentions" } }
-  );
-
-  // A request to show an empty list has nothing to anchor to, and left set it
-  // would open the menu on its own the moment a first link arrived.
-  useEffect(() => {
-    if (count === 0 && open) {
-      setMentionsOpen(false);
-    }
-  }, [count, open]);
-
-  // The store outlives this component, and a list left open over a note that
-  // closed would greet the next one.
-  useEffect(
-    () => () => {
-      setMentionsOpen(false);
-    },
-    []
-  );
-
-  if (count === 0) {
-    return null;
-  }
-
-  return (
-    <DropdownMenu onOpenChange={setMentionsOpen} open={open}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  aria-label={`${count} ${count === 1 ? "mention" : "mentions"}`}
-                  size="xs"
-                  variant="ghost"
-                />
-              }
-            />
-          }
-        >
-          <LinkIcon className={BAR_GLYPH} />
-          <span className="tabular-nums">{count}</span>
-        </TooltipTrigger>
-        <TooltipContent>
-          show mentions <Chord hotkey={SHOW_MENTIONS} />
-        </TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end" className="w-72" side="bottom">
-        {mentions.map((mention) => (
-          <MentionItem
-            key={mention.note.path}
-            mention={mention}
-            onOpen={(path) => {
-              openNote(path, true);
-            }}
-          />
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-interface MentionsOfProps {
-  path: string;
-}
-
-/**
- * Nothing shows until the complete mentions land, so the count never ticks up. A chip
- * has no room for a failure, so a first read that fails says why once; the
- * cache speaks for a refetch of rows already on screen.
- */
-export function MentionsOf({ path }: MentionsOfProps) {
-  const mentions = useQuery(noteQueries.mentions(path));
-  const reported = useRef(false);
-
-  useEffect(() => {
-    if (
-      mentions.error !== null &&
-      mentions.data === undefined &&
-      !reported.current
-    ) {
-      reported.current = true;
-      toast.add({
-        description: reasonOf(mentions.error),
-        title: "could not read mentions",
-        type: "error",
-      });
-    }
-  }, [mentions.data, mentions.error]);
-
-  return mentions.data === undefined ? null : (
-    <NoteMentions mentions={mentions.data} />
   );
 }

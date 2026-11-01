@@ -3505,11 +3505,23 @@ describe("markdown written elsewhere", () => {
   });
 });
 
+/** The note panel's outline tab, which the editor draws its outline into. */
+function panelHost() {
+  const host = document.createElement("div");
+  document.body.append(host);
+  onTestFinished(() => {
+    host.remove();
+  });
+
+  return host;
+}
+
 describe("outline", () => {
   it("should list the note's h1 to h3 headings in order", async () => {
     await mount({
       initialContent:
         "intro\n\n# One\n\n## Two\n\n#### Four\n\n### Three\n\nbody",
+      outlineHost: panelHost(),
     });
 
     const outline = screen.getByRole("navigation", { name: "outline" });
@@ -3524,6 +3536,7 @@ describe("outline", () => {
   it("should leave out the headings of an embedded note", async () => {
     await mount({
       initialContent: "## Mine\n\n## Also mine\n\n![[Atlas]]",
+      outlineHost: panelHost(),
       watchEmbed: (_title, show) => {
         show({
           body: "## Theirs\n\nthe atlas body",
@@ -3545,6 +3558,7 @@ describe("outline", () => {
   it("should leave out a leading h1, which is the note's title", async () => {
     await mount({
       initialContent: "# Title\n\n## One\n\n### Two\n\nbody",
+      outlineHost: panelHost(),
     });
 
     expect(
@@ -3557,9 +3571,18 @@ describe("outline", () => {
   it.each([
     ["no headings", "just a paragraph"],
     ["only a title", "# Title\n\nbody"],
-    ["a title and one section", "# Title\n\n## One\n\nbody"],
-  ])("should show no outline for a note with %s", async (_case, content) => {
-    await mount({ initialContent: content });
+  ])("should say a note with %s has no headings", async (_case, content) => {
+    await mount({ initialContent: content, outlineHost: panelHost() });
+
+    expect(
+      within(screen.getByRole("navigation", { name: "outline" })).getByText(
+        "no headings in this note"
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("should draw no outline without a panel to draw into", async () => {
+    await mount({ initialContent: "## One\n\n## Two" });
 
     expect(
       screen.queryByRole("navigation", { name: "outline" })
@@ -3572,6 +3595,7 @@ describe("outline", () => {
     const { editor } = await mount({
       focusOnMount: false,
       initialContent: "## One\n\nbody\n\n## Two\n\nmore",
+      outlineHost: panelHost(),
     });
 
     const user = userEvent.setup();
@@ -3586,6 +3610,7 @@ describe("outline", () => {
   it("should go to the next and previous heading with ⌃⌘↓ and ⌃⌘↑", async () => {
     const { editor } = await mount({
       initialContent: "intro\n\n# One\n\nbody\n\n## Two\n\nmore",
+      outlineHost: panelHost(),
     });
 
     act(() => {
@@ -3616,6 +3641,7 @@ describe("outline", () => {
     async (_case, content) => {
       await mount({
         initialContent: content,
+        outlineHost: panelHost(),
         watchEmbed: (_title, show) => {
           show({
             body: "the atlas body",
@@ -3635,7 +3661,10 @@ describe("outline", () => {
   );
 
   it("should leave out the title h1 inside a quote", async () => {
-    await mount({ initialContent: "> # Plan\n\n## A\n\n## B" });
+    await mount({
+      initialContent: "> # Plan\n\n## A\n\n## B",
+      outlineHost: panelHost(),
+    });
 
     expect(
       within(screen.getByRole("navigation", { name: "outline" }))
@@ -3656,6 +3685,7 @@ describe("outline", () => {
   ])("should leave out a title h1 that holds %s", async (_case, content) => {
     await mount({
       initialContent: content,
+      outlineHost: panelHost(),
       watchEmbed: (_title, show) => {
         show({
           body: "the atlas body",
@@ -3677,6 +3707,7 @@ describe("outline", () => {
     const { editor } = await mount({
       initialContent:
         "intro\n\n## One\n\nbody\n\n## Two\n\nbody\n\n## Three\n\nmore",
+      outlineHost: panelHost(),
     });
 
     const note = editor.view.dom.closest('[data-slot="scroll-area-viewport"]');
@@ -3737,6 +3768,7 @@ describe("outline", () => {
     const { editor } = await mount({
       initialContent:
         "| a |\n| - |\n| b |\n\n## One\n\nbody\n\n## Two\n\nbody\n\n## Three\n\nmore",
+      outlineHost: panelHost(),
     });
 
     act(() => {
@@ -3780,23 +3812,10 @@ describe("outline", () => {
     );
   });
 
-  it("should scroll the note with a wheel the outline cannot use", async () => {
-    const { editor } = await mount({
-      initialContent: "## One\n\nbody\n\n## Two\n\nmore",
-    });
-
-    const note = editor.view.dom.closest('[data-slot="scroll-area-viewport"]');
-
-    fireEvent.wheel(screen.getByRole("navigation", { name: "outline" }), {
-      deltaY: 40,
-    });
-
-    expect(note?.scrollTop).toBe(40);
-  });
-
   it("should not stop on the title with ⌃⌘↑", async () => {
     const { editor } = await mount({
       initialContent: "# Title\n\n## One\n\nbody",
+      outlineHost: panelHost(),
     });
 
     act(() => {

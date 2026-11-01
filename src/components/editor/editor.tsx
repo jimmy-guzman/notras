@@ -556,6 +556,8 @@ interface EditorProps {
   onHistory?: (direction: "undo" | "redo", execute: boolean) => boolean;
   /** Navigate when a markdown link to a note is clicked. */
   onNoteLinkClick?: (href: string) => void;
+  /** After an outline jump. Read live, unlike the mount props. */
+  onOutlineJump?: () => void;
   onReady?: (handle: EditorHandle) => void;
   /** Undefined once the editor is destroyed. */
   onSelect?: (read: SelectionReader | undefined) => void;
@@ -573,6 +575,8 @@ interface EditorProps {
   stripSentinel?: boolean;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
+  /** Where the outline draws while the note panel shows it. Read live, unlike the mount props. */
+  outlineHost?: HTMLElement | null;
   /** Follows the note an embed names; without it an embed draws as a pill. */
   watchEmbed?: WatchEmbed;
 }
@@ -599,6 +603,7 @@ export function Editor(mountProps: EditorProps) {
 
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
+  const { onOutlineJump, outlineHost } = mountProps;
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
@@ -1407,7 +1412,13 @@ export function Editor(mountProps: EditorProps) {
           </ViewerDialog>
         )}
       </ScrollArea>
-      <NoteOutline editor={editor} />
+      {outlineHost === undefined || outlineHost === null ? null : (
+        <NoteOutline
+          editor={editor}
+          host={outlineHost}
+          onJump={onOutlineJump}
+        />
+      )}
     </>
   );
 }

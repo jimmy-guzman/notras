@@ -5,6 +5,8 @@ import { createFindHandle } from "@/components/editor/find";
 import type { FindHandle } from "@/components/editor/find";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import { SourceOutline } from "./source-outline";
+
 export interface SourceEditorHandle {
   find: FindHandle;
   /** Takes the caret without moving the viewport. */
@@ -19,6 +21,10 @@ interface SourceEditorProps {
   focusOnMount?: boolean;
   initialCursor?: number;
   onReady?: (handle: SourceEditorHandle) => void;
+  /** After an outline jump. */
+  onOutlineJump?: () => void;
+  /** Where the outline draws while the note panel shows it. */
+  outlineHost?: HTMLElement | null;
 }
 
 /** Attach a source view to the session's existing text state and history. */
@@ -26,7 +32,9 @@ export function SourceEditor({
   editor,
   focusOnMount,
   initialCursor = 0,
+  onOutlineJump,
   onReady,
+  outlineHost,
 }: SourceEditorProps) {
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => ({ focusOnMount, initialCursor, onReady }));
@@ -94,8 +102,17 @@ export function SourceEditor({
   }, [config, editor]);
 
   return (
-    <ScrollArea className="min-h-0 flex-1 select-text" data-source-editor>
-      <div className="min-h-full" ref={host} />
-    </ScrollArea>
+    <>
+      <ScrollArea className="min-h-0 flex-1 select-text" data-source-editor>
+        <div className="min-h-full" ref={host} />
+      </ScrollArea>
+      {outlineHost === undefined || outlineHost === null ? null : (
+        <SourceOutline
+          editor={editor}
+          host={outlineHost}
+          onJump={onOutlineJump}
+        />
+      )}
+    </>
   );
 }

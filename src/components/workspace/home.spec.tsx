@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Layout } from "@/layout";
 import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
+import { closeNoteBrowser } from "@/lib/ui/note-browser";
 
 const note = (path: string, title: string, pinned = false) => ({
   createdAt: 1,
@@ -25,6 +26,7 @@ function mountHome(
   failingReads = 0
 ) {
   localStorage.removeItem("tabs");
+  closeNoteBrowser();
   mockWindows("main");
   // The first scan never answers, so the list stays pending.
   const scanning = Promise.withResolvers<never>();
@@ -198,7 +200,6 @@ describe("home", () => {
     mountHome([]);
 
     await screen.findByRole("heading", { name: "notras" });
-    await screen.findByRole("button", { name: "find a note" });
     expect(
       screen.queryByRole("list", { name: "recent notes" })
     ).not.toBeInTheDocument();

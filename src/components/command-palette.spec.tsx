@@ -530,6 +530,7 @@ describe("command palette actions", () => {
 describe("recent commands", () => {
   beforeEach(() => {
     localStorage.removeItem("recent-actions");
+    closeNoteBrowser();
 
     for (const tab of getTabState().tabs) {
       closeTab(tab.id);
@@ -773,7 +774,7 @@ describe("recent commands", () => {
       "move to folder...",
       "delete note...",
       "edit tags...",
-      "show mentions",
+      "show mentions...",
     ]) {
       const palette = mount("actions", []);
       // oxlint-disable-next-line no-await-in-loop -- choices must finish in order to establish recency
@@ -784,7 +785,7 @@ describe("recent commands", () => {
     const palette = mount("actions", []);
 
     const recent = [
-      "show mentions",
+      "show mentions...",
       "edit tags...",
       "delete note...",
       "move to folder...",
@@ -811,7 +812,7 @@ describe("recent commands", () => {
         .map((row) => row.textContent)
     ).toStrictEqual([
       "settings",
-      "show mentions",
+      "show mentions...",
       "edit tags...",
       "delete note...",
       "move to folder...",

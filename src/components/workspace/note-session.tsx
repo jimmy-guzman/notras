@@ -87,7 +87,12 @@ import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, useNoteFind } from "@/lib/ui/find";
 import { noteBrowserHasFocus, useNoteBrowser } from "@/lib/ui/note-browser";
-import { focusGraph, useGraphMode } from "@/lib/ui/view";
+import {
+  notePanelHasFocus,
+  useNotePanel,
+  useOutlineHost,
+} from "@/lib/ui/note-panel";
+import { focusGraph, hideGraph, useGraphMode } from "@/lib/ui/view";
 import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import type { OpenKind } from "@/server/adapters/bindings";
 
@@ -294,6 +299,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   const { data: notesDir } = useSuspenseQuery(notesDirQuery);
   const resolveLinks = notes === undefined ? undefined : linkResolver(notes);
   const { id } = tab;
+  const notePanelOpen = useNotePanel().open;
+  const outlineHost = useOutlineHost(active, tab.kind === "note");
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
   const browserOpen = useNoteBrowser();
@@ -892,26 +899,31 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   }, [changePath, graphMode, id, persistence, tab.kind]);
 
   // A tab mounted in the background never took focus, so it takes it on the
-  // way in.
+  // way in. Closing a side panel over the graph removes the element that
+  // held focus, so the graph takes it back.
   useEffect(() => {
     if (
       !active ||
-      graphMode ||
       reviewingRef.current ||
       noteFind.store.state.searchPending ||
-      (browserOpen && noteBrowserHasFocus())
+      (browserOpen && noteBrowserHasFocus()) ||
+      (notePanelOpen && notePanelHasFocus())
     ) {
       return;
     }
 
-    getTabHandles(id)?.focus();
-  }, [active, browserOpen, graphMode, id]);
+    if (graphMode) {
+      focusGraph();
+    } else {
+      getTabHandles(id)?.focus();
+    }
+  }, [active, browserOpen, graphMode, id, notePanelOpen]);
 
   return (
     <div
       aria-labelledby={tabButtonId(id)}
       className={cn(
-        "@container absolute inset-0 flex flex-col",
+        "absolute inset-0 flex flex-col",
         // Opacity and `inert` keep the box and the scroll offset.
         // `content-visibility: hidden` collapses the scroll height;
         // `visibility: hidden` drops composited scrolling for every scroller
@@ -942,7 +954,11 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
             editor={persistence.sourceEditor}
             focusOnMount={focusOnMount}
             initialCursor={sourceCursor}
+            onOutlineJump={() => {
+              hideGraph(id);
+            }}
             onReady={attachSourceEditor}
+            outlineHost={outlineHost}
           />
         ) : (
           <Editor
@@ -954,7 +970,11 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
             onChange={handleBodyChange}
             onHistory={onHistory}
             onReady={attachEditor}
+            onOutlineJump={() => {
+              hideGraph(id);
+            }}
             onSelect={deferBodySelection}
+            outlineHost={outlineHost}
             resolveImageSrc={resolveImageSrc}
             stripSentinel={sentineledBody !== undefined}
             titles={getTitles}

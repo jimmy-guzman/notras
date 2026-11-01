@@ -27,12 +27,14 @@ import {
   Code2Icon,
   FileSymlinkIcon,
   FileTextIcon,
+  PlusIcon,
   WaypointsIcon,
   XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
+import { BarButton } from "@/components/bar-button";
 import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +67,7 @@ import {
   getTabHandles,
   getTabState,
   moveTab,
+  openDraft,
   showTab,
   useTabSnapshot,
 } from "@/lib/tabs/store";
@@ -81,6 +84,7 @@ import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { setTabListOpen, useTabListOpen } from "@/lib/ui/tab-list";
 import { useTabView } from "@/lib/ui/view";
+import type { TabView } from "@/lib/ui/view";
 
 const STEPS = new Map<string, TabStep>([
   ["ArrowLeft", "previous"],
@@ -94,6 +98,12 @@ const ACTIVATION_DISTANCE_PX = 4;
 /** A tab's `min-w-24` and the strip's `gap-1`, which decide how many fit whole. */
 const TAB_MIN_PX = 96;
 const TAB_GAP_PX = 4;
+
+/** A tab's `max-w-56`. */
+const TAB_MAX_PX = 224;
+
+/** The new note button's `icon-xs` box after the last tab. */
+const NEW_NOTE_PX = 24;
 
 const SHOW_TABS = "Mod+Shift+A";
 
@@ -129,15 +139,21 @@ const animateLayoutChanges: AnimateLayoutChanges = (args) =>
 
 const MARKER_GLYPH = "text-muted-foreground me-1.5 size-3 shrink-0";
 
+/** The view a tab shows, in the words the source and graph chords register under. */
+const VIEW_NAMES: Record<TabView, string> = {
+  graph: "graph view",
+  note: "note",
+  source: "markdown source",
+};
+
 interface TabMarkerProps {
   snapshot: TabSnapshot | undefined;
   tab: Tab;
+  view: TabView;
 }
 
 /** The dot when a save failed or needs review, otherwise the view the tab shows. */
-function TabMarker({ snapshot, tab }: TabMarkerProps) {
-  const view = useTabView(tab.id);
-
+function TabMarker({ snapshot, tab, view }: TabMarkerProps) {
   if (snapshot?.status === "failed" || snapshot?.status === "conflict") {
     return (
       // The glyph's box, so swapping one for the other never moves the label.
@@ -184,7 +200,9 @@ interface TabItemProps {
 function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   const { id } = tab;
   const snapshot = useTabSnapshot(id);
+  const view = useTabView(id);
   const label = snapshot?.title ?? noteTitle(tab.path);
+  const viewId = `${tabButtonId(id)}-view`;
 
   const {
     isDragging,
@@ -253,6 +271,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
         >
           <button
             aria-controls={tabPanelId(id)}
+            aria-describedby={viewId}
             aria-selected={active}
             // The whole box, with the close button floating over its end, so
             // every press outside that button is the tab's.
@@ -269,9 +288,13 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
             tabIndex={active ? 0 : -1}
             type="button"
           >
-            <TabMarker snapshot={snapshot} tab={tab} />
+            <TabMarker snapshot={snapshot} tab={tab} view={view} />
             <span className="truncate">{label}</span>
           </button>
+          {/* Hidden and beside the tab, so the view describes it without joining its name or text. */}
+          <span hidden id={viewId}>
+            {VIEW_NAMES[view]}
+          </span>
           <button
             aria-label={`close ${label}`}
             className={cn(
@@ -452,11 +475,12 @@ function TabList({ activeId, tabs }: TabListProps) {
     // Synchronous, or a frame of cut tabs paints first.
     const observer = new ResizeObserver(() => {
       flushSync(() => {
-        // `clientWidth` holds two gaps of padding for the feet, and the last
-        // tab needs no gap after it, so one gap comes off.
+        // `clientWidth` holds two gaps of padding for the feet, and new note
+        // takes its width and the gap before it.
         setFit(
           Math.floor(
-            (list.clientWidth - TAB_GAP_PX) / (TAB_MIN_PX + TAB_GAP_PX)
+            (list.clientWidth - 2 * TAB_GAP_PX - NEW_NOTE_PX) /
+              (TAB_MIN_PX + TAB_GAP_PX)
           )
         );
       });
@@ -472,7 +496,13 @@ function TabList({ activeId, tabs }: TabListProps) {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const step = STEPS.get(event.key);
 
-    if (step === undefined) {
+    // A tab's context menu is portaled out of the list but still bubbles its
+    // keys here through React, and its arrows belong to the menu.
+    if (
+      step === undefined ||
+      !(event.target instanceof Node) ||
+      !event.currentTarget.contains(event.target)
+    ) {
       return;
     }
 
@@ -524,20 +554,35 @@ function TabList({ activeId, tabs }: TabListProps) {
           <div
             // Room inside the clip for the feet and the 4px the tabs run below the row.
             className="-mx-1 -mb-1 flex h-7 min-w-0 flex-1 items-center gap-1 overflow-clip px-1"
-            onKeyDown={handleKeyDown}
             ref={observeWidth}
-            role="tablist"
-            tabIndex={-1}
           >
-            {run.tabs.map((tab) => (
-              <TabItem
-                active={tab.id === activeId}
-                key={tab.id}
-                notesDir={notesDir}
-                sole={tabs.length === 1}
-                tab={tab}
-              />
-            ))}
+            <div
+              className="flex h-7 max-w-(--tabs-max) min-w-0 flex-1 items-center gap-1"
+              onKeyDown={handleKeyDown}
+              role="tablist"
+              // Fills the room as the tabs do, but no wider than they can grow,
+              // so new note follows the last one. Shrink-wrapping the tabs
+              // instead sizes the list by their titles in WebKit, which cuts a
+              // long title with room to spare.
+              style={{
+                "--tabs-max": `${run.tabs.length * (TAB_MAX_PX + TAB_GAP_PX) - TAB_GAP_PX}px`,
+              }}
+              tabIndex={-1}
+            >
+              {run.tabs.map((tab) => (
+                <TabItem
+                  active={tab.id === activeId}
+                  key={tab.id}
+                  notesDir={notesDir}
+                  sole={tabs.length === 1}
+                  tab={tab}
+                />
+              ))}
+            </div>
+            {/* Top-aligned with the tab labels, which sit above the tabs' 4px feet. */}
+            <span className="flex shrink-0 self-start">
+              <BarButton Icon={PlusIcon} label="new note" onClick={openDraft} />
+            </span>
           </div>
         </SortableContext>
       </DndContext>

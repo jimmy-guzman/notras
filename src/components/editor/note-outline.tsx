@@ -2,9 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
-import type { WheelEvent } from "react";
-
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { createPortal } from "react-dom";
 
 import { goToHeading, outlineHeadings } from "./heading-navigation";
 import type { OutlineHeading } from "./heading-navigation";
@@ -58,7 +56,7 @@ function readingIndex(
   return atEnd ? Math.max(passed, caret) : passed;
 }
 
-/** Not under the pointer, where scrolling the list would take the wheel back from the note. */
+/** Not while the pointer is over the list, so a row never scrolls out from under it. */
 function keepInView(row: HTMLElement | null) {
   if (row?.closest("nav")?.matches(":hover") !== true) {
     row?.scrollIntoView({ block: "nearest" });
@@ -96,28 +94,16 @@ function useReadingIndex(
   return index;
 }
 
-/** The note's scroller is a sibling, so the wheel does not chain to it. */
-function passUnusedWheelToNote(editor: Editor, event: WheelEvent<HTMLElement>) {
-  const list = event.currentTarget.querySelector(
-    '[data-slot="scroll-area-viewport"]'
-  );
-
-  if (list === null) {
-    throw new Error("The outline has no scroll viewport");
-  }
-
-  const canScroll =
-    event.deltaY < 0
-      ? list.scrollTop > 0
-      : list.scrollTop + list.clientHeight < list.scrollHeight - 1;
-
-  if (!canScroll) {
-    noteScroller(editor).scrollBy({ top: event.deltaY });
-  }
+interface NoteOutlineProps {
+  editor: Editor;
+  /** The note panel's outline tab, where the list draws. */
+  host: HTMLElement;
+  /** After a jump, so a graph covering the note can step aside. */
+  onJump?: () => void;
 }
 
-/** A container query on the session panel shows it once the gutter fits it. */
-export function NoteOutline({ editor }: { editor: Editor }) {
+/** The note's headings, drawn into the note panel. */
+export function NoteOutline({ editor, host, onJump }: NoteOutlineProps) {
   const headings = useEditorState({
     editor,
     selector: ({ editor: instance }) => outlineHeadings(instance),
@@ -132,51 +118,47 @@ export function NoteOutline({ editor }: { editor: Editor }) {
   const reading = useReadingIndex(editor, headings, caret);
   const top = Math.min(...headings.map((heading) => heading.level));
 
-  if (headings.length < 2) {
-    return null;
-  }
-
-  return (
-    <nav
-      aria-label="outline"
-      className="pointer-events-none absolute inset-y-6 right-6 hidden w-[min(15rem,calc(50cqw-24rem))] flex-col @min-[68rem]:flex"
-      onWheel={(event) => {
-        passUnusedWheelToNote(editor, event);
-      }}
+  const rows = headings.map((heading, index) => (
+    <li
+      className={cn(
+        "relative",
+        index === reading &&
+          "before:bg-primary before:absolute before:inset-y-1.5 before:-left-2 before:w-0.5 before:rounded-full"
+      )}
+      key={heading.position}
     >
-      <ScrollArea className="pointer-events-auto min-h-0">
-        <ul className="ps-2">
-          {headings.map((heading, index) => (
-            <li
-              className={cn(
-                "relative",
-                index === reading &&
-                  "before:bg-primary before:absolute before:inset-y-1.5 before:-left-2 before:w-0.5 before:rounded-full"
-              )}
-              key={heading.position}
-            >
-              <button
-                aria-current={index === reading ? "location" : undefined}
-                className={cn(
-                  "focus-visible:outline-ring block w-full truncate rounded-sm py-1 text-start text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2",
-                  INDENT[heading.level - top],
-                  index === reading
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => {
-                  goToHeading(editor.view, heading.position);
-                }}
-                ref={index === reading ? keepInView : undefined}
-                title={heading.text}
-                type="button"
-              >
-                {heading.text}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </ScrollArea>
-    </nav>
+      <button
+        aria-current={index === reading ? "location" : undefined}
+        className={cn(
+          "focus-visible:outline-ring block w-full truncate rounded-sm py-1 text-start text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2",
+          INDENT[heading.level - top],
+          index === reading
+            ? "text-foreground"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+        onClick={() => {
+          goToHeading(editor.view, heading.position);
+          onJump?.();
+        }}
+        ref={index === reading ? keepInView : undefined}
+        title={heading.text}
+        type="button"
+      >
+        {heading.text}
+      </button>
+    </li>
+  ));
+
+  return createPortal(
+    <nav aria-label="outline">
+      {headings.length === 0 ? (
+        <p className="text-muted-foreground px-2 py-1 text-sm">
+          no headings in this note
+        </p>
+      ) : (
+        <ul className="ps-2">{rows}</ul>
+      )}
+    </nav>,
+    host
   );
 }

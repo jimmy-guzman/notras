@@ -39,6 +39,7 @@ import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
 import { PaletteFilters } from "@/components/palette-filters";
 import {
   DeleteView,
+  MentionsView,
   MoveView,
   RenameView,
   TagsView,
@@ -79,7 +80,6 @@ import {
 import { tabFullPath } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { openNoteFind, openSearchResult } from "@/lib/ui/find";
-import { setMentionsOpen } from "@/lib/ui/mentions";
 import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { setTabListOpen } from "@/lib/ui/tab-list";
@@ -121,6 +121,7 @@ type PaletteView =
   | "delete"
   | "filters"
   | "find"
+  | "mentions"
   | "move"
   | "rename"
   | "tags";
@@ -486,10 +487,10 @@ export function CommandPalette({
       label: "show mentions",
       needs: "note",
       onSelect: () => {
-        close();
-        setMentionsOpen(true);
+        setQuery("");
+        setView("mentions");
       },
-      text: "show mentions",
+      text: "show mentions...",
       value: "show-mentions",
     },
     {
@@ -778,6 +779,18 @@ export function CommandPalette({
             title={currentNote.title}
           />
         ) : null}
+        {view === "mentions" ? (
+          <MentionsView
+            onOpen={(path) => {
+              close();
+              // Beside the note being read, so that note stays open.
+              openInTab(path, true);
+            }}
+            path={currentNote.path}
+            query={query}
+            title={currentNote.title}
+          />
+        ) : null}
         {view === "tags" ? (
           <TagsView
             attached={currentNote.tags}
@@ -815,6 +828,7 @@ export function CommandPalette({
               delete: "confirm deletion",
               filters: "add a search filter",
               find: "find a note",
+              mentions: "show mentions",
               move: "move to folder",
               rename: "rename note",
               tags: "edit tags",
@@ -834,6 +848,7 @@ export function CommandPalette({
                 delete: "confirm deletion",
                 filters: "search filters...",
                 find: "find a note...",
+                mentions: "filter mentions...",
                 move: "move to folder... (type a new name to create it)",
                 rename: "new title...",
                 tags: "find or create a tag...",

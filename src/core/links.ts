@@ -15,6 +15,24 @@ export interface Mention {
   note: NoteMeta;
 }
 
+/** A row clamps its line, so a link deep in a paragraph would sit past the ellipsis. */
+const CONTEXT_LEAD = 32;
+
+/** The mention's line from a word boundary a little before its match. */
+export function contextFrom(line: Pick<MentionLine, "context" | "match">) {
+  const at = line.context.toLowerCase().indexOf(line.match.toLowerCase());
+  const rough = Math.max(0, at - CONTEXT_LEAD);
+
+  if (rough === 0) {
+    return line.context;
+  }
+
+  const boundary = line.context.indexOf(" ", rough);
+  const start = boundary === -1 || boundary >= at ? rough : boundary + 1;
+
+  return `…${line.context.slice(start)}`;
+}
+
 export interface LinkResolver {
   path: (destination: string, from: string) => NoteMeta | undefined;
   title: (target: string, from: string) => NoteMeta | undefined;

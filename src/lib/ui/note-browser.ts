@@ -3,12 +3,14 @@ import { boolean, maxValue, minValue, number, pipe } from "valibot";
 
 import { readStored, writeStored } from "@/lib/storage";
 
+// Open on first launch, so a new user sees where search lives before
+// having to find it; after that it remembers what they left.
 const browser = createStore(
   readStored(
     "note-browser-open",
     boolean(),
     "could not read note browser visibility"
-  ) ?? false
+  ) ?? true
 );
 
 browser.subscribe((open) => {

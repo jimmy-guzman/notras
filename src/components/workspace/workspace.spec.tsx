@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { object, parse, string } from "valibot";
@@ -10,29 +10,25 @@ import { Layout } from "@/layout";
 import { readRecentNotes } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
+import { closeNoteBrowser } from "@/lib/ui/note-browser";
+import { closeNotePanel } from "@/lib/ui/note-panel";
 import { hideGraph } from "@/lib/ui/view";
 
 const editors = () => document.querySelectorAll(".ProseMirror").length;
 
-/** The view items lit in the bar. */
-const pressed = () =>
-  ["note", "markdown source", "graph view"].filter(
-    (name) =>
-      screen.getByRole("button", { name }).getAttribute("aria-pressed") ===
-      "true"
-  );
+/** The tab showing, which its view describes. */
+const showingTab = () => screen.getByRole("tab", { selected: true });
 
 const NEW_NOTE = /new note/u;
 
 describe("workspace", () => {
   beforeEach(() => {
     localStorage.removeItem("recent-notes:/notes");
+    closeNoteBrowser();
+    closeNotePanel();
   });
 
-  it.each([
-    ["welcome screen", /^search\b/u],
-    ["title bar", "find a note"],
-  ])("should open note search from the %s", async (_surface, name) => {
+  it("should open note search from the welcome screen", async () => {
     localStorage.removeItem("tabs");
     mockWindows("main");
     mockIPC((command) => {
@@ -81,14 +77,14 @@ describe("workspace", () => {
     );
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name }));
+    await user.click(await screen.findByRole("button", { name: /^search\b/u }));
 
     expect(
       await screen.findByRole("combobox", { name: "find a note" })
     ).toBeInTheDocument();
   });
 
-  it("should show only the app's controls with no tab, and a draft's view toggle once one opens", async () => {
+  it("should show only the app's controls with no tab, and only the outline in a draft's note panel", async () => {
     localStorage.removeItem("tabs");
     mockWindows("main");
     mockIPC((command) => {
@@ -137,25 +133,28 @@ describe("workspace", () => {
     );
     const user = userEvent.setup();
 
-    await screen.findByRole("button", { name: "find a note" });
+    await screen.findByRole("button", { name: "browse notes" });
     expect(
-      screen.getByRole("button", { name: "browse notes" })
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "markdown source" })
+      screen.queryByRole("button", { name: "note panel" })
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "new note" }));
+    const [newNote] = await screen.findAllByRole("button", { name: NEW_NOTE });
+
+    if (newNote === undefined) {
+      throw new Error("new note action did not render");
+    }
+
+    await user.click(newNote);
+    await screen.findByRole("tab", { name: "untitled" });
+    await user.click(screen.getByRole("button", { name: "note panel" }));
+
+    const toggles = await screen.findByRole("group", { name: "note panel" });
 
     expect(
-      await screen.findByRole("button", { name: "markdown source" })
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "graph view" })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("combobox", { name: "edit tags" })
-    ).not.toBeInTheDocument();
+      within(toggles)
+        .getAllByRole("button")
+        .map((toggle) => toggle.getAttribute("aria-label"))
+    ).toStrictEqual(["outline"]);
   });
 
   it("should open a draft before library queries finish, creating nothing, and keep it when a late restore lands", async () => {
@@ -448,7 +447,7 @@ describe("workspace", () => {
     const user = userEvent.setup();
 
     await screen.findByText("body");
-    await user.click(screen.getByRole("button", { name: "graph view" }));
+    await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
     await screen.findByRole("button", { name: "second" });
     await user.click(screen.getByRole("button", { name: "show tabs" }));
     await user.click(
@@ -460,128 +459,7 @@ describe("workspace", () => {
     });
   });
 
-  it.each([
-    ["⌘E", "{Control>}e{/Control}"],
-    ["the source button", "click"],
-  ])(
-    "should light one view at a time and go from the graph to the source on %s",
-    async (_door, press) => {
-      localStorage.setItem(
-        "tabs",
-        JSON.stringify({
-          activeId: "only",
-          carets: {},
-          tabs: [{ id: "only", kind: "note", path: "only.md" }],
-        })
-      );
-      mockWindows("main");
-      mockIPC((command) => {
-        if (command === "classify_open_paths") {
-          return [{ kind: "note", path: "only.md" }];
-        }
-
-        if (command === "get_notes_dir") {
-          return "/notes";
-        }
-
-        if (command === "index_status") {
-          return { state: "ready" };
-        }
-
-        if (command === "list_notes" || command === "list_tags") {
-          return [];
-        }
-
-        if (command === "read_conflict") {
-          return null;
-        }
-
-        if (command === "read_note") {
-          return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
-        }
-
-        if (command === "read_graph") {
-          return {
-            mentionsError: null,
-            picture: {
-              graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
-              kind: "note",
-              note: {
-                createdAt: 0,
-                folder: "",
-                path: "only.md",
-                pinned: false,
-                snippet: null,
-                tags: [],
-                title: "only",
-                updatedAt: 0,
-              },
-            },
-          };
-        }
-
-        if (command === "take_pending_open" || command === "find_mentions") {
-          return [];
-        }
-
-        if (command.startsWith("plugin:")) {
-          return 0;
-        }
-
-        throw new Error(`unexpected command: ${command}`);
-      });
-
-      const client = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-        },
-      });
-
-      onTestFinished(() => {
-        hideGraph("only");
-
-        for (const tab of getTabState().tabs) {
-          closeTab(tab.id);
-        }
-
-        client.clear();
-        clearMocks();
-        localStorage.removeItem("tabs");
-      });
-      render(
-        <QueryClientProvider client={client}>
-          <Layout />
-        </QueryClientProvider>
-      );
-      const user = userEvent.setup();
-
-      await screen.findByText("body");
-      expect(pressed()).toStrictEqual(["note"]);
-
-      await user.click(screen.getByRole("button", { name: "graph view" }));
-      await screen.findByRole("button", { name: "only" });
-      expect(pressed()).toStrictEqual(["graph view"]);
-
-      await (press === "click"
-        ? user.click(screen.getByRole("button", { name: "markdown source" }))
-        : user.keyboard(press));
-
-      await waitFor(() => {
-        expect(document.querySelector("[data-source-editor]")).not.toBeNull();
-      });
-      expect(screen.queryByRole("button", { name: "only" })).toBeNull();
-      expect(pressed()).toStrictEqual(["markdown source"]);
-
-      await user.click(screen.getByRole("button", { name: "note" }));
-
-      await waitFor(() => {
-        expect(document.querySelector("[data-source-editor]")).toBeNull();
-      });
-      expect(pressed()).toStrictEqual(["note"]);
-    }
-  );
-
-  it("should keep the showing view when its lit item is picked, and leave it when its chord is pressed again", async () => {
+  it("should mark the view showing on its tab and go from the graph to the source on ⌘E", async () => {
     localStorage.setItem(
       "tabs",
       JSON.stringify({
@@ -672,153 +550,241 @@ describe("workspace", () => {
     const user = userEvent.setup();
 
     await screen.findByText("body");
-    await user.click(screen.getByRole("button", { name: "note" }));
-    expect(document.querySelector("[data-source-editor]")).toBeNull();
-    expect(pressed()).toStrictEqual(["note"]);
+    expect(showingTab()).toHaveAccessibleDescription("note");
 
-    await user.click(screen.getByRole("button", { name: "graph view" }));
+    await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
     await screen.findByRole("button", { name: "only" });
-    await user.click(screen.getByRole("button", { name: "graph view" }));
-    expect(screen.getByRole("button", { name: "only" })).toBeInTheDocument();
-    expect(pressed()).toStrictEqual(["graph view"]);
+    expect(showingTab()).toHaveAccessibleDescription("graph view");
+
+    await user.keyboard("{Control>}e{/Control}");
+
+    await waitFor(() => {
+      expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+    });
+    expect(screen.queryByRole("button", { name: "only" })).toBeNull();
+    expect(showingTab()).toHaveAccessibleDescription("markdown source");
+
+    await user.keyboard("{Control>}e{/Control}");
+
+    await waitFor(() => {
+      expect(document.querySelector("[data-source-editor]")).toBeNull();
+    });
+    expect(showingTab()).toHaveAccessibleDescription("note");
+  });
+
+  it("should switch the note panel between mentions and the outline by chord", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "only",
+        carets: {},
+        tabs: [{ id: "only", kind: "note", path: "only.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "only.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return {
+          content: "# Only\n\n## First\n\nbody\n\n## Second",
+          revision: "r",
+          updatedAt: 1,
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      closeNotePanel();
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("body");
+    await user.keyboard("{Control>}{Shift>}l{/Shift}{/Control}");
+    expect(
+      await screen.findByRole("complementary", { name: "note panel: mentions" })
+    ).toBeInTheDocument();
+    expect(await screen.findByText("no notes link here")).toBeInTheDocument();
+
+    await user.keyboard("{Control>}{Shift>}h{/Shift}{/Control}");
+    expect(
+      await screen.findByRole("complementary", { name: "note panel: outline" })
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("navigation", { name: "outline" }))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toStrictEqual(["First", "Second"]);
+  });
+
+  it("should focus the view a chord shows, and leave it when the chord is pressed again", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "only",
+        carets: {},
+        tabs: [{ id: "only", kind: "note", path: "only.md" }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "note", path: "only.md" }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_note") {
+        return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
+      }
+
+      if (command === "read_graph") {
+        return {
+          mentionsError: null,
+          picture: {
+            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "only.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "only",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      if (command === "take_pending_open" || command === "find_mentions") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      hideGraph("only");
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("body");
+    expect(showingTab()).toHaveAccessibleDescription("note");
+
+    await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+    await screen.findByRole("button", { name: "only" });
+    expect(showingTab()).toHaveAccessibleDescription("graph view");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "only" })).toHaveFocus();
+    });
 
     await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "only" })).toBeNull();
     });
-    expect(pressed()).toStrictEqual(["note"]);
+    expect(showingTab()).toHaveAccessibleDescription("note");
+    await waitFor(() => {
+      expect(document.querySelector(".ProseMirror")).toHaveFocus();
+    });
 
-    await user.click(screen.getByRole("button", { name: "markdown source" }));
+    await user.keyboard("{Control>}e{/Control}");
     await waitFor(() => {
       expect(document.querySelector("[data-source-editor]")).not.toBeNull();
     });
-    await user.click(screen.getByRole("button", { name: "markdown source" }));
-    expect(document.querySelector("[data-source-editor]")).not.toBeNull();
-    expect(pressed()).toStrictEqual(["markdown source"]);
+    expect(showingTab()).toHaveAccessibleDescription("markdown source");
 
     await user.keyboard("{Control>}e{/Control}");
     await waitFor(() => {
       expect(document.querySelector("[data-source-editor]")).toBeNull();
     });
-    expect(pressed()).toStrictEqual(["note"]);
+    expect(showingTab()).toHaveAccessibleDescription("note");
   });
-
-  it.each([
-    ["markdown source", true],
-    ["note", false],
-  ])(
-    "should show %s when it is picked from a graph over the source",
-    async (picked, sourceShows) => {
-      localStorage.setItem(
-        "tabs",
-        JSON.stringify({
-          activeId: "only",
-          carets: {},
-          tabs: [{ id: "only", kind: "note", path: "only.md" }],
-        })
-      );
-      mockWindows("main");
-      mockIPC((command) => {
-        if (command === "classify_open_paths") {
-          return [{ kind: "note", path: "only.md" }];
-        }
-
-        if (command === "get_notes_dir") {
-          return "/notes";
-        }
-
-        if (command === "index_status") {
-          return { state: "ready" };
-        }
-
-        if (command === "list_notes" || command === "list_tags") {
-          return [];
-        }
-
-        if (command === "read_conflict") {
-          return null;
-        }
-
-        if (command === "read_note") {
-          return { content: "# Only\n\nbody", revision: "r", updatedAt: 1 };
-        }
-
-        if (command === "read_graph") {
-          return {
-            mentionsError: null,
-            picture: {
-              graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
-              kind: "note",
-              note: {
-                createdAt: 0,
-                folder: "",
-                path: "only.md",
-                pinned: false,
-                snippet: null,
-                tags: [],
-                title: "only",
-                updatedAt: 0,
-              },
-            },
-          };
-        }
-
-        if (command === "take_pending_open" || command === "find_mentions") {
-          return [];
-        }
-
-        if (command.startsWith("plugin:")) {
-          return 0;
-        }
-
-        throw new Error(`unexpected command: ${command}`);
-      });
-
-      const client = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-        },
-      });
-
-      onTestFinished(() => {
-        hideGraph("only");
-
-        for (const tab of getTabState().tabs) {
-          closeTab(tab.id);
-        }
-
-        client.clear();
-        clearMocks();
-        localStorage.removeItem("tabs");
-      });
-      render(
-        <QueryClientProvider client={client}>
-          <Layout />
-        </QueryClientProvider>
-      );
-      const user = userEvent.setup();
-
-      await screen.findByText("body");
-      await user.keyboard("{Control>}e{/Control}");
-      await waitFor(() => {
-        expect(document.querySelector("[data-source-editor]")).not.toBeNull();
-      });
-      await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
-      await screen.findByRole("button", { name: "only" });
-
-      await user.click(screen.getByRole("button", { name: picked }));
-
-      await waitFor(() => {
-        expect(screen.queryByRole("button", { name: "only" })).toBeNull();
-      });
-      await waitFor(() => {
-        expect(document.querySelector("[data-source-editor]") !== null).toBe(
-          sourceShows
-        );
-      });
-      expect(pressed()).toStrictEqual([picked]);
-    }
-  );
 
   it("should return from the graph to the source it left", async () => {
     localStorage.setItem(
@@ -918,26 +884,14 @@ describe("workspace", () => {
 
     await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
     await screen.findByRole("button", { name: "only" });
-    expect(
-      screen.getByRole("button", { name: "markdown source" })
-    ).toHaveAttribute("aria-pressed", "false");
+    expect(showingTab()).toHaveAccessibleDescription("graph view");
 
     await user.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "only" })).toBeNull();
     });
     expect(document.querySelector("[data-source-editor]")).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "markdown source" })
-    ).toHaveAttribute("aria-pressed", "true");
-
-    act(() => {
-      screen.getByRole("button", { name: "markdown source" }).focus();
-    });
-    await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("button", { name: "graph view" })).toHaveFocus();
-    await user.keyboard("{ArrowLeft}{ArrowLeft}");
-    expect(screen.getByRole("button", { name: "note" })).toHaveFocus();
+    expect(showingTab()).toHaveAccessibleDescription("markdown source");
   });
 
   it.each(["picking another tab from the list", "toggling markdown source"])(
@@ -1033,9 +987,7 @@ describe("workspace", () => {
       await screen.findByRole("textbox", { name: "find text" });
 
       if (action === "toggling markdown source") {
-        await user.click(
-          screen.getByRole("button", { name: "markdown source" })
-        );
+        await user.keyboard("{Control>}e{/Control}");
       } else {
         await user.click(screen.getByRole("button", { name: "show tabs" }));
         await user.click(
@@ -1186,7 +1138,7 @@ describe("workspace", () => {
       if (action === "closing") {
         await user.click(screen.getByRole("button", { name: "close First" }));
       } else {
-        await user.click(screen.getByRole("button", { name: "find a note" }));
+        await user.keyboard("{Control>}p{/Control}");
         await user.click(await screen.findByRole("option", { name: "Second" }));
         await screen.findByText("Replacement document.");
       }
