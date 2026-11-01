@@ -276,13 +276,19 @@ describe("markdown round-trip", () => {
     (_name, type, markdown) => {
       const editor = load(markdown);
       const item = editor.state.doc.child(0).child(0);
+      const before = editor.getJSON();
       const saved = serializeMarkdown(editor);
 
       expect(item.child(item.childCount - 2).type.name).toBe(type);
       expect(item.lastChild?.type.name).toBe("paragraph");
       expect(item.lastChild?.textContent).toBe("more");
-      expect(roundtrip(saved)).toBe(saved);
       editor.destroy();
+
+      const reopened = load(saved);
+
+      expect(reopened.getJSON()).toStrictEqual(before);
+      expect(serializeMarkdown(reopened)).toBe(saved);
+      reopened.destroy();
     }
   );
 
