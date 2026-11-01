@@ -1,10 +1,12 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { error as logError } from "@tauri-apps/plugin-log";
 import { cn } from "cn";
+import { PanelLeftIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePanelRef } from "react-resizable-panels";
 
+import { BarButton } from "@/components/bar-button";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
 import { NoteBrowser } from "@/components/notes/note-browser";
@@ -17,8 +19,8 @@ import {
 } from "@/components/ui/resizable";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
-import { BarGroup } from "@/components/workspace/bar-group";
 import { Home } from "@/components/workspace/home";
+import { NotePanel, NotePanelToggles } from "@/components/workspace/note-panel";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import {
@@ -44,6 +46,14 @@ import {
   toggleNoteBrowser,
   useNoteBrowser,
 } from "@/lib/ui/note-browser";
+import {
+  closeNotePanel,
+  openNotePanel,
+  readNotePanelWidth,
+  rememberNotePanelWidth,
+  toggleNotePanel,
+  useNotePanel,
+} from "@/lib/ui/note-panel";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { pressView, useGraphMode } from "@/lib/ui/view";
 import { attachmentLink } from "@/lib/utils/attachments";
@@ -140,15 +150,49 @@ function TabJumps() {
   return null;
 }
 
-function BrowserPanels({ children }: { children: ReactNode }) {
+const PANEL_MIN = 200;
+const PANEL_MAX = 480;
+
+/** A panel's pixel width from the group's layout, which reports percentages. */
+function panelWidth(group: HTMLDivElement, percentage: number) {
+  const handles = [
+    ...group.querySelectorAll<HTMLElement>('[data-slot="resizable-handle"]'),
+  ].reduce((sum, handle) => sum + handle.offsetWidth, 0);
+
+  return Math.max(
+    PANEL_MIN,
+    Math.min(
+      PANEL_MAX,
+      Math.round(((group.clientWidth - handles) * percentage) / 100)
+    )
+  );
+}
+
+function BrowserPanels({
+  children,
+  left,
+  leftBand,
+  leftOpen,
+  rightBand,
+}: {
+  children: ReactNode;
+  left: ReactNode;
+  /** The panel's button and its own toggles, in the band above it. */
+  leftBand: ReactNode;
+  leftOpen: boolean;
+  /** The browser's button, in the band above it while it is open. */
+  rightBand: ReactNode;
+}) {
   const open = useSidebar();
   const panel = usePanelRef();
+  const leftPanel = usePanelRef();
   const group = useRef<HTMLDivElement>(null);
-  const separator = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(readNoteBrowserWidth);
+  const [leftWidth, setLeftWidth] = useState(readNotePanelWidth);
   useLayoutEffect(() => {
     const resize = () => {
       panel.current?.resize(open ? width : 0);
+      leftPanel.current?.resize(leftOpen ? leftWidth : 0);
     };
 
     resize();
@@ -168,7 +212,7 @@ function BrowserPanels({ children }: { children: ReactNode }) {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [open, panel, width]);
+  }, [leftOpen, leftPanel, leftWidth, open, panel, width]);
 
   return (
     <ResizablePanelGroup
@@ -178,39 +222,72 @@ function BrowserPanels({ children }: { children: ReactNode }) {
       elementRef={group}
       orientation="horizontal"
       onLayoutChanged={(layout, { isUserInteraction }) => {
-        if (
-          !isUserInteraction ||
-          !open ||
-          group.current === null ||
-          separator.current === null
-        ) {
+        if (!isUserInteraction || group.current === null) {
           return;
         }
 
-        const percentage = layout["note-browser"];
+        const browser = layout["note-browser"];
+        const note = layout["note-panel"];
 
-        if (percentage === undefined) {
-          return;
+        if (open && browser !== undefined) {
+          if (browser === 0) {
+            closeNoteBrowser();
+          } else {
+            const next = panelWidth(group.current, browser);
+            setWidth(next);
+            rememberNoteBrowserWidth(next);
+          }
         }
 
-        if (percentage === 0) {
-          closeNoteBrowser();
-
-          return;
+        if (leftOpen && note !== undefined) {
+          if (note === 0) {
+            closeNotePanel();
+          } else {
+            const next = panelWidth(group.current, note);
+            setLeftWidth(next);
+            rememberNotePanelWidth(next);
+          }
         }
-
-        const available =
-          group.current.clientWidth - separator.current.offsetWidth;
-
-        const nextWidth = Math.max(
-          200,
-          Math.min(480, Math.round((available * percentage) / 100))
-        );
-
-        setWidth(nextWidth);
-        rememberNoteBrowserWidth(nextWidth);
       }}
     >
+      <ResizablePanel
+        id="note-panel"
+        collapsedSize={0}
+        collapsedThreshold={0}
+        collapsible
+        defaultSize={leftOpen ? leftWidth : 0}
+        groupResizeBehavior="preserve-pixel-size"
+        maxSize={PANEL_MAX}
+        minSize={PANEL_MIN}
+        panelRef={leftPanel}
+      >
+        <div className="flex size-full min-h-0 flex-col">
+          {/* `ps-titlebar` clears the traffic lights; the panel's button closes the band at its end. */}
+          <div
+            className="text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center justify-between gap-2 py-1 pe-1"
+            data-tauri-drag-region="deep"
+          >
+            {leftOpen ? leftBand : null}
+          </div>
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 overflow-clip rounded-t-lg",
+              leftOpen &&
+                "animate-in fade-in-0 slide-in-from-left-8 duration-200 ease-out motion-reduce:animate-none"
+            )}
+            hidden={!leftOpen}
+          >
+            {left}
+          </div>
+        </div>
+      </ResizablePanel>
+      <ResizableHandle
+        aria-label="resize note panel"
+        className="mt-8"
+        disabled={!leftOpen}
+        disableDoubleClick
+        hidden={!leftOpen}
+      />
       <ResizablePanel
         id="note-editor"
         minSize={240}
@@ -223,7 +300,6 @@ function BrowserPanels({ children }: { children: ReactNode }) {
         className="mt-8"
         disabled={!open}
         disableDoubleClick
-        elementRef={separator}
         hidden={!open}
       />
       <ResizablePanel
@@ -239,7 +315,12 @@ function BrowserPanels({ children }: { children: ReactNode }) {
       >
         <div className="flex size-full min-h-0 flex-col">
           {/* Not `Titlebar`: its traffic-light inset would give the collapsed panel 88px of content it cannot fit. */}
-          <div className="flex h-8 shrink-0" data-tauri-drag-region="deep" />
+          <div
+            className="text-muted-foreground flex h-8 shrink-0 items-center justify-end py-1 pe-1"
+            data-tauri-drag-region="deep"
+          >
+            {open ? rightBand : null}
+          </div>
           <div
             className={cn(
               "flex min-h-0 flex-1 overflow-clip rounded-t-lg",
@@ -269,6 +350,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
 
   const activeTab = tabs.find((tab) => tab.id === activeId);
   const graphMode = useGraphMode(activeId);
+  const notePanelOpen = useNotePanel().open;
 
   // Drag a file in -> copy to attachments/, insert a markdown link into
   // whichever tab is showing.
@@ -353,6 +435,33 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
   useHotkey("Mod+Alt+G", pressGraph, { meta: { name: "graph view" } });
   useHotkey("Mod+F", openNoteFind, { meta: { name: "find in note" } });
   useHotkey("Mod+\\", toggleNoteBrowser, { meta: { name: "browse notes" } });
+  // The browser's chord with Shift, for the panel on the other side.
+  useHotkey("Mod+Shift+\\", toggleNotePanel, {
+    meta: { name: "note panel" },
+  });
+  useHotkey(
+    "Mod+Shift+H",
+    () => {
+      openNotePanel("outline");
+    },
+    { meta: { name: "outline" } }
+  );
+  useHotkey(
+    "Mod+Shift+L",
+    () => {
+      openNotePanel("mentions");
+    },
+    // Named for the panel's toggle, the place it opens; the palette's "show
+    // mentions..." row stays in the palette, so it carries no chord.
+    { meta: { name: "mentions" } }
+  );
+  useHotkey(
+    "Mod+Shift+Y",
+    () => {
+      openNotePanel("tags");
+    },
+    { meta: { name: "tags" } }
+  );
   useHotkey(
     "Mod+Shift+D",
     () => {
@@ -401,42 +510,25 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
     },
   ]);
 
-  // The tabs stop short of whatever part of the pinned group overlaps their bar.
-  const titlebar = useRef<HTMLDivElement>(null);
-  const cluster = useRef<HTMLDivElement>(null);
-  const [reserve, setReserve] = useState(0);
-  useLayoutEffect(() => {
-    const bar = titlebar.current;
-    const group = cluster.current;
+  const leftOpen = notePanelOpen && activeTab !== undefined;
 
-    const measure = () => {
-      if (bar === null || group === null) {
-        return;
-      }
+  const panelButton = (
+    <BarButton
+      Icon={PanelLeftIcon}
+      label="note panel"
+      onClick={toggleNotePanel}
+      pressed={leftOpen}
+    />
+  );
 
-      setReserve(
-        Math.max(
-          0,
-          Math.ceil(
-            bar.getBoundingClientRect().right -
-              group.getBoundingClientRect().left
-          )
-        )
-      );
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-
-    if (bar !== null && group !== null) {
-      observer.observe(bar);
-      observer.observe(group);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
+  const browseButton = (
+    <BarButton
+      Icon={PanelRightIcon}
+      label="browse notes"
+      onClick={toggleNoteBrowser}
+      pressed={browserOpen}
+    />
+  );
 
   return (
     <div className="bg-shell flex min-h-0 flex-1 flex-col">
@@ -444,15 +536,30 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
         open={browserOpen}
         className="relative min-h-0 flex-1 overflow-clip"
       >
-        <BrowserPanels>
+        <BrowserPanels
+          left={<NotePanel tab={activeTab} />}
+          leftBand={
+            <>
+              {/* Arrives with the card below it, on the card's timing. The
+                  panel button is not faded: it stays where it was clicked. */}
+              <div className="animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
+                <NotePanelToggles tab={activeTab} />
+              </div>
+              {panelButton}
+            </>
+          }
+          leftOpen={leftOpen}
+          rightBand={browseButton}
+        >
           <Titlebar
-            className="pe-(--bar-reserve)"
-            ref={titlebar}
-            // The bar's own 4px end gap, plus the group's overlap or the card's
-            // 8px corner, whichever the last tab's foot has to clear.
-            style={{ "--bar-reserve": `${Math.max(reserve, 8) + 4}px` }}
+            // Open, the browser's card corner ends the bar, and the last tab's
+            // foot clears its 8px radius.
+            className={cn(leftOpen && "ps-1!", browserOpen && "pe-3")}
           >
+            {/* Open, each panel's button rides in its band at this same spot. */}
+            {activeTab === undefined || leftOpen ? null : panelButton}
             <TabStrip activeId={activeId} tabs={tabs} />
+            {browserOpen ? null : <div className="ms-auto">{browseButton}</div>}
           </Titlebar>
           <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-t-lg">
             {tabs.length === 0 ? (
@@ -479,12 +586,6 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
             )}
           </div>
         </BrowserPanels>
-        <BarGroup
-          activeTab={activeTab}
-          onNew={openDraft}
-          onSearch={onOpenSearch}
-          ref={cluster}
-        />
       </SidebarProvider>
     </div>
   );

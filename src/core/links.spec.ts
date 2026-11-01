@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import queryFixtures from "../../fixtures/note-queries.json";
 import {
+  contextFrom,
   foldPath,
   isNotePath,
   isRelativeDestination,
@@ -208,5 +209,24 @@ describe("native resolver parity", () => {
           null
       ).toBe(fixture.expected);
     }
+  });
+});
+
+describe(contextFrom, () => {
+  it("should keep a line whose link sits near its start", () => {
+    expect(
+      contextFrom({ context: "see [[here]] first", match: "[[here]]" })
+    ).toBe("see [[here]] first");
+  });
+
+  it("should start the line a little before its link", () => {
+    const padding = "word ".repeat(20);
+
+    expect(
+      contextFrom({
+        context: `${padding}[[here]] at the end`,
+        match: "[[here]]",
+      })
+    ).toBe("…word word word word word word [[here]] at the end");
   });
 });

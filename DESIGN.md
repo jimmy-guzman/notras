@@ -4,7 +4,7 @@ notras gives the note the largest share of the window. Interface additions shoul
 
 ## Layout and interaction
 
-The editor is the primary surface. The optional browser occupies a docked column on the right. The palette holds note actions such as rename, move, pin, and tags. Prefer an existing action surface before adding another bar or permanent control.
+The editor is the primary surface. The optional browser occupies a docked column on the right, and the optional note panel docks on the left with the open note's outline, mentions, and tags. The palette holds note actions such as rename, move, pin, and tags. Prefer an existing action surface before adding another bar or permanent control.
 
 Actions need keyboard access through a shortcut or the palette. Pointer controls need accessible names, visible focus, and an interaction state that remains understandable without hover. Preserve selection, caret position, and undo history when switching views or applying an action to the open document.
 

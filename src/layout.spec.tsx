@@ -10,12 +10,13 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { object, parse, string } from "valibot";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { Layout } from "@/layout";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
+import { closeNoteBrowser } from "@/lib/ui/note-browser";
 
 const fileAt = (path: string) =>
   path === "left.md" || path === "/notes/left.md"
@@ -27,6 +28,10 @@ const fileAt = (path: string) =>
       };
 
 describe("layout", () => {
+  beforeEach(() => {
+    closeNoteBrowser();
+  });
+
   it("should recover the workspace after a failed restore is retried", async () => {
     localStorage.setItem(
       "tabs",
@@ -566,8 +571,8 @@ describe("layout", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByText("Nothing here")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "find a note" }));
-    await user.type(screen.getByRole("combobox"), "atl");
+    await user.keyboard("{Control>}p{/Control}");
+    await user.type(await screen.findByRole("combobox"), "atl");
     await user.click(await screen.findByRole("option", { name: /Found/u }));
 
     expect(
@@ -784,12 +789,12 @@ describe("layout", () => {
     act(() => {
       fade.finish();
     });
-    expect(
-      await screen.findByRole("button", {
-        name: "markdown source",
-        pressed: true,
-      })
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.querySelector("[data-source-editor]")).not.toBeNull();
+      expect(
+        screen.getByRole("tab", { selected: true })
+      ).toHaveAccessibleDescription("markdown source");
+    });
   });
 
   it("should keep the closed tab's rows while the palette fades out", async () => {
@@ -1001,9 +1006,9 @@ describe("layout", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByText("Nothing here")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "find a note" }));
+    await user.keyboard("{Control>}p{/Control}");
 
-    const dialog = screen.getByRole("dialog");
+    const dialog = await screen.findByRole("dialog");
 
     expect(
       await within(dialog).findByRole("option", { name: /Second/u })

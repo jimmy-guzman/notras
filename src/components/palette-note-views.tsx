@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  FileTextIcon,
   FolderIcon,
   FolderPlusIcon,
   HashIcon,
@@ -8,9 +9,11 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
+import { NoteLabel } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { toast } from "@/components/ui/toast";
+import { contextFrom } from "@/core/links";
 import { filenameFromTitle } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { noteQueries } from "@/data/queries";
@@ -327,6 +330,91 @@ export function TagsView({
         <CommandItem onSelect={onDone} value="cancel-tags">
           done
         </CommandItem>
+      </CommandGroup>
+    </>
+  );
+}
+
+interface MentionsViewProps {
+  onOpen: (path: string) => void;
+  path: string;
+  query: string;
+  title: string;
+}
+
+/** The notes that link to this one; choosing one opens it. */
+export function MentionsView({
+  onOpen,
+  path,
+  query,
+  title,
+}: MentionsViewProps) {
+  const mentions = useQuery(noteQueries.mentions(path));
+  const needle = query.trim().toLowerCase();
+
+  const shown = (mentions.data ?? []).filter(
+    ({ lines, note }) =>
+      note.title.toLowerCase().includes(needle) ||
+      lines.some((line) => line.context.toLowerCase().includes(needle))
+  );
+
+  const retry = async () => {
+    await mentions.refetch();
+  };
+
+  return (
+    <>
+      {mentions.isPending ? (
+        <output className="text-muted-foreground block p-4 text-sm">
+          loading mentions...
+        </output>
+      ) : null}
+      {mentions.isError ? (
+        <output className="block p-4 text-sm">
+          <span className="block">could not load mentions</span>
+          <span className="block">{reasonOf(mentions.error)}</span>
+          <Button
+            onClick={() => {
+              void retry();
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            retry
+          </Button>
+        </output>
+      ) : null}
+      {mentions.data?.length === 0 ? (
+        <p className="text-muted-foreground p-4 text-sm">no notes link here</p>
+      ) : null}
+      {mentions.data !== undefined &&
+      mentions.data.length > 0 &&
+      shown.length === 0 ? (
+        <p className="text-muted-foreground p-4 text-sm">no mentions match</p>
+      ) : null}
+      <CommandGroup heading={`mentions of "${title}"`} variant="title">
+        {shown.map(({ lines, note }) => {
+          const [first] = lines;
+
+          return (
+            <CommandItem
+              className="items-start"
+              key={note.path}
+              onSelect={() => {
+                onOpen(note.path);
+              }}
+              value={`link-${note.path}`}
+            >
+              <FileTextIcon className="mt-0.5" />
+              <span className="flex min-w-0 flex-col">
+                <NoteLabel note={note} />
+                <span className="text-muted-foreground truncate text-xs">
+                  {contextFrom(first)}
+                </span>
+              </span>
+            </CommandItem>
+          );
+        })}
       </CommandGroup>
     </>
   );

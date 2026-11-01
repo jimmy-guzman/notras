@@ -21,7 +21,7 @@ import type { NoteMeta } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
 import type { Tab } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
-import { setMentionsOpen } from "@/lib/ui/mentions";
+import { openNotePanel } from "@/lib/ui/note-panel";
 import { hideGraph, hopTo, registerGraphFocus } from "@/lib/ui/view";
 
 import type { RingPosition } from "./layout";
@@ -796,7 +796,7 @@ export function TabGraph({ tab }: TabGraphProps) {
           }
         }}
         onShowMentions={() => {
-          setMentionsOpen(true);
+          openNotePanel("mentions");
         }}
         picture={shown}
       />

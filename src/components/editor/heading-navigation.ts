@@ -17,7 +17,7 @@ export interface OutlineHeading {
   text: string;
 }
 
-const DEEPEST_LEVEL = 3;
+export const DEEPEST_LEVEL = 3;
 
 function headingLevel(heading: Node) {
   if (!hasNumber(heading.attrs, "level")) {
@@ -108,11 +108,11 @@ export function goToHeading(view: EditorView, position: number) {
   // Not firstElementChild: a hidden gap cursor can be that, with an empty rect.
   const first = view.nodeDOM(0);
 
-  if (
-    scroller === null ||
-    !(heading instanceof Element) ||
-    !(first instanceof Element)
-  ) {
+  if (scroller === null) {
+    throw new Error("The note has no scroll viewport");
+  }
+
+  if (!(heading instanceof Element) || !(first instanceof Element)) {
     return;
   }
 

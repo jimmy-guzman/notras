@@ -34,7 +34,7 @@ describe("note browser startup", () => {
   });
 
   it.each([
-    { open: false, saved: null },
+    { open: true, saved: null },
     { open: false, saved: "false" },
     { open: true, saved: "true" },
   ])("should restore visibility from $saved", async ({ open, saved }) => {
@@ -47,7 +47,7 @@ describe("note browser startup", () => {
     expect(result.current).toBe(open);
   });
 
-  it("should start collapsed and log when reading the visibility preference fails", async () => {
+  it("should start open and log when reading the visibility preference fails", async () => {
     const logged: { args: unknown; command: string }[] = [];
     mockIPC((command, args) => {
       logged.push({ args, command });
@@ -64,7 +64,7 @@ describe("note browser startup", () => {
     const { useNoteBrowser } = await import("@/lib/ui/note-browser");
     const { result } = renderHook(useNoteBrowser);
 
-    expect(result.current).toBeFalsy();
+    expect(result.current).toBeTruthy();
     await waitFor(() => {
       expect(logged).toMatchObject([
         {
@@ -99,7 +99,7 @@ describe("note browser startup", () => {
       toggleNoteBrowser();
     });
 
-    expect(result.current).toBeTruthy();
+    expect(result.current).toBeFalsy();
     expect(
       await screen.findByText("could not remember note browser")
     ).toBeInTheDocument();

@@ -21,7 +21,7 @@
 - **Tabs like a browser**: undo per tab, `⌘⇧T` reopens a closed one, `⌘1` to `⌘9` jump, and the open set comes back on relaunch.
 - **A graph you navigate**: `⌘⌥G` puts the note in the middle, with mentions on the left, links on the right, and its folder and tags on top. `←` and `→` walk it, and `⏎` opens the note you land on and re-centres there.
 - **Tags in the file**: a frontmatter `tags:` list rather than a database. `⌘⇧Y` edits them, `#tag` filters search, the sidebar lists them, and the graph shows every note that carries one.
-- **Links you can query**: `[[wikilinks]]` with autocomplete, a count of the notes that mention this one, and search filters for tags, folders, links and mentions.
+- **Links you can query**: `[[wikilinks]]` with autocomplete, the notes that mention this one in the note panel, and search filters for tags, folders, links and mentions.
 - **WYSIWYG markdown**: `⌘E` for the source, a `/` menu, blocks you drag or move with `⌥↑` and `⌥↓`, and autosave.
 
 The note browser, with search, the collection picker and every note in the library.
@@ -93,6 +93,7 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | Shortcut | Action |
 | --- | --- |
 | `⌘\` | toggle the note browser |
+| `⌘⇧\` | toggle the note panel |
 | `⌘P` | find a note |
 | `⌘⇧P` | run an action |
 | `⌘N` | new note, in a new tab |
@@ -116,8 +117,9 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | `⌘⇧K` | add / edit link |
 | `⌘⇧O` | open the link, image or diagram |
 | `⌘=` / `⌘-` / `⌘0` | zoom the open image or diagram |
-| `⌘⇧L` | show mentions |
-| `⌘⇧Y` | edit tags |
+| `⌘⇧H` | the note's outline, in the note panel |
+| `⌘⇧L` | the note's mentions, in the note panel |
+| `⌘⇧Y` | edit tags, in the note panel |
 | `⌘⇧D` | pin or unpin the note |
 | `⌘,` | settings |
 | `⌘⇧N` | global quick capture |
