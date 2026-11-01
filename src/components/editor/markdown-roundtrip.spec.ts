@@ -251,6 +251,7 @@ describe("markdown round-trip", () => {
     ["codeBlock", "- ```\n  code\n  ```"],
     ["blockquote", "- > quote"],
     ["bulletList", "-\n  - nested"],
+    ["heading", "- # Title"],
   ])("should keep a %s that opens a list item inside it", (type, markdown) => {
     const saved = roundtrip(markdown);
     const reopened = load(saved);
@@ -261,6 +262,35 @@ describe("markdown round-trip", () => {
     expect(serializeMarkdown(reopened)).toBe(saved);
     reopened.destroy();
   });
+
+  it.each([
+    ["a heading", "heading", "- # Title\n  more"],
+    ["a code block", "codeBlock", "- ```\n  code\n  ```\n  more"],
+    [
+      "a code block under text",
+      "codeBlock",
+      "- a\n  ```\n  code\n  ```\n  more",
+    ],
+  ])(
+    "should keep the text after %s in a tight item",
+    (_name, type, markdown) => {
+      const editor = load(markdown);
+      const item = editor.state.doc.child(0).child(0);
+      const before = editor.getJSON();
+      const saved = serializeMarkdown(editor);
+
+      expect(item.child(item.childCount - 2).type.name).toBe(type);
+      expect(item.lastChild?.type.name).toBe("paragraph");
+      expect(item.lastChild?.textContent).toBe("more");
+      editor.destroy();
+
+      const reopened = load(saved);
+
+      expect(reopened.getJSON()).toStrictEqual(before);
+      expect(serializeMarkdown(reopened)).toBe(saved);
+      reopened.destroy();
+    }
+  );
 
   it.each([
     ["codeBlock", "1.\n   ```\n   code\n   ```", "1.\n   ```\n   code\n   ```"],
