@@ -511,6 +511,41 @@ describe("link clicks", () => {
     expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
   });
 
+  it("should open a selected wikilink pill pressed again without moving", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "[[other]]",
+      onWikilinkClick,
+    });
+
+    const pill = screen.getByText("other");
+    // happy-dom lays nothing out, so the press is put on the pill at the DOM
+    // boundary, where the drag and ProseMirror read the pointer's position.
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => pill,
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offset: 0, offsetNode: pill }),
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    act(() => {
+      editor.view.dispatch(
+        editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 1))
+      );
+    });
+    fireEvent.pointerDown(pill, { ...pointer(1, 10), metaKey: true });
+    fireEvent.pointerUp(pill, { ...pointer(1, 10), metaKey: true });
+
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
+  });
+
   it("should open a clicked embed's note", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
 
@@ -1048,6 +1083,157 @@ describe("heading links", () => {
       expect(editor.isFocused).toBeTruthy();
       expect(handle.getContent()).toBe(before);
       expect(invoke).not.toHaveBeenCalled();
+    }
+  );
+
+  it("should focus the heading of a link inside the selection pressed without moving", async () => {
+    const { editor } = await mount({
+      initialContent: "[go](#target)\n\n## Target",
+    });
+
+    const anchor = screen.getByRole("link");
+    // happy-dom lays nothing out, so the press is put on the link at the DOM
+    // boundary, where the drag and ProseMirror read the pointer's position.
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => anchor,
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offset: 1, offsetNode: anchor.firstChild }),
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 3 });
+    });
+    fireEvent.pointerDown(anchor, pointer(1, 10));
+    fireEvent.pointerUp(anchor, pointer(1, 10));
+
+    expect(editor.state.selection.$from.parent.textContent).toBe("Target");
+    expect(editor.state.selection.$from.parentOffset).toBe(0);
+  });
+
+  it("should report a missing heading once after an earlier press on the link was released outside the editor", async () => {
+    render(<Toaster />);
+
+    const { editor } = await mount({
+      initialContent: "[go](#missing)\n\n## Present",
+    });
+
+    const anchor = screen.getByRole("link");
+    // happy-dom lays nothing out, so the press is put on the link at the DOM
+    // boundary, where the drag and ProseMirror read the pointer's position.
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => anchor,
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offset: 1, offsetNode: anchor.firstChild }),
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    const user = userEvent.setup();
+    await user.pointer([
+      {
+        coords: { clientX: 10, clientY: 0 },
+        keys: "[MouseLeft>]",
+        target: anchor,
+      },
+      { target: document.body },
+      { keys: "[/MouseLeft]" },
+    ]);
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 3 });
+    });
+    await user.pointer({
+      coords: { clientX: 10, clientY: 0 },
+      keys: "[MouseLeft]",
+      target: anchor,
+    });
+
+    expect(
+      await screen.findAllByText('No heading matches "#missing".')
+    ).toHaveLength(1);
+  });
+
+  it("should report a missing heading once for a link inside the selection clicked without moving", async () => {
+    render(<Toaster />);
+
+    const { editor } = await mount({
+      initialContent: "[go](#missing)\n\n## Present",
+    });
+
+    const anchor = screen.getByRole("link");
+    // happy-dom lays nothing out, so the press is put on the link at the DOM
+    // boundary, where the drag and ProseMirror read the pointer's position.
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => anchor,
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offset: 1, offsetNode: anchor.firstChild }),
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 3 });
+    });
+    const user = userEvent.setup();
+    await user.pointer({
+      coords: { clientX: 10, clientY: 0 },
+      keys: "[MouseLeft]",
+      target: anchor,
+    });
+
+    expect(
+      await screen.findAllByText('No heading matches "#missing".')
+    ).toHaveLength(1);
+    expect(editor.state.selection.from).toBe(1);
+    expect(editor.state.selection.to).toBe(3);
+  });
+
+  it.each([1, 2])(
+    "should leave the caret where it was on a heading link pressed with button %i",
+    async (button) => {
+      const { editor } = await mount({
+        initialContent: "[go](#target)\n\n## Target",
+      });
+
+      const anchor = screen.getByRole("link");
+      // happy-dom lays nothing out, so the press is put on the link at the DOM
+      // boundary, where ProseMirror reads the pointer's position.
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        value: () => anchor,
+      });
+      Object.defineProperty(document, "caretPositionFromPoint", {
+        configurable: true,
+        value: () => ({ offset: 1, offsetNode: anchor.firstChild }),
+      });
+      onTestFinished(() => {
+        Reflect.deleteProperty(document, "elementFromPoint");
+        Reflect.deleteProperty(document, "caretPositionFromPoint");
+      });
+
+      act(() => {
+        editor.commands.setTextSelection(3);
+      });
+      fireEvent.mouseDown(anchor, { button });
+      fireEvent.mouseUp(anchor, { button });
+
+      expect(editor.state.selection.from).toBe(3);
     }
   );
 
@@ -2039,6 +2225,41 @@ describe("mermaid diagrams", () => {
       editor.commands.keyboardShortcut("Mod-Shift-o");
     });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("should keep a task checkbox press inside a selection from the drag", async () => {
+    const { editor } = await mount({ initialContent: "- [ ] one\n- [ ] two" });
+
+    const [checkbox] = within(editor.view.dom).getAllByRole("checkbox");
+
+    if (checkbox === undefined) {
+      throw new Error("the task checkbox did not render");
+    }
+
+    const inside = editor.view.domAtPos(3);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => checkbox,
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offset: inside.offset, offsetNode: inside.node }),
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    });
+
+    act(() => {
+      editor.commands.setTextSelection({
+        from: 1,
+        to: editor.state.doc.content.size - 1,
+      });
+    });
+
+    // The drag claims a press by preventing its default, which costs the
+    // checkbox its toggle.
+    expect(fireEvent.pointerDown(checkbox, pointer(1, 10))).toBeTruthy();
   });
 
   it("should keep a toolbar press inside a selection from the drag", async () => {

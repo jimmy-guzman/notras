@@ -227,6 +227,43 @@ function boundaryUnder(view: EditorView, clientX: number, clientY: number) {
   return pos;
 }
 
+/**
+ * Run the view's click handlers for a press the drag claimed and released
+ * without moving, true when one took the click. Preventing the press's default
+ * also cancels the mousedown ProseMirror clicks from, which would otherwise
+ * leave a link inside the selection dead. The walk is ProseMirror's own,
+ * innermost node first.
+ */
+function runClickHandlers(view: EditorView, press: PointerEvent) {
+  const at = view.posAtCoords({ left: press.clientX, top: press.clientY });
+
+  if (at === null) {
+    return false;
+  }
+
+  if (at.inside > -1) {
+    const $inside = view.state.doc.resolve(at.inside);
+
+    for (let depth = $inside.depth + 1; depth > 0; depth -= 1) {
+      const direct = depth > $inside.depth;
+      const node = direct ? $inside.nodeAfter : $inside.node(depth);
+
+      if (
+        node !== null &&
+        view.someProp("handleClickOn", (handle) =>
+          handle(view, at.pos, node, $inside.before(depth), press, direct)
+        ) === true
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return Boolean(
+    view.someProp("handleClick", (handle) => handle(view, at.pos, press))
+  );
+}
+
 function isInsideSelection(state: EditorState, pos: number) {
   const { empty, from, to } = state.selection;
 
@@ -295,9 +332,9 @@ class DragSelectionView {
   private drag: null | {
     held: Held;
     moved: boolean;
-    originX: number;
-    originY: number;
     pointerId: number;
+    /** The press the drag claimed, which a release without moving clicks with. */
+    press: PointerEvent;
     pressedAt: number;
   } = null;
   private ghost: DragGhost | null = null;
@@ -397,12 +434,13 @@ class DragSelectionView {
     const { view } = this;
 
     // One drag, one pointer. A control inside the selection, a toolbar
-    // button or the language picker, keeps its press, and with it its click.
+    // button, the language picker or a task checkbox, keeps its press, and
+    // with it its click.
     if (
       event.button !== 0 ||
       !event.isPrimary ||
       (event.target instanceof Element &&
-        event.target.closest("button, select") !== null)
+        event.target.closest("button, input, select") !== null)
     ) {
       return;
     }
@@ -439,9 +477,8 @@ class DragSelectionView {
     this.drag = {
       held: heldBy(view.state),
       moved: false,
-      originX: event.clientX,
-      originY: event.clientY,
       pointerId: event.pointerId,
+      press: event,
       pressedAt: pos,
     };
   };
@@ -457,8 +494,9 @@ class DragSelectionView {
 
     if (!drag.moved) {
       const far =
-        Math.abs(event.clientX - drag.originX) >= ACTIVATION_DISTANCE_PX ||
-        Math.abs(event.clientY - drag.originY) >= ACTIVATION_DISTANCE_PX;
+        Math.abs(event.clientX - drag.press.clientX) >=
+          ACTIVATION_DISTANCE_PX ||
+        Math.abs(event.clientY - drag.press.clientY) >= ACTIVATION_DISTANCE_PX;
 
       if (!far) {
         return;
@@ -484,11 +522,15 @@ class DragSelectionView {
     const { dropAt } = dragSelectionKey.getState(view.state) ?? NOTHING;
     // What the press captured, not one recomputed from the live selection: the
     // two can disagree, and then what dims is not what moves.
-    const { held, moved, pressedAt } = drag;
+    const { held, moved, press, pressedAt } = drag;
 
     this.stop();
 
     if (!moved) {
+      if (runClickHandlers(view, press)) {
+        return;
+      }
+
       // A selected node has no caret to place, so the click leaves it selected.
       if (view.state.selection instanceof NodeSelection) {
         return;
