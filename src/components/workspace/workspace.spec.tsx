@@ -25,6 +25,7 @@ describe("workspace", () => {
   beforeEach(() => {
     localStorage.removeItem("recent-notes:/notes");
     closeNoteBrowser();
+    closeNotePanel();
   });
 
   it("should open note search from the welcome screen", async () => {

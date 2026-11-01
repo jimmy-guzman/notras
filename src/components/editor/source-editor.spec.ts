@@ -689,4 +689,43 @@ describe("source outline", () => {
       content.indexOf("## Two") + 1
     );
   });
+
+  it("should settle on the shortened note when most of it is deleted", async ({
+    onTestFinished,
+  }) => {
+    const note = createNoteDocument(
+      `## A\n\nbody\n\n## B\n\n${"long tail ".repeat(2000)}\n\n## C`,
+      "note.md"
+    );
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    onTestFinished(() => {
+      note.destroy();
+      host.remove();
+    });
+
+    render(
+      createElement(SourceEditor, {
+        editor: note.editor,
+        focusOnMount: false,
+        outlineHost: host,
+      })
+    );
+    act(() => {
+      note.editor.commands.setTextSelection(
+        note.editor.state.doc.content.size - 1
+      );
+    });
+
+    act(() => {
+      const { state } = note.editor.view;
+
+      note.editor.view.dispatch(state.tr.delete(1, state.doc.content.size - 1));
+    });
+
+    expect(
+      await screen.findByText("no headings in this note")
+    ).toBeInTheDocument();
+  });
 });

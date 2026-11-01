@@ -157,7 +157,8 @@ function sourceReadingIndex(
 function useSourceReadingIndex(
   editor: Editor,
   headings: SourceHeading[],
-  caret: number
+  caret: number,
+  current: boolean
 ) {
   const [index, setIndex] = useState(-1);
 
@@ -165,7 +166,9 @@ function useSourceReadingIndex(
     const scroller = sourceScroller(editor);
 
     const read = () => {
-      setIndex(sourceReadingIndex(editor, headings, caret));
+      if (current) {
+        setIndex(sourceReadingIndex(editor, headings, caret));
+      }
     };
 
     // Wrapping moves headings without a scroll when the pane resizes.
@@ -180,7 +183,7 @@ function useSourceReadingIndex(
       scroller.removeEventListener("scroll", read);
       resize.disconnect();
     };
-  }, [caret, editor, headings]);
+  }, [caret, current, editor, headings]);
 
   return index;
 }
@@ -209,7 +212,11 @@ export function SourceOutline({ editor, host, onJump }: SourceOutlineProps) {
 
   // Lexing a 450 KB note takes about 34ms, so a keystroke commits first and
   // the headings follow in a render React can interrupt.
-  const headings = sourceHeadings(useDeferredValue(source));
+  const settled = useDeferredValue(source);
+  const headings = sourceHeadings(settled);
+  // Offsets into `settled`, which can trail the editor by a render and point
+  // past the end of a shortened note, so nothing reads positions until then.
+  const current = settled === source;
 
   const head = useEditorState({
     editor,
@@ -217,7 +224,7 @@ export function SourceOutline({ editor, host, onJump }: SourceOutlineProps) {
   });
 
   const caret = headings.findLastIndex((heading) => heading.offset + 1 <= head);
-  const reading = useSourceReadingIndex(editor, headings, caret);
+  const reading = useSourceReadingIndex(editor, headings, caret, current);
 
   const top = Math.min(...headings.map((heading) => heading.level));
 
@@ -248,6 +255,10 @@ export function SourceOutline({ editor, host, onJump }: SourceOutlineProps) {
                     : "text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => {
+                  if (!current) {
+                    return;
+                  }
+
                   goToSourceHeading(editor, heading.offset);
                   onJump?.();
                 }}
