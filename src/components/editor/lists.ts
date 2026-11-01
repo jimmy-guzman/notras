@@ -11,7 +11,6 @@ import {
   OrderedList,
   TaskList,
 } from "@tiptap/extension-list";
-import { TaskItem } from "@tiptap/extension-task-item";
 import type { Attrs } from "@tiptap/pm/model";
 
 import { hasNumber, hasString, isAttrs } from "@/components/editor/attrs";
@@ -155,9 +154,9 @@ function withWrappedLines(
 }
 
 /**
- * TODO: drop the parser once `@tiptap/extension-list` leads an item with a
- * paragraph. Through 3.32.0 an item can open with a table, fence, quote or
- * list, which the schema rejects.
+ * TODO: drop the `text` remap once `@tiptap/extension-list` parses a tight
+ * item's lines as paragraphs. Through 3.32.1 its block parser leaves them as
+ * bare text once another block precedes them.
  */
 export const NoteListItem = ListItem.extend({
   // Only `1. [ ] x` brings a checkbox here, and the schema has no numbered
@@ -167,16 +166,18 @@ export const NoteListItem = ListItem.extend({
       { raw: checkbox.raw, text: checkbox.raw, type: "text" },
     ]);
 
-    const item = this.parent?.({ ...token, tokens }, helpers) ?? [];
+    const paragraphs = tokens.map((block) =>
+      block.type === "text" ? { ...block, type: "paragraph" } : block
+    );
 
-    if (Array.isArray(item) || item.content?.[0]?.type === "paragraph") {
-      return item;
-    }
+    // Upstream reads a heading that opens an item as the item's text, which
+    // drops its `#` on save. An empty first line keeps it a block.
+    const blocks =
+      tokens[0]?.type === "heading"
+        ? [{ raw: "", text: "", tokens: [], type: "paragraph" }, ...paragraphs]
+        : paragraphs;
 
-    return {
-      ...item,
-      content: [{ type: "paragraph" }, ...(item.content ?? [])],
-    };
+    return this.parent?.({ ...token, tokens: blocks }, helpers) ?? [];
   },
   renderMarkdown(node, helpers, context) {
     const rendered = withWrappedLines(
@@ -195,17 +196,6 @@ export const NoteListItem = ListItem.extend({
         ? rendered.replace(MARKER_PERIOD, "$<marker>) ")
         : rendered
     ).replace(MARKER_LINE_SPACES, "");
-  },
-});
-
-export const NoteTaskItem = TaskItem.extend({
-  renderMarkdown(node, helpers, context) {
-    return withWrappedLines(
-      (item) => this.parent?.(item, helpers, context) ?? "",
-      node,
-      helpers,
-      false
-    );
   },
 });
 

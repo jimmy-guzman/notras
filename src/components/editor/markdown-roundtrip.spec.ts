@@ -251,6 +251,7 @@ describe("markdown round-trip", () => {
     ["codeBlock", "- ```\n  code\n  ```"],
     ["blockquote", "- > quote"],
     ["bulletList", "-\n  - nested"],
+    ["heading", "- # Title"],
   ])("should keep a %s that opens a list item inside it", (type, markdown) => {
     const saved = roundtrip(markdown);
     const reopened = load(saved);
@@ -260,6 +261,21 @@ describe("markdown round-trip", () => {
     expect(item.child(1).type.name).toBe(type);
     expect(serializeMarkdown(reopened)).toBe(saved);
     reopened.destroy();
+  });
+
+  it.each([
+    ["a heading", "- # Title\n  more"],
+    ["a code block", "- ```\n  code\n  ```\n  more"],
+    ["a code block under text", "- a\n  ```\n  code\n  ```\n  more"],
+  ])("should keep the text after %s in a tight item", (_name, markdown) => {
+    const editor = load(markdown);
+    const item = editor.state.doc.child(0).child(0);
+    const saved = serializeMarkdown(editor);
+
+    expect(item.lastChild?.type.name).toBe("paragraph");
+    expect(item.lastChild?.textContent).toBe("more");
+    expect(roundtrip(saved)).toBe(saved);
+    editor.destroy();
   });
 
   it.each([

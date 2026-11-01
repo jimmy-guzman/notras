@@ -18,6 +18,7 @@ import { HardBreak } from "@tiptap/extension-hard-break";
 import { Image } from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
+import { TaskItem } from "@tiptap/extension-list";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
@@ -45,7 +46,6 @@ import {
   NoteBulletList,
   NoteListItem,
   NoteOrderedList,
-  NoteTaskItem,
   NoteTaskList,
 } from "@/components/editor/lists";
 import { createNoteMarked } from "@/components/editor/marked-blocks";
@@ -112,7 +112,7 @@ const NoteStrike = Strike.extend({
  * paragraph to upstream.
  *
  * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
- * 3.32.0 its `parseMarkdown` returns the bare image for a paragraph holding
+ * 3.32.1 its `parseMarkdown` returns the bare image for a paragraph holding
  * only one, which suits the block image TipTap ships.
  */
 const NoteParagraph = Paragraph.extend({
@@ -1258,7 +1258,7 @@ export function serializeMarkdown(editor: Editor) {
  * calls methods a `Marked` instance has too.
  *
  * TODO: drop the widened type once `@tiptap/markdown` accepts a `Marked`
- * instance (through 3.32.0 it does not).
+ * instance (through 3.32.1 it does not).
  */
 const NoteMarkdown = Markdown.extend<
   Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }
@@ -1400,7 +1400,7 @@ export function createEditorExtensions(
     NoteBulletList,
     NoteOrderedList,
     NoteTaskList,
-    NoteTaskItem.configure({ nested: true }),
+    TaskItem.configure({ nested: true }),
     NoteImage.configure({
       // Markdown images are inline; the block default breaks a paragraph.
       inline: true,
