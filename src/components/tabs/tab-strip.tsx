@@ -257,6 +257,8 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
             : "hover:bg-muted dark:hover:bg-muted/50",
           isDragging && "shadow-drag z-10 cursor-grabbing"
         )}
+        data-active={active || undefined}
+        data-dragging={isDragging || undefined}
         ref={setNodeRef}
         role="presentation"
         style={{
@@ -264,6 +266,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           "--tab-x": `${transform?.x ?? 0}px`,
         }}
       >
+        <span aria-hidden className="tab-divider" />
         <ContextMenuTrigger
           className="flex min-w-0 flex-1 items-center self-stretch"
           data-tauri-drag-region={sole ? undefined : "false"}
@@ -579,8 +582,10 @@ function TabList({ activeId, tabs }: TabListProps) {
                 />
               ))}
             </div>
-            {/* Top-aligned with the tab labels, which sit above the tabs' 4px feet. */}
-            <span className="flex shrink-0 self-start">
+            {/* Top-aligned with the tab labels, which sit above the tabs' 4px
+                feet, and as tall as a tab so its divider centers with theirs. */}
+            <span className="relative flex h-7 shrink-0 items-start">
+              <span aria-hidden className="tab-divider" />
               <BarButton Icon={PlusIcon} label="new note" onClick={openDraft} />
             </span>
           </div>
