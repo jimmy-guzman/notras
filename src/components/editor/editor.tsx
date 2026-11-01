@@ -600,6 +600,7 @@ export function Editor(mountProps: EditorProps) {
   const editorRef = useRef<null | TiptapEditor>(null);
   const suppressChangeRef = useRef(false);
   const placedRef = useRef<null | TiptapEditor>(null);
+  const fragmentPressRef = useRef<Element | null>(null);
 
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [config] = useState(() => mountProps);
@@ -786,8 +787,9 @@ export function Editor(mountProps: EditorProps) {
             : null;
 
         // A resolved text position can belong to a link even when the pointer
-        // lands in the space beside it.
-        if (target === null) {
+        // lands in the space beside it. ProseMirror calls this for every
+        // button, and only a primary press follows a link.
+        if (target === null || event.button !== 0) {
           return false;
         }
 
@@ -797,7 +799,7 @@ export function Editor(mountProps: EditorProps) {
           ? hrefAt(view.state, view.posAtDOM(target, 0) + 1)
           : "";
 
-        if (href !== "" && !href.startsWith("#")) {
+        if (href !== "") {
           followLink(
             view,
             href,
@@ -827,16 +829,22 @@ export function Editor(mountProps: EditorProps) {
               ? event.target.closest("a[href]")
               : null;
 
+          const pressed = fragmentPressRef.current;
+          fragmentPressRef.current = null;
+
           if (target === null) {
             return false;
           }
 
-          // Other links open on ProseMirror's mouseup; prevent the browser
-          // from opening them again outside the scheme gate.
+          // Links open through `handleClickOn`; prevent the browser from
+          // opening them again outside the scheme gate. The one exception is
+          // a fragment link whose mousedown was kept from ProseMirror, which
+          // opens here. A press the selection drag claimed has no mousedown
+          // and opened through `handleClickOn` already.
           event.preventDefault();
           const href = hrefAt(view.state, view.posAtDOM(target, 0) + 1);
 
-          if (event.button === 0 && href.startsWith("#")) {
+          if (target === pressed && href.startsWith("#")) {
             followLink(view, href);
 
             return true;
@@ -893,6 +901,7 @@ export function Editor(mountProps: EditorProps) {
             // WebKit moves its native caret before ProseMirror's mouseup.
             // Fragment clicks must retain the selection when lookup fails.
             event.preventDefault();
+            fragmentPressRef.current = target;
 
             return true;
           }
@@ -940,6 +949,13 @@ export function Editor(mountProps: EditorProps) {
             previous?.pos === view.posAtDOM(target, 0) ? previous : null
           );
           openHover.maybeExecute(target);
+
+          return false;
+        },
+        // A press released outside the editor sends its click elsewhere, so
+        // each press starts with no fragment press on record.
+        pointerdown: () => {
+          fragmentPressRef.current = null;
 
           return false;
         },
