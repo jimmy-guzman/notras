@@ -42,6 +42,12 @@ The graph for a note, mentions on the left, links on the right and its tags abov
   <img src="assets/graph.png" alt="The graph for a note, mentions on the left, links on the right and its tags above" width="960">
 </p>
 
+The note panel, `⌘⇧L` on its mentions: every note that links here, with the line that does.
+
+<p align="center">
+  <img src="assets/panel.png" alt="The note panel beside a note, listing each note that mentions it with the line that links" width="960">
+</p>
+
 The action palette, each action with its shortcut.
 
 <p align="center">
