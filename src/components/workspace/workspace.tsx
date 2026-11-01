@@ -216,8 +216,8 @@ function BrowserPanels({
 
   return (
     <ResizablePanelGroup
-      // Self-only: the group shows through only above and below the resize
-      // gap, and the part above sits in the title band.
+      // Self-only, so only what the panels and handles leave uncovered moves
+      // the window.
       data-tauri-drag-region
       elementRef={group}
       orientation="horizontal"
@@ -262,9 +262,9 @@ function BrowserPanels({
         panelRef={leftPanel}
       >
         <div className="flex size-full min-h-0 flex-col">
-          {/* `ps-titlebar` clears the traffic lights; the panel's button closes the band at its end. */}
+          {/* `ps-titlebar` clears the traffic lights, which puts the panel's button where it sits while the panel is closed. */}
           <div
-            className="text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center justify-between gap-2 py-1 pe-1"
+            className="text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-2 py-1 pe-1"
             data-tauri-drag-region="deep"
           >
             {leftOpen ? leftBand : null}
@@ -283,10 +283,10 @@ function BrowserPanels({
       </ResizablePanel>
       <ResizableHandle
         aria-label="resize note panel"
-        className="mt-8"
         disabled={!leftOpen}
         disableDoubleClick
         hidden={!leftOpen}
+        titleBand
       />
       <ResizablePanel
         id="note-editor"
@@ -297,10 +297,10 @@ function BrowserPanels({
       </ResizablePanel>
       <ResizableHandle
         aria-label="resize note browser"
-        className="mt-8"
         disabled={!open}
         disableDoubleClick
         hidden={!open}
+        titleBand
       />
       <ResizablePanel
         id="note-browser"
@@ -540,12 +540,12 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
           left={<NotePanel tab={activeTab} />}
           leftBand={
             <>
+              {panelButton}
               {/* Arrives with the card below it, on the card's timing. The
                   panel button is not faded: it stays where it was clicked. */}
               <div className="animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
                 <NotePanelToggles tab={activeTab} />
               </div>
-              {panelButton}
             </>
           }
           leftOpen={leftOpen}
