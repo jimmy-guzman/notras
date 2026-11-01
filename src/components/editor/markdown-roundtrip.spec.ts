@@ -264,19 +264,27 @@ describe("markdown round-trip", () => {
   });
 
   it.each([
-    ["a heading", "- # Title\n  more"],
-    ["a code block", "- ```\n  code\n  ```\n  more"],
-    ["a code block under text", "- a\n  ```\n  code\n  ```\n  more"],
-  ])("should keep the text after %s in a tight item", (_name, markdown) => {
-    const editor = load(markdown);
-    const item = editor.state.doc.child(0).child(0);
-    const saved = serializeMarkdown(editor);
+    ["a heading", "heading", "- # Title\n  more"],
+    ["a code block", "codeBlock", "- ```\n  code\n  ```\n  more"],
+    [
+      "a code block under text",
+      "codeBlock",
+      "- a\n  ```\n  code\n  ```\n  more",
+    ],
+  ])(
+    "should keep the text after %s in a tight item",
+    (_name, type, markdown) => {
+      const editor = load(markdown);
+      const item = editor.state.doc.child(0).child(0);
+      const saved = serializeMarkdown(editor);
 
-    expect(item.lastChild?.type.name).toBe("paragraph");
-    expect(item.lastChild?.textContent).toBe("more");
-    expect(roundtrip(saved)).toBe(saved);
-    editor.destroy();
-  });
+      expect(item.child(item.childCount - 2).type.name).toBe(type);
+      expect(item.lastChild?.type.name).toBe("paragraph");
+      expect(item.lastChild?.textContent).toBe("more");
+      expect(roundtrip(saved)).toBe(saved);
+      editor.destroy();
+    }
+  );
 
   it.each([
     ["codeBlock", "1.\n   ```\n   code\n   ```", "1.\n   ```\n   code\n   ```"],
