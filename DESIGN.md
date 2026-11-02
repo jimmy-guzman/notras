@@ -18,7 +18,7 @@ Use the system sans stack for interface text and prose, and the system monospace
 
 `src/styles.css` owns interface tokens and the `.typeset-note` preset. Tune the note surface there. `src/typeset.css` is vendored and remains byte-for-byte upstream. The preset owns reading rhythm; components should not recreate it with isolated margins.
 
-Dark surfaces pair warm near-black backgrounds with ivory text. Light surfaces use ivory paper and dark ink. Pink identifies actions and focus, blue identifies text selection, and violet identifies active command rows. Use semantic tokens and derive tints from them so the schemes remain consistent. Contrast tests cover declared pairs; inspect rendered interaction states too.
+Dark surfaces pair warm near-black backgrounds with ivory text. Light surfaces use ivory paper and dark ink. Pink identifies actions, focus, and the current item in a set, such as the outline heading being read or a lit toggle in the note panel. Blue identifies text selection, and violet identifies active command rows. Use semantic tokens and derive tints from them so the schemes remain consistent. Contrast tests cover declared pairs; inspect rendered interaction states too.
 
 Use the existing radius ladder and spacing conventions. Nested radii account for the parent's padding. A new surface should have a clear relationship to the surrounding editor, shell, or floating controls. Avoid adding borders, shadows, and fills that express the same boundary more than once.
 
