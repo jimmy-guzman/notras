@@ -184,7 +184,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Resolve the notes directory: saved setting, else ~/notras.
-    let notes_dir = match store
+    let requested_dir = match store
         .get("notesDir")
         .and_then(|value| value.as_str().map(std::path::PathBuf::from))
     {
@@ -192,7 +192,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         None => app.path().home_dir()?.join("notras"),
     };
 
-    let library = Library::open(&notes_dir, &index_cache(app)?)?;
+    let library = Library::open(&requested_dir, &index_cache(app)?)?;
     let notes_dir = library.directory().to_owned();
 
     // Images are rendered through the asset protocol; the scope follows the
@@ -250,16 +250,16 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => show_main(app),
+        .on_menu_event(|handle, event| match event.id.as_ref() {
+            "open" => show_main(handle),
             "new-note" => {
-                show_main(app);
-                if let Err(error) = app.emit("menu-new-note", ()) {
+                show_main(handle);
+                if let Err(error) = handle.emit("menu-new-note", ()) {
                     log::error!("could not emit {}: {error}", "menu-new-note");
                 }
             }
-            "capture" => open_capture(app),
-            "quit" => app.exit(0),
+            "capture" => open_capture(handle),
+            "quit" => handle.exit(0),
             _ => {}
         })
         .build(app)?;
@@ -272,9 +272,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         app.handle().plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_shortcuts(["CmdOrCtrl+Shift+N"])?
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|handle, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        open_capture(app);
+                        open_capture(handle);
                     }
                 })
                 .build(),

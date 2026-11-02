@@ -561,7 +561,7 @@ mod tests {
         library.finish_scan(scan).unwrap();
         let owner = Arc::new(LibraryOwner::new(library, |_| {}));
         let paused = owner.read();
-        let mut scan = paused.begin_scan(true);
+        let mut paused_scan = paused.begin_scan(true);
         let writer = owner.clone();
         let save = thread::spawn(move || {
             save_current(&writer.read(), "note.md", "# After").unwrap();
@@ -578,14 +578,14 @@ mod tests {
                 state.library.read_note("note.md".into()).unwrap().content,
                 "# After"
             );
-            state.library.advance_scan(&mut scan).unwrap();
+            state.library.advance_scan(&mut paused_scan).unwrap();
             drop(state);
             loop {
-                let state = scanner.background();
-                if state.library.advance_scan(&mut scan).unwrap() {
-                    state.library.finish_scan(scan).unwrap();
+                let polled = scanner.background();
+                if polled.library.advance_scan(&mut paused_scan).unwrap() {
+                    polled.library.finish_scan(paused_scan).unwrap();
                     assert_eq!(
-                        state
+                        polled
                             .library
                             .read_view()
                             .unwrap()
@@ -1116,14 +1116,14 @@ mod tests {
                 .unwrap();
         });
 
-        let replacement = prepared
+        let prepared_replacement = prepared
             .recv_timeout(Duration::from_secs(5))
             .expect("preparation must not wait on the operation guard")
             .unwrap();
 
         assert_eq!(held.read_note("old.md".into()).unwrap().content, "# Old");
         drop(held);
-        owner.replace_scanned(replacement);
+        owner.replace_scanned(prepared_replacement);
         assert_eq!(
             owner
                 .query(|view| view.list_notes(&Default::default()))

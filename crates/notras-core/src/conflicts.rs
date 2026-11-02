@@ -173,10 +173,10 @@ mod tests {
                 .ours,
             "# two"
         );
-        let directory = Dir::open_ambient_dir(&dir, ambient_authority()).unwrap();
-        let first = TempSibling::create(&directory).unwrap();
-        let other = TempSibling::create(&directory).unwrap();
-        assert_ne!(first.name(), other.name());
+        let opened = Dir::open_ambient_dir(&dir, ambient_authority()).unwrap();
+        let first_sibling = TempSibling::create(&opened).unwrap();
+        let other = TempSibling::create(&opened).unwrap();
+        assert_ne!(first_sibling.name(), other.name());
     }
 
     #[test]

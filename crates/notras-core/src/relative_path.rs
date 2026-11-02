@@ -36,8 +36,8 @@ pub(crate) fn ensure_folder(root: &Dir, folder: &str) -> io::Result<Dir> {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 match dir.create_dir(part) {
                     Ok(()) => {}
-                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-                    Err(error) => return Err(error),
+                    Err(create_error) if create_error.kind() == io::ErrorKind::AlreadyExists => {}
+                    Err(create_error) => return Err(create_error),
                 }
                 open_child(&dir, part)?.ok_or_else(symlink_error)?
             }

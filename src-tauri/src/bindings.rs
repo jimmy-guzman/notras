@@ -332,10 +332,10 @@ mod tests {
             fs::read_to_string(directory.path().join("ideas/a.md")).unwrap(),
             "# second"
         );
-        let notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
-        assert_eq!(notes.as_array().unwrap().len(), 1);
-        assert_eq!(notes[0]["path"], "ideas/a.md");
-        assert_eq!(notes[0]["title"], "second");
+        let moved_notes = invoke(&window, "list_notes", json!({"filters": {}})).unwrap();
+        assert_eq!(moved_notes.as_array().unwrap().len(), 1);
+        assert_eq!(moved_notes[0]["path"], "ideas/a.md");
+        assert_eq!(moved_notes[0]["title"], "second");
         assert_eq!(
             invoke(&window, "delete_note", json!({"path": "ideas/a.md"})).unwrap(),
             json!({"path": "ideas/a.md", "warnings": []})
@@ -842,14 +842,14 @@ mod tests {
 
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("ext.md"), "# outside").unwrap();
-        let outcome = invoke(
+        let external_outcome = invoke(
             &window,
             "write_external",
             json!({"path": outside.path().join("ext.md"), "content": "# mine", "expected": "stale"}),
         )
         .unwrap();
-        assert_eq!(outcome["kind"], "conflict");
-        assert_eq!(outcome["file"]["content"], "# outside");
+        assert_eq!(external_outcome["kind"], "conflict");
+        assert_eq!(external_outcome["file"]["content"], "# outside");
         assert_eq!(
             fs::read_to_string(outside.path().join("ext.md")).unwrap(),
             "# outside"
@@ -1043,8 +1043,8 @@ mod tests {
         );
 
         assert!(invoke(&window, "set_appearance", json!({"appearance": "sepia"})).is_err());
-        let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
-        assert_eq!(saved["appearance"], "light");
+        let unchanged: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(unchanged["appearance"], "light");
 
         store.set("appearance", json!("sepia"));
         assert_eq!(

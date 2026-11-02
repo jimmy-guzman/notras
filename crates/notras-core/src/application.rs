@@ -894,7 +894,7 @@ pub fn write_external(
         dir: Dir::open_ambient_dir(parent, ambient_authority())?,
         name: path
             .file_name()
-            .and_then(|name| name.to_str())
+            .and_then(|file_name| file_name.to_str())
             .ok_or("A note without a filename")?
             .to_owned(),
     };
@@ -1428,12 +1428,15 @@ mod tests {
         assert_eq!(renamed.file_name().unwrap(), "next-thought.md");
         assert_eq!(fs::read_to_string(renamed).unwrap(), content);
         let fallback = "---\ntitle: Imported title\n---\n```\ncode\n```";
-        let receipt = written(renamed, fallback, Some(SaveName::Content)).unwrap();
+        let fallback_receipt = written(renamed, fallback, Some(SaveName::Content)).unwrap();
         assert_eq!(
-            Path::new(&receipt.path).file_name().unwrap(),
+            Path::new(&fallback_receipt.path).file_name().unwrap(),
             "imported-title.md"
         );
-        assert_eq!(fs::read_to_string(&receipt.path).unwrap(), fallback);
+        assert_eq!(
+            fs::read_to_string(&fallback_receipt.path).unwrap(),
+            fallback
+        );
     }
 
     #[test]
@@ -1813,9 +1816,9 @@ mod tests {
             "readable"
         );
         fs::write(directory.path().join("bad.md"), "fixed").unwrap();
-        let mut scan = core.begin_scan(true);
-        while !core.advance_scan(&mut scan).unwrap() {}
-        core.finish_scan(scan).unwrap();
+        let mut rescan = core.begin_scan(true);
+        while !core.advance_scan(&mut rescan).unwrap() {}
+        core.finish_scan(rescan).unwrap();
         assert_eq!(
             core.read_view()
                 .unwrap()
@@ -2179,9 +2182,9 @@ mod tests {
             "written"
         );
         assert!(!directory.path().join("folder").exists());
-        let mut scan = core.begin_scan(false);
-        while !core.advance_scan(&mut scan).unwrap() {}
-        core.finish_scan(scan).unwrap();
+        let mut rescan = core.begin_scan(false);
+        while !core.advance_scan(&mut rescan).unwrap() {}
+        core.finish_scan(rescan).unwrap();
         assert!(core
             .read_view()
             .unwrap()

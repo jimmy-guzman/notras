@@ -15,6 +15,7 @@ unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.clippy]
 allow_attributes_without_reason = "deny"
+shadow_unrelated = "deny"
 undocumented_unsafe_blocks = "deny"
 
 [profile.release]

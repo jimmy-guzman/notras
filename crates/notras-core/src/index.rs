@@ -38,9 +38,9 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
     log::warn!("rebuilding the index, which could not be opened: {error}");
     for suffix in ["", "-wal", "-shm"] {
         let stale = index_dir.join(format!("{DATABASE}{suffix}"));
-        if let Err(error) = fs::remove_file(&stale) {
-            if error.kind() != io::ErrorKind::NotFound {
-                log::warn!("could not remove {}: {error}", stale.display());
+        if let Err(remove_error) = fs::remove_file(&stale) {
+            if remove_error.kind() != io::ErrorKind::NotFound {
+                log::warn!("could not remove {}: {remove_error}", stale.display());
             }
         }
     }
@@ -333,8 +333,8 @@ pub(crate) fn index_note(
         }
         Err(error) => return Err(error.into()),
     };
-    let meta = file.metadata()?;
-    let updated_at = timestamp_millis(meta.modified())?;
+    let file_meta = file.metadata()?;
+    let updated_at = timestamp_millis(file_meta.modified())?;
     let stored: Option<i64> = conn
         .query_row(
             "SELECT updated_at FROM note WHERE path = ?1",
@@ -354,7 +354,7 @@ pub(crate) fn index_note(
     let body_line_offset = content[..content.len() - parsed.body.len()]
         .matches('\n')
         .count();
-    let created_at = timestamp_millis(meta.created()).unwrap_or(updated_at);
+    let created_at = timestamp_millis(file_meta.created()).unwrap_or(updated_at);
     let title = resolve_title(&parsed, rel_path);
 
     // Metadata and search entries must describe the same saved document.
@@ -719,8 +719,8 @@ mod tests {
 
         // Deleting the file drops it from the index on the next scan.
         fs::remove_file(dir.join("ideas.md")).unwrap();
-        let changed = scan_all(&conn, &root(&dir), &dir).unwrap().changed;
-        assert_eq!(changed, vec!["ideas.md".to_string()]);
+        let removed = scan_all(&conn, &root(&dir), &dir).unwrap().changed;
+        assert_eq!(removed, vec!["ideas.md".to_string()]);
     }
 
     #[test]
@@ -757,13 +757,13 @@ mod tests {
 
         // Even asked for directly, a symlink never lands a row.
         index_note(&conn, &root(&dir), "linked.md", false).unwrap();
-        let rows = select(
+        let linked_rows = select(
             &conn,
             "SELECT path FROM note WHERE path = ?1",
             &[&"linked.md"],
         )
         .unwrap();
-        assert!(rows.is_empty());
+        assert!(linked_rows.is_empty());
     }
 
     #[test]
@@ -984,17 +984,17 @@ mod tests {
         );
 
         // An underscore joins a word, the way a letter does.
-        let rows = find("x.md", "snake");
-        assert_eq!(rows.len(), 1);
+        let snake_rows = find("x.md", "snake");
+        assert_eq!(snake_rows.len(), 1);
         assert_eq!(
-            rows[0].context,
+            snake_rows[0].context,
             "snake_case is a symbol, but the snake is an animal"
         );
 
         // A quote in the title reaches FTS escaped.
-        let rows = find("q.md", "say \"hi\"");
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].path, "r.md");
+        let quoted_rows = find("q.md", "say \"hi\"");
+        assert_eq!(quoted_rows.len(), 1);
+        assert_eq!(quoted_rows[0].path, "r.md");
 
         // No letter or digit means nothing to find, and no error.
         assert!(find("x.md", "---").is_empty());

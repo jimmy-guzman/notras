@@ -213,14 +213,14 @@ impl Scan {
                         });
                         self.unreadable(&relative, error);
                     }
-                    Some(Ok(entry)) => {
+                    Some(Ok(dir_entry)) => {
                         let parent = Entry::Entries {
                             dir: dir.try_clone()?,
                             relative: relative.clone(),
                             entries,
                         };
                         self.entries.push(parent);
-                        self.child(conn, root, &dir, &relative, &entry)?;
+                        self.child(conn, root, &dir, &relative, &dir_entry)?;
                     }
                 },
                 Entry::Observed(path) => {
@@ -339,14 +339,14 @@ mod tests {
         )
         .unwrap();
         fs::create_dir(directory.path().join("fresh")).unwrap();
-        let mut scan = library.begin_observations(vec![
+        let mut observed_scan = library.begin_observations(vec![
             library.directory().join("empty"),
             library.directory().join("named"),
             library.directory().join("renamed"),
             library.directory().join("fresh"),
         ]);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        let mut changed = library.finish_scan(scan).unwrap();
+        while !library.advance_scan(&mut observed_scan).unwrap() {}
+        let mut changed = library.finish_scan(observed_scan).unwrap();
         changed.sort();
 
         assert_eq!(changed, ["empty", "fresh", "named", "renamed"]);
@@ -371,9 +371,9 @@ mod tests {
             ["inbox", "inbox/later"]
         );
         library.move_note("inbox/later/note.md".into(), "").unwrap();
-        let mut scan = library.begin_scan(false);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
+        let mut rescan = library.begin_scan(false);
+        while !library.advance_scan(&mut rescan).unwrap() {}
+        library.finish_scan(rescan).unwrap();
 
         assert_eq!(
             library.read_view().unwrap().list_folders().unwrap(),
@@ -391,9 +391,9 @@ mod tests {
         while !library.advance_scan(&mut scan).unwrap() {}
         library.finish_scan(scan).unwrap();
         fs::remove_file(directory.path().join("gone.md")).unwrap();
-        let mut scan = library.begin_scan(true);
-        while scan.deletions.is_none() {
-            assert!(!library.advance_scan(&mut scan).unwrap());
+        let mut forced_scan = library.begin_scan(true);
+        while forced_scan.deletions.is_none() {
+            assert!(!library.advance_scan(&mut forced_scan).unwrap());
         }
 
         library
@@ -407,8 +407,8 @@ mod tests {
             .save_note("keep.md", "# Latest", None, &expected)
             .unwrap();
         library.move_note("keep.md".into(), "moved").unwrap();
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
+        while !library.advance_scan(&mut forced_scan).unwrap() {}
+        library.finish_scan(forced_scan).unwrap();
 
         let notes = library
             .read_view()
@@ -441,7 +441,7 @@ mod tests {
             .execute("UPDATE note SET title = 'Previous'", [])
             .unwrap();
 
-        let mut scan = library.begin_scan(true);
+        let mut forced_scan = library.begin_scan(true);
         assert_eq!(
             library
                 .read_view()
@@ -451,8 +451,8 @@ mod tests {
                 .title,
             "Previous"
         );
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
+        while !library.advance_scan(&mut forced_scan).unwrap() {}
+        library.finish_scan(forced_scan).unwrap();
         assert_eq!(
             library
                 .read_view()
@@ -472,9 +472,9 @@ mod tests {
         let mut scan = library.begin_scan(false);
         while !library.advance_scan(&mut scan).unwrap() {}
         library.finish_scan(scan).unwrap();
-        let mut scan = library.begin_scan(true);
-        while scan.deletions.is_none() {
-            assert!(!library.advance_scan(&mut scan).unwrap());
+        let mut forced_scan = library.begin_scan(true);
+        while forced_scan.deletions.is_none() {
+            assert!(!library.advance_scan(&mut forced_scan).unwrap());
         }
         library.conn.execute_batch("CREATE TRIGGER refuse_delete BEFORE DELETE ON note_tag BEGIN SELECT RAISE(FAIL, 'unavailable'); END;").unwrap();
         // A tag gives the trigger an existing row to reject.
@@ -494,17 +494,17 @@ mod tests {
             .conn
             .execute_batch("DROP TRIGGER refuse_delete")
             .unwrap();
-        while !library.advance_scan(&mut scan).unwrap() {}
-        assert!(library.finish_scan(scan).is_err());
+        while !library.advance_scan(&mut forced_scan).unwrap() {}
+        assert!(library.finish_scan(forced_scan).is_err());
         assert!(library.index_needs_rebuild());
         assert_eq!(
             library.read_note("note.md".into()).unwrap().content,
             "# After"
         );
         assert!(library.read_view().is_err());
-        let mut scan = library.begin_scan(true);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
+        let mut recovery_scan = library.begin_scan(true);
+        while !library.advance_scan(&mut recovery_scan).unwrap() {}
+        library.finish_scan(recovery_scan).unwrap();
         assert_eq!(
             library
                 .read_view()

@@ -277,8 +277,8 @@ pub fn mentions(
     }
     groups
         .into_iter()
-        .filter_map(|(path, mut lines)| {
-            let note = notes.iter().find(|note| note.path == path)?.clone();
+        .filter_map(|(source, mut lines)| {
+            let note = notes.iter().find(|note| note.path == source)?.clone();
             lines.sort_by_key(|line| line.line);
             Some(Mention { lines, note })
         })

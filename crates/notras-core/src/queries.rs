@@ -197,9 +197,9 @@ fn select_notes(
         Ok((_, path)) => matches.iter().all(|found| found.contains_key(path)),
         Err(_) => true,
     })
-    .take(filters.limit.map_or(usize::MAX, |limit| limit as usize))
-    .map(|row| {
-        let (id, path) = row?;
+    .take(filters.limit.map_or(usize::MAX, |max| max as usize))
+    .map(|found_row| {
+        let (id, path) = found_row?;
         let (context, marked_title) = match &matched {
             Some(query) => {
                 snippet.query_row((query, id), |row| Ok((row.get(0)?, Some(row.get(1)?))))?
@@ -852,12 +852,12 @@ mod tests {
         core.finish_scan(scan).unwrap();
         core.conn.execute_batch("VACUUM").unwrap();
         drop(core);
-        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
-        let mut scan = core.begin_scan(false);
-        while !core.advance_scan(&mut scan).unwrap() {}
-        assert!(core.finish_scan(scan).unwrap().is_empty());
+        let reopened = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut reopen_scan = reopened.begin_scan(false);
+        while !reopened.advance_scan(&mut reopen_scan).unwrap() {}
+        assert!(reopened.finish_scan(reopen_scan).unwrap().is_empty());
         for query in ["obsolete", "original"] {
-            assert!(core
+            assert!(reopened
                 .read_view()
                 .unwrap()
                 .list_notes(&NoteFilters {
@@ -867,7 +867,7 @@ mod tests {
                 .unwrap()
                 .is_empty());
         }
-        let notes = core
+        let notes = reopened
             .read_view()
             .unwrap()
             .list_notes(&NoteFilters {
@@ -1078,7 +1078,7 @@ mod tests {
             "# Source\nFirst phrase\n[site](https://example.test)\nFirst phrase later",
             1,
         );
-        let result = core
+        let mention_first = core
             .read_view()
             .unwrap()
             .search_notes(NoteSearch {
@@ -1090,8 +1090,11 @@ mod tests {
                 ],
             })
             .unwrap();
-        assert_eq!(result[0].snippet.as_deref(), Some("First phrase later"));
-        let result = core
+        assert_eq!(
+            mention_first[0].snippet.as_deref(),
+            Some("First phrase later")
+        );
+        let link_first = core
             .read_view()
             .unwrap()
             .search_notes(NoteSearch {
@@ -1104,7 +1107,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            result[0].snippet.as_deref(),
+            link_first[0].snippet.as_deref(),
             Some("[site](https://example.test)")
         );
     }
@@ -1134,9 +1137,9 @@ mod tests {
         fs::write(core.notes_dir.join("bad.md"), [0xff]).unwrap();
         core.index_dirty.set(true);
         assert!(core.read_view().is_err());
-        let mut scan = core.begin_scan(true);
-        while !core.advance_scan(&mut scan).unwrap() {}
-        assert!(core.finish_scan(scan).is_err());
+        let mut failing_scan = core.begin_scan(true);
+        while !core.advance_scan(&mut failing_scan).unwrap() {}
+        assert!(core.finish_scan(failing_scan).is_err());
         assert!(core.read_view().is_err());
         let file = core.read_note("fresh.md".into()).unwrap();
         assert_eq!(
