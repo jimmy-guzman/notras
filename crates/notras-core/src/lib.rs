@@ -73,7 +73,7 @@ impl Library {
 
     /// The SQLite file this library's index lives in, under the cache directory.
     pub fn index_path(&self) -> PathBuf {
-        self.index_dir.join(index::DATABASE)
+        self.index_dir.join(index::database(index::SCHEMA_VERSION))
     }
 
     /// Whether indexed reads require a successful forced scan.

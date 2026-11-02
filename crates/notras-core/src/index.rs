@@ -21,14 +21,21 @@ pub enum IndexError {
     Db(#[from] rusqlite::Error),
 }
 
-pub(crate) const DATABASE: &str = "index.db";
+/// Every build shares the cache directory, and two can run at once. A file per
+/// schema keeps one build from dropping tables another is writing.
+// TODO: files from earlier schemas stay in the cache. Deleting one at launch
+// would pull it from under an older build that is still running.
+pub(crate) fn database(schema: i64) -> String {
+    format!("index-v{schema}.db")
+}
 
 /// Open the index in its cache directory, rebuilding it from nothing when what
 /// is there cannot be opened or holds no usable schema. The files are the source
 /// of truth, so a database the app cannot read is one it can throw away.
 pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
     fs::create_dir_all(index_dir)?;
-    let path = index_dir.join(DATABASE);
+    let database = database(SCHEMA_VERSION);
+    let path = index_dir.join(&database);
     let opened = Connection::open(&path).and_then(|conn| ensure_schema(&conn).map(|()| conn));
     let error = match opened {
         Ok(conn) => return Ok(conn),
@@ -37,7 +44,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
     log::warn!("rebuilding the index, which could not be opened: {error}");
     for suffix in ["", "-wal", "-shm"] {
-        let stale = index_dir.join(format!("{DATABASE}{suffix}"));
+        let stale = index_dir.join(format!("{database}{suffix}"));
         if let Err(remove_error) = fs::remove_file(&stale) {
             if remove_error.kind() != io::ErrorKind::NotFound {
                 log::warn!("could not remove {}: {remove_error}", stale.display());
@@ -51,7 +58,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 14;
+pub(crate) const SCHEMA_VERSION: i64 = 14;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -855,6 +862,36 @@ mod tests {
     }
 
     #[test]
+    fn should_leave_an_index_another_schema_has_open() {
+        let notes = tempfile::tempdir().unwrap();
+        let dir = notes.path().to_owned();
+        fs::write(dir.join("a.md"), "see [[b]]\n").unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let newer = Connection::open(cache.path().join(database(SCHEMA_VERSION + 1))).unwrap();
+        newer
+            .execute_batch(
+                "CREATE TABLE note_link (path TEXT NOT NULL, span INTEGER NOT NULL);
+                 INSERT INTO note_link VALUES ('a.md', 3);",
+            )
+            .unwrap();
+        newer
+            .pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .unwrap();
+
+        let conn = open(cache.path()).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
+
+        assert_eq!(
+            select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
+            vec![vec![json!("b")]]
+        );
+        assert_eq!(
+            select(&newer, "SELECT path, span FROM note_link", &[]).unwrap(),
+            vec![vec![json!("a.md"), json!(3)]]
+        );
+    }
+
+    #[test]
     fn should_rebuild_an_index_with_an_older_shape() {
         let directory = tempfile::tempdir().unwrap();
         let cache = directory.path().join(".index");
@@ -868,7 +905,7 @@ mod tests {
                 .modified(),
         )
         .unwrap();
-        let conn = Connection::open(index_dir.join(DATABASE)).unwrap();
+        let conn = Connection::open(index_dir.join(database(SCHEMA_VERSION))).unwrap();
         conn.execute_batch(
             "CREATE TABLE note (path TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
              CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content, tokenize='unicode61');
