@@ -1,5 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { LinkIcon, ListTreeIcon, TagIcon, XIcon } from "lucide-react";
+import {
+  Code2Icon,
+  FileTextIcon,
+  LinkIcon,
+  ListTreeIcon,
+  TagIcon,
+  WaypointsIcon,
+  XIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Chord } from "@/components/chord";
@@ -28,6 +36,8 @@ import {
 } from "@/lib/ui/note-panel";
 import type { NotePanelTab } from "@/lib/ui/note-panel";
 import { useChordsByName } from "@/lib/ui/shortcuts";
+import { showView, useTabView } from "@/lib/ui/view";
+import type { TabView } from "@/lib/ui/view";
 
 function Mentions({ path }: { path: string }) {
   const mentions = useQuery(noteQueries.mentions(path));
@@ -220,7 +230,35 @@ function Tags({ id, path }: { id: string; path: string }) {
   );
 }
 
-/** Each label is also the name its chord registers under, so the tooltip reads the binding. */
+interface PanelToggleProps {
+  Icon: typeof LinkIcon;
+  /** Also the name its chord registers under, so the tooltip reads the binding. */
+  label: string;
+  value: NotePanelTab | TabView;
+}
+
+function PanelToggle({ Icon, label, value }: PanelToggleProps) {
+  const chords = useChordsByName().get(label);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <ToggleGroupItem aria-label={label} size="icon-xs" value={value} />
+        }
+      >
+        <Icon className={BAR_GLYPH} />
+      </TooltipTrigger>
+      <TooltipContent>
+        {label}
+        {chords?.map(({ hotkey, id }) => (
+          <Chord hotkey={hotkey} key={id} />
+        ))}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 const TOGGLES: {
   Icon: typeof LinkIcon;
   label: string;
@@ -243,7 +281,6 @@ function shownTab(tab: Tab | undefined, wanted: NotePanelTab) {
 export function NotePanelToggles({ tab }: { tab: Tab | undefined }) {
   const panel = useNotePanel();
   const showing = shownTab(tab, panel.tab);
-  const chords = useChordsByName();
 
   const toggles =
     tab?.kind === "note"
@@ -260,35 +297,44 @@ export function NotePanelToggles({ tab }: { tab: Tab | undefined }) {
       }}
       spacing={0}
       value={[showing]}
+      variant="mark-bottom"
     >
       {toggles.map(({ Icon, label, tab: value }) => (
-        <Tooltip key={value}>
-          <TooltipTrigger
-            render={
-              <ToggleGroupItem
-                aria-label={label}
-                size="icon-xs"
-                value={value}
-              />
-            }
-          >
-            <Icon className={BAR_GLYPH} />
-          </TooltipTrigger>
-          <TooltipContent>
-            {label}
-            {chords.get(label)?.map(({ hotkey, id }) => (
-              <Chord hotkey={hotkey} key={id} />
-            ))}
-          </TooltipContent>
-        </Tooltip>
+        <PanelToggle Icon={Icon} key={value} label={label} value={value} />
       ))}
     </ToggleGroup>
   );
 }
 
-/** The first control in the panel, or the panel itself when it shows none. */
-function focusPanel(panel: HTMLElement) {
-  const first = panel.querySelector<HTMLElement>(
+/** The views a tab has, one lit. Picking an item shows its view; the chords are what toggle back. */
+function ViewPicker({ tab }: { tab: Tab }) {
+  const view = useTabView(tab.id);
+
+  return (
+    <ToggleGroup
+      aria-label="view"
+      onValueChange={([picked]) => {
+        // Base UI reports a click on the lit item as an empty value. The picker is a choice of one, so that click keeps the view.
+        if (picked !== undefined) {
+          showView(tab.id, picked);
+        }
+      }}
+      spacing={0}
+      value={[view]}
+      variant="mark-top"
+    >
+      <PanelToggle Icon={FileTextIcon} label="note" value="note" />
+      <PanelToggle Icon={Code2Icon} label="markdown source" value="source" />
+      {tab.kind === "note" ? (
+        <PanelToggle Icon={WaypointsIcon} label="graph view" value="graph" />
+      ) : null}
+    </ToggleGroup>
+  );
+}
+
+/** The first control in the panel's content, or the panel itself when it shows none. */
+function focusPanel(panel: HTMLElement, content: HTMLElement) {
+  const first = content.querySelector<HTMLElement>(
     "button:not([hidden] *), input"
   );
 
@@ -300,12 +346,13 @@ export function NotePanel({ tab }: { tab: Tab | undefined }) {
   const panel = useNotePanel();
   const showing = shownTab(tab, panel.tab);
   const card = useRef<HTMLElement>(null);
+  const content = useRef<HTMLDivElement>(null);
 
   // Opening takes focus into the panel, as the browser does, so the button
   // that opened it can move to the band without stranding focus.
   useEffect(() => {
-    if (panel.focus > 0 && card.current !== null) {
-      focusPanel(card.current);
+    if (panel.focus > 0 && card.current !== null && content.current !== null) {
+      focusPanel(card.current, content.current);
     }
   }, [panel.focus]);
 
@@ -337,7 +384,7 @@ export function NotePanel({ tab }: { tab: Tab | undefined }) {
       tabIndex={-1}
     >
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-2">
+        <div className="p-2" ref={content}>
           {/* The showing editor portals its live outline in here. */}
           <div hidden={showing !== "outline"} ref={setOutlineHost} />
           {showing === "mentions" && tab?.kind === "note" ? (
@@ -348,6 +395,11 @@ export function NotePanel({ tab }: { tab: Tab | undefined }) {
           ) : null}
         </div>
       </ScrollArea>
+      {tab === undefined ? null : (
+        <div className="text-muted-foreground flex h-8 shrink-0 items-center border-t px-2 py-1">
+          <ViewPicker tab={tab} />
+        </div>
+      )}
     </aside>
   );
 }

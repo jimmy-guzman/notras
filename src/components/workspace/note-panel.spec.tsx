@@ -15,7 +15,11 @@ import {
   restoreTabs,
 } from "@/lib/tabs/store";
 import type { TabSnapshot } from "@/lib/tabs/store";
-import { showNotePanelTab } from "@/lib/ui/note-panel";
+import {
+  closeNotePanel,
+  openNotePanel,
+  showNotePanelTab,
+} from "@/lib/ui/note-panel";
 
 /** A note tab whose tag edits land in the returned list. */
 function openNoteTab() {
@@ -31,12 +35,14 @@ function openNoteTab() {
   const written: string[][] = [];
   const current: Frontmatter = { pinned: false, tags: [], title: undefined };
 
+  const sourceMode = createStore(false);
+
   registerTabSnapshot(
     "a",
     createStore((): TabSnapshot => ({
       pinned: false,
       reason: undefined,
-      sourceMode: false,
+      sourceMode: sourceMode.get(),
       status: "saved",
       tags: [],
       title: "A",
@@ -51,7 +57,9 @@ function openNoteTab() {
     focus: () => {},
     getCaret: () => 0,
     insertText: () => {},
-    setSource: () => {},
+    setSource: (on) => {
+      sourceMode.setState(() => on);
+    },
   });
   showNotePanelTab("tags");
   onTestFinished(() => {
@@ -206,5 +214,112 @@ describe("note panel mentions", () => {
 
     expect(await screen.findByText("Bee")).toBeInTheDocument();
     expect(screen.queryByText("the disk is busy")).not.toBeInTheDocument();
+  });
+});
+
+describe("note panel footer", () => {
+  it("should light the view picked from the footer", async () => {
+    openNoteTab();
+    showNotePanelTab("outline");
+    const { user } = mountPanel();
+
+    await user.click(screen.getByRole("button", { name: "markdown source" }));
+
+    expect(
+      screen.getByRole("button", { name: "markdown source" })
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "graph view" }));
+
+    expect(screen.getByRole("button", { name: "graph view" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(
+      screen.getByRole("button", { name: "markdown source" })
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("should keep the view when its lit toggle is clicked", async () => {
+    openNoteTab();
+    showNotePanelTab("outline");
+    const { user } = mountPanel();
+
+    await user.click(screen.getByRole("button", { name: "markdown source" }));
+    await user.click(screen.getByRole("button", { name: "markdown source" }));
+
+    expect(
+      screen.getByRole("button", { name: "markdown source" })
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("should keep the footer when no notes link here", async () => {
+    openNoteTab();
+    showNotePanelTab("mentions");
+    mockIPC((command) => {
+      if (command === "find_mentions") {
+        return [];
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    mountPanel();
+
+    expect(await screen.findByText("no notes link here")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "view" })).toBeInTheDocument();
+  });
+
+  it("should offer no graph for a file opened from outside", () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "x",
+        carets: {},
+        tabs: [{ id: "x", kind: "external", path: "/elsewhere/x.md" }],
+      })
+    );
+    restoreTabs();
+    onTestFinished(() => {
+      closeTab("x");
+      localStorage.removeItem("tabs");
+    });
+    mountPanel();
+
+    expect(
+      screen.getByRole("button", { name: "markdown source" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "graph view" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should hand focus to the first mention once they load, past the footer", async () => {
+    openNoteTab();
+
+    const mentions = Promise.withResolvers<(typeof BEE)[]>();
+
+    mockIPC(async (command) => {
+      if (command === "find_mentions") {
+        return await mentions.promise;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    openNotePanel("mentions");
+    onTestFinished(() => {
+      closeNotePanel();
+    });
+    mountPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary")).toHaveFocus();
+    });
+    act(() => {
+      mentions.resolve([BEE]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Bee/u })).toHaveFocus();
+    });
   });
 });
