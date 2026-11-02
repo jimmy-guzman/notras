@@ -360,15 +360,20 @@ fn scan(body: &str) -> Scan<'_> {
 
     let bare = autolinks(body, &masked, &prose, &link_spans);
     let swallowed = span_mask(body.len(), bare.iter().map(|(at, _, end)| *at..*end));
+    // A code span or image is opaque itself, so only what starts past an
+    // opaque range's first byte is inside it. Testing each span against every
+    // range took 2.4s for a note of 80k code spans.
+    let inside_opaque = span_mask(
+        body.len(),
+        opaque
+            .iter()
+            .filter(|outer| !outer.is_empty())
+            .map(|outer| outer.start + 1..outer.end),
+    );
     // Whether the editor draws what `span` holds on its own: not inside code,
     // HTML or an image, and not run into by a bare URL before it with no space,
     // which the editor then draws as part of the URL.
-    let stands_alone = |span: &Range<usize>| {
-        !swallowed[span.start]
-            && !opaque
-                .iter()
-                .any(|outer| outer != span && outer.contains(&span.start))
-    };
+    let stands_alone = |span: &Range<usize>| !swallowed[span.start] && !inside_opaque[span.start];
     links.retain(|link| stands_alone(&link.span));
     marks.retain(|(span, _)| stands_alone(span));
     images.retain(|image| stands_alone(image));
