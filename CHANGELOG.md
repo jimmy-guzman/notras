@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.12.1](https://github.com/jimmy-guzman/notras/compare/v0.12.0...v0.12.1) (2026-11-02)
+
+
+### Features
+
+* **ui:** ✨ switch note, source & graph from the panel ([#471](https://github.com/jimmy-guzman/notras/issues/471)) ([55109c3](https://github.com/jimmy-guzman/notras/commit/55109c3eb4b35ffba52b7341caadd120031eb153))
+
+
+### Bug Fixes
+
+* 🐛 preserve settings after failed writes ([#453](https://github.com/jimmy-guzman/notras/issues/453)) ([28235dd](https://github.com/jimmy-guzman/notras/commit/28235dd222428aeaf07dac3609c0f96d4d44125b))
+* **notes:** 🐛 drop link & markup syntax from mentions ([#478](https://github.com/jimmy-guzman/notras/issues/478)) ([91e9dd1](https://github.com/jimmy-guzman/notras/commit/91e9dd1281a30c31e187f2bd85ca9acc403a7ee8))
+* **notes:** 🐛 drop link brackets from mentions ([#475](https://github.com/jimmy-guzman/notras/issues/475)) ([6970407](https://github.com/jimmy-guzman/notras/commit/697040721f05134e7c51ed55ac70c7cf75c3d882))
+* **notes:** 🐛 keep one index per schema version ([#479](https://github.com/jimmy-guzman/notras/issues/479)) ([23aac67](https://github.com/jimmy-guzman/notras/commit/23aac67b0b60c2880fee6570dc80a9af4f695014))
+* **tabs:** 🐛 show note titles on unvisited tabs ([#477](https://github.com/jimmy-guzman/notras/issues/477)) ([b6fec23](https://github.com/jimmy-guzman/notras/commit/b6fec23a4cfc1280b911502f3e97656593f0d0bf))
+* **ui:** 🐛 lighter icons & tabs aligned to the title bar ([#469](https://github.com/jimmy-guzman/notras/issues/469)) ([bafdd07](https://github.com/jimmy-guzman/notras/commit/bafdd0731c39d3dca9ffa763129c0a44e193bfb5))
+
+
+### Refactoring
+
+* **notes:** 🔄 deny unrelated shadowing ([#476](https://github.com/jimmy-guzman/notras/issues/476)) ([f58e9ad](https://github.com/jimmy-guzman/notras/commit/f58e9ad8e10ee8260c9d321bc8627da239847620))
+
 ## [0.12.0](https://github.com/jimmy-guzman/notras/compare/v0.11.6...v0.12.0) (2026-11-02)
 
 
