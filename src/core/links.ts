@@ -4,10 +4,10 @@ import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 
 export interface MentionLine {
+  /** Where the link or mention starts in `context`, in UTF-16 code units. */
+  at: number;
   context: string;
   line: number;
-  /** What the UI finds in `context` to window on: `[[target]]` for a wikilink, the destination for a link, the title for a bare one. */
-  match: string;
 }
 
 export interface Mention {
@@ -18,17 +18,16 @@ export interface Mention {
 /** A row clamps its line, so a link deep in a paragraph would sit past the ellipsis. */
 const CONTEXT_LEAD = 32;
 
-/** The mention's line from a word boundary a little before its match. */
-export function contextFrom(line: Pick<MentionLine, "context" | "match">) {
-  const at = line.context.toLowerCase().indexOf(line.match.toLowerCase());
-  const rough = Math.max(0, at - CONTEXT_LEAD);
+/** The mention's line from a word boundary a little before where it starts. */
+export function contextFrom(line: Pick<MentionLine, "at" | "context">) {
+  const rough = Math.max(0, line.at - CONTEXT_LEAD);
 
   if (rough === 0) {
     return line.context;
   }
 
   const boundary = line.context.indexOf(" ", rough);
-  const start = boundary === -1 || boundary >= at ? rough : boundary + 1;
+  const start = boundary === -1 || boundary >= line.at ? rough : boundary + 1;
 
   return `…${line.context.slice(start)}`;
 }

@@ -5,21 +5,24 @@
       "a.md",
       [
         {
-          "context": "see [[c]]",
+          "at": 4,
+          "context": "see c",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
           "target": "c"
         },
         {
-          "context": "see [[b]]",
+          "at": 4,
+          "context": "see b",
           "kind": "wikilink",
           "line": 2,
           "path": "a.md",
           "target": "b"
         },
         {
-          "context": "see [[c]]",
+          "at": 4,
+          "context": "see c",
           "kind": "wikilink",
           "line": 3,
           "path": "a.md",
@@ -68,14 +71,14 @@
         {
           "lines": [
             {
-              "context": "see [[c]]",
-              "line": 1,
-              "match": "[[c]]"
+              "at": 4,
+              "context": "see c",
+              "line": 1
             },
             {
-              "context": "see [[c]]",
-              "line": 3,
-              "match": "[[c]]"
+              "at": 4,
+              "context": "see c",
+              "line": 3
             }
           ],
           "note": {
@@ -92,9 +95,9 @@
         {
           "lines": [
             {
-              "context": "see [[b]]",
-              "line": 2,
-              "match": "[[b]]"
+              "at": 4,
+              "context": "see b",
+              "line": 2
             }
           ],
           "note": {
@@ -117,14 +120,16 @@
       "a.md",
       [
         {
-          "context": "see [[c]]",
+          "at": 4,
+          "context": "see c",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
           "target": "c"
         },
         {
-          "context": "see [[c]]",
+          "at": 4,
+          "context": "see c",
           "kind": "wikilink",
           "line": 3,
           "path": "a.md",
@@ -163,14 +168,14 @@
         {
           "lines": [
             {
-              "context": "see [[c]]",
-              "line": 1,
-              "match": "[[c]]"
+              "at": 4,
+              "context": "see c",
+              "line": 1
             },
             {
-              "context": "see [[c]]",
-              "line": 3,
-              "match": "[[c]]"
+              "at": 4,
+              "context": "see c",
+              "line": 3
             }
           ],
           "note": {
@@ -193,21 +198,24 @@
       "a.md",
       [
         {
-          "context": "see [[Missing]]",
+          "at": 4,
+          "context": "see Missing",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
           "target": "Missing"
         },
         {
-          "context": "see [[Missing]]",
+          "at": 4,
+          "context": "see Missing",
           "kind": "wikilink",
           "line": 2,
           "path": "a.md",
           "target": "Missing"
         },
         {
-          "context": "see [[also gone]]",
+          "at": 4,
+          "context": "see also gone",
           "kind": "wikilink",
           "line": 3,
           "path": "a.md",
@@ -241,7 +249,8 @@
       "a.md",
       [
         {
-          "context": "see [[missing]]",
+          "at": 4,
+          "context": "see missing",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
@@ -275,7 +284,8 @@
       "a.md",
       [
         {
-          "context": "see [[missing]]",
+          "at": 4,
+          "context": "see missing",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
@@ -314,9 +324,9 @@
         {
           "lines": [
             {
-              "context": "see [[missing]]",
-              "line": 1,
-              "match": "[[missing]]"
+              "at": 4,
+              "context": "see missing",
+              "line": 1
             }
           ],
           "note": {
@@ -339,7 +349,8 @@
       "a.md",
       [
         {
-          "context": "see [[a]]",
+          "at": 4,
+          "context": "see a",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
@@ -373,7 +384,8 @@
       "a.md",
       [
         {
-          "context": "see [[a]]",
+          "at": 4,
+          "context": "see a",
           "kind": "wikilink",
           "line": 1,
           "path": "b.md",
@@ -414,6 +426,7 @@
       ],
       [
         {
+          "at": 4,
           "context": "the a note",
           "line": 3,
           "path": "c.md"
@@ -427,9 +440,9 @@
         {
           "lines": [
             {
-              "context": "see [[a]]",
-              "line": 1,
-              "match": "[[a]]"
+              "at": 4,
+              "context": "see a",
+              "line": 1
             }
           ],
           "note": {
@@ -446,9 +459,9 @@
         {
           "lines": [
             {
+              "at": 4,
               "context": "the a note",
-              "line": 3,
-              "match": "a"
+              "line": 3
             }
           ],
           "note": {
@@ -472,14 +485,16 @@
       "a.md",
       [
         {
-          "context": "see [[b]]",
+          "at": 4,
+          "context": "see b",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
           "target": "b"
         },
         {
-          "context": "see [[a]]",
+          "at": 4,
+          "context": "see a",
           "kind": "wikilink",
           "line": 1,
           "path": "b.md",
@@ -517,9 +532,9 @@
         {
           "lines": [
             {
-              "context": "see [[a]]",
-              "line": 1,
-              "match": "[[a]]"
+              "at": 4,
+              "context": "see a",
+              "line": 1
             }
           ],
           "note": {
@@ -538,9 +553,9 @@
         {
           "lines": [
             {
-              "context": "see [[b]]",
-              "line": 1,
-              "match": "[[b]]"
+              "at": 4,
+              "context": "see b",
+              "line": 1
             }
           ],
           "note": {
@@ -685,7 +700,8 @@
       "work/a.md",
       [
         {
-          "context": "see [[b.md]]",
+          "at": 4,
+          "context": "see b.md",
           "kind": "link",
           "line": 1,
           "path": "work/a.md",
@@ -732,9 +748,9 @@
         {
           "lines": [
             {
-              "context": "see [[b.md]]",
-              "line": 1,
-              "match": "b.md"
+              "at": 4,
+              "context": "see b.md",
+              "line": 1
             }
           ],
           "note": {

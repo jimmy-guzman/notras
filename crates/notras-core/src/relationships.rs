@@ -6,6 +6,8 @@ use crate::{frontmatter, index, markdown, queries::NoteMeta};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct NoteLink {
+    /// The byte in `context` where the link starts.
+    pub at: usize,
     pub context: String,
     pub kind: String,
     pub line: usize,
@@ -16,9 +18,11 @@ pub struct NoteLink {
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MentionLine {
+    /// Where the link or mention starts in `context`, in UTF-16 code units,
+    /// which is how the webview indexes a string.
+    pub at: usize,
     pub context: String,
     pub line: usize,
-    pub r#match: String,
 }
 
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -243,13 +247,9 @@ impl<'a> Resolver<'a> {
 
 fn line_of(link: &NoteLink) -> MentionLine {
     MentionLine {
+        at: link.context[..link.at].encode_utf16().count(),
         context: link.context.clone(),
         line: link.line,
-        r#match: if link.kind == "link" {
-            link.target.clone()
-        } else {
-            format!("[[{}]]", link.target)
-        },
     }
 }
 
@@ -266,12 +266,12 @@ pub fn mentions(
             groups.entry(&link.path).or_default().push(line_of(link));
         }
     }
-    if let Some(target) = notes.iter().find(|note| note.path == path) {
+    if notes.iter().any(|note| note.path == path) {
         for row in bare.iter().filter(|row| row.path != path) {
             groups.entry(&row.path).or_default().push(MentionLine {
+                at: row.context[..row.at].encode_utf16().count(),
                 context: row.context.clone(),
                 line: row.line,
-                r#match: target.title.clone(),
             });
         }
     }
@@ -416,6 +416,7 @@ mod tests {
             .unwrap()
             .iter()
             .map(|row| index::BareMention {
+                at: row["at"].as_u64().unwrap() as usize,
                 context: row["context"].as_str().unwrap().to_owned(),
                 line: row["line"].as_u64().unwrap() as usize,
                 path: row["path"].as_str().unwrap().to_owned(),
@@ -481,6 +482,7 @@ mod tests {
                 })
                 .collect();
             let link = NoteLink {
+                at: 0,
                 context: String::new(),
                 kind: "wikilink".into(),
                 line: 1,

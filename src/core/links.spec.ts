@@ -214,19 +214,16 @@ describe("native resolver parity", () => {
 
 describe(contextFrom, () => {
   it("should keep a line whose link sits near its start", () => {
-    expect(
-      contextFrom({ context: "see [[here]] first", match: "[[here]]" })
-    ).toBe("see [[here]] first");
+    expect(contextFrom({ at: 4, context: "see here first" })).toBe(
+      "see here first"
+    );
   });
 
   it("should start the line a little before its link", () => {
     const padding = "word ".repeat(20);
 
     expect(
-      contextFrom({
-        context: `${padding}[[here]] at the end`,
-        match: "[[here]]",
-      })
-    ).toBe("…word word word word word word [[here]] at the end");
+      contextFrom({ at: padding.length, context: `${padding}here at the end` })
+    ).toBe("…word word word word word word here at the end");
   });
 });
