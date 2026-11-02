@@ -190,10 +190,45 @@ fn span_mask(len: usize, spans: impl IntoIterator<Item = Range<usize>>) -> Vec<b
     mask
 }
 
+/// The part of the code span at `span` the editor draws: inside its backtick
+/// runs, less the one space CommonMark strips from each side of padded code.
+fn code_content(body: &str, span: &Range<usize>) -> Range<usize> {
+    let ticks = body[span.clone()]
+        .bytes()
+        .take_while(|&byte| byte == b'`')
+        .count();
+    let inner = &body[span.start + ticks..span.end - ticks];
+    let padded = inner.starts_with([' ', '\n'])
+        && inner.ends_with([' ', '\n'])
+        && !inner.bytes().all(|byte| matches!(byte, b' ' | b'\n'));
+    let pad = usize::from(padded);
+
+    span.start + ticks + pad..span.end - ticks - pad
+}
+
+/// A link the editor draws as `label`, the bytes of `span` between its opening
+/// `[` or `<` and its closing `]` or `>`. A bare URL is its own label.
+struct FoundLink {
+    label: Range<usize>,
+    span: Range<usize>,
+    target: String,
+}
+
+/// A stretch of source a context reads as `text`.
+struct Shown<'a> {
+    span: Range<usize>,
+    text: &'a str,
+}
+
 struct Scan<'a> {
     link_spans: Vec<Range<usize>>,
-    links: Vec<(usize, String)>,
+    links: Vec<FoundLink>,
     prose: Vec<bool>,
+    /// Each wikilink as its target, and as nothing each image, each link's
+    /// brackets and destination, each emphasis delimiter, each code span's
+    /// backticks and each escaping backslash, since the editor draws no text
+    /// for them. In order.
+    shown: Vec<Shown<'a>>,
     wikilinks: Vec<DrawnWikilink<'a>>,
 }
 
@@ -212,10 +247,30 @@ fn scan(body: &str) -> Scan<'_> {
     let mut prose = vec![false; body.len()];
     let mut opaque: Vec<Range<usize>> = Vec::new();
     let mut open_tags: Vec<(String, usize)> = Vec::new();
-    let mut links = Vec::new();
+    let mut links: Vec<FoundLink> = Vec::new();
+    let mut images: Vec<Range<usize>> = Vec::new();
     let mut link_spans: Vec<Range<usize>> = drawn.iter().map(|link| link.span.clone()).collect();
+    // Each link and emphasis span still open, with the stretch its content
+    // covers so far. An autolink can open inside a link's label.
+    let mut unclosed: Vec<(Range<usize>, Option<Range<usize>>)> = Vec::new();
+    // Each emphasis span, code span and escape, with the stretch the editor
+    // draws as text.
+    let mut marks: Vec<(Range<usize>, Range<usize>)> = Vec::new();
+    let mut text_end = 0;
 
     for (event, range) in Parser::new_ext(&masked, OPTIONS).into_offset_iter() {
+        // A span's content starts at the backslash of an escape that opens it,
+        // or its opening delimiter would overlap the escape's.
+        let escaped = matches!(event, Event::Text(_))
+            && range.start > 0
+            && body.as_bytes()[range.start - 1] == b'\\';
+        let drawn_range = range.start - usize::from(escaped)..range.end;
+        for (span, content) in &mut unclosed {
+            if span.start < drawn_range.start && drawn_range.end < span.end {
+                let seen = content.get_or_insert_with(|| drawn_range.clone());
+                seen.end = seen.end.max(drawn_range.end);
+            }
+        }
         match event {
             Event::Text(_) => {
                 prose[range.clone()].fill(true);
@@ -223,13 +278,26 @@ fn scan(body: &str) -> Scan<'_> {
                 // backslash left out of its range. The backslash is prose to
                 // the editor's tokenizer, which counts them to decide whether
                 // the bracket after them is escaped.
-                if range.start > 0 && body.as_bytes()[range.start - 1] == b'\\' {
+                if escaped {
                     prose[range.start - 1] = true;
+                    // An escaped backslash ends the text before it, so the
+                    // backslash it leaves shown is no escape of its own.
+                    if range.start > text_end {
+                        marks.push((range.start - 1..range.end, range.clone()));
+                    }
                 }
+                text_end = range.end;
             }
-            Event::Code(_) | Event::Html(_) => opaque.push(range),
+            Event::Code(_) => {
+                opaque.push(range.clone());
+                marks.push((range.clone(), code_content(body, &range)));
+            }
+            Event::Html(_) => opaque.push(range),
             Event::InlineHtml(html) => {
                 opaque.push(range.clone());
+                if is_image_tag(&html) {
+                    images.push(range.clone());
+                }
                 match html_tag(&html) {
                     Some(HtmlTag::Open(name)) => open_tags.push((name, range.start)),
                     Some(HtmlTag::Close(name)) => {
@@ -242,13 +310,22 @@ fn scan(body: &str) -> Scan<'_> {
                 }
             }
             Event::Start(tag) => match tag {
-                Tag::Emphasis | Tag::Strong | Tag::Strikethrough => prose[range].fill(true),
+                Tag::Emphasis | Tag::Strong | Tag::Strikethrough => {
+                    prose[range.clone()].fill(true);
+                    unclosed.push((range, None));
+                }
                 Tag::Link { dest_url, .. } => {
                     link_spans.push(range.clone());
-                    links.push((range.start, dest_url.to_string()));
+                    unclosed.push((range.clone(), None));
+                    links.push(FoundLink {
+                        label: range.start + 1..range.start + 1,
+                        span: range,
+                        target: dest_url.to_string(),
+                    });
                 }
                 Tag::Image { .. } => {
                     opaque.push(range.clone());
+                    images.push(range.clone());
                     link_spans.push(range);
                 }
                 Tag::Superscript | Tag::Subscript => {}
@@ -258,6 +335,21 @@ fn scan(body: &str) -> Scan<'_> {
                 }
                 _ => open_tags.clear(),
             },
+            Event::End(
+                end @ (TagEnd::Link | TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough),
+            ) => {
+                let (span, content) = unclosed.pop().expect("pulldown closes each tag it opens");
+                let content = content.unwrap_or(span.start + 1..span.start + 1);
+                if end == TagEnd::Link {
+                    links
+                        .iter_mut()
+                        .rfind(|link| link.span == span)
+                        .expect("a link ends after it starts")
+                        .label = content;
+                } else if !editor_keeps_open(&masked, &span) {
+                    marks.push((span, content));
+                }
+            }
             _ => {}
         }
     }
@@ -265,28 +357,64 @@ fn scan(body: &str) -> Scan<'_> {
     for range in &opaque {
         prose[range.clone()].fill(false);
     }
-    links.retain(|(at, _)| !opaque.iter().any(|span| span.contains(at)));
 
-    // A bare URL runs on through a link that follows it with no space, which
-    // the editor then draws as part of the URL.
     let bare = autolinks(body, &masked, &prose, &link_spans);
     let swallowed = span_mask(body.len(), bare.iter().map(|(at, _, end)| *at..*end));
-    links.retain(|(at, _)| !swallowed[*at]);
+    // A code span or image is opaque itself, so only what starts past an
+    // opaque range's first byte is inside it. Testing each span against every
+    // range took 2.4s for a note of 80k code spans.
+    let inside_opaque = span_mask(
+        body.len(),
+        opaque
+            .iter()
+            .filter(|outer| !outer.is_empty())
+            .map(|outer| outer.start + 1..outer.end),
+    );
+    // Whether the editor draws what `span` holds on its own: not inside code,
+    // HTML or an image, and not run into by a bare URL before it with no space,
+    // which the editor then draws as part of the URL.
+    let stands_alone = |span: &Range<usize>| !swallowed[span.start] && !inside_opaque[span.start];
+    links.retain(|link| stands_alone(&link.span));
+    marks.retain(|(span, _)| stands_alone(span));
+    images.retain(|image| stands_alone(image));
     for (at, target, end) in bare {
-        links.push((at, target));
+        links.push(FoundLink {
+            label: at..end,
+            span: at..end,
+            target,
+        });
         link_spans.push(at..end);
     }
-    links.sort_by_key(|(at, _)| *at);
+    links.sort_by_key(|link| link.span.start);
 
-    let wikilinks = drawn
+    let wikilinks: Vec<_> = drawn
         .into_iter()
         .filter(|link| prose[link.span.start])
         .collect();
+    let mut shown: Vec<_> = wikilinks
+        .iter()
+        .map(|link| Shown {
+            span: link.span.clone(),
+            text: link.target,
+        })
+        .chain(
+            links
+                .iter()
+                .map(|link| (link.span.clone(), link.label.clone()))
+                .chain(marks)
+                .flat_map(|(span, content)| [span.start..content.start, content.end..span.end])
+                .filter(|span| !span.is_empty())
+                .chain(images)
+                .map(|span| Shown { span, text: "" }),
+        )
+        .collect();
+    shown.sort_by_key(|piece| piece.span.start);
 
     Scan {
         link_spans,
         links,
         prose,
+        shown,
         wikilinks,
     }
 }
@@ -542,26 +670,26 @@ fn line_starts(body: &str) -> Vec<usize> {
 const CONTEXT_BEFORE: usize = 160;
 const CONTEXT_AFTER: usize = 400;
 
-/// `body[range]` with each of `wikilinks` and embeds read as its target, and
-/// the byte in that text where `at`, or the wikilink holding it, now starts.
-/// `wikilinks` are the ones inside `range`, in order.
-fn read_as_targets(
+/// `body[range]` with each of `shown` read as its text, and the byte in that
+/// text where `at`, or the piece holding it, now starts. `shown` are the
+/// pieces inside `range`, in order.
+fn read_as_shown(
     body: &str,
     range: Range<usize>,
-    wikilinks: &[DrawnWikilink<'_>],
+    shown: &[Shown<'_>],
     at: usize,
 ) -> (String, usize) {
     let mut text = String::new();
     let mut cursor = range.start;
     let mut subject = None;
 
-    for link in wikilinks {
-        if subject.is_none() && at < link.span.end {
-            subject = Some(text.len() + (at - cursor).min(link.span.start - cursor));
+    for piece in shown {
+        if subject.is_none() && at < piece.span.end {
+            subject = Some(text.len() + (at - cursor).min(piece.span.start - cursor));
         }
-        text.push_str(&body[cursor..link.span.start]);
-        text.push_str(link.target);
-        cursor = link.span.end;
+        text.push_str(&body[cursor..piece.span.start]);
+        text.push_str(piece.text);
+        cursor = piece.span.end;
     }
     let subject = subject.unwrap_or_else(|| text.len() + at - cursor);
     text.push_str(&body[cursor..range.end]);
@@ -569,28 +697,43 @@ fn read_as_targets(
     (text, subject)
 }
 
-/// The 1-based line holding byte `at`, that line's text read as targets, and
-/// the byte in that text where `at`, or the wikilink holding it, now starts. A
-/// long line is cut to a window around `at`, keeping whole any wikilink the
-/// window cuts. Unlike the note browser's preview, an embed keeps its target,
-/// since the row may be the embed's own.
-fn line_at(
-    body: &str,
-    starts: &[usize],
-    wikilinks: &[DrawnWikilink<'_>],
-    at: usize,
-) -> (usize, String, usize) {
+/// Where a window before `at` starts so that it shows `CONTEXT_BEFORE` bytes,
+/// not counting what `before`, the pieces ending at or before `at`, hides. A
+/// long destination would otherwise fill the lead and push its label out. The
+/// window starts no earlier than `line_start`.
+fn lead_start(before: &[Shown<'_>], at: usize, line_start: usize) -> usize {
+    let mut from = at.saturating_sub(CONTEXT_BEFORE);
+    // Counting pieces rather than bytes still crosses one long destination
+    // whole. Without a bound, a line of pieces with nothing shown between them
+    // walks back over every one for each link on it: 1.6s against 0.3s for
+    // 20k image links on one line.
+    for piece in before.iter().rev().take(CONTEXT_BEFORE) {
+        if piece.span.end <= from {
+            break;
+        }
+        from = from.saturating_sub(piece.span.len() - piece.text.len());
+    }
+    from.max(line_start)
+}
+
+/// The 1-based line holding byte `at`, that line's text with each of `shown`
+/// read as its text, and the byte in that text where `at`, or the piece
+/// holding it, now starts. A long line is cut to a window around `at`, keeping
+/// whole any piece the window cuts. Unlike the note browser's preview, an
+/// embed keeps its target, since the row may be the embed's own.
+fn line_at(body: &str, starts: &[usize], shown: &[Shown<'_>], at: usize) -> (usize, String, usize) {
     let line = starts.partition_point(|&start| start <= at);
     let line_end = starts.get(line).map_or(body.len(), |next| next - 1);
-    let from = body.floor_char_boundary(at.saturating_sub(CONTEXT_BEFORE).max(starts[line - 1]));
+    let before = &shown[..shown.partition_point(|piece| piece.span.end <= at)];
+    let from = body.floor_char_boundary(lead_start(before, at, starts[line - 1]));
     let to = body.ceil_char_boundary((at + CONTEXT_AFTER).min(line_end));
-    let inside = &wikilinks[wikilinks.partition_point(|link| link.span.end <= from)
-        ..wikilinks.partition_point(|link| link.span.start < to)];
+    let inside = &shown[shown.partition_point(|piece| piece.span.end <= from)
+        ..shown.partition_point(|piece| piece.span.start < to)];
     let from = inside
         .first()
-        .map_or(from, |link| link.span.start.min(from));
-    let to = inside.last().map_or(to, |link| link.span.end.max(to));
-    let (text, subject) = read_as_targets(body, from..to, inside, at);
+        .map_or(from, |piece| piece.span.start.min(from));
+    let to = inside.last().map_or(to, |piece| piece.span.end.max(to));
+    let (text, subject) = read_as_shown(body, from..to, inside, at);
 
     (line, text.trim_end_matches('\r').to_owned(), subject)
 }
@@ -1036,14 +1179,15 @@ pub(crate) fn readable_text(body: &str) -> String {
 /// below and `src/components/editor/wikilink.spec.ts` assert one table of cases.
 pub(crate) fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
     let starts = line_starts(body);
-
-    let wikilinks = scan(body).wikilinks;
+    let Scan {
+        shown, wikilinks, ..
+    } = scan(body);
 
     wikilinks
         .iter()
         .map(|link| {
             let open = link.span.start + usize::from(link.embed);
-            let (line, context, at) = line_at(body, &starts, &wikilinks, open);
+            let (line, context, at) = line_at(body, &starts, &shown, open);
 
             Wikilink {
                 at,
@@ -1068,20 +1212,18 @@ pub(crate) struct MarkdownLink {
 /// `src/components/editor/markdown-link.spec.ts` assert one table of cases.
 pub(crate) fn destinations(body: &str) -> Vec<MarkdownLink> {
     let starts = line_starts(body);
-    let Scan {
-        links, wikilinks, ..
-    } = scan(body);
+    let Scan { links, shown, .. } = scan(body);
 
     links
         .into_iter()
-        .map(|(open, target)| {
-            let (line, context, at) = line_at(body, &starts, &wikilinks, open);
+        .map(|link| {
+            let (line, context, at) = line_at(body, &starts, &shown, link.span.start);
 
             MarkdownLink {
                 at,
                 context,
                 line,
-                target,
+                target: link.target,
             }
         })
         .collect()
@@ -1129,7 +1271,7 @@ pub(crate) fn bare_mentions(
     let Scan {
         link_spans: links,
         prose,
-        wikilinks,
+        shown,
         ..
     } = scan(body);
     let title_line = exclude_title_line
@@ -1158,7 +1300,7 @@ pub(crate) fn bare_mentions(
             let linked = links
                 .iter()
                 .any(|span| start < span.end && end > span.start);
-            let (line, context, offset) = line_at(body, &starts, &wikilinks, start);
+            let (line, context, offset) = line_at(body, &starts, &shown, start);
 
             if !bounded || linked || title_line == Some(line - 1) {
                 continue;
@@ -1283,11 +1425,11 @@ mod tests {
     }
 
     #[test]
-    fn should_read_each_link_in_a_context_as_its_target() {
+    fn should_read_each_link_in_a_context_as_the_editor_draws_it() {
         let links = wikilinks("the [[Pour-over]] at 15g ![[cup.png]] and `[[code]]`\n");
         assert_eq!(
             links[0].context,
-            "the Pour-over at 15g cup.png and `[[code]]`"
+            "the Pour-over at 15g cup.png and [[code]]"
         );
         assert_eq!((links[0].at, links[1].at), (4, 21));
 
@@ -1307,7 +1449,43 @@ mod tests {
         let link = destinations("[[Grinder]] then [map](atlas.md)");
         assert_eq!(
             (link[0].context.as_str(), link[0].at),
-            ("Grinder then [map](atlas.md)", 13)
+            ("Grinder then map", 13)
+        );
+
+        let forms = destinations(
+            "[see [[a]]](x), [**r**][ref], [](e.md), <https://y> and www.z.dev\n\n[ref]: r.md",
+        );
+        assert_eq!(
+            forms
+                .iter()
+                .map(|found| (found.context.as_str(), found.at))
+                .collect::<Vec<_>>(),
+            [
+                ("see a, r, , https://y and www.z.dev", 0),
+                ("see a, r, , https://y and www.z.dev", 7),
+                ("see a, r, , https://y and www.z.dev", 10),
+                ("see a, r, , https://y and www.z.dev", 12),
+                ("see a, r, , https://y and www.z.dev", 26),
+            ]
+        );
+        let beside_link = bare_mentions("[map](atlas.md) on the Atlas", "atlas", false);
+        assert_eq!(beside_link[0], (1, "map on the Atlas".to_owned(), 11));
+
+        let nested = destinations("[see <https://q> here](d.md) Atlas");
+        assert_eq!(
+            (nested[0].context.as_str(), nested[0].at),
+            ("see https://q here Atlas", 0)
+        );
+
+        let pictured = destinations(
+            "[![x](i.png)](a.md), ![y [z](b.md)](j.png) <img src=\"p.png\"> [k](c.md)",
+        );
+        assert_eq!(
+            pictured
+                .iter()
+                .map(|found| (found.context.as_str(), found.at))
+                .collect::<Vec<_>>(),
+            [(",   k", 0), (",   k", 4)]
         );
 
         let cut = format!(
@@ -1325,6 +1503,50 @@ mod tests {
     }
 
     #[test]
+    fn should_drop_emphasis_code_and_escape_markers_from_a_context() {
+        let marked = bare_mentions("**Atlas** and _b_ ~~c~~ \\*d\\\\ Atlas", "atlas", false);
+        assert_eq!(
+            marked
+                .iter()
+                .map(|(_, context, at)| (context.as_str(), *at))
+                .collect::<Vec<_>>(),
+            [
+                ("Atlas and b c *d\\ Atlas", 0),
+                ("Atlas and b c *d\\ Atlas", 18)
+            ]
+        );
+
+        let opening = bare_mentions("[\\[draft\\] notes](a.md) and *\\*c* Atlas", "atlas", false);
+        assert_eq!(opening[0], (1, "[draft] notes and *c Atlas".to_owned(), 21));
+
+        let left_open = bare_mentions("*a(b)*~~c~~ Atlas", "atlas", false);
+        assert_eq!(left_open[0], (1, "*a(b)*c Atlas".to_owned(), 8));
+
+        let unpaired = bare_mentions("*a(b)*~~c~~ and (d)*e Atlas", "atlas", false);
+        assert_eq!(unpaired[0], (1, "*a(b)*c and (d)*e Atlas".to_owned(), 18));
+
+        let coded = bare_mentions("`` a`b `` and [`c`](x.md) Atlas", "atlas", false);
+        assert_eq!(coded[0], (1, "a`b and c Atlas".to_owned(), 10));
+    }
+
+    #[test]
+    fn should_keep_a_link_label_in_the_lead_past_a_long_destination() {
+        let body = format!(
+            "{} [the doc](https://example.test/{}) mentions Atlas",
+            "x".repeat(300),
+            "y".repeat(2000)
+        );
+        let mention = &bare_mentions(&body, "atlas", false)[0];
+
+        assert!(
+            mention.1.ends_with("xx the doc mentions Atlas"),
+            "{}",
+            mention.1
+        );
+        assert_eq!(&mention.1[mention.2..], "Atlas");
+    }
+
+    #[test]
     fn should_find_each_mention_on_a_line_that_opens_with_code() {
         let mentions = bare_mentions("`x` Ada, Ada", "ada", false);
 
@@ -1333,7 +1555,7 @@ mod tests {
                 .iter()
                 .map(|(_, _, offset)| *offset)
                 .collect::<Vec<_>>(),
-            [4, 9]
+            [2, 7]
         );
     }
 

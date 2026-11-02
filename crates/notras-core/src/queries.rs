@@ -1034,8 +1034,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             [
                 ("Atlas in prose", 0),
-                ("Atlas and [map](atlas.md)", 0),
-                ("Atlas and [map](atlas.md)", 10)
+                ("Atlas and map", 0),
+                ("Atlas and map", 10)
             ]
         );
         save(&core, "atlas.md", "# Earth", 3);
@@ -1106,10 +1106,7 @@ mod tests {
                 ],
             })
             .unwrap();
-        assert_eq!(
-            link_first[0].snippet.as_deref(),
-            Some("[site](https://example.test)")
-        );
+        assert_eq!(link_first[0].snippet.as_deref(), Some("site"));
     }
 
     #[test]
