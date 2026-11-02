@@ -51,8 +51,8 @@ pub(crate) fn settings_error(error: tauri_plugin_store::Error) -> CommandError {
     let reason = match &error {
         Error::Io(error) => CommandError::io_reason(error),
         Error::Serialize(source) | Error::Deserialize(source) => {
-            if let Some(error) = source.downcast_ref::<std::io::Error>() {
-                CommandError::io_reason(error)
+            if let Some(io_error) = source.downcast_ref::<std::io::Error>() {
+                CommandError::io_reason(io_error)
             } else if source.is::<serde_json::Error>() {
                 "The settings data is invalid".into()
             } else {
@@ -188,13 +188,13 @@ mod tests {
 
         assert_eq!(error.kind, notras_core::ErrorKind::Failed);
         assert_eq!(error.message, "No such file");
-        let source = error
+        let store_error = error
             .source()
             .unwrap()
             .downcast_ref::<tauri_plugin_store::Error>()
             .unwrap();
         assert!(
-            matches!(source, tauri_plugin_store::Error::Io(error) if error.kind() == io::ErrorKind::NotFound)
+            matches!(store_error, tauri_plugin_store::Error::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound)
         );
     }
 

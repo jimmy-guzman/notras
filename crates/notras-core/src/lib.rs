@@ -157,9 +157,10 @@ mod tests {
 
         let external = library.directory().join("external.md");
         fs::write(&external, "# external").unwrap();
-        let mut scan = library.begin_observations(vec![external.clone(), external.clone()]);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        assert_eq!(library.finish_scan(scan).unwrap(), ["external.md"]);
+        let mut external_scan =
+            library.begin_observations(vec![external.clone(), external.clone()]);
+        while !library.advance_scan(&mut external_scan).unwrap() {}
+        assert_eq!(library.finish_scan(external_scan).unwrap(), ["external.md"]);
         assert_eq!(
             library
                 .read_view()
@@ -169,9 +170,9 @@ mod tests {
                 .len(),
             2
         );
-        let mut scan = library.begin_observations(vec![external]);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        assert!(library.finish_scan(scan).unwrap().is_empty());
+        let mut repeat_scan = library.begin_observations(vec![external]);
+        while !library.advance_scan(&mut repeat_scan).unwrap() {}
+        assert!(library.finish_scan(repeat_scan).unwrap().is_empty());
     }
 
     #[test]
@@ -186,9 +187,9 @@ mod tests {
 
         assert!(library.index_needs_rebuild());
         assert!(library.read_view().is_err());
-        let mut scan = library.begin_scan(true);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
+        let mut rescan = library.begin_scan(true);
+        while !library.advance_scan(&mut rescan).unwrap() {}
+        library.finish_scan(rescan).unwrap();
         assert_eq!(
             library
                 .read_view()
@@ -215,9 +216,9 @@ mod tests {
 
         fs::rename(&source, &destination).unwrap();
 
-        let mut scan = library.begin_observations(vec![source, destination]);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        let mut changed = library.finish_scan(scan).unwrap();
+        let mut move_scan = library.begin_observations(vec![source, destination]);
+        while !library.advance_scan(&mut move_scan).unwrap() {}
+        let mut changed = library.finish_scan(move_scan).unwrap();
         changed.sort();
         assert_eq!(
             changed,
@@ -246,9 +247,9 @@ mod tests {
         assert!(library.read_view().is_err());
 
         fs::write(&unreadable, "# readable").unwrap();
-        let mut scan = library.begin_scan(true);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        library.finish_scan(scan).unwrap();
+        let mut rescan = library.begin_scan(true);
+        while !library.advance_scan(&mut rescan).unwrap() {}
+        library.finish_scan(rescan).unwrap();
         let notes = library
             .read_view()
             .unwrap()
@@ -256,9 +257,9 @@ mod tests {
             .unwrap();
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, "readable");
-        let mut scan = library.begin_observations(vec![unreadable]);
-        while !library.advance_scan(&mut scan).unwrap() {}
-        assert!(library.finish_scan(scan).unwrap().is_empty());
+        let mut repeat_scan = library.begin_observations(vec![unreadable]);
+        while !library.advance_scan(&mut repeat_scan).unwrap() {}
+        assert!(library.finish_scan(repeat_scan).unwrap().is_empty());
     }
 
     #[test]

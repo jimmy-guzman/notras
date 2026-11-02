@@ -108,11 +108,11 @@ pub(crate) fn is_image_tag(html: &str) -> bool {
     let Some(rest) = html.strip_prefix('<') else {
         return false;
     };
-    let name_len = rest.chars().take_while(char::is_ascii_alphanumeric).count();
-    if !rest[..name_len].eq_ignore_ascii_case("img") {
+    let tag_len = rest.chars().take_while(char::is_ascii_alphanumeric).count();
+    if !rest[..tag_len].eq_ignore_ascii_case("img") {
         return false;
     }
-    let mut rest = &rest[name_len..];
+    let mut rest = &rest[tag_len..];
     let mut has_src = false;
     loop {
         let trimmed = rest.trim_start();
@@ -1135,7 +1135,7 @@ pub(crate) fn bare_mentions(
     let title_line = exclude_title_line
         .then(|| body_title(body))
         .flatten()
-        .map(|title| title.line);
+        .map(|heading| heading.line);
     let is_word = |ch: char| ch.is_alphanumeric() || ch == '_';
     let starts = line_starts(body);
     let mut found = Vec::new();
