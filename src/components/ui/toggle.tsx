@@ -25,9 +25,9 @@ const toggleVariants = cva(
           "aria-pressed:bg-muted aria-pressed:text-foreground dark:aria-pressed:bg-muted/50 bg-transparent",
         // A pink line on the edge facing the content marks the pressed one, as the outline marks the heading being read.
         "mark-bottom":
-          "aria-pressed:before:bg-primary relative bg-transparent aria-pressed:before:absolute aria-pressed:before:inset-x-1.5 aria-pressed:before:bottom-0 aria-pressed:before:h-0.5 aria-pressed:before:rounded-full",
+          "aria-pressed:before:bg-primary relative bg-transparent aria-pressed:before:absolute aria-pressed:before:inset-x-1.5 aria-pressed:before:bottom-0 aria-pressed:before:h-0.5 aria-pressed:before:rounded-full forced-colors:aria-pressed:before:bg-[ButtonText]",
         "mark-top":
-          "aria-pressed:before:bg-primary relative bg-transparent aria-pressed:before:absolute aria-pressed:before:inset-x-1.5 aria-pressed:before:top-0 aria-pressed:before:h-0.5 aria-pressed:before:rounded-full",
+          "aria-pressed:before:bg-primary relative bg-transparent aria-pressed:before:absolute aria-pressed:before:inset-x-1.5 aria-pressed:before:top-0 aria-pressed:before:h-0.5 aria-pressed:before:rounded-full forced-colors:aria-pressed:before:bg-[ButtonText]",
         outline:
           "border-input hover:bg-muted aria-pressed:bg-muted aria-pressed:text-foreground dark:aria-pressed:bg-muted/50 border bg-transparent",
       },
