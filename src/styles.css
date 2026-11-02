@@ -141,7 +141,7 @@
   --info: #83bac7;
   --border: #282729;
   --input: #7b747d;
-  --band-divider: color-mix(in srgb, white 28%, var(--shell));
+  --band-divider: color-mix(in srgb, white 29%, var(--shell));
   --ink-on-dark: var(--foreground);
   --ink-on-light: var(--background);
   --ring: #e99ac2;
@@ -187,7 +187,7 @@
     --info: #196f85;
     --border: #dedbd9;
     --input: #aaa4ad;
-    --band-divider: color-mix(in srgb, black 37%, var(--shell));
+    --band-divider: color-mix(in srgb, black 38%, var(--shell));
     --ink-on-dark: var(--background);
     --ink-on-light: var(--foreground);
     --ring: #ae286f;
