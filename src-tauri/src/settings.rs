@@ -96,7 +96,10 @@ impl Settings {
     pub(crate) fn load(path: PathBuf) -> Result<Self, CommandError> {
         let values = match fs::read(&path) {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| {
-                CommandError::with_source("The settings data is invalid", error)
+                CommandError::with_source(
+                    format!("The settings file {} is invalid", path.display()),
+                    error,
+                )
             })?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 // A dangling symlink is an existing, unreadable setting, not a first launch.
@@ -277,7 +280,10 @@ mod tests {
             fs::write(&path, original).unwrap();
             let error = Settings::load(path.clone()).err().unwrap();
             assert_eq!(error.kind, ErrorKind::Failed);
-            assert_eq!(error.message, "The settings data is invalid");
+            assert_eq!(
+                error.to_string(),
+                format!("The settings file {} is invalid", path.display())
+            );
             assert!(error.source().unwrap().is::<serde_json::Error>());
             assert_eq!(fs::read_to_string(path).unwrap(), original);
         }
