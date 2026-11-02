@@ -51,6 +51,8 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
+/// A newer version rebuilds too: every build shares one index, and an older
+/// build cannot write rows into a newer build's tables.
 const SCHEMA_VERSION: i64 = 14;
 
 /// The derived, disposable search index. Files are the source of truth; this
@@ -68,8 +70,10 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("PRAGMA journal_mode = WAL;")?;
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     let tx = conn.unchecked_transaction()?;
-    if version < SCHEMA_VERSION {
-        log::info!("index schema {version} is behind {SCHEMA_VERSION}, rebuilding for the rescan");
+    if version != SCHEMA_VERSION {
+        log::info!(
+            "index schema {version} differs from {SCHEMA_VERSION}, rebuilding for the rescan"
+        );
         tx.execute_batch(
             "DROP TABLE IF EXISTS note_fts;
              DROP TABLE IF EXISTS folder;
@@ -123,7 +127,7 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
          );",
     )?;
 
-    if version < SCHEMA_VERSION {
+    if version != SCHEMA_VERSION {
         tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
     tx.commit()
@@ -852,6 +856,28 @@ mod tests {
             select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
             vec![vec![json!("b")]]
         );
+    }
+
+    #[test]
+    fn should_drop_rows_from_a_newer_schema_on_open() {
+        let dir_directory = tempfile::tempdir().unwrap();
+        let dir = dir_directory.path().to_owned();
+        fs::write(dir.join("a.md"), "see [[b]]\n").unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
+
+        conn.pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .unwrap();
+        ensure_schema(&conn).unwrap();
+
+        assert!(select(&conn, "SELECT path FROM note_link", &[])
+            .unwrap()
+            .is_empty());
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
     }
 
     #[test]
