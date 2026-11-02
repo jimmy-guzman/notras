@@ -20,7 +20,7 @@ import {
   SortableContext,
   useSortable,
 } from "@dnd-kit/sortable";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import {
   ChevronDownIcon,
@@ -57,7 +57,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { noteTitle } from "@/core/notes";
-import { notesDirQuery } from "@/data/queries";
+import { noteQueries, notesDirQuery } from "@/data/queries";
 import { copyTabPath } from "@/lib/tabs/copy-path";
 import {
   activateTab,
@@ -189,6 +189,22 @@ function TabMarker({ snapshot, tab, view }: TabMarkerProps) {
   );
 }
 
+/** The live title, then the indexed one before the session loads, then the filename. */
+function useTabLabel(tab: Tab) {
+  const snapshot = useTabSnapshot(tab.id);
+
+  const { data: notes } = useQuery({
+    ...noteQueries.list(),
+    enabled: tab.kind === "note",
+  });
+
+  return (
+    snapshot?.title ??
+    notes?.find((note) => note.path === tab.path)?.title ??
+    noteTitle(tab.path)
+  );
+}
+
 interface TabItemProps {
   active: boolean;
   notesDir: string;
@@ -201,7 +217,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
   const { id } = tab;
   const snapshot = useTabSnapshot(id);
   const view = useTabView(id);
-  const label = snapshot?.title ?? noteTitle(tab.path);
+  const label = useTabLabel(tab);
   const viewId = `${tabButtonId(id)}-view`;
 
   const {
@@ -336,8 +352,7 @@ interface TabListItemProps {
 }
 
 function TabListItem({ tab }: TabListItemProps) {
-  const snapshot = useTabSnapshot(tab.id);
-  const label = snapshot?.title ?? noteTitle(tab.path);
+  const label = useTabLabel(tab);
 
   return (
     <DropdownMenuRadioItem closeOnClick value={tab.id}>
