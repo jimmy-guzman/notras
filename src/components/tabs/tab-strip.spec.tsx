@@ -21,11 +21,20 @@ import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { tabPanelId } from "@/lib/tabs/tab";
 import { hideGraph, showGraph } from "@/lib/ui/view";
+import type { NoteMeta } from "@/server/adapters/bindings";
 
-async function mountStrip(tabs: Tab[], activeId = tabs[0]?.id ?? "") {
+async function mountStrip(
+  tabs: Tab[],
+  activeId = tabs[0]?.id ?? "",
+  notes: NoteMeta[] = []
+) {
   mockIPC((command) => {
     if (command === "get_notes_dir") {
       return "/notes";
+    }
+
+    if (command === "list_notes") {
+      return notes;
     }
 
     if (command.startsWith("plugin:")) {
@@ -109,6 +118,64 @@ describe("tab strip", () => {
   );
 
   describe("tab labels", () => {
+    it("should use the indexed title for a note until the live title loads", async () => {
+      const user = userEvent.setup();
+      await mountStrip(
+        [
+          { id: "taste", kind: "note", path: "taste.md" },
+          { id: "ideas", kind: "note", path: "ideas.md" },
+        ],
+        "taste",
+        [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "ideas.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "Ideas",
+            updatedAt: 0,
+          },
+          {
+            createdAt: 0,
+            folder: "",
+            path: "taste.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "TASTE",
+            updatedAt: 0,
+          },
+        ]
+      );
+      expect(await screen.findByRole("tab", { name: "TASTE" })).toBeVisible();
+      expect(screen.getByRole("tab", { name: "Ideas" })).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "show tabs" }));
+      expect(
+        await screen.findByRole("menuitemradio", { name: "TASTE" })
+      ).toBeVisible();
+
+      const snapshot = createStore<TabSnapshot>({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Live title",
+      });
+
+      act(() => {
+        onTestFinished(
+          registerTabSnapshot(
+            "taste",
+            createStore(() => snapshot.get())
+          )
+        );
+      });
+      expect(screen.getByRole("tab", { name: "Live title" })).toBeVisible();
+    });
+
     it.each([String.raw`C:\notes\draft.md`, "/notes/draft.md"])(
       "should use the filename until the live title loads for %s",
       async (path) => {
