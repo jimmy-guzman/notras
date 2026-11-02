@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.12.0](https://github.com/jimmy-guzman/notras/compare/v0.11.6...v0.12.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ui:** 💥 the title bar drops the view picker, find a note and the mention count; ⌘⇧L and ⌘⇧Y open the note panel
+
+### Features
+
+* **editor:** ✨ mono members & readable fills in diagrams ([#445](https://github.com/jimmy-guzman/notras/issues/445)) ([b78ce31](https://github.com/jimmy-guzman/notras/commit/b78ce31d862cea311754d9707679f5e55e3d3956))
+* **tabs:** ✨ attach tabs to the note & hold their width ([#450](https://github.com/jimmy-guzman/notras/issues/450)) ([51f0d3c](https://github.com/jimmy-guzman/notras/commit/51f0d3c469251fea387213cc689c43a0932da8d0))
+* **tabs:** ✨ open links beside the note you read ([#455](https://github.com/jimmy-guzman/notras/issues/455)) ([ea54941](https://github.com/jimmy-guzman/notras/commit/ea54941d102c1ee9efeb78390e23d05e7db5e128))
+* **tabs:** ✨ separate tabs with dividers ([#463](https://github.com/jimmy-guzman/notras/issues/463)) ([b2dc40a](https://github.com/jimmy-guzman/notras/commit/b2dc40a59aa3f8df7b84dafd9b040409758bde67))
+* **ui:** ✨ outline, mentions & tags in a panel ([#458](https://github.com/jimmy-guzman/notras/issues/458)) ([83cfaf5](https://github.com/jimmy-guzman/notras/commit/83cfaf5f6fc1ba6ef8f3e9c97936aeef92e5de96))
+
+
+### Bug Fixes
+
+* 🐛 explain failure reasons ([#451](https://github.com/jimmy-guzman/notras/issues/451)) ([b8d213a](https://github.com/jimmy-guzman/notras/commit/b8d213a0c8115c5640fda714a8989c63d7beebbd))
+* **deps:** 🐛 patch systeminformation advisory ([#452](https://github.com/jimmy-guzman/notras/issues/452)) ([b567114](https://github.com/jimmy-guzman/notras/commit/b56711418d3515f5c7e88b2977b8f23a64d23007))
+* **editor:** 🐛 click links & checkboxes inside a selection ([#462](https://github.com/jimmy-guzman/notras/issues/462)) ([6f42138](https://github.com/jimmy-guzman/notras/commit/6f4213836690136fa23988712b558468768de45a))
+* **editor:** 🐛 keep text after code or a heading in a list item ([#460](https://github.com/jimmy-guzman/notras/issues/460)) ([4575d4e](https://github.com/jimmy-guzman/notras/commit/4575d4e0d90e4bdcdfa056ebb2615367611b8e75))
+* **tabs:** 🐛 center tab titles vertically ([#454](https://github.com/jimmy-guzman/notras/issues/454)) ([ae06b2b](https://github.com/jimmy-guzman/notras/commit/ae06b2bc7b9524ee413d84a657827ae93e91781a))
+* **ui:** 🐛 wait before opening tooltips ([#459](https://github.com/jimmy-guzman/notras/issues/459)) ([bbd4cab](https://github.com/jimmy-guzman/notras/commit/bbd4cabf14b92474260bf0bb592f6cd554a01ee3))
+* **ui:** 🐛 widen the command palette ([#467](https://github.com/jimmy-guzman/notras/issues/467)) ([0cac52c](https://github.com/jimmy-guzman/notras/commit/0cac52ccc956b944742dfdade48d046ac12fbd5e))
+
 ## [0.11.6](https://github.com/jimmy-guzman/notras/compare/v0.11.5...v0.11.6) (2026-10-30)
 
 
